@@ -10,7 +10,13 @@ from django.urls import reverse
 
 from n26.core.card import build_card, build_modifier_index, carriers
 from n26.core.effects import compute
-from n26.core.models import ActionAllowance, ActionRecord, Assignment, LedgerEvent
+from n26.core.models import (
+    ActionAllowance,
+    ActionRecord,
+    AdvancementSelection,
+    Assignment,
+    LedgerEvent,
+)
 from n26.core.operations import Refusal, operation
 from n26.core.rating import read_rating_receipt
 from n26.core.reconcile import assert_reconciled
@@ -919,7 +925,9 @@ class TestPromotions:
     ):
         allowance = _earned(progression, 13)
         record, choose_url = _start(client, progression, allowance)
+        assert not AdvancementSelection.objects.filter(action_record=record).exists()
         page = client.get(choose_url)
+        assert page.status_code == 200
         assert page.context["stage"] == "advancement"
         assert "Choose a promotion" in page.content.decode()
         assert len(page.context["advancement_options"]) == 8
@@ -1219,6 +1227,7 @@ class TestPromotions:
             row.save()
         bonus_pick = promotion.slot.picklist.available_members().get().pickable
         a.revise(bonus_pick, rating_contribution=10)
+        a.revise(promotion.slot, pick_rating_override=5)
         promotion.full_clean()
         existing_skill = Skill.objects.get(name="Clamber")
         with operation(progression.gang, actor=progression.owner) as op:
@@ -1244,8 +1253,11 @@ class TestPromotions:
             for item in page.context["advancement_options"]
             if not item["option"].needs_skill
         )
+        main_rating = Pickable.objects.get(pk=pick.id).rating_contribution
+        assert pick.rating == main_rating + 5
         response = client.post(url, {"pickable_id": pick.id})
         review = client.get(response.url)
+        assert f"Rating +{main_rating + 5}¢" in review.content.decode()
         response = client.post(
             response.url, {"review": review.context["form"]["review"].value()}
         )
@@ -1255,10 +1267,11 @@ class TestPromotions:
         }
         record.refresh_from_db()
         selection = record.advancement_selection
-        assert selection.promotion_assignment.rating == 10
+        assert selection.pick_assignment.rating == main_rating
+        assert selection.promotion_assignment.rating == 5
         receipt = read_rating_receipt(progression.fighter)
         assert [(line.label, line.rating) for line in receipt.contributions] == [
-            ("Advancements", selection.pick_assignment.rating + 10)
+            ("Advancements", selection.pick_assignment.rating + 5)
         ]
         progression.fighter.refresh_from_db()
         assert receipt.total == progression.fighter.rating
@@ -1279,16 +1292,20 @@ class TestPromotions:
             for node in build_card(progression.fighter).all_nodes()
         )
 
+        a.revise(promotion.slot, pick_rating_override=7)
         url = reverse(
             "n26-action-flow", args=[progression.fighter.pk, record.pk, "correct"]
         )
         response = client.post(url, {"pickable_id": pick.id})
         assert response.status_code == 302, _errors(response)
         page = client.get(response.url)
+        assert f"Rating +{main_rating + 5}¢" in page.content.decode()
         response = client.post(
             response.url, {"review": page.context["form"]["review"].value()}
         )
         assert response.status_code == 302, _errors(response)
+        record.refresh_from_db()
+        assert record.advancement_selection.promotion_assignment.rating == 5
         assert {str(row.thing) for row in _computed(progression.fighter).subtypes} == {
             "Champion"
         }
@@ -1304,6 +1321,19 @@ class TestPromotions:
         assert not Assignment.objects.filter(
             pk=record.advancement_selection.promotion_assignment_id, archived=False
         ).exists()
+        choose_url = reverse(
+            "n26-action-flow", args=[progression.fighter.pk, record.pk, "choose"]
+        )
+        response = client.post(choose_url, {"pickable_id": pick.id})
+        assert response.status_code == 302, _errors(response)
+        page = client.get(response.url)
+        assert f"Rating +{main_rating + 5}¢" in page.content.decode()
+        response = client.post(
+            response.url, {"review": page.context["form"]["review"].value()}
+        )
+        assert response.status_code == 302, _errors(response)
+        record.refresh_from_db()
+        assert record.advancement_selection.promotion_assignment.rating == 5
         progression.gang.refresh_from_db()
         assert_reconciled(progression.gang)
 

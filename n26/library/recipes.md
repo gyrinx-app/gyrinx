@@ -1069,17 +1069,77 @@ exception, change the contribution modifiers only if the rules also change
 what the visitors contribute. Use the built-in action settings when only its
 default visibility needs to change.
 
-## Earn a legendary name from battle XP
+## Orlock legendary names
 
-Create a legendary name slot type and its names as pickables. Create a picklist
-with **Dice** set to **2D6** and **Roll selects** set to **Every row at or below
-the roll**. Add each name with **Roll low** and **Roll high** both set to **2**.
-Every roll then offers all the names.
+Use one set of names and three slots. The names and their effects are shared;
+each slot sets the rating for its own route. Recruitment adds 0 rating, choosing
+a name as an advancement adds 10, and choosing a battle-earned name adds 5.
+None of these choices spends gang credits.
 
-Create a slot using that picklist and use it in a **Resolve advancement** outcome.
-In **Actions → New action**, choose **Earn a use from battle XP**, set
-**Minimum XP in one battle** to **5**, and select the legendary name outcome.
-Grant the action to the eligible Orlock fighter entries.
+### Create the shared names
+
+1. Create a **slot type** named **Legendary name**.
+2. Add each name as a **pickable** on that slot type. Set **Rating contribution**
+   to **0** on every name. Attach each name's modifiers to that pickable.
+3. Create a picklist named **Legendary names**. Set **Dice** to **2D6** and
+   **Roll selects** to **Every row at or below the roll**.
+4. Add every name to the picklist, with **Roll low** and **Roll high** both
+   **2**. Every roll then offers all the names.
+
+Create the following slots with that slot type and picklist. Set **Assigned to**
+to **The bearer**, **Min picks** and **Max picks** to **1**, and leave **Hidden**
+off. Give each slot the label **Legendary name**.
+
+- **Legendary name at recruitment**: set **Rating per pick** to **0**.
+- **Legendary name from advancement**: set **Rating per pick** to **0**.
+- **Legendary name from battle**: set **Rating per pick** to **5**.
+
+Blank **Rating per pick** uses the pickable's own rating contribution. Enter
+the explicit values above so these routes keep their intended ratings even if
+the shared names are edited later.
+
+### Recruitment: 0 rating
+
+Open each eligible Orlock Leader and Champion fighter entry. Under **Add a
+built-in**, select **slot → Legendary name at recruitment**. Leave its starting
+pick blank. A newly hired fighter receives the name choice; choosing a name adds
+no rating. Do not give this recruitment slot to entries that do not receive a
+name at recruitment.
+
+### Advancement on 6+: 10 rating
+
+1. Open **Fighter advancement table** and use **Clone** to create **Orlock
+   advancement table**. Keep its existing results.
+2. Under the **Advancement** slot type, create a pickable named **Gain a legendary
+   name**. Set **Rating contribution** to **10** and turn **Record only** on.
+3. On that pickable, attach a modifier: **The model carrying it → Gives
+   something → slot → Legendary name from advancement**.
+4. Add **Gain a legendary name** to the Orlock advancement table, with **Roll
+   low** and **Roll high** both **6**.
+5. Create an **Orlock advancement** slot with slot type **Advancement** and the
+   copied table. Set **Min picks** and **Max picks** to **1**, turn **Hidden** on,
+   and leave **Rating per pick** blank. The selected advancement result supplies
+   its rating, including the 10 on **Gain a legendary name**.
+6. In **Actions → New action**, create **Orlock advancement** with **Earn uses
+   from a rank table**. Select **XP** and **Standard fighter ranks**. Create a
+   **Resolve advancement** outcome using the Orlock advancement slot.
+7. For eligible Orlock fighter entries, replace the standard Advancement action
+   grant with this action. Keep their XP counter and Standard fighter ranks.
+   Check built-ins and modifiers so they receive only one advancement action.
+
+On a roll of 6 or more, the player can pick **Gain a legendary name** instead of
+another advancement result. This adds 10 rating and opens the name choice.
+Picking the name adds 0 more. The player does not also receive a normal
+advancement result. If the player later needs to undo the advancement, remove
+its dependent name pick first.
+
+### Earn a legendary name from battle XP
+
+In **Actions → New action**, create **Choose a legendary name from battle**.
+Choose **Earn a use from battle XP**, set **Minimum XP in one battle** to **5**,
+and create a **Resolve advancement** outcome using **Legendary name from
+battle**. Leave the action's prices empty. Grant this action to the eligible
+Orlock fighter entries.
 
 Applying a post-battle report grants one use when the fighter's total XP award
 is at least 5, including XP from injury results and other recorded effects.
@@ -1092,3 +1152,18 @@ back to 5 or more restores the same choice. If the choice has already been used,
 undo the result first. A result with later dependent changes must be corrected
 in that order; lowering the report's XP never removes those changes. You can
 record a separate XP adjustment if the completed result should stay.
+
+### Check all three routes
+
+Use a test gang. Hire an eligible Leader or Champion and pick a recruitment
+name: rating stays the same. Earn an advancement, record a roll of 6 and pick
+**Gain a legendary name**, then pick a name: rating increases by 10 in total.
+Apply a report awarding at least 5 XP, complete its earned name choice, and
+check a further increase of 5. Check the gang's rating and credits after each
+choice; credits must stay the same.
+
+On the battle-earned choice, check the displayed rating, confirmation and
+receipt. Undo it and check that exactly 5 rating is removed. Restore the same
+choice and check that exactly 5 returns. Editing a slot changes new acquisitions;
+it does not reprice completed names or corrected and restored results from the
+same action.

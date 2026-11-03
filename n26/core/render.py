@@ -15,7 +15,7 @@ from datetime import date, datetime
 
 from django.utils.text import capfirst
 
-from n26.core.card import build_card
+from n26.core.card import GangCard, build_card
 from n26.core.effects import (
     ModifierIndex,
     StackedName,
@@ -741,6 +741,7 @@ class Choosable:
     #: Original author copy shown beneath this option, if the content has it.
     summary: str = ""
     rating: int = 0
+    removal_rating: int | None = None
 
     @property
     def remark(self):
@@ -751,13 +752,19 @@ class Choosable:
         return " · ".join(said)
 
 
-def describe_choosables(options):
+def describe_choosables(options, *, slot=None, gang_pick=False):
     """Add player-facing copy and rating from each offered thing."""
     return [
         replace(
             option,
             summary=getattr(option.thing, "summary", ""),
-            rating=getattr(option.thing, "rating_contribution", 0),
+            rating=(
+                0
+                if gang_pick
+                else slot.rating_for_pick(option.thing)
+                if slot is not None and option.thing is not None
+                else getattr(option.thing, "rating_contribution", 0)
+            ),
         )
         for option in options
     ]
@@ -2717,7 +2724,31 @@ def build_choice_offer(slot, computed, *, include_staged=False, _catalogues=None
         # own Remove.
         options.append(Choosable(key=NONE_KEY, name="None", is_current=not slot.picks))
 
-    options = describe_choosables(options)
+    options = describe_choosables(
+        options,
+        slot=slot.slot,
+        gang_pick=(
+            isinstance(computed.card, GangCard)
+            or slot.holding is not None
+            or (
+                slot.slot is not None
+                and slot.slot.assigned_to == Slot.WillBeAssignedTo.GANG
+            )
+        ),
+    )
+    held_ratings = {}
+    for pick in slot.picks:
+        held_ratings.setdefault(option_key(pick.assignable), pick.rating)
+    options = [
+        replace(
+            option,
+            rating=held_ratings[option.key]
+            if option.control == "remove"
+            else option.rating,
+            removal_rating=held_ratings.get(option.key),
+        )
+        for option in options
+    ]
     groups = [ChoosableGroup(name="", options=options)] if options else []
     return ChoiceOffer(
         label=slot.kind_label,

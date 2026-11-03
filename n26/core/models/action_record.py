@@ -214,6 +214,8 @@ class ActionRecord(Base):
     source = models.JSONField(default=dict, blank=True)
     review = models.JSONField(default=dict, blank=True)
     terms = models.JSONField(default=dict, blank=True)
+    # Applied acquisition settings survive correction and Undo of any outcome.
+    recorded_ratings = models.JSONField(default=dict, blank=True)
     payment_id = models.UUIDField(null=True, blank=True, unique=True)
     started_event = models.ForeignKey(
         "n26.LedgerEvent",

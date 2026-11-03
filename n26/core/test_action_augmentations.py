@@ -1097,3 +1097,99 @@ def test_correction_refuses_dependent_changes(action_record, augmentation):
             outcome,
             {"item_assignment": str(carried.pk), "intended_pick": str(tier.pk)},
         )
+
+
+def test_slot_rating_override_matches_augmentation_preview_and_application(
+    action_record, augmentation
+):
+    rig = create_wargear("Rated rig", price=0)
+    (tier,) = ladder(rig, augmentation, [1])
+    slot = Slot.objects.get(name="Rated rig augmentation")
+    slot.pick_rating_override = 5
+    slot.save(update_fields=["pick_rating_override", "modified"])
+    carried = buy(action_record.fighter, thing=rig, paid=0)
+    outcome = configured(augmentation)
+    (candidate,) = augmentation_options(action_record, outcome).candidates
+    assert candidate.rating_after == candidate.rating_before + 5
+    _apply(action_record, outcome, carried, tier)
+    selection = SlotSelection.objects.get(action_record=action_record)
+    assert selection.new_pick.ledger_entry.rating_contribution == 5
+
+
+def test_augmentation_correction_preserves_the_original_slot_rating(
+    action_record, augmentation
+):
+    rig = create_wargear("Pinned rig", price=0)
+    (tier,) = ladder(rig, augmentation, [1])
+    slot = Slot.objects.get(name="Pinned rig augmentation")
+    slot.pick_rating_override = 5
+    slot.save(update_fields=["pick_rating_override", "modified"])
+    carried = buy(action_record.fighter, thing=rig, paid=0)
+    outcome = configured(augmentation)
+    _apply(action_record, outcome, carried, tier)
+    _mark_completed(action_record)
+    slot.pick_rating_override = 7
+    slot.save(update_fields=["pick_rating_override", "modified"])
+    (candidate,) = augmentation_options(action_record, outcome).candidates
+    assert candidate.rating_after == candidate.rating_before + 5
+    with operation(action_record.gang) as op:
+        correct_augmentation(
+            op,
+            action_record,
+            outcome,
+            {"item_assignment": str(carried.pk), "intended_pick": str(tier.pk)},
+        )
+    selection = SlotSelection.objects.get(action_record=action_record)
+    assert selection.new_pick.ledger_entry.rating_contribution == 5
+
+
+@pytest.mark.parametrize("other_rating", [None, 0, 5, 7])
+def test_correction_to_another_items_slot_uses_and_retains_that_slots_rating(
+    action_record, augmentation, other_rating
+):
+    first_item = create_wargear("First rated rig", price=0)
+    second_item = create_wargear("Second rated rig", price=0)
+    (first_tier,) = ladder(first_item, augmentation, [1])
+    (second_tier,) = ladder(second_item, augmentation, [1])
+    first_slot = Slot.objects.get(name="First rated rig augmentation")
+    second_slot = Slot.objects.get(name="Second rated rig augmentation")
+    first_slot.pick_rating_override = 5
+    first_slot.save(update_fields=["pick_rating_override", "modified"])
+    second_slot.pick_rating_override = other_rating
+    second_slot.save(update_fields=["pick_rating_override", "modified"])
+    first = buy(action_record.fighter, thing=first_item, paid=0)
+    second = buy(action_record.fighter, thing=second_item, paid=0)
+    outcome = configured(augmentation)
+    _apply(action_record, outcome, first, first_tier)
+    with operation(action_record.gang) as op:
+        action_record.completed_event = op.event(
+            action_record.fighter,
+            LedgerEvent.Kind.ACTION_USE_COMPLETED,
+            action_record=action_record,
+        )
+        action_record.state = ActionRecord.State.COMPLETED
+        action_record.save(update_fields=["state", "completed_event", "modified"])
+    expected = 1 if other_rating is None else other_rating
+
+    def correct(item, tier, rating):
+        candidate = next(
+            row
+            for row in augmentation_options(action_record, outcome).candidates
+            if row.item_assignment_id == str(item.pk)
+        )
+        assert candidate.rating_after == candidate.rating_before + rating
+        with operation(action_record.gang) as op:
+            correct_augmentation(
+                op,
+                action_record,
+                outcome,
+                {"item_assignment": str(item.pk), "intended_pick": str(tier.pk)},
+            )
+        selection = SlotSelection.objects.get(action_record=action_record)
+        assert selection.new_pick.ledger_entry.rating_contribution == rating
+
+    correct(second, second_tier, expected)
+    second_slot.pick_rating_override = 9
+    second_slot.save(update_fields=["pick_rating_override", "modified"])
+    correct(first, first_tier, 5)
+    correct(second, second_tier, expected)
