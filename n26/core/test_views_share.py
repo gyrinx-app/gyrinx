@@ -9,7 +9,10 @@ import json
 import pytest
 from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
+from django.template import Context, Template
 from django.urls import reverse
+from django.utils.safestring import SafeString
+from django_cotton.compiler_regex import CottonCompiler
 
 from n26.core import icons
 from n26.core.models import Gang
@@ -48,6 +51,11 @@ def share_host(body, url):
     return None
 
 
+def render_share(source: str, **context) -> str:
+    """Compile a call site the way the template loader would, then render it."""
+    return Template(CottonCompiler().process(source)).render(Context(context))
+
+
 def test_share_props_keep_the_link_and_known_button_shape():
     assert share_props(url="/sheet/", message="Copied.", size="sm", variant="text") == {
         "url": "/sheet/",
@@ -67,6 +75,48 @@ def test_share_props_keep_the_link_and_known_button_shape():
     }
     assert share_host_class("ml-2") == "inline-flex items-center gap-2 ml-2"
     assert share_host_class("  ") == "inline-flex items-center gap-2"
+
+
+def test_a_cotton_string_is_unescaped_once_and_a_python_string_is_not():
+    props = share_props(
+        url=SafeString("/n26/scenarios/?crew=1&amp;pets=2"),
+        message=SafeString("Copied &amp; sent."),
+        label=SafeString("Share O&#x27;Brien"),
+    )
+    assert props["url"] == "/n26/scenarios/?crew=1&pets=2"
+    assert props["message"] == "Copied & sent."
+    assert props["label"] == "Share O'Brien"
+    assert share_props(url="/sheet/?a=1&amp;b=2")["url"] == "/sheet/?a=1&amp;b=2"
+
+
+def test_an_interpolated_query_string_reaches_the_island_and_the_link():
+    html = render_share(
+        '<c-n26.share url="{{ share_url }}" message="{{ note }}" label="{{ label }}" />',
+        share_url="/n26/scenarios/?crew=1&pets=2",
+        note="Copied & sent.",
+        label="Share result",
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    host = soup.select_one("[data-react-name='share']")
+    assert host is not None
+    props = json.loads(soup.find(id=host["data-react-props"]).string)
+    assert props["url"] == "/n26/scenarios/?crew=1&pets=2"
+    assert props["message"] == "Copied & sent."
+    assert props["label"] == "Share result"
+    assert host.find("a")["href"] == "/n26/scenarios/?crew=1&pets=2"
+
+
+def test_a_bound_query_string_is_not_decoded_twice():
+    html = render_share(
+        '<c-n26.share :url="share_url" />',
+        share_url="/n26/scenarios/?crew=1&pets=2",
+    )
+    soup = BeautifulSoup(html, "html.parser")
+    host = soup.select_one("[data-react-name='share']")
+    assert host is not None
+    props = json.loads(soup.find(id=host["data-react-props"]).string)
+    assert props["url"] == "/n26/scenarios/?crew=1&pets=2"
+    assert host.find("a")["href"] == "/n26/scenarios/?crew=1&pets=2"
 
 
 def test_the_sheet_offers_its_owner_a_share_link(client, owner, gang):

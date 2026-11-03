@@ -7,6 +7,7 @@ If the share sheet is missing or fails for a reason other than AbortError, it co
 If clipboard is missing or the copy fails, the browser navigates to the URL instead.
 AbortError from the share sheet is ignored.
 Pass a path. The button shares the link's own href, which the browser has already made absolute.
+A string attribute is escaped before it arrives. The props decode that once, so url="{{ share_url }}" keeps a query string's &. :url="share_url" passes the Python string through unchanged.
 label defaults to Share. compact False keeps the label visible and uses the button size without breadcrumb overrides.
 The word Share is hidden below sm when compact is True. Keep the aria-label so a reader who cannot see the icon still hears the name.
 The padding overrides keep this 20px tall so it can sit on the breadcrumb row.
