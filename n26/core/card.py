@@ -1195,6 +1195,7 @@ def build_modifier_index(assignables, max_depth=3):
         "offers_choice__power_access_collection",
         "places_category__category",
         "hides_categories__collection",
+        "randomises_skill_advancements__from_section__collection",
         "places_category__section__collection",
         "requires_companions__for_each",
         "requires_companions__of",

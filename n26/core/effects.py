@@ -65,6 +65,7 @@ to be gone is put back.
 
 from __future__ import annotations
 
+from copy import copy
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -684,6 +685,7 @@ class ComputedCard:
     #: ``CategoryPlacement``.
     placements: list[CategoryPlacement] = field(default_factory=list)
     hidden_categories: list[HiddenCategories] = field(default_factory=list)
+    random_skill_advancements: list = field(default_factory=list)
     stat_changes: list[StatChange] = field(default_factory=list)
     #: What modifiers add to counters this card reads. Kept apart from
     #: the stored values so a reading can state both and neither is
@@ -808,6 +810,7 @@ def compute(card, index):
         HidesCategories,
         OffersChoice,
         PlacesCategory,
+        RandomisesSkillAdvancements,
         RemovesAssignable,
         RequiresCompanions,
     )
@@ -873,6 +876,7 @@ def compute(card, index):
         ContributesToCounter: 7,
         DrawsPick: 8,
         HidesCategories: 9,
+        RandomisesSkillAdvancements: 10,
     }
 
     def steps_for(
@@ -1269,6 +1273,19 @@ def compute(card, index):
                                 computed,
                                 "counter_contributions",
                                 contributed,
+                            )
+                        )
+                    elif isinstance(effect, RandomisesSkillAdvancements):
+                        # Retraction removes applications by identity, so a
+                        # shared modifier needs one object per carrier.
+                        randomised = copy(effect)
+                        computed.random_skill_advancements.append(randomised)
+                        log.applied.append(
+                            _Applied(
+                                source_key,
+                                computed,
+                                "random_skill_advancements",
+                                randomised,
                             )
                         )
                     elif isinstance(effect, OffersChoice):

@@ -492,6 +492,15 @@ def _says_hides_categories(effect, parts):
     )
 
 
+@_renders("randomises_skill_advancements")
+def _says_randomises_skill_advancements(effect, parts):
+    return (
+        f"{parts.who.subject} must roll skill advancements from "
+        f"{effect.from_section.name} randomly{_while(parts.who)}.",
+        "Access to those skill sets stays the same.",
+    )
+
+
 @_renders("places_category")
 def _says_places_category(effect, parts):
     who = parts.who

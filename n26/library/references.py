@@ -41,6 +41,7 @@ READ_WITH = {
     "library.addsassignable": ("modifier", "slot", "with_pick"),
     "library.removesassignable": ("modifier",),
     "library.offerschoice": ("modifier", "from_section__collection"),
+    "library.randomisesskilladvancements": ("modifier", "from_section__collection"),
     "library.placescategory": ("modifier", "section__collection", "category"),
     "library.changesstat": ("modifier", "stat"),
     "library.changescategory": ("modifier", "category"),
@@ -222,6 +223,7 @@ def reading_sentences(modifiers):
         "hides_categories__categories",
         "places_category__section__collection",
         "offers_choice__from_section__collection",
+        "randomises_skill_advancements__from_section__collection",
     ]
     for half in (*SCOPE_FIELDS, *EFFECT_FIELDS):
         paths.append(half)

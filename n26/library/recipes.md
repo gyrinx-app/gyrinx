@@ -100,6 +100,19 @@ Random results record a D6 roll within the chosen skill set or power family;
 select results let the player select one. The any-skill result leaves the
 section blank: it offers all skills and the power families placed for this model.
 
+## Roll Chancer skill advancements randomly
+
+Open the **Chancer** pickable and add a modifier targeting **The model carrying it**.
+Choose **Rolls skill advancements randomly** and select **Primary (Skills &
+Powers)**. Add a second modifier for **Secondary (Skills & Powers)**.
+
+A fighter carrying Chancer still has access to those sets. When an advancement
+normally lets them select a Primary or Secondary skill, they select a set and
+roll D6 for the skill instead. Existing random results work in the same way.
+The modifier only affects the selected sections; an any-skill advancement is
+unchanged. Removing Chancer restores selection for future advancements and
+keeps completed results and rolls in history.
+
 ## Create an advancement action
 
 Open **Foundations**. Under **Standard content**, create **Fighter actions and

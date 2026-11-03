@@ -446,6 +446,7 @@ def _build_registry():
         Power,
         Profile,
         ProfileType,
+        RandomisesSkillAdvancements,
         RankAllowanceRule,
         RankTable,
         RankThreshold,
@@ -824,6 +825,18 @@ def _build_registry():
             label="Hides equipment categories",
             blurb="Hide selected categories from one equipment list for the model.",
             example="A profile hides Heavy Weapons from its gang's equipment list.",
+        ),
+        Spec(
+            authoring.ef_randomises_skill_advancements,
+            {
+                "from_section": One(
+                    model=CollectionSection,
+                    source=(RandomisesSkillAdvancements, "from_section"),
+                ),
+            },
+            label="Rolls skill advancements randomly",
+            blurb="Replaces skill selection with a random roll for one section.",
+            example="Chancer: roll Primary and Secondary skill advancements randomly.",
         ),
         Spec(
             authoring.ef_places,

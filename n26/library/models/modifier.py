@@ -50,6 +50,7 @@ COMPUTED_EFFECT_FIELDS = (
     "changes_stat",
     "changes_category",
     "hides_categories",
+    "randomises_skill_advancements",
     "offers_choice",
     "places_category",
     "draws_pick",
@@ -2059,6 +2060,33 @@ class HidesCategories(models.Model):
         return target_kind == MODEL
 
 
+class RandomisesSkillAdvancements(models.Model):
+    """Roll skill advancements from a collection section randomly.
+
+    The model keeps access to the section's skill sets. Only the method of
+    resolving an advancement changes while this modifier applies.
+    """
+
+    is_stored = False
+
+    from_section = models.ForeignKey(
+        "library.CollectionSection",
+        on_delete=models.PROTECT,
+        related_name="+",
+        help_text="The section whose skill advancements must be rolled randomly.",
+    )
+
+    class Meta:
+        verbose_name = "randomises skill advancements"
+        verbose_name_plural = "randomises skill advancements"
+
+    def __str__(self):
+        return f"rolls skill advancements from {self.from_section} randomly"
+
+    def accepts(self, target_kind):
+        return target_kind == MODEL
+
+
 class ChangesStat(models.Model):
     """Shifts or sets one characteristic.
 
@@ -2252,6 +2280,13 @@ class Modifier(Content):
     )
     hides_categories = models.OneToOneField(
         HidesCategories,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="modifier",
+    )
+    randomises_skill_advancements = models.OneToOneField(
+        RandomisesSkillAdvancements,
         on_delete=models.CASCADE,
         null=True,
         blank=True,
