@@ -2871,7 +2871,7 @@ class Operation:
             # assignment carries none of its own: a pick the gang holds
             # adds nothing, whatever its pickable says.
             kwargs["rating"] = (
-                0 if kwargs.get("gang") is not None else chosen.rating_contribution
+                0 if kwargs.get("gang") is not None else slot.rating_for_pick(chosen)
             )
         host = kwargs.get("miniature")
         if slot.follows_status:
@@ -2947,6 +2947,7 @@ class Operation:
         miniature,
         action_record,
         roll=None,
+        rating=None,
     ):
         """Archive one slot pick and retain exact before/after provenance."""
         anchor, miniature = _slot_context_under_the_lock(
@@ -2980,6 +2981,7 @@ class Operation:
                 miniature=miniature,
                 action_record=action_record,
                 roll=roll,
+                rating=rating,
             )
         if replacement is not None or previous_pick is not None:
             self.event(

@@ -312,6 +312,8 @@ class AdvancementSelection(Base):
     action_record = models.OneToOneField(
         ActionRecord, on_delete=models.CASCADE, related_name="advancement_selection"
     )
+    # Previously applied amounts remain available when Undo clears the pick.
+    recorded_ratings = models.JSONField(default=dict, blank=True)
     promotion = models.ForeignKey(
         "library.AdvancementPromotion",
         on_delete=models.PROTECT,

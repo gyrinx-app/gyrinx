@@ -213,6 +213,12 @@ def advancement_undo_snapshot(record):
 def undo_advancement_result(op, record):
     """Remove an independent result while keeping the flow's rolls and choices."""
     selection, skill = _correction_result(record, lock=True)
+    _remember_pick_rating(
+        selection,
+        selection.pick_assignment.chosen_for_slot,
+        selection.intended_pick,
+        selection.pick_assignment.ledger_entry.rating_contribution,
+    )
     detail = str(selection.intended_pick)
     if skill and skill.skill_assignment_id:
         detail += f": {skill.selected}"
@@ -224,7 +230,12 @@ def undo_advancement_result(op, record):
     selection.pick_assignment = None
     selection.promotion_assignment = None
     selection.save(
-        update_fields=["pick_assignment", "promotion_assignment", "modified"]
+        update_fields=[
+            "pick_assignment",
+            "promotion_assignment",
+            "recorded_ratings",
+            "modified",
+        ]
     )
     if skill is not None:
         skill.skill_assignment = None
@@ -544,6 +555,12 @@ def _roll_table(configured):
     state = {
         "slot_id": str(configured.slot_id),
         "slot_modified": configured.slot.modified.isoformat(),
+        "slot_configuration": [
+            [field.attname, str(getattr(configured.slot, field.attname))]
+            for field in configured.slot._meta.concrete_fields
+            if field.name not in {"created", "modified", "pick_rating_override"}
+        ],
+        "pick_rating_override": configured.slot.pick_rating_override,
         "picklist_id": str(configured.slot.picklist_id),
         "picklist_modified": configured.slot.picklist.modified.isoformat(),
         "members": [
@@ -570,8 +587,23 @@ def _roll_table(configured):
     return members, state
 
 
-def _same_roll_table(stored, current):
-    """Keep a saved roll valid when its offer gains the power substitution field."""
+def _same_roll_table(stored, current, *, allow_rating_change=False):
+    """Preserve recorded acquisitions through rating-only slot edits."""
+    from copy import deepcopy
+
+    current = deepcopy(current)
+    if isinstance(stored, dict):
+        if (
+            "slot_configuration" not in stored
+            and current.get("pick_rating_override") is None
+        ):
+            current.pop("slot_configuration", None)
+            current.pop("pick_rating_override", None)
+        elif allow_rating_change and stored.get("slot_configuration") == current.get(
+            "slot_configuration"
+        ):
+            current["slot_modified"] = stored.get("slot_modified")
+            current["pick_rating_override"] = stored.get("pick_rating_override")
     if stored == current:
         return True
     if not isinstance(stored, dict):
@@ -592,8 +624,6 @@ def _same_roll_table(stored, current):
         for name, _value in configuration[1]
     ):
         return False
-    from copy import deepcopy
-
     legacy = deepcopy(current)
     for configuration in offers(legacy):
         configuration[1] = [
@@ -743,6 +773,36 @@ def advancement_options(record, configured):
     return options
 
 
+def _pick_rating(record, slot, pickable):
+    selection = record.advancement_selection
+    context = selection.recorded_ratings.get(str(slot.pk))
+    if context is not None:
+        if context["override"] is not None:
+            return context["override"]
+        return context["picks"].get(str(pickable.pk), pickable.rating_contribution)
+    if (
+        selection.pick_assignment_id
+        and selection.intended_pick_id == pickable.pk
+        and selection.pick_assignment.chosen_for_slot_id == slot.pk
+    ):
+        return selection.pick_assignment.ledger_entry.rating_contribution
+    return slot.rating_for_pick(pickable)
+
+
+def _remember_pick_rating(selection, slot, pickable, rating):
+    # Corrections retain this acquisition's setting; new uses read the slot again.
+    context = selection.recorded_ratings.get(
+        str(slot.pk), {"override": slot.pick_rating_override, "picks": {}}
+    )
+    selection.recorded_ratings = {
+        **selection.recorded_ratings,
+        str(slot.pk): {
+            **context,
+            "picks": {**context["picks"], str(pickable.pk): rating},
+        },
+    }
+
+
 def _advancement_read(record, configured):
     """Options and their skill listings from one read of the current fighter."""
     if replaces_roll(record, configured):
@@ -764,7 +824,11 @@ def _advancement_read(record, configured):
         if not selection.roll_event_id:
             raise Refusal("Roll 2D6 for this advancement first.")
         members, table_state = _roll_table(configured)
-        if not _same_roll_table(record.terms.get("advancement_table"), table_state):
+        if not _same_roll_table(
+            record.terms.get("advancement_table"),
+            table_state,
+            allow_rating_change=bool(record.completed_event_id),
+        ):
             raise Refusal("This advancement table changed after the roll was recorded.")
         landed = configured.slot.picklist.landing(selection.roll_event.roll, members)
     card, _selection, _skill_selection = _counterfactual_card(record)
@@ -846,11 +910,12 @@ def _advancement_read(record, configured):
 
     gainable_members = [member for member in landed if gainable[member.pk]]
     offered = gainable_members or members
+    slot = result_slot(record, configured)
     options = tuple(
         AdvancementOption(
             str(member.pickable_id),
             str(member.pickable),
-            member.pickable.rating_contribution,
+            _pick_rating(record, slot, member.pickable),
             gainable[member.pk],
             offers[member.pickable_id] is not None,
             offers[member.pickable_id].mode if offers[member.pickable_id] else "",
@@ -1231,7 +1296,7 @@ def preview_advancement(record, configured, terms):
         "pickable_id": str(pickable.pk),
         "result": str(pickable),
         "effect": _effect_text(pickable),
-        "rating": pickable.rating_contribution,
+        "rating": _pick_rating(record, result_slot(record, configured), pickable),
         "skill_id": str(skill.pk) if skill else None,
         "skill_kind": skill._meta.model_name if skill else None,
         "skill": str(skill) if skill else None,
@@ -1286,9 +1351,20 @@ def apply_advancement(op, record, configured, terms):
         slot=result_slot(record, configured),
         roll=selection.roll_event,
         action_record=record,
+        rating=snapshot["rating"],
     )
     selection.intended_pick, selection.pick_assignment = pickable, pick
-    selection.save(update_fields=["intended_pick", "pick_assignment", "modified"])
+    _remember_pick_rating(
+        selection, result_slot(record, configured), pickable, snapshot["rating"]
+    )
+    selection.save(
+        update_fields=[
+            "intended_pick",
+            "pick_assignment",
+            "recorded_ratings",
+            "modified",
+        ]
+    )
     apply_bonus_promotion(op, record, selection, pick)
     if skill is not None:
         skill_pick = op.choose(
@@ -1330,9 +1406,20 @@ def correct_advancement(op, record, configured, terms):
         miniature=record.fighter,
         action_record=record,
         roll=selection.roll_event,
+        rating=snapshot["rating"],
     )
     selection.intended_pick, selection.pick_assignment = pickable, replacement
-    selection.save(update_fields=["intended_pick", "pick_assignment", "modified"])
+    _remember_pick_rating(
+        selection, result_slot(record, configured), pickable, snapshot["rating"]
+    )
+    selection.save(
+        update_fields=[
+            "intended_pick",
+            "pick_assignment",
+            "recorded_ratings",
+            "modified",
+        ]
+    )
     apply_bonus_promotion(op, record, selection, replacement)
     if skill_selection is not None:
         skill_selection.skill_set = None

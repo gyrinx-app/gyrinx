@@ -329,7 +329,7 @@ def _preview_node(ladder, member):
     return Node(
         assignable=member.pickable,
         key=("augmentation-preview", ladder.slot.pk, member.pickable_id),
-        rating=member.pickable.rating_contribution,
+        rating=ladder.slot.slot.rating_for_pick(member.pickable),
         caused_by_key=ladder.slot.pk,
         chosen_for_key=ladder.slot.pk,
         chosen_for_slot_id=ladder.slot.slot_id,
@@ -346,7 +346,7 @@ def _render_with_pick(card, ladder, member, index):
         card.roots.append(replacement)
     elif not _replace_node(card, ladder.current.pk, replacement):
         _refuse("The current augmentation tier is no longer on this fighter.")
-    card.full_rating += member.pickable.rating_contribution - old_rating
+    card.full_rating += replacement.rating - old_rating
     return _render(card, index)
 
 

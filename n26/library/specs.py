@@ -1483,6 +1483,7 @@ def _build_registry():
                 ),
                 "label": Text(source=(Slot, "label")),
                 "introduction": Text(source=(Slot, "introduction"), long=True),
+                "pick_rating_override": Int(source=(Slot, "pick_rating_override")),
                 "min_picks": Int(source=(Slot, "min_picks")),
                 "max_picks": Int(source=(Slot, "max_picks")),
                 "assigned_to": Choice(source=(Slot, "assigned_to")),

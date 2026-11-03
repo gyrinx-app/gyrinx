@@ -1097,3 +1097,20 @@ def test_correction_refuses_dependent_changes(action_record, augmentation):
             outcome,
             {"item_assignment": str(carried.pk), "intended_pick": str(tier.pk)},
         )
+
+
+def test_slot_rating_override_matches_augmentation_preview_and_application(
+    action_record, augmentation
+):
+    rig = create_wargear("Rated rig", price=0)
+    (tier,) = ladder(rig, augmentation, [1])
+    slot = Slot.objects.get(name="Rated rig augmentation")
+    slot.pick_rating_override = 5
+    slot.save(update_fields=["pick_rating_override", "modified"])
+    carried = buy(action_record.fighter, thing=rig, paid=0)
+    outcome = configured(augmentation)
+    (candidate,) = augmentation_options(action_record, outcome).candidates
+    assert candidate.rating_after == candidate.rating_before + 5
+    _apply(action_record, outcome, carried, tier)
+    selection = SlotSelection.objects.get(action_record=action_record)
+    assert selection.new_pick.ledger_entry.rating_contribution == 5

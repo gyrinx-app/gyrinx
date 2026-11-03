@@ -683,6 +683,17 @@ class Slot(Content, Assignable):
         related_name="slots",
         help_text="The picklist this slot draws from.",
     )
+    pick_rating_override = models.IntegerField(
+        null=True,
+        blank=True,
+        default=None,
+        verbose_name="rating per pick",
+        help_text=(
+            "Rating added for each option picked through this slot. "
+            "Blank uses the option's rating contribution. Enter 0 for no added rating. "
+            "No credits are spent. Existing picks keep their recorded rating."
+        ),
+    )
     label = models.CharField(
         max_length=200,
         blank=True,
@@ -762,6 +773,12 @@ class Slot(Content, Assignable):
     def choice_label(self):
         """What the card calls this choice."""
         return self.label or self.name
+
+    def rating_for_pick(self, pickable):
+        """Resolve a new pick's rating; existing acquisitions use their ledger."""
+        if self.pick_rating_override is not None:
+            return self.pick_rating_override
+        return pickable.rating_contribution
 
     def interstitials(self, *, include_archived=False, include_staged=True):
         """The interstitials this slot carries — the screens shown when it

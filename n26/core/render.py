@@ -751,13 +751,17 @@ class Choosable:
         return " · ".join(said)
 
 
-def describe_choosables(options):
+def describe_choosables(options, *, slot=None):
     """Add player-facing copy and rating from each offered thing."""
     return [
         replace(
             option,
             summary=getattr(option.thing, "summary", ""),
-            rating=getattr(option.thing, "rating_contribution", 0),
+            rating=(
+                slot.rating_for_pick(option.thing)
+                if slot is not None and option.thing is not None
+                else getattr(option.thing, "rating_contribution", 0)
+            ),
         )
         for option in options
     ]
@@ -2717,7 +2721,7 @@ def build_choice_offer(slot, computed, *, include_staged=False, _catalogues=None
         # own Remove.
         options.append(Choosable(key=NONE_KEY, name="None", is_current=not slot.picks))
 
-    options = describe_choosables(options)
+    options = describe_choosables(options, slot=slot.slot)
     groups = [ChoosableGroup(name="", options=options)] if options else []
     return ChoiceOffer(
         label=slot.kind_label,

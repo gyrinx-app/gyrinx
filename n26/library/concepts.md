@@ -320,6 +320,13 @@ One specific, named use of a slot type. Assigning one to a model or gang — bui
 
 **Allow dismissal** lets players hide the choice while it has no picks. Turn it off for choices that should stay available, such as an injury table or a required patron choice. Earlier dismissals are ignored while it is off. Hidden slots still stay hidden.
 
+**Rating per pick** replaces the chosen option's rating contribution for this
+slot. Blank uses the option's contribution; 0 adds no rating. This lets several
+slots offer the same options at different ratings. No credits are spent. A
+completed pick keeps its recorded rating when the slot is edited. Correcting or
+restoring a completed action keeps that action's rating setting. New action
+uses take the edited setting.
+
 ### Interstitial
 
 > Draft, for review.
