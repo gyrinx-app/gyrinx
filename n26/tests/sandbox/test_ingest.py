@@ -1444,12 +1444,11 @@ class TestWhatASheetStopsNaming:
     """Each set answers the same question for itself: what happens to a
     member the sheet no longer names?
 
-    The deciding question is whether the set is somewhere hand-authored
-    content lives. A list's lines and a fighter's skill grid are wholly
-    the sheets'. A fighter's built-in kit is not — the kit no sheet
-    defines is added by hand, precisely because an import cannot bring
-    it — and a restriction, though it is the entry's own, is never
-    taken off by an upload that stops printing it.
+    Traits and a fighter's skill grid are wholly the sheets'. A list's
+    lines are not: a sheet adds lines, and one it does not name stays
+    on the list, in the place it had. Built-in kit is kept the same
+    way, and said, because the kit no sheet defines is added by hand.
+    A restriction is never taken off by an upload that stops printing it.
     """
 
     @pytest.fixture
@@ -1457,7 +1456,14 @@ class TestWhatASheetStopsNaming:
         perform(plan_ingest(pack=None, **sheets))
         return sheets
 
-    def test_a_line_dropped_from_a_list_leaves_it(self, imported):
+    def test_a_line_the_sheet_omits_stays_on_the_list(self, imported):
+        """A later sheet that leaves a line out is adding whatever else
+        it names. The line stays, in the place it had."""
+        escher = Collection.objects.get(name="Escher Equipment List")
+        before = [
+            (entry.position, str(entry.assignable))
+            for entry in escher.entries.order_by("position", "pk")
+        ]
         plan = plan_ingest(
             **{
                 **imported,
@@ -1470,27 +1476,55 @@ class TestWhatASheetStopsNaming:
                 ),
             }
         )
-        escher = plan.get(ESCHER_LIST)
-        assert escher.action == "update"
-        assert escher.changes == {"entries": {"removed": ["Respirator"]}}
+        assert plan.get(ESCHER_LIST).action == "unchanged"
+        assert plan.get(entry_key(ESCHER_LIST, RESPIRATOR)) is None
 
         perform(plan)
-        listed = {
-            str(entry.assignable)
-            for entry in Collection.objects.get(
-                name="Escher Equipment List"
-            ).entries.all()
-        }
-        assert "Respirator" not in listed
-        assert "Autogun" in listed
-        # ...and the item itself is untouched: other lists sell it.
+        after = [
+            (entry.position, str(entry.assignable))
+            for entry in escher.entries.order_by("position", "pk")
+        ]
+        assert after == before
+        assert "Respirator" in {name for _, name in after}
         assert Wargear.objects.filter(name="Respirator").exists()
 
+    def test_a_new_line_is_added_after_the_lines_already_there(self, imported):
+        """Extras only: the sheet names one new item, and a line an
+        author added by hand. Both stay, and the new one follows them."""
+        from n26.library import authoring
+        from n26.library.models import WeaponAccessory
+
+        escher = Collection.objects.get(name="Escher Equipment List")
+        hand = authoring.add_entry(
+            escher, WeaponAccessory.objects.get(name="Suspensors")
+        )
+        kept = [
+            (entry.position, str(entry.assignable))
+            for entry in escher.entries.order_by("position", "pk")
+        ]
+        plan = plan_ingest(
+            equipment_lists=read_csv(
+                """
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions,ID
+Equipment List,Escher,Wargear,Grenades,Frag grenades,,30,,
+"""
+            )
+        )
+        added = plan.get(entry_key(ESCHER_LIST, FRAG_GRENADES))
+        assert added.action == "create"
+        assert added.fields["position"] == hand.position + 1
+        assert plan.get(ESCHER_LIST).action == "unchanged"
+
+        perform(plan)
+        lines = [
+            (entry.position, str(entry.assignable))
+            for entry in escher.entries.order_by("position", "pk")
+        ]
+        assert lines[: len(kept)] == kept
+        assert lines[-1] == (hand.position + 1, "Frag grenades")
+
     def test_one_gangs_upload_leaves_every_other_gangs_list_alone(self, imported):
-        """The trap in scoping this. A partial upload is a real thing to
-        want — one gang's list, to fix a price — and "delete the entries
-        nothing planned" would empty every list the upload was silent
-        about."""
+        """A sheet that names one list leaves every other list's lines alone."""
         before = {
             collection.name: collection.entries.count()
             for collection in Collection.objects.all()
