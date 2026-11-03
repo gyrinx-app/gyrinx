@@ -9,24 +9,39 @@
 .n26-tactics-island {
     min-width: 0;
 }
+/* Geometry follows the new model card's callout frame and striped band. */
 .n26-tactic-card {
     --tactic-ink: var(--color-ink-900);
-    --tactic-label: var(--color-red-900);
-    --tactic-line: color-mix(in srgb, var(--color-stone-800) 32%, transparent);
-    --tactic-strip: var(--color-stone-300);
-    --tactic-plate: var(--color-stone-950);
-    --tactic-background:
-        linear-gradient(#ffffffad, #ffffffad),
-        url("./print/tactics-paper.jpg") center / cover;
+    --tactic-label: var(--tactic-theme, var(--color-ink-500));
+    --tactic-light-line: color-mix(
+        in srgb,
+        var(--color-stone-800) 32%,
+        transparent
+    );
+    --tactic-line: var(--tactic-light-line);
+    --tactic-plate: var(--color-black);
+    --tactic-background: var(--color-white);
+    --tactic-paper-texture:
+        linear-gradient(#ffffffad, #ffffffad), url("./print/tactics-paper.jpg");
+    --tactic-texture: var(--tactic-paper-texture);
+    --tactic-notes-background: rgb(255 255 255 / 50%);
+    --tactic-frame: var(--color-box-border);
+    --tactic-outline: var(--color-ink-400);
+    --tactic-bevel-top: 8px;
+    --tactic-bevel-bottom: 16px;
+    --tactic-band: 16px;
+    --tactic-heading-height: 48px;
+    --tactic-unit: 1;
     aspect-ratio: 76 / 111;
     display: flex;
     flex-direction: column;
     position: relative;
     min-width: 0;
-    padding-top: 8px;
-    border: 1px solid var(--color-stone-950);
-    border-radius: 10px;
-    background: var(--tactic-background);
+    padding-top: var(--tactic-band);
+    border: 0;
+    border-radius: 0 var(--tactic-bevel-top) var(--tactic-bevel-bottom) 0;
+    corner-shape: bevel;
+    isolation: isolate;
     color: var(--tactic-ink);
     color-scheme: light;
     box-shadow:
@@ -36,28 +51,80 @@
         transform 180ms ease,
         box-shadow 180ms ease;
 }
+/* Clip the paper itself: inset shadows alone do not clip background images
+   to bevelled corners in Chromium. Leave the card's outer shadow unclipped. */
+.n26-tactic-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    corner-shape: inherit;
+    clip-path: polygon(
+        0 0,
+        calc(100% - var(--tactic-bevel-top)) 0,
+        100% var(--tactic-bevel-top),
+        100% calc(100% - var(--tactic-bevel-bottom)),
+        calc(100% - var(--tactic-bevel-bottom)) 100%,
+        0 100%
+    );
+    background: var(--tactic-background);
+    background-image: var(--tactic-texture);
+    background-position: center;
+    background-size: cover;
+    box-shadow: inset 0 0 0 1px var(--tactic-outline);
+    pointer-events: none;
+}
+.n26-tactic-card::before {
+    content: "";
+    position: absolute;
+    inset: 1px 1px auto;
+    height: calc(var(--tactic-band) - 1px);
+    border-radius: inherit;
+    border-bottom-right-radius: 0;
+    corner-shape: bevel;
+    background-color: color-mix(
+        in srgb,
+        var(--tactic-frame) 25%,
+        var(--tactic-background)
+    );
+    background-image: repeating-linear-gradient(
+        -45deg,
+        transparent 0 calc(5px * var(--tactic-unit)),
+        var(--tactic-frame) calc(5px * var(--tactic-unit))
+            calc(10px * var(--tactic-unit))
+    );
+    pointer-events: none;
+}
+.n26-tactic-header {
+    position: relative;
+    flex: 0 0 var(--tactic-heading-height);
+    min-height: 0;
+}
 .n26-tactic-nameplate {
+    height: 100%;
+    padding: calc(5px * var(--tactic-unit)) calc(10px * var(--tactic-unit));
+    display: flex;
+    align-items: center;
+    background: var(--tactic-background);
+    color: var(--color-white);
     position: relative;
     isolation: isolate;
-    flex: 0 0 48px;
-    min-height: 0;
-    padding: 6px 10px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    background: transparent;
-    color: var(--color-stone-50);
 }
 .n26-tactic-nameplate::before {
     content: "";
     position: absolute;
-    inset: 0 0 -6px;
-    z-index: -1;
+    inset: 0 0 calc(-3px * var(--tactic-unit));
     background: var(--tactic-plate);
-    mask: url("./print/nameplate.png") center / 100% 100% no-repeat;
+    /* Fill the top of the original paper mask to leave only its torn lower edge. */
+    mask:
+        linear-gradient(#000 0 0) top / 100% calc(100% - 6px) no-repeat,
+        url("./print/nameplate.png") center / 100% 100% no-repeat;
+    z-index: -1;
     pointer-events: none;
 }
 .n26-tactic-nameplate h3 {
+    color: var(--color-white);
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -67,26 +134,13 @@
     line-height: 19px;
     overflow-wrap: anywhere;
 }
-.n26-tactic-strip {
-    flex-shrink: 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 10px 6px;
-    background: var(--tactic-strip);
-    color: var(--color-stone-800);
-    font-size: 10px;
-    line-height: 14px;
-    border-top: 1px solid var(--tactic-line);
-}
 .n26-tactic-roll {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 1;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
-}
-.n26-tactic-roll strong {
-    margin-inline-start: 4px;
-    font-size: 14px;
 }
 .n26-tactic-content {
     flex: 1;
@@ -100,21 +154,10 @@
 .n26-tactic-rules {
     font-size: 14px;
 }
-.n26-tactic-rule + .n26-tactic-rule {
-    margin-top: 0.9em;
-}
-.n26-tactic-content h4 {
-    margin-bottom: 5px;
-    color: var(--tactic-label);
-    font-size: 0.85em;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
 .n26-tactic-footer {
     flex-shrink: 0;
-    margin: 0 10px;
-    padding: 8px 0 10px;
+    margin: 0;
+    padding: 8px 10px 10px;
     border-top: 1px solid var(--tactic-line);
     color: var(--color-ink-700);
     font-size: 10px;
@@ -139,19 +182,25 @@
 .dark .n26-tactic-card {
     color-scheme: dark;
     --tactic-ink: var(--color-ink-100);
-    --tactic-label: var(--color-accent);
     --tactic-line: color-mix(
         in srgb,
         var(--color-neutral-300) 30%,
         transparent
     );
-    --tactic-strip: var(--color-neutral-950);
-    --tactic-plate: transparent;
+    --tactic-plate: color-mix(
+        in srgb,
+        var(--tactic-theme, var(--color-ink-500)) 33%,
+        transparent
+    );
     --tactic-background: var(--color-black);
-    border-color: var(--color-neutral-600);
+    --tactic-texture: none;
+    --tactic-notes-background: transparent;
+    --tactic-control: var(--color-ink-300);
+    --tactic-outline: var(--tactic-frame);
 }
-.dark .n26-tactic-strip {
-    color: var(--color-neutral-300);
+.dark .n26-tactic-nameplate {
+    /* Both outlines use the same inset geometry, including at fractional zoom. */
+    box-shadow: inset 0 0 0 1px var(--tactic-label);
 }
 .n26-tactics-generation {
     display: flex;
@@ -443,6 +492,19 @@
 .n26-tactics-inactive-narrow {
     display: none;
 }
+.n26-tactics-print-view .n26-tactic-card {
+    --tactic-ink: var(--color-ink-900);
+    --tactic-line: var(--tactic-light-line);
+    --tactic-plate: var(--color-black);
+    --tactic-background: var(--color-white);
+    --tactic-texture: var(--tactic-paper-texture);
+    --tactic-notes-background: rgb(255 255 255 / 50%);
+    --tactic-outline: var(--color-ink-400);
+    color-scheme: light;
+}
+.n26-tactics-print-view .n26-tactic-nameplate {
+    box-shadow: none;
+}
 @media screen {
     .n26-tactic-print-pages {
         padding: 18px 12px;
@@ -480,34 +542,13 @@
         height: calc(111mm * var(--tactic-scale));
     }
     .n26-tactics-print-view .n26-tactic-card {
-        --tactic-ink: var(--color-ink-900);
-        --tactic-label: var(--color-red-900);
-        --tactic-line: color-mix(
-            in srgb,
-            var(--color-stone-800) 32%,
-            transparent
-        );
-        --tactic-strip: var(--color-stone-300);
-        --tactic-plate: var(--color-stone-950);
-        --tactic-background:
-            linear-gradient(#ffffffad, #ffffffad),
-            url("./print/tactics-paper.jpg") center / cover;
-        color-scheme: light;
+        --tactic-band: 4mm;
+        --tactic-heading-height: 14mm;
         box-shadow: none;
-    }
-    .n26-tactics-print-view .n26-tactic-nameplate {
-        flex-basis: 14mm;
-        padding: 2mm 3.4mm;
-        background: transparent;
     }
     .n26-tactics-print-view .n26-tactic-nameplate h3 {
         font-size: 13.5pt;
         line-height: 1.15;
-    }
-    .n26-tactics-print-view .n26-tactic-strip {
-        padding: 3mm 3.4mm 1.6mm;
-        color: var(--color-stone-800);
-        font-size: 7.5pt;
     }
     .n26-tactics-print-view .n26-tactic-content {
         line-height: 1.45;
@@ -516,8 +557,7 @@
 
     .n26-tactics-print-view .n26-tactic-footer {
         color: var(--color-ink-700);
-        margin-inline: 3.4mm;
-        padding: 2mm 0 3mm;
+        padding: 2mm 3.4mm 3mm;
         font-size: 7pt;
     }
 }
@@ -631,13 +671,261 @@
     margin-top: 2.5rem;
 }
 
-/* "Bonus card" under the effect: set in the rule labels' style, so it reads
-   as a note on the card rather than part of the rules or the footer. */
+/* "Bonus card" on the right of the title bar, small enough to sit beside
+   the name without changing the bar's height or the body below it. */
+.n26-tactic-nameplate h3 {
+    flex: 1;
+    min-width: 0;
+}
 .n26-tactic-bonus {
-    margin-top: 0.9em;
-    color: var(--tactic-label);
-    font-size: 0.85em;
+    flex-shrink: 0;
+    margin-left: calc(6px * var(--tactic-unit));
+    color: rgb(255 255 255 / 75%);
+    font-size: 9px;
     font-weight: 700;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
+    line-height: 1;
     text-transform: uppercase;
+    white-space: nowrap;
+}
+.n26-tactics-print-view .n26-tactic-bonus {
+    font-size: 6.5pt;
+}
+
+/* Tactics notes: the owner's words in the card's body. On screen the box
+   scrolls inside the card and its links sit under it, so a long note never
+   changes the card's size. In print the notes shrink to fit instead
+   (useFittedRules), and a card with none prints ruled lines to write on. */
+.n26-tactics-island:not(.n26-tactics-print-view) .n26-tactic-content {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-bottom: 8px;
+}
+.n26-tactics-island:not(.n26-tactics-print-view) .n26-tactic-rules {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+.n26-tactic-notes {
+    --tactic-notes-outset: 5px;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.n26-tactic-notes-box {
+    position: relative;
+    flex: 1;
+    min-height: 3em;
+    overflow: auto;
+    margin: -3px calc(-1 * var(--tactic-notes-outset, 5px)) 0;
+    padding: 6px 8px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: var(--tactic-notes-background);
+    outline: none;
+}
+.n26-tactic-notes-box[contenteditable="true"] {
+    border-style: dashed;
+    border-color: color-mix(
+        in srgb,
+        var(--tactic-ink) 40%,
+        var(--tactic-background)
+    );
+    cursor: text;
+}
+.n26-tactic-notes-box[contenteditable="true"]:focus {
+    border-style: solid;
+    border-color: var(--tactic-label);
+}
+/* Keep the empty-state icon outside TinyMCE's editable content. */
+.n26-tactic-notes-editor {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+.n26-tactic-notes-prompt {
+    display: none;
+    position: absolute;
+    top: 3px;
+    left: calc(8px - var(--tactic-notes-outset, 5px));
+    align-items: center;
+    gap: 6px;
+    color: var(--color-ink-500);
+    pointer-events: none;
+}
+.n26-tactic-notes-box[data-mce-placeholder]:not(:focus)
+    + .n26-tactic-notes-prompt {
+    display: inline-flex;
+}
+.n26-tactic-notes-box p + p,
+.n26-tactic-notes-box p + ul,
+.n26-tactic-notes-box p + ol,
+.n26-tactic-notes-box ul + p,
+.n26-tactic-notes-box ol + p {
+    margin-top: 0.6em;
+}
+.n26-tactic-notes-box ul {
+    list-style: disc;
+    padding-left: 1.2em;
+}
+.n26-tactic-notes-box ol {
+    list-style: decimal;
+    padding-left: 1.2em;
+}
+.n26-tactic-notes-box strong {
+    font-weight: 700;
+}
+.n26-tactic-notes-box em {
+    font-style: italic;
+}
+.n26-tactic-notes-box u {
+    text-decoration: underline;
+}
+.n26-tactic-notes-empty {
+    flex: 1;
+    color: var(--color-ink-500);
+    font-style: italic;
+}
+.n26-tactic-notes-actions {
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    line-height: 1.3;
+}
+.n26-tactic-notes-link {
+    order: -1;
+    flex-basis: 100%;
+    color: var(--tactic-label);
+    text-align: left;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.n26-tactic-notes-save {
+    margin-left: auto;
+    margin-right: calc(-1 * var(--tactic-notes-outset, 5px));
+    padding: 3px 8px;
+    border: 1px solid var(--tactic-ink);
+    border-radius: 0 0 8px 0;
+    corner-shape: bevel;
+    font-weight: 650;
+    white-space: nowrap;
+}
+.n26-tactic-notes-save:not(:disabled):hover {
+    background: color-mix(in srgb, var(--tactic-ink) 10%, transparent);
+}
+.n26-tactic-notes-save:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+.n26-tactic-notes-link:focus-visible,
+.n26-tactic-notes-save:focus-visible {
+    outline: 2px solid var(--tactic-label);
+    outline-offset: 2px;
+}
+.n26-tactic-notes-error {
+    color: var(--tactic-label);
+    font-size: 11px;
+}
+/* A printed card with no notes is ruled down its whole body, with the
+   bonus label, if any, under the lines. Nothing is fitted (useFittedRules
+   skips it), so the lines keep their spacing. */
+.n26-tactics-print-view .n26-tactic-content:has(.n26-tactic-notes-lines) {
+    display: flex;
+    flex-direction: column;
+}
+.n26-tactics-print-view .n26-tactic-rules:has(.n26-tactic-notes-lines) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+.n26-tactic-notes-lines {
+    flex: 1;
+    min-height: 3.2em;
+    background: repeating-linear-gradient(
+        transparent 0 calc(1.6em - 1px),
+        var(--tactic-line) calc(1.6em - 1px) 1.6em
+    );
+}
+
+.n26-tactics-colour-preview {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    font-size: 0.875rem;
+}
+.n26-tactics-colour-preview select {
+    width: 10rem;
+}
+
+.n26-tactics-colour-preview > label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.n26-tactics-colour-preview input {
+    accent-color: var(--color-accent);
+}
+.n26-tactic-gang-icon {
+    display: block;
+    flex: 0 0 calc(28px * var(--tactic-unit));
+    width: calc(28px * var(--tactic-unit));
+    height: calc(28px * var(--tactic-unit));
+    background: currentColor;
+    color: var(--color-black);
+    mask: var(--tactic-gang-icon) center / contain no-repeat;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+}
+.n26-tactic-notes-actions > .n26-tactic-identity {
+    margin-left: calc(-1 * var(--tactic-notes-outset, 5px));
+}
+.n26-tactics-print-view .n26-tactic-content {
+    position: relative;
+    padding-bottom: calc(12mm * var(--tactic-unit, 1));
+}
+.n26-tactic-print-gang {
+    position: absolute;
+    left: calc(3.4mm * var(--tactic-unit, 1));
+    bottom: calc(2mm * var(--tactic-unit, 1));
+}
+
+.n26-tactic-identity {
+    display: flex;
+    align-items: center;
+    gap: calc(8px * var(--tactic-unit));
+    min-width: 0;
+}
+.n26-tactic-identity-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    font-size: calc(10px * var(--tactic-unit));
+    line-height: calc(14px * var(--tactic-unit));
+}
+.dark .n26-tactic-gang-icon {
+    color: var(--tactic-control);
+}
+.n26-tactics-print-view .n26-tactic-gang-icon {
+    color: var(--color-black);
+}
+
+.dark .n26-tactic-notes-save {
+    color: var(--tactic-control);
+    border-color: currentColor;
+}
+.dark .n26-tactic-notes-save:disabled {
+    opacity: 1;
 }

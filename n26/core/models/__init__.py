@@ -23,7 +23,7 @@ from n26.core.models.counter_tracking import CounterTracking
 from n26.core.models.crew import BattleCrew, CrewMember
 from n26.core.models.dismissed_offer import DismissedOffer
 from n26.core.models.gang import Gang
-from n26.core.models.gang_tactic import GangTactic
+from n26.core.models.gang_tactic import GangTactic, GangTacticNotes
 from n26.core.models.ledger import LedgerEntry, LedgerEvent, Reason
 from n26.core.models.miniature import Miniature
 from n26.core.models.post_battle import PostBattleReport, PostBattleRevision
@@ -63,6 +63,7 @@ __all__ = [
     "DismissedOffer",
     "Gang",
     "GangTactic",
+    "GangTacticNotes",
     "LedgerEntry",
     "LedgerEvent",
     "Miniature",

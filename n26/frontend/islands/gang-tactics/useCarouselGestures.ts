@@ -23,7 +23,7 @@ export function useCarouselGestures(
                 event.pointerType === "touch" ||
                 event.button !== 0 ||
                 (event.target as HTMLElement).closest(
-                    "button, a, input, label",
+                    "button, a, input, label, .n26-tactic-notes",
                 ) ||
                 el!.scrollWidth <= el!.clientWidth
             )

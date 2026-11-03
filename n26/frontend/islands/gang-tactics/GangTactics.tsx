@@ -23,6 +23,8 @@ import {
 export type GangTacticsProps = {
     cards: Card[];
     yours: boolean;
+    gangColour?: string;
+    gangColourChoices?: string[];
     toGenerate: number;
     tableChoices: {
         value: string;
@@ -36,14 +38,30 @@ export type GangTacticsProps = {
     csrfToken: string;
     rollUrl: string;
     batchUrl: string;
+    /** Where the owner saves a card's notes, with TACTIC for its pk. */
+    notesUrl: string;
+    /** The site's TinyMCE, which the owner's notes boxes load. */
+    editorScript: string;
     /** Every set in the library: a bonus card may come from any of them. */
     bonusChoices: GangTacticsProps["tableChoices"];
     bonusUrl: string;
     printView: boolean;
     initialLayout: string;
 };
+/** Change a preview option without losing selection or other URL options. */
+function updateQuery(name: string, value: string | null) {
+    const url = new URL(location.href);
+    if (value === null) url.searchParams.delete(name);
+    else url.searchParams.set(name, value);
+    history.pushState({}, "", url);
+}
+
 export function GangTactics(props: GangTacticsProps) {
     const { yours, printView } = props;
+    const [colour, setColour] = useState(props.gangColour || "ink");
+    const [longNames, setLongNames] = useState(
+        () => new URL(location.href).searchParams.get("names") === "long",
+    );
     const [cards, setCards] = useState(props.cards);
     const [toGenerate, setToGenerate] = useState(props.toGenerate);
     const [tableChoices, setTableChoices] = useState(props.tableChoices);
@@ -69,7 +87,8 @@ export function GangTactics(props: GangTacticsProps) {
               : "grid",
     );
     const [active, setActive] = useState(0);
-    const [columns, setColumns] = useState(5);
+    // Four across leaves room on each card for its notes box and links.
+    const [columns, setColumns] = useState(4);
     const [screenScale, setScreenScale] = useState(1);
     const [lastStart, setLastStart] = useState(Math.max(0, cards.length - 1));
     const [generationOpen, setGenerationOpen] = useState(false);
@@ -91,7 +110,15 @@ export function GangTactics(props: GangTacticsProps) {
     );
     useEffect(() => {
         const onPop = () => {
-            const value = new URL(location.href).searchParams.get("layout");
+            const params = new URL(location.href).searchParams;
+            setLongNames(params.get("names") === "long");
+            const colour = params.get("colour");
+            setColour(
+                colour && props.gangColourChoices?.includes(colour)
+                    ? colour
+                    : props.gangColour || "ink",
+            );
+            const value = params.get("layout");
             setLayout(
                 value === "grid" || value === "carousel"
                     ? value
@@ -110,9 +137,7 @@ export function GangTactics(props: GangTacticsProps) {
     }, []);
     function chooseLayout(value: string) {
         setLayout(value);
-        const url = new URL(location.href);
-        url.searchParams.set("layout", value);
-        history.pushState({}, "", url);
+        updateQuery("layout", value);
     }
     function show(index: number) {
         const el = track.current;
@@ -160,6 +185,8 @@ export function GangTactics(props: GangTacticsProps) {
     function printSelected() {
         const url = new URL(props.rollUrl, location.origin);
         url.searchParams.set("print", "1");
+        url.searchParams.set("colour", colour);
+        if (longNames) url.searchParams.set("names", "long");
         selected.forEach((pk) => url.searchParams.append("selected", pk));
         window.open(url.toString(), "_blank", "noopener");
     }
@@ -411,7 +438,7 @@ export function GangTactics(props: GangTacticsProps) {
             ))}
         </MenuButton>
     );
-    const cardItems = cards.map((card) => (
+    const cardItems = cards.map((card, index) => (
         <li
             key={card.pk}
             className="n26-tactic-item n26-print-tactic-item"
@@ -452,10 +479,37 @@ export function GangTactics(props: GangTacticsProps) {
                 </div>
             )}
             <TacticCard
-                card={card}
+                card={
+                    longNames && index === 0
+                        ? {
+                              ...card,
+                              name: "An Unexpected Opportunity in the Underhive",
+                          }
+                        : card
+                }
                 selected={selected.has(card.pk)}
                 printView={printView}
                 onToggle={() => toggleCard(card.pk)}
+                notes={
+                    yours
+                        ? {
+                              saveUrl: props.notesUrl.replace(
+                                  "TACTIC",
+                                  card.pk,
+                              ),
+                              csrfToken: props.csrfToken,
+                              editorScript: props.editorScript,
+                              onSaved: (notes) =>
+                                  setCards((shown) =>
+                                      shown.map((one) =>
+                                          one.tactic === card.tactic
+                                              ? { ...one, notes }
+                                              : one,
+                                      ),
+                                  ),
+                          }
+                        : undefined
+                }
             />
         </li>
     ));
@@ -464,6 +518,7 @@ export function GangTactics(props: GangTacticsProps) {
             className={`n26-tactics-island ${printView ? "n26-tactics-print-view" : ""}`}
             style={
                 {
+                    "--tactic-theme": `var(--color-${colour}-500)`,
                     "--tactic-scale": scale / 100,
                     "--tactic-columns": columns,
                     "--tactic-screen-scale": screenScale,
@@ -719,6 +774,40 @@ export function GangTactics(props: GangTacticsProps) {
                     </div>
                 </>
             )}
+            {!printView && Boolean(props.gangColourChoices?.length) && (
+                <div className="n26-tactics-colour-preview">
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={longNames}
+                            onChange={(event) => {
+                                const enabled = event.target.checked;
+                                setLongNames(enabled);
+                                updateQuery("names", enabled ? "long" : null);
+                            }}
+                        />
+                        Long name example
+                    </label>
+                    <label>
+                        <span>Preview gang colour</span>
+                        <NativeSelect
+                            controlSize="sm"
+                            value={colour}
+                            onChange={(event) => {
+                                setColour(event.target.value);
+                                updateQuery("colour", event.target.value);
+                            }}
+                        >
+                            {props.gangColourChoices?.map((colour) => (
+                                <option key={colour} value={colour}>
+                                    {colour.charAt(0).toUpperCase() +
+                                        colour.slice(1)}
+                                </option>
+                            ))}
+                        </NativeSelect>
+                    </label>
+                </div>
+            )}
             <section
                 className="n26-tactics-collection"
                 aria-label="Gang tactics"
@@ -853,9 +942,7 @@ export function GangTactics(props: GangTacticsProps) {
                                         show(Math.max(0, active - 1));
                                     }
                                 }}
-                                tabIndex={
-                                    layout === "carousel" ? 0 : undefined
-                                }
+                                tabIndex={layout === "carousel" ? 0 : undefined}
                                 onScroll={() => {
                                     const el = track.current;
                                     if (
@@ -911,9 +998,9 @@ export function GangTactics(props: GangTacticsProps) {
                 )}
                 {cards.length > 0 && (
                     <p className="n26-tactics-disclaimer text-xs text-muted">
-                        All text is provided for reference only. Please consult
-                        the official Necromunda Skirmish books/journals for
-                        official wording.
+                        Suggested summaries are a guide, not the rules. Check
+                        the official Necromunda Skirmish books and journals for
+                        the full wording.
                     </p>
                 )}
             </section>

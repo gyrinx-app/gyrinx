@@ -1285,6 +1285,7 @@ def recipes():
                 "chevron-right",
                 "printer",
                 "rotate-cw",
+                "mouse-pointer-click",
                 "trash-2",
                 "circle-minus",
                 "zoom-in",

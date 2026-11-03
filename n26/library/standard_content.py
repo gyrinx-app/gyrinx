@@ -3032,8 +3032,8 @@ STANDARD_CONTENT = {
             key="gang-tactics-tables",
             name="Gang Tactics tables",
             help=(
-                "The Universal, Escher and Goliath Gang Tactics tables as roll "
-                "tables: a Gang Tactic slot type, a pickable per tactic with "
+                "The Universal, Escher, Goliath and Orlock Gang Tactics tables "
+                "as roll tables: a Gang Tactic slot type, a pickable per tactic with "
                 "where it is printed as its summary, a picklist per table, and "
                 "a hidden gang slot given to the gang types by a modifier. The "
                 "Universal table goes to every standard gang type. Names, "

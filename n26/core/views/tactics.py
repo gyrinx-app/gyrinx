@@ -6,9 +6,12 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.middleware.csrf import get_token
 from django.shortcuts import redirect, render
+from django.templatetags.static import static
 from django.urls import reverse
 from django.views.decorators.http import require_POST
+from tinymce.settings import get_js_url
 
+from n26.core.colours import GANG_COLOURS
 from n26.core.views.permissions import (
     _any_gang_or_404,
     _own_gang_or_404,
@@ -72,9 +75,12 @@ def gang_tactics(request, pk):
     selected = set(request.GET.getlist("selected"))
     if print_view and selected:
         shown = [card for card in shown if card.pk in selected]
+    colour = request.GET.get("colour", gang.colour)
     island = {
         "cards": _card_props(shown, tactics),
         "yours": yours,
+        "gangColour": colour if colour in GANG_COLOURS else "ink",
+        "gangColourChoices": list(GANG_COLOURS),
         "toGenerate": room.to_generate,
         "tableChoices": [asdict(choice) for choice in choices],
         "bonusChoices": [
@@ -86,6 +92,8 @@ def gang_tactics(request, pk):
         "csrfToken": get_token(request),
         "rollUrl": at,
         "batchUrl": reverse("n26-batch-gang-tactics", args=[gang.pk]),
+        "notesUrl": reverse("n26-gang-tactic-notes", args=[gang.pk, "TACTIC"]),
+        "editorScript": get_js_url() if yours else "",
         "printView": print_view,
         "initialLayout": request.GET.get("layout", ""),
     }
@@ -105,7 +113,23 @@ def gang_tactics(request, pk):
 
 def _card_props(shown, tactics):
     table_keys = {str(tactic.pk): str(tactic.picklist_id) for tactic in tactics}
-    return [{**asdict(card), "tableKey": table_keys[card.pk]} for card in shown]
+    # The same bundled gang artwork used by the N26 gang previews.
+    icons = {
+        "Universal": "custom_gang",
+        "Escher": "escher",
+        "Goliath": "goliath",
+        "Orlock": "orlock",
+    }
+    return [
+        {
+            **asdict(card),
+            "tableKey": table_keys[card.pk],
+            "gangIcon": static(f"designsystem/gang-types/{icons[card.table_name]}.svg")
+            if card.table_name in icons
+            else "",
+        }
+        for card in shown
+    ]
 
 
 def _tactics_state(gang):
@@ -231,6 +255,32 @@ def reroll_gang_tactic(request, pk, tactic_pk):
             "cancel_url": back,
         },
     )
+
+
+@login_required
+@require_POST
+def gang_tactic_notes(request, pk, tactic_pk):
+    """Save the owner's notes on one held tactic, as JSON.
+
+    Only the gang's owner reaches the form; anyone else gets a 404. The
+    notes are kept against the tactic, not the rolled card, and the reply
+    carries them back as stored, so the card shows what was kept.
+    """
+    from django.http import JsonResponse
+
+    from n26.core.forms import TacticNotesForm
+    from n26.core.operations import operation
+
+    gang, tactic = _own_tactic_or_404(request, pk, tactic_pk)
+    form = TacticNotesForm(request.POST)
+    if not form.is_valid():
+        return JsonResponse(
+            {"error": " ".join(form.errors.get("notes", ["Notes not saved."]))},
+            status=400,
+        )
+    with operation(gang, actor=request.user) as op:
+        op.edit_tactic_notes(tactic.pickable, form.cleaned_data["notes"])
+    return JsonResponse({"notes": form.cleaned_data["notes"]})
 
 
 @login_required
