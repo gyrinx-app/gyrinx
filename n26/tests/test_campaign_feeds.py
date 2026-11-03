@@ -79,6 +79,32 @@ class TestTheFeedsTab:
         feed.refresh_from_db()
         assert feed.archived
 
+    @pytest.mark.parametrize(
+        "section, target, path",
+        [
+            ("gangs", "link_card", "/n26/feeds/{}/"),
+            ("battles", "rss", "/n26/feeds/{}/rss/"),
+        ],
+    )
+    def test_a_link_can_be_shared(self, client, campaign, section, target, path):
+        client.force_login(campaign.owner)
+        make_feed(client, campaign, section, target)
+        token = CampaignFeed.objects.get().token
+
+        page = client.get(feeds_tab(campaign)).text
+
+        assert page.count('data-react-name="share"') == 1
+        assert "Share link" in page
+        assert path.format(token) in page
+
+    def test_embed_code_has_no_share_button(self, client, campaign):
+        client.force_login(campaign.owner)
+        make_feed(client, campaign, "gangs", "google_sites")
+
+        page = client.get(feeds_tab(campaign)).text
+
+        assert 'data-react-name="share"' not in page
+
     def test_rss_is_refused_for_anything_but_battles(self, client, campaign):
         client.force_login(campaign.owner)
 
