@@ -70,6 +70,7 @@ LEAF_KINDS = {
     "remove-picks": "remove_picks",
     "recruitment-allowance-rule": "recruitment_allowance_rule",
     "rank-allowance-rule": "rank_allowance_rule",
+    "battle-allowance-rule": "battle_allowance_rule",
     "hidden": "create_hidden",
     "asset": "create_asset",
     "asset-table": "create_asset_table",

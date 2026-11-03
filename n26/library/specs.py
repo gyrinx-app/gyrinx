@@ -403,6 +403,7 @@ def _build_registry():
         AssetTableEntry,
         AssetType,
         AugmentCarriedItem,
+        BattleAllowanceRule,
         BuiltInAction,
         CampaignType,
         Category,
@@ -1241,6 +1242,11 @@ def _build_registry():
                     source=(Action, "rank_allowance_rule"),
                     optional=True,
                 ),
+                "battle_allowance_rule": One(
+                    model=BattleAllowanceRule,
+                    source=(Action, "battle_allowance_rule"),
+                    optional=True,
+                ),
                 **use_lists(Action),
                 "qualifier": Text(source=(Action, "qualifier")),
                 "library_author_help": Text(
@@ -1364,6 +1370,12 @@ def _build_registry():
             {},
             model=RecruitmentAllowanceRule,
             identity=None,
+        ),
+        Spec(
+            authoring.battle_allowance_rule,
+            {"minimum_xp": Int(source=(BattleAllowanceRule, "minimum_xp"))},
+            model=BattleAllowanceRule,
+            identity="minimum_xp",
         ),
         Spec(
             authoring.rank_allowance_rule,

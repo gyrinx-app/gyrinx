@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from uuid import uuid4
 
-from django.db.models import Q
+from django.db.models import Case, Q, When
 
 from n26.core.access import actions_for
 from n26.core.action_payments import Balance, Quote, QuotedLine, Resource
@@ -153,6 +153,8 @@ def _allowance_source_kind(action):
         return ActionAllowance.Source.RECRUITMENT
     if action.rank_allowance_rule_id is not None:
         return ActionAllowance.Source.RANK
+    if action.battle_allowance_rule_id is not None:
+        return ActionAllowance.Source.BATTLE
     return None
 
 
@@ -253,6 +255,9 @@ def _content_snapshot(action):
             if action.rank_allowance_rule_id
             else None
         ),
+        "battle_allowance_rule": str(action.battle_allowance_rule_id)
+        if action.battle_allowance_rule_id
+        else None,
         "outcomes": outcomes,
     }
 
@@ -384,6 +389,38 @@ def _target_snapshot(record, configured, terms, *, quote=None):
     raise LibraryError(f"{type(configured).__name__} is not handled yet.")
 
 
+def battle_action_for_slot(anchor, *, record=None):
+    """The earned battle use that owns a stored advancement choice."""
+    if getattr(anchor, "slot_id", None) is None:
+        return None
+    matches = ActionRecord.objects.select_related("allowance").filter(
+        advancement_selection__slot_assignment=anchor,
+    )
+    owner = matches.filter(pk=record.pk).first() if record is not None else None
+    if owner is None:
+        owner = matches.order_by(
+            Case(
+                When(
+                    state=ActionRecord.State.STARTED,
+                    allowance__source_kind=ActionAllowance.Source.BATTLE,
+                    allowance__is_active=False,
+                    then=1,
+                ),
+                When(state=ActionRecord.State.STARTED, then=0),
+                default=2,
+            ),
+            "-created",
+            "-pk",
+        ).first()
+    if (
+        owner
+        and owner.allowance_id
+        and owner.allowance.source_kind == ActionAllowance.Source.BATTLE
+    ):
+        return owner
+    return None
+
+
 def active_action_record(fighter, action):
     """Resume the oldest current-source draft without changing older duplicates."""
     return (
@@ -392,6 +429,10 @@ def active_action_record(fighter, action):
             fighter=fighter,
             action=action,
             state=ActionRecord.State.STARTED,
+        )
+        .exclude(
+            allowance__source_kind=ActionAllowance.Source.BATTLE,
+            allowance__is_active=False,
         )
         .filter(
             Q(allowance__source_id=fighter.membership_id)
@@ -1041,12 +1082,24 @@ def reopen_action(op, record):
     others = ActionRecord.objects.filter(
         fighter=record.fighter, action=record.action, state__in=RESERVING_STATES
     ).exclude(pk=record.pk)
-    if others.filter(state=ActionRecord.State.STARTED).exists():
+    if (
+        others.filter(state=ActionRecord.State.STARTED)
+        .exclude(
+            allowance__source_kind=ActionAllowance.Source.BATTLE,
+            allowance__is_active=False,
+        )
+        .exists()
+    ):
         raise Refusal(
             "You cannot undo this while another flow for this action is started. "
             "Finish that flow, or mark it as applied by hand, first."
         )
-    threshold = record.allowance.threshold if record.allowance_id else None
+    threshold = (
+        record.allowance.threshold
+        if record.allowance_id
+        and record.allowance.source_kind == ActionAllowance.Source.RANK
+        else None
+    )
     if (
         threshold is not None
         and others.filter(

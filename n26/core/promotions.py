@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from n26.core.card import build_card, build_modifier_index, carriers
 from n26.core.effects import compute
-from n26.core.models import ActionRecord, AdvancementSelection
+from n26.core.models import ActionAllowance, ActionRecord, AdvancementSelection
 from n26.core.operations import Refusal
 
 
@@ -24,7 +24,11 @@ def promotion_for(record, configured):
         selection.roll_event_id or "promotion_rule" in record.terms
     ):
         return selection.promotion
-    if record.allowance_id is None or record.allowance.threshold is None:
+    if (
+        record.allowance_id is None
+        or record.allowance.source_kind != ActionAllowance.Source.RANK
+        or record.allowance.threshold is None
+    ):
         return None
     rules = list(
         configured.promotions.unarchived()
@@ -239,7 +243,11 @@ def apply_bonus_promotion(op, record, selection, pick):
 
 def require_earliest_allowance(fighter, action, allowance):
     """Resolve earlier ranks before a promotion changes later rank behaviour."""
-    if allowance is None or allowance.threshold is None:
+    if (
+        allowance is None
+        or allowance.source_kind != ActionAllowance.Source.RANK
+        or allowance.threshold is None
+    ):
         return
     configured = next(
         (

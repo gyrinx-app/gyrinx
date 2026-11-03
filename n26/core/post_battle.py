@@ -121,6 +121,8 @@ class ModelResult:
     xp_blocked: str
     xp_award_assignment_id: str | None = None
     xp_recorded: int = 0
+    battle_awards: list[str] = field(default_factory=list)
+    battle_xp_award: int = 0
     is_vehicle: bool = False
     profile_name: str = ""
     owned_by: str = ""
@@ -234,6 +236,7 @@ class PostBattlePlan:
     correcting: bool = False
     gang_counters: list[CounterChange] = field(default_factory=list)
     # Resolved objects are private execution data, never template inputs.
+    _battle_allowances: list = field(default_factory=list, repr=False)
     _writes: list = field(default_factory=list, repr=False)
     _removals: list = field(default_factory=list, repr=False)
     _status_restores: dict = field(default_factory=dict, repr=False)
@@ -795,10 +798,11 @@ def _project_counters(card, index, plan, result, facts, manual=None):
     ``manual`` is the change this report still has to make to each counter
     by hand, keyed by assignment id. Returns result deltas for counters other
     than XP, newly created counters, and projected stored balances keyed by
-    library counter.
+    library counter, and the stored XP change.
     """
     manual = manual or {}
     effect_deltas = defaultdict(int)
+    xp_delta = result.xp_change
     created = {}
     counters = {}
     by_assignment = {}
@@ -817,10 +821,18 @@ def _project_counters(card, index, plan, result, facts, manual=None):
             counters.setdefault(node.assignable.pk, []).append(held)
             by_assignment[str(node.assignment.pk)] = held
     reversed_deltas = defaultdict(int)
-    for _, _, events in plan._removals:
+    for _, root, events in plan._removals:
         for event in events:
             if event.kind == LedgerEvent.Kind.TALLIED and event.counter_delta:
                 reversed_deltas[str(event.assignment_id)] -= event.counter_delta
+                if (
+                    str(root.miniature_root_id) == result.id
+                    and event.assignment is not None
+                    and event.assignment.counter_id
+                    and event.assignment.counter.name.casefold()
+                    == XP_COUNTER.casefold()
+                ):
+                    xp_delta -= event.counter_delta
     for key, delta in reversed_deltas.items():
         held = by_assignment.get(key)
         if held is not None:
@@ -832,6 +844,8 @@ def _project_counters(card, index, plan, result, facts, manual=None):
     for key, delta in manual.items():
         if key in by_assignment:
             by_assignment[key][0] += delta
+            if by_assignment[key][2].name.casefold() == XP_COUNTER.casefold():
+                xp_delta += delta
     moved = {key for key, delta in reversed_deltas.items() if delta} | {
         key for key, delta in manual.items() if delta
     }
@@ -877,6 +891,8 @@ def _project_counters(card, index, plan, result, facts, manual=None):
             )
             if held[2].name.casefold() != XP_COUNTER.casefold() and held[1] is not None:
                 effect_deltas[held[1]] += held[0] - before
+            elif held[2].name.casefold() == XP_COUNTER.casefold():
+                xp_delta += held[0] - before
     local_sources = {
         node.assignable.pk
         for node in card.all_nodes()
@@ -892,6 +908,7 @@ def _project_counters(card, index, plan, result, facts, manual=None):
             for key, values in counters.items()
             if key in local_sources or key in created
         },
+        xp_delta,
     )
 
 
@@ -1064,6 +1081,31 @@ def _manual_xp_sources(report, old_models):
     return pins
 
 
+def _recorded_xp_awards(report, previous):
+    """Recover a report's cumulative award independently of later XP changes."""
+    if previous is None:
+        return {}
+    models = previous.receipt.get("models", [])
+    if all("battle_xp_award" in model for model in models):
+        return {model["id"]: model["battle_xp_award"] for model in models}
+    awards = {
+        model["id"]: model.get("xp", 0) for model in previous.inputs.get("models", [])
+    }
+    event_models = {
+        event_id: occurrence["model_id"]
+        for occurrence in previous.receipt.get("occurrences", {}).values()
+        for event_id in occurrence.get("event_ids", [])
+    }
+    for event_id, delta in LedgerEvent.objects.filter(
+        pk__in=event_models,
+        kind=LedgerEvent.Kind.TALLIED,
+        assignment__counter__name__iexact=XP_COUNTER,
+    ).values_list("pk", "counter_delta"):
+        model_id = event_models[str(event_id)]
+        awards[model_id] = awards.get(model_id, 0) + (delta or 0)
+    return awards
+
+
 def preview_report(report, *, actor, payload=None):
     _require_editor(report, actor)
     payload = normalise(_draft(report.draft if payload is None else payload))
@@ -1091,6 +1133,7 @@ def preview_report(report, *, actor, payload=None):
     )
     old = normalise(previous.inputs if previous else {})
     old_models = {m["id"]: m for m in old.get("models", [])}
+    recorded_xp_awards = _recorded_xp_awards(report, previous)
     xp_sources = _manual_xp_sources(report, old_models)
     old_occurrences = previous.receipt.get("occurrences", {}) if previous else {}
     # Each model's status before the report was first applied.
@@ -1236,7 +1279,7 @@ def preview_report(report, *, actor, payload=None):
             continue
         events = list(
             LedgerEvent.objects.filter(pk__in=held["event_ids"]).select_related(
-                "assignment__counter_value"
+                "assignment__counter_value", "assignment__counter"
             )
         )
         for event in events:
@@ -1299,6 +1342,19 @@ def preview_report(report, *, actor, payload=None):
         .distinct("miniature_id")
         .values_list("miniature_id", "post_battle_revision__report_id")
     }
+    from n26.core.access import actions_for
+    from n26.core.allowances import preview_battle_allowances
+    from n26.library.models import Action
+
+    battle_rules = {
+        action.pk: action
+        for action in Action.objects.filter(
+            battle_allowance_rule__isnull=False
+        ).select_related("battle_allowance_rule")
+    }
+    battle_allowances = list(
+        report.action_allowances.select_related("action").prefetch_related("records")
+    )
     for model_id, card in gang_card.members.items():
         model_id = str(model_id)
         miniature = card.miniature
@@ -1669,7 +1725,7 @@ def preview_report(report, *, actor, payload=None):
             - recorded.get(key, 0)
             for key, value in {**recorded, **entered}.items()
         }
-        effect_deltas, created, projected = _project_counters(
+        effect_deltas, created, projected, xp_delta = _project_counters(
             card, index, plan, result, facts, manual
         )
         sources = projection_sources(card.all_nodes(), readings)
@@ -1730,6 +1786,24 @@ def preview_report(report, *, actor, payload=None):
                 "note": note,
             }
         )
+        result.battle_xp_award = recorded_xp_awards.get(model_id, 0) + xp_delta
+        changes, allowance_facts, allowance_errors = preview_battle_allowances(
+            report,
+            miniature,
+            result.battle_xp_award,
+            accesses=actions_for(miniature, card=card, computed=compute(card, index))
+            if active and battle_rules
+            else [],
+            rules=battle_rules if active else {},
+            existing=battle_allowances,
+        )
+        plan._battle_allowances.extend(changes)
+        result.battle_awards = [
+            f"{'Earns' if allowance is None else 'Restores' if enabled else 'Puts on hold'} one use of {action}."
+            for _, action, _, allowance, enabled in changes
+        ]
+        facts.extend(allowance_facts)
+        model_errors.extend(allowance_errors)
         facts.append(["xp", model_id, result.xp_assignment_id])
         errors.extend(f"{miniature.name}: {error}" for error in model_errors)
     plan.review = sha256(
@@ -1884,6 +1958,9 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                         op.move(assignment, gang.stash, note="Post-battle equipment")
                     else:
                         op.remove(assignment, note="Equipment lost after battle")
+            from n26.core.allowances import apply_battle_allowances
+
+            apply_battle_allowances(op, report, plan._battle_allowances)
             op.event(
                 None, LedgerEvent.Kind.POST_BATTLE, note="Post-battle results recorded"
             )
@@ -1993,6 +2070,8 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                     "xp_after": m.xp_after,
                     "xp_change": m.xp_change,
                     "xp_award_assignment_id": m.xp_award_assignment_id,
+                    "battle_awards": m.battle_awards,
+                    "battle_xp_award": m.battle_xp_award,
                     "status_before": m.status,
                     "status_after": m.final_status,
                     "status_revision_after": (

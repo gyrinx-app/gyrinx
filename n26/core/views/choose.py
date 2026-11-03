@@ -611,6 +611,16 @@ def choose(request, pk, slot):
 
     gang = _own_gang_or_404(request, pk)
     found = find_slot(gang, slot)
+    from n26.core.action_records import battle_action_for_slot
+
+    battle_action = battle_action_for_slot(found.anchor)
+    if battle_action is not None:
+        return redirect(
+            "n26-action-flow",
+            pk=battle_action.fighter_id,
+            record_id=battle_action.pk,
+            step="resume",
+        )
     # The list is built for this reader: staged picks are on it only for
     # somebody who may see staged content, and the click below and the
     # roll panel are read against the same list.
@@ -892,8 +902,15 @@ def _write_pick(op, request, gang, slot_key, found, offer, wanted, *, dropped=""
     rules will not take. ``None`` comes back where the reader chose
     none: the standing pick is taken back and nothing is written.
     """
+    from n26.core.action_records import battle_action_for_slot
+    from n26.core.allowances import require_allowance_available
     from n26.core.operations import Refusal
     from n26.core.render import NONE_KEY
+
+    battle_action = battle_action_for_slot(found.anchor)
+    if battle_action is not None:
+        require_allowance_available(battle_action.allowance)
+        raise Refusal("Choose this result through its earned action flow.")
 
     rolled_on = _roll_posted(request, gang, found)
     if wanted == NONE_KEY and not dropped:

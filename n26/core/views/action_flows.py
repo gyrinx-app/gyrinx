@@ -61,7 +61,11 @@ def flow_url_for(fighter, record_id, step):
 def link_action_panels(fighter, panels):
     """Attach navigation to the read-only values used below the model card."""
     for panel in panels:
-        if not panel.problem and panel.available_uses != 0 and not panel.drafts:
+        if (
+            not panel.problem
+            and panel.available_uses != 0
+            and not any(not draft.suspended for draft in panel.drafts)
+        ):
             panel.start_href = reverse(
                 "n26-action-start", args=[fighter.pk, panel.action_id]
             )

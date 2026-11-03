@@ -10,6 +10,7 @@ from datetime import datetime
 
 from django.db.models import Case, F, Q, When, Window
 from django.db.models.functions import RowNumber
+from django.urls import reverse
 
 from n26.core.access import actions_for
 from n26.core.action_payments import Balance, Quote, QuotedLine, Resource
@@ -37,6 +38,8 @@ class ActionUseLink:
     problem: str = ""
     variant: str = "primary"
     earned_threshold: str = ""
+    report_href: str = ""
+    suspended: bool = False
 
 
 @dataclass
@@ -76,6 +79,8 @@ class PaymentTally:
 
 def earned_threshold(allowance):
     """Name the original threshold, even after the model's progression changes."""
+    if allowance is not None and allowance.source_kind == ActionAllowance.Source.BATTLE:
+        return f"{allowance.threshold}+ XP in one battle"
     if allowance is None or allowance.source_kind != ActionAllowance.Source.RANK:
         return ""
     return f"{allowance.threshold} {allowance.rank_table.counter}"
@@ -331,7 +336,9 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
         return []
     actions = list(
         Action.objects.filter(pk__in=action_ids)
-        .select_related("recruitment_allowance_rule", "rank_allowance_rule")
+        .select_related(
+            "recruitment_allowance_rule", "rank_allowance_rule", "battle_allowance_rule"
+        )
         .prefetch_related("use_price__counter")
         .order_by("name", "pk")
     )
@@ -387,6 +394,12 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
                         when=record.created,
                         earned=record.allowance_id is not None,
                         problem=problem,
+                        suspended=bool(
+                            record.allowance_id
+                            and draft_allowances[record.allowance_id].source_kind
+                            == ActionAllowance.Source.BATTLE
+                            and not draft_allowances[record.allowance_id].is_active
+                        ),
                         variant="default" if problem else "primary",
                         earned_threshold=earned_threshold(
                             draft_allowances.get(record.allowance_id)
@@ -404,6 +417,14 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
                         when=record.modified,
                         applied_by_hand=True,
                         earned_threshold=earned_threshold(record.allowance),
+                        report_href=(
+                            reverse(
+                                "n26-post-battle-receipt",
+                                args=[record.allowance.report_id],
+                            )
+                            if record.allowance and record.allowance.report_id
+                            else ""
+                        ),
                     )
                 )
             elif (
@@ -420,6 +441,14 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
                         and record.outcome.resolve_advancement_id is not None,
                         when=record.created,
                         earned_threshold=earned_threshold(record.allowance),
+                        report_href=(
+                            reverse(
+                                "n26-post-battle-receipt",
+                                args=[record.allowance.report_id],
+                            )
+                            if record.allowance and record.allowance.report_id
+                            else ""
+                        ),
                     )
                 )
         panel.flagged = any(not draft.problem for draft in panel.drafts) or (

@@ -30,6 +30,11 @@
                                         {% endif %}
                                     </div>
                                     {% if result.earned_threshold %}<p class="mt-0.5 text-muted">Earned at {{ result.earned_threshold }}.</p>{% endif %}
+                                    {% if result.report_href %}
+                                        <c-n26.link href="{{ result.report_href }}" class="text-xs">
+                                            Originating battle report
+                                        </c-n26.link>
+                                    {% endif %}
                                     {% if result.applied_by_hand %}
                                         <form method="post" action="{{ result.reopen_href }}" class="mt-0.5">
                                             {% csrf_token %}

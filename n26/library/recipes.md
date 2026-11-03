@@ -1068,3 +1068,27 @@ The standard setup already includes these conditions. When authoring another
 exception, change the contribution modifiers only if the rules also change
 what the visitors contribute. Use the built-in action settings when only its
 default visibility needs to change.
+
+## Earn a legendary name from battle XP
+
+Create a legendary name slot type and its names as pickables. Create a picklist
+with **Dice** set to **2D6** and **Roll selects** set to **Every row at or below
+the roll**. Add each name with **Roll low** and **Roll high** both set to **2**.
+Every roll then offers all the names.
+
+Create a slot using that picklist and use it in a **Resolve advancement** outcome.
+In **Actions → New action**, choose **Earn a use from battle XP**, set
+**Minimum XP in one battle** to **5**, and select the legendary name outcome.
+Grant the action to the eligible Orlock fighter entries.
+
+Applying a post-battle report grants one use when the fighter's total XP award
+is at least 5, including XP from injury results and other recorded effects.
+Lifetime XP and the size of a correction do not affect this award. Each later
+qualifying report can grant another use. The model's action
+history links a selected name back to its report.
+
+Correcting an award below 5 puts an unresolved choice on hold. Correcting it
+back to 5 or more restores the same choice. If the choice has already been used,
+undo the result first. A result with later dependent changes must be corrected
+in that order; lowering the report's XP never removes those changes. You can
+record a separate XP adjustment if the completed result should stay.

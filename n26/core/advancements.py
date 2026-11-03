@@ -10,6 +10,7 @@ from django.db.models import Prefetch, Q
 from n26.core.card import Node, build_card, build_modifier_index, carriers
 from n26.core.effects import compute
 from n26.core.models import (
+    ActionAllowance,
     ActionRecord,
     AdvancementSelection,
     Assignment,
@@ -180,6 +181,10 @@ def advancement_undo_snapshot(record):
             state=ActionRecord.State.STARTED,
         )
         .exclude(pk=record.pk)
+        .exclude(
+            allowance__source_kind=ActionAllowance.Source.BATTLE,
+            allowance__is_active=False,
+        )
         .exists()
     ):
         raise Refusal(
