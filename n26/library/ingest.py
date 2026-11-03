@@ -2170,6 +2170,50 @@ def _refuse_what_cannot_be_done(plan):
         )
 
 
+class StaleAppendPlan(LookupError):
+    """An equipment list changed after its append positions were planned."""
+
+
+def _lock_append_collections(plan):
+    """Serialise imports into existing lists and reject stale append positions."""
+    from n26.library.models import Collection, CollectionEntry
+
+    appends = {}
+    for planned in plan.planned:
+        if planned.kind == "CollectionEntry" and planned.action == "create":
+            collection = plan.get(planned.fields["collection"])
+            if collection.existing:
+                appends.setdefault(collection.existing, []).append(planned)
+    if not appends:
+        return
+
+    # Acquire all parent locks in the same order and hold them through insertion.
+    collections = list(
+        Collection.objects.select_for_update().filter(pk__in=appends).order_by("pk")
+    )
+    if {str(collection.pk) for collection in collections} != set(appends):
+        raise StaleAppendPlan(
+            "An equipment list changed during import. Nothing was imported. "
+            "Review the updated preview and try again."
+        )
+    last_positions = {
+        str(row["collection_id"]): row["last"]
+        for row in CollectionEntry.objects.filter(collection_id__in=appends)
+        .values("collection_id")
+        .annotate(last=Max("position"))
+    }
+    for collection in collections:
+        key = str(collection.pk)
+        last = last_positions.get(key)
+        start = 0 if last is None else last + 1
+        planned_positions = [row.fields["position"] for row in appends[key]]
+        if planned_positions != list(range(start, start + len(appends[key]))):
+            raise StaleAppendPlan(
+                f"{collection} changed during import. Nothing was imported. "
+                "Review the updated preview and try again."
+            )
+
+
 def perform(plan, *, staged=False):
     """Apply a valid plan in dependency order within one transaction.
 
@@ -2189,6 +2233,7 @@ def perform(plan, *, staged=False):
     from n26.write_pause import write_guard
 
     with transaction.atomic(), write_guard():
+        _lock_append_collections(plan)
         performer = _Performer(plan, result)
         for kind in PERFORM_ORDER:
             for planned in plan.planned:

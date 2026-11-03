@@ -1621,6 +1621,25 @@ Equipment List,New list,Close combat weapons,Lances,Frag lance,,35,
         ) == [0, 1]
         assert collection.entries.get(weapon__name="Frag lance").position == last + 1
 
+    def test_a_replaced_collection_cannot_receive_an_append_planned_for_the_original(
+        self, imported
+    ):
+        from n26.library import authoring
+        from n26.library.ingest import StaleAppendPlan
+
+        original = authoring.create_collection("Custom Equipment List")
+        plan = plan_ingest(
+            equipment_lists=read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions
+Equipment List,Custom,Close combat weapons,Lances,Frag lance,,35,
+""")
+        )
+        authoring.delete_content(original)
+        replacement = authoring.create_collection("Custom Equipment List")
+        with pytest.raises(StaleAppendPlan, match="Review the updated preview"):
+            perform(plan)
+        assert not replacement.entries.exists()
+
     def test_retained_entry_notes_do_not_query_each_omitted_item(self, imported):
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
@@ -2443,3 +2462,80 @@ def test_ingest_clear_preserves_the_gang_status_choice_without_reseeding(
     model.refresh_from_db()
     assert model.status == Status.RECOVERY
     assert_reconciled(gang)
+
+
+class TestConcurrentAppends:
+    """Overlapping imports preserve the append order shown in their plans."""
+
+    @pytest.mark.django_db(transaction=True)
+    def test_overlapping_imports_lock_the_list_and_reject_stale_append_positions(
+        self, full_foundation, sheets, monkeypatch
+    ):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Event
+
+        from django.db import (
+            OperationalError,
+            close_old_connections,
+            connection,
+            connections,
+        )
+
+        from n26.library.ingest import StaleAppendPlan, _Performer
+
+        perform(plan_ingest(**sheets))
+
+        def rows(name, section, category):
+            return read_csv(
+                "Collection,Title,Section,Category,Name,Profile,Credits,Restrictions\n"
+                f"Equipment List,Escher,{section},{category},{name},,35,\n"
+            )
+
+        first = plan_ingest(
+            equipment_lists=rows("Frag grenades", "Wargear", "Grenades")
+        )
+        second_rows = rows("Frag lance", "Close combat weapons", "Lances")
+        second = plan_ingest(equipment_lists=second_rows)
+        inserted, release = Event(), Event()
+        create_entry = _Performer._create_collectionentry
+
+        def pause_after_insertion(*args, **kwargs):
+            entry = create_entry(*args, **kwargs)
+            inserted.set()
+            assert release.wait(10), "Timed out waiting to commit the first import"
+            return entry
+
+        def import_first():
+            close_old_connections()
+            try:
+                perform(first)
+            finally:
+                connections.close_all()
+
+        monkeypatch.setattr(
+            _Performer, "_create_collectionentry", pause_after_insertion
+        )
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(import_first)
+            try:
+                assert inserted.wait(10), "The first import did not insert an entry"
+                with pytest.raises(OperationalError, match="lock timeout"):
+                    with transaction.atomic():
+                        with connection.cursor() as cursor:
+                            cursor.execute("SET LOCAL lock_timeout = '500ms'")
+                        perform(second)
+            finally:
+                release.set()
+            future.result(timeout=10)
+
+        collection = Collection.objects.get(name="Escher Equipment List")
+        before = list(collection.entries.values_list("pk", "position"))
+        with pytest.raises(StaleAppendPlan, match="Review the updated preview"):
+            perform(second)
+        assert list(collection.entries.values_list("pk", "position")) == before
+
+        monkeypatch.setattr(_Performer, "_create_collectionentry", create_entry)
+        perform(plan_ingest(equipment_lists=second_rows))
+        assert collection.entries.get(weapon__name="Frag lance").position == (
+            collection.entries.get(weapon__name="Frag grenades").position + 1
+        )

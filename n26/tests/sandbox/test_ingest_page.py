@@ -330,6 +330,27 @@ Equipment List,Escher,Wargear,Personal equipment,Respirator,,12,
 
         assert Weapon.objects.count() == weapons
 
+    def test_a_stale_append_returns_to_the_preview_without_reporting_success(
+        self, author, client, foundation, monkeypatch
+    ):
+        from n26.library import ingest
+
+        hold_all(client)
+
+        def stale_import(*args, **kwargs):
+            raise ingest.StaleAppendPlan(
+                "Escher Equipment List changed during import. Nothing was imported. "
+                "Review the updated preview and try again."
+            )
+
+        monkeypatch.setattr(ingest, "perform", stale_import)
+        response = client.post(PREVIEW_URL, follow=True)
+        body = response.content.decode()
+        assert response.redirect_chain[-1][0] == PREVIEW_URL
+        assert "Review the updated preview and try again" in body
+        assert "Import complete" not in body
+        assert not Weapon.objects.exists()
+
     def test_a_blocking_problem_writes_nothing(self, author, client, foundation):
         """A catalogue row typed as a priced weapon profile but naming no
         profile would lose its price on the way in, so the upload waits

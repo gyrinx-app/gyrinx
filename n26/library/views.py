@@ -5897,7 +5897,13 @@ def ingest_preview(request):
     Redirect after import so a page refresh cannot resubmit the form.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.library.ingest import held_sheets, perform, plan_ingest, rows_of
+    from n26.library.ingest import (
+        StaleAppendPlan,
+        held_sheets,
+        perform,
+        plan_ingest,
+        rows_of,
+    )
 
     held = held_sheets(request.user)
     if not held:
@@ -5928,8 +5934,12 @@ def ingest_preview(request):
         else:
             # An unchecked switch is absent from POST data.
             staged = request.POST.get("staged") == "on"
-            with transaction.atomic():
-                result = perform(plan, staged=staged)
+            try:
+                with transaction.atomic():
+                    result = perform(plan, staged=staged)
+            except StaleAppendPlan as exc:
+                messages.error(request, str(exc))
+                return redirect("authoring-ingest-preview")
             created = result.counts()
             # Record totals once per import to avoid an event for every row.
             record(
