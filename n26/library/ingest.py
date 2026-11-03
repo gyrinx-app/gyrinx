@@ -1,92 +1,30 @@
-"""Ingest — pre-ingest spreadsheets in, library rows out, preview between.
+"""Import CSV spreadsheets through a read, plan and perform pipeline.
 
-The pipeline (design/ingest.md §8) is three stages, and the middle one
-is the interface:
+read_csv() parses sheet data. plan_ingest() reads the library and produces
+Planned records, field changes and problems without writing. perform() applies
+that plan in dependency order within one transaction.
 
-* **read**: CSV text → rows (plain dicts, one per sheet line).
-* **plan**: rows → :class:`IngestPlan` — a list of :class:`Planned`
-  objects saying exactly which library row each sheet line becomes,
-  plus :class:`Problem` rows for everything that doesn't resolve.
-  Planning reads the database but never writes. It ends in one
-  **settling** pass (:func:`_settle`) that says, for every planned row,
-  whether the pack already holds it and what the sheets now say
-  differently: ``create``, ``update``, ``unchanged``, or ``resolved``
-  for a row that is not a sheet line at all but a lookup other lines
-  point at. ``plan.preview()`` derives the upload-preview payload:
-  counts by kind, the differences field by field, worked examples
-  (sheet row → planned objects), and the problem list — plain data,
-  JSON-able, per the structures-before-renderers convention
-  (n26/AGENTS.md).
-* **perform**: plan → rows, through the ``n26.library.authoring`` verbs,
-  in dependency order, in one transaction. Perform never invents
-  anything the plan didn't say: the preview *is* the contract, which
-  now covers changes as well as creations — an update writes exactly
-  the fields the preview named as changing, onto the row the preview
-  measured.
+UploadedSheet stores one file per author and sheet type. Preview and import
+requests read these files and rebuild the plan against the current library.
 
-An uploaded file is **held** between those stages
-(``n26.library.models.staging``). A browser will not let a server fill a
-file input back in, so a page that previewed an upload and then asked
-for the file again was asking the author to promise it was the same one;
-holding it makes the preview and the import two readings of one thing.
-What is not held is the plan: it is made again on the visit that shows
-it and again on the post that imports, because the contract is about the
-library as it stands.
+References between sheets must match planned or existing content. Missing
+references are reported rather than creating incomplete catalogue items.
+Built-in equipment is free; its price is independent of equipment-list prices.
+Standard content must be created from Foundations before an import.
 
-Three standing rules are load-bearing here:
+Equipment lists preserve omitted entries and existing positions. New entries
+append after the last stored position. Supplied entries can update prices.
+Weapon traits and fighter skill grids are replaced; built-in kit and use
+restrictions retain omitted members. A newly named equipment list replaces
+the previous list in a fighter's built-ins.
 
-* **Resolve, never create, across sheets.** An equipment-list line or a
-  built-in names a weapon; if no weapon of that name is planned or
-  already in the pack, that is a Problem, not a new weapon. Complex
-  weapons are hand-authored first and resolved by name (§7b).
-* **Built-ins are free.** Items named in a profile's default assignment
-  attach at price 0 and never take a price from an equipment list,
-  even on an exact name match (§5a — the Techmite's power fist is not
-  the one on the Ironhead list). The same set is how a fighter reaches
-  an equipment list at all: access is a built-in like any other, and
-  its being free is what keeps buying rights out of a fighter's
-  rating.
-* **Ingest stands on standard content.** The statline shapes, profile
-  types, XP counter and skill tiers a plan resolves against come from
-  ``n26.library.standard_content`` — created from the foundations page, never
-  re-declared here. Perform says which seed is missing rather than
-  quietly planting its own.
-* **Nothing is lost quietly.** Four tables say what can be done with a
-  planned kind — :data:`PERFORM_ORDER`, :data:`SHEET_FIELDS`,
-  :data:`CREATORS`, :data:`UPDATERS` — and perform reads the whole plan
-  against them before writing anything, refusing by name if some of it
-  has nowhere to go. Forget one and the rows would otherwise be passed
-  over in silence while the upload reported success.
+The four supported sheets are Equipment, Weapon profiles, Equipment lists and
+All Profiles. Item identity combines name, profile, category and section;
+names alone can match multiple weapons. Qualifiers distinguish catalogue
+items with otherwise identical identities.
 
-**The sheets, and how they join.** Four of them, each with one job:
-
-* **Equipment** — the catalogue. One row per thing a gang can buy,
-  typed by an ``Assignable`` column (a weapon, wargear, or one of a
-  weapon's priced profiles), carrying its category and its price.
-  The only place a reference price lives.
-* **Weapon profiles** — the statlines, and nothing else. A blank
-  ``Profile`` is the weapon's own profile; a named one is an ammo
-  type or a mode.
-* **Equipment lists** — a named collection per ``Title``, one entry per
-  line, at this list's price where it differs from the catalogue's.
-* **All Profiles** — the fighters, each with the heading and category
-  it is hired under, and an ``Equipment List`` column naming the list
-  it buys from.
-
-They join on an ``ID`` column printing ``Name (Profile) (Category ←
-Section)``, which :class:`ItemId` parses. Resolution goes through that,
-never through the name alone: eight weapons share a printed name across
-categories, so a name is not an identity. Where two catalogue rows do
-share one, both are kept and told apart by the author-facing
-``qualifier`` — renaming would put a word on a player's card that
-the books do not print.
-
-**Nothing here builds a Trading Post.** Membership there is *having a
-trade point price* — the post is two sweeps created as standard content —
-so ingest's whole part in it is setting ``trade_point_price`` and
-``is_exclusive`` from the sheet's ``TP`` column. The sheets keep those
-as one fact: ``Cost`` ``-`` and ``TP`` ``E`` always appear together,
-meaning "equipment-list only, priced by the list".
+Trading Post membership is derived from trade-point prices. Ingest sets those
+prices and exclusivity from the sheet's TP column rather than creating entries.
 """
 
 import csv
@@ -139,16 +77,10 @@ class Source:
         return {"sheet": self.sheet, "line": self.line}
 
 
-#: A row nothing has settled yet. Planning writes it; :func:`_settle`
-#: replaces every one of them. A plan still carrying one is a planner
-#: that added a row after the settling pass, which would be a row
-#: performed without anyone having asked whether the pack holds it.
+#: Every planned record must be settled before perform() can execute it.
 UNSETTLED = "pending"
 
-#: The sheet name a lookup carries. A row planned under it is not a
-#: sheet line at all — it is a row read out of the pack so other rows
-#: can point at it — so nothing about it is a claim the upload makes,
-#: and nothing about it is ever written.
+#: Records resolved from the library are references, not import writes.
 RESOLUTION = "resolution"
 
 #: The plan key for a fighter's opening XP. The counter itself is
@@ -159,24 +91,11 @@ XP_MEMBER = "Counter:xp"
 
 @dataclass(frozen=True)
 class Planned:
-    """One library row the plan intends.
+    """A library record to create, update, retain or resolve.
 
-    ``key`` names it within the plan (``"Weapon:autogun"``); other
-    planned objects refer to it by that key in their ``fields``, so the
-    whole plan is plain, printable data.
-
-    ``action`` is settled once, at the end of planning:
-
-    * ``create`` — the pack does not hold it.
-    * ``update`` — it does, and the sheet says something different.
-      ``changes`` names each difference, printably.
-    * ``unchanged`` — it does, and the sheet says the same.
-    * ``resolved`` — not a sheet row at all: a row looked up so other
-      rows can point at it.
-
-    ``existing`` is the pk of the row it matched, so performing writes
-    onto the row the preview described rather than onto whatever the
-    same lookup finds a moment later.
+    Other planned records reference its key through fields. The settling pass
+    sets action and changes after matching against the library. existing stores
+    the matched primary key so updates target the record shown in the preview.
     """
 
     kind: str
@@ -203,20 +122,10 @@ class Planned:
 
 @dataclass(frozen=True)
 class Problem:
-    """One thing the plan cannot do.
+    """A blocking error or informational note associated with a sheet line.
 
-    The line between the two severities is what proceeding would *do*.
-    An **error** would write something wrong, or names a state that is
-    never legitimate — two fighters claiming one identity, a priced row
-    whose price would silently vanish. A **note** means the upload
-    writes less than the sheet asked for and says so: a list line naming
-    an item nothing defines, a statline for nothing in the catalogue, a
-    restriction the model has no arm for. Nothing incorrect is written
-    either way; the difference is whether waiting is the right answer.
-
-    Most shortfalls are notes, because refusing a thousand good rows
-    over three the sheets are not ready for helps nobody — and the
-    report is where they are dealt with.
+    Errors prevent the entire import. Notes report skipped content or retained
+    values and allow the rest of the import to proceed.
     """
 
     sheet: str
@@ -338,8 +247,7 @@ def _price(cell):
 
 
 class IngestPlan:
-    """Everything the upload would do, as data. The preview derives from
-    this; perform executes exactly this."""
+    """Planned records, field changes and problems for the preview and import."""
 
     def __init__(self, pack):
         self.pack = pack
@@ -357,10 +265,7 @@ class IngestPlan:
         return self._by_key.get(key)
 
     def add(self, kind, name, fields, source, key=None):
-        """One row the plan intends. What becomes of it — made, changed,
-        left alone, or merely looked up — is not decided here: planning
-        says what the sheets mean, and :func:`_settle` says once, at the
-        end, what the pack already holds."""
+        """Add a record before the settling pass determines its action."""
         key = key or f"{kind}:{_norm(name)}"
         if key in self._by_key:
             return self._by_key[key]
@@ -378,8 +283,7 @@ class IngestPlan:
         return row
 
     def settle(self, planned, action, changes=None, existing=None):
-        """Fix a row's action, and what makes it one — the difference the
-        sheet asks for, and the row in the pack it will be written onto."""
+        """Store the action, changed fields and matched primary key for a planned record."""
         settled = Planned(
             kind=planned.kind,
             key=planned.key,
@@ -407,12 +311,7 @@ class IngestPlan:
     # -- preview ------------------------------------------------------------
 
     def preview(self, examples=3, sample=False, seed=None):
-        """The upload preview: plain data, JSON-able.
-
-        ``examples`` worked rows per sheet — the top few, or a random
-        sample with ``sample=True`` — each pairing the raw sheet row
-        with every object it plans.
-        """
+        """Return counts, changes, problems and sample sheet lines as serialisable data."""
         counts = TallyCounter()
         actions = TallyCounter()
         for row in self.planned:
@@ -469,17 +368,9 @@ def _fold_column(name):
 
 
 class Row(dict):
-    """A sheet row that finds a column however its heading was typed.
+    """A CSV row with case-insensitive column lookup.
 
-    Headings are typed by hand into a spreadsheet, so "Equipment list",
-    "Equipment List" and a stray trailing space are one column to
-    everyone except a dict. Matching them exactly means a heading that
-    differs by a capital reads as *absent*, and the whole feature behind
-    it goes missing with nothing said — the worst way for a sheet to be
-    wrong, because the upload succeeds and the preview looks right.
-
-    Only lookup folds. The row still holds what the file said, so
-    anything reporting a heading back to an author quotes their own.
+    Keep original headers and values for display in the preview.
     """
 
     def __init__(self, row):
@@ -505,28 +396,14 @@ def read_csv(text):
 
 
 class SheetRefused(ValueError):
-    """An uploaded file that will not be kept, and the reason in words.
-
-    Refusing here rather than at planning time is the difference between an
-    author being told "that is not a CSV" beside the file picker and being
-    shown a preview of nothing.
-    """
+    """An unreadable or unsupported upload, with an explanation for the upload form."""
 
 
 def store_sheet(owner, sheet, upload):
-    """Keep an uploaded file as this author's copy of ``sheet``.
+    """Store an author's CSV upload for one sheet type.
 
-    Whatever they held for that sheet before is replaced: a corrected export
-    supersedes a wrong one, and two files claiming to be the Equipment sheet
-    would leave the planner to guess.
-
-    The replacement writes over one row rather than removing one and making
-    another, so an author whose upload fails halfway still holds the file
-    they had. The superseded bytes go only once the new ones are stored,
-    for the same reason.
-
-    The file is read once here, both to count its lines and to find out now
-    whether it can be read at all.
+    Validate UTF-8 encoding and require at least one data row. Replace the existing
+    upload record and delete the previous file only after the transaction commits.
     """
     from n26.library.models.staging import MAX_SHEET_BYTES, UploadedSheet
     from n26.write_pause import write_guard
@@ -535,27 +412,24 @@ def store_sheet(owner, sheet, upload):
         raise SheetRefused(f"{sheet!r} is not one of the sheets.")
     if upload.size > MAX_SHEET_BYTES:
         raise SheetRefused(
-            f"That file is {upload.size // 1024}KB, and a sheet may be at most "
-            f"{MAX_SHEET_BYTES // 1024}KB. It is probably not a CSV export."
+            f"File size is {upload.size // 1024}KB. The limit is "
+            f"{MAX_SHEET_BYTES // 1024}KB."
         )
     raw = upload.read()
     try:
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError as refused:
         raise SheetRefused(
-            "That file is not text this can read. Export it as CSV (UTF-8) "
-            "and upload it again."
+            "The file is not UTF-8 text. Export it as CSV (UTF-8) and upload it again."
         ) from refused
     rows = read_csv(text)
     if not rows:
         raise SheetRefused(
-            "That file has a heading row and nothing under it, or is not a CSV at all."
+            "No data rows found. Upload a CSV with a header and at least one data row."
         )
 
     with transaction.atomic(), write_guard():
-        # Locked, so an author who submits the same form twice replaces one
-        # row twice rather than racing themselves into the constraint that
-        # holds them to one sheet of each kind.
+        # Serialise replacements of an author's existing upload.
         held = (
             UploadedSheet.objects.select_for_update()
             .filter(owner=owner, sheet=sheet)
@@ -574,7 +448,7 @@ def store_sheet(owner, sheet, upload):
 
 
 def held_sheets(owner):
-    """What this author has uploaded, keyed by the planner's name for it."""
+    """Return this author's uploaded files, keyed by sheet type."""
     from n26.library.models.staging import UploadedSheet
 
     return {
@@ -585,15 +459,15 @@ def held_sheets(owner):
 
 
 def rows_of(held):
-    """Held uploads → the rows :func:`plan_ingest` takes."""
+    """Parse each uploaded CSV file into rows for the planner."""
     return {name: read_csv(upload.text()) for name, upload in held.items()}
 
 
 def discard_sheets(owner, sheets=None):
-    """Remove held uploads, bytes and all; return how many went.
+    """Delete selected uploads and return the number removed.
 
-    One at a time, because the stored file goes with the row and a queryset
-    delete would leave the bytes behind.
+    Delete stored files after the database transaction commits. Omitting sheets
+    selects all of the author's uploads.
     """
     from n26.library.models.staging import UploadedSheet
     from n26.write_pause import write_guard
@@ -624,20 +498,11 @@ def plan_ingest(
     profiles=(),
     pack=None,
 ):
-    """Rows from up to four sheets → one :class:`IngestPlan`.
+    """Plan catalogue items, weapon profiles, equipment lists and fighters.
 
-    The order is forced, and it is circular if done naively: statlines
-    hang on catalogue rows, lists resolve against the catalogue, a
-    fighter's built-in kit names things the catalogue defines, and a
-    list's restrictions name fighters. So:
-
-    1. the **equipment** sheet — the catalogue: what exists, and its price;
-    2. the **weapon profiles** sheet — the statlines, onto those rows;
-    3. the **equipment lists** — collections and entries, restrictions deferred;
-    4. the **All Profiles** sheet — the fighters;
-    5. those deferred restrictions, which needed the fighters.
-
-    Resolve, never create, at every step.
+    Resolve restrictions after fighter profiles are available. The settling pass
+    matches planned records against the library and calculates field changes.
+    Planning reads the database without writing.
     """
     from n26.library.models import get_default_pack
 
@@ -725,28 +590,10 @@ def _prices(row):
 
 
 def _plan_equipment(plan, rows, statlined=frozenset()):
-    """The equipment sheet: the catalogue, and the only place a price lives.
+    """Plan catalogue items and reference prices.
 
-    One row per thing a gang can buy, typed by its ``Assignable``
-    column — a weapon, a piece of wargear, or one of a weapon's priced
-    profiles. Statlines arrive on the weapon profiles sheet; this
-    pass fixes identity, home and price.
-
-    **Grenades.** The sheet types them Wargear, and the game calls them
-    that for one reason: they do not count against the weapons a fighter
-    is holding. But a thing with a profile is a weapon — it has a
-    range, a strength, traits — so a Wargear row that ``statlined``
-    knows becomes a Weapon taking **no slots**, which is precisely the
-    fact "wargear" was standing in for. Its category is untouched, so it
-    still homes under Grenades where the lists expect it.
-
-    Nothing here builds a Trading Post. Membership there is *having a
-    trade point price* — the post is two sweeps created as standard content
-    — so setting the field is the whole job.
-
-    Returns the prices found for named weapon profiles, keyed by ID: the
-    profiles themselves are defined by their statlines, and this sheet
-    only says what they are priced at.
+    Wargear with weapon statlines becomes a weapon that occupies no weapon slots.
+    Defer weapon-profile prices until the statline sheet is processed.
     """
     # Pass 1: which printed names does more than one item claim? Those
     # want the author-facing qualifier — a power fist is Exo kit
@@ -774,14 +621,14 @@ def _plan_equipment(plan, rows, statlined=frozenset()):
         if kind is None:
             plan.problem(
                 source,
-                f"Assignable {said!r} is not a kind — the sheet's kinds are "
-                f"{', '.join(sorted(set(EQUIPMENT_KINDS.values())))}",
+                f"Unknown Assignable {said!r}. Supported types: "
+                f"{', '.join(sorted(set(EQUIPMENT_KINDS.values())))}.",
             )
             continue
 
         ident = ItemId.of(row)
         if not ident.name:
-            plan.problem(source, "row names nothing")
+            plan.problem(source, "Missing item name.")
             continue
 
         key = f"{kind}:{ident.key}"
@@ -808,8 +655,8 @@ def _plan_equipment(plan, rows, statlined=frozenset()):
             if not ident.profile:
                 plan.problem(
                     source,
-                    f"{ident.name!r} is typed 'Weapon Profile' but names no "
-                    f"Profile — a weapon's own line is priced on the weapon",
+                    f"{ident.name!r} needs a Profile value for the Weapon Profile type. "
+                    f"Use Weapon for the weapon's base price.",
                 )
                 continue
             profile_prices[ident.key] = priced
@@ -868,22 +715,7 @@ def _plan_equipment(plan, rows, statlined=frozenset()):
 
 
 def _plan_weapon_profiles(plan, rows, prices):
-    """The weapon profiles sheet: the statlines, and nothing else.
-
-    A row with a blank ``Profile`` is the weapon's own profile — the
-    card prints it as the weapon itself, so it is stored unnamed, free
-    and first. A named row is a further profile: an ammo type or a
-    firing mode, costing whatever the equipment sheet priced it at, and
-    free when that sheet does not list it.
-
-    Resolve, never create: a statline whose weapon the catalogue does
-    not define is a problem, not a new weapon.
-
-    The rows are grouped by weapon before anything is planned, because
-    the sheet is *sorted* rather than ordered: a weapon's ammo line can
-    sit far from the weapon's own line, and a weapon may have no own
-    line at all. Grouping is what lets the first line always be first.
-    """
+    """Plan weapon statlines, traits, ammunition and firing modes."""
     groups = {}
     seen = {}
     for line, row in enumerate(rows, start=1):
@@ -999,15 +831,14 @@ PROFILE_SECTIONS = {GANG_LIST_SECTION: 0, "Supplementary Fighters": 1}
 
 
 def _plan_home(plan, row, name, source):
-    """A fighter's home category, from the sheet's ``Category`` and
-    ``Section``. Returns its key, or None where the sheet names none."""
+    """Resolve a fighter's Section and Category to its hire-list category key."""
     section = _clean(row.get("Section") or "") or GANG_LIST_SECTION
     category = _clean(row.get("Category") or "")
     if not category:
         plan.problem(
             source,
-            f"{name!r} names no Category — it arrives ungrouped, under no "
-            f"heading in the hire list",
+            f"{name!r} has no Category. It will be imported without a category "
+            f"in the hire list.",
             severity="note",
         )
         return None
@@ -1025,10 +856,10 @@ def _plan_home(plan, row, name, source):
 
 
 def _plan_profiles(plan, rows):
-    """The All Profiles sheet. Rating **is** the price (§5a); the grid
-    columns become placement modifiers on the profile itself, and the
-    ``Category`` and ``Section`` columns are the fighter's home — where
-    the hire list groups it."""
+    """Plan fighter profiles, statlines, starting equipment and skill access.
+
+    The sheet's Rating column supplies the profile's reference price.
+    """
     from n26.library.models import Profile
 
     for line, row in enumerate(rows, start=1):
@@ -1050,13 +881,10 @@ def _plan_profiles(plan, rows):
 
         gang_name = _clean(row.get("Gang", ""))
         if not gang_name:
-            # Every entry is hired off a gang list, and a gang type with
-            # no name draws as an empty card on the create-gang page,
-            # landing before every real one — nothing sorts before nothing.
+            # A missing gang name would create a blank option on the gang page.
             plan.problem(
                 source,
-                f"{name!r} names no Gang — every entry is hired off a gang "
-                f"list, and the sheet has not said which",
+                f"Missing Gang for {name!r}. Set the gang that can hire this profile.",
             )
             continue
         gang_key = f"GangType:{_norm(gang_name)}"
@@ -1097,15 +925,11 @@ def _plan_profiles(plan, rows):
         for item in _split_list(row.get("Default assignment", "")):
             resolved = _resolve_item(plan, item)
             if resolved is None:
-                # Built-in-only kit — hunting rigs, exo-suits, natural
-                # weapons — is never sold, so no sheet defines it. The
-                # fighter is still worth having, so this is said and
-                # carried past; the fighter simply arrives without it.
+                # Unresolved built-in equipment does not prevent profile import.
                 plan.problem(
                     source,
-                    f"{name!r} comes with {item!r}, which no sheet defines "
-                    f"and the pack does not hold — imported without it "
-                    f"(built-ins resolve, never create)",
+                    f"Built-in equipment {item!r} for {name!r} was not found in "
+                    f"the sheets or library. The profile will be imported without it.",
                     severity="note",
                 )
                 continue
@@ -1120,10 +944,9 @@ def _plan_profiles(plan, rows):
             if listed is None:
                 plan.problem(
                     source,
-                    f"{name!r} has {buys_at!r} in the {EQUIPMENT_LIST_COLUMN} "
-                    f"column, and no equipment list of that title is defined "
-                    f"or in the pack — imported without it, so the fighter "
-                    f"buys from nothing (lists resolve, never create)",
+                    f"{name!r} references {buys_at!r} in the {EQUIPMENT_LIST_COLUMN} column. "
+                    f"The list was not found in the sheets or library. "
+                    f"The profile will be imported without it.",
                     severity="note",
                 )
             else:
@@ -1149,9 +972,8 @@ def _plan_profiles(plan, rows):
             qualifier = gang_name
             plan.problem(
                 source,
-                f"profile {name!r} is also another gang's — this one is "
-                f"qualified {qualifier!r}; authors see the qualifier, "
-                f"players never do",
+                f"Profile {name!r} already exists for another gang. This profile "
+                f"will be qualified as {qualifier!r}, visible only to authors.",
                 severity="note",
             )
 
@@ -1209,9 +1031,7 @@ def _plan_profiles(plan, rows):
 
 
 def _plan_skill_grid(plan, row, profile_key, label, source):
-    """The fighter's Primary and Secondary skill-set columns, as
-    placement modifiers. Returns their keys, in the order the sheet
-    reads, which is the fighter's whole statement about its grid."""
+    """Plan Primary and Secondary skill-set placements for a fighter profile."""
     keys = []
     for column, section in (
         ("Primary Skill Sets", "Primary"),
@@ -1308,18 +1128,7 @@ def _collection_name(title):
 
 
 def _resolve_equipment_list(plan, title):
-    """The equipment list a fighter's ``Equipment List`` cell names.
-
-    A title is put together with the kind exactly as the equipment-lists
-    sheet's own rows are, so a fighter and the list it buys from cannot
-    come to mean different collections. A cell spelling the whole name
-    out is then taken as written, which makes both readings of the
-    column land on one row; each attempt is an exact match on a folded
-    name, so neither is a guess.
-
-    Resolve, never create: an equipment list is defined on its own
-    sheet, and a title carried by none of them is a miss.
-    """
+    """Resolve an equipment-list title against planned or existing collections."""
     from n26.library.models.collection import Collection
 
     for name in (_collection_name(title), _clean(title)):
@@ -1338,21 +1147,11 @@ def _resolve_equipment_list(plan, title):
 
 
 def _plan_equipment_lists(plan, rows):
-    """The equipment lists sheet: one named collection per ``Title``.
+    """Plan entries for each collection named in the equipment-lists sheet.
 
-    An entry per line, resolved against the catalogue **by ID** — never
-    created here. The ID carries the category, which is what tells two
-    weapons sharing a printed name apart, so resolution is exact and a
-    miss is a real miss.
-
-    A price override is written only where the list disagrees with the
-    catalogue. An item the catalogue prices ``-`` has no reference price
-    at all, so the list price is the only price it has ever had and is
-    always written; an item whose list price matches its reference
-    carries nothing, which is what "at catalogue price" looks like.
-
-    Returns the restrictions found, deferred: they name fighters, and
-    fighter profiles plan after this pass.
+    Resolve items by name, profile, category and section. Add price overrides where
+    the list differs from the catalogue. Defer fighter restrictions until profiles
+    are planned.
     """
     pending_restrictions = []
     positions = TallyCounter()
@@ -1381,17 +1180,16 @@ def _plan_equipment_lists(plan, rows):
 
         ident = ItemId.of(row)
         if not ident.name:
-            plan.problem(source, "row names nothing")
+            plan.problem(source, "Missing item name.")
             continue
 
         item_key = _resolve_by_id(plan, ident)
         if item_key is None:
             plan.problem(
                 source,
-                f"{title} lists {ident.printed!r}, which the equipment "
-                f"sheet does not define and the pack does not hold — "
-                f"this list arrives without it. Author the item first "
-                f"if it is one of the hand-built ones",
+                f"{title} lists {ident.printed!r}, which was not found in the "
+                f"equipment sheet or library. This entry will be skipped. "
+                f"Create the item first if it needs manual authoring.",
                 severity="note",
             )
             continue
@@ -1433,12 +1231,7 @@ def _plan_equipment_lists(plan, rows):
 
 
 def _override(item, list_price):
-    """What this entry must say about price, beyond the catalogue.
-
-    ``None`` means "at catalogue price" — the entry stores nothing and a
-    later correction to the item flows through. A number is this list's
-    own price, which the catalogue does not know.
-    """
+    """Return the list price override, or None to use the catalogue price."""
     if list_price is None:
         return None
     # No reference price to agree with: the list is the only price.
@@ -1554,23 +1347,10 @@ def _plan_existing(plan, kind, found, ident):
 
 
 def _plan_restrictions(plan, pending):
-    """The deferred restrictions pass: fighter profiles exist by now.
+    """Resolve supported use restrictions after fighter profiles are planned.
 
-    Two shapes turn up. "<Fighter> only" narrows one list's offer of an
-    item to a profile, which is an arm of ``UsableBy`` on the collection
-    entry and becomes a real restriction. A gang-wide cap ("Max one per
-    gang") is not a restriction on *use* at all, so it is said and
-    carried past rather than bent into the wrong mechanism.
-
-    The restriction is the entry's, never the item's. The sheet prints
-    the bracket beside one line of one gang's list — "Heavy rock saw
-    (Forge-born only)" on the Goliath list, where other gangs list the
-    same saw plainly — so writing it onto the item would narrow every
-    list that carries the item, and every re-upload would write it
-    again.
-
-    The regex only proposes a name; what decides is whether that name
-    resolves to something real. Nothing is ever restricted on a guess.
+    Store restrictions on collection entries so other lists remain unaffected.
+    Report unsupported rules, such as per-gang limits, as notes.
     """
     for source, restriction, item_key, gang, entry_key in pending:
         match = re.match(r"^(.*?)\s+only$", restriction, flags=re.IGNORECASE)
@@ -1596,8 +1376,8 @@ def _plan_restrictions(plan, pending):
         else:
             plan.problem(
                 source,
-                f"restriction {restriction!r} names nothing this sheet "
-                f"defines or the pack holds — imported without it",
+                f"No profile matches restriction {restriction!r} in the sheets "
+                f"or library. The entry will be imported without this restriction.",
                 severity="note",
             )
 
@@ -1779,20 +1559,10 @@ FIELD_SHAPES = {
 
 
 def find_existing(planned, pack, resolve):
-    """The row in the pack a planned row names, or ``None``.
+    """Find the library record matching a planned record, or return None.
 
-    One statement of what counts as the same row, because two things
-    ask it: settling, to measure a difference against the row that will
-    be written onto, and performing, to point other rows at it. Kept
-    apart, the two drift — and the drift is silent, a difference
-    measured against one row and written onto another.
-
-    ``resolve`` answers a plan key with the row it names, or ``None``
-    where nothing holds it yet. Some identities need it: a weapon
-    profile's is the weapon it hangs on, an entry's is its collection
-    and the thing listed. Matching those by name instead would take
-    whichever row came first, and one printed name can belong to two
-    weapons.
+    Planning and performing share this identity lookup. resolve maps referenced
+    plan keys to library objects, including the parent weapon or collection.
     """
     from n26.library.models import (
         Category,
@@ -1913,19 +1683,10 @@ def _already_allows(entry, allows):
 
 
 def _settle(plan):
-    """Decide every planned row's action, once, in one place.
+    """Match planned records and calculate their actions and changed fields.
 
-    Planning says what the sheets mean; this says what the pack already
-    holds, and the two are worth keeping apart. All the identity
-    knowledge and all the comparison knowledge sit here and read
-    together, and a row is compared against the row it will be written
-    onto rather than against whatever a second, separately written
-    lookup happens to find.
-
-    The order is the performing order, so every row a row names is
-    settled before it. That is what makes a foreign key comparable at
-    all: "does the stored key point at the row this plan names?" cannot
-    be asked until the named row has been looked for.
+    Process dependencies first so references can be compared by primary key.
+    Existing equipment-list entries keep their positions; new entries append.
     """
     found = {}
     next_positions = {}
@@ -2012,14 +1773,9 @@ def _note_retained_entries(plan, found):
 
 
 def _note_restrictions_the_sheet_no_longer_names(plan, found):
-    """Say which fighters a list's line is still offered to only that
-    no line of this upload names — and retract none of them.
+    """Report existing use restrictions omitted from the upload.
 
-    The restriction is stored on the collection entry, so one list
-    dropping "<Fighter> only" is a claim about that one line. Ingest
-    is add-only all the same: nothing it reads is ever taken off, and
-    the note is how an author finds the ones to take off by hand, on
-    the collection page where the entry is edited.
+    Restrictions remain on the collection entry until an author removes them.
     """
     wanted, where = {}, {}
     for planned in plan.planned:
@@ -2050,9 +1806,8 @@ def _note_restrictions_the_sheet_no_longer_names(plan, found):
         said = ", ".join(sorted(str(row) for row in unnamed))
         plan.problem(
             where[entry_key],
-            f"{entry} is offered to {said} only in the pack, which no line "
-            f"of this upload names — nothing was retracted. Take it off on "
-            f"the collection page if the sheet does not print it",
+            f"{entry} keeps existing use restrictions for {said}. These restrictions "
+            f"are absent from the upload. Remove them on the collection page if needed.",
             severity="note",
         )
 
@@ -2076,14 +1831,10 @@ def _in_perform_order(plan):
 
 
 def _differences(plan, planned, row, resolve):
-    """What the sheet says that the pack's row does not, field by field.
+    """Compare sheet-owned fields against a matched library record.
 
-    Printable values only — a reference renders as the name of the
-    thing referred to, a set as what joined and what left. This is what
-    the preview shows, and the fields it names are exactly the fields
-    perform writes; perform takes the values themselves from
-    ``planned.fields``, so that the two cannot describe different
-    writes.
+    Return printable field differences for the preview. perform() updates only
+    these fields.
     """
     changes = {}
     for name in SHEET_FIELDS[planned.kind].updatable:
@@ -2110,18 +1861,9 @@ def _scalar_difference(planned, row, name):
 
 
 def _reference_difference(plan, planned, row, name, resolve):
-    """A foreign key, compared without ever asking a stored row what
-    the plan would have called it.
+    """Compare a planned reference with the stored foreign-key target.
 
-    The question is only "does the stored key point at the row this
-    plan names?", so it is asked in that direction: resolve the key,
-    and compare. A key the upload is about to found resolves to
-    nothing, and that is a difference rather than a match — it is about
-    to point somewhere that does not exist yet.
-
-    Naming nothing is not the same as naming nothing in particular: a
-    blank cell is the sheet declining to say, exactly as a blank stat
-    cell is, so what the row already points at stays.
+    An unresolved nonempty plan key differs from an empty foreign key.
     """
     key = planned.fields[name]
     if not key:
@@ -2141,13 +1883,7 @@ def _said(row):
 
 
 def _planned_said(plan, key):
-    """A plan key, as the thing it names.
-
-    Read alongside :func:`_said`, so the two sides of a difference are
-    named the same way whether or not the pack holds them yet — which
-    is the whole use of it, since half of what a change names is a row
-    the upload has not made.
-    """
+    """Format a planned record's label for comparison with an existing record."""
     if not key:
         return None
     if key == XP_MEMBER:
@@ -2164,14 +1900,10 @@ def _planned_said(plan, key):
 
 
 def _set_difference(plan, planned, row, name, resolve):
-    """A collection of members: what joins, what leaves, what shifts.
+    """Compare set-valued fields using each field's replacement rules.
 
-    Each set has its own answer to "what about a member the sheet no
-    longer names", and the deciding question is whether the set is
-    somewhere hand-authored content lives (3.6 of the design note).
-    Traits and the skill grid are wholly the sheets'; a fighter's
-    built-in kit is not, and a statline's blank cell is the sheet
-    declining to say rather than saying nothing is there.
+    Traits and skill grids replace stored members. Built-in kit retains omitted
+    members. Blank statline cells preserve stored values.
     """
     if name == "stats":
         return _stat_difference(planned, row)
@@ -2190,15 +1922,9 @@ def _set_difference(plan, planned, row, name, resolve):
 
 
 def _members_difference(wanted, stored, retract):
-    """What joined the set and what left it.
+    """Compare labelled planned members with stored members.
 
-    ``wanted`` pairs each member's printable name with the row in the
-    pack it means, which is ``None`` for one this upload is about to
-    make — and a member that does not exist yet is necessarily
-    joining, which is why the name has to be carried alongside the row
-    rather than read off it.
-
-    ``retract`` says whether leaving is something this set does at all.
+    Include removals only when retract is True.
     """
     wanted_pks = {row.pk for _, row in wanted if row is not None}
     stored_pks = {member.pk for member in stored}
@@ -2213,12 +1939,7 @@ def _members_difference(wanted, stored, retract):
 
 
 def _stat_difference(planned, row):
-    """The sheet's stat cells against the stored ones.
-
-    A blank cell is the sheet saying nothing about that characteristic,
-    not saying it is empty — the planner drops blanks, and what is
-    dropped is left exactly as the pack has it.
-    """
+    """Compare supplied characteristic values, preserving cells left blank."""
     columns = MODEL_COLUMNS if planned.kind == "Profile" else WEAPON_COLUMNS
     stored = _stored_stats(row)
     from n26.library.models import Stat
@@ -2283,21 +2004,10 @@ def _superseded_built_ins(members, stored, named):
 
 
 def _built_ins_difference(plan, planned, row, resolve):
-    """A fighter's built-in kit: what the sheet adds, and never what it
-    stops naming.
+    """Compare built-in members, amounts and equipment-list access.
 
-    This is where hand-authored content actually lives — the kit no
-    sheet defines, added by hand precisely because an import could not
-    bring it. Replacing the set would delete exactly that, every time.
-    So the sheet may add, and what it no longer names is said instead.
-
-    The fighter's equipment list is the exception, because it is not
-    kit: there is one of it, and naming a new one is naming a
-    replacement (:data:`REPLACED_BUILT_INS`).
-
-    An archived member is off the set for this reading: the sheet
-    naming its thing again measures as an addition, exactly what the
-    performer will do.
+    Preserve omitted kit and ignore archived members. A newly named equipment
+    list replaces the previous list.
     """
     stored = {
         member.assignable.pk: member for member in row.members.filter(archived=False)
@@ -2318,10 +2028,7 @@ def _built_ins_difference(plan, planned, row, resolve):
     superseded = _superseded_built_ins(
         planned.fields["members"], stored.values(), named
     )
-    # What the sheet has stopped naming stays, and is said instead. An
-    # author who meant to take it off has to, which is annoying and
-    # honest; the alternative deletes the hand-added kit on every
-    # re-upload and cannot be undone from the sheets.
+    # Preserve omitted built-ins, including equipment added through authoring.
     dropped = [
         member
         for pk, member in stored.items()
@@ -2330,10 +2037,9 @@ def _built_ins_difference(plan, planned, row, resolve):
     if dropped:
         plan.problem(
             planned.source,
-            f"{planned.name} still comes with "
-            f"{', '.join(sorted(str(member.assignable) for member in dropped))}, "
-            f"which this sheet no longer names — kept, because built-in kit "
-            f"no sheet defines is added by hand",
+            f"{planned.name} keeps built-in content omitted from this upload: "
+            f"{', '.join(sorted(str(member.assignable) for member in dropped))}. "
+            f"Remove built-ins on the profile's authoring page if needed.",
             severity="note",
         )
 
@@ -2348,13 +2054,7 @@ def _built_ins_difference(plan, planned, row, resolve):
 
 
 def _grid_difference(plan, planned, row, resolve):
-    """A fighter's skill grid: the sets it may take, and in which tier.
-
-    Wholly the sheet's, and the tier is part of what is said — a set
-    moving from Primary to Secondary is one placement leaving and
-    another arriving. Left add-only, the fighter would end up with the
-    set in both tiers, which is a wrong card rather than an untidy one.
-    """
+    """Compare skill-set placements and their Primary or Secondary tiers."""
     # The one reference that points the other way: a placement hangs on
     # the fighter, so the fighter settles first and the placements are
     # not yet in hand. They can be looked up regardless — a placement's
@@ -2440,14 +2140,9 @@ NEVER_CREATED = {}
 
 
 def _refuse_what_cannot_be_done(plan):
-    """Stop before writing anything if some of the plan has nowhere to
-    go.
+    """Validate every planned kind before executing any writes.
 
-    Every kind must have a place in the performing order, a way of
-    being made and a way of being changed — whichever of those the plan
-    asks for. A missing one used to mean the row was passed over in
-    silence, which is the worst outcome available: the upload reports
-    success and part of it never happened.
+    Each action requires a perform order and a registered creator or updater.
     """
     shortfalls = []
     for planned in plan.planned:
@@ -2476,23 +2171,13 @@ def _refuse_what_cannot_be_done(plan):
 
 
 def perform(plan, *, staged=False):
-    """Execute the plan through the authoring verbs, in one transaction.
+    """Apply a valid plan in dependency order within one transaction.
 
-    Refuses a plan with error problems: the preview said no. Returns an
-    :class:`IngestResult` whose creations and changes match what the
-    preview said — the preview is the contract, and a change writes
-    exactly the fields the preview named as changing.
+    Create and update the records and fields specified by the plan. Reject plans
+    with blocking problems, unsupported kinds or missing standard content.
 
-    Standard content must already exist (the foundations page): the
-    statline shapes, profile types, XP counter and skill tiers are
-    resolved by their standard names and a missing one is a loud
-    LookupError, never quietly re-planted.
-
-    ``staged`` holds back what the import *creates* — the rows players
-    would otherwise meet the moment the transaction commits — until an
-    author puts them live (``n26.library.staged``). What it changes is
-    changed at once: those rows are live already, and a corrected price
-    is not something to hold back.
+    With staged=True, stage newly created content. Updates to existing content
+    apply immediately.
     """
     if not plan.ok:
         errors = [p for p in plan.problems if p.severity == "error"]
@@ -2596,14 +2281,10 @@ class _Performer:
         self.result.created[planned.key] = creator(planned)
 
     def _the_row_the_preview_described(self, planned):
-        """The row a change is to be written onto — that row, not
-        whatever the same lookup finds now.
+        """Return the record matched during planning, or reject a stale match.
 
-        A preview and an import are two requests over the same files,
-        and the pack can move between them. If what the preview
-        measured is gone, or is no longer the row that lookup answers
-        with, the whole import stops: the alternative is writing a
-        difference onto a row nobody looked at.
+        Stop the import if the original record was removed or the identity lookup
+        now matches a different record.
         """
         row = find_existing(planned, self.plan.pack, self.resolve)
         if row is None or str(row.pk) != planned.existing:
@@ -2697,18 +2378,9 @@ class _Performer:
                     modifier.scope.delete()
 
     def _update_defaultassignmentset(self, planned):
-        """A fighter's built-in kit, added to — and its equipment list
-        put in place of whichever it held.
+        """Add built-in members and update their amounts.
 
-        Kit is never taken from: this is where the pieces no sheet
-        defines are added by hand, precisely because an import cannot
-        bring them, and replacing the set would delete exactly that on
-        every re-upload. A fighter buys from one list, though, so a
-        sheet naming a list is naming the only one there is — and the
-        superseded one is archived rather than deleted, because every
-        copy it materialised names it as its provenance. An archived
-        member is off the set for this reading too: a sheet naming its
-        thing again is adding it afresh.
+        Archive superseded equipment-list members and preserve omitted equipment.
         """
         from n26.library import authoring
 
@@ -3078,17 +2750,9 @@ UPDATERS = {
 
 
 def _imported(pack=None):
-    """What an import owns, as ``[(what it is, the rows)]`` in the order
-    they must go — entries before collections, statlines with their
-    owners, the taxonomy last.
+    """Return imported content querysets in deletion order.
 
-    One definition, so counting and deleting cannot disagree: a
-    confirmation screen that promised different numbers from the ones
-    that went would be worse than no screen.
-
-    What is *not* here is the point. Standard content's own rows are
-    excluded by reading its lists rather than restating them, so the
-    two cannot drift, and a clear always leaves the foundations whole.
+    Preserve standard content and delete dependent records before their targets.
     """
     from django.apps import apps
 
@@ -3234,12 +2898,9 @@ def _imported(pack=None):
 
 
 def count_imported(pack=None):
-    """How much a clear would take, as ``{what it is: how many}`` —
-    only the kinds that have anything.
+    """Count imported content by type, omitting empty types.
 
-    Several querysets may answer to one name: a modifier's scope and its
-    effect live in separate tables and are one thing to a reader, so the
-    counts add up under the word rather than listing the plumbing.
+    Combine scope and effect counts under the shared modifiers label.
     """
     found = TallyCounter()
     for label, rows in _imported(pack):
@@ -3248,27 +2909,10 @@ def count_imported(pack=None):
 
 
 def clear_imported(pack=None):
-    """Delete everything an import writes, leaving standard content whole.
+    """Delete imported content in one transaction and preserve standard content.
 
-    The inverse of :func:`perform`, and it lives here because the module
-    that writes this content is the one that knows its extent. After a
-    clear every standard-content seed still reports itself complete, and
-    importing the same sheets again lands in the same place. That round
-    trip is the point: it makes an import repeatable while the
-    spreadsheets are still changing.
-
-    Anything may hold imported content and protect it — a gang that
-    bought a weapon, an authored modifier naming a trait — and that
-    stops the clear with ``ProtectedError`` rather than taking the thing
-    out from under its holder.
-
-    All of it in one transaction, because the holders are only
-    discovered part-way through: the weapons go, then a trait turns out
-    to be spoken for, and a caller left holding half a library has a
-    worse problem than the one it started with. All or nothing, however
-    it is called.
-
-    Returns ``{what it was: how many}`` for what went.
+    Raise ProtectedError if referenced content prevents deletion. Roll back every
+    deletion on failure. Return the number deleted for each content type.
     """
     from n26.write_pause import write_guard
 

@@ -510,7 +510,7 @@ Equipment List,Escher,Ranged weapons,Web weapons,Web pisol,,90,,x
         )
         assert plan.ok  # said, not refused
         assert "Web pisol" in plan.problems[0].message
-        assert "arrives without it" in plan.problems[0].message
+        assert "This entry will be skipped" in plan.problems[0].message
         assert not [p for p in plan.planned if p.kind == "Weapon"]
 
         perform(plan)
@@ -533,7 +533,7 @@ Weapon Profile,Close combat weapons,Lances,Frag lance,,45,E,y
             )
         )
         assert not plan.ok
-        assert "names no Profile" in plan.problems[0].message
+        assert "needs a Profile value" in plan.problems[0].message
 
     def test_a_statline_for_nothing_the_catalogue_sells_is_ignored(self, foundation):
         # Nothing is created either way, so this is said and carried
@@ -618,10 +618,7 @@ Malstrain,Alpha,Malstrain,5",4+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,25,110,,,
         )
 
         assert plan.ok  # a note, never a block
-        assert any(
-            "names nothing this sheet defines or the pack holds" in p.message
-            for p in plan.problems
-        )
+        assert any("No profile matches restriction" in p.message for p in plan.problems)
         assert plan.get(f"Restriction:{entry_key(GOLIATH_LIST, EXO_FIST)}") is None
 
         perform(plan)
@@ -660,7 +657,7 @@ Escher,,,Gang Queen,6",3+,3+,3,3,3,4,2,5+,8,8,7,7,Fighter,Leader,61,120,,,,,
         assert plan.ok  # said, not refused
         note = plan.problems[0]
         assert note.severity == "note"
-        assert "arrives ungrouped" in note.message
+        assert "without a category" in note.message
         assert plan.get("Profile:gang queen").fields["category"] is None
         assert not [p for p in plan.planned if p.kind == "Category"]
 
@@ -694,7 +691,7 @@ Gang,Section,Category,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),St
             )
         )
         assert not plan.ok
-        assert any("names no Gang" in problem.message for problem in plan.problems)
+        assert any("Missing Gang" in problem.message for problem in plan.problems)
         assert not [row for row in plan.planned if row.kind == "GangType"]
         assert plan.get("Profile:nameless blade") is None
 
@@ -1679,7 +1676,7 @@ Equipment List,Escher,Wargear,Personal equipment,Respirator,,15,
         )
         assert [p.name for p in entry.usable_by_profiles.all()] == ["Way-Brethren"]
         assert any(
-            "nothing was retracted" in problem.message
+            "keeps existing use restrictions" in problem.message
             and "collection page" in problem.message
             for problem in plan.problems
         )

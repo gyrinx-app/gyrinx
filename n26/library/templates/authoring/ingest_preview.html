@@ -1,14 +1,14 @@
 {% extends "authoring/base.html" %}
 {% block head_title %}
-    Preview the held sheets
+    Import preview
 {% endblock head_title %}
 {% block nav_heading %}Ingest{% endblock nav_heading %}
 {% block nav_items %}
     {% include "n26/_nav.html" with here="ingest" %}
 {% endblock nav_items %}
 {% block content %}
-    <c-n26.page-header title="What this upload says"
-                       lead="Read fresh from the held sheets against the library as it stands. Importing writes exactly this and nothing else.">
+    <c-n26.page-header title="Import preview"
+                       lead="Review the changes before importing. The preview uses your uploaded files and the current library content.">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
@@ -19,7 +19,7 @@
             </c-ui.breadcrumbs>
         </c-slot>
     </c-n26.page-header>
-    <c-n26.form-section title="The sheets this reads" class="mt-8">
+    <c-n26.form-section title="Uploaded sheets" class="mt-8">
         <c-ui.table>
             <thead>
                 <tr>
@@ -42,26 +42,25 @@
         {% if missing %}
             <c-n26.prose class="mt-3">
                 <p class="text-muted">
-                    Not held: {{ missing|join:", " }}. Whatever those sheets would
-                    have described is resolved against the library instead, and said
-                    below where it does not resolve.
+                    Not uploaded: {{ missing|join:", " }}. Referenced content from
+                    these sheets must already exist in the library.
                 </p>
             </c-n26.prose>
         {% endif %}
     </c-n26.form-section>
-    <c-n26.form-section title="What it would do" class="mt-10">
+    <c-n26.form-section title="Import summary" class="mt-10">
         <div class="flex flex-wrap items-center gap-2">
             {% if preview.ok %}
                 <c-ui.badge color="green" size="sm">
-                    nothing blocking
+                    No blocking problems
                 </c-ui.badge>
             {% else %}
                 <c-ui.badge color="red" size="sm">
-                    {{ preview.errors }} blocking
+                    Blocking: {{ preview.errors }}
                 </c-ui.badge>
             {% endif %}
             <c-ui.badge color="amber" size="sm">
-                {{ preview.notes }} noted
+                Notes: {{ preview.notes }}
             </c-ui.badge>
             <span class="text-muted">
                 {{ preview.actions.create|default:0 }} to create,
@@ -72,8 +71,8 @@
         <c-ui.table class="mt-4">
             <thead>
                 <tr>
-                    <th scope="col" class="w-full">Kind</th>
-                    <th scope="col" class="text-right">Rows</th>
+                    <th scope="col" class="w-full">Content type</th>
+                    <th scope="col" class="text-right">Records</th>
                 </tr>
             </thead>
             <tbody>
@@ -94,14 +93,12 @@
             <form method="post" class="mt-6 space-y-5">
                 {% csrf_token %}
                 {% comment %}
-                On by default: an import is how a whole book arrives, and a
-                whole book is checked before players meet it. Only what the
-                import creates is held back — a row it changes is live
-                already, and a corrected price is not something to hold.
+                Staging applies only to new content. Updates to existing
+                content apply immediately.
                 {% endcomment %}
                 <c-ui.field variant="toggle"
-                            label="Stage what this import creates"
-                            description="New rows are held back from players until you put them live on the Staged content page. Rows that already exist are changed straight away."
+                            label="Stage new content"
+                            description="Publish new content from the Staged content page when it is ready for players. Updates to existing content apply immediately."
                             for="id_staged">
                     <c-ui.switch label="" name="staged" id="id_staged" checked="true" />
                 </c-ui.field>
@@ -110,11 +107,8 @@
                                     cancel_label="Back to the sheets" />
             </form>
         {% else %}
-            <c-ui.alert variant="error"
-                        title="{{ preview.errors }} problem{{ preview.errors|pluralize }} block this upload"
-                        class="mt-6">
-                Nothing can be written while any of them stand. They are listed under
-                Problems below; fix the sheet and upload it again.
+            <c-ui.alert variant="error" title="Import blocked" class="mt-6">
+                Fix the problems below, then upload the corrected sheet.
             </c-ui.alert>
             <div class="mt-4 flex justify-end">
                 <c-ui.button href="{% url 'authoring-ingest' %}" variant="ghost">Back to the sheets</c-ui.button>
@@ -122,15 +116,14 @@
         {% endif %}
     </c-n26.form-section>
     {% if preview.diffs %}
-        <c-n26.form-section title="What would change"
-                            description="Rows the pack already holds that these sheets now describe differently. Grouped by what changed; importing writes exactly these fields and nothing else."
+        <c-n26.form-section title="Changes to existing content"
+                            description="Library content that this import will update, grouped by content type and changed fields."
                             class="mt-10">
             {% if preview.mostly_changed %}
                 <c-ui.alert variant="warning"
-                            title="More than half the rows this upload recognises would change"
+                            title="More than half of the matching records would change"
                             class="mb-4">
-                    That is what uploading the wrong export looks like. Check the
-                    files before importing.
+                    Check that you uploaded the correct files before importing.
                 </c-ui.alert>
             {% endif %}
             <c-ui.table>
@@ -159,7 +152,7 @@
     {% endif %}
     {% if preview.shapes %}
         <c-n26.form-section title="Problems"
-                            description="Grouped by what they are rather than where they happened — a long list is usually a few kinds of thing. A blocking problem stops the whole import; a noted one is carried past and said here."
+                            description="Fix blocking problems before importing. Notes do not stop the import."
                             class="mt-10">
             <c-ui.table>
                 <tbody>
@@ -173,7 +166,7 @@
                                         </c-ui.badge>
                                     {% else %}
                                         <c-ui.badge color="amber" size="sm">
-                                            noted
+                                            note
                                         </c-ui.badge>
                                     {% endif %}
                                     <span class="text-muted tabular-nums">×{{ shape.count }}</span>
@@ -195,8 +188,8 @@
         </c-n26.form-section>
     {% endif %}
     {% if preview.examples %}
-        <c-n26.form-section title="Worked rows"
-                            description="A sheet line, and every library row it becomes."
+        <c-n26.form-section title="Examples"
+                            description="Sample spreadsheet lines and the resulting library content."
                             class="mt-10">
             {% for example in preview.examples %}
                 <div class="rounded-box border border-box-border px-4 py-3">

@@ -1,39 +1,25 @@
-"""The pre-ingest sheets: what they are called, and what each one holds.
+"""Sheet names and descriptions shared by uploads, models and the planner.
 
-One statement of them, imported by everything that has an opinion about a
-sheet — the planner's keyword arguments, the pages that offer an upload, and
-the column on a held upload. A sheet named in one of those and missing from
-another is a file that can be uploaded and never planned, which the upload
-would report as a success.
-
-Kept apart from :mod:`n26.library.ingest` so that a model may read it: the
-reader imports content models, so a content model importing the reader would
-close a circle at import time.
+Defined separately from ingest.py to avoid a circular import with content models.
 """
 
-#: ``(what the planner calls it, the sheet's own name, what it holds)``. The
-#: two names differ where the spreadsheet's heading is not the planner's word
-#: for the sheet — an author looks for the heading.
-#:
-#: The order is the order they are planned in, and the order the pages offer
-#: them in: a later sheet resolves against what an earlier one describes.
+#: (Planner argument, display name, description), in dependency order.
 INGEST_SHEETS = [
     (
         "equipment",
         "Equipment",
-        "The catalogue: one row per thing a gang can buy, with its price.",
+        "Weapons, wargear and accessories, with their categories and prices.",
     ),
-    ("weapon_profiles", "Weapon profiles", "The statlines, and nothing else."),
+    ("weapon_profiles", "Weapon profiles", "Weapon statlines and traits."),
     (
         "equipment_lists",
         "Equipment lists",
-        "A named list per gang, one entry per line.",
+        "Equipment lists, with one entry per line and any list-specific prices.",
     ),
     (
         "profiles",
         "All Profiles",
-        "The fighters, each with the heading and category it is hired "
-        "under and the title of the equipment list it buys from.",
+        "Fighter profiles, including categories, statlines, starting equipment and equipment lists.",
     ),
 ]
 

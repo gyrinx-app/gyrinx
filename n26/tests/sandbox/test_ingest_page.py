@@ -94,7 +94,7 @@ class TestHoldingTheSheets:
         assert "All Profiles" in body
         assert "Equipment lists" in body
         # ...and nothing is held yet.
-        assert "Nothing held" in body
+        assert "No file uploaded" in body
 
     def test_a_sheets_page_takes_one_file(self, author, client):
         body = client.get(sheet_url("profiles")).content.decode()
@@ -112,7 +112,7 @@ class TestHoldingTheSheets:
             "accept": ".csv,text/csv",
         }
         assert 'for="id_file"' in body
-        assert "A CSV export. Uploading replaces whichever file" in body
+        assert "Upload a UTF-8 CSV export. This replaces the previous file" in body
         assert "All Profiles" in body
 
     def test_an_upload_is_held_and_said_so(self, author, client):
@@ -163,7 +163,7 @@ class TestHoldingTheSheets:
 
     def test_removing_a_sheet_nothing_is_held_for_says_so(self, author, client):
         body = client.post(URL, {"remove": "equipment"}, follow=True).content.decode()
-        assert "No Equipment sheet was held" in body
+        assert "No Equipment sheet was uploaded" in body
 
     def test_a_held_sheet_can_be_removed(
         self, author, client, django_capture_on_commit_callbacks
@@ -201,7 +201,7 @@ class TestHoldingTheSheets:
         body = response.content.decode()
 
         assert not UploadedSheet.objects.exists()
-        assert "not text this can read" in body
+        assert "not UTF-8 text" in body
 
     def test_a_sheet_with_no_lines_under_its_heading_is_refused(self, author, client):
         body = client.post(
@@ -210,7 +210,7 @@ class TestHoldingTheSheets:
         ).content.decode()
 
         assert not UploadedSheet.objects.exists()
-        assert "nothing under it" in body
+        assert "No data rows found" in body
 
     def test_a_sheet_nobody_reads_is_not_a_page(self, author, client):
         assert client.get(sheet_url("invented")).status_code == 404
@@ -246,7 +246,7 @@ class TestPreviewing:
         assert "fighters.csv" in first
         # Per-gang pet caps are noted rather than mistaken for restrictions on use.
         assert "not a restriction on use" in first
-        assert "noted" in first
+        assert "Notes:" in first
 
     def test_a_preview_names_a_sheet_that_is_not_held(self, author, client, foundation):
         """An absence is what an author is checking for, so the sheets
@@ -257,7 +257,7 @@ class TestPreviewing:
 
         body = client.get(PREVIEW_URL).content.decode()
 
-        assert "Not held: All Profiles" in body
+        assert "Not uploaded: All Profiles" in body
 
     def test_previewing_nothing_says_to_upload_first(self, author, client):
         body = client.get(PREVIEW_URL, follow=True).content.decode()
@@ -342,7 +342,7 @@ Weapon Profile,Close combat weapons,Lances,Frag lance,,45,E,y
         hold(client, "equipment", text=equipment)
 
         preview = client.get(PREVIEW_URL).content.decode()
-        assert "block this upload" in preview
+        assert "Import blocked" in preview
         buttons = BeautifulSoup(preview, "html.parser").find_all("button")
         assert not any(
             button.get_text(" ", strip=True) == "Import" for button in buttons
@@ -351,8 +351,8 @@ Weapon Profile,Close combat weapons,Lances,Frag lance,,45,E,y
         body = client.post(PREVIEW_URL, follow=True).content.decode()
 
         assert Weapon.objects.count() == 0
-        assert "block this upload" in body
-        assert "names no Profile" in body  # and says which line
+        assert "Import blocked" in body
+        assert "needs a Profile value" in body  # and says which line
 
     def test_a_list_line_nothing_defines_is_left_off_not_refused(
         self, author, client, foundation
@@ -368,8 +368,8 @@ Equipment List,Escher,Ranged weapons,Web weapons,Web pisol,,90,,x
         body = client.post(PREVIEW_URL, follow=True).content.decode()
 
         assert "Web pisol" in body
-        assert "arrives without it" in body
-        assert "block this upload" not in body
+        assert "This entry will be skipped" in body
+        assert "Import blocked" not in body
 
 
 class TestItIsStaffOnly:
