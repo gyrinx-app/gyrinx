@@ -265,6 +265,48 @@ class TestPreviewing:
 
 
 class TestImporting:
+    def test_a_partial_equipment_list_preview_and_import_preserve_omitted_entries(
+        self, author, client, foundation
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library import authoring
+
+        hold_all(client)
+        client.post(PREVIEW_URL)
+        collection = Collection.objects.get(name="Escher Equipment List")
+        before = dict(collection.entries.values_list("pk", "position"))
+        client.post(URL, {"remove": "everything"})
+        hold(
+            client,
+            "equipment_lists",
+            text="""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions
+Equipment List,Escher,Wargear,Personal equipment,Respirator,,12,
+""",
+        )
+        client.get(PREVIEW_URL)
+        with CaptureQueriesContext(connection) as small:
+            preview = client.get(PREVIEW_URL)
+        body = preview.content.decode()
+        assert "keeps entries omitted from this upload" in body
+        assert "Autogun" in body
+        assert "Remove entries on the collection page." in body
+        for number in range(10):
+            kit = authoring.create_wargear(f"Local kit {number}", price=10)
+            authoring.add_entry(collection, kit)
+        with CaptureQueriesContext(connection) as large:
+            preview = client.get(PREVIEW_URL)
+        assert preview.status_code == 200
+        assert len(large) <= len(small)
+        assert "Local kit 9" in preview.content.decode()
+        response = client.post(PREVIEW_URL, follow=True)
+        assert response.status_code == 200
+        assert {pk: collection.entries.get(pk=pk).position for pk in before} == before
+        assert collection.entries.get(wargear__name="Respirator").price_override == 12
+        assert collection.entries.count() == len(before) + 10
+
     def test_importing_lands_the_preview_then_reloads_and_repeats_without_duplicates(
         self, author, client, foundation
     ):

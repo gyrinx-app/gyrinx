@@ -1444,11 +1444,8 @@ class TestWhatASheetStopsNaming:
     """Each set answers the same question for itself: what happens to a
     member the sheet no longer names?
 
-    Traits and a fighter's skill grid are wholly the sheets'. A list's
-    lines are not: a sheet adds lines, and one it does not name stays
-    on the list, in the place it had. Built-in kit is kept the same
-    way, and said, because the kit no sheet defines is added by hand.
-    A restriction is never taken off by an upload that stops printing it.
+    Equipment lists, built-in kit and restrictions retain omitted members.
+    A fighter's skill grid and a weapon's traits are replaced.
     """
 
     @pytest.fixture
@@ -1456,14 +1453,9 @@ class TestWhatASheetStopsNaming:
         perform(plan_ingest(pack=None, **sheets))
         return sheets
 
-    def test_a_line_the_sheet_omits_stays_on_the_list(self, imported):
-        """A later sheet that leaves a line out is adding whatever else
-        it names. The line stays, in the place it had."""
-        escher = Collection.objects.get(name="Escher Equipment List")
-        before = [
-            (entry.position, str(entry.assignable))
-            for entry in escher.entries.order_by("position", "pk")
-        ]
+    def test_a_line_omitted_from_a_list_is_retained_and_shown_in_the_preview(
+        self, imported
+    ):
         plan = plan_ingest(
             **{
                 **imported,
@@ -1476,55 +1468,33 @@ class TestWhatASheetStopsNaming:
                 ),
             }
         )
-        assert plan.get(ESCHER_LIST).action == "unchanged"
-        assert plan.get(entry_key(ESCHER_LIST, RESPIRATOR)) is None
+        escher = plan.get(ESCHER_LIST)
+        assert escher.action == "unchanged"
+        assert escher.changes == {}
+        assert any(
+            problem.severity == "note"
+            and "Escher Equipment List keeps entries omitted from this upload: Respirator."
+            in problem.message
+            for problem in plan.problems
+        )
 
         perform(plan)
-        after = [
-            (entry.position, str(entry.assignable))
-            for entry in escher.entries.order_by("position", "pk")
-        ]
-        assert after == before
-        assert "Respirator" in {name for _, name in after}
+        listed = {
+            str(entry.assignable)
+            for entry in Collection.objects.get(
+                name="Escher Equipment List"
+            ).entries.all()
+        }
+        assert "Respirator" in listed
+        assert "Autogun" in listed
+        # ...and the item itself is untouched: other lists sell it.
         assert Wargear.objects.filter(name="Respirator").exists()
 
-    def test_a_new_line_is_added_after_the_lines_already_there(self, imported):
-        """Extras only: the sheet names one new item, and a line an
-        author added by hand. Both stay, and the new one follows them."""
-        from n26.library import authoring
-        from n26.library.models import WeaponAccessory
-
-        escher = Collection.objects.get(name="Escher Equipment List")
-        hand = authoring.add_entry(
-            escher, WeaponAccessory.objects.get(name="Suspensors")
-        )
-        kept = [
-            (entry.position, str(entry.assignable))
-            for entry in escher.entries.order_by("position", "pk")
-        ]
-        plan = plan_ingest(
-            equipment_lists=read_csv(
-                """
-Collection,Title,Section,Category,Name,Profile,Credits,Restrictions,ID
-Equipment List,Escher,Wargear,Grenades,Frag grenades,,30,,
-"""
-            )
-        )
-        added = plan.get(entry_key(ESCHER_LIST, FRAG_GRENADES))
-        assert added.action == "create"
-        assert added.fields["position"] == hand.position + 1
-        assert plan.get(ESCHER_LIST).action == "unchanged"
-
-        perform(plan)
-        lines = [
-            (entry.position, str(entry.assignable))
-            for entry in escher.entries.order_by("position", "pk")
-        ]
-        assert lines[: len(kept)] == kept
-        assert lines[-1] == (hand.position + 1, "Frag grenades")
-
     def test_one_gangs_upload_leaves_every_other_gangs_list_alone(self, imported):
-        """A sheet that names one list leaves every other list's lines alone."""
+        """The trap in scoping this. A partial upload is a real thing to
+        want — one gang's list, to fix a price — and "delete the entries
+        nothing planned" would empty every list the upload was silent
+        about."""
         before = {
             collection.name: collection.entries.count()
             for collection in Collection.objects.all()
@@ -1545,6 +1515,135 @@ Equipment List,Cawdor,Close combat weapons,Lances,Frag lance,,35,Way-Brethren on
             for collection in Collection.objects.all()
         }
         assert after == before
+
+    def test_a_new_line_is_added_after_the_lines_already_there(self, imported):
+        from n26.library import authoring
+        from n26.library.models import WeaponAccessory
+
+        escher = Collection.objects.get(name="Escher Equipment List")
+        hand = authoring.add_entry(
+            escher, WeaponAccessory.objects.get(name="Suspensors")
+        )
+        kept = list(
+            escher.entries.order_by("position", "pk").values_list("pk", "position")
+        )
+        plan = plan_ingest(
+            equipment_lists=read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions,ID
+Equipment List,Escher,Wargear,Grenades,Frag grenades,,30,,
+""")
+        )
+        added = plan.get(entry_key(ESCHER_LIST, FRAG_GRENADES))
+        assert added.action == "create"
+        assert added.fields["position"] == hand.position + 1
+        perform(plan)
+        lines = list(
+            escher.entries.order_by("position", "pk").values_list("pk", "position")
+        )
+        assert lines[: len(kept)] == kept
+        assert lines[-1][1] == hand.position + 1
+
+    def test_duplicate_authored_entries_keep_both_positions_on_reupload(self, imported):
+        from n26.library import authoring
+
+        collection = Collection.objects.get(name="Escher Equipment List")
+        item = Wargear.objects.get(name="Respirator")
+        duplicate = authoring.add_entry(
+            collection, item, position=80, price_override=99
+        )
+        before = dict(collection.entries.values_list("pk", "position"))
+        plan = plan_ingest(
+            equipment_lists=read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions
+Equipment List,Escher,Wargear,Personal equipment,Respirator,,12,
+""")
+        )
+        planned = plan.get(entry_key(ESCHER_LIST, RESPIRATOR))
+        assert planned.existing != str(duplicate.pk)
+        assert (
+            planned.fields["position"]
+            == before[next(pk for pk in before if str(pk) == planned.existing)]
+        )
+        perform(plan)
+        assert dict(collection.entries.values_list("pk", "position")) == before
+        duplicate.refresh_from_db()
+        assert duplicate.price_override == 99
+
+    def test_partial_upload_appends_after_hand_authored_entries_and_updates_prices(
+        self, imported
+    ):
+        from n26.library import authoring
+
+        collection = Collection.objects.get(name="Escher Equipment List")
+        manual = authoring.create_wargear("Hand-authored kit", price=10)
+        authoring.add_entry(collection, manual, position=40)
+        before = dict(collection.entries.values_list("pk", "position"))
+        rows = read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions
+Equipment List,Escher,Close combat weapons,Lances,Frag lance,,35,
+Equipment List,Escher,Wargear,Personal equipment,Respirator,,12,
+Equipment List,Escher,Ranged weapons,Auto/stub weapons,Autogun,warp round,10,
+""")
+        plan = plan_ingest(equipment_lists=rows)
+        assert plan.ok
+        lance = plan.get(entry_key(ESCHER_LIST, FRAG_LANCE))
+        ammo = plan.get(entry_key(ESCHER_LIST, WARP_ROUND))
+        respirator = plan.get(entry_key(ESCHER_LIST, RESPIRATOR))
+        assert (lance.action, lance.fields["position"]) == ("create", 41)
+        assert (ammo.action, ammo.fields["position"]) == ("create", 42)
+        assert respirator.changes == {"price_override": {"from": None, "to": 12}}
+
+        perform(plan)
+        after = dict(collection.entries.values_list("pk", "position"))
+        assert {pk: after[pk] for pk in before} == before
+        assert len(after) == len(before) + 2
+        assert collection.entries.get(pk=respirator.existing).price_override == 12
+        assert collection.entries.get(weapon__name="Frag lance").position == 41
+        assert collection.entries.get(weapon_profile__name="warp round").position == 42
+
+        again = plan_ingest(equipment_lists=list(reversed(rows)))
+        assert {row.action for row in again.planned} <= {"unchanged", "resolved"}
+        result = perform(again)
+        assert not result.created and not result.updated
+        assert dict(collection.entries.values_list("pk", "position")) == after
+
+    def test_new_lists_start_at_zero_and_append_positions_are_per_list(self, imported):
+        rows = read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions
+Equipment List,New list,Wargear,Personal equipment,Respirator,,15,
+Equipment List,Escher,Close combat weapons,Lances,Frag lance,,35,
+Equipment List,New list,Close combat weapons,Lances,Frag lance,,35,
+""")
+        collection = Collection.objects.get(name="Escher Equipment List")
+        last = max(collection.entries.values_list("position", flat=True))
+        plan = plan_ingest(equipment_lists=rows)
+        perform(plan)
+        new = Collection.objects.get(name="New list Equipment List")
+        assert list(
+            new.entries.order_by("position").values_list("position", flat=True)
+        ) == [0, 1]
+        assert collection.entries.get(weapon__name="Frag lance").position == last + 1
+
+    def test_retained_entry_notes_do_not_query_each_omitted_item(self, imported):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library import authoring
+
+        collection = Collection.objects.get(name="Escher Equipment List")
+        rows = read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions
+Equipment List,Escher,Wargear,Personal equipment,Respirator,,15,
+""")
+        with CaptureQueriesContext(connection) as small:
+            plan_ingest(equipment_lists=rows)
+        for number in range(10):
+            kit = authoring.create_wargear(f"Local kit {number}", price=10)
+            authoring.add_entry(collection, kit)
+        with CaptureQueriesContext(connection) as large:
+            plan = plan_ingest(equipment_lists=rows)
+        assert len(large) == len(small)
+        assert any("Local kit 9" in problem.message for problem in plan.problems)
 
     def test_built_in_kit_the_sheet_drops_is_kept_and_said(self, imported):
         """An author adds the exo-suit no sheet defines. The next export

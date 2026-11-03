@@ -148,11 +148,11 @@ naming a kind missing from any of them rather than skipping it:
 - `UPDATERS` — how it is changed, for any kind with updatable fields.
 
 Each set has its own rule for a member the sheet no longer names. Traits
-and a fighter's skill grid are replaced. A list's lines, built-in kit and
-restrictions are only added to. Built-in kit and restrictions note what
-was kept. A list's lines the sheet does not name stay where they are, and
-a new line takes the next place after the last one on the list. The one
-exception inside a built-ins set is the fighter's equipment list. It
+and a fighter's skill grid are replaced. Equipment-list entries, built-in
+kit and restrictions are only added to, with a note saying what was kept.
+Equipment-list entries keep their positions; new entries append after the
+last stored position. Supplied entries may update their price overrides. The
+one exception inside a built-ins set is the fighter's equipment list. It
 grants access rather than kit, and ingest assumes a fighter buys from one
 list, so naming a list replaces whichever list the set held (`REPLACED_BUILT_INS`). A
 blank cell still replaces nothing.

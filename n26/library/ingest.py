@@ -1337,61 +1337,6 @@ def _resolve_equipment_list(plan, title):
     return None
 
 
-def _places_on(plan, name):
-    """Where a list already puts its lines, and the next free place.
-
-    A sheet adds lines. One the list already holds keeps the place it
-    has; a new one takes the next place after the last. A list this
-    upload is founding has nothing yet, so its lines count from zero
-    in the order the sheet gives them.
-    """
-    from n26.library.models.collection import Collection, CollectionEntry
-
-    held = {}
-    nxt = 0
-    collection = _exists(plan, Collection, name__iexact=name)
-    if collection is not None:
-        last = -1
-        for entry in collection.entries.all():
-            last = max(last, entry.position)
-            for field in CollectionEntry.ASSIGNABLE_FIELDS:
-                pk = getattr(entry, f"{field}_id")
-                if pk is not None:
-                    held[(field, str(pk))] = entry.position
-                    break
-        nxt = last + 1
-    return {"held": held, "next": nxt, "rows": {}}
-
-
-def _row_already_held(plan, key, cache):
-    """The pack row a plan key names, remembered for the rest of the pass."""
-    if key in cache:
-        return cache[key]
-    planned = plan.get(key)
-    if planned is None:
-        cache[key] = None
-        return None
-    row = find_existing(
-        planned, plan.pack, lambda other: _row_already_held(plan, other, cache)
-    )
-    cache[key] = row
-    return row
-
-
-def _position_on(plan, places, item_key):
-    """The place this line keeps, or the next free one when it is new."""
-    from n26.library.models.collection import CollectionEntry
-
-    item = _row_already_held(plan, item_key, places["rows"])
-    if item is not None:
-        stored = places["held"].get((CollectionEntry.field_for(item), str(item.pk)))
-        if stored is not None:
-            return stored
-    position = places["next"]
-    places["next"] = position + 1
-    return position
-
-
 def _plan_equipment_lists(plan, rows):
     """The equipment lists sheet: one named collection per ``Title``.
 
@@ -1406,14 +1351,12 @@ def _plan_equipment_lists(plan, rows):
     always written; an item whose list price matches its reference
     carries nothing, which is what "at catalogue price" looks like.
 
-    A line the sheet does not name stays on the list. A new line takes
-    the next place after the last one already there.
-
     Returns the restrictions found, deferred: they name fighters, and
     fighter profiles plan after this pass.
     """
     pending_restrictions = []
-    seating = {}  # collection key -> the places already taken, and the next
+    positions = TallyCounter()
+    listed = {}  # collection key -> the entry keys this upload names
     for line, row in enumerate(rows, start=1):
         source = Source("equipment_lists", line)
         plan.remember_row(source, row)
@@ -1426,9 +1369,15 @@ def _plan_equipment_lists(plan, rows):
         name = _collection_name(title)
         collection_key = f"Collection:{_norm(name)}"
         if not plan.get(collection_key):
-            plan.add("Collection", name, {}, source, key=collection_key)
-        if collection_key not in seating:
-            seating[collection_key] = _places_on(plan, name)
+            # Membership lets the preview name entries omitted from
+            # this upload without removing them.
+            plan.add(
+                "Collection",
+                name,
+                {"entries": listed.setdefault(collection_key, [])},
+                source,
+                key=collection_key,
+            )
 
         ident = ItemId.of(row)
         if not ident.name:
@@ -1465,12 +1414,14 @@ def _plan_equipment_lists(plan, rows):
             {
                 "collection": collection_key,
                 "item": item_key,
-                "position": _position_on(plan, seating[collection_key], item_key),
+                "position": positions[collection_key],
                 "price_override": _override(item, list_price),
             },
             source,
             key=entry_key,
         )
+        listed[collection_key].append(entry_key)
+        positions[collection_key] += 1
 
         restriction = (row.get("Restrictions") or "").strip()
         if restriction:
@@ -1723,9 +1674,7 @@ SHEET_FIELDS = {
     "Collection": Fields(
         # The section where unplaced entries land is founded with the
         # collection; one already in the pack keeps the schema it has.
-        # Lines are entries of their own: a sheet adds them, and a line
-        # it does not name stays.
-        ignored=("default_section",),
+        ignored=("entries", "default_section"),
     ),
     "Weapon": Fields(
         identity=("qualifier",),
@@ -1784,7 +1733,8 @@ SHEET_FIELDS = {
     "DefaultAssignmentSet": Fields(updatable=("members",)),
     "CollectionEntry": Fields(
         identity=("collection", "item"),
-        updatable=("position", "price_override"),
+        updatable=("price_override",),
+        ignored=("position",),
     ),
     "Restriction": Fields(identity=("entry", "allows")),
     "Modifier": Fields(identity=("attach_to", "places", "targets", "offers")),
@@ -1801,12 +1751,9 @@ NEVER_UPDATED = {
     "GangType": "the sheets know a gang by name and say nothing else about it",
     "Subtype": "the sheets know a subtype by name and say nothing else about it",
     "Skill": "the sheets know a skill by name and say nothing else about it",
+    "Collection": "equipment-list uploads preserve existing content and ordering",
     "Restriction": "a restriction is the pairing itself — the entry, and who it is offered to",
     "Modifier": "a modifier is its pairing — the carrier, who it reaches, and what it does",
-    "Collection": (
-        "a collection is its name; its lines are entries, and a sheet adds "
-        "lines to the list"
-    ),
 }
 
 #: How each updatable field is compared and written. A **scalar** is
@@ -1981,6 +1928,7 @@ def _settle(plan):
     be asked until the named row has been looked for.
     """
     found = {}
+    next_positions = {}
 
     def resolve(key):
         if key == XP_MEMBER:
@@ -1992,6 +1940,21 @@ def _settle(plan):
     for planned in _in_perform_order(plan):
         row = find_existing(planned, plan.pack, resolve)
         found[planned.key] = row
+        if planned.kind == "CollectionEntry":
+            if row is not None:
+                planned.fields["position"] = row.position
+            else:
+                collection_key = planned.fields["collection"]
+                if collection_key not in next_positions:
+                    collection = resolve(collection_key)
+                    last = (
+                        collection.entries.aggregate(last=Max("position"))["last"]
+                        if collection is not None
+                        else None
+                    )
+                    next_positions[collection_key] = 0 if last is None else last + 1
+                planned.fields["position"] = next_positions[collection_key]
+                next_positions[collection_key] += 1
         if planned.source.sheet == RESOLUTION:
             # A lookup, not a claim: nothing here to write or compare.
             plan.settle(planned, "resolved", existing=_pk(row))
@@ -2006,7 +1969,46 @@ def _settle(plan):
                 existing=_pk(row),
             )
 
+    _note_retained_entries(plan, found)
     _note_restrictions_the_sheet_no_longer_names(plan, found)
+
+
+def _note_retained_entries(plan, found):
+    """Report omitted entries in each uploaded list without retracting them."""
+    from n26.library.models.collection import ENTRY_ASSIGNABLE_FIELDS, CollectionEntry
+
+    matched = {}
+    for planned in plan.planned:
+        if planned.kind == "CollectionEntry" and planned.existing:
+            matched.setdefault(planned.fields["collection"], set()).add(
+                planned.existing
+            )
+
+    collections = {
+        found[planned.key].pk: planned
+        for planned in plan.planned
+        if planned.kind == "Collection"
+        and "entries" in planned.fields
+        and found.get(planned.key) is not None
+    }
+    retained = {}
+    entries = CollectionEntry.objects.filter(
+        collection_id__in=collections
+    ).select_related(*ENTRY_ASSIGNABLE_FIELDS, "weapon_profile__weapon")
+    for entry in entries:
+        planned = collections[entry.collection_id]
+        if str(entry.pk) not in matched.get(planned.key, ()):
+            retained.setdefault(planned.key, []).append(str(entry.assignable))
+    for planned in collections.values():
+        names = retained.get(planned.key)
+        if not names:
+            continue
+        plan.problem(
+            planned.source,
+            f"{planned.name} keeps entries omitted from this upload: "
+            f"{', '.join(sorted(names))}. Remove entries on the collection page.",
+            severity="note",
+        )
 
 
 def _note_restrictions_the_sheet_no_longer_names(plan, found):
@@ -2167,11 +2169,9 @@ def _set_difference(plan, planned, row, name, resolve):
     Each set has its own answer to "what about a member the sheet no
     longer names", and the deciding question is whether the set is
     somewhere hand-authored content lives (3.6 of the design note).
-    Traits and the skill grid are wholly the sheets'. A list's lines
-    are not: a sheet adds lines, and one it does not name stays. A
-    fighter's built-in kit is kept the same way, and a statline's
-    blank cell is the sheet declining to say rather than saying
-    nothing is there.
+    Traits and the skill grid are wholly the sheets'; a fighter's
+    built-in kit is not, and a statline's blank cell is the sheet
+    declining to say rather than saying nothing is there.
     """
     if name == "stats":
         return _stat_difference(planned, row)
