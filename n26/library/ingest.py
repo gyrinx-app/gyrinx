@@ -2175,17 +2175,19 @@ class StaleAppendPlan(LookupError):
 
 
 def _lock_append_collections(plan):
-    """Serialise imports into existing lists and reject stale append positions."""
+    """Lock append targets, validate positions and return their pinned references."""
     from n26.library.models import Collection, CollectionEntry
 
     appends = {}
+    parents = {}
     for planned in plan.planned:
         if planned.kind == "CollectionEntry" and planned.action == "create":
             collection = plan.get(planned.fields["collection"])
             if collection.existing:
                 appends.setdefault(collection.existing, []).append(planned)
+                parents[collection.existing] = collection
     if not appends:
-        return
+        return {}
 
     # Acquire all parent locks in the same order and hold them through insertion.
     collections = list(
@@ -2207,11 +2209,16 @@ def _lock_append_collections(plan):
         last = last_positions.get(key)
         start = 0 if last is None else last + 1
         planned_positions = [row.fields["position"] for row in appends[key]]
-        if planned_positions != list(range(start, start + len(appends[key]))):
+        if (
+            collection.name.casefold() != parents[key].name.casefold()
+            or collection.pack_id != plan.pack.pk
+            or planned_positions != list(range(start, start + len(appends[key])))
+        ):
             raise StaleAppendPlan(
                 f"{collection} changed during import. Nothing was imported. "
                 "Review the updated preview and try again."
             )
+    return {parents[str(collection.pk)].key: collection for collection in collections}
 
 
 def perform(plan, *, staged=False):
@@ -2233,7 +2240,7 @@ def perform(plan, *, staged=False):
     from n26.write_pause import write_guard
 
     with transaction.atomic(), write_guard():
-        _lock_append_collections(plan)
+        result.existing.update(_lock_append_collections(plan))
         performer = _Performer(plan, result)
         for kind in PERFORM_ORDER:
             for planned in plan.planned:

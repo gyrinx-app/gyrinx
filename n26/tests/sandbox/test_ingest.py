@@ -1640,6 +1640,43 @@ Equipment List,Custom,Close combat weapons,Lances,Frag lance,,35,
             perform(plan)
         assert not replacement.entries.exists()
 
+    @pytest.mark.parametrize("rename_original", [False, True])
+    def test_a_same_name_collection_cannot_redirect_a_planned_append(
+        self, imported, rename_original, monkeypatch
+    ):
+        from n26.library import authoring, ingest
+        from n26.library.ingest import StaleAppendPlan
+
+        original = authoring.create_collection("Custom Equipment List")
+        plan = plan_ingest(
+            equipment_lists=read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions
+Equipment List,Custom,Close combat weapons,Lances,Frag lance,,35,
+""")
+        )
+        if rename_original:
+            authoring.revise(original, name="Renamed Equipment List")
+        replacement = authoring.create_collection(
+            "Custom Equipment List", qualifier="Alternative"
+        )
+        find_existing = ingest.find_existing
+
+        def resolve_with_decoy(planned, *args):
+            if planned.kind == "Collection":
+                return replacement
+            return find_existing(planned, *args)
+
+        monkeypatch.setattr(ingest, "find_existing", resolve_with_decoy)
+
+        if rename_original:
+            with pytest.raises(StaleAppendPlan, match="Review the updated preview"):
+                perform(plan)
+            assert not original.entries.exists()
+        else:
+            perform(plan)
+            assert original.entries.get().weapon.name == "Frag lance"
+        assert not replacement.entries.exists()
+
     def test_retained_entry_notes_do_not_query_each_omitted_item(self, imported):
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
