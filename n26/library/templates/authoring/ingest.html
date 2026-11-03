@@ -9,7 +9,7 @@
 {% endblock nav_items %}
 {% block content %}
     <c-n26.page-header title="Ingest"
-                       lead="The pre-ingest spreadsheets in, library rows out. Upload a sheet at a time; the files stay here, so previewing and importing read the same upload however long you take between them.">
+                       lead="Import library content from CSV spreadsheets. Upload the sheets you need, review the changes, then import.">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
@@ -19,15 +19,15 @@
             </c-ui.breadcrumbs>
         </c-slot>
     </c-n26.page-header>
-    <c-n26.form-section title="The sheets"
-                        description="Every sheet is optional — upload the ones that changed. Uploading a sheet again replaces the file it is holding; what a missing sheet costs is said in the preview rather than refused here."
+    <c-n26.form-section title="Sheets"
+                        description="Upload any sheets you need. A new upload replaces that sheet's previous file. Missing references are listed in the preview."
                         class="mt-8">
         <c-ui.table>
             <thead>
                 <tr>
                     <th scope="col" class="w-full">Sheet</th>
                     <th scope="col" class="text-right">Lines</th>
-                    <th scope="col" class="text-right">Held</th>
+                    <th scope="col" class="text-right">Uploaded</th>
                     <th scope="col"><span class="sr-only">Actions</span></th>
                 </tr>
             </thead>
@@ -40,7 +40,7 @@
                             {% if entry.upload %}
                                 <div class="mt-1 text-sm text-ink-900 dark:text-ink-100">{{ entry.upload.filename }}</div>
                             {% else %}
-                                <div class="mt-1 text-sm text-muted">Nothing held</div>
+                                <div class="mt-1 text-sm text-muted">No file uploaded</div>
                             {% endif %}
                         </td>
                         <td class="text-right tabular-nums align-top">
@@ -86,24 +86,24 @@
         </c-ui.table>
     </c-n26.form-section>
     <c-n26.form-section title="What happens next"
-                        description="Preview reads the held sheets against the library and says exactly what an import would write. Importing does that and nothing else."
+                        description="Preview the new content and updates before importing."
                         class="mt-10">
         {% if held %}
             <div class="flex flex-wrap items-center gap-3">
                 <c-ui.button href="{% url 'authoring-ingest-preview' %}" variant="primary">
-                    Preview {{ held|length }} held sheet{{ held|pluralize }}
+                    Preview {{ held|length }} sheet{{ held|pluralize }}
                 </c-ui.button>
                 <form method="post">
                     {% csrf_token %}
                     <input type="hidden" name="remove" value="everything">
                     <c-ui.button type="submit" variant="danger" outlined size="sm">
-                        Remove all held sheets
+                        Remove all files
                     </c-ui.button>
                 </form>
             </div>
         {% else %}
             <c-n26.prose>
-                <p>No sheets uploaded yet. Upload one above, and this is where the preview appears.</p>
+                <p>No sheets uploaded yet. Upload a CSV file to preview it.</p>
             </c-n26.prose>
         {% endif %}
     </c-n26.form-section>

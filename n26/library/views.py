@@ -5685,13 +5685,7 @@ def foundations(request):
 
 
 class SheetUploadForm(forms.Form):
-    """One file, for one named sheet.
-
-    A page per sheet rather than one page of five pickers: an author
-    uploads a corrected export of *one* thing, and a form offering the
-    other four asks them to remember, every time, that leaving those
-    empty is what keeps the sheets they already gave.
-    """
+    """Upload one CSV file for a selected sheet type."""
 
     def __init__(self, *args, sheet=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -5699,19 +5693,15 @@ class SheetUploadForm(forms.Form):
         self.fields["file"] = forms.FileField(
             required=True,
             label=f"The {label} sheet",
-            help_text="A CSV export. Uploading replaces whichever file this "
-            "sheet is holding.",
+            help_text="Upload a UTF-8 CSV export. This replaces the previous file for this sheet.",
             widget=forms.ClearableFileInput(attrs={"accept": ".csv,text/csv"}),
         )
 
 
 def _problems_by_shape(problems):
-    """Problems grouped by what they are, not by which line hit them.
+    """Group problems by severity and message, with sample source lines.
 
-    A hundred problems are usually five kinds of problem, and a list
-    that says so is a morning's work rather than a wall. The quoted
-    names come out of the message to make the shape; the lines they
-    happened on are kept beside it.
+    Replace quoted names when comparing messages so repeated problems share a group.
     """
     shapes = {}
     for problem in problems:
@@ -5740,13 +5730,7 @@ def _problems_by_shape(problems):
 
 
 def _changes_by_shape(changes, examples=6):
-    """Differences grouped by what changed, not by which row changed it.
-
-    A thousand corrected prices are one fact about the upload and a
-    thousand lines nobody reads. Grouping by the kind and the fields
-    that moved says the fact; a few worked examples under each show
-    what it looks like, and the count says how far it goes.
-    """
+    """Group changes by content type and updated fields, with sample records."""
     shapes = {}
     for change in changes:
         moved = tuple(sorted(change["changes"]))
@@ -5791,13 +5775,10 @@ def _value_said(value):
 
 
 def _ingest_reach_said(plan):
-    """The preview's one line about existing gangs: which sets these
-    sheets would add members to, and how far those additions travel.
+    """Describe which existing gangs receive newly added built-in content.
 
-    Only additions count — an amount corrected or a member superseded
-    changes what is acquired next, not what anything already holds —
-    and a set the sheets create is held by nobody, so an upload adding
-    to no standing set says nothing at all.
+    Corrections and replacements affect future acquisitions. Additions to existing
+    built-in sets can also propagate to current assignments.
     """
     from n26.core.propagation import reach_of_all
     from n26.library.models import DefaultAssignmentSet
@@ -5813,19 +5794,11 @@ def _ingest_reach_said(plan):
         return ""
     reach = reach_of_all(DefaultAssignmentSet.objects.filter(pk__in=grown))
     said = _reach_said(reach, "each addition")
-    return (
-        f"Some of these additions grow what a thing comes with: "
-        f"{said[0].lower()}{said[1:]}"
-    )
+    return f"This import adds built-in content: {said[0].lower()}{said[1:]}"
 
 
 def _sheets_standing(user):
-    """Every sheet, held or not, in the order they are planned.
-
-    The unheld ones are listed too: which sheets an upload is missing is
-    what an author is checking for, and a table of only what arrived
-    cannot show an absence.
-    """
+    """List all sheet types and this author's uploaded files in planning order."""
     from n26.library.ingest import held_sheets
 
     held = held_sheets(user)
@@ -5842,17 +5815,7 @@ def _sheets_standing(user):
 
 @staff_member_required
 def ingest(request):
-    """The sheets an author is holding, and what may be done with them.
-
-    Uploading, previewing and importing are three pages because they are
-    three acts. This one only says what is held: it reads no content and
-    plans nothing, so it stays cheap however large the sheets are, and
-    the two pages that do real work are each reached deliberately.
-
-    Posting here removes a held sheet, or all of them. A removal is a
-    post and never a link, because a link can be followed by accident,
-    and by something that is not a person.
-    """
+    """List uploaded sheets. POST removes one file or all uploaded files."""
     from n26.library.ingest import discard_sheets
 
     if request.method == "POST":
@@ -5861,7 +5824,7 @@ def ingest(request):
             gone = discard_sheets(request.user)
             messages.success(
                 request,
-                f"Removed {gone} held sheet(s)." if gone else "Nothing was held.",
+                f"Uploaded files removed: {gone}." if gone else "No files to remove.",
             )
         elif remove in SHEET_LABELS:
             gone = discard_sheets(request.user, [remove])
@@ -5869,10 +5832,10 @@ def ingest(request):
                 request,
                 f"Removed the {SHEET_LABELS[remove]} sheet."
                 if gone
-                else f"No {SHEET_LABELS[remove]} sheet was held.",
+                else f"No {SHEET_LABELS[remove]} sheet was uploaded.",
             )
         else:
-            messages.error(request, "No such sheet.")
+            messages.error(request, "Unknown sheet type.")
         return redirect("authoring-ingest")
 
     standing = _sheets_standing(request.user)
@@ -5888,21 +5851,14 @@ def ingest(request):
 
 @staff_member_required
 def ingest_sheet(request, sheet):
-    """Upload one sheet, having picked which sheet it is.
+    """Upload a CSV for the sheet type in the URL.
 
-    Which sheet is being uploaded is in the address rather than in a
-    control, so the page the server draws — its heading, its help, what
-    the file will be taken to mean — follows from where you are. That
-    also makes each sheet's upload page a link somebody can be sent.
-
-    The file is read here, not at planning time: an author who exported
-    the wrong thing should learn it beside the file picker, and a file
-    that cannot be read must never be held as though it could.
+    Check that the file can be read before replacing the author's previous upload.
     """
     from n26.library.ingest import SheetRefused, held_sheets, store_sheet
 
     if sheet not in SHEET_LABELS:
-        raise Http404("No such sheet")
+        raise Http404("Unknown sheet type")
 
     form = SheetUploadForm(sheet=sheet)
     if request.method == "POST":
@@ -5915,8 +5871,8 @@ def ingest_sheet(request, sheet):
             else:
                 messages.success(
                     request,
-                    f"Holding {held.filename} as the {SHEET_LABELS[sheet]} sheet "
-                    f"— {held.lines} line(s).",
+                    f"Uploaded {held.filename} for {SHEET_LABELS[sheet]}. "
+                    f"Lines: {held.lines}.",
                 )
                 return redirect("authoring-ingest")
 
@@ -5935,20 +5891,19 @@ def ingest_sheet(request, sheet):
 
 @staff_member_required
 def ingest_preview(request):
-    """What the held sheets would write, and the button that writes it.
+    """Preview uploaded sheets and import them on POST.
 
-    Planning happens on the way in, every time — on the visit that shows
-    the preview, and again on the post that imports. The preview *is*
-    the contract, and it is a contract about the library as it stands:
-    two plannings of the same files say the same thing, so what was
-    shown is what is written, while a preview kept from earlier would be
-    a promise about a library that has since moved.
-
-    The files themselves are the ones already held, which is what lets
-    this page be looked at twice, reloaded, or read tomorrow.
+    Rebuild the plan on every request to use the current library content.
+    Redirect after import so a page refresh cannot resubmit the form.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.library.ingest import held_sheets, perform, plan_ingest, rows_of
+    from n26.library.ingest import (
+        StaleAppendPlan,
+        held_sheets,
+        perform,
+        plan_ingest,
+        rows_of,
+    )
 
     held = held_sheets(request.user)
     if not held:
@@ -5962,9 +5917,7 @@ def ingest_preview(request):
     preview["notes"] = len(plan.problems) - preview["errors"]
     preview["diffs"] = _changes_by_shape(preview["changes"])
     preview["reach_said"] = _ingest_reach_said(plan)
-    # Uploading last year's export over this year's content is the
-    # realistic accident, and it is invisible row by row and
-    # unmistakable in the aggregate.
+    # A high update count can indicate an incorrect export.
     settled = preview["actions"].get("update", 0) + preview["actions"].get(
         "unchanged", 0
     )
@@ -5976,21 +5929,19 @@ def ingest_preview(request):
         if not plan.ok:
             messages.error(
                 request,
-                f"{preview['errors']} problem(s) block this upload — "
-                f"nothing was written.",
+                f"Import blocked. Problems to fix: {preview['errors']}.",
             )
         else:
-            # A switch, so absent means off: that is all an unchecked box
-            # posts. The page draws it on, because an import is the way a
-            # whole book arrives and a whole book is checked before it is
-            # shown.
+            # An unchecked switch is absent from POST data.
             staged = request.POST.get("staged") == "on"
-            with transaction.atomic():
-                result = perform(plan, staged=staged)
+            try:
+                with transaction.atomic():
+                    result = perform(plan, staged=staged)
+            except StaleAppendPlan as exc:
+                messages.error(request, str(exc))
+                return redirect("authoring-ingest-preview")
             created = result.counts()
-            # One event for the run, outside the transaction and carrying
-            # totals. A row apiece would write thousands of events for one
-            # click.
+            # Record totals once per import to avoid an event for every row.
             record(
                 request,
                 N26Noun.INGEST,
@@ -6000,21 +5951,16 @@ def ingest_preview(request):
                 updated=len(result.updated),
             )
             held = (
-                " The new rows are staged: players do not see them until you "
-                "put them live on the Staged content page."
+                " New content is staged. Publish it from the Staged content page."
                 if staged and created
                 else ""
             )
             messages.success(
                 request,
-                f"Created {sum(created.values())} rows, changed "
-                f"{len(result.updated)}.{held} Below is a fresh reading of the "
-                f"same sheets against the library as it now stands.",
+                f"Import complete. Created: {sum(created.values())}. "
+                f"Updated: {len(result.updated)}.{held}",
             )
-        # However it went, come back by a fresh reading: a reload must not
-        # offer to run the import a second time, and the honest
-        # confirmation that an import did what it said is the same plan
-        # made again, now finding nothing left to do.
+        # Redirect to prevent resubmission on refresh and show the updated plan.
         return redirect("authoring-ingest-preview")
 
     return render(

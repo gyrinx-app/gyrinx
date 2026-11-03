@@ -351,13 +351,13 @@ class TestTheImportPage:
 
         body = client.get(PREVIEW_URL).content.decode()
         assert 'name="staged"' in body
-        assert "Stage what this import creates" in body
+        assert "Stage new content" in body
 
         response = client.post(PREVIEW_URL, {"staged": "on"}, follow=True)
 
         assert Profile.objects.exists()
         assert not Profile.objects.filter(staged=False).exists()
-        assert "The new rows are staged" in response.content.decode()
+        assert "New content is staged" in response.content.decode()
 
     def test_with_the_switch_off_the_import_makes_live_rows(
         self, client, author, default_pack

@@ -20,18 +20,18 @@
         </c-slot>
     </c-n26.page-header>
     {% if upload %}
-        <c-n26.form-section title="What this sheet is holding" class="mt-8">
+        <c-n26.form-section title="Uploaded file" class="mt-8">
             <c-n26.prose>
                 <p>
                     <span class="font-medium text-ink-900 dark:text-ink-100">{{ upload.filename }}</span>
                     — {{ upload.lines }} line{{ upload.lines|pluralize }}, uploaded {{ upload.modified|naturaltime }}.
-                    Uploading below replaces it.
+                    Upload another file to replace this one.
                 </p>
             </c-n26.prose>
         </c-n26.form-section>
     {% endif %}
-    <c-n26.form-section title="Choose the file"
-                        description="It is read on the way in, so a file that cannot be read is refused here rather than previewed as nothing."
+    <c-n26.form-section title="Choose a CSV file"
+                        description="Export the sheet as a UTF-8 CSV file."
                         class="mt-10">
         <form method="post" enctype="multipart/form-data" class="space-y-4">
             {% csrf_token %}

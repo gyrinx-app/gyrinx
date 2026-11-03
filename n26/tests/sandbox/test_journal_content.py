@@ -62,6 +62,7 @@ from n26.library.gang_supertypes import (
 from n26.library.income import INCOME, ensure_income_counter, income_of
 from n26.library.journal_content import (
     JOURNALS,
+    LEGACY_JOURNALS,
     NOTHING_TO_DO,
     preview,
     seed_all,
@@ -113,6 +114,7 @@ pytestmark = pytest.mark.django_db
 
 GOLIATH_TABLE = JOURNALS[0][1]
 ESCHER_TABLE = JOURNALS[1][1]
+ORLOCK_TABLE = "Orlock Territories"
 
 
 # --- The world the seed runs in --------------------------------------------
@@ -198,7 +200,7 @@ def legacy_boons(seeded, default_pack):
     """The exact additional content written by the journal seed: eleven
     placeholder rules and Amneo-vats' conditional extra Income."""
     made = {}
-    for house, _table, territories in JOURNALS:
+    for house, _table, territories in LEGACY_JOURNALS:
         for entry in territories:
             asset = Asset.objects.get(name=entry.name, pack=default_pack)
             if entry.name == "Amneo-vats":
@@ -259,6 +261,31 @@ class TestTheSeedCreatesEverythingOnce:
     """Every row the programme needs, in the system pack, matched by name
     and pack; a second run creates nothing and says so."""
 
+    def test_orlock_source_order_income_and_authored_boons_are_preserved(self, seeded):
+        table = AssetTable.objects.get(name=ORLOCK_TABLE)
+        assert [
+            (entry.roll_low, entry.roll_high, entry.asset.name, entry.asset.income)
+            for entry in table.entries.select_related("asset").order_by("position")
+        ] == [
+            (1, 1, "Ammo Factoria", 20),
+            (2, 2, "Vehicle Workshop", 20),
+            (3, 3, "Wild Snake Distillery", 20),
+            (4, 4, "Scrap Mine", 15),
+            (5, 5, "Toll Road", 20),
+            (6, 6, "Container Stacks", 20),
+        ]
+        asset = Asset.objects.get(name="Ammo Factoria")
+        rule = create_rule("Orlock Controlled", annotation=asset.name, staged=True)
+        boon = modifier(
+            "Ammo Factoria: Orlock Controlled",
+            targets_gang_alone(has_gang_pickable(supertype_pick("Orlock"))),
+            ef_adds(rule),
+            attach_to=asset,
+        )
+        assert seed_all() == [NOTHING_TO_DO]
+        assert Rule.objects.filter(pk=rule.pk).exists()
+        assert asset.modifiers.filter(pk=boon.pk).exists()
+
     def test_the_complete_seed_is_wired_once_and_the_tables_cover_every_roll(
         self, seeded, default_pack, gang_types, clan_house, core
     ):
@@ -270,12 +297,11 @@ class TestTheSeedCreatesEverythingOnce:
         # The Venator Gang Legacy picks hold the bare names in the pack,
         # so the markers are told apart by an author-facing qualifier.
         assert {p.qualifier for p in picks} == {SLOT_TYPE}
-        # Markers: the Goliath and Escher picks carry their House table's
-        # grant and nothing else; the other four carry nothing.
+        # Each seeded House table is granted by its supertype marker.
         by_name = {p.name: p for p in picks}
-        for house in ("Orlock", "Van Saar", "Delaque", "Cawdor"):
+        for house in ("Van Saar", "Delaque", "Cawdor"):
             assert by_name[house].modifiers.count() == 0
-        for house, table_name in (("Goliath", GOLIATH_TABLE), ("Escher", ESCHER_TABLE)):
+        for house, table_name, _territories in JOURNALS:
             (grant,) = by_name[house].modifiers.all()
             assert grant.adds_assignable.asset_table.name == table_name
             assert grant.targets_gang.echoes is False
@@ -328,7 +354,7 @@ class TestTheSeedCreatesEverythingOnce:
             ]
             assert all(e.staged for e in entries)
 
-        for table_name in (GOLIATH_TABLE, ESCHER_TABLE):
+        for table_name in (GOLIATH_TABLE, ESCHER_TABLE, ORLOCK_TABLE):
             table = AssetTable.objects.get(name=table_name)
             said = table.coverage()
             assert said.whole
@@ -976,6 +1002,37 @@ class TestTheHouseTable:
         return client.get(
             f"{page}?starting={gang.pk}&type={territory.pk}"
         ).content.decode()
+
+    def test_orlock_gangs_receive_their_table_and_can_roll_each_territory(
+        self, campaign, gang_types, staff_arbitrator
+    ):
+        gang = found_gang(
+            "Road crew",
+            gang_types["Orlock"],
+            owner=User.objects.create_user("road-owner"),
+        )
+        join_campaign(gang, campaign)
+        table = AssetTable.objects.get(name=ORLOCK_TABLE)
+        assert set(tables_held_by(gang, campaign, include_staged=True)) == {
+            table,
+            AssetTable.objects.get(name=TABLE),
+        }
+        for rolled, expected in enumerate(
+            (
+                "Ammo Factoria",
+                "Vehicle Workshop",
+                "Wild Snake Distillery",
+                "Scrap Mine",
+                "Toll Road",
+                "Container Stacks",
+            ),
+            start=1,
+        ):
+            result = roll_asset(
+                campaign, table, gang=gang, rolled=rolled, actor=staff_arbitrator
+            )
+            assert result.campaign_asset.asset.name == expected
+        assert_reconciled(gang)
 
     def test_the_house_pick_offers_its_table_and_opening_it_reaches_the_other_house(
         self, client, campaign, gangs, staff_arbitrator, propagating, task_queue

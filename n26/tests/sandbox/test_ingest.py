@@ -510,7 +510,7 @@ Equipment List,Escher,Ranged weapons,Web weapons,Web pisol,,90,,x
         )
         assert plan.ok  # said, not refused
         assert "Web pisol" in plan.problems[0].message
-        assert "arrives without it" in plan.problems[0].message
+        assert "This entry will be skipped" in plan.problems[0].message
         assert not [p for p in plan.planned if p.kind == "Weapon"]
 
         perform(plan)
@@ -533,7 +533,7 @@ Weapon Profile,Close combat weapons,Lances,Frag lance,,45,E,y
             )
         )
         assert not plan.ok
-        assert "names no Profile" in plan.problems[0].message
+        assert "needs a Profile value" in plan.problems[0].message
 
     def test_a_statline_for_nothing_the_catalogue_sells_is_ignored(self, foundation):
         # Nothing is created either way, so this is said and carried
@@ -618,10 +618,7 @@ Malstrain,Alpha,Malstrain,5",4+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,25,110,,,
         )
 
         assert plan.ok  # a note, never a block
-        assert any(
-            "names nothing this sheet defines or the pack holds" in p.message
-            for p in plan.problems
-        )
+        assert any("No profile matches restriction" in p.message for p in plan.problems)
         assert plan.get(f"Restriction:{entry_key(GOLIATH_LIST, EXO_FIST)}") is None
 
         perform(plan)
@@ -660,7 +657,7 @@ Escher,,,Gang Queen,6",3+,3+,3,3,3,4,2,5+,8,8,7,7,Fighter,Leader,61,120,,,,,
         assert plan.ok  # said, not refused
         note = plan.problems[0]
         assert note.severity == "note"
-        assert "arrives ungrouped" in note.message
+        assert "without a category" in note.message
         assert plan.get("Profile:gang queen").fields["category"] is None
         assert not [p for p in plan.planned if p.kind == "Category"]
 
@@ -694,7 +691,7 @@ Gang,Section,Category,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),St
             )
         )
         assert not plan.ok
-        assert any("names no Gang" in problem.message for problem in plan.problems)
+        assert any("Missing Gang" in problem.message for problem in plan.problems)
         assert not [row for row in plan.planned if row.kind == "GangType"]
         assert plan.get("Profile:nameless blade") is None
 
@@ -1444,12 +1441,8 @@ class TestWhatASheetStopsNaming:
     """Each set answers the same question for itself: what happens to a
     member the sheet no longer names?
 
-    The deciding question is whether the set is somewhere hand-authored
-    content lives. A list's lines and a fighter's skill grid are wholly
-    the sheets'. A fighter's built-in kit is not — the kit no sheet
-    defines is added by hand, precisely because an import cannot bring
-    it — and a restriction, though it is the entry's own, is never
-    taken off by an upload that stops printing it.
+    Equipment lists, built-in kit and restrictions retain omitted members.
+    A fighter's skill grid and a weapon's traits are replaced.
     """
 
     @pytest.fixture
@@ -1457,7 +1450,9 @@ class TestWhatASheetStopsNaming:
         perform(plan_ingest(pack=None, **sheets))
         return sheets
 
-    def test_a_line_dropped_from_a_list_leaves_it(self, imported):
+    def test_a_line_omitted_from_a_list_is_retained_and_shown_in_the_preview(
+        self, imported
+    ):
         plan = plan_ingest(
             **{
                 **imported,
@@ -1471,8 +1466,14 @@ class TestWhatASheetStopsNaming:
             }
         )
         escher = plan.get(ESCHER_LIST)
-        assert escher.action == "update"
-        assert escher.changes == {"entries": {"removed": ["Respirator"]}}
+        assert escher.action == "unchanged"
+        assert escher.changes == {}
+        assert any(
+            problem.severity == "note"
+            and "Escher Equipment List keeps entries omitted from this upload: Respirator."
+            in problem.message
+            for problem in plan.problems
+        )
 
         perform(plan)
         listed = {
@@ -1481,7 +1482,7 @@ class TestWhatASheetStopsNaming:
                 name="Escher Equipment List"
             ).entries.all()
         }
-        assert "Respirator" not in listed
+        assert "Respirator" in listed
         assert "Autogun" in listed
         # ...and the item itself is untouched: other lists sell it.
         assert Wargear.objects.filter(name="Respirator").exists()
@@ -1511,6 +1512,262 @@ Equipment List,Cawdor,Close combat weapons,Lances,Frag lance,,35,Way-Brethren on
             for collection in Collection.objects.all()
         }
         assert after == before
+
+    def test_a_new_line_is_added_after_the_lines_already_there(self, imported):
+        from n26.library import authoring
+        from n26.library.models import WeaponAccessory
+
+        escher = Collection.objects.get(name="Escher Equipment List")
+        hand = authoring.add_entry(
+            escher, WeaponAccessory.objects.get(name="Suspensors")
+        )
+        kept = list(
+            escher.entries.order_by("position", "pk").values_list("pk", "position")
+        )
+        plan = plan_ingest(
+            equipment_lists=read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions,ID
+Equipment List,Escher,Wargear,Grenades,Frag grenades,,30,,
+""")
+        )
+        added = plan.get(entry_key(ESCHER_LIST, FRAG_GRENADES))
+        assert added.action == "create"
+        assert added.fields["position"] == hand.position + 1
+        perform(plan)
+        lines = list(
+            escher.entries.order_by("position", "pk").values_list("pk", "position")
+        )
+        assert lines[: len(kept)] == kept
+        assert lines[-1][1] == hand.position + 1
+
+    def test_duplicate_authored_entries_keep_both_positions_on_reupload(self, imported):
+        from n26.library import authoring
+
+        collection = Collection.objects.get(name="Escher Equipment List")
+        item = Wargear.objects.get(name="Respirator")
+        duplicate = authoring.add_entry(
+            collection, item, position=80, price_override=99
+        )
+        before = dict(collection.entries.values_list("pk", "position"))
+        plan = plan_ingest(
+            equipment_lists=read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions
+Equipment List,Escher,Wargear,Personal equipment,Respirator,,12,
+""")
+        )
+        planned = plan.get(entry_key(ESCHER_LIST, RESPIRATOR))
+        assert planned.existing != str(duplicate.pk)
+        assert (
+            planned.fields["position"]
+            == before[next(pk for pk in before if str(pk) == planned.existing)]
+        )
+        perform(plan)
+        assert dict(collection.entries.values_list("pk", "position")) == before
+        duplicate.refresh_from_db()
+        assert duplicate.price_override == 99
+
+    def test_partial_upload_appends_after_hand_authored_entries_and_updates_prices(
+        self, imported
+    ):
+        from n26.library import authoring
+
+        collection = Collection.objects.get(name="Escher Equipment List")
+        manual = authoring.create_wargear("Hand-authored kit", price=10)
+        authoring.add_entry(collection, manual, position=40)
+        before = dict(collection.entries.values_list("pk", "position"))
+        rows = read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions
+Equipment List,Escher,Close combat weapons,Lances,Frag lance,,35,
+Equipment List,Escher,Wargear,Personal equipment,Respirator,,12,
+Equipment List,Escher,Ranged weapons,Auto/stub weapons,Autogun,warp round,10,
+""")
+        plan = plan_ingest(equipment_lists=rows)
+        assert plan.ok
+        lance = plan.get(entry_key(ESCHER_LIST, FRAG_LANCE))
+        ammo = plan.get(entry_key(ESCHER_LIST, WARP_ROUND))
+        respirator = plan.get(entry_key(ESCHER_LIST, RESPIRATOR))
+        assert (lance.action, lance.fields["position"]) == ("create", 41)
+        assert (ammo.action, ammo.fields["position"]) == ("create", 42)
+        assert respirator.changes == {"price_override": {"from": None, "to": 12}}
+
+        perform(plan)
+        after = dict(collection.entries.values_list("pk", "position"))
+        assert {pk: after[pk] for pk in before} == before
+        assert len(after) == len(before) + 2
+        assert collection.entries.get(pk=respirator.existing).price_override == 12
+        assert collection.entries.get(weapon__name="Frag lance").position == 41
+        assert collection.entries.get(weapon_profile__name="warp round").position == 42
+
+        again = plan_ingest(equipment_lists=list(reversed(rows)))
+        assert {row.action for row in again.planned} <= {"unchanged", "resolved"}
+        result = perform(again)
+        assert not result.created and not result.updated
+        assert dict(collection.entries.values_list("pk", "position")) == after
+
+    def test_new_lists_start_at_zero_and_append_positions_are_per_list(self, imported):
+        rows = read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions
+Equipment List,New list,Wargear,Personal equipment,Respirator,,15,
+Equipment List,Escher,Close combat weapons,Lances,Frag lance,,35,
+Equipment List,New list,Close combat weapons,Lances,Frag lance,,35,
+""")
+        collection = Collection.objects.get(name="Escher Equipment List")
+        last = max(collection.entries.values_list("position", flat=True))
+        plan = plan_ingest(equipment_lists=rows)
+        perform(plan)
+        new = Collection.objects.get(name="New list Equipment List")
+        assert list(
+            new.entries.order_by("position").values_list("position", flat=True)
+        ) == [0, 1]
+        assert collection.entries.get(weapon__name="Frag lance").position == last + 1
+
+    def test_a_replaced_collection_cannot_receive_an_append_planned_for_the_original(
+        self, imported
+    ):
+        from n26.library import authoring
+        from n26.library.ingest import StaleAppendPlan
+
+        original = authoring.create_collection("Custom Equipment List")
+        plan = plan_ingest(
+            equipment_lists=read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions
+Equipment List,Custom,Close combat weapons,Lances,Frag lance,,35,
+""")
+        )
+        authoring.delete_content(original)
+        replacement = authoring.create_collection("Custom Equipment List")
+        with pytest.raises(StaleAppendPlan, match="Review the updated preview"):
+            perform(plan)
+        assert not replacement.entries.exists()
+
+    @pytest.mark.parametrize("rename_original", [False, True])
+    def test_a_same_name_collection_cannot_redirect_a_planned_append(
+        self, imported, rename_original, monkeypatch
+    ):
+        from n26.library import authoring, ingest
+        from n26.library.ingest import StaleAppendPlan
+
+        original = authoring.create_collection("Custom Equipment List")
+        plan = plan_ingest(
+            equipment_lists=read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions
+Equipment List,Custom,Close combat weapons,Lances,Frag lance,,35,
+""")
+        )
+        if rename_original:
+            authoring.revise(original, name="Renamed Equipment List")
+        replacement = authoring.create_collection(
+            "Custom Equipment List", qualifier="Alternative"
+        )
+        find_existing = ingest.find_existing
+
+        def resolve_with_decoy(planned, *args):
+            if planned.kind == "Collection":
+                return replacement
+            return find_existing(planned, *args)
+
+        monkeypatch.setattr(ingest, "find_existing", resolve_with_decoy)
+
+        if rename_original:
+            with pytest.raises(StaleAppendPlan, match="Review the updated preview"):
+                perform(plan)
+            assert not original.entries.exists()
+        else:
+            perform(plan)
+            assert original.entries.get().weapon.name == "Frag lance"
+        assert not replacement.entries.exists()
+
+    def test_an_item_added_between_membership_and_position_checks_is_not_duplicated(
+        self, imported, monkeypatch
+    ):
+        from n26.library import ingest
+        from n26.library.ingest import StaleAppendPlan
+
+        rows = read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions
+Equipment List,Escher,Close combat weapons,Lances,Frag lance,,35,
+""")
+        first = plan_ingest(equipment_lists=rows)
+        find_existing = ingest.find_existing
+        inserted = False
+
+        def insert_after_membership_check(planned, *args):
+            nonlocal inserted
+            match = find_existing(planned, *args)
+            if planned.kind == "CollectionEntry" and match is None and not inserted:
+                inserted = True
+                perform(first)
+            return match
+
+        monkeypatch.setattr(ingest, "find_existing", insert_after_membership_check)
+        second = plan_ingest(equipment_lists=rows)
+        entry = second.get(entry_key(ESCHER_LIST, FRAG_LANCE))
+        assert inserted and entry.action == "create"
+        collection = Collection.objects.get(name="Escher Equipment List")
+        first_entry = collection.entries.get(weapon__name="Frag lance")
+        assert entry.fields["position"] == first_entry.position + 1
+
+        with pytest.raises(StaleAppendPlan, match="Review the updated preview"):
+            perform(second)
+        assert collection.entries.filter(weapon__name="Frag lance").count() == 1
+
+    def test_item_resolution_cannot_switch_to_an_item_already_in_the_list(
+        self, imported, monkeypatch
+    ):
+        from n26.library import authoring, ingest
+        from n26.library.ingest import StaleAppendPlan
+
+        collection = Collection.objects.get(name="Escher Equipment List")
+        original = authoring.create_wargear("New kit", price=15)
+        decoy = authoring.create_wargear("Other kit", price=15)
+        authoring.add_entry(collection, decoy, position=40)
+        plan = plan_ingest(
+            equipment_lists=read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions
+Equipment List,Escher,,,New kit,,15,
+""")
+        )
+        assert (
+            plan.get(entry_key(ESCHER_LIST, catalogue_key("Wargear", "New kit"))).action
+            == "create"
+        )
+        lock_append_collections = ingest._lock_append_collections
+
+        def switch_item_after_validation(plan):
+            pinned = lock_append_collections(plan)
+            authoring.revise(original, name="Renamed kit")
+            authoring.revise(decoy, name="New kit")
+            return pinned
+
+        monkeypatch.setattr(
+            ingest, "_lock_append_collections", switch_item_after_validation
+        )
+        before = collection.entries.count()
+        with pytest.raises(StaleAppendPlan, match="Review the updated preview"):
+            perform(plan)
+        assert collection.entries.count() == before
+        assert collection.entries.filter(wargear=decoy).count() == 1
+
+    def test_retained_entry_notes_do_not_query_each_omitted_item(self, imported):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library import authoring
+
+        collection = Collection.objects.get(name="Escher Equipment List")
+        rows = read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions
+Equipment List,Escher,Wargear,Personal equipment,Respirator,,15,
+""")
+        with CaptureQueriesContext(connection) as small:
+            plan_ingest(equipment_lists=rows)
+        for number in range(10):
+            kit = authoring.create_wargear(f"Local kit {number}", price=10)
+            authoring.add_entry(collection, kit)
+        with CaptureQueriesContext(connection) as large:
+            plan = plan_ingest(equipment_lists=rows)
+        assert len(large) == len(small)
+        assert any("Local kit 9" in problem.message for problem in plan.problems)
 
     def test_built_in_kit_the_sheet_drops_is_kept_and_said(self, imported):
         """An author adds the exo-suit no sheet defines. The next export
@@ -1546,7 +1803,7 @@ Equipment List,Cawdor,Close combat weapons,Lances,Frag lance,,35,Way-Brethren on
         )
         assert [p.name for p in entry.usable_by_profiles.all()] == ["Way-Brethren"]
         assert any(
-            "nothing was retracted" in problem.message
+            "keeps existing use restrictions" in problem.message
             and "collection page" in problem.message
             for problem in plan.problems
         )
@@ -2313,3 +2570,80 @@ def test_ingest_clear_preserves_the_gang_status_choice_without_reseeding(
     model.refresh_from_db()
     assert model.status == Status.RECOVERY
     assert_reconciled(gang)
+
+
+class TestConcurrentAppends:
+    """Overlapping imports preserve the append order shown in their plans."""
+
+    @pytest.mark.django_db(transaction=True)
+    def test_overlapping_imports_lock_the_list_and_reject_stale_append_positions(
+        self, full_foundation, sheets, monkeypatch
+    ):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Event
+
+        from django.db import (
+            OperationalError,
+            close_old_connections,
+            connection,
+            connections,
+        )
+
+        from n26.library.ingest import StaleAppendPlan, _Performer
+
+        perform(plan_ingest(**sheets))
+
+        def rows(name, section, category):
+            return read_csv(
+                "Collection,Title,Section,Category,Name,Profile,Credits,Restrictions\n"
+                f"Equipment List,Escher,{section},{category},{name},,35,\n"
+            )
+
+        first = plan_ingest(
+            equipment_lists=rows("Frag grenades", "Wargear", "Grenades")
+        )
+        second_rows = rows("Frag lance", "Close combat weapons", "Lances")
+        second = plan_ingest(equipment_lists=second_rows)
+        inserted, release = Event(), Event()
+        create_entry = _Performer._create_collectionentry
+
+        def pause_after_insertion(*args, **kwargs):
+            entry = create_entry(*args, **kwargs)
+            inserted.set()
+            assert release.wait(10), "Timed out waiting to commit the first import"
+            return entry
+
+        def import_first():
+            close_old_connections()
+            try:
+                perform(first)
+            finally:
+                connections.close_all()
+
+        monkeypatch.setattr(
+            _Performer, "_create_collectionentry", pause_after_insertion
+        )
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(import_first)
+            try:
+                assert inserted.wait(10), "The first import did not insert an entry"
+                with pytest.raises(OperationalError, match="lock timeout"):
+                    with transaction.atomic():
+                        with connection.cursor() as cursor:
+                            cursor.execute("SET LOCAL lock_timeout = '500ms'")
+                        perform(second)
+            finally:
+                release.set()
+            future.result(timeout=10)
+
+        collection = Collection.objects.get(name="Escher Equipment List")
+        before = list(collection.entries.values_list("pk", "position"))
+        with pytest.raises(StaleAppendPlan, match="Review the updated preview"):
+            perform(second)
+        assert list(collection.entries.values_list("pk", "position")) == before
+
+        monkeypatch.setattr(_Performer, "_create_collectionentry", create_entry)
+        perform(plan_ingest(equipment_lists=second_rows))
+        assert collection.entries.get(weapon__name="Frag lance").position == (
+            collection.entries.get(weapon__name="Frag grenades").position + 1
+        )

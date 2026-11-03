@@ -126,6 +126,22 @@ ALTERNATIVES = (
         "Chem-alchemy Elixir",
         "At cycle end, add 1 Chem-alchemy Elixir manually if your gang is Escher.",
     ),
+    Alternative(
+        "Ammo Factoria",
+        20,
+        "Ranged weapon discount",
+        "At cycle end, an Orlock gang may buy one ranged weapon from the Trading "
+        "Post with a trade point price of 3 or less. Apply a 10-credit discount, "
+        "with a minimum price of 5 credits. Resolve the purchase manually. "
+        "A Trading Post visit is optional.",
+    ),
+    Alternative(
+        "Wild Snake Distillery",
+        20,
+        "Wild Snake bottles",
+        "At cycle end, add 2 bottles of Wild Snake to the stash manually if your "
+        "gang is Orlock.",
+    ),
 )
 
 NOTHING_TO_DO = "Nothing to do: territory boon choices are unchanged."
