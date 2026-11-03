@@ -354,7 +354,7 @@ class TestTheIngestPreviewSaysIt:
 
         said = page.context["preview"]["reach_said"]
         assert said == (
-            "Some of these additions grow what a thing comes with: already "
+            "This import adds built-in content: already "
             "held once, in one gang — each addition will reach it when "
             "built-in propagation is switched on."
         )

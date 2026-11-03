@@ -1677,6 +1677,40 @@ Equipment List,Custom,Close combat weapons,Lances,Frag lance,,35,
             assert original.entries.get().weapon.name == "Frag lance"
         assert not replacement.entries.exists()
 
+    def test_an_item_added_between_membership_and_position_checks_is_not_duplicated(
+        self, imported, monkeypatch
+    ):
+        from n26.library import ingest
+        from n26.library.ingest import StaleAppendPlan
+
+        rows = read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions
+Equipment List,Escher,Close combat weapons,Lances,Frag lance,,35,
+""")
+        first = plan_ingest(equipment_lists=rows)
+        find_existing = ingest.find_existing
+        inserted = False
+
+        def insert_after_membership_check(planned, *args):
+            nonlocal inserted
+            match = find_existing(planned, *args)
+            if planned.kind == "CollectionEntry" and match is None and not inserted:
+                inserted = True
+                perform(first)
+            return match
+
+        monkeypatch.setattr(ingest, "find_existing", insert_after_membership_check)
+        second = plan_ingest(equipment_lists=rows)
+        entry = second.get(entry_key(ESCHER_LIST, FRAG_LANCE))
+        assert inserted and entry.action == "create"
+        collection = Collection.objects.get(name="Escher Equipment List")
+        first_entry = collection.entries.get(weapon__name="Frag lance")
+        assert entry.fields["position"] == first_entry.position + 1
+
+        with pytest.raises(StaleAppendPlan, match="Review the updated preview"):
+            perform(second)
+        assert collection.entries.filter(weapon__name="Frag lance").count() == 1
+
     def test_retained_entry_notes_do_not_query_each_omitted_item(self, imported):
         from django.db import connection
         from django.test.utils import CaptureQueriesContext

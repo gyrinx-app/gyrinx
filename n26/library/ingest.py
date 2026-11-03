@@ -2198,6 +2198,36 @@ def _lock_append_collections(plan):
             "An equipment list changed during import. Nothing was imported. "
             "Review the updated preview and try again."
         )
+    fields_by_kind = {
+        CollectionEntry._meta.get_field(name).related_model.__name__: name
+        for name in CollectionEntry.ASSIGNABLE_FIELDS
+    }
+    items_by_field = {}
+    planned_members = set()
+    for collection_id, entries in appends.items():
+        for entry in entries:
+            item = plan.get(entry.fields["item"])
+            if item.existing:
+                name = fields_by_kind[item.kind]
+                items_by_field.setdefault(name, set()).add(item.existing)
+                planned_members.add((collection_id, name, item.existing))
+    if planned_members:
+        targets = Q()
+        for name, ids in items_by_field.items():
+            targets |= Q(**{f"{name}_id__in": ids})
+        matches = CollectionEntry.objects.filter(
+            targets, collection_id__in=appends
+        ).values("collection_id", *items_by_field)
+        for row in matches:
+            if any(
+                (str(row["collection_id"]), name, str(row[name])) in planned_members
+                for name in items_by_field
+                if row[name] is not None
+            ):
+                raise StaleAppendPlan(
+                    "An equipment list changed during import. Nothing was imported. "
+                    "Review the updated preview and try again."
+                )
     last_positions = {
         str(row["collection_id"]): row["last"]
         for row in CollectionEntry.objects.filter(collection_id__in=appends)
