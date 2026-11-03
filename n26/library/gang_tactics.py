@@ -108,4 +108,19 @@ GOLIATH = SeedTable(
     ),
 )
 
-SEED_TABLES = (UNIVERSAL, ESCHER, GOLIATH)
+ORLOCK = SeedTable(
+    name="Orlock",
+    dice="d6",
+    reference="Page 42 - Underhive Journal: Orlock",
+    gang_types=("Orlock",),
+    rows=(
+        (1, 1, "A Legend in the Making"),
+        (2, 2, "Quick Trick"),
+        (3, 3, "Down but not Out"),
+        (4, 4, "Showboating"),
+        (5, 5, "Wall of Iron"),
+        (6, 6, "Up Close and Personal"),
+    ),
+)
+
+SEED_TABLES = (UNIVERSAL, ESCHER, GOLIATH, ORLOCK)

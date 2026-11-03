@@ -114,7 +114,12 @@ def gang_tactics(request, pk):
 def _card_props(shown, tactics):
     table_keys = {str(tactic.pk): str(tactic.picklist_id) for tactic in tactics}
     # The same bundled gang artwork used by the N26 gang previews.
-    icons = {"Universal": "custom_gang", "Escher": "escher", "Goliath": "goliath"}
+    icons = {
+        "Universal": "custom_gang",
+        "Escher": "escher",
+        "Goliath": "goliath",
+        "Orlock": "orlock",
+    }
     return [
         {
             **asdict(card),

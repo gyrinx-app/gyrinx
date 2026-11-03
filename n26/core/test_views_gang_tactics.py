@@ -100,6 +100,18 @@ class TestWhichTables:
         gang = found("The Ash Wardens", cawdor, tester)
         assert [one.name for one in tables(gang)] == ["Universal"]
 
+    def test_an_orlock_gang_gets_the_orlock_table(self, tester, default_pack):
+        from n26.library.models import GangType
+        from n26.library.standard_content import STANDARD_CONTENT
+
+        orlock = GangType.objects.create(name="Orlock", pack_id=default_pack.pk)
+        STANDARD_CONTENT["gang-tactics-tables"].create()
+        gang = found("The Iron Lords", orlock, tester)
+        assert [(one.name, one.dice_label) for one in tables(gang)] == [
+            ("Universal", "D66"),
+            ("Orlock", "D6"),
+        ]
+
     def test_a_table_staff_author_reaches_the_gang(self, gang, gang_type):
         """The authoring verbs staff use: a pickable, a banded picklist, a
         hidden gang slot and a modifier on the gang type giving it."""
