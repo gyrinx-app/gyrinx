@@ -54,13 +54,17 @@ def feed_rows(campaign, request):
         campaign=campaign, archived=False
     ).select_related("campaign", "asset_type"):
         placement = PLACEMENTS[feed.target]
+        text = copy_text(request, feed)
         rows.append(
             {
                 "section": feed.section_label,
                 "target": feed.get_target_display(),
                 "copy_label": placement.copy_label,
-                "copy_text": copy_text(request, feed),
+                "copy_text": text,
                 "multiline": placement.kind == "embed",
+                # A link can go through the device's share sheet; embed
+                # code is only useful pasted into a website's editor.
+                "share_url": None if placement.kind == "embed" else text,
                 "steps": placement.steps,
                 "preview_url": page_url(request, feed),
                 "turn_off_href": reverse(

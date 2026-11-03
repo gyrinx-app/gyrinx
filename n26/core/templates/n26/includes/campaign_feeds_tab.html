@@ -3,7 +3,8 @@ The Edit campaign page's Feeds tab: the campaign's live feeds, and the form
 that makes one. Each feed's address is printed in full, because the
 arbitrator pastes it into another site rather than following it here.
 Website builders get embed code, social sites a link, and RSS readers the
-RSS link; n26.core.feeds holds each place's steps.
+RSS link. A link also gets a Share button for the device's share sheet;
+n26.core.feeds holds each place's steps.
 {% endcomment %}
 <c-n26.section title="Make a feed">
     <p class="mb-4 text-sm text-muted">
@@ -59,11 +60,16 @@ RSS link; n26.core.feeds holds each place's steps.
                                   rows="3"
                                   class="w-full rounded-control border border-box-border bg-surface px-3 py-2 font-mono text-xs">{{ feed.copy_text }}</textarea>
                     {% else %}
-                        <input id="feed-copy-{{ forloop.counter }}"
-                               type="text"
-                               readonly
-                               value="{{ feed.copy_text }}"
-                               class="w-full rounded-control border border-box-border bg-surface px-3 py-2 font-mono text-xs">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <input id="feed-copy-{{ forloop.counter }}"
+                                   type="text"
+                                   readonly
+                                   value="{{ feed.copy_text }}"
+                                   class="min-w-0 flex-1 rounded-control border border-box-border bg-surface px-3 py-2 font-mono text-xs">
+                            {% if feed.share_url %}
+                                <c-n26.share :url="feed.share_url" label="Share link" size="sm" :compact="False" />
+                            {% endif %}
+                        </div>
                     {% endif %}
                     <p class="text-sm text-muted">
                         {{ feed.steps }}
