@@ -671,15 +671,25 @@
     margin-top: 2.5rem;
 }
 
-/* "Bonus card" under the effect: set in the rule labels' style, so it reads
-   as a note on the card rather than part of the rules or the footer. */
+/* "Bonus card" on the right of the title bar, small enough to sit beside
+   the name without changing the bar's height or the body below it. */
+.n26-tactic-nameplate h3 {
+    flex: 1;
+    min-width: 0;
+}
 .n26-tactic-bonus {
-    margin-top: 0.9em;
-    color: var(--tactic-label);
-    font-size: 0.85em;
+    flex-shrink: 0;
+    margin-left: calc(6px * var(--tactic-unit));
+    color: rgb(255 255 255 / 75%);
+    font-size: 9px;
     font-weight: 700;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
+    line-height: 1;
     text-transform: uppercase;
+    white-space: nowrap;
+}
+.n26-tactics-print-view .n26-tactic-bonus {
+    font-size: 6.5pt;
 }
 
 /* Tactics notes: the owner's words in the card's body. On screen the box
@@ -838,9 +848,6 @@
     display: flex;
     flex-direction: column;
 }
-.n26-tactics-print-view .n26-tactic-bonus {
-    text-align: right;
-}
 .n26-tactic-notes-lines {
     flex: 1;
     min-height: 3.2em;
@@ -848,14 +855,6 @@
         transparent 0 calc(1.6em - 1px),
         var(--tactic-line) calc(1.6em - 1px) 1.6em
     );
-}
-
-/* On screen the label sits under the notes box's buttons, on the right,
-   so the box keeps the card's full width. */
-.n26-tactic-notes .n26-tactic-bonus {
-    flex-shrink: 0;
-    margin-top: 0;
-    text-align: right;
 }
 
 .n26-tactics-colour-preview {

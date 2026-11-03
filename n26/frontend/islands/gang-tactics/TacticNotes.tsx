@@ -77,7 +77,6 @@ export function TacticNotes({
     csrfToken,
     editorScript,
     onSaved,
-    bonus,
     gangDetails,
 }: {
     name: string;
@@ -88,8 +87,6 @@ export function TacticNotes({
     csrfToken?: string;
     editorScript?: string;
     onSaved?: (notes: string) => void;
-    /** Drawn as a bonus: said under the buttons, where the card has room. */
-    bonus?: boolean;
     gangDetails?: ReactNode;
 }) {
     const editable = Boolean(saveUrl && editorScript);
@@ -290,7 +287,6 @@ export function TacticNotes({
                     )}
                 </div>
             )}
-            {bonus && <p className="n26-tactic-bonus">Bonus card</p>}
             {error && (
                 <p className="n26-tactic-notes-error" role="alert">
                     {error}

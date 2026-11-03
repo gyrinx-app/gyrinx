@@ -63,7 +63,7 @@ test("print cards have no selection interaction", () => {
     expect(toggle).not.toHaveBeenCalled();
 });
 
-test("a bonus card says so under the Save notes button, not in the footer", () => {
+test("a bonus card says so in the title bar, not in the body or footer", () => {
     const view = render(
         <TacticCard
             card={{
@@ -82,14 +82,16 @@ test("a bonus card says so under the Save notes button, not in the footer", () =
         />,
     );
     const label = screen.getByText("Bonus card");
-    const save = screen.getByRole("button", { name: "Save notes" });
-    expect(label.previousElementSibling?.contains(save)).toBe(true);
+    expect(label.closest("header")?.textContent).toContain(card.name);
+    expect(
+        view.container.querySelector(".n26-tactic-content")?.textContent,
+    ).not.toContain("Bonus");
     expect(view.container.querySelector("footer")?.textContent).not.toContain(
         "Bonus",
     );
 });
 
-test("a printed bonus card still says so", () => {
+test("a printed bonus card says so in the title bar too", () => {
     render(
         <TacticCard
             card={{ ...card, bonus: true }}
@@ -98,7 +100,7 @@ test("a printed bonus card still says so", () => {
             onToggle={() => {}}
         />,
     );
-    expect(screen.getByText("Bonus card")).toBeTruthy();
+    expect(screen.getByText("Bonus card").closest("header")).toBeTruthy();
 });
 
 test("a printed card shows only the saved notes, or lines to write on", () => {

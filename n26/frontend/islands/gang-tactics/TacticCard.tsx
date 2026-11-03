@@ -112,6 +112,9 @@ export function TacticCard({
                     <h3 id={`tactic-${card.pk}`} title={card.name}>
                         {card.name}
                     </h3>
+                    {card.bonus && (
+                        <span className="n26-tactic-bonus">Bonus card</span>
+                    )}
                 </div>
             </header>
             <div className="n26-tactic-content" ref={content}>
@@ -138,12 +141,8 @@ export function TacticCard({
                             csrfToken={notes?.csrfToken}
                             editorScript={notes?.editorScript}
                             onSaved={notes?.onSaved}
-                            bonus={card.bonus}
                             gangDetails={gangDetails}
                         />
-                    )}
-                    {printView && card.bonus && (
-                        <p className="n26-tactic-bonus">Bonus card</p>
                     )}
                 </div>
                 {printView && (
