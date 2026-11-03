@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { fireEvent, render } from "@testing-library/react";
-import { expect, test, vi } from "vitest";
+import { expect, test } from "vitest";
 import { useCarouselGestures } from "./useCarouselGestures";
 
 function Carousel({ enabled = true }: { enabled?: boolean }) {

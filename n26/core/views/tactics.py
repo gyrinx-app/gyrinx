@@ -55,7 +55,7 @@ def gang_tactics(request, pk):
                         form.cleaned_data["table"], form.cleaned_data["count"]
                     )
             except Refusal as refusal:
-                messages.error(request, str(refusal))
+                messages.error(request, refusal.public_message)
                 return redirect(at)
             names = [card.name for card in cards(gained)]
             messages.success(
@@ -165,7 +165,7 @@ def delete_gang_tactic(request, pk, tactic_pk):
             with operation(gang, actor=request.user) as op:
                 op.discard_tactic(tactic, note=name)
         except Refusal as refusal:
-            messages.error(request, str(refusal))
+            messages.error(request, refusal.public_message)
             return redirect(back)
         messages.success(request, f"Deleted the Gang Tactic {name}.")
         return redirect(back)
@@ -215,7 +215,7 @@ def reroll_gang_tactic(request, pk, tactic_pk):
             with operation(gang, actor=request.user) as op:
                 new = op.reroll_tactic(tactic, form.cleaned_data["table"])
         except Refusal as refusal:
-            messages.error(request, str(refusal))
+            messages.error(request, refusal.public_message)
             return redirect(back)
         messages.success(request, f"Re-rolled {name}. The gang now has {name_of(new)}.")
         return redirect(back)
@@ -294,8 +294,8 @@ def batch_gang_tactics(request, pk):
                         op.reroll_tactic(tactic, table or str(tactic.picklist_id))
         except Refusal as refusal:
             if json_request:
-                return invalid(str(refusal))
-            messages.error(request, str(refusal))
+                return invalid(refusal.public_message)
+            messages.error(request, refusal.public_message)
             return redirect(back)
         past = "Deleted" if action == "delete" else "Re-rolled"
         message = f"{past} {len(chosen)} gang tactic{'s' if len(chosen) != 1 else ''}."
@@ -354,7 +354,7 @@ def bonus_gang_tactics(request, pk):
                 form.cleaned_data["table"], form.cleaned_data["count"]
             )
     except Refusal as refusal:
-        return JsonResponse({"error": str(refusal)}, status=400)
+        return JsonResponse({"error": refusal.public_message}, status=400)
     names = ", ".join(tactic.pickable.name for tactic in gained)
     plural = "" if len(gained) == 1 else "s"
     return JsonResponse(

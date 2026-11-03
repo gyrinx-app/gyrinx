@@ -854,9 +854,7 @@ export function GangTactics(props: GangTacticsProps) {
                                     }
                                 }}
                                 tabIndex={
-                                    layout === "carousel" && !printView
-                                        ? 0
-                                        : undefined
+                                    layout === "carousel" ? 0 : undefined
                                 }
                                 onScroll={() => {
                                     const el = track.current;
