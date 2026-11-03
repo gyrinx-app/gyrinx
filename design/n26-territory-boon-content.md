@@ -8,8 +8,8 @@ until both increments have been verified.
 
 ## Audited baseline and standing effects
 
-The sources are the local core Territory reference and the House of Chains and
-House of Blades journal references. These tables contain names and numeric facts;
+The sources are the local core Territory reference and the House of Chains,
+House of Blades and House of Iron journal references. These tables contain names and numeric facts;
 all application summaries are original short descriptions.
 
 | Asset | Income | Additional supported standing effect |
@@ -45,12 +45,36 @@ all application summaries are original short descriptions.
 | Rogue Las Factoria | 20 | |
 | Chem Arena | 15 | |
 | Shivver Den | 15 | +1 Reputation for Escher |
+| Ammo Factoria | 20 | |
+| Vehicle Workshop | 20 | |
+| Wild Snake Distillery | 20 | |
+| Scrap Mine | 15 | |
+| Toll Road | 20 | +10 Income for Orlock |
+| Container Stacks | 20 | +1 Reputation for Orlock |
 
 The additional effects are ordinary typed counter contributions on the assets.
 House conditions read the hidden Gang supertype pick, including a House supplied
 by a Clan House Outcast choice or authored House variant. No territory names are
 dispatched by the runtime. Each holding supplies its own contribution for its
 current ownership period. Losing a holding removes that contribution.
+
+## House of Iron ingestion
+
+Run the existing maintenance operations in order: **Update journal territories
+and gang supertypes**, **Add territory income and standing boons**, then
+**Add territory boon choices**. Preview each operation before applying it.
+The journal operation creates the six Orlock assets and their D6 table, grants
+the table through the Orlock gang supertype and stages the new content.
+
+Ammo Factoria and Wild Snake Distillery use the same persistent boon-choice
+pattern as the other journal territories. Their rewards are resolved manually.
+Vehicle Workshop's extra Chop Shop action and Scrap Mine's first Work Territory
+bonus also require manual resolution, as do the battlefield effects. They are
+not permanent counter contributions. Toll Road's additional Income and Container
+Stacks' Reputation are standing contributions restricted to Orlock gangs.
+
+Both placeholder-cleanup operations are limited to the original Goliath and
+Escher entries. Adding a journal does not add its authored boons to cleanup.
 
 ## First content operation
 
@@ -90,6 +114,8 @@ after applying it.
 | Wyld Den | Wyld Runner recruitment discount 20 | Escher |
 | Rogue Las Factoria | 2 lasguns | Escher |
 | Chem Arena | 1 Chem-alchemy Elixir | Escher |
+| Ammo Factoria | One ranged weapon purchase: TP at most 3, discount 10, minimum price 5 | Orlock; no Trading Post visit required |
+| Wild Snake Distillery | 2 bottles of Wild Snake | Orlock |
 
 These are post-cycle rewards, not permanent computed equipment or grants that
 run when the territory is acquired. A selectable option can record the policy,

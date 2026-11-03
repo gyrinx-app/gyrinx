@@ -13,7 +13,7 @@ from django.db.models import ProtectedError
 
 from n26.library.core_campaign import CAMPAIGN_TYPE
 from n26.library.gang_supertypes import supertype_pick
-from n26.library.journal_content import JOURNALS, _is_seeded_boon
+from n26.library.journal_content import LEGACY_JOURNALS, _is_seeded_boon
 from n26.library.territory_table import TERRITORY
 from n26.write_pause import SCOPE, exclusive_write_scope, write_guard
 
@@ -58,7 +58,7 @@ def remove_published_journal_boons():
             campaign_type__qualifier="",
             label_singular=TERRITORY,
         ).first()
-        for house, _table, territories in JOURNALS:
+        for house, _table, territories in LEGACY_JOURNALS:
             pick = supertype_pick(house)
             for entry in territories:
                 if entry.name == "Amneo-vats":

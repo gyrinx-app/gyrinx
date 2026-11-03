@@ -82,7 +82,7 @@ def test_posting_records_exact_preview_and_a_redelivery_stands_down(
     assert record.status == Backfill.Status.DONE
     assert record.summary["report"] == planned
     assert record.summary["attempts"] == 1
-    assert Asset.objects.count() == 31
+    assert Asset.objects.count() == 37
     assert Asset.objects.get(name="Settlement").income == 15
     body = client.get(
         reverse("admin:maintenance_backfill_detail", args=[record.pk])

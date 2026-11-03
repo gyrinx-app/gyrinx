@@ -84,16 +84,16 @@ def test_posting_records_exact_preview_and_a_redelivery_stands_down(
     assert response.status_code == 302
     assert record.summary["preview"] == planned
     assert record.status == Backfill.Status.RUNNING
-    assert Asset.objects.count() == 31
+    assert Asset.objects.count() == 37
     task_queue.deliver_all()
     task_queue.redeliver_last()
     record.refresh_from_db()
     assert record.status == Backfill.Status.DONE
     assert record.summary["report"] == planned
     assert record.summary["attempts"] == 1
-    assert Asset.objects.count() == 31
+    assert Asset.objects.count() == 37
     assert Asset.objects.get(name="Settlement").income == 15
-    assert Asset.objects.filter(base_income_modifier__isnull=False).count() == 12
+    assert Asset.objects.filter(base_income_modifier__isnull=False).count() == 14
     body = client.get(
         reverse("admin:maintenance_backfill_detail", args=[record.pk])
     ).content.decode()
@@ -229,7 +229,7 @@ def test_a_paused_delivery_does_not_change_content_or_consume_an_attempt(
     assert task_queue.deliver_next() == TaskOutcome.DEFERRED
     record.refresh_from_db()
     assert record.summary["attempts"] == 0
-    assert Asset.objects.count() == 31
+    assert Asset.objects.count() == 37
     WritePause.objects.filter(scope="n26").update(state=WritePause.State.OPEN)
     task_queue.deliver_all()
     record.refresh_from_db()
@@ -243,7 +243,7 @@ def test_only_a_superuser_can_preview_or_apply(client, content, address):
     assert client.get(address).status_code in (302, 403)
     assert client.post(address).status_code in (302, 403)
     assert not Backfill.objects.exists()
-    assert Asset.objects.count() == 31
+    assert Asset.objects.count() == 37
 
 
 def test_a_preview_error_is_shown_and_posting_records_no_run(
@@ -332,7 +332,7 @@ def test_foundations_links_to_the_recorded_boon_setup_for_site_administrators(
     task_queue.deliver_all()
     record.refresh_from_db()
     assert record.status == Backfill.Status.DONE
-    assert Asset.objects.filter(base_income_modifier__isnull=False).count() == 12
+    assert Asset.objects.filter(base_income_modifier__isnull=False).count() == 14
     assert NOTHING_TO_DO == preview()[0]
 
 

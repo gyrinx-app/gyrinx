@@ -61,6 +61,12 @@ TERRITORIES = (
     Territory("Rogue Las Factoria", 20),
     Territory("Chem Arena", 15),
     Territory("Shivver Den", 15),
+    Territory("Ammo Factoria", 20),
+    Territory("Vehicle Workshop", 20),
+    Territory("Wild Snake Distillery", 20),
+    Territory("Scrap Mine", 15),
+    Territory("Toll Road", 20),
+    Territory("Container Stacks", 20),
 )
 
 
@@ -84,6 +90,8 @@ STANDING_BOONS = (
     StandingBoon("Gambling Den", REPUTATION, 1),
     StandingBoon("Amneo-vats", INCOME, 10, "Goliath"),
     StandingBoon("Shivver Den", REPUTATION, 1, "Escher"),
+    StandingBoon("Toll Road", INCOME, 10, "Orlock"),
+    StandingBoon("Container Stacks", REPUTATION, 1, "Orlock"),
 )
 
 NOTHING_TO_DO = "Nothing to do: territory Income and standing boons are unchanged."
