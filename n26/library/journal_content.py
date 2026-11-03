@@ -1,4 +1,4 @@
-"""The Underhive Journal territories — House of Chains and House of Blades.
+"""The Underhive Journal territories — House of Chains, Blades and Iron.
 
 Each journal adds a D6 table of six Territories that a gang of its House
 may roll its starting Territory on (design/house-and-territory-tables.md).
@@ -8,10 +8,10 @@ battlefield effects are not seeded.
 What the seed writes, all in the system pack and all ``staged`` until an
 author puts it live:
 
-* Twelve ``Asset`` rows under the Territory asset type of the Territory
+* Eighteen ``Asset`` rows under the Territory asset type of the Territory
   campaign type, each with its income as an Income contribution
   (``n26/library/income.py``).
-* Two ``AssetTable`` rows, Goliath Territories and Escher Territories, a
+* Three ``AssetTable`` rows, Goliath, Escher and Orlock Territories, a
   D6 each with six entries on bands 1–1 to 6–6 in the book's order. They
   are House tables, not built into the campaign type: each is given by a
   modifier on the matching Gang supertype pickable
@@ -59,9 +59,8 @@ class Territory:
     income: int
 
 
-#: Each journal's table: the House it belongs to, the table's name, and
-#: its six Territories in the book's order, rolls 1 to 6.
-JOURNALS = (
+#: Journals whose placeholder boons may be removed by maintenance.
+LEGACY_JOURNALS = (
     (
         "Goliath",
         "Goliath Territories",
@@ -84,6 +83,23 @@ JOURNALS = (
             Territory("Rogue Las Factoria", 20),
             Territory("Chem Arena", 15),
             Territory("Shivver Den", 15),
+        ),
+    ),
+)
+
+#: Each journal's House, table name and six territories in D6 roll order.
+JOURNALS = (
+    *LEGACY_JOURNALS,
+    (
+        "Orlock",
+        "Orlock Territories",
+        (
+            Territory("Ammo Factoria", 20),
+            Territory("Vehicle Workshop", 20),
+            Territory("Wild Snake Distillery", 20),
+            Territory("Scrap Mine", 15),
+            Territory("Toll Road", 20),
+            Territory("Container Stacks", 20),
         ),
     ),
 )
@@ -212,7 +228,7 @@ def _remove_seeded_boons(pack, territory, picks, income):
     from n26.library.models import Asset, Modifier, Rule
 
     outcome = Outcome()
-    for house, _table_name, territories in JOURNALS:
+    for house, _table_name, territories in LEGACY_JOURNALS:
         for entry in territories:
             rule_name = f"{house} Controlled"
             rule = None
@@ -258,7 +274,7 @@ def _remove_seeded_boons(pack, territory, picks, income):
 
 
 def seed_journal_content():
-    """Create what is missing of the two journals' territories and tables,
+    """Create missing journal territories and tables,
     remove known seeded Controlled boons, and report changes and skips.
 
     The Territory campaign type and the Gang supertype are created first

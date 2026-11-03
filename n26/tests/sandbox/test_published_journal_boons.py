@@ -44,6 +44,7 @@ from n26.library.gang_supertypes import HOUSES, supertype_pick
 from n26.library.income import ensure_income_counter, income_of
 from n26.library.journal_content import (
     JOURNALS,
+    LEGACY_JOURNALS,
     seed_all,
 )
 from n26.library.journal_content import (
@@ -94,7 +95,7 @@ def catalogue(houses, default_pack):
 def published_boons(catalogue, default_pack):
     """The journal grants after an author publishes all eleven placeholder rules."""
     made = {}
-    for house, _table, territories in JOURNALS:
+    for house, _table, territories in LEGACY_JOURNALS:
         for entry in territories:
             asset = Asset.objects.get(pack=default_pack, name=entry.name)
             if entry.name == "Amneo-vats":
@@ -148,6 +149,26 @@ def interrupt_after_one(monkeypatch):
 
 class TestPublishedPlaceholders:
     """The preview and apply reports agree on exactly eleven published grants and rules."""
+
+    @pytest.mark.parametrize("staged", [True, False])
+    def test_authored_orlock_boons_are_outside_both_placeholder_cleanups(
+        self, catalogue, staged
+    ):
+        asset = Asset.objects.get(name="Ammo Factoria")
+        rule = create_rule("Orlock Controlled", annotation=asset.name, staged=True)
+        if not staged:
+            put_live(rule)
+        boon = modifier(
+            "Ammo Factoria: Orlock Controlled",
+            targets_gang_alone(has_gang_pickable(supertype_pick("Orlock"))),
+            ef_adds(rule),
+            attach_to=asset,
+        )
+        assert seed_all()[0] == JOURNAL_UP_TO_DATE
+        assert preview() == [NOTHING_TO_DO]
+        assert remove_published_journal_boons() == [NOTHING_TO_DO]
+        assert Rule.objects.filter(pk=rule.pk).exists()
+        assert asset.modifiers.filter(pk=boon.pk).exists()
 
     def test_the_preview_rolls_back_every_removal_and_a_repeated_run_changes_nothing(
         self, published_boons

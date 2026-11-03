@@ -2674,10 +2674,10 @@ register_control_operation(
             "Create the gang supertype: a hidden gang-level slot with six "
             "marker pickables, Goliath to Cawdor. It is built into each Clan "
             "House gang type with that House picked, and Clan House Outcast "
-            "gangs are given it by their Clan House pickable. Create the two "
-            "Underhive Journals' territories as well: twelve Territories "
+            "gangs are given it by their Clan House pickable. Create the three "
+            "Underhive Journals' territories as well: eighteen territories "
             "under the Territory campaign type, each with its baseline "
-            "income, and the Goliath Territories and Escher "
+            "income, and the Goliath Territories, Escher Territories and Orlock "
             "Territories tables, each given to the gangs of its House. The "
             "journal rows are staged until an author puts them live. Remove "
             "the known seeded House Controlled modifiers and unused "
@@ -2770,10 +2770,12 @@ register_control_operation(
         added=date(2026, 10, 11),
         description=(
             "Add baseline Income for Settlement, the 18 core territories and "
-            "the 12 journal territories. Add four supported standing boons: "
+            "the 18 journal territories. Add six supported standing boons: "
             "Generatorium and Gambling Den add 1 Reputation; Goliath gangs "
             "holding Amneo-vats gain 10 more Income; Escher gangs holding "
-            "Shivver Den gain 1 Reputation. Preserve and report authored "
+            "Shivver Den gain 1 Reputation; Orlock gangs holding Toll Road gain "
+            "10 more Income, and those holding Container Stacks gain 1 Reputation. "
+            "Preserve and report authored "
             "conflicts. New content is staged. Effects attached to existing "
             "assets apply to their current holders immediately. Credit "
             "collection, recruitment, equipment rewards and battlefield "
@@ -2875,7 +2877,7 @@ register_control_operation(
         name=Operation.SEED_TERRITORY_BOON_CHOICES.label,
         added=date(2026, 10, 11),
         description=(
-            "Add an Income choice and one manual cycle reward policy for 12 "
+            "Add an Income choice and one manual cycle reward policy for 14 "
             "territories, including Settlement. Keep the existing Income "
             "modifier and select Income for current owners. Preserve and "
             "report authored conflicts. New choices inherit each asset's "

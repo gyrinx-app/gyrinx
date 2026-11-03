@@ -50,6 +50,8 @@ EXPECTED = {
     "Wyld Den": (15, "Wyld Runner recruitment"),
     "Rogue Las Factoria": (20, "Lasguns"),
     "Chem Arena": (15, "Chem-alchemy Elixir"),
+    "Ammo Factoria": (20, "Ranged weapon discount"),
+    "Wild Snake Distillery": (20, "Wild Snake bottles"),
 }
 
 
@@ -65,7 +67,7 @@ def prerequisites(default_pack):
         name: a.create_pickable(
             name, supertype, qualifier="Gang supertype", pack=default_pack
         )
-        for name in ("Goliath", "Escher")
+        for name in ("Goliath", "Escher", "Orlock")
     }
     return SimpleNamespace(
         pack=default_pack,
@@ -132,7 +134,7 @@ def content_state(asset):
 
 
 class TestTheConversion:
-    def test_twelve_alternatives_move_the_same_baselines_and_keep_catalogue_income(
+    def test_fourteen_alternatives_move_the_same_baselines_and_keep_catalogue_income(
         self, prepared
     ):
         original_assets = list(Asset.objects.all())
@@ -150,13 +152,13 @@ class TestTheConversion:
             for row in baselines.values()
         }
         report = seed_all()
-        assert len([line for line in report if line.startswith("converted ")]) == 12
+        assert len([line for line in report if line.startswith("converted ")]) == 14
         assert {
             entry.asset: (entry.income, entry.name) for entry in ALTERNATIVES
         } == EXPECTED
-        assert Asset.objects.count() == 31
-        assert Modifier.objects.count() == 47
-        assert sum(asset.income for asset in Asset.objects.all()) == 555
+        assert Asset.objects.count() == 37
+        assert Modifier.objects.count() == 57
+        assert sum(asset.income for asset in Asset.objects.all()) == 670
         assert (
             Assignment.objects.count()
             == LedgerEntry.objects.count()

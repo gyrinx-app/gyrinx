@@ -70,6 +70,12 @@ EXPECTED_INCOME = {
     "Rogue Las Factoria": 20,
     "Chem Arena": 15,
     "Shivver Den": 15,
+    "Ammo Factoria": 20,
+    "Vehicle Workshop": 20,
+    "Wild Snake Distillery": 20,
+    "Scrap Mine": 15,
+    "Toll Road": 20,
+    "Container Stacks": 20,
 }
 
 
@@ -86,7 +92,7 @@ def prepared(default_pack):
         house: authoring.create_pickable(
             house, kind, qualifier="Gang supertype", pack=default_pack
         )
-        for house in ("Goliath", "Escher")
+        for house in ("Goliath", "Escher", "Orlock")
     }
     return SimpleNamespace(
         pack=default_pack,
@@ -142,17 +148,17 @@ def standing(name):
 
 
 class TestTheSupportedSeed:
-    def test_all_source_figures_and_four_typed_effects_are_created_staged(
+    def test_all_source_figures_and_six_typed_effects_are_created_staged(
         self, prepared
     ):
         before_rules = Rule.objects.count()
         report = seed_all()
         assets = {asset.name: asset for asset in Asset.objects.all()}
         assert {name: asset.income for name, asset in assets.items()} == EXPECTED_INCOME
-        assert sum(asset.income for asset in assets.values()) == 555
+        assert sum(asset.income for asset in assets.values()) == 670
         assert all(asset.staged for asset in assets.values())
         assert all(row.staged for row in Modifier.objects.all())
-        assert Modifier.objects.count() == 35
+        assert Modifier.objects.count() == 43
         assert Rule.objects.count() == before_rules
         assert assets["Settlement"].asset_type == prepared.settlement
         assert all(
@@ -172,6 +178,8 @@ class TestTheSupportedSeed:
             ("Gambling Den: standing Reputation", "Reputation", 1, None),
             ("Amneo-vats: Goliath standing Income", "Income", 10, "Goliath"),
             ("Shivver Den: Escher standing Reputation", "Reputation", 1, "Escher"),
+            ("Toll Road: Orlock standing Income", "Income", 10, "Orlock"),
+            ("Container Stacks: Orlock standing Reputation", "Reputation", 1, "Orlock"),
         )
         for name, counter, amount, house in expected:
             row = standing(name)
@@ -685,7 +693,7 @@ class TestPrerequisitesAndAdmission:
             "skipped Goliath standing boon: missing or archived Gang supertype pick"
             in report
         )
-        assert len(STANDING_BOONS) == 4
+        assert len(STANDING_BOONS) == 6
 
     def test_preview_and_apply_refuse_a_write_pause_before_any_content_write(
         self, prepared

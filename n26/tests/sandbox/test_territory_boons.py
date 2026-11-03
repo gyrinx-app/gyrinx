@@ -52,10 +52,14 @@ pytestmark = pytest.mark.django_db
 def content(default_pack):
     seed_core_campaign(apps)
     seed_territory_table(apps)
-    kinds = {name: create_gang_type(name) for name in ("Goliath", "Escher", "Outcast")}
+    kinds = {
+        name: create_gang_type(name)
+        for name in ("Goliath", "Escher", "Orlock", "Outcast")
+    }
     clan_type = create_slot_type("Clan House")
     picks = [
-        create_pickable(f"House {name}", clan_type) for name in ("Goliath", "Escher")
+        create_pickable(f"House {name}", clan_type)
+        for name in ("Goliath", "Escher", "Orlock")
     ]
     clan_list = create_picklist("Clan Houses", clan_type, members=picks)
     clan_slot = create_slot("Clan House", clan_type, clan_list, assigned_to="gang")
@@ -192,6 +196,10 @@ class TestStandingReadings:
             ("Escher", "Shivver Den", 50, 2),
             ("Goliath", "Shivver Den", 40, 1),
             ("Goliath", "Gambling Den", 50, 2),
+            ("Orlock", "Toll Road", 55, 1),
+            ("Escher", "Toll Road", 45, 1),
+            ("Orlock", "Container Stacks", 55, 2),
+            ("Goliath", "Container Stacks", 45, 1),
         ],
     )
     def test_only_the_matching_house_gets_its_standing_boon(
@@ -223,6 +231,31 @@ class TestStandingReadings:
         remove(selected)
         assert readings(gang) == {"Income": 55, "Reputation": 1}
 
+    def test_orlock_boons_follow_the_holder_and_clan_house_choice(
+        self, campaign, content
+    ):
+        seed_all()
+        orlock = member(campaign, content, "Orlock", "Road crew")
+        outcast = member(campaign, content, "Outcast", "Road outcasts")
+        first = assign_asset(
+            add_asset(campaign, Asset.objects.get(name="Toll Road")), orlock
+        )
+        second = assign_asset(
+            add_asset(campaign, Asset.objects.get(name="Container Stacks")), orlock
+        )
+        assert readings(orlock) == {"Income": 85, "Reputation": 2}
+        transfer_asset(first, outcast)
+        transfer_asset(second, outcast)
+        assert readings(orlock) == {"Income": 25, "Reputation": 1}
+        assert readings(outcast) == {"Income": 65, "Reputation": 1}
+        picked = choose(clan_choice(outcast), content["clan_picks"][2])
+        assert readings(outcast) == {"Income": 85, "Reputation": 2}
+        remove(picked)
+        assert readings(outcast) == {"Income": 65, "Reputation": 1}
+        for gang in (orlock, outcast):
+            gang.refresh_from_db()
+            assert_reconciled(gang)
+
     def test_a_house_variant_uses_its_supertype_without_name_dispatch(
         self, campaign, content
     ):
@@ -250,7 +283,7 @@ class TestStandingReadings:
                 "pk", flat=True
             )
         )
-        assert len(identifiers) == 4
+        assert len(identifiers) == 6
         seed_journals()
         remove_published_journal_boons()
         assert (
