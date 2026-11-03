@@ -22,6 +22,7 @@ from gyrinx.site.flags import enabled, register_flags, requires_flag, switched_o
 
 __all__ = [
     "BUILT_IN_PROPAGATION",
+    "SHARE_FIGHTER_CARD",
     "STAGED_CONTENT",
     "enabled",
     "requires_flag",
@@ -37,4 +38,9 @@ BUILT_IN_PROPAGATION = "built-in-propagation"
 #: does, so a release can be rehearsed with a group before it is made.
 STAGED_CONTENT = "staged-content"
 
-register_flags(BUILT_IN_PROPAGATION, STAGED_CONTENT)
+#: A fighter's card on a page of its own that other websites may frame,
+#: and the owner's Share control that copies it. Shut, the page is not
+#: found and the control is not drawn.
+SHARE_FIGHTER_CARD = "share-fighter-card"
+
+register_flags(BUILT_IN_PROPAGATION, SHARE_FIGHTER_CARD, STAGED_CONTENT)

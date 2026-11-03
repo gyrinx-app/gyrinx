@@ -1175,6 +1175,10 @@ class ModelCard:
     skills_href: str = ""
     #: Owner-only equipment-card management. Empty on previews and prints.
     model_cards_href: str = ""
+    #: Owner-only props for the Share card dialog: the model's name, the
+    #: gang's, and the address of the card's own page. None draws no
+    #: control, as on previews, prints and the shared page itself.
+    share_card: dict | None = None
     #: Effective actions on the card, so a roster can check their prices.
     action_ids: tuple[str, ...] = ()
     #: Actions the roster flags: an earned use, an unfinished draft, or an

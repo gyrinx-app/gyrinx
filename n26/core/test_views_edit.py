@@ -751,7 +751,8 @@ class TestTheQueryBudget:
         # Rank history reads the fighter's earned rank allowances once.
         # Historical table results are one additional bounded read.
         # One read checks the built-in visit's default visibility.
-        assert self.measure(client, edit_url(vex)) == 51
+        # One checks the share-fighter-card flag for the Share card control.
+        assert self.measure(client, edit_url(vex)) == 52
 
     def test_the_rest_of_the_gang_costs_nothing(
         self, client, tester, gang, vex, make_profile, make_statline

@@ -389,6 +389,13 @@ urlpatterns = [
     # The model's own page: the card with its edit affordances and the
     # owner's notes. Equip is the same header's second tab.
     path("fighters/<str:pk>/edit/", views.edit_fighter, name="n26-edit-fighter"),
+    # Public, and framed by other websites: the owner's Share control
+    # copies an iframe pointing here.
+    path(
+        "fighters/<str:pk>/card/",
+        views.shared_fighter_card,
+        name="n26-shared-fighter-card",
+    ),
     path("fighters/<str:pk>/rating/", views.base_rating, name="n26-base-rating"),
     path(
         "fighters/<str:pk>/actions/<str:action_id>/",
