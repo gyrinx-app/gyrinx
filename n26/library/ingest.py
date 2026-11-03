@@ -2338,6 +2338,11 @@ class _Performer:
         row = find_existing(planned, self.plan.pack, self.resolve)
         if row is None:
             raise LookupError(f"nothing performs or holds {key}")
+        if planned.existing and str(row.pk) != planned.existing:
+            raise StaleAppendPlan(
+                "Library content changed during import. Nothing was imported. "
+                "Review the updated preview and try again."
+            )
         self.result.existing[key] = row
         return row
 

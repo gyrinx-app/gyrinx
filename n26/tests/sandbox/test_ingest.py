@@ -1711,6 +1711,43 @@ Equipment List,Escher,Close combat weapons,Lances,Frag lance,,35,
             perform(second)
         assert collection.entries.filter(weapon__name="Frag lance").count() == 1
 
+    def test_item_resolution_cannot_switch_to_an_item_already_in_the_list(
+        self, imported, monkeypatch
+    ):
+        from n26.library import authoring, ingest
+        from n26.library.ingest import StaleAppendPlan
+
+        collection = Collection.objects.get(name="Escher Equipment List")
+        original = authoring.create_wargear("New kit", price=15)
+        decoy = authoring.create_wargear("Other kit", price=15)
+        authoring.add_entry(collection, decoy, position=40)
+        plan = plan_ingest(
+            equipment_lists=read_csv("""
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions
+Equipment List,Escher,,,New kit,,15,
+""")
+        )
+        assert (
+            plan.get(entry_key(ESCHER_LIST, catalogue_key("Wargear", "New kit"))).action
+            == "create"
+        )
+        lock_append_collections = ingest._lock_append_collections
+
+        def switch_item_after_validation(plan):
+            pinned = lock_append_collections(plan)
+            authoring.revise(original, name="Renamed kit")
+            authoring.revise(decoy, name="New kit")
+            return pinned
+
+        monkeypatch.setattr(
+            ingest, "_lock_append_collections", switch_item_after_validation
+        )
+        before = collection.entries.count()
+        with pytest.raises(StaleAppendPlan, match="Review the updated preview"):
+            perform(plan)
+        assert collection.entries.count() == before
+        assert collection.entries.filter(wargear=decoy).count() == 1
+
     def test_retained_entry_notes_do_not_query_each_omitted_item(self, imported):
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
