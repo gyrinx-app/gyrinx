@@ -942,9 +942,7 @@ export function GangTactics(props: GangTacticsProps) {
                                         show(Math.max(0, active - 1));
                                     }
                                 }}
-                                tabIndex={
-                                    layout === "carousel" ? 0 : undefined
-                                }
+                                tabIndex={layout === "carousel" ? 0 : undefined}
                                 onScroll={() => {
                                     const el = track.current;
                                     if (
