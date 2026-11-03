@@ -68,7 +68,8 @@ def session_authenticated_with_mfa(request) -> bool:
     from allauth.account.authentication import get_authentication_records
 
     return any(
-        record.get("method") == "mfa" for record in get_authentication_records(request)
+        record.get("method") == "mfa"
+        for record in get_authentication_records(request, request.user)
     )
 
 
