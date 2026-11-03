@@ -47,6 +47,7 @@ def test_a_side_job_menu_lists_the_sets_until_one_is_picked(client, campaign):
         "General side jobs",
         "Escher side jobs",
         "Goliath side jobs",
+        "Orlock side jobs",
     ]
 
 
@@ -272,7 +273,12 @@ def test_each_side_job_in_a_result_has_a_reroll_link(client, campaign, campaign_
     props = reroll_island(opened)
     assert props["title"] == "Reroll side job 1"
     assert props["set"] == "escher"
-    assert [s["value"] for s in props["sets"]] == ["general", "escher", "goliath"]
+    assert [s["value"] for s in props["sets"]] == [
+        "general",
+        "escher",
+        "goliath",
+        "orlock",
+    ]
     assert ["side_job", "escher-3"] in props["fields"]
     assert ["reroll", "side_job"] in props["fields"]
     assert 'data-react-name="scenario-reroll"' in opened.content.decode()
@@ -326,7 +332,7 @@ def test_a_reroll_never_repeats_a_side_job_from_the_same_set(client, campaign):
 def test_a_reroll_of_a_missing_side_job_or_set_changes_nothing(client, campaign):
     for extra in (
         {"reroll": "side_job_2", "reroll_set": "escher"},
-        {"reroll": "side_job", "reroll_set": "orlock"},
+        {"reroll": "side_job", "reroll_set": "no-such-set"},
     ):
         response = client.get(reverse(GENERATOR), {"side_job": "escher-3", **extra})
         assert query_of(response["Location"]) == {

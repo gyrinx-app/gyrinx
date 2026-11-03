@@ -38,6 +38,7 @@ A side job is an extra goal a gang can complete. Side jobs come in sets of six:
 | General side jobs | Any gang. These are the side jobs from before there were sets. |
 | Escher side jobs | Escher gangs. |
 | Goliath side jobs | Goliath gangs. |
+| Orlock side jobs | Orlock gangs. |
 
 A scenario can have up to six side jobs, each from any set. Within a set, a
 rolled side job is never the same as another one in the scenario, unless every
@@ -62,7 +63,8 @@ The side job lists come last, after Crew. A side job's list first offers:
 
 - **Choose a side job set**, the default, which adds no side job
 - **Leave out**
-- **General side jobs**, **Escher side jobs** and **Goliath side jobs**
+- **General side jobs**, **Escher side jobs**, **Goliath side jobs** and
+  **Orlock side jobs**
 
 Once a set is picked, the same list shows **Roll a D6**, that set's six jobs
 and, at the bottom, **Change set**, which goes back to the list of sets.

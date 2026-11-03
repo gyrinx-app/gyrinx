@@ -89,7 +89,9 @@ def test_side_jobs_come_last_numbered_in_order_with_their_sets():
     }
 
 
-@pytest.mark.parametrize("value", ["orlock-2", "escher-7", "escher-", "-3", 9, 2.0])
+@pytest.mark.parametrize(
+    "value", ["no-such-set-2", "escher-7", "escher-", "-3", 9, 2.0]
+)
 def test_a_side_job_off_its_set_is_wrong(value):
     found, wrong = parse({"side_job": value})
     assert [each.key for each in wrong] == ["side_job"]
@@ -112,4 +114,4 @@ def test_reroll_side_job_rolls_only_that_side_job():
     assert rolls["side_job_2"].startswith("escher-")
     assert rolls["side_job_2"] != "escher-3"
     assert reroll_side_job(found, "side_job_3", "escher") is None
-    assert reroll_side_job(found, "side_job", "orlock") is None
+    assert reroll_side_job(found, "side_job", "no-such-set") is None

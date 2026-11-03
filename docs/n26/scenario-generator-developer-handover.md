@@ -88,14 +88,14 @@ Every redirect is built with `reverse(...)`.
 - `ScenarioTable(key, name, entries)`. `entry(roll)` returns the entry for
   that roll, or `None`. `TABLES` holds Deployment, Objective and Crew.
 - `SideJobSet(key, name, entries)`, with `label` ("Escher side jobs") and
-  `entry(roll)`. `SIDE_JOB_SETS` holds General, Escher and Goliath, in menu
+  `entry(roll)`. `SIDE_JOB_SETS` holds General, Escher, Goliath and Orlock, in menu
   order. `side_job_set(key)` finds one.
 - A scenario has up to `SIDE_JOB_LIMIT` (6) side jobs, stored under
   `SIDE_JOB_KEYS`: `side_job`, `side_job_2` … `side_job_6`.
   `side_job_table(place, found)` gives the table a result is drawn under,
   named "Side job N".
 - The keys `deployment`, `objective`, `crew` and the side job keys, and the
-  set keys `general`, `escher` and `goliath`, appear in links and saved
+  set keys `general`, `escher`, `goliath` and `orlock`, appear in links and saved
   battles, so do not change them. To add a set, add a `SideJobSet` to
   `SIDE_JOB_SETS`.
 - Names and text can change freely. Older battles and log lines show the new

@@ -383,12 +383,66 @@ GOLIATH_SIDE_JOBS = SideJobSet(
     ),
 )
 
+ORLOCK_SIDE_JOBS = SideJobSet(
+    key="orlock",
+    name="Orlock",
+    entries=(
+        ScenarioEntry(
+            roll=1,
+            name="Collecting a Debt:",
+            text=(
+                'When a friendly Fighter targets an enemy Fighter with a Fight action, they may "Shake Down" that enemy instead of making any attacks. If at least one friendly Fighter has shaken down an enemy Fighter by the end of the battle, you have accomplished this Side Job.'
+            ),
+        ),
+        ScenarioEntry(
+            roll=2,
+            name="Clear the Supply Routes:",
+            text=(
+                'If, at the end of the battle, there are no enemy models within the enemy’s deployment zone (or within 6" of the centre of the board if they have no DZ), you have accomplished this Side Job.'
+            ),
+        ),
+        ScenarioEntry(
+            roll=3,
+            name="Call Them Out:",
+            text=(
+                "After both crews have deployed, but before rolling for priority, pick a friendly Fighter and an enemy Fighter. If, by the end of the battle, your Fighter has taken that enemy Fighter Out of Action, you have accomplished this Side Job."
+            ),
+        ),
+        ScenarioEntry(
+            roll=4,
+            name="Prospecting Mission:",
+            text=(
+                'After both crews have deployed, but before rolling for priority, place 3 prospecting tokens on the board, each at least 8" from the other tokens and at least 12" from any friendly Fighter. A friendly Fighter within 1" of a token may perform the Interact action to remove it. If at least 2 tokens have been removed by the end of the battle, you have accomplished this Side Job.'
+            ),
+        ),
+        ScenarioEntry(
+            roll=5,
+            name="Wreck It:",
+            text=(
+                'After both crews have deployed, but before rolling for priority, choose a piece of terrain in the enemy’s deployment zone (or within 6" of the centre of the board if there is no DZ). That piece of terrain has T8, W4 and Sv5+, and attacks against it hit automatically. If, by the end of the battle, it has no wounds remaining, you have accomplished this Side Job.'
+            ),
+        ),
+        ScenarioEntry(
+            roll=6,
+            name="Earn Your Name:",
+            text=(
+                "After both crews have deployed, but before rolling for priority, randomly pick a friendly Fighter. That Fighter gains a Legendary Name of your choice for the rest of the battle, even if they already have the maximum number of Legendary Names. If that Fighter is still on the board at the end of the battle, you have accomplished this Side Job."
+            ),
+        ),
+    ),
+)
+
 #: The tables every scenario may use, in the order the generator shows
 #: them. Side jobs come after them.
 TABLES = (DEPLOYMENT, OBJECTIVE, CREW)
 
 #: The side job sets, in the order the generator's menu lists them.
-SIDE_JOB_SETS = (GENERAL_SIDE_JOBS, ESCHER_SIDE_JOBS, GOLIATH_SIDE_JOBS)
+SIDE_JOB_SETS = (
+    GENERAL_SIDE_JOBS,
+    ESCHER_SIDE_JOBS,
+    GOLIATH_SIDE_JOBS,
+    ORLOCK_SIDE_JOBS,
+)
 
 #: The most side jobs one scenario may have.
 SIDE_JOB_LIMIT = 6

@@ -36,9 +36,14 @@ def test_a_label_leaves_off_a_heading_colon_and_spaces():
 
 
 def test_side_job_sets_are_listed_general_first_and_found_by_key():
-    assert [found.key for found in SIDE_JOB_SETS] == ["general", "escher", "goliath"]
+    assert [found.key for found in SIDE_JOB_SETS] == [
+        "general",
+        "escher",
+        "goliath",
+        "orlock",
+    ]
     assert side_job_set("escher").label == "Escher side jobs"
-    assert side_job_set("orlock") is None
+    assert side_job_set("no-such-set") is None
     assert SIDE_JOB_KEYS[:3] == ("side_job", "side_job_2", "side_job_3")
 
 
