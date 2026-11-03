@@ -12,7 +12,7 @@ import pytest
 from allauth.account.models import EmailAddress
 from allauth.mfa.totp.internal import auth as totp_auth
 from django.conf import settings
-from django.test import Client, override_settings
+from django.test import Client, RequestFactory, override_settings
 from django.urls import reverse
 
 pytestmark = pytest.mark.core
@@ -171,6 +171,35 @@ def test_session_that_never_passed_a_challenge_is_sent_to_reauthenticate(staff_u
     response = client.get(ADMIN_LOGIN)
 
     assert response.url == f"{MFA_REAUTHENTICATE}?next={ADMIN_INDEX}"
+
+
+@pytest.mark.django_db
+def test_mfa_records_for_another_user_do_not_open_the_admin(staff_user, make_user):
+    from allauth.account.internal.flows.login import record_authentication
+
+    from gyrinx.admin_site import session_authenticated_with_mfa
+
+    request = RequestFactory().get(ADMIN_INDEX)
+    request.user = staff_user
+    request.session = {}
+    record_authentication(
+        request, make_user("another-staffer", "password"), "mfa", type="totp"
+    )
+
+    assert not session_authenticated_with_mfa(request)
+
+
+@pytest.mark.django_db
+def test_mfa_records_without_a_user_binding_do_not_open_the_admin(staff_user):
+    from allauth.account.authentication import AUTHENTICATION_METHODS_SESSION_KEY
+
+    from gyrinx.admin_site import session_authenticated_with_mfa
+
+    request = RequestFactory().get(ADMIN_INDEX)
+    request.user = staff_user
+    request.session = {AUTHENTICATION_METHODS_SESSION_KEY: [{"method": "mfa"}]}
+
+    assert not session_authenticated_with_mfa(request)
 
 
 @override_settings(ADMIN_REQUIRE_MFA=True)
