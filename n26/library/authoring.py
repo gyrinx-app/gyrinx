@@ -1407,6 +1407,54 @@ def create_picklist(name, slot_type, members=(), dice="", roll_selects="", **kwa
 
 
 @guarded_write
+@transaction.atomic
+def clone_picklist(picklist, name):
+    """Copy a picklist and its memberships, sharing the existing pickables.
+
+    The copy keeps the original slot type, dice, result order, labels,
+    roll bands and tier levels. Edit its memberships independently;
+    changes to a shared pickable still apply wherever it is offered.
+    """
+    from n26.library.models import Picklist
+
+    name = name.strip()
+    if not name:
+        raise ValidationError({"name": "Give the copy a name."})
+    if Picklist.objects.filter(
+        pack=picklist.pack, slot_type=picklist.slot_type, name__iexact=name
+    ).exists():
+        raise ValidationError(
+            {"name": "A picklist with this name already exists for this slot type."}
+        )
+    copy = Picklist(
+        name=name,
+        pack=picklist.pack,
+        slot_type=picklist.slot_type,
+        dice=picklist.dice,
+        roll_selects=picklist.roll_selects,
+        staged=picklist.staged,
+    )
+    copy.full_clean()
+    copy.save()
+    for member in picklist.members.select_related("pickable").order_by(
+        "position", "pk"
+    ):
+        add_picklist_member(
+            copy,
+            member.pickable,
+            label_override=member.label_override,
+            position=member.position,
+            roll_low=member.roll_low,
+            roll_high=member.roll_high,
+            level=member.level,
+            pack=member.pack,
+            staged=member.staged,
+            archived=member.archived,
+        )
+    return copy
+
+
+@guarded_write
 @preserves_income_choices
 def add_picklist_member(
     picklist,

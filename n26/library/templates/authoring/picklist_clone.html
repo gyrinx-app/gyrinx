@@ -1,0 +1,25 @@
+{% extends "authoring/base.html" %}
+{% block head_title %}Clone {{ picklist }}{% endblock %}
+{% block content %}
+    <c-n26.page-header title="Clone {{ picklist }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-detail' 'picklist' picklist.pk %}">{{ picklist }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Clone
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    <c-n26.prose class="mt-3 max-w-xl">
+        <p>The copy keeps the results, order, labels and roll settings. You can edit its results independently.</p>
+        <p>Result definitions and their modifiers stay shared. Editing a result definition changes every picklist that uses it.</p>
+    </c-n26.prose>
+    <form method="post" class="mt-8 max-w-xl space-y-5">
+        {% csrf_token %}
+        {% include "authoring/_form.html" %}
+        <c-n26.form-actions submit_label="Clone"
+                            cancel_url="{% url 'authoring-detail' 'picklist' picklist.pk %}" />
+    </form>
+{% endblock %}

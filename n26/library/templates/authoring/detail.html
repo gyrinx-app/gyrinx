@@ -146,6 +146,10 @@ thing twice, a line apart.
             anything still uses the row.
                     {% endcomment %}
                     <div class="mt-4 flex flex-wrap gap-4">
+                        {% if kind == "picklist" %}
+                            <c-n26.link href="{% url 'authoring-picklist-clone' thing.pk %}"
+                                        class="text-sm">Clone this picklist…</c-n26.link>
+                        {% endif %}
                         <c-n26.link href="{% url 'authoring-thing-delete' kind thing.pk %}"
                                     tone="danger"
                                     class="text-sm">
