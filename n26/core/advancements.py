@@ -549,11 +549,11 @@ def _roll_table(configured):
     state = {
         "slot_id": str(configured.slot_id),
         "slot_modified": configured.slot.modified.isoformat(),
-        "slot_configuration": [
-            [field.attname, str(getattr(configured.slot, field.attname))]
+        "slot_configuration": {
+            field.attname: str(getattr(configured.slot, field.attname))
             for field in configured.slot._meta.concrete_fields
             if field.name not in {"created", "modified", "pick_rating_override"}
-        ],
+        },
         "pick_rating_override": configured.slot.pick_rating_override,
         "picklist_id": str(configured.slot.picklist_id),
         "picklist_modified": configured.slot.picklist.modified.isoformat(),

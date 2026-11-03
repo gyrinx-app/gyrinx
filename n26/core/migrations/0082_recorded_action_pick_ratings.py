@@ -31,11 +31,11 @@ def preserve_legacy_roll_slots(apps, schema_editor):
         slot = loaded[slot_id]
         if slot is None or table.get("slot_modified") != slot.modified.isoformat():
             continue
-        configuration = [
-            [field.attname, str(getattr(slot, field.attname))]
+        configuration = {
+            field.attname: str(getattr(slot, field.attname))
             for field in slot._meta.concrete_fields
             if field.name not in {"created", "modified", "pick_rating_override"}
-        ]
+        }
         records.objects.using(database).filter(pk=record.pk).update(
             terms={
                 **record.terms,

@@ -1024,13 +1024,31 @@ def test_a_saved_roll_from_before_slot_ratings_keeps_its_existing_behaviour(setu
     )
 
 
+def _historical_rating_apps():
+    from django.db.migrations.loader import MigrationLoader
+    from django.test import override_settings
+
+    # pytest --nomigrations disables disk discovery; this test needs the
+    # historical declarations without applying them to its database.
+    with override_settings(MIGRATION_MODULES={}):
+        return (
+            MigrationLoader(None)
+            .project_state(
+                [
+                    ("n26", "0082_recorded_action_pick_ratings"),
+                    ("library", "0129_slot_pick_rating_override"),
+                ]
+            )
+            .apps
+        )
+
+
 @pytest.mark.parametrize("original_rating", [0, 9])
 def test_legacy_completed_uses_keep_their_rating_after_the_slot_gains_a_rating(
     setup, original_rating
 ):
     from importlib import import_module
 
-    from django.apps import apps
     from django.db import connection
 
     s = setup
@@ -1044,6 +1062,7 @@ def test_legacy_completed_uses_keep_their_rating_after_the_slot_gains_a_rating(
     record.recorded_ratings = {}
     record.save(update_fields=["recorded_ratings", "modified"])
     migration = import_module("n26.core.migrations.0082_recorded_action_pick_ratings")
+    apps = _historical_rating_apps()
     migration.preserve_legacy_roll_slots(apps, SimpleNamespace(connection=connection))
     migration.preserve_legacy_pick_ratings(apps, SimpleNamespace(connection=connection))
     slot = s.outcome.operation.slot
@@ -1076,7 +1095,6 @@ def test_legacy_completed_uses_keep_their_rating_after_the_slot_gains_a_rating(
 def test_legacy_snapshot_migration_does_not_accept_already_changed_content(setup):
     from importlib import import_module
 
-    from django.apps import apps
     from django.db import connection
 
     s = setup
@@ -1089,6 +1107,7 @@ def test_legacy_snapshot_migration_does_not_accept_already_changed_content(setup
     slot.label = "Changed name choice"
     slot.save(update_fields=["label", "modified"])
     migration = import_module("n26.core.migrations.0082_recorded_action_pick_ratings")
+    apps = _historical_rating_apps()
     migration.preserve_legacy_roll_slots(apps, SimpleNamespace(connection=connection))
     migration.preserve_legacy_pick_ratings(apps, SimpleNamespace(connection=connection))
     record.refresh_from_db()

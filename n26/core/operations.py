@@ -2905,9 +2905,7 @@ class Operation:
             context = record.recorded_ratings.get(
                 str(slot.pk),
                 {
-                    "override": None
-                    if record.completed_event_id
-                    else slot.pick_rating_override,
+                    "override": slot.pick_rating_override,
                     "picks": {},
                 },
             )
