@@ -474,7 +474,10 @@ def test_totp_setup_keeps_qr_code_and_native_activation_form(client, user):
     response = client.get(response.url)
     assert response.status_code == 200
     assert response.context["totp_svg_data_uri"].startswith("data:image/svg+xml;")
+    # Black modules on a transparent SVG disappear on the dark account page.
+    assert 'fill="white"' in response.context["totp_svg"]
     html = response.content.decode()
+    assert 'class="inline-block bg-white p-3 [color-scheme:only_light]"' in html
     assert 'name="code"' in html
     assert 'type="submit"' in html
     assert 'name="csrfmiddlewaretoken"' in html

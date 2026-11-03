@@ -365,6 +365,7 @@ USERSESSIONS_TRACK_ACTIVITY = True
 # https://docs.allauth.org/en/latest/mfa/introduction.html
 MFA_TOTP_ISSUER = "Gyrinx"  # This will appear in the authenticator app
 MFA_SUPPORTED_TYPES = ["totp"]  # Only support TOTP, not SMS or recovery codes initially
+MFA_ADAPTER = "gyrinx.adapter.CustomMFAAdapter"
 
 # Require staff to hold a second factor, and to have used it in the current
 # session, before the Django admin will let them in. Staff who fall short are

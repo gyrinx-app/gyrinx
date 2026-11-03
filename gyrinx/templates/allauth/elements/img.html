@@ -1,2 +1,3 @@
 <img src="{{ attrs.src }}"
-     {% if attrs.alt %}alt="{{ attrs.alt }}"{% endif %}>
+     {% if attrs.alt %}alt="{{ attrs.alt }}"{% endif %}
+     {% if attrs.tags and "qr" in attrs.tags %}class="inline-block bg-white p-3 [color-scheme:only_light]"{% endif %}>
