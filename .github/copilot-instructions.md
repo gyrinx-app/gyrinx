@@ -10,11 +10,17 @@ deployed to Cloud Run. N26's TypeScript is built with Vite.
 For pull request reviews, use `.github/skills/code-review/SKILL.md` to select the relevant shared guidance and verify findings against the affected code.
 
 **N26 interactions use React.** Read `.agents/skills/n26-react/SKILL.md` and
-`docs/developing-gyrinx/react.md`. Prefer bounded conversion of touched Alpine
-interactions, with existing Cotton-derived React primitives. Static markup stays
-Cotton. No SSR/no-JS fallback is required for islands. Shareable state belongs
-in URLs; temporary interaction state and drafts may live in React. Server-side
-permissions and validation remain authoritative.
+`docs/developing-gyrinx/react.md`. Expect an assessment of each touched interactive
+workflow: already React, migrated, or deferred with a concrete documented reason.
+Migrations can include task-specific APIs and shared Python extraction. Verify
+HTML/JSON parity for access, validation, operations, side effects and navigation;
+using the same low-level operation is insufficient. Keep one UI owner for the
+whole task, including confirmations and errors. Review migrated copy and comments,
+including copied text. Apply the plan's exceptions for small fixes and missing
+prerequisites; do not demand unrelated rewrites. Static markup stays Cotton.
+No SSR/no-JS fallback is required for islands. Shareable state belongs in URLs;
+temporary interaction state and drafts may live in React. Server-side permissions
+and validation remain authoritative.
 
 **N23 UI state belongs in the URL.** Anything that picks a form variant, switches a
 visible section or selects a tab is a navigation: a link or a GET form pointing at

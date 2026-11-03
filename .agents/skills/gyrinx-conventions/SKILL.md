@@ -90,8 +90,11 @@ These are the canonical conventions for the Gyrinx project. All new code should 
 
 For `n26/`, load `.agents/skills/n26-react/SKILL.md`. New interactions use
 client-rendered React islands in Django pages, reusing the N26 design system.
-Migrate a touched Alpine interaction when bounded; leave unrelated static Cotton
-alone. Shareable state stays in URLs; transient state and drafts can stay in React.
+Assess a touched interactive workflow for migration, including confirmations and
+errors. Follow `docs/developing-gyrinx/react.md` for shared HTML/JSON behaviour,
+task-specific endpoints, parity checks and concrete deferral reasons. Review
+migrated copy and comments. Leave unrelated static Cotton alone. Shareable state
+stays in URLs; transient state and drafts can stay in React.
 The no-JS requirement below applies to N23, not N26 islands.
 
 ## N23 URL-Driven UI (no client-side form mutation)

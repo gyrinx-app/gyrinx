@@ -1,9 +1,218 @@
 # Incremental React in N26
 
-N26 keeps Django routes and page shells. React owns bounded interactive regions
-inside those pages; Cotton continues to render the surrounding UI. React regions
-are client-rendered, not hydrated or server-rendered. A single useful interaction
-can migrate without converting its page, its API or its neighbours.
+N26 keeps Django routes and shared page shells. React owns an independent
+interaction or a complete workflow's page body. A workflow is one user task,
+including its reads, commands, confirmations and failure paths. Cotton continues
+to render the surrounding shell. React regions are client-rendered, not hydrated
+or server-rendered.
+
+The next migration unit is a complete workflow with explicit display data and
+command endpoints. Start with Manage credits, then Hire and Equip. Keep small
+islands for interactions that already have an independent owner. Build each
+workflow's endpoints with its React consumer; do not start a separate API rewrite.
+
+## Workflow migration plan
+
+The goals are incremental delivery, a repeatable implementation, preserved
+behaviour and one UI owner per task. Old and new pages can coexist through normal
+navigation. A migrated workflow must not depend on Alpine state or htmx swaps
+inside its React root. Shared navigation outside that root can remain unchanged.
+
+### Establish parity before changing the renderer
+
+For the chosen task, list its entry points, permitted users, inputs, choices,
+defaults, confirmations, writes, failure states and navigation destinations.
+Include empty states, private and public variants, query parameters and every
+figure a write updates. Record this contract in the PR description and protect
+it with tests.
+Changing wording is part of the migration; changing domain rules or removing a
+variant requires a separate product decision.
+
+N26 already has useful boundaries, but a view is not automatically ready to become
+an API. [Operations](../../n26/core/operations.py) own player-data writes,
+[forms](../../n26/core/forms.py) validate inputs, and
+[render structures](../../n26/core/render.py) prepare display facts. Some workflow
+decisions still live in views:
+
+- [Manage credits](../../n26/core/views/credits.py) combines permission checks,
+  form validation, the locked write, errors, analytics and return navigation.
+- [Hire](../../n26/core/views/hire.py) also resolves offered profiles, option
+  picks, quotes and confirmation state before calling the hire operation.
+- [Equip](../../n26/core/views/equip.py) combines purchase preparation,
+  confirmations and several HTML updates after a write.
+
+Calling the same operation from two endpoints is necessary but does not preserve
+all that behaviour. Before adding another transport, extract the workflow
+decisions that both callers need into the owning Python module. Keep the
+extraction limited to this task; do not create a generic service framework.
+
+The HTML and JSON adapters must share:
+
+- authorised object lookups, valid choices and the permission recheck under the
+  operation's lock;
+- input validation, selection resolution, quote calculation and confirmation
+  requirements;
+- one command implementation using `operation(...)` for player-data writes,
+  including ledger changes and other domain side effects; authoring workflows
+  retain their existing content-write path;
+- display preparation, error meaning and the result needed for analytics and
+  user feedback.
+
+HTTP adapters parse requests and turn the shared result into HTML, JSON or a
+redirect. Keep request-specific message and analytics handling there, with each
+event recorded once for a newly committed action. Do not call one view from
+another or pass an HTTP request into domain operations. A command result can be
+a small typed structure containing the changed records or required confirmation.
+
+```mermaid
+flowchart LR
+    HTML[HTML adapter] --> Read[Shared display builder]
+    JSON[JSON adapter] --> Read
+    HTML --> Command[Shared validation and command]
+    JSON --> Command
+    Command --> Operation[Existing domain write path]
+```
+
+Use one display builder for the initial page props and subsequent JSON reads.
+Serialise the authorised display fields explicitly; a model or dataclass dump
+can include private or non-JSON values. Embed initial props through `react_island`
+instead of fetching them again after mount. Add a read endpoint when a consumer
+needs a refresh or lazy data, rather than for endpoint symmetry.
+
+Test the shared behaviour and both adapters while both transports have callers.
+Run equivalent scenarios against independent, equivalent fixtures; do not apply
+both commands sequentially to the same gang and compare the results. Compare
+allowed actions, error fields, changed records, ledger events, totals and
+destinations. Assert no writes after validation or permission failures. HTML
+redirects and JSON status codes can differ deliberately; test the documented
+response for each transport. Copy edits need not retain old sentence text, but
+must preserve the error's meaning and applicable action.
+
+### Build the first complete workflow
+
+1. **Manage credits:** extract its shared access, validation and command path.
+   Add the display contract and JSON command, then replace the complete form
+   body with one React root. Preserve owner and arbitrator access, current
+   balance on refusal, safe return navigation, analytics and success feedback.
+2. **Hire:** prepare the catalogue and lazy model-preview contracts, including
+   safe rich-text display where needed. Migrate filters, option picks, preview,
+   name and price confirmation, submission and onward navigation together.
+3. **Equip:** reuse the catalogue support. Include owned assignments, price
+   drafts, buy and sell confirmations, and updated holdings, credits and cards.
+   Return display data for React-owned content instead of out-of-band HTML.
+
+These steps define the migration order. Confirm each workflow's contract before
+implementing it. Manage credits establishes the endpoint and error conventions;
+its value is the repeatable pattern. More complex workflows may need preparatory
+component or extraction PRs. Each prerequisite must have a named consumer and its
+own verification.
+
+With the first workflow command, establish a small shared request and error
+convention using a real caller. Put generic transport helpers in `n26/frontend/http/`, the
+planned location described in [frontend instructions](../../n26/frontend/AGENTS.md).
+Keep workflow-specific response interpretation in the island. Cover session
+expiry, CSRF failure, field and non-field errors, stale reads, network failure
+and pending state. Distinguish a rejected
+write from a request whose outcome is unknown. Disable duplicate submissions,
+and implement server request-key handling where retries could spend or grant
+twice. A disabled button is not idempotency. Existing keyed action flows are
+examples; `adjust_credits` needs an explicit retry design before promising one.
+
+Keep forms and domain rules authoritative on the server. Form-encoded input can
+reuse Django forms; JSON responses do not require JSON request bodies. Return
+fresh display facts or a server-validated navigation destination after a command.
+Do not introduce optimistic money updates, cross-route client caches or a
+client-side router to migrate the first page.
+
+### Review copy and comments in every migration
+
+Load the [microcopy skill](../../.agents/skills/microcopy/SKILL.md) and apply a
+plain-English review to the migrated workflow, including text copied unchanged
+into TSX or endpoint responses. Review headings, labels, help, confirmations,
+empty states, success messages, validation errors and permission refusals.
+Keep domain terms, interpolation values and the meaning of each instruction.
+When Python defines a shared string, update it there so HTML and JSON use the
+same wording.
+
+Review comments in the migrated implementation and shared code changed by the
+extraction. Remove comments that repeat the code. Rewrite metaphors,
+personification and compressed prose as direct statements of the constraint or
+reason. Keep useful invariants; remove ticket history, attribution, abandoned
+approaches and temporary agent notes. Follow [N26's comment rules](../../n26/AGENTS.md#comments).
+Do not sweep unrelated files or rewrite stored user content or authored library
+content. A framework migration does not authorise changing terminology or rules.
+
+Run `scripts/check_microcopy.py` on changed files through the worktree's Python
+wrapper. Review its warnings; the checker cannot replace a cold read of copy and
+comments. Have an independent reader review the migrated text when delegation is
+available. Include a short copy and comment review result in the PR, alongside any
+deliberately retained wording and its reason.
+
+### Verify and switch the whole workflow
+
+A workflow is ready to switch when:
+
+- every variant and failure path in its contract works through the new UI;
+- shared behaviour and adapter tests cover permissions, validation, side effects,
+  concurrency, duplicate requests and safe navigation as applicable;
+- React tests cover state, forms, pending/error recovery and keyboard/focus
+  behaviour, including Back/Forward for URL state;
+- real-page checks cover phone and desktop widths, both themes, visual parity
+  and useful screenshot or interaction evidence;
+- SQL and query-growth checks pass, and loading with and without cached assets
+  shows no unexplained regression in representative data, payload size or preview
+  loading;
+- copy and comments have been reviewed, and obsolete code has been identified
+  against all callers.
+
+Use the [testing guidance](testing.md), [SQL performance skill](../../.agents/skills/sql-performance/SKILL.md)
+and [visual evidence skill](../../.agents/skills/pr-screenshots/SKILL.md). Run the
+focused Python tests, React tests, typecheck and production build before cutover.
+Keep existing domain checks; a new rendering test does not replace them.
+
+Select one complete renderer for each request. During a short rollback period,
+both renderers can call the same Python behaviour, but never mount both and hide
+one. Name the removal follow-up if it cannot be included in the cutover PR. Delete
+the old page implementation and bridges after verification; retain endpoints or
+components still used by other workflows. Lower the Alpine baseline where it
+actually falls. A page can be worth migrating even when the baseline records no
+Alpine usage.
+
+### Choose migration scope during ordinary work
+
+Use React for new N26 interactions. When changing an existing interactive task,
+identify its complete workflow before choosing a component boundary. Migrate it
+by default when the required extraction, endpoints, components and verification
+fit the requested change. An existing server endpoint is not a prerequisite:
+task-specific endpoints and a bounded behaviour extraction are part of a
+migration. Do not add a permanent event bridge merely to keep the diff smaller.
+
+For each touched interactive workflow, report one outcome: already React,
+migrated, or deferred with a concrete reason. Reviewers should request this
+assessment when it is missing. A vague statement that a page is complex or needs
+an API is not a deferral reason.
+
+### When to defer a migration
+
+Do not enlarge a task into a migration when:
+
+- it is a copy-only, static, backend-only or urgent corrective change whose
+  scope cannot include the workflow and its checks;
+- it would require an unresolved product decision, domain-rule change or
+  unrelated schema/data work;
+- a necessary display contract or complex primitive is not available and cannot
+  be implemented and verified within this task;
+- an active change overlaps the workflow, or representative data, access or
+  services needed to prove parity are unavailable;
+- it crosses N23, print layouts or several independent workflows without an
+  explicit request for that scope.
+
+Finish the authorised fix using the existing architecture. Do not add new Alpine
+to work around a missing React capability. Record the exact dependency, the
+affected workflow and the smallest verifiable preparation step. For a dedicated
+migration task, implement that preparation when it is in scope and independently
+useful; otherwise report the blocker. Do not remove behaviour, weaken checks or
+leave a placeholder to make a migration appear complete.
 
 ## Diagnosis
 
@@ -21,9 +230,9 @@ The migration's hard part is shared ownership, not installing React:
   systems ownership of the same DOM.
 - Django already prepares display structures and owns domain operations. A broad
   API rewrite would add work before the first useful React component appears.
-- Existing agent instructions prohibit React and require no-JS forms. Without
-  changing those instructions, agents would keep adding Alpine or reject the
-  intended migration during review.
+- Agent instructions and review guidance must name the complete workflow as a
+  migration unit. Restricting agents to small controls with existing endpoints
+  leaves connected player workflows outside the migration queue.
 - Production uses Django manifest staticfiles and WhiteNoise. Vite also hashes
   assets. Giving a shared module two URLs can load two React instances; loading
   a cached document's deleted chunk can leave a blank region after a deployment.
@@ -32,12 +241,12 @@ The migration's hard part is shared ownership, not installing React:
 
 | Question | Decision | Consequence |
 | --- | --- | --- |
-| Replace htmx with an API layer? | Gradually, within migrated interactions only. | Keep working htmx outside React; use native Django links/forms where sufficient. Add small JSON endpoints only when an interaction needs them. |
+| Replace htmx with an API layer? | Add workflow display and command contracts with their React consumers. | Keep htmx outside migrated roots. Reuse forms and operations; normal links remain the boundary between tasks. |
 | Load React everywhere? | Yes, in N26: the bar's quick switcher is an island, so every page with the bar loads React. Other islands still load only where a template includes them. | The shared React chunk (about 68 kB gzip) is cached as an immutable asset; each full navigation still parses and runs it. |
 | Minimise bootstrap cost? | One shared cached React chunk, small per-component entries, modulepreload, embedded initial props. | No initial data-fetch waterfall, duplicate runtime or framework/router dependency. |
 | Pass initial state? | A plain JSON-safe view model through `react_island` and Django `json_script`. | Safe escaping, no executable inline state, no ORM objects or hidden permission assumptions. |
 | Reuse the design system? | Generate presentation recipes from real rendered Cotton primitives at build time; implement their behaviour in typed React adapters. | The actual Cotton classes and app tokens stay authoritative. Only supported variants cross the bridge. |
-| Where first? | Authoring lists, then authoring filters and pickers. | Repeated, well-tested interactions with existing server contracts; no ledger or player-purchase redesign in the first step. |
+| What migrates next? | Manage credits, then Hire and Equip as complete workflows. | Prove shared behaviour and endpoint conventions on a small task before connected catalogues. Existing independent islands remain valid. |
 
 ### DOM and state ownership
 
@@ -152,8 +361,9 @@ from the public `ui` boundary; they do not import another island.
 
 ### Server interactions
 
-The PoC needs no API: its links and GET form use existing Django views. This is
-a useful default, not a restriction on later React forms.
+The authoring-list proof of concept uses existing links and a GET form. Workflow
+migrations add their own display and command endpoints when asynchronous behaviour
+needs them; follow the shared-behaviour and parity steps above.
 
 For asynchronous reads or writes, add an endpoint beside the owning view:
 
@@ -171,8 +381,8 @@ For asynchronous reads or writes, add an endpoint beside the owning view:
    client button state is not a transaction guarantee.
 
 Do not introduce a generic REST CRUD layer, duplicate domain logic in TypeScript
-or replace unrelated htmx routes. A shared fetch helper becomes useful with the
-first actual JSON write; it is not required scaffolding for a local list filter.
+or replace unrelated htmx routes. Build shared request and error handling from a real
+command consumer; local list filters need no API scaffolding.
 
 ### Assets and cost
 
@@ -260,9 +470,11 @@ The modifier-list source path is:
 `library.views.modifiers` → `authoring/modifiers.html` → `react_island` →
 `islands/modifier-list/entry.tsx` → `ModifierList.tsx` → `ui/`.
 
-Frontend source follows four dependency layers. Feature code is co-located under
+Frontend source separates feature code from shared infrastructure. Feature code
+is co-located under
 `islands/<name>/`; generic mounting belongs in `runtime/`; Cotton-derived React
-primitives form the public `ui/` boundary; Django-aware build code stays in
+primitives form the public `ui/` boundary. Generic JSON transport belongs in
+`http/` when the first workflow introduces it; Django-aware build code stays in
 `tooling/`. The ignored `generated/` directory is output, never an authoring
 surface. The repository-root TypeScript, Vite and Vitest configs are shared by
 all islands beside the single root `package.json`; do not create per-island
@@ -301,28 +513,13 @@ rendered behaviour and safe text handling. The actual worktree page should also
 be checked with realistic data, keyboard selection, phone width and dark mode.
 Keep database query-growth assertions: client rendering cannot fix N+1 queries.
 
-## Migration as part of ordinary work
+## Agent instructions and migration inventory
 
-The defaults are in root and N26 `AGENTS.md`, the conventions/design skills,
-Copilot instructions and `.agents/skills/n26-react/SKILL.md`. Agents should:
-
-- Use React for new N26 interactions without asking for a framework decision.
-- Convert the existing interaction they are already changing when it has a
-  bounded DOM owner, existing server contracts and a reviewable test surface.
-- Leave static Cotton and unrelated interactions alone. A copy-only edit does
-  not justify replacing an entire composer.
-- Explain a concrete migration blocker when conversion would require a domain
-  redesign, new API contract or unbuilt complex primitive. Do not quietly add
-  more Alpine as the default solution.
-- Lower the per-template Alpine ceilings with
-  `python scripts/check_n26_alpine.py --update`. CI fails when a template's
-  Alpine increases. The guard counts Alpine attributes, not all possible
-  JavaScript: review is still needed, and deleting a caller does not prove a
-  shared primitive is unused.
-
-This removes the need for the maintainer to repeatedly request React. It is a
-default plus executable checks, not a guarantee that every agent will make the
-right scoping decision without review.
+Root and N26 `AGENTS.md`, the `n26-react` skill and Copilot instructions carry the
+workflow migration default. This document defines the detailed plan, parity
+requirements and deferral criteria. Keep those entry points aligned when the
+migration policy changes. The Alpine guard detects new directives; it cannot
+judge workflow completeness, copy quality or shared domain behaviour.
 
 ### The Alpine baseline
 
@@ -368,69 +565,54 @@ its own ceilings. Adding Alpine to one fails as new direct Alpine, even with
 `--update`. Removing Alpine from one lowers its weight, which `--update`
 records.
 
-### Sequence and exit conditions
+### Removing old runtimes
 
-1. **Leaf lists:** prove packaging, visual reuse, props and lifecycle with a real
-   interaction. Retain the existing bulk action.
-2. **Modifier listing:** its loaded-row search/facets now use the shared React
-   primitives, with the existing transient state and query-growth guards intact.
-3. **Authoring pickers:** build one accessible React picker used by a real field.
-   Preserve native field names and server validation. Port consumers gradually.
-4. **Authoring composer:** migrate bounded sections after the picker and JSON
-   validation contracts exist. Do not make the whole authoring application a SPA.
-5. **Player interactions and shared chrome:** move reusable menus, dialogs and
-   collection controls when their consumers are touched. Test money/state-changing
-   paths against the real server operations, including repeat submissions.
-6. **Remove old runtimes:** only after inventorying first-party templates,
-   installed-kit components and all page shells. An empty Alpine baseline
-   alone is insufficient, because page chrome and the gallery are not charged
-   for kit Alpine. Remove htmx independently when no remaining
-   consumers need HTML swaps.
-
-Each step ships independently. Stop and reassess if adapter complexity exceeds
-the interaction being migrated, the initial bundle grows substantially, or a
-conversion needs a second source of domain truth. Track deleted directives,
-converted interactions, cold/warm loading behaviour and visual defects rather
-than a percentage of JSX lines.
+Remove Alpine only after inventorying first-party templates, installed-kit
+components and all page shells. An empty baseline alone is insufficient because
+the baseline excludes Alpine from page chrome and kit components used in the
+gallery. Remove htmx independently when no remaining consumers need HTML swaps.
+Track completed workflows, remaining callers, parity checks, loading with and
+without cached assets, visual defects and deleted directives.
 
 ## Optional scheduled migration
 
-Enable a scheduled agent only after this foundation is merged and normal UI
-work has exercised it. Start weekly with one unmerged migration PR at a time;
-increase frequency only if review is keeping up. It should propose small changes,
-never auto-merge or deploy. No schedule is installed by this PoC.
+The prompt below describes the workflow migration job. Changing this document
+does not install or update a live automation. An operator must apply the prompt
+to its configuration separately. Keep at most one unmerged automated migration
+PR; the job must not merge or deploy.
 
-When authoring templates have no Alpine left, the job continues with one
-page-local player interaction or shared control. It still ships a single
-reviewable PR and leaves kit-owned controls alone.
-
-A ready-to-use job prompt:
-
-> Read the repository instructions and load the n26-react skill. Check for an
-> open automated React migration PR; if one exists, stop. Check overlapping
-> active work and avoid those candidates. From the `direct` column of the
-> Alpine baseline, choose one small first-party interaction. Prefer a remaining authoring interaction. When
-> `n26/library/templates` has no Alpine, take the next documented step: one
-> player interaction or shared control whose Alpine owner is that template. It
-> must already have a server contract (a native form, a link, or an existing
-> endpoint) and be drawable with a supported primitive (`Button`, `Input`,
-> `Switch`, `Toggle`, `SearchBar`, `FilterMenu`, `RangeMenu`, `CheckboxCard`,
-> `PickBox`, `PickLegend`, `Dialog`, `Badge`, `UserLink`, or an exported Cotton
-> recipe). Prefer a template that owns
-> its `x-data`, such as `cotton/n26/share.html` or `n26/trade_points.html`, over
-> one that publishes values into a parent scope. Leave these until a smaller
-> owner is gone: `c-ui.mode-toggle`, `c-ui.drawer`, `c-ui.dropdown`,
-> `c-ui.popover`, `c-ui.tabs`, `c-n26.collection-picker`, and
-> any fragment swapped by htmx. A React primitive that does not submit `name`
-> and `value` does not replace a posting checkbox. Do not add a mode-toggle or
-> dropdown in order to unlock a larger page. Explain the
-> boundary, migrate it without changing its behaviour, remove the superseded
-> Alpine code and lower the baseline. Run Python and React tests, typechecking
-> and the production build; check the real UI at phone and desktop widths in
-> both themes. Open one reviewable PR with the changed interaction, test
-> results and useful UI evidence. Do not change domain rules, add any API or endpoint,
-> merge, deploy, or work around missing access. If every remaining candidate
-> needs one of the deferred owners, report that dependency and make no PR.
+> Read repository instructions, `docs/developing-gyrinx/react.md` and the
+> `n26-react` and microcopy skills. Check for an open automated migration PR and
+> overlapping active work before choosing a task. Take the next ready workflow
+> from the documented sequence, starting with Manage credits if it has not
+> migrated. Use the Alpine inventory to find callers, not as the only queue.
+>
+> Define the complete task: permitted users, inputs, defaults, confirmations, writes,
+> errors and navigation. Add or reuse tests that describe those behaviours.
+> Inspect the HTML view and every existing endpoint before adding a transport.
+> Extract the shared workflow behaviour where needed, retaining existing forms,
+> permission checks, operations and side effects. Add narrowly scoped display
+> and command contracts with their consumer; new endpoints are allowed. Do not
+> duplicate business logic or introduce a generic CRUD layer.
+>
+> Give the workflow one React owner using the existing runtime and design
+> adapters. Keep independent shared chrome outside it. Do not use Alpine state,
+> htmx child swaps, nested islands or server HTML inside the migrated root.
+> Preserve URL state, all variants, errors and safe navigation. Review every
+> migrated user-facing string and comment, including copied text. Apply the
+> microcopy and plain-English rules without changing domain meaning.
+>
+> Follow the parity, copy, SQL, visual and build checks in the plan. Select one
+> renderer for the whole task, remove obsolete code after checking its callers,
+> and lower the Alpine baseline where applicable. Open one reviewable PR with
+> the workflow contract, shared-behaviour evidence, test results, copy and comment
+> review and useful visual evidence. State any retained caller or cleanup work.
+>
+> Apply the documented deferral criteria. If a required preparation step is in
+> scope and independently verifiable, implement it as a focused prerequisite
+> with a named workflow consumer. Otherwise report the exact blocker and next
+> step. Do not substitute a placeholder, remove behaviour, change domain rules,
+> merge, deploy or work around missing access.
 
 ## Framework references
 

@@ -146,9 +146,13 @@ pytest `FAILURES` excerpt.
   choice set belongs in the URL and is rendered by the server. JavaScript may
   enhance the page, but the server must decide which fields and choices the
   form uses.
-- Use React only for self-contained N26 interactions. Put shareable navigation
-  state in the URL. React may hold temporary control state and unsaved drafts.
-  Read [`docs/developing-gyrinx/react.md`](docs/developing-gyrinx/react.md).
+- Use React for N26 interactions and complete workflow page bodies. When
+  changing an interactive task, assess migration of its reads, commands,
+  confirmations and errors together. Add task-specific APIs and extract shared
+  behaviour when needed. Report it as already React, migrated, or deferred
+  with a concrete blocker under the [migration plan](docs/developing-gyrinx/react.md).
+  Review migrated copy and comments, including copied text. Keep shareable
+  state in the URL; Django retains permissions, validation and domain writes.
 - Prefer existing Cotton components to hand-written framework markup. Design
   for mobile screens first, then add layouts for wider screens.
 - Validate any user-provided return target with `safe_redirect`,

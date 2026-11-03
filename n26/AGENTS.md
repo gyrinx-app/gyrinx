@@ -97,7 +97,12 @@ new platform dependency only by creating or extending an explicit seam.
 - Build each display surface as a plain dataclass before rendering it. Tests
   assert on that structure.
 - Use React for interactive UI and Cotton for static UI. Load the `n26-react`
-  skill before changing an interaction. Do not add Alpine directives.
+  skill before changing an interaction. Assess the complete touched workflow,
+  including confirmations and errors; use task-specific display and command APIs
+  sharing the existing Python behaviour. Follow the parity and deferral criteria
+  in `docs/developing-gyrinx/react.md`. Report already React, migrated, or the
+  concrete blocker. Review migrated copy and comments, including copied text.
+  Do not add Alpine directives.
 - Put shareable state in the URL. React may own temporary search, selection,
   focus, open controls and unsaved drafts. Django owns validation, permissions
   and domain operations.

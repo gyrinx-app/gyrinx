@@ -102,7 +102,10 @@ Model-specific wiring rules live there.
   `create_gang` is the shape to copy. No ModelForms in core.
 - Compute display logic in the view, not the template.
 - New interaction state belongs in React islands, not Alpine. Load
-  `.agents/skills/n26-react/SKILL.md`; the authoring list is the working example.
+  `.agents/skills/n26-react/SKILL.md`. A root can own a complete workflow body.
+  HTML and JSON adapters must share access, validation and command behaviour;
+  reuse `operation(...)` and test parity before adding another transport. Follow
+  `docs/developing-gyrinx/react.md` for extraction, deferral and copy review.
   Shareable navigation state belongs in the URL; transient controls and unsaved
   drafts can stay in React. Server validation and operations remain authoritative.
 - Read [`templates/AGENTS.md`](templates/AGENTS.md) before changing a template
