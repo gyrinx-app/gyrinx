@@ -1114,3 +1114,30 @@ def test_slot_rating_override_matches_augmentation_preview_and_application(
     _apply(action_record, outcome, carried, tier)
     selection = SlotSelection.objects.get(action_record=action_record)
     assert selection.new_pick.ledger_entry.rating_contribution == 5
+
+
+def test_augmentation_correction_preserves_the_original_slot_rating(
+    action_record, augmentation
+):
+    rig = create_wargear("Pinned rig", price=0)
+    (tier,) = ladder(rig, augmentation, [1])
+    slot = Slot.objects.get(name="Pinned rig augmentation")
+    slot.pick_rating_override = 5
+    slot.save(update_fields=["pick_rating_override", "modified"])
+    carried = buy(action_record.fighter, thing=rig, paid=0)
+    outcome = configured(augmentation)
+    _apply(action_record, outcome, carried, tier)
+    _mark_completed(action_record)
+    slot.pick_rating_override = 7
+    slot.save(update_fields=["pick_rating_override", "modified"])
+    (candidate,) = augmentation_options(action_record, outcome).candidates
+    assert candidate.rating_after == candidate.rating_before + 5
+    with operation(action_record.gang) as op:
+        correct_augmentation(
+            op,
+            action_record,
+            outcome,
+            {"item_assignment": str(carried.pk), "intended_pick": str(tier.pk)},
+        )
+    selection = SlotSelection.objects.get(action_record=action_record)
+    assert selection.new_pick.ledger_entry.rating_contribution == 5

@@ -931,7 +931,7 @@ def test_undo_and_correction_retain_recorded_ratings_after_the_slot_changes(
         terms = {"pickable_id": str(s.other_name.pk)}
         record = op.review_action_correction(record, terms=terms)
         assert record.review["target"]["rating"] == 5
-        record = op.correct_action(
+        op.correct_action(
             record, revision=record.revision, review=record.review, terms=terms
         )
     assert s.fighter.recompute_rating() == before + 5
@@ -1022,3 +1022,114 @@ def test_a_saved_roll_from_before_slot_ratings_keeps_its_existing_behaviour(setu
         completed.advancement_selection.pick_assignment.ledger_entry.rating_contribution
         == 0
     )
+
+
+@pytest.mark.parametrize("original_rating", [0, 9])
+def test_legacy_completed_uses_keep_their_rating_after_the_slot_gains_a_rating(
+    setup, original_rating
+):
+    from importlib import import_module
+
+    from django.apps import apps
+    from django.db import connection
+
+    s = setup
+    before = s.fighter.recompute_rating()
+    a.revise(s.pick, rating_contribution=original_rating)
+    apply(s, 5)
+    record = complete_name(s)
+    record.terms["advancement_table"].pop("slot_configuration")
+    record.terms["advancement_table"].pop("pick_rating_override")
+    record.save(update_fields=["terms", "modified"])
+    record.recorded_ratings = {}
+    record.save(update_fields=["recorded_ratings", "modified"])
+    migration = import_module("n26.core.migrations.0082_recorded_action_pick_ratings")
+    migration.preserve_legacy_roll_slots(apps, SimpleNamespace(connection=connection))
+    migration.preserve_legacy_pick_ratings(apps, SimpleNamespace(connection=connection))
+    slot = s.outcome.operation.slot
+    slot.pick_rating_override = 5
+    slot.save(update_fields=["pick_rating_override", "modified"])
+    record.refresh_from_db()
+    with operation(s.gang, actor=s.owner) as op:
+        op.undo_action(record, expected=advancement_undo_snapshot(record))
+    record.refresh_from_db()
+    restored = finish_rated_action(s, s.action, s.outcome, s.pick, record=record)
+    assert (
+        record.recorded_ratings[str(slot.pk)]["picks"][str(s.pick.pk)]
+        == original_rating
+    )
+    assert (
+        restored.advancement_selection.pick_assignment.ledger_entry.rating_contribution
+        == original_rating
+    )
+    assert s.fighter.recompute_rating() == before + original_rating
+    later = start_report(s.gang, actor=s.owner, request_key=uuid4())
+    apply(s, 5, report=later)
+    current = finish_rated_action(s, s.action, s.outcome, s.pick)
+    assert (
+        current.advancement_selection.pick_assignment.ledger_entry.rating_contribution
+        == 5
+    )
+    assert_reconciled(s.gang)
+
+
+def test_legacy_snapshot_migration_does_not_accept_already_changed_content(setup):
+    from importlib import import_module
+
+    from django.apps import apps
+    from django.db import connection
+
+    s = setup
+    apply(s, 5)
+    record = complete_name(s)
+    record.terms["advancement_table"].pop("slot_configuration")
+    record.terms["advancement_table"].pop("pick_rating_override")
+    record.save(update_fields=["terms", "modified"])
+    slot = s.outcome.operation.slot
+    slot.label = "Changed name choice"
+    slot.save(update_fields=["label", "modified"])
+    migration = import_module("n26.core.migrations.0082_recorded_action_pick_ratings")
+    migration.preserve_legacy_roll_slots(apps, SimpleNamespace(connection=connection))
+    migration.preserve_legacy_pick_ratings(apps, SimpleNamespace(connection=connection))
+    record.refresh_from_db()
+    assert "slot_configuration" not in record.terms["advancement_table"]
+    with pytest.raises(Refusal, match="table changed after the roll"):
+        advancement_undo_snapshot(record)
+
+
+@pytest.mark.parametrize("assigned_to,gang_host", [("bearer", True), ("gang", False)])
+def test_gang_held_choices_preview_the_zero_rating_they_apply(
+    rating_routes, assigned_to, gang_host
+):
+    from n26.core.card import (
+        build_card,
+        build_gang_card,
+        build_modifier_index,
+        carriers,
+    )
+    from n26.core.effects import compute, compute_gang
+    from n26.core.render import build_choice_offer
+
+    s = rating_routes
+    slot = a.create_slot(
+        "Gang name choice",
+        s.pick.slot_type,
+        s.battle_slot.picklist,
+        assigned_to=assigned_to,
+        pick_rating_override=5,
+    )
+    with operation(s.gang, actor=s.owner) as op:
+        anchor = op.assign(
+            slot, **({"gang": s.gang} if gang_host else {"miniature": s.fighter})
+        )
+    card = build_gang_card(s.gang) if gang_host else build_card(s.fighter)
+    computed = (compute_gang if gang_host else compute)(
+        card, build_modifier_index(carriers(card))
+    )
+    choice = next(choice for choice in computed.choices if choice.slot.pk == slot.pk)
+    offer = build_choice_offer(choice, computed)
+    assert {option.rating for group in offer.groups for option in group.options} == {0}
+    with operation(s.gang, actor=s.owner) as op:
+        chosen = op.choose(anchor, s.pick)
+    assert chosen.ledger_entry.rating_contribution == 0
+    assert_reconciled(s.gang)

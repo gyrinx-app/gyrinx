@@ -326,6 +326,7 @@ slots offer the same options at different ratings. No credits are spent. A
 completed pick keeps its recorded rating when the slot is edited. Correcting or
 restoring a completed action keeps that action's rating setting. New action
 uses take the edited setting.
+Gang-held picks add no model rating.
 
 ### Interstitial
 

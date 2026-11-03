@@ -2867,11 +2867,15 @@ class Operation:
                     "That roll was made for a different holding. Roll again for this choice."
                 )
         if kwargs.get("rating") is None:
+            from n26.core.choice_ratings import rating_for_pick
+
             # Rating is what the models are worth, and a gang-hosted
             # assignment carries none of its own: a pick the gang holds
             # adds nothing, whatever its pickable says.
             kwargs["rating"] = (
-                0 if kwargs.get("gang") is not None else slot.rating_for_pick(chosen)
+                0
+                if kwargs.get("gang") is not None
+                else rating_for_pick(slot, chosen, record=kwargs.get("action_record"))
             )
         host = kwargs.get("miniature")
         if slot.follows_status:
@@ -2884,7 +2888,7 @@ class Operation:
                 )
             kwargs.setdefault("chosen_for_status_revision", host.status_revision)
         _clear_dismissal(anchor, slot, kwargs)
-        return self.assign(
+        picked = self.assign(
             chosen,
             caused_by=kwargs.pop("caused_by", None if holding else anchor),
             chosen_for=None if holding else anchor,
@@ -2896,6 +2900,29 @@ class Operation:
             **({"kind": LedgerEvent.Kind.GRANTED} if holding else {}),
             **kwargs,
         )
+        record = kwargs.get("action_record")
+        if record is not None:
+            context = record.recorded_ratings.get(
+                str(slot.pk),
+                {
+                    "override": None
+                    if record.completed_event_id
+                    else slot.pick_rating_override,
+                    "picks": {},
+                },
+            )
+            record.recorded_ratings = {
+                **record.recorded_ratings,
+                str(slot.pk): {
+                    **context,
+                    "picks": {
+                        **context["picks"],
+                        str(chosen.pk): picked.ledger_entry.rating_contribution,
+                    },
+                },
+            }
+            record.save(update_fields=["recorded_ratings", "modified"])
+        return picked
 
     def _check_holding_choice(self, holding, slot):
         """Revalidate a holding while its campaign and gang are locked.

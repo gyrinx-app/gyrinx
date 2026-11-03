@@ -9,6 +9,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from n26.core.card import Node, build_card, build_modifier_index, carriers, node_for
+from n26.core.choice_ratings import rating_for_pick
 from n26.core.effects import compute
 from n26.core.models import Assignment, SlotSelection
 from n26.core.operations import Refusal
@@ -324,12 +325,12 @@ def _remove_node(card, key):
     return remove(card.roots)
 
 
-def _preview_node(ladder, member):
+def _preview_node(record, ladder, member):
     """Describe the assignment that replacing this tier would create."""
     return Node(
         assignable=member.pickable,
         key=("augmentation-preview", ladder.slot.pk, member.pickable_id),
-        rating=ladder.slot.slot.rating_for_pick(member.pickable),
+        rating=rating_for_pick(ladder.slot.slot, member.pickable, record=record),
         caused_by_key=ladder.slot.pk,
         chosen_for_key=ladder.slot.pk,
         chosen_for_slot_id=ladder.slot.slot_id,
@@ -337,10 +338,10 @@ def _preview_node(ladder, member):
     )
 
 
-def _render_with_pick(card, ladder, member, index):
+def _render_with_pick(record, card, ladder, member, index):
     """Render one temporary replacement with the identity of a new pick."""
     card = _copy_card(card)
-    replacement = _preview_node(ladder, member)
+    replacement = _preview_node(record, ladder, member)
     old_rating = ladder.current.rating if ladder.current is not None else 0
     if ladder.current is None:
         card.roots.append(replacement)
@@ -377,7 +378,7 @@ def _selectable(member):
     )
 
 
-def _candidate(card, ladder, index=None, before=None):
+def _candidate(record, card, ladder, index=None, before=None):
     def supported_modifiers(member):
         modifiers = tuple(index.for_thing(member.pickable))
         if any(
@@ -403,7 +404,7 @@ def _candidate(card, ladder, index=None, before=None):
         return None
 
     before = before or _render(card, index)
-    after = _render_with_pick(card, ladder, member, index)
+    after = _render_with_pick(record, card, ladder, member, index)
     # A capped characteristic may make the immediate rung do nothing. The
     # rule permits looking exactly one rung farther, never an arbitrary jump.
     same_effects = _effect_state(
@@ -416,7 +417,7 @@ def _candidate(card, ladder, index=None, before=None):
         candidate_modifiers = supported_modifiers(member)
         if candidate_modifiers is None:
             return None
-        after = _render_with_pick(card, ladder, member, index)
+        after = _render_with_pick(record, card, ladder, member, index)
         if (
             _effect_state(before, ignored_choice_anchor=ladder.slot.pk)
             == _effect_state(after, ignored_choice_anchor=ladder.slot.pk)
@@ -563,7 +564,7 @@ def augmentation_options(record, configured):
             candidate
             for ladder in ladders
             if ladder.current is None or ladder.current.pk not in blocked_ids
-            if (candidate := _candidate(card, ladder, index, before))
+            if (candidate := _candidate(record, card, ladder, index, before))
         )
     )
 
@@ -620,7 +621,7 @@ def _selected(record, configured, terms, *, lock=False, projected=None):
     index = build_modifier_index(
         [*carriers(card), *(member.pickable for member in ladder.members)]
     )
-    candidate = _candidate(card, ladder, index)
+    candidate = _candidate(record, card, ladder, index)
     if candidate is None or candidate.candidate_pick_id != str(intended_id):
         _refuse("That augmentation is no longer the next effective tier.")
     if (
@@ -638,7 +639,7 @@ def _selected(record, configured, terms, *, lock=False, projected=None):
         if str(row.pickable_id) == candidate.candidate_pick_id
     )
     before = _render(card, index)
-    after = _render_with_pick(card, ladder, member, index)
+    after = _render_with_pick(record, card, ladder, member, index)
     return (
         ladder,
         member,

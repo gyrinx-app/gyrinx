@@ -15,7 +15,7 @@ from datetime import date, datetime
 
 from django.utils.text import capfirst
 
-from n26.core.card import build_card
+from n26.core.card import GangCard, build_card
 from n26.core.effects import (
     ModifierIndex,
     StackedName,
@@ -751,14 +751,16 @@ class Choosable:
         return " · ".join(said)
 
 
-def describe_choosables(options, *, slot=None):
+def describe_choosables(options, *, slot=None, gang_pick=False):
     """Add player-facing copy and rating from each offered thing."""
     return [
         replace(
             option,
             summary=getattr(option.thing, "summary", ""),
             rating=(
-                slot.rating_for_pick(option.thing)
+                0
+                if gang_pick
+                else slot.rating_for_pick(option.thing)
                 if slot is not None and option.thing is not None
                 else getattr(option.thing, "rating_contribution", 0)
             ),
@@ -2721,7 +2723,18 @@ def build_choice_offer(slot, computed, *, include_staged=False, _catalogues=None
         # own Remove.
         options.append(Choosable(key=NONE_KEY, name="None", is_current=not slot.picks))
 
-    options = describe_choosables(options, slot=slot.slot)
+    options = describe_choosables(
+        options,
+        slot=slot.slot,
+        gang_pick=(
+            isinstance(computed.card, GangCard)
+            or slot.holding is not None
+            or (
+                slot.slot is not None
+                and slot.slot.assigned_to == Slot.WillBeAssignedTo.GANG
+            )
+        ),
+    )
     groups = [ChoosableGroup(name="", options=options)] if options else []
     return ChoiceOffer(
         label=slot.kind_label,

@@ -214,6 +214,8 @@ class ActionRecord(Base):
     source = models.JSONField(default=dict, blank=True)
     review = models.JSONField(default=dict, blank=True)
     terms = models.JSONField(default=dict, blank=True)
+    # Applied acquisition settings survive correction and Undo of any outcome.
+    recorded_ratings = models.JSONField(default=dict, blank=True)
     payment_id = models.UUIDField(null=True, blank=True, unique=True)
     started_event = models.ForeignKey(
         "n26.LedgerEvent",
@@ -312,8 +314,6 @@ class AdvancementSelection(Base):
     action_record = models.OneToOneField(
         ActionRecord, on_delete=models.CASCADE, related_name="advancement_selection"
     )
-    # Previously applied amounts remain available when Undo clears the pick.
-    recorded_ratings = models.JSONField(default=dict, blank=True)
     promotion = models.ForeignKey(
         "library.AdvancementPromotion",
         on_delete=models.PROTECT,

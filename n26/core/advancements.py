@@ -8,6 +8,7 @@ from django.db import transaction
 from django.db.models import Prefetch, Q
 
 from n26.core.card import Node, build_card, build_modifier_index, carriers
+from n26.core.choice_ratings import rating_for_pick
 from n26.core.effects import compute
 from n26.core.models import (
     ActionAllowance,
@@ -213,12 +214,6 @@ def advancement_undo_snapshot(record):
 def undo_advancement_result(op, record):
     """Remove an independent result while keeping the flow's rolls and choices."""
     selection, skill = _correction_result(record, lock=True)
-    _remember_pick_rating(
-        selection,
-        selection.pick_assignment.chosen_for_slot,
-        selection.intended_pick,
-        selection.pick_assignment.ledger_entry.rating_contribution,
-    )
     detail = str(selection.intended_pick)
     if skill and skill.skill_assignment_id:
         detail += f": {skill.selected}"
@@ -233,7 +228,6 @@ def undo_advancement_result(op, record):
         update_fields=[
             "pick_assignment",
             "promotion_assignment",
-            "recorded_ratings",
             "modified",
         ]
     )
@@ -773,36 +767,6 @@ def advancement_options(record, configured):
     return options
 
 
-def _pick_rating(record, slot, pickable):
-    selection = record.advancement_selection
-    context = selection.recorded_ratings.get(str(slot.pk))
-    if context is not None:
-        if context["override"] is not None:
-            return context["override"]
-        return context["picks"].get(str(pickable.pk), pickable.rating_contribution)
-    if (
-        selection.pick_assignment_id
-        and selection.intended_pick_id == pickable.pk
-        and selection.pick_assignment.chosen_for_slot_id == slot.pk
-    ):
-        return selection.pick_assignment.ledger_entry.rating_contribution
-    return slot.rating_for_pick(pickable)
-
-
-def _remember_pick_rating(selection, slot, pickable, rating):
-    # Corrections retain this acquisition's setting; new uses read the slot again.
-    context = selection.recorded_ratings.get(
-        str(slot.pk), {"override": slot.pick_rating_override, "picks": {}}
-    )
-    selection.recorded_ratings = {
-        **selection.recorded_ratings,
-        str(slot.pk): {
-            **context,
-            "picks": {**context["picks"], str(pickable.pk): rating},
-        },
-    }
-
-
 def _advancement_read(record, configured):
     """Options and their skill listings from one read of the current fighter."""
     if replaces_roll(record, configured):
@@ -915,7 +879,7 @@ def _advancement_read(record, configured):
         AdvancementOption(
             str(member.pickable_id),
             str(member.pickable),
-            _pick_rating(record, slot, member.pickable),
+            rating_for_pick(slot, member.pickable, record=record),
             gainable[member.pk],
             offers[member.pickable_id] is not None,
             offers[member.pickable_id].mode if offers[member.pickable_id] else "",
@@ -1296,7 +1260,9 @@ def preview_advancement(record, configured, terms):
         "pickable_id": str(pickable.pk),
         "result": str(pickable),
         "effect": _effect_text(pickable),
-        "rating": _pick_rating(record, result_slot(record, configured), pickable),
+        "rating": rating_for_pick(
+            result_slot(record, configured), pickable, record=record
+        ),
         "skill_id": str(skill.pk) if skill else None,
         "skill_kind": skill._meta.model_name if skill else None,
         "skill": str(skill) if skill else None,
@@ -1354,14 +1320,10 @@ def apply_advancement(op, record, configured, terms):
         rating=snapshot["rating"],
     )
     selection.intended_pick, selection.pick_assignment = pickable, pick
-    _remember_pick_rating(
-        selection, result_slot(record, configured), pickable, snapshot["rating"]
-    )
     selection.save(
         update_fields=[
             "intended_pick",
             "pick_assignment",
-            "recorded_ratings",
             "modified",
         ]
     )
@@ -1409,14 +1371,10 @@ def correct_advancement(op, record, configured, terms):
         rating=snapshot["rating"],
     )
     selection.intended_pick, selection.pick_assignment = pickable, replacement
-    _remember_pick_rating(
-        selection, result_slot(record, configured), pickable, snapshot["rating"]
-    )
     selection.save(
         update_fields=[
             "intended_pick",
             "pick_assignment",
-            "recorded_ratings",
             "modified",
         ]
     )
