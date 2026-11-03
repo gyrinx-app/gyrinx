@@ -36,7 +36,12 @@ An option with neither control gets no button.
                                 <span class="block text-ink-900 dark:text-ink-100">{{ option.name }}</span>
 
                                 {% if option.summary %}<span class="block text-muted">{{ option.summary }}</span>{% endif %}
-                                {% if option.rating %}<span class="block text-muted">Rating {{ option.rating }}¢</span>{% endif %}
+                                {% if option.control == "both" and option.rating != option.removal_rating %}
+                                    <span class="block text-muted">Rating per added pick {{ option.rating }}¢</span>
+                                    <span class="block text-muted">Rating of next removed pick {{ option.removal_rating }}¢</span>
+                                {% elif option.rating %}
+                                    <span class="block text-muted">Rating {{ option.rating }}¢</span>
+                                {% endif %}
                                 {% if option.remark %}<span class="block text-muted">{{ option.remark }}</span>{% endif %}
                             </span>
 

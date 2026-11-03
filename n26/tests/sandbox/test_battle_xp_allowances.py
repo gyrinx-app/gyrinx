@@ -1152,3 +1152,62 @@ def test_gang_held_choices_preview_the_zero_rating_they_apply(
         chosen = op.choose(anchor, s.pick)
     assert chosen.ledger_entry.rating_contribution == 0
     assert_reconciled(s.gang)
+
+
+@pytest.mark.parametrize("repeats", [False, True])
+def test_held_pick_controls_show_the_recorded_removal_and_new_pick_ratings(
+    rating_routes, repeats, client
+):
+    from n26.core.card import build_card, build_modifier_index, carriers
+    from n26.core.effects import compute
+    from n26.core.models.dismissed_offer import slot_key
+    from n26.core.render import build_choice_offer, option_key
+
+    s = rating_routes
+    a.revise(s.pick.slot_type, allows_repeats=repeats)
+    slot = a.create_slot(
+        "Several names",
+        s.pick.slot_type,
+        s.battle_slot.picklist,
+        max_picks=3,
+        pick_rating_override=5,
+    )
+    with operation(s.gang, actor=s.owner) as op:
+        anchor = op.assign(slot, miniature=s.fighter)
+        original = op.choose(anchor, s.pick)
+    a.revise(slot, pick_rating_override=7)
+    if repeats:
+        with operation(s.gang, actor=s.owner) as op:
+            op.choose(anchor, s.pick)
+    card = build_card(s.fighter)
+    computed = compute(card, build_modifier_index(carriers(card)))
+    choice = next(row for row in computed.choices if row.anchor.key == anchor.pk)
+    offer = build_choice_offer(choice, computed)
+    held = next(
+        row for group in offer.groups for row in group.options if row.thing == s.pick
+    )
+    assert held.control == ("both" if repeats else "remove")
+    assert held.rating == (7 if repeats else 5)
+    assert held.removal_rating == 5
+    client.force_login(s.owner)
+    url = reverse(
+        "n26-choose", args=[s.gang.pk, slot_key(s.fighter.pk, anchor.pk, slot.pk)]
+    )
+    page = client.get(url)
+    assert page.status_code == 200
+    html = page.content.decode()
+    if repeats:
+        assert "Rating per added pick 7¢" in html
+        assert "Rating of next removed pick 5¢" in html
+    else:
+        assert "Rating 5¢" in html
+    before = s.fighter.recompute_rating()
+    response = client.post(url, {"remove": option_key(s.pick)})
+    assert response.status_code == 302
+    original.refresh_from_db()
+    assert original.archived
+    assert s.fighter.recompute_rating() == before - 5
+    with operation(s.gang, actor=s.owner) as op:
+        replacement = op.choose(anchor, s.pick)
+    assert replacement.ledger_entry.rating_contribution == 7
+    assert_reconciled(s.gang)

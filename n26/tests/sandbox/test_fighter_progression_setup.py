@@ -1253,8 +1253,11 @@ class TestPromotions:
             for item in page.context["advancement_options"]
             if not item["option"].needs_skill
         )
+        main_rating = Pickable.objects.get(pk=pick.id).rating_contribution
+        assert pick.rating == main_rating + 5
         response = client.post(url, {"pickable_id": pick.id})
         review = client.get(response.url)
+        assert f"Rating +{main_rating + 5}¢" in review.content.decode()
         response = client.post(
             response.url, {"review": review.context["form"]["review"].value()}
         )
@@ -1264,6 +1267,7 @@ class TestPromotions:
         }
         record.refresh_from_db()
         selection = record.advancement_selection
+        assert selection.pick_assignment.rating == main_rating
         assert selection.promotion_assignment.rating == 5
         receipt = read_rating_receipt(progression.fighter)
         assert [(line.label, line.rating) for line in receipt.contributions] == [
@@ -1295,6 +1299,7 @@ class TestPromotions:
         response = client.post(url, {"pickable_id": pick.id})
         assert response.status_code == 302, _errors(response)
         page = client.get(response.url)
+        assert f"Rating +{main_rating + 5}¢" in page.content.decode()
         response = client.post(
             response.url, {"review": page.context["form"]["review"].value()}
         )
@@ -1322,6 +1327,7 @@ class TestPromotions:
         response = client.post(choose_url, {"pickable_id": pick.id})
         assert response.status_code == 302, _errors(response)
         page = client.get(response.url)
+        assert f"Rating +{main_rating + 5}¢" in page.content.decode()
         response = client.post(
             response.url, {"review": page.context["form"]["review"].value()}
         )

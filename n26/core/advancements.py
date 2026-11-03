@@ -875,11 +875,15 @@ def _advancement_read(record, configured):
     gainable_members = [member for member in landed if gainable[member.pk]]
     offered = gainable_members or members
     slot = result_slot(record, configured)
+    bonus_slot, bonus_pick = _bonus_promotion_result(record, configured)
+    bonus_rating = (
+        rating_for_pick(bonus_slot, bonus_pick, record=record) if bonus_pick else 0
+    )
     options = tuple(
         AdvancementOption(
             str(member.pickable_id),
             str(member.pickable),
-            rating_for_pick(slot, member.pickable, record=record),
+            rating_for_pick(slot, member.pickable, record=record) + bonus_rating,
             gainable[member.pk],
             offers[member.pickable_id] is not None,
             offers[member.pickable_id].mode if offers[member.pickable_id] else "",
@@ -1240,17 +1244,26 @@ def _resolved(record, configured, terms):
     return pickable, offer, skill
 
 
+def _bonus_promotion_result(record, configured):
+    promotion = promotion_for(record, configured)
+    if promotion is None or promotion.replaces_advancement:
+        return None, None
+    members = list(promotion.slot.picklist.available_members())
+    if len(members) != 1:
+        raise Refusal("This promotion needs one configured result.")
+    return promotion.slot, members[0].pickable
+
+
 def preview_advancement(record, configured, terms):
     pickable, offer, skill = _resolved(record, configured, terms)
     selection = record.advancement_selection
-    promotion = promotion_for(record, configured)
-    bonus = (
-        list(promotion.slot.picklist.available_members())
-        if promotion and not promotion.replaces_advancement
-        else []
+    bonus_slot, bonus_pick = _bonus_promotion_result(record, configured)
+    pick_rating = rating_for_pick(
+        result_slot(record, configured), pickable, record=record
     )
-    if promotion and not promotion.replaces_advancement and len(bonus) != 1:
-        raise Refusal("This promotion needs one configured result.")
+    bonus_rating = (
+        rating_for_pick(bonus_slot, bonus_pick, record=record) if bonus_pick else 0
+    )
     snapshot = {
         "roll": selection.roll_event.roll if selection.roll_event_id else None,
         "roll_event_id": str(selection.roll_event_id)
@@ -1260,9 +1273,8 @@ def preview_advancement(record, configured, terms):
         "pickable_id": str(pickable.pk),
         "result": str(pickable),
         "effect": _effect_text(pickable),
-        "rating": rating_for_pick(
-            result_slot(record, configured), pickable, record=record
-        ),
+        "rating": pick_rating + bonus_rating,
+        "pick_rating": pick_rating,
         "skill_id": str(skill.pk) if skill else None,
         "skill_kind": skill._meta.model_name if skill else None,
         "skill": str(skill) if skill else None,
@@ -1275,11 +1287,11 @@ def preview_advancement(record, configured, terms):
             [
                 pickable,
                 *([skill] if skill is not None else []),
-                *(member.pickable for member in bonus),
+                *([bonus_pick] if bonus_pick else []),
             ],
         ),
         "promotion": promotion_state(record, configured),
-        "promotion_result": str(bonus[0].pickable) if bonus else "",
+        "promotion_result": str(bonus_pick) if bonus_pick else "",
     }
     original, original_skill = _correction_result(record)
     if original is not None:
@@ -1317,7 +1329,7 @@ def apply_advancement(op, record, configured, terms):
         slot=result_slot(record, configured),
         roll=selection.roll_event,
         action_record=record,
-        rating=snapshot["rating"],
+        rating=snapshot["pick_rating"],
     )
     selection.intended_pick, selection.pick_assignment = pickable, pick
     selection.save(
@@ -1368,7 +1380,7 @@ def correct_advancement(op, record, configured, terms):
         miniature=record.fighter,
         action_record=record,
         roll=selection.roll_event,
-        rating=snapshot["rating"],
+        rating=snapshot["pick_rating"],
     )
     selection.intended_pick, selection.pick_assignment = pickable, replacement
     selection.save(

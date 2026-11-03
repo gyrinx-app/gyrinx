@@ -741,6 +741,7 @@ class Choosable:
     #: Original author copy shown beneath this option, if the content has it.
     summary: str = ""
     rating: int = 0
+    removal_rating: int | None = None
 
     @property
     def remark(self):
@@ -2735,6 +2736,19 @@ def build_choice_offer(slot, computed, *, include_staged=False, _catalogues=None
             )
         ),
     )
+    held_ratings = {}
+    for pick in slot.picks:
+        held_ratings.setdefault(option_key(pick.assignable), pick.rating)
+    options = [
+        replace(
+            option,
+            rating=held_ratings[option.key]
+            if option.control == "remove"
+            else option.rating,
+            removal_rating=held_ratings.get(option.key),
+        )
+        for option in options
+    ]
     groups = [ChoosableGroup(name="", options=options)] if options else []
     return ChoiceOffer(
         label=slot.kind_label,
