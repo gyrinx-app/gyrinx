@@ -199,6 +199,19 @@ that has not been fast-forwarded makes `git diff main...HEAD` include weeks
 of already-merged files. `scripts/check_microcopy.py --diff` uses
 `origin/main` when that ref exists.
 
+For stacked PRs, prefer `gh stack` to manual merge, retarget and squash
+workarounds that can cause conflicts and redundant CI runs. Inspect with
+`gh stack view`; adopt existing branches in bottom-to-top order with
+`gh stack init branch1 branch2`, or link existing PRs with
+`gh stack link <bottom-pr> <top-pr>`. When authorised to merge, use
+`gh stack merge <top-pr>` to atomically merge through the selected PR.
+Branch protections, required CI and reviews still apply; do not bypass them.
+
+Keep review fixes scoped to introduced regressions and blockers to the PR.
+Track pre-existing or unrelated issues separately. Batch related fixes and
+verification before pushing; avoid repeatedly expanding the task and
+restarting full CI. Run the checks required for the final change.
+
 Read [`.github/COMMIT_STYLE.md`](.github/COMMIT_STYLE.md) before committing or
 opening a PR. Give commit and PR titles a conventional prefix and name the
 affected component or path. Mark completed work ready for review unless the
