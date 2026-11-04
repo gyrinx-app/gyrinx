@@ -6,7 +6,8 @@ developer can maintain or extend it. For what the feature does, see
 
 ## Design in brief
 
-- **Django renders the pages.** The generator uses four native selects and
+- **Django renders the pages.** The generator uses native selects for the
+  three tables and each side job, and
   the existing React Share island. React owns the campaign/battle dialogs
   and optional battle-creation preview. Expandable details use native
   `<details>` elements.
@@ -18,13 +19,15 @@ developer can maintain or extend it. For what the feature does, see
   its table's key, and each choice that is not the default is under
   `<key>_pick`. For example,
   `?deployment_pick=3&side_job_pick=leave&deployment=3&objective=4&crew=4`
-  means Deployment was chosen, Side job was left out, and Objective and Crew
-  were rolled. **Generate again** keeps the choices and rolls the rest
+  means Deployment was chosen, Side job 1 was left out, and Objective and
+  Crew were rolled. `side_jobs=N` holds the number of side job menus when it
+  is more than one. **Generate again** keeps the choices and rolls the rest
   again.
 - **The content lives in the library and is read by core.**
   `n26/library/scenario_tables.py` holds the fixed definitions.
   `n26/core/scenarios.py` rolls, checks and describes scenarios.
-- **Only the table key and roll are stored.** Battles and log notes never
+- **Only the table key and roll are stored.** For a side job, the value
+  also names its set, such as `escher-3`. Battles and log notes never
   hold an entry's text. The text is looked up when a page is drawn.
 - **Checking is strict.** A supplied component that is not on its table
   refuses the whole scenario. A component left out is valid.
@@ -35,7 +38,7 @@ developer can maintain or extend it. For what the feature does, see
 
 | File | Purpose |
 | --- | --- |
-| `n26/library/scenario_tables.py` | `ScenarioEntry`, `ScenarioTable`, the four tables, `TABLES` and `table(key)`. |
+| `n26/library/scenario_tables.py` | `ScenarioEntry`, `ScenarioTable`, `SideJobSet`, the tables and side job sets, `TABLES`, `SIDE_JOB_SETS` and `table(key)`. |
 | `n26/core/scenarios.py` | `ScenarioResult`, `roll`, `parse`, `results`, `rolls_of`, `describe`, and the log-note helpers. |
 | `n26/core/templates/n26/scenario_generator.html` | The generator page. |
 | `n26/core/templates/n26/save_scenario.html` | The **Save scenario** page. |
@@ -46,6 +49,11 @@ developer can maintain or extend it. For what the feature does, see
 | `n26/library/test_scenario_tables.py` | Tests for the content: six entries per table, and that the maps ship. |
 | `n26/core/test_scenarios.py` | Unit tests for `scenarios.py`. |
 | `n26/tests/test_views_scenario_generator.py` | View tests for generating, saving, permissions and recording a battle. |
+| `n26/tests/test_views_scenario_side_jobs.py` | View tests for side job sets: the menus, adding and removing, rolling without repeats, older links, bold text, battles and the log. |
+| `n26/core/templates/n26/includes/scenario_picks.html` | The menus shared by both generators, including the side job menus. |
+| `n26/frontend/islands/scenario-reroll/` | The generators' **Reroll** dialog, which asks which set to roll a side job on. |
+| `n26/frontend/islands/scenario-picks/` | The generators' controls, updated locally with selections retained in the URL. |
+| `n26/frontend/scenarios/` | The shared dependent set/job controls and URL history used by generators and battle panels. |
 
 ### Changed
 
@@ -53,7 +61,7 @@ developer can maintain or extend it. For what the feature does, see
 | --- | --- |
 | `n26/core/models/campaign.py` | Adds the `CampaignEvent.Kind.SCENARIO_SAVED` kind and the `Battle.scenario_rolls` field (a `JSONField` holding `{key: roll}`). |
 | `n26/core/campaigns.py` | `record_battle(..., scenario_rolls=None)` checks and stores the rolls. Adds `save_scenario(rolls, *, name)`. |
-| `n26/core/forms.py` | Adds `ScenarioGeneratorForm` (the four `<key>_pick` selects), `ScenarioComponentsMixin` (the hidden component fields) and `SaveScenarioForm`. `BattleForm` uses the mixin when a battle is added. |
+| `n26/core/forms.py` | Adds `ScenarioGeneratorForm` (the `<key>_pick` selects, including the side job menus), `ScenarioComponentsMixin` (the hidden component fields) and `SaveScenarioForm`. `BattleForm` uses the mixin when a battle is added. |
 | `n26/core/history.py` | Words the `SCENARIO_SAVED` log line. `BATTLE_RECORDED` is unchanged. |
 | `n26/core/views/campaigns.py` | Adds the `scenario_generator` and `save_scenario` views. `add_battle` reads and checks the rolls. |
 | `n26/core/views/battles.py` | The battle page passes `scenario_results`. |
@@ -74,11 +82,23 @@ Every redirect is built with `reverse(...)`.
 ## The content: `n26/library/scenario_tables.py`
 
 - `ScenarioEntry(roll, name, text, image="")`. Its `label` is the name
-  without a trailing colon or spaces, for use inside sentences.
+  without a trailing colon or spaces, for use inside sentences. Text between
+  asterisks, such as `*only*`, is bold: `parts()` returns `(words, bold)`
+  pairs for templates and the React island, and `plain` is the text without
+  the asterisks.
 - `ScenarioTable(key, name, entries)`. `entry(roll)` returns the entry for
-  that roll, or `None`.
-- The keys are `deployment`, `objective`, `side_job` and `crew`. Links and
-  saved battles name these keys and rolls, so do not change them.
+  that roll, or `None`. `TABLES` holds Deployment, Objective and Crew.
+- `SideJobSet(key, name, entries)`, with `label` ("Escher side jobs") and
+  `entry(roll)`. `SIDE_JOB_SETS` holds General, Escher, Goliath and Orlock, in menu
+  order. `side_job_set(key)` finds one.
+- A scenario has up to `SIDE_JOB_LIMIT` (6) side jobs, stored under
+  `SIDE_JOB_KEYS`: `side_job`, `side_job_2` … `side_job_6`.
+  `side_job_table(place, found)` gives the table a result is drawn under,
+  named "Side job N".
+- The keys `deployment`, `objective`, `crew` and the side job keys, and the
+  set keys `general`, `escher`, `goliath` and `orlock`, appear in links and saved
+  battles, so do not change them. To add a set, add a `SideJobSet` to
+  `SIDE_JOB_SETS`.
 - Names and text can change freely. Older battles and log lines show the new
   wording.
 
@@ -86,13 +106,21 @@ Every redirect is built with `reverse(...)`.
 
 - `roll(keys, rng=None)` rolls a D6 with `Dice.roll(Dice.D6, rng)` for each
   named table. Pass a seeded `rng` in tests.
+- `roll_side_jobs(picks, rng=None)` resolves the side job picks in order.
+  A named job is kept. A rolled job never repeats another job from the same
+  set, unless every job in the set is taken.
+- `read_side_job(value)` reads a side job value such as `escher-3`. A bare
+  roll, as saved before there were sets, reads as General.
 - `parse(mapping)` returns `(results, wrong)`. It reads the value under each
-  table's key. A missing or blank value means the table was left out. A value
-  that is not 1 to 6 goes into `wrong`.
+  table's key, then the side job keys. A missing or blank value means the
+  table was left out. A value that is not on its table goes into `wrong`.
+  Side jobs are numbered by position, so a gap is closed up.
+- `ScenarioResult.heading` is "Crew" or "Side job 2 (Escher)", and `value`
+  is what is stored: the roll, or `set-roll` for a side job.
 - `results(mapping)` is `parse` that returns nothing if anything is wrong.
-- `rolls_of(results)` returns `{key: int}`.
+- `rolls_of(results)` returns `{key: value}`.
 - `describe(results)` returns text such as
-  `Deployment 6 (Chance Encounter), Crew 2 (Patrol)`.
+  `Deployment 6 (Chance Encounter), Crew 2 (Patrol), Side job 1: Escher 3 (Hunt Together)`.
 - `history_note(rolls, name)` and `read_history_note(note)` write and read a
   `SCENARIO_SAVED` note, such as `deployment=6,crew=2 Vent ambush`. The name
   may contain spaces.
@@ -105,8 +133,41 @@ Every redirect is built with `reverse(...)`.
 
 - Each table's field is `<key>_pick`. Its value is `roll`, `leave` or a roll
   from 1 to 6. A missing value means `roll`.
+- Each side job's field is `<key>_pick` too. Its value is blank (choose a
+  set, the default), `leave`, a set key to roll on that set, or `set-roll`
+  for a named job. Older links' `roll` and bare rolls read as General.
+  `side_job_menus()` prepares a persistent set selector and a dependent job
+  selector for each slot. Native forms also submit `<key>_set`; changing it
+  resets a job from another set to a random roll. Canonical links keep the
+  existing encoded `<key>_pick` values.
+- The `scenario-picks` island owns both generators' controls. It uses the
+  shared `SideJobFields` component and `useScenarioPicks` hook, also used by
+  `battle-scenario`. Choices, adding and removing update local controls and
+  `history.pushState`, preserving results and unrelated query parameters.
+  `popstate` restores the controls for Back/Forward. No selection reloads
+  the page. Generation still submits the native GET form to Django.
+- The `scenario-link` island and the share control merge current pick
+  parameters into their action URLs. They subscribe to the shared query-change
+  event and Back/Forward, so Reroll, Print, Share and save/create actions retain
+  local edits while keeping their own results, connection and dialog parameters.
+- `includes/scenario_picks.html` retains native controls without JavaScript.
+  **Add side job** and **Remove side job** then submit `add_side_job` or
+  `remove_side_job=N`; `side_job_changes` redirects to the updated form.
+- A side job's **Reroll** link adds `reroll=<key>` to the address.
+  `reroll_dialog` in `n26/core/views/scenarios.py` then gives the
+  `scenario-reroll` island its props, and each side job's link for
+  `includes/scenario_results.html` (`reroll_links`). The dialog submits the
+  address's picks and rolls with `reroll_set`; `side_job_changes` passes that
+  to `_rerolled`, which calls `reroll_side_job` in `n26/core/scenarios.py` and
+  sets that side job's menu to the new set with `with_side_job_set`.
+- An address with side jobs but no side job menus, such as a battle's **View
+  scenario** link or a log link, gets one menu per side job, rolling on its
+  set (`_side_job_menus_from_results`). So that a menu set back to **Choose a
+  side job set** is not taken for that case, `chosen_picks` then keeps
+  `side_jobs` in the address even for one menu.
 - `generate()` resolves the scenario.
-- Leaving every component out produces a form error.
+- Leaving every component out produces a form error. A side job alone is
+  enough.
 - `chosen_picks()` returns only the choices that are not the default, so
   the link stays short.
 
@@ -192,6 +253,16 @@ and the modification time, appending a `BATTLE_EDITED` event. It preserves the
 battle's name and outcome. No migration is required.
 
 The `battle-scenario` island supplies an optional compact preview on creation.
+Its props, from `n26/core/views/scenario_props.py`, include `sideJobSets`,
+`sideJobKeys` and `sideJobLimit`, so the island draws the same side job menus
+and sends the same `<key>_pick` and `side_jobs` values. Its menus start with one for
+each side job the battle or preview already has, rolling on its set, so
+**Generate again** keeps them. Its **Reroll** dialog sends the current result
+with `reroll=<key>&reroll_set=<set>&format=json`, to the generator for a
+preview or to the connection endpoint for a saved battle; both call
+`rerolled_rolls`, so the replaced job is never given back. The dialog is drawn in a portal on
+`document.body`, because on the battle form the island sits inside the page's
+form.
 It calls the existing generator with `generate=1&format=json`; rolls are still
 chosen on the server. Component validation remains in `BattleForm` and
 `record_battle`. A blank battle name is assigned `Battle #N` under the campaign
@@ -200,8 +271,8 @@ and full-result links. Arbitrators reuse the same island on saved battles.
 The optional save props supply the battle, campaign, revision and CSRF token.
 The existing connection endpoint accepts `generate=1&format=json` with table
 picks, generating and attaching in one POST. It removes supplied result values
-before applying those picks, so omitted components cannot survive from an older
-result. The response supplies the saved components and updated revision
+before applying those picks, including every side job key, so omitted
+components and removed side jobs cannot survive from an older result. The response supplies the saved components and updated revision
 for later generations. The display changes only after attachment succeeds, so
 a refused write preserves the saved result. Pending creation previews block
 battle submission until generation finishes. No separate save/discard controls
@@ -233,7 +304,7 @@ map.
 ## Testing
 
 ```bash
-.codex/run.sh .venv/bin/python -m pytest -n 4 n26/library/test_scenario_tables.py n26/core/test_scenarios.py n26/tests/test_views_scenario_generator.py n26/tests/test_views_generate_scenario.py
+.codex/run.sh .venv/bin/python -m pytest -n 4 n26/library/test_scenario_tables.py n26/core/test_scenarios.py n26/tests/test_views_scenario_generator.py n26/tests/test_views_generate_scenario.py n26/tests/test_views_scenario_side_jobs.py
 ```
 
 Run the full N26 suite with `.codex/run.sh .venv/bin/python -m pytest -n 4 n26`. Check

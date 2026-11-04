@@ -1,0 +1,10 @@
+{% load react %}
+{% react_host "scenario-link" link class="contents" %}
+    <c-ui.button href="{{ link.url }}"
+                 variant="{{ link.variant }}"
+                 size="{{ link.size }}"
+                 aria-label="{{ link.ariaLabel }}">
+        {% if link.icon %}<c-n26.icon name="{{ link.icon }}" class="size-4" />{% endif %}
+        {{ link.label }}
+    </c-ui.button>
+{% endreact_host %}

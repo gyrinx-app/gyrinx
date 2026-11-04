@@ -1,5 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
+import {
+    fireEvent,
+    render,
+    screen,
+    waitFor,
+    within,
+} from "@testing-library/react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { BattleScenario, type BattleScenarioProps } from "./BattleScenario";
 const props: BattleScenarioProps = {
     rollUrl: "/n26/scenario/",
@@ -31,6 +37,7 @@ const props: BattleScenarioProps = {
         },
     ],
 };
+beforeEach(() => window.history.replaceState(null, "", "/"));
 afterEach(() => vi.unstubAllGlobals());
 it("generates an optional scenario without changing the battle name", async () => {
     const request = vi.fn().mockResolvedValue({
@@ -217,4 +224,187 @@ it("blocks battle submission while generation is pending", async () => {
     await screen.findByRole("button", { name: "Generate again" });
     expect(fireEvent.submit(container.querySelector("form")!)).toBe(true);
     expect(request).toHaveBeenCalledTimes(1);
+});
+
+const withSideJobs: BattleScenarioProps = {
+    ...props,
+    sideJobKeys: ["side_job", "side_job_2", "side_job_3"],
+    sideJobLimit: 3,
+    sideJobSets: [
+        {
+            key: "general",
+            name: "General",
+            label: "General side jobs",
+            entries: [
+                { roll: 2, name: "The Package", text: "Carry it.", image: "" },
+            ],
+        },
+        {
+            key: "escher",
+            name: "Escher",
+            label: "Escher side jobs",
+            entries: [
+                {
+                    roll: 5,
+                    name: "Experimental Chem",
+                    text: "Use the Administer Dose action.",
+                    parts: [
+                        ["Use the ", false],
+                        ["Administer Dose", true],
+                        [" action.", false],
+                    ],
+                    image: "",
+                },
+            ],
+        },
+    ],
+};
+
+it("picks a set, then a job from it, for each side job", async () => {
+    const request = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+            rolls: { side_job: "escher-5", side_job_2: "general-2" },
+        }),
+    });
+    vi.stubGlobal("fetch", request);
+    const { container } = render(<BattleScenario {...withSideJobs} />);
+    fireEvent.change(screen.getByLabelText("Side job 1 set"), {
+        target: { value: "escher" },
+    });
+    const escher = screen.getByLabelText("Side job 1");
+    expect(
+        [...(escher as HTMLSelectElement).options].map((option) => option.text),
+    ).toEqual(["Roll a D6", "5. Experimental Chem"]);
+    fireEvent.click(screen.getByRole("button", { name: "+ Add side job" }));
+    fireEvent.change(screen.getByLabelText("Side job 2 set"), {
+        target: { value: "general" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "+ Add side job" }));
+    expect(screen.queryByRole("button", { name: "+ Add side job" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Remove side job 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate scenario" }));
+    await screen.findAllByText("Side job 2 (General)");
+    const url = new URL(request.mock.calls[0][0]);
+    expect(url.searchParams.get("side_job_pick")).toBe("escher");
+    expect(url.searchParams.get("side_job_2_pick")).toBe("general");
+    expect(url.searchParams.get("side_job_3_pick")).toBeNull();
+    expect(url.searchParams.get("side_jobs")).toBe("2");
+    expect(screen.getAllByText("Side job 1 (Escher)").length).toBeGreaterThan(
+        0,
+    );
+    expect(screen.getByText("Administer Dose").tagName).toBe("STRONG");
+    expect(
+        container.querySelector<HTMLInputElement>('[name="side_job_2"]')?.value,
+    ).toBe("general-2");
+});
+
+it("reads a battle's side job saved before there were sets as General", () => {
+    render(<BattleScenario {...withSideJobs} rolls={{ side_job: "2" }} />);
+    expect(screen.getAllByText("Side job 1 (General)").length).toBeGreaterThan(
+        0,
+    );
+    expect(screen.getAllByText("The Package").length).toBeGreaterThan(0);
+});
+
+it.each(["escher-5-extra", "escher-5-", "general-2-extra"])(
+    "retains the malformed side job %s without showing a valid preview",
+    (value) => {
+        const { container } = render(
+            <BattleScenario
+                {...withSideJobs}
+                rolls={{ crew: "2", side_job: value }}
+            />,
+        );
+        expect(
+            container.querySelector<HTMLInputElement>('[name="side_job"]')
+                ?.value,
+        ).toBe(value);
+        expect(container.querySelector("dl")).toBeNull();
+        expect(screen.queryByRole("button", { name: /^Reroll / })).toBeNull();
+    },
+);
+
+it("rerolls one side job on the set chosen and keeps the rest", async () => {
+    HTMLDialogElement.prototype.showModal = vi.fn(function (
+        this: HTMLDialogElement,
+    ) {
+        this.setAttribute("open", "");
+    });
+    HTMLDialogElement.prototype.close = vi.fn(function (
+        this: HTMLDialogElement,
+    ) {
+        this.removeAttribute("open");
+    });
+    const request = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+            rolls: { crew: 2, side_job: "escher-5", side_job_2: "escher-5" },
+        }),
+    });
+    vi.stubGlobal("fetch", request);
+    render(
+        <BattleScenario
+            {...withSideJobs}
+            rolls={{ crew: "2", side_job: "escher-5", side_job_2: "general-2" }}
+        />,
+    );
+    expect(screen.queryByRole("button", { name: "Reroll Crew" })).toBeNull();
+    fireEvent.click(
+        screen.getByRole("button", { name: "Reroll Side job 2 (General)" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Reroll side job 2" });
+    const menu = within(dialog).getByLabelText("Side job set");
+    expect(menu).toHaveProperty("value", "general");
+    expect(dialog.closest("section")).toBeNull();
+    fireEvent.change(menu, { target: { value: "escher" } });
+    fireEvent.click(screen.getByRole("button", { name: "Reroll" }));
+    await waitFor(() => expect(request).toHaveBeenCalled());
+    const url = new URL(request.mock.calls[0][0]);
+    expect(url.searchParams.get("reroll")).toBe("side_job_2");
+    expect(url.searchParams.get("reroll_set")).toBe("escher");
+    expect(url.searchParams.get("crew")).toBe("2");
+    expect(url.searchParams.get("side_job")).toBe("escher-5");
+    expect(url.searchParams.get("side_job_2")).toBe("general-2");
+    expect(url.searchParams.get("generate")).toBeNull();
+    // The menu that gave that side job now rolls on its new set.
+    expect(screen.getByLabelText("Side job 2 set")).toHaveProperty(
+        "value",
+        "escher",
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await screen.findAllByText("Side job 2 (Escher)");
+});
+
+it("keeps a saved battle's side jobs when generating again", async () => {
+    const request = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+            rolls: { side_job: "escher-5", side_job_2: "general-2" },
+        }),
+    });
+    vi.stubGlobal("fetch", request);
+    render(
+        <BattleScenario
+            {...withSideJobs}
+            rolls={{ side_job: "escher-5", side_job_2: "2" }}
+        />,
+    );
+    expect(screen.getByLabelText("Side job 1 set")).toHaveProperty(
+        "value",
+        "escher",
+    );
+    expect(screen.getByLabelText("Side job 2 set")).toHaveProperty(
+        "value",
+        "general",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Generate again" }));
+    await waitFor(() => expect(request).toHaveBeenCalled());
+    const url = new URL(request.mock.calls[0][0]);
+    expect(url.searchParams.get("side_job_pick")).toBe("escher");
+    expect(url.searchParams.get("side_job_2_pick")).toBe("general");
+    expect(url.searchParams.get("side_jobs")).toBe("2");
 });

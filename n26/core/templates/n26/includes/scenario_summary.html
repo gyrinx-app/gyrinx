@@ -7,7 +7,7 @@ results is a list of n26.core.scenarios.ScenarioResult.
 <dl class="divide-y divide-box-border text-sm">
     {% for result in results %}
         <div class="flex items-baseline justify-between gap-4 py-2">
-            <dt class="text-muted">{{ result.table.name }}</dt>
+            <dt class="text-muted">{{ result.heading }}</dt>
             <dd class="text-right font-medium">
                 {{ result.entry.label }}
             </dd>

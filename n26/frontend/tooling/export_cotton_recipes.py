@@ -769,6 +769,9 @@ def pick_list_recipe():
     legend, caption = classes(
         '<c-n26.pick-list.legend name="Name" caption="Caption" />', "legend", "span"
     )
+    muted_legend = classes(
+        '<c-n26.pick-list.legend name="Name" tone="muted" />', "legend"
+    )[0]
     return {
         "box": class_name(free[0][1]),
         "boxFixed": class_name(held[0][1]),
@@ -777,6 +780,7 @@ def pick_list_recipe():
         "name": class_name(free[3][1]),
         "remark": class_name(free[4][1]),
         "legend": legend,
+        "mutedLegend": muted_legend,
         "caption": caption,
     }
 
@@ -1160,6 +1164,13 @@ def recipes():
             )[0]
             for variant in button_variants
         },
+        "buttonExtraSmall": {
+            variant: classes(
+                f'<c-ui.button variant="{variant}" size="xs">Save</c-ui.button>',
+                "button",
+            )[0]
+            for variant in button_variants
+        },
         "buttonLink": {
             variant: button_link_by_size_recipes["md"][variant]
             for variant in button_variants
@@ -1278,6 +1289,8 @@ def recipes():
                 "arrow-down",
                 "arrow-right",
                 "pencil",
+                "trash-2",
+                "printer",
             )
         },
     }

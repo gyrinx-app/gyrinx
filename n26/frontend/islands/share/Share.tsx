@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useQueryHref } from "../../runtime/useQueryHref";
 import {
     ButtonLink,
     type ButtonLinkSize,
@@ -13,6 +14,7 @@ export type ShareProps = {
     message: string;
     size: ButtonLinkSize;
     variant: ButtonLinkVariant;
+    queryKeys?: string[];
 };
 
 const COPIED_FOR_MS = 4000;
@@ -41,7 +43,9 @@ export function Share({
     variant,
     label = "Share",
     compact = true,
+    queryKeys,
 }: ShareProps) {
+    const href = useQueryHref(url, queryKeys);
     const [copied, setCopied] = useState(false);
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -112,7 +116,7 @@ export function Share({
     return (
         <>
             <ButtonLink
-                href={url}
+                href={href}
                 size={size}
                 variant={variant}
                 aria-label={label}

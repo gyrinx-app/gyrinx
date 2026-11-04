@@ -15,7 +15,7 @@ export type ScenarioDialogProps = {
     cancelUrl: string;
     selectionUrl: string;
     csrfToken: string;
-    rolls: Record<string, number>;
+    rolls: Record<string, number | string>;
     campaigns: { value: string; label: string }[];
     campaign: string;
     battles: {

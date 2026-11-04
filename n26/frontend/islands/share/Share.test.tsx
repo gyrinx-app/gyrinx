@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import cotton from "../../generated/cotton.json";
 import { Share, shareNavigation, type ShareProps } from "./Share";
+import { QUERY_CHANGE } from "../../runtime/useQueryHref";
 
 const props: ShareProps = {
     url: "/n26/g/1/",
@@ -58,6 +59,34 @@ function prevented(link: HTMLElement, init: MouseEventInit = {}) {
 }
 
 describe("Share", () => {
+    it("shares updated URL choices after editing scenario controls", () => {
+        const share = vi.fn().mockResolvedValue(undefined);
+        installShare(share);
+        const initialUrl = location.href;
+        window.history.replaceState(
+            null,
+            "",
+            "/n26/scenario/?crew=2&side_job=escher-3",
+        );
+        renderShare({
+            url: "/n26/scenario/?crew=2&side_job=escher-3",
+            queryKeys: ["crew_pick", "side_job_pick", "side_jobs"],
+        });
+        act(() => {
+            window.history.pushState(
+                null,
+                "",
+                "/n26/scenario/?crew=2&side_job=escher-3&crew_pick=leave&side_job_pick=orlock&side_jobs=1",
+            );
+            window.dispatchEvent(new Event(QUERY_CHANGE));
+        });
+        fireEvent.click(screen.getByRole("link", { name: "Share" }));
+        const url = new URL(share.mock.calls[0][0].url);
+        expect(url.searchParams.get("crew_pick")).toBe("leave");
+        expect(url.searchParams.get("side_job_pick")).toBe("orlock");
+        expect(url.searchParams.get("side_job")).toBe("escher-3");
+        window.history.replaceState(null, "", initialUrl);
+    });
     it("shares the result URL with its custom label", () => {
         const share = vi.fn().mockResolvedValue(undefined);
         installShare(share);
