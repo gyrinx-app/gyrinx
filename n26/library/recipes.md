@@ -328,7 +328,7 @@ The fighter and stash swaps need separate pairs. Changing only the gang's collec
 
 Entries can be staged from the authoring pages. Staff and players with staged-content access can preview them. Collections and their sections also support staging, although their authoring forms do not offer a staging control.
 
-**Put all required content live before adding the house collection to the real gang type.** Open **Staged content** from the library index and use **Put live** for this setup's new fighters, equipment, collection entries, pickables and picklist members. Review the list before using **Put everything live**, because it also releases other authors' staged work. Slots, picklists and modifiers have no staging control; test them before attaching them to a live gang type. A live main collection with all its entries staged or archived gives players an empty hire list. A staged collection is hidden from players without staged-content access, so it does not replace their gang-type fallback.
+**Put all required content live before adding the house collection to the real gang type.** Open **Staged content** from the library index. Select this setup's new fighters, equipment, collection entries, pickables and picklist members, then use **Put selected live**. Review the selected names before confirming. Slots, picklists and modifiers have no staging control; test them before attaching them to a live gang type. A live main collection with all its entries staged or archived gives players an empty hire list. A staged collection is hidden from players without staged-content access, so it does not replace their gang-type fallback.
 
 Check these steps on your test gang:
 

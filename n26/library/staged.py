@@ -22,8 +22,8 @@ some viewers"):
   looking.
 * **Staging holds back new things; it does not hold back changes.** A
   change to a row that is already live is live at once. What staging adds
-  is a place to leave the new until it is ready, and one act — putting
-  everything live — that releases it all together.
+  is a place to leave new content until it is ready, and one act that
+  releases an author's explicit selection together.
 
 Who sees staged content: staff, because the authoring pages are theirs;
 and whoever the ``staged-content`` flag is open to, so a release can be
@@ -143,8 +143,7 @@ def stageable(model) -> bool:
 
 
 def staged_counts():
-    """How many rows are staged, kind by kind — what the page that puts
-    everything live says before the click. One count per kind, and only
+    """How many rows are staged, kind by kind. One count per kind, and only
     the kinds with something staged."""
     found = []
     for model in content_kinds():

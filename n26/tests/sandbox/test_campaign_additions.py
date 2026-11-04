@@ -1292,7 +1292,18 @@ class TestCampaignContentIsOutsideAuthoring:
         )
         assert response.status_code == 404
 
-        response = admin_client.post(reverse("authoring-staged-put-live"))
+        response = admin_client.post(
+            reverse("authoring-staged-put-live"),
+            {"selection": [f"pickable:{book_pick.pk}", f"pickable:{campaign_pick.pk}"]},
+        )
+        assert response.status_code == 400
+        book_pick.refresh_from_db()
+        assert book_pick.staged is True
+
+        response = admin_client.post(
+            reverse("authoring-staged-put-live"),
+            {"selection": [f"pickable:{book_pick.pk}"]},
+        )
         assert response.status_code == 302
         campaign_pick.refresh_from_db()
         book_pick.refresh_from_db()

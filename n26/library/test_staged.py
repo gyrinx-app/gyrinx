@@ -8,14 +8,15 @@ test_staged_content.py``; this is the contract those surfaces stand on.
 
 import pytest
 from django.contrib.auth.models import AnonymousUser, Group, User
+from django.core.exceptions import ValidationError
 
 from n26.library.authoring import (
     create_category,
     create_gang_type,
     create_skill,
     create_weapon,
-    put_everything_live,
     put_live,
+    put_selected_live,
     stage,
 )
 from n26.library.models import (
@@ -177,22 +178,67 @@ class TestTheVerbs:
         put_live(lasgun)
         assert Weapon.objects.get(pk=lasgun.pk).staged is False
 
-    def test_put_everything_live_releases_every_kind_at_once(self, default_pack):
-        stage(create_weapon("Lasgun"))
-        stage(create_skill("Parry"))
-        stage(create_gang_type("Ash Wastes Nomads"))
+    def test_selected_content_goes_live_across_kinds(self, default_pack):
+        weapon = stage(create_weapon("Lasgun"))
+        skill = stage(create_skill("Parry"))
+        held = stage(create_gang_type("Ash Wastes Nomads"))
         already = create_weapon("Stub gun")
 
-        assert put_everything_live() == 3
+        assert put_selected_live([f"weapon:{weapon.pk}", f"skill:{skill.pk}"]) == 2
 
         assert not Weapon.objects.filter(staged=True).exists()
         assert not Skill.objects.filter(staged=True).exists()
-        assert not GangType.objects.filter(staged=True).exists()
+        assert GangType.objects.get(pk=held.pk).staged is True
         assert Weapon.objects.get(pk=already.pk).staged is False
 
-    def test_put_everything_live_with_nothing_staged_does_nothing(self, default_pack):
-        create_weapon("Lasgun")
-        assert put_everything_live() == 0
+    def test_empty_selection_is_refused(self, default_pack):
+        held = stage(create_weapon("Lasgun"))
+        with pytest.raises(ValidationError, match="Select content"):
+            put_selected_live([])
+        assert Weapon.objects.get(pk=held.pk).staged is True
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "",
+            "all",
+            "weapon:x",
+            "contentpack:x",
+            "unknown:x",
+            "weapon:01AAAAAAAAAAAAAAAAAAAAAAAA",
+        ],
+    )
+    def test_invalid_selection_releases_nothing(self, default_pack, bad):
+        held = stage(create_gang_type("Nomads"))
+        with pytest.raises(ValidationError):
+            put_selected_live([f"gangtype:{held.pk}", bad])
+        assert GangType.objects.get(pk=held.pk).staged is True
+
+    def test_duplicate_and_repeated_selections_are_harmless(self, default_pack):
+        held = stage(create_weapon("Lasgun"))
+        selection = [f"weapon:{held.pk}"] * 2
+        assert put_selected_live(selection) == 1
+        assert put_selected_live(selection) == 0
+
+    def test_a_later_update_failure_rolls_back_the_whole_selection(
+        self, default_pack, monkeypatch
+    ):
+        weapon = stage(create_weapon("Lasgun"))
+        skill = stage(create_skill("Parry"))
+        from n26.library.models.base import ContentQuerySet
+
+        update = ContentQuerySet.update
+
+        def fail_on_weapon(queryset, **kwargs):
+            if queryset.model is Weapon:
+                raise RuntimeError("Release failed")
+            return update(queryset, **kwargs)
+
+        monkeypatch.setattr(ContentQuerySet, "update", fail_on_weapon)
+        with pytest.raises(RuntimeError, match="Release failed"):
+            put_selected_live([f"skill:{skill.pk}", f"weapon:{weapon.pk}"])
+        assert Skill.objects.get(pk=skill.pk).staged is True
+        assert Weapon.objects.get(pk=weapon.pk).staged is True
 
     def test_the_listing_groups_staged_rows_by_kind(self, default_pack):
         parry = stage(create_skill("Parry"))

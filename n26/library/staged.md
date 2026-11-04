@@ -24,8 +24,8 @@ send each other, and what it shows cannot depend on who is looking.
 **Staging holds back new things. It does not hold back changes.** Reprice
 a live weapon, attach a new rule to a live gang type, add an option to a
 live fighter, and players see it at once, as they always have. To launch a
-whole change together: stage everything new, check it, then put it all
-live in one step. Corrections to live content stay immediate.
+whole change together: stage everything new, check it, then select that
+content and put it live in one step. Corrections to live content stay immediate.
 
 ## What you can stage
 
@@ -80,10 +80,10 @@ authoring pages, where a staged row carries a **Staged** badge.
   creates** switch, on by default. Only the rows the import creates are
   held back; rows it changes are live already and change at once.
 - **Staged content**, linked from the library index, lists everything
-  staged, kind by kind, with a **Put live** beside each row and a **Put
-  everything live** button that releases all of it in one step. Nothing
-  reaches players half-released: it all goes live together or none of it
-  does.
+  staged, kind by kind, with **Put live** beside each entry. Tick the
+  entries you want to release and use **Put selected live**. Review the
+  selected names before confirming. The selected content goes live together
+  or none of it does. Related content must be selected separately.
 
 ## Working on a new book
 
@@ -95,7 +95,8 @@ authoring pages, where a staged row carries a **Staged** badge.
    is still staged.
 3. Want other people to try it? Put them in the "N26 Staged content"
    group and set the flag to the allowlist.
-4. When it is ready, open Staged content and put everything live.
+4. When it is ready, open Staged content, select the content for the book,
+   and use **Put selected live**.
 5. If the book is not going ahead, open Staged content and delete
    everything staged. Your test gangs go with it. Live content is not
    touched.

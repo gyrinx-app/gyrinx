@@ -850,10 +850,14 @@ export function Link({
     tone = "accent",
     ...props
 }: ComponentProps<"a"> & {
-    /** accent is `<c-n26.link>`'s default; current takes the text colour. */
-    tone?: "accent" | "current";
+    /** Tones use the corresponding `<c-n26.link>` recipe. */
+    tone?: "accent" | "current" | "danger";
 }) {
-    const recipe = tone === "current" ? cotton.linkCurrent : cotton.link;
+    const recipe = {
+        accent: cotton.link,
+        current: cotton.linkCurrent,
+        danger: cotton.linkDanger,
+    }[tone];
     return (
         <a {...props} className={`${recipe[0]} ${className}`}>
             <span className={recipe[1]}>{children}</span>

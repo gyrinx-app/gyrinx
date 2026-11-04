@@ -6,7 +6,7 @@ the create-gang cards, the hire screen, the equipment lists and the
 Trading Post, the skills screen, the pick screen. The author meets every
 one of them exactly where the player would once it is live, and so does a
 player the staged-content flag is open to. What a gang already holds is
-drawn for everyone, staged or not. Putting everything live is one act, and
+drawn for everyone, staged or not. Releasing selected content is one act, and
 an import can hold back what it makes. (n26/library/staged.py, and
 design/collections.md on hiding content from some viewers.)
 """
@@ -20,8 +20,9 @@ from n26.core.models import Assignment, Gang, Miniature
 from n26.core.render import build_choice_offer, render_gang
 from n26.core.views.choose import find_slot, link_slots
 from n26.flags import STAGED_CONTENT
-from n26.library.authoring import put_everything_live, stage
+from n26.library.authoring import put_selected_live, stage
 from n26.library.models import Category, Collection, CollectionEntry, Profile, Weapon
+from n26.library.staged import staged_rows
 from n26.tests.sandbox.actions import (
     add_picklist_member,
     assign,
@@ -825,14 +826,20 @@ class TestRollingOnATable:
 # --- Releasing ----------------------------------------------------------------
 
 
-class TestPuttingEverythingLive:
+class TestPuttingSelectedContentLive:
     def test_one_act_and_a_player_meets_all_of_it(
         self, client, player, players_gang, staged_type, house_list, gear, skills
     ):
         gang, fighter = players_gang
         client.force_login(player)
 
-        released = put_everything_live()
+        released = put_selected_live(
+            [
+                f"{model._meta.model_name}:{row.pk}"
+                for model, rows in staged_rows()
+                for row in rows
+            ]
+        )
 
         assert released == 6  # the type, the runner, spear, caliver, Parry, Van Saar
         assert (
