@@ -96,6 +96,15 @@ it("confirms exact mixed-kind IDs and keeps duplicate names independent", async 
             name: "Put 2 live",
         }).disabled,
     ).toBe(true);
+    fireEvent(window, new PageTransitionEvent("pageshow", { persisted: true }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Put selected live" }));
+    expect(
+        screen.getByRole<HTMLButtonElement>("button", { name: "Put 2 live" })
+            .disabled,
+    ).toBe(false);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
 });
 
 it("cancels back to the same selection and supports deselection", async () => {

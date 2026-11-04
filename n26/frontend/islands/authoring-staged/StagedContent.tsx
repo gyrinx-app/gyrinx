@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
     ActionBar,
     Button,
@@ -46,6 +46,16 @@ export function StagedContent(props: StagedContentProps) {
     );
     const [confirming, setConfirming] = useState(false);
     const [pending, setPending] = useState(false);
+    useEffect(() => {
+        function restored(event: PageTransitionEvent) {
+            if (event.persisted) {
+                setPending(false);
+                setConfirming(false);
+            }
+        }
+        window.addEventListener("pageshow", restored);
+        return () => window.removeEventListener("pageshow", restored);
+    }, []);
     const chosen = rows.filter((row) => selected.has(row.id));
     const csrf = (
         <input
