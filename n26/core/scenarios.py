@@ -173,13 +173,13 @@ def describe(found):
     the entry's name, "Deployment 6 (Chance Encounter)", and each side job
     with its set, "Side job 1: Escher 3 (Hunt Together)"."""
 
-    def said(result):
+    def describe_result(result):
         found = result.table.side_job_set
         roll = f"{found.name} {result.roll}" if found else result.roll
         sep = ":" if found else ""
         return f"{result.table.name}{sep} {roll} ({result.entry.label})"
 
-    return ", ".join(said(result) for result in found)
+    return ", ".join(describe_result(result) for result in found)
 
 
 # --- Saving a scenario to the campaign's log ---------------------------------

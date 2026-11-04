@@ -375,7 +375,7 @@ GOLIATH_SIDE_JOBS = SideJobSet(
         ),
         ScenarioEntry(
             roll=6,
-            name="Prove Your Worth!:",
+            name="Prove Your Worth:",
             text=(
                 "If, during any round, a friendly Fighter was Engaged by *two* enemy Fighters *at the same time*, and at the end of that round is still on the board and not Seriously Injured, you have accomplished this Side Job."
             ),

@@ -3,6 +3,7 @@
 from django.templatetags.static import static
 from django.urls import reverse
 
+from n26.core.scenarios import parse, rolls_of
 from n26.library.scenario_tables import (
     SIDE_JOB_KEYS,
     SIDE_JOB_LIMIT,
@@ -22,6 +23,9 @@ def _entry(entry):
 
 
 def battle_scenario_props(mapping):
+    found, wrong = parse(mapping)
+    if not wrong:
+        mapping = rolls_of(found)
     keys = [table.key for table in TABLES] + list(SIDE_JOB_KEYS)
     return {
         "rollUrl": reverse("n26-generate-scenario"),

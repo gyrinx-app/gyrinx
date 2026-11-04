@@ -212,6 +212,39 @@ def test_creating_a_battle_saves_every_side_job(client, campaign):
     assert props["rolls"]["side_job_2"] == "general-1"
 
 
+def test_a_prefilled_battle_with_gaps_can_reroll_its_numbered_side_job(
+    client, campaign
+):
+    page = client.get(
+        reverse("n26-campaign-add-battle", args=[campaign.pk]),
+        {"crew": "2", "side_job_2": "escher-3", "side_job_6": "goliath-1"},
+    )
+    rolls = page.context["battle_scenario"]["rolls"]
+    assert rolls["side_job"] == "escher-3"
+    assert rolls["side_job_2"] == "goliath-1"
+    assert rolls["side_job_6"] == ""
+    rerolled = client.get(
+        reverse(GENERATOR),
+        {**rolls, "format": "json", "reroll": "side_job", "reroll_set": "orlock"},
+    )
+    assert rerolled.status_code == 200
+    assert rerolled.json()["rolls"]["side_job"].startswith("orlock-")
+    assert rerolled.json()["rolls"]["side_job_2"] == "goliath-1"
+    assert rerolled.json()["rolls"]["crew"] == 2
+
+
+def test_invalid_prefilled_battle_components_stay_invalid(client, campaign):
+    page = client.get(
+        reverse("n26-campaign-add-battle", args=[campaign.pk]),
+        {"crew": "9", "side_job_2": "escher-3"},
+    )
+    assert page.context["scenario_wrong"]
+    rolls = page.context["battle_scenario"]["rolls"]
+    assert rolls["crew"] == "9"
+    assert rolls["side_job"] == ""
+    assert rolls["side_job_2"] == "escher-3"
+
+
 def test_generating_again_on_a_battle_replaces_its_side_jobs(client, campaign):
     with campaign_operation(campaign, actor=campaign.owner) as act:
         battle = act.record_battle(
