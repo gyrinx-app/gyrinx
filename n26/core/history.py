@@ -1040,6 +1040,12 @@ def _tell(e, row, alive):
                 at,
                 Span(f"{went_as} to the trading post"),
             ), "credits"
+        case Kind.TACTIC_GAINED:
+            return (Span(f"gained the Gang Tactic {e.note}"),), "gang"
+        case Kind.TACTIC_DISCARDED:
+            return (Span(f"discarded the Gang Tactic {e.note}"),), "gang"
+        case Kind.TACTIC_REROLLED:
+            return (Span(f"re-rolled the Gang Tactic {e.note}"),), "gang"
         case Kind.NOTED:
             # About no model, so about the gang — as a rename is.
             if model is None:

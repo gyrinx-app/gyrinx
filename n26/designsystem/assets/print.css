@@ -1136,3 +1136,168 @@
         overflow: visible !important;
     }
 }
+
+/* Tactics use atomic inline blocks so a card moves to the next sheet whole. */
+@page n26-tactics {
+    size: auto;
+    margin: 8mm;
+}
+
+@media print {
+    body:has(.n26-print-tactics) {
+        display: block;
+        background: white;
+    }
+
+    body:has(.n26-print-tactics) > :not(main),
+    main:has(.n26-print-tactics) > :not(.n26-print-tactics),
+    .n26-print-tactics > :not([data-react-name="gang-tactics"]),
+    .n26-print-tactics .n26-tactics-island > :not(.n26-tactics-collection),
+    .n26-print-tactics .n26-tactics-collection > :not(.n26-tactic-frame),
+    .n26-print-tactics .n26-tactic-frame > button,
+    .n26-print-tactics .n26-tactic-actions {
+        display: none;
+    }
+
+    main:has(.n26-print-tactics) {
+        width: auto;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .n26-print-tactics,
+    .n26-print-tactics .n26-tactics-collection {
+        display: block;
+        page: n26-tactics;
+    }
+
+    .n26-print-tactics [data-react-name="gang-tactics"],
+    .n26-print-tactics .n26-tactic-frame {
+        display: block;
+        padding: 0;
+        margin: 0;
+        overflow: visible;
+        max-width: none;
+    }
+
+    .n26-print-tactics .n26-tactic-frame .n26-print-tactic-grid {
+        display: block;
+        padding: 0;
+        margin: 0;
+        font-size: 0;
+        orphans: 1;
+        widows: 1;
+        overflow: visible;
+        position: static;
+    }
+
+    .n26-print-tactics .n26-tactic-frame .n26-print-tactic-item {
+        display: inline-block;
+        width: calc(76mm * var(--tactic-scale, 1));
+        height: calc(111mm * var(--tactic-scale, 1));
+        margin: 0 calc(2mm * var(--tactic-scale, 1))
+            calc(2mm * var(--tactic-scale, 1)) 0;
+        vertical-align: top;
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .n26-print-tactics .n26-tactic-item .n26-tactic-card {
+        --tactic-ink: var(--color-ink-900);
+        --tactic-label: var(--color-red-900);
+        --tactic-line: color-mix(
+            in srgb,
+            var(--color-stone-800) 32%,
+            transparent
+        );
+        --tactic-strip: var(--color-stone-300);
+        --tactic-plate: var(--color-stone-950);
+        --tactic-background:
+            linear-gradient(#ffffffad, #ffffffad),
+            url("./print/tactics-paper.jpg") center / cover;
+        width: calc(76mm * var(--tactic-scale, 1));
+        height: calc(111mm * var(--tactic-scale, 1));
+        box-sizing: border-box;
+        padding-top: calc(2mm * var(--tactic-scale, 1));
+        border: calc(0.25mm * var(--tactic-scale, 1)) solid
+            var(--color-stone-950);
+        border-radius: calc(2.4mm * var(--tactic-scale, 1));
+        color-scheme: light;
+        box-shadow: none;
+        transform: none;
+        transition: none;
+        outline: none;
+        zoom: 1;
+        print-color-adjust: economy;
+        -webkit-print-color-adjust: economy;
+    }
+
+    .n26-print-tactics .n26-tactic-item .n26-tactic-nameplate {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+        flex-basis: calc(14mm * var(--tactic-scale, 1));
+        padding: calc(2mm * var(--tactic-scale, 1))
+            calc(3.4mm * var(--tactic-scale, 1));
+        background: transparent;
+    }
+
+    .n26-print-tactics .n26-tactic-nameplate h3 {
+        font-size: calc(13.5pt * var(--tactic-scale, 1));
+        line-height: 1.15;
+    }
+
+    .n26-print-tactics .n26-tactic-item .n26-tactic-strip {
+        padding: calc(3mm * var(--tactic-scale, 1))
+            calc(3.4mm * var(--tactic-scale, 1))
+            calc(1.6mm * var(--tactic-scale, 1));
+        color: var(--color-stone-800);
+        font-size: calc(7.5pt * var(--tactic-scale, 1));
+        line-height: 1.4;
+    }
+
+    .n26-print-tactics .n26-tactic-roll strong {
+        font-size: calc(9pt * var(--tactic-scale, 1));
+    }
+
+    .n26-print-tactics .n26-tactic-content {
+        overflow: visible;
+        padding: calc(4mm * var(--tactic-scale, 1))
+            calc(3.4mm * var(--tactic-scale, 1));
+        line-height: 1.45;
+    }
+
+    .n26-print-tactics .n26-tactic-rules {
+        font-size: calc(14px * var(--tactic-scale, 1));
+    }
+
+    .n26-print-tactics .n26-tactic-footer {
+        margin-inline: calc(3.4mm * var(--tactic-scale, 1));
+        padding: calc(2mm * var(--tactic-scale, 1)) 0
+            calc(3mm * var(--tactic-scale, 1));
+        font-size: calc(7pt * var(--tactic-scale, 1));
+        line-height: 1.4;
+    }
+
+    .n26-print-tactics .n26-tactic-nameplate::before {
+        /* Chromium's PDF mask raster leaves a rectangular seam. The same
+         * silhouette can be printed directly without the mask. */
+        mask: none;
+        background: url("./print/nameplate.png") center / 100% 100% no-repeat;
+        bottom: calc(-1.6mm * var(--tactic-scale, 1));
+    }
+    .n26-print-tactics .n26-tactic-rule + .n26-tactic-rule {
+        margin-top: calc(3mm * var(--tactic-scale, 1));
+    }
+    .n26-print-tactics .n26-tactic-content h4 {
+        margin-bottom: calc(1.3mm * var(--tactic-scale, 1));
+    }
+    .n26-print-tactics .n26-tactic-footer {
+        gap: calc(2mm * var(--tactic-scale, 1));
+    }
+    .n26-print-tactics .n26-tactic-footer svg {
+        flex-basis: calc(3.7mm * var(--tactic-scale, 1));
+        width: calc(3.7mm * var(--tactic-scale, 1));
+        height: calc(3.7mm * var(--tactic-scale, 1));
+    }
+}

@@ -1,0 +1,643 @@
+/* Card presentation, collection controls and responsive layouts. Print page geometry lives in print.css. */
+.n26-tactic-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+    gap: 1rem;
+    align-items: start;
+}
+.n26-tactic-item,
+.n26-tactics-island {
+    min-width: 0;
+}
+.n26-tactic-card {
+    --tactic-ink: var(--color-ink-900);
+    --tactic-label: var(--color-red-900);
+    --tactic-line: color-mix(in srgb, var(--color-stone-800) 32%, transparent);
+    --tactic-strip: var(--color-stone-300);
+    --tactic-plate: var(--color-stone-950);
+    --tactic-background:
+        linear-gradient(#ffffffad, #ffffffad),
+        url("./print/tactics-paper.jpg") center / cover;
+    aspect-ratio: 76 / 111;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    min-width: 0;
+    padding-top: 8px;
+    border: 1px solid var(--color-stone-950);
+    border-radius: 10px;
+    background: var(--tactic-background);
+    color: var(--tactic-ink);
+    color-scheme: light;
+    box-shadow:
+        0 2px 4px #1c19171a,
+        0 5px 12px #1c191710;
+    transition:
+        transform 180ms ease,
+        box-shadow 180ms ease;
+}
+.n26-tactic-nameplate {
+    position: relative;
+    isolation: isolate;
+    flex: 0 0 48px;
+    min-height: 0;
+    padding: 6px 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: transparent;
+    color: var(--color-stone-50);
+}
+.n26-tactic-nameplate::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 -6px;
+    z-index: -1;
+    background: var(--tactic-plate);
+    mask: url("./print/nameplate.png") center / 100% 100% no-repeat;
+    pointer-events: none;
+}
+.n26-tactic-nameplate h3 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 19px;
+    overflow-wrap: anywhere;
+}
+.n26-tactic-strip {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px 6px;
+    background: var(--tactic-strip);
+    color: var(--color-stone-800);
+    font-size: 10px;
+    line-height: 14px;
+    border-top: 1px solid var(--tactic-line);
+}
+.n26-tactic-roll {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.n26-tactic-roll strong {
+    margin-inline-start: 4px;
+    font-size: 14px;
+}
+.n26-tactic-content {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: auto;
+    padding: 12px 10px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+.n26-tactic-rules {
+    font-size: 14px;
+}
+.n26-tactic-rule + .n26-tactic-rule {
+    margin-top: 0.9em;
+}
+.n26-tactic-content h4 {
+    margin-bottom: 5px;
+    color: var(--tactic-label);
+    font-size: 0.85em;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.n26-tactic-footer {
+    flex-shrink: 0;
+    margin: 0 10px;
+    padding: 8px 0 10px;
+    border-top: 1px solid var(--tactic-line);
+    color: var(--color-ink-700);
+    font-size: 10px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    display: flex;
+    gap: 8px;
+    align-items: start;
+    text-align: left;
+}
+.n26-tactic-footer p {
+    margin: 0;
+}
+.n26-tactic-actions {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    min-height: 24px;
+    align-items: center;
+    font-size: 12px;
+}
+.dark .n26-tactic-card {
+    color-scheme: dark;
+    --tactic-ink: var(--color-ink-100);
+    --tactic-label: var(--color-accent);
+    --tactic-line: color-mix(
+        in srgb,
+        var(--color-neutral-300) 30%,
+        transparent
+    );
+    --tactic-strip: var(--color-neutral-950);
+    --tactic-plate: transparent;
+    --tactic-background: var(--color-black);
+    border-color: var(--color-neutral-600);
+}
+.dark .n26-tactic-strip {
+    color: var(--color-neutral-300);
+}
+.n26-tactics-generation {
+    display: flex;
+    align-items: end;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+.n26-tactics-number {
+    display: flex;
+    align-items: end;
+    gap: 12px;
+    padding-inline-start: 20px;
+    border-inline-start: 1px solid var(--color-box-border);
+}
+.n26-tactics-all {
+    display: flex;
+    flex-direction: column;
+    align-items: start;
+    gap: 4px;
+}
+.n26-tactics-figures {
+    width: min(100%, 32rem);
+}
+.n26-tactics-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+.n26-tactics-sets {
+    max-width: 36rem;
+}
+.n26-tactics-batch {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-inline-start: auto;
+    flex-wrap: wrap;
+}
+.n26-tactics-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.n26-tactics-layout {
+    display: flex;
+    gap: 4px;
+}
+.n26-tactics-layout [aria-pressed="true"] {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    background: var(--color-box-bg);
+}
+.n26-tactic-links,
+.n26-tactics-overflow-actions [role="menuitem"] > span {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.n26-tactic-select {
+    display: flex;
+    padding: 2px;
+    cursor: pointer;
+}
+.n26-tactic-select input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-accent);
+}
+.n26-tactic-item[data-selected="true"] .n26-tactic-card,
+.n26-tactic-card:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+}
+.n26-tactic-footer svg {
+    flex: 0 0 14px;
+    width: 14px;
+    height: 14px;
+    color: var(--tactic-label);
+}
+.n26-tactic-indicators {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 12px;
+}
+.n26-tactic-indicators button {
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    color: var(--color-accent);
+}
+.n26-tactic-indicators button::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border: 1px solid currentColor;
+}
+.n26-tactic-indicators [aria-current="true"]::before {
+    background: currentColor;
+    transform: scale(1.25);
+}
+.n26-tactic-carousel {
+    --tactic-shadow-gutter: 32px;
+    margin-inline: auto;
+    position: relative;
+    padding-inline: 24px;
+}
+.n26-tactic-carousel .n26-tactic-grid {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    margin: -24px calc(8px - var(--tactic-shadow-gutter)) -80px;
+    padding: 24px var(--tactic-shadow-gutter) 80px;
+    scroll-padding-inline: var(--tactic-shadow-gutter);
+    gap: 16px;
+    position: relative;
+    touch-action: pan-x pan-y pinch-zoom;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    cursor: grab;
+}
+.n26-tactic-carousel .n26-tactic-grid::-webkit-scrollbar,
+.n26-tactics-overflow-actions {
+    display: none;
+}
+.n26-tactic-carousel .n26-tactic-item {
+    flex: 0 0 min(100%, 18rem);
+    scroll-snap-align: start;
+}
+.n26-tactic-carousel > button {
+    position: absolute;
+    top: 62px;
+    z-index: 2;
+    padding: 0;
+    width: 24px;
+    height: 32px;
+    border: 0;
+    background: transparent;
+    color: var(--color-accent);
+}
+.n26-tactic-carousel > button:disabled {
+    visibility: hidden;
+}
+.n26-tactic-previous {
+    left: 0;
+}
+.n26-tactic-next {
+    right: 0;
+}
+.n26-tactics-print-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.n26-tactics-print-toolbar input {
+    width: 6rem;
+}
+.n26-tactics-print-view .n26-tactic-grid {
+    display: block;
+    font-size: 0;
+}
+.n26-tactics-print-view .n26-tactic-item {
+    display: inline-block;
+    width: calc(76mm * var(--tactic-scale));
+    margin: 0 2mm 2mm 0;
+    vertical-align: top;
+}
+.n26-tactics-print-view .n26-tactic-card {
+    width: 76mm;
+    height: 111mm;
+    zoom: var(--tactic-scale);
+}
+.n26-tactics-controls > form {
+    flex: 1;
+    min-width: min(100%, 34rem);
+}
+.n26-tactics-selection,
+.n26-tactics-direct-actions {
+    display: flex;
+    gap: 6px;
+}
+.n26-tactics-inactive {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    flex: 1;
+}
+.n26-tactics-generation-disabled {
+    flex-basis: 100% !important;
+    opacity: 0.5;
+}
+.dark .n26-tactic-footer {
+    color: var(--color-ink-300);
+}
+.n26-tactics-batch button,
+.n26-tactics-print-toolbar > button,
+.n26-tactics-inactive > button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+.n26-tactics-inactive > button {
+    min-height: calc(2rem + 2px);
+}
+.n26-tactics-view-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+.n26-tactics-size-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-ink-500);
+    font-size: 12px;
+}
+.n26-tactics-size-control input {
+    width: 100px;
+    height: 24px;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+}
+.n26-tactics-size-control input::-webkit-slider-runnable-track,
+.n26-tactics-size-control input::-moz-range-track {
+    height: 2px;
+    border-radius: 1px;
+    background: var(--color-box-border);
+}
+.n26-tactics-size-control input::-webkit-slider-thumb {
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    margin-top: -5px;
+    border-radius: 50%;
+    background: var(--color-accent);
+}
+.n26-tactics-size-control input::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--color-accent);
+}
+.n26-tactics-selected-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.n26-tactics-island > .n26-tactics-figures {
+    margin-bottom: 24px;
+}
+.n26-tactic-carousel .n26-tactic-grid[data-dragging] {
+    scroll-snap-type: none;
+    cursor: grabbing;
+    user-select: none;
+}
+.n26-tactic-card[role="checkbox"] {
+    cursor: pointer;
+}
+.n26-tactic-carousel .n26-tactic-grid[data-dragging] .n26-tactic-card {
+    cursor: grabbing;
+}
+.n26-tactic-links .n26-tactic-inline-action {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-accent);
+    font-size: inherit;
+}
+.n26-tactic-links .n26-tactic-inline-danger {
+    color: var(--color-red-600);
+}
+.n26-tactic-links .n26-tactic-inline-action:hover {
+    text-decoration: underline;
+}
+.n26-tactics-inactive-narrow {
+    display: none;
+}
+@media screen {
+    .n26-tactic-print-pages {
+        padding: 18px 12px;
+        background: var(--color-ink-200);
+        overflow: auto;
+    }
+    .dark .n26-tactic-print-pages {
+        background: var(--color-ink-900);
+    }
+    .n26-tactic-print-page {
+        position: relative;
+        width: var(--tactic-page-width);
+        min-height: var(--tactic-page-height);
+        padding: 8mm;
+        margin: 12px auto 28px;
+        background: white;
+        box-shadow: 0 3px 14px #0003;
+        zoom: var(--tactic-preview-fit);
+    }
+    .n26-tactic-page-label {
+        position: absolute;
+        bottom: 2mm;
+        left: 8mm;
+        font-size: 9px;
+        color: var(--color-ink-500);
+    }
+    .n26-tactics-print-view .n26-tactic-print-page .n26-tactic-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: calc(2mm * var(--tactic-scale));
+        align-content: start;
+    }
+    .n26-tactics-print-view .n26-tactic-print-page .n26-tactic-item {
+        margin: 0;
+        height: calc(111mm * var(--tactic-scale));
+    }
+    .n26-tactics-print-view .n26-tactic-card {
+        --tactic-ink: var(--color-ink-900);
+        --tactic-label: var(--color-red-900);
+        --tactic-line: color-mix(
+            in srgb,
+            var(--color-stone-800) 32%,
+            transparent
+        );
+        --tactic-strip: var(--color-stone-300);
+        --tactic-plate: var(--color-stone-950);
+        --tactic-background:
+            linear-gradient(#ffffffad, #ffffffad),
+            url("./print/tactics-paper.jpg") center / cover;
+        color-scheme: light;
+        box-shadow: none;
+    }
+    .n26-tactics-print-view .n26-tactic-nameplate {
+        flex-basis: 14mm;
+        padding: 2mm 3.4mm;
+        background: transparent;
+    }
+    .n26-tactics-print-view .n26-tactic-nameplate h3 {
+        font-size: 13.5pt;
+        line-height: 1.15;
+    }
+    .n26-tactics-print-view .n26-tactic-strip {
+        padding: 3mm 3.4mm 1.6mm;
+        color: var(--color-stone-800);
+        font-size: 7.5pt;
+    }
+    .n26-tactics-print-view .n26-tactic-content {
+        line-height: 1.45;
+        padding: 4mm 3.4mm;
+    }
+
+    .n26-tactics-print-view .n26-tactic-footer {
+        color: var(--color-ink-700);
+        margin-inline: 3.4mm;
+        padding: 2mm 0 3mm;
+        font-size: 7pt;
+    }
+}
+@media (max-width: 480px) {
+    .n26-tactics-number {
+        width: 100%;
+        padding: 16px 0 0;
+        border-inline-start: 0;
+        border-top: 1px solid var(--color-box-border);
+    }
+}
+@media (max-width: 1023px) {
+    .n26-tactics-generation-label {
+        display: none;
+    }
+}
+@media (max-width: 639px) {
+    .n26-tactics-batch {
+        margin-inline-start: 0;
+        gap: 8px;
+        display: none;
+    }
+    .n26-tactics-direct-actions,
+    .n26-tactics-size-control,
+    .n26-tactics-heading > h2,
+    .n26-tactics-inactive-wide,
+    .n26-tactics-controls:not(:has(form)) {
+        display: none;
+    }
+    .n26-tactics-overflow-actions {
+        display: block;
+    }
+    .n26-tactics-view-controls {
+        gap: 8px;
+    }
+    .n26-tactics-overflow-actions button[aria-haspopup="menu"] {
+        padding: 6px 8px;
+    }
+    .n26-tactics-inactive-narrow {
+        display: flex;
+    }
+    .n26-tactics-heading {
+        justify-content: flex-end;
+        align-items: center;
+    }
+}
+@media screen and (min-width: 640px) {
+    .n26-tactics-island:not(.n26-tactics-print-view) .n26-tactic-grid {
+        grid-template-columns: repeat(var(--tactic-columns), minmax(0, 1fr));
+    }
+    .n26-tactics-island:not(.n26-tactics-print-view) .n26-tactic-card {
+        width: 245px;
+        height: 357.83px;
+        zoom: var(--tactic-screen-scale);
+    }
+    .n26-tactics-island:not(.n26-tactics-print-view)
+        .n26-tactic-carousel
+        .n26-tactic-item {
+        flex-basis: calc(
+            (100% - (var(--tactic-columns) - 1) * 16px) / var(--tactic-columns)
+        );
+    }
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    .n26-tactic-item:has(:hover, :focus-visible) .n26-tactic-card {
+        transform: translateY(-2px) scale(1.012);
+        box-shadow:
+            0 5px 12px #1c191740,
+            0 14px 28px #1c191733;
+        z-index: 1;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .n26-tactic-card {
+        transition: none;
+    }
+}
+@media print {
+    .n26-print-tactics .n26-tactic-print-pages,
+    .n26-print-tactics .n26-tactic-print-page .n26-print-tactic-grid {
+        display: contents;
+    }
+    .n26-print-tactics .n26-tactic-print-page {
+        display: contents;
+        zoom: 1;
+    }
+    .n26-print-tactics .n26-tactic-frame {
+        font-size: 0;
+        orphans: 1;
+        widows: 1;
+        line-height: 0;
+    }
+    .n26-print-tactics .n26-tactic-page-label {
+        display: none;
+    }
+    .n26-print-tactics
+        .n26-tactics-print-view
+        .n26-tactic-print-page
+        .n26-tactic-item {
+        margin: 0 calc(2mm * var(--tactic-scale))
+            calc(2mm * var(--tactic-scale)) 0;
+    }
+    .n26-print-tactics .n26-tactics-island .n26-tactic-footer {
+        color: var(--color-ink-700);
+    }
+}
+
+/* The reference-only disclaimer under the last card: set well apart from
+   the cards so it reads as a note about all of them. */
+.n26-tactics-disclaimer {
+    margin-top: 2.5rem;
+}
+
+/* "Bonus card" under the effect: set in the rule labels' style, so it reads
+   as a note on the card rather than part of the rules or the footer. */
+.n26-tactic-bonus {
+    margin-top: 0.9em;
+    color: var(--tactic-label);
+    font-size: 0.85em;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}

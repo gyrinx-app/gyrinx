@@ -13,40 +13,52 @@
                            owner_href="{% url 'user-profile' gang.owner.username %}"
                            owner_flair_label="{{ owner_badge.description }}"
                            gangs_href="{% url 'n26-dashboard' %}">
-        {% if budget_notice %}
+        {% if budget_notice or tactics_notice %}
             <c-slot name="notice">
-                <c-ui.alert variant="{{ budget_notice.variant }}"
-                            title="{{ budget_notice.title }}"
-                            class="relative pr-12">
-                    <form method="post"
-                          action="{% url 'n26-dismiss-campaign-budget' gang.pk %}"
-                          class="absolute right-3 top-3">
-                        {% csrf_token %}
-                        <input type="hidden"
-                               name="notice_signature"
-                               value="{{ budget_notice.dismiss_signature }}">
-                        <button type="submit"
-                                aria-label="Dismiss budget notice"
-                                class="inline-flex cursor-pointer p-1 opacity-70 transition-opacity hover:opacity-100 focus-ring">
-                            <c-n26.icon name="x" class="size-4" />
-                        </button>
-                    </form>
-                    <p>{{ budget_notice.lead }}</p>
-                    {% if budget_notice.show_budget_options %}
-                        <div class="mt-3 flex flex-wrap items-center gap-2">
-                            {% if budget_notice.budget is not None %}
-                                <form method="post" action="{% url 'n26-use-campaign-budget' gang.pk %}">
-                                    {% csrf_token %}
-                                    <c-ui.button type="submit" variant="success">
-                                        Use campaign budget — {{ budget_notice.budget }}¢
-                                    </c-ui.button>
-                                </form>
-                            {% endif %}
-                            <c-ui.button variant="ghost"
-                                         href="{% url 'n26-edit-gang' gang.pk %}#starting-credits">Use a custom budget</c-ui.button>
-                        </div>
-                    {% endif %}
-                </c-ui.alert>
+                {% if tactics_notice %}
+                    <c-ui.alert variant="warning"
+                                title="Too many Gang Tactics"
+                                class="{% if budget_notice %}mb-3{% endif %}">
+                        <p>
+                            {{ tactics_notice }}
+                            <c-n26.link href="{% url 'n26-gang-tactics' gang.pk %}">See Gang Tactics</c-n26.link>
+                        </p>
+                    </c-ui.alert>
+                {% endif %}
+                {% if budget_notice %}
+                    <c-ui.alert variant="{{ budget_notice.variant }}"
+                                title="{{ budget_notice.title }}"
+                                class="relative pr-12">
+                        <form method="post"
+                              action="{% url 'n26-dismiss-campaign-budget' gang.pk %}"
+                              class="absolute right-3 top-3">
+                            {% csrf_token %}
+                            <input type="hidden"
+                                   name="notice_signature"
+                                   value="{{ budget_notice.dismiss_signature }}">
+                            <button type="submit"
+                                    aria-label="Dismiss budget notice"
+                                    class="inline-flex cursor-pointer p-1 opacity-70 transition-opacity hover:opacity-100 focus-ring">
+                                <c-n26.icon name="x" class="size-4" />
+                            </button>
+                        </form>
+                        <p>{{ budget_notice.lead }}</p>
+                        {% if budget_notice.show_budget_options %}
+                            <div class="mt-3 flex flex-wrap items-center gap-2">
+                                {% if budget_notice.budget is not None %}
+                                    <form method="post" action="{% url 'n26-use-campaign-budget' gang.pk %}">
+                                        {% csrf_token %}
+                                        <c-ui.button type="submit" variant="success">
+                                            Use campaign budget — {{ budget_notice.budget }}¢
+                                        </c-ui.button>
+                                    </form>
+                                {% endif %}
+                                <c-ui.button variant="ghost"
+                                             href="{% url 'n26-edit-gang' gang.pk %}#starting-credits">Use a custom budget</c-ui.button>
+                            </div>
+                        {% endif %}
+                    </c-ui.alert>
+                {% endif %}
             </c-slot>
         {% endif %}
         {% comment %}

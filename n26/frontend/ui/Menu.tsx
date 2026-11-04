@@ -30,7 +30,7 @@ const CloseMenu = createContext<() => void>(() => {});
 export function MenuButton({
     label,
     title,
-    className,
+    className = cotton.button.default,
     trigger,
     align = "end",
     minWidth = "12rem",
@@ -39,7 +39,7 @@ export function MenuButton({
     /** The button's accessible name. */
     label: string;
     title?: string;
-    className: string;
+    className?: string;
     /** What the button shows. */
     trigger: ReactNode;
     align?: "start" | "end";
@@ -305,5 +305,37 @@ export function MenuGroup({
             </div>
             {children}
         </div>
+    );
+}
+
+/** A transient menu action, styled by the same Cotton recipe as menu links. */
+export function MenuAction({
+    children,
+    onClick,
+    disabled = false,
+    tone = "default",
+}: {
+    children: ReactNode;
+    onClick: () => void;
+    disabled?: boolean;
+    tone?: "default" | "danger";
+}) {
+    const close = useContext(CloseMenu);
+    return (
+        <button
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            aria-disabled={disabled || undefined}
+            className={`${itemClass(tone)} w-full text-left ${disabled ? "opacity-50" : ""}`}
+            onClick={() => {
+                if (!disabled) {
+                    onClick();
+                    close();
+                }
+            }}
+        >
+            <span className={cotton.actionMenu.itemLabel}>{children}</span>
+        </button>
     );
 }

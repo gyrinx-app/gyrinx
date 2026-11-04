@@ -1,0 +1,53 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation react %}
+{% comment %}
+The gang's Gang Tactics: two figures, the form to roll for more, then
+one card per tactic held.
+
+The header is the sheet's, as on Notes and Lore. Anyone holding the
+address reads it; only the owner sees the roll form.
+{% endcomment %}
+{% block head_title %}Gang Tactics of {{ gang.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="gangs" %}
+{% endblock %}
+{% block content %}
+    <div class="n26-tactics-page n26-print-tactics flex flex-col gap-6">
+        {% if not print_view %}
+            <c-n26.page-header title="{{ gang.name }}">
+                {% if gang.colour %}
+                    <c-slot name="leading">
+                        <c-n26.color-swatch color="{{ gang.colour }}" />
+                    </c-slot>
+                {% endif %}
+                <c-slot name="breadcrumb">
+                    <c-ui.breadcrumbs>
+                        <c-ui.breadcrumbs.item>
+                            <c-n26.user-link :user="gang.owner" tone="current" />
+                        </c-ui.breadcrumbs.item>
+                        <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                        <c-ui.breadcrumbs.item :current="True">
+                            Gang Tactics
+                        </c-ui.breadcrumbs.item>
+                    </c-ui.breadcrumbs>
+                </c-slot>
+                <c-slot name="lead">
+                    <c-n26.flair-link text="{{ gang.gang_type.name }}" tone="current">
+                        <c-n26.flair.gang-type :icon="gang.gang_type.artwork" />
+                    </c-n26.flair-link>
+                </c-slot>
+                <c-slot name="actions">
+                    <c-n26.gang-figures :gang="gang"
+                                        :summary="summary"
+                                        trade_points_href="{{ trade_points_href }}"
+                                        credits_href="{{ credits_href }}" />
+                </c-slot>
+            </c-n26.page-header>
+        {% endif %}
+        {% react_island "gang-tactics" tactics_island %}
+    </div>
+{% endblock content %}
