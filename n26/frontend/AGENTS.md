@@ -1,6 +1,9 @@
 # N26 frontend
 
 This directory contains client-rendered React islands embedded in Django pages.
+A root may contain an independent interaction or a complete workflow's page body,
+including its confirmations and failure states. Compose components within that
+root; do not nest or import other island entry points to assemble a page.
 Read `.agents/skills/n26-react/SKILL.md` and
 `docs/developing-gyrinx/react.md` before changing an interaction.
 
@@ -14,6 +17,7 @@ n26/frontend/
 │       ├── <Feature>.tsx      # Feature component and prop types
 │       └── <Feature>.test.tsx # Behaviour tests beside the feature
 ├── runtime/                   # Generic island mounting and lifecycle code
+├── http/                      # Shared JSON transport, when introduced by a consumer
 ├── ui/                        # Shared Cotton-derived React primitives
 ├── generated/                 # Ignored output produced by the tooling
 ├── tooling/                   # Build-time exporters and migration inventories
@@ -29,9 +33,17 @@ at the root instead of copying them.
 
 ## Dependency direction
 
-- An island may import `ui` and `runtime`. It must not import another island.
+- An island may import `ui`, `runtime` and shared `http` helpers. It must not
+  import another island.
   Keep small similarities local; extract a clearly named shared module only
   when at least three real callers have established the same behaviour.
+  The workflow plan makes two explicit exceptions: shared JSON transport can
+  start with the first command consumer, and catalogue presentation can be
+  extracted when Hire and Equip use the same contract. Put transport in `http/`
+  and shared presentation in `ui/`; keep workflow-specific rules in the island.
+- `http` is for session credentials, CSRF and response/error handling. It must
+  not depend on feature props, Django routes or domain calculations. This is a
+  planned location, not an existing transport implementation.
 - `ui` is the public design-system adapter boundary. Islands import from
   `../../ui`, not from `generated` or an adapter's internal file.
 - `runtime` mounts React islands. It must not depend on feature props,
