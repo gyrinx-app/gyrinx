@@ -89,6 +89,12 @@ or the admin really does.
   import-safe, no database access.
 - Tests run with `--nomigrations`, so data migrations do not run: any row
   a data migration would have created exists only if a test creates it.
+  `django.apps.apps` is the current models, which already include later
+  fields and a different field order. To test a migration against the
+  declaration at a node, call `historical_state([(app_label, migration_name)])`
+  from `gyrinx.historical_state` and pass `.apps` into the migration
+  function. That load clears `MIGRATION_MODULES` for the `MigrationLoader`
+  only. It does not apply the migrations.
 - Tests name rules by their titles only — never the book's wording.
 
 ## Exemplars

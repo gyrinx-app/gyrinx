@@ -273,6 +273,15 @@ Tests are configured to use `StaticFilesStorage` instead of `CompressedManifestS
 
 Tests use a separate test database created by pytest-django. In local development, each worktree has its own database (`gyrinx_wt_{hash}`) and its own set of test databases. The schema is rebuilt from current model definitions on every run via `--nomigrations` (configured in `pyproject.toml`), so model changes are picked up automatically. Pass `--reuse-db` explicitly if you want to skip the rebuild for a tight focused-test loop — be aware this reintroduces the stale-schema risk if you then change a model.
 
+`--nomigrations` also stops `MigrationLoader` from reading migration files. `django.apps.apps.get_model(...)` is therefore the current model: it already has a field a migration is about to add, and its field order can differ from the historical declaration. A test of that declaration uses `historical_state` in `gyrinx/historical_state.py` and passes `.apps` into the migration function. The helper does not apply the migrations. Name every node the state should include when an app has more than one leaf.
+
+```python
+from gyrinx.historical_state import historical_state
+
+state = historical_state([("library", "0128_battle_xp_action_allowances")])
+slot = state.apps.get_model("library", "Slot")
+```
+
 ### Fixtures
 
 Use fixtures for common test data:
