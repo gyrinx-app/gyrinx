@@ -339,8 +339,8 @@ def test_schema_rollback_refuses_surviving_status_conditions(
     from unittest.mock import Mock
 
     from django.db import transaction
-    from django.db.migrations.executor import MigrationExecutor
-    from django.test import override_settings
+
+    from gyrinx.historical_state import historical_state
 
     if content == "missing-table":
         modifier(
@@ -368,10 +368,7 @@ def test_schema_rollback_refuses_surviving_status_conditions(
         list(Pickable.objects.values_list("pk", "record_only")),
     )
     migration = import_module("n26.library.migrations.0120_status_follow_up_choices")
-    with override_settings(MIGRATION_MODULES={}):
-        state = MigrationExecutor(connection).loader.project_state(
-            [("library", "0119_hide_equipment_categories")]
-        )
+    state = historical_state([("library", "0119_hide_equipment_categories")])
 
     class ReachedSchemaRemoval(Exception):
         pass

@@ -1025,22 +1025,14 @@ def test_a_saved_roll_from_before_slot_ratings_keeps_its_existing_behaviour(setu
 
 
 def _historical_rating_apps():
-    from django.db.migrations.loader import MigrationLoader
-    from django.test import override_settings
+    from gyrinx.historical_state import historical_state
 
-    # pytest --nomigrations disables disk discovery; this test needs the
-    # historical declarations without applying them to its database.
-    with override_settings(MIGRATION_MODULES={}):
-        return (
-            MigrationLoader(None)
-            .project_state(
-                [
-                    ("n26", "0082_recorded_action_pick_ratings"),
-                    ("library", "0129_slot_pick_rating_override"),
-                ]
-            )
-            .apps
-        )
+    return historical_state(
+        [
+            ("n26", "0082_recorded_action_pick_ratings"),
+            ("library", "0129_slot_pick_rating_override"),
+        ]
+    ).apps
 
 
 @pytest.mark.parametrize("original_rating", [0, 9])
