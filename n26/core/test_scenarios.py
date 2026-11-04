@@ -90,7 +90,17 @@ def test_side_jobs_come_last_numbered_in_order_with_their_sets():
 
 
 @pytest.mark.parametrize(
-    "value", ["no-such-set-2", "escher-7", "escher-", "-3", 9, 2.0]
+    "value",
+    [
+        "no-such-set-2",
+        "escher-7",
+        "escher-",
+        "escher-3-extra",
+        "escher-3-",
+        "-3",
+        9,
+        2.0,
+    ],
 )
 def test_a_side_job_off_its_set_is_wrong(value):
     found, wrong = parse({"side_job": value})

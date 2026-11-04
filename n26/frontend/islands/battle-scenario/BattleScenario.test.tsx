@@ -301,6 +301,24 @@ it("reads a battle's side job saved before there were sets as General", () => {
     expect(screen.getAllByText("The Package").length).toBeGreaterThan(0);
 });
 
+it.each(["escher-5-extra", "escher-5-", "general-2-extra"])(
+    "retains the malformed side job %s without showing a valid preview",
+    (value) => {
+        const { container } = render(
+            <BattleScenario
+                {...withSideJobs}
+                rolls={{ crew: "2", side_job: value }}
+            />,
+        );
+        expect(
+            container.querySelector<HTMLInputElement>('[name="side_job"]')
+                ?.value,
+        ).toBe(value);
+        expect(container.querySelector("dl")).toBeNull();
+        expect(screen.queryByRole("button", { name: /^Reroll / })).toBeNull();
+    },
+);
+
 it("rerolls one side job on the set chosen and keeps the rest", async () => {
     HTMLDialogElement.prototype.showModal = vi.fn(function (
         this: HTMLDialogElement,

@@ -130,9 +130,11 @@ export function BattleScenario(props: BattleScenarioProps) {
         const value = rolls[key];
         if (!value) continue;
         place += 1;
-        const [setKey, roll] = value.includes("-")
-            ? value.split("-")
-            : ["general", value];
+        const dash = value.lastIndexOf("-");
+        const [setKey, roll] =
+            dash >= 0
+                ? [value.slice(0, dash), value.slice(dash + 1)]
+                : ["general", value];
         const set = sideJobSets.find((found) => found.key === setKey);
         const entry = set?.entries.find((entry) => String(entry.roll) === roll);
         if (!set || !entry) invalid = true;
