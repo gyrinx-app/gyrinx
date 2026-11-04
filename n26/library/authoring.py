@@ -696,26 +696,52 @@ def stage_all(rows):
 
 
 @guarded_write
-def put_everything_live():
-    """Release every staged authoring row at once, in one transaction.
+def put_selected_live(selection):
+    """Release explicit model:ULID selections atomically, excluding campaign packs.
 
-    A new gang type and the fighters and lists written for it reach players
-    together rather than in whatever order an author clicks. Campaign packs
-    are a player's working space, outside this staff release. Returns how many
-    rows went live.
+    Already-live content is unchanged so repeating a submission is harmless.
+    Every selection is validated before any content is released.
     """
+    from collections import defaultdict
+
     from django.utils import timezone
 
     from n26.library.staged import content_kinds
 
-    now = timezone.now()
-    with transaction.atomic():
-        return sum(
+    kinds = {model._meta.model_name: model for model in content_kinds()}
+    selected = defaultdict(set)
+    for value in selection:
+        name, _, pk = value.partition(":")
+        model = kinds.get(name)
+        if model is None:
+            raise ValidationError("That content cannot be put live here.")
+        try:
+            selected[name].add(model._meta.pk.to_python(pk))
+        except ValueError, ValidationError:
+            raise ValidationError("That content cannot be put live here.") from None
+    if not selected:
+        raise ValidationError("Select content to put live.")
+
+    locked = []
+    for name, pks in sorted(selected.items()):
+        model = kinds[name]
+        rows = list(
             model.objects.outside_campaign_packs()
-            .filter(staged=True)
-            .update(staged=False, modified=now)
-            for model in content_kinds()
+            .filter(pk__in=pks)
+            .order_by("pk")
+            .select_for_update(of=("self",))
         )
+        if len(rows) != len(pks):
+            raise ValidationError(
+                "Some selected content is no longer available. Review your selection."
+            )
+        locked.append((model, pks))
+
+    now = timezone.now()
+    return sum(
+        model.objects.filter(pk__in=pks, staged=True).update(staged=False, modified=now)
+        for model, pks in locked
+    )
 
 
 @guarded_write

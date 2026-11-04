@@ -17,6 +17,8 @@ asset type as a table, a counter or a label as a column — and never as a
 list of its own. See design/campaign-assets.md.
 """
 
+import json
+
 import pytest
 from bs4 import BeautifulSoup
 from django.apps import apps
@@ -1292,7 +1294,22 @@ class TestCampaignContentIsOutsideAuthoring:
         )
         assert response.status_code == 404
 
-        response = admin_client.post(reverse("authoring-staged-put-live"))
+        response = admin_client.post(
+            reverse("authoring-staged-put-live"),
+            {
+                "selection": json.dumps(
+                    [f"pickable:{book_pick.pk}", f"pickable:{campaign_pick.pk}"]
+                )
+            },
+        )
+        assert response.status_code == 400
+        book_pick.refresh_from_db()
+        assert book_pick.staged is True
+
+        response = admin_client.post(
+            reverse("authoring-staged-put-live"),
+            {"selection": json.dumps([f"pickable:{book_pick.pk}"])},
+        )
         assert response.status_code == 302
         campaign_pick.refresh_from_db()
         book_pick.refresh_from_db()

@@ -1212,6 +1212,9 @@ def recipes():
         "linkCurrent": classes(
             '<c-n26.link href="/" tone="current">Name</c-n26.link>', "a", "span"
         ),
+        "linkDanger": classes(
+            '<c-n26.link href="/" tone="danger">Delete</c-n26.link>', "a", "span"
+        ),
         "explanationTrigger": classes(
             '<c-n26.link href="/" tone="current" underline="dashed">Rating</c-n26.link>',
             "a",

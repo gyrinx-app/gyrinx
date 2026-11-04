@@ -14,6 +14,7 @@ The composer and the preview pane hang off this same skeleton later
 """
 
 import inspect
+import json
 import re
 from collections import Counter
 from dataclasses import replace
@@ -24,11 +25,13 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.http import Http404
+from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.defaultfilters import capfirst
 from django.urls import reverse
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
+from django.views.decorators.http import require_POST
 
 from n26.library.forms import (
     StagedForm,
@@ -44,7 +47,7 @@ from n26.library.references import reading_sentences as _reading_sentences
 from n26.library.references import references_to
 from n26.library.sheets import INGEST_SHEETS, SHEET_LABELS, SHEET_NAMES
 from n26.library.specs import specs
-from n26.library.staged import stageable, staged_count, staged_counts, staged_rows
+from n26.library.staged import stageable, staged_count, staged_rows
 
 #: What each sheet holds, by the planner's name for it — the sentence a
 #: sheet's own upload page leads with.
@@ -2933,6 +2936,11 @@ def staged(request):
         messages.success(request, f"{row} is live.")
         return redirect("authoring-staged")
 
+    return _staged_page(request)
+
+
+def _staged_page(request, *, errors=(), selected=(), status=200):
+    """The staged-content display, including a refused bulk submission."""
     slugs = _kind_slugs()
     groups = []
     total = 0
@@ -2945,13 +2953,14 @@ def staged(request):
         total += len(rows)
         groups.append(
             {
-                "kind_name_plural": str(model._meta.verbose_name_plural),
+                "label": capfirst(str(model._meta.verbose_name_plural)),
                 "model": model._meta.model_name,
                 "rows": [
                     {
                         **_named_row(row, model, slugs),
+                        "pk": str(row.pk),
                         "notes": describe(row),
-                        "delete_url": _delete_url(row, model, slugs),
+                        "deleteUrl": _delete_url(row, model, slugs),
                     }
                     for row in rows
                 ],
@@ -2960,7 +2969,18 @@ def staged(request):
     return render(
         request,
         "authoring/staged.html",
-        {"groups": groups, "count": total},
+        {
+            "count": total,
+            "staged_content": {
+                "groups": groups,
+                "csrfToken": get_token(request),
+                "action": reverse("authoring-staged-put-live"),
+                "singleAction": reverse("authoring-staged"),
+                "selected": list(selected),
+                "errors": list(errors),
+            },
+        },
+        status=status,
     )
 
 
@@ -2978,33 +2998,29 @@ def _delete_url(row, model, slugs):
 
 
 @staff_member_required
+@require_POST
 def staged_put_live(request):
-    """The question asked before everything staged goes live at once.
-
-    A page rather than a prompt, like every act here that is hard to take
-    back: releasing a new gang type and the fighters, lists and gear
-    written for it is one click, and the page says how many rows that is
-    before the click. The act is one transaction, so players meet all of
-    it or none of it.
-    """
+    """Release only the staff author's explicit selection."""
     from n26.library import authoring
 
-    if request.method == "POST":
-        count = authoring.put_everything_live()
-        messages.success(
-            request, f"Put {count} {'thing' if count == 1 else 'things'} live."
+    try:
+        selection = json.loads(request.POST.get("selection", "[]"))
+    except ValueError:
+        selection = None
+    if not isinstance(selection, list) or not all(
+        isinstance(value, str) for value in selection
+    ):
+        return _staged_page(request, errors=["Select content to put live."], status=400)
+    try:
+        count = authoring.put_selected_live(selection)
+    except ValidationError as refused:
+        return _staged_page(
+            request, errors=refused.messages, selected=selection, status=400
         )
-        return redirect("authoring-staged")
-
-    groups = [
-        {"kind_name_plural": str(model._meta.verbose_name_plural), "count": count}
-        for model, count in staged_counts()
-    ]
-    return render(
-        request,
-        "authoring/staged_put_live.html",
-        {"groups": groups, "count": sum(group["count"] for group in groups)},
+    messages.success(
+        request, f"Put {count} {'thing' if count == 1 else 'things'} live."
     )
+    return redirect("authoring-staged")
 
 
 def _refuse_content_form(form, refused):

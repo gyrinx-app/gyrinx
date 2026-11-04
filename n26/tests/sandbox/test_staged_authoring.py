@@ -3,7 +3,7 @@
 Where an author holds a row back and where they release it: the switch
 beside a creating form, the badge and button on a row's own page, the
 badge in a kind's listing, the Staged content page with its one-row and
-whole-library releases, the count on the library index, and the switch on
+selected releases, the count on the library index, and the switch on
 the import page. The player-facing effect of all this is pinned in
 ``test_staged_content.py``; here only the pages are.
 """
@@ -14,6 +14,8 @@ import re
 import pytest
 from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from n26.library.authoring import (
     create_category,
@@ -27,6 +29,12 @@ pytestmark = pytest.mark.django_db
 
 STAGED_URL = "/n26/authoring/staged/"
 PUT_LIVE_URL = "/n26/authoring/staged/put-live/"
+
+
+def staged_props(response):
+    soup = BeautifulSoup(response.content, "html.parser")
+    host = soup.select_one('[data-react-name="authoring-staged"]')
+    return json.loads(soup.find(id=host["data-react-props"]).string)
 
 
 def badges(body):
@@ -211,8 +219,10 @@ class TestTheStagedContentPage:
         assert "Ash Wastes Nomads" in body
         assert "Plasma caliver" in body
         assert "Lasgun" not in body
-        assert "2</span>" in body or "2 things staged" in " ".join(body.split())
-        assert "Put everything live" in body
+        props = staged_props(client.get(STAGED_URL))
+        assert sum(len(group["rows"]) for group in props["groups"]) == 2
+        assert props["selected"] == []
+        assert "Put everything live" not in body
 
     def test_each_row_leads_to_its_own_page(self, client, author, held):
         body = client.get(STAGED_URL).content.decode()
@@ -256,16 +266,17 @@ class TestTheStagedContentPage:
     def test_with_nothing_staged_it_says_so(self, client, author, default_pack):
         create_weapon("Lasgun")
         body = client.get(STAGED_URL).content.decode()
-        assert "Nothing is staged." in body
+        assert staged_props(client.get(STAGED_URL))["groups"] == []
         assert "Put everything live" not in body
 
     def test_it_is_for_staff(self, client, db):
         client.force_login(User.objects.create_user("player"))
         assert client.get(STAGED_URL).status_code == 302
         assert client.get(PUT_LIVE_URL).status_code == 302
+        assert client.post(PUT_LIVE_URL, {"selection": ["weapon:x"]}).status_code == 302
 
 
-class TestPuttingEverythingLive:
+class TestPuttingSelectedContentLive:
     @pytest.fixture
     def held(self, default_pack):
         return {
@@ -274,25 +285,88 @@ class TestPuttingEverythingLive:
             "spear": stage(create_weapon("Spear")),
         }
 
-    def test_the_question_says_how_many_of_what(self, client, author, held):
-        body = " ".join(client.get(PUT_LIVE_URL).content.decode().split())
-        assert "Gang types" in body
-        assert "Weapons" in body
-        assert "3 things in all" in body
-
-    def test_the_act_releases_all_of_it(self, client, author, held):
-        response = client.post(PUT_LIVE_URL, follow=True)
-        assert not GangType.objects.filter(staged=True).exists()
-        assert not Weapon.objects.filter(staged=True).exists()
+    def test_only_the_selected_content_goes_live(self, client, author, held):
+        response = client.post(
+            PUT_LIVE_URL,
+            {
+                "selection": json.dumps(
+                    [
+                        f"gangtype:{held['nomads'].pk}",
+                        f"weapon:{held['caliver'].pk}",
+                    ]
+                )
+            },
+            follow=True,
+        )
+        assert GangType.objects.get(pk=held["nomads"].pk).staged is False
+        assert Weapon.objects.get(pk=held["caliver"].pk).staged is False
+        assert Weapon.objects.get(pk=held["spear"].pk).staged is True
         body = response.content.decode()
-        assert "Put 3 things live." in body
-        assert "Nothing is staged." in body
+        assert "Put 2 things live." in body
 
-    def test_with_nothing_staged_the_question_says_so(
-        self, client, author, default_pack
+    def test_empty_submission_does_not_release_everything(self, client, author, held):
+        response = client.post(PUT_LIVE_URL)
+        assert response.status_code == 400
+        assert staged_props(response)["errors"] == ["Select content to put live."]
+        assert GangType.objects.get(pk=held["nomads"].pk).staged is True
+        assert Weapon.objects.filter(staged=True).count() == 2
+
+    def test_errors_keep_valid_selections_and_release_nothing(
+        self, client, author, held
     ):
-        body = client.get(PUT_LIVE_URL).content.decode()
-        assert "nothing to put live" in body
+        selected = f"weapon:{held['caliver'].pk}"
+        response = client.post(
+            PUT_LIVE_URL, {"selection": json.dumps([selected, "weapon:missing"])}
+        )
+        assert response.status_code == 400
+        assert staged_props(response)["selected"] == [selected, "weapon:missing"]
+        assert Weapon.objects.filter(staged=True).count() == 2
+
+    def test_get_cannot_release_content(self, client, author, held):
+        assert client.get(PUT_LIVE_URL).status_code == 405
+        assert Weapon.objects.filter(staged=True).count() == 2
+
+    @pytest.mark.parametrize(
+        "selection", ["null", "{}", '"all"', "[1]", "[null]", "not-json"]
+    )
+    def test_malformed_selection_releases_nothing(
+        self, client, author, held, selection
+    ):
+        response = client.post(PUT_LIVE_URL, {"selection": selection})
+        assert response.status_code == 400
+        assert Weapon.objects.filter(staged=True).count() == 2
+
+    def test_more_than_a_thousand_entries_fit_in_one_form_field(
+        self, client, author, held
+    ):
+        weapons = [
+            create_weapon(f"Bulk weapon {index}", staged=True) for index in range(1001)
+        ]
+        response = client.post(
+            PUT_LIVE_URL,
+            {
+                "csrfmiddlewaretoken": "token",
+                "selection": json.dumps([f"weapon:{weapon.pk}" for weapon in weapons]),
+            },
+        )
+        assert response.status_code == 302
+        assert Weapon.objects.filter(staged=True).count() == 2
+        assert not Weapon.objects.filter(
+            pk__in=[weapon.pk for weapon in weapons], staged=True
+        ).exists()
+
+    def test_more_staged_entries_do_not_add_queries(self, client, author, held):
+        client.get(STAGED_URL)
+        with CaptureQueriesContext(connection) as small:
+            client.get(STAGED_URL)
+        for index in range(10):
+            stage(create_weapon(f"Preview weapon {index}"))
+        with CaptureQueriesContext(connection) as large:
+            response = client.get(STAGED_URL)
+        assert len(large) <= len(small)
+        assert (
+            sum(len(group["rows"]) for group in staged_props(response)["groups"]) == 13
+        )
 
 
 class TestTheDocumentationPage:
