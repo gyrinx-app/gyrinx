@@ -296,7 +296,6 @@ def campaign(request, pk):
             "invitation_count": invitation_count,
             "invitations": invitations,
             "battles": battles,
-            "battles_cut": sheet.battles_fought > BATTLES_ON_THE_PAGE,
             "acts": acts,
             "more_acts": more_acts,
             **_roll_context(
