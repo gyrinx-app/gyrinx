@@ -248,14 +248,14 @@ export function StagedContent(props: StagedContentProps) {
                     }}
                 >
                     {csrf}
+                    <input
+                        type="hidden"
+                        name="selection"
+                        value={JSON.stringify(chosen.map((row) => row.id))}
+                    />
                     <ul className="max-h-80 space-y-2 overflow-y-auto text-sm">
                         {chosen.map((row) => (
                             <li key={row.id}>
-                                <input
-                                    type="hidden"
-                                    name="selection"
-                                    value={row.id}
-                                />
                                 {row.label}
                                 {row.qualifier && ` — ${row.qualifier}`}{" "}
                                 <span className="text-muted">({row.kind})</span>

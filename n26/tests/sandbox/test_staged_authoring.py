@@ -289,10 +289,12 @@ class TestPuttingSelectedContentLive:
         response = client.post(
             PUT_LIVE_URL,
             {
-                "selection": [
-                    f"gangtype:{held['nomads'].pk}",
-                    f"weapon:{held['caliver'].pk}",
-                ]
+                "selection": json.dumps(
+                    [
+                        f"gangtype:{held['nomads'].pk}",
+                        f"weapon:{held['caliver'].pk}",
+                    ]
+                )
             },
             follow=True,
         )
@@ -314,7 +316,7 @@ class TestPuttingSelectedContentLive:
     ):
         selected = f"weapon:{held['caliver'].pk}"
         response = client.post(
-            PUT_LIVE_URL, {"selection": [selected, "weapon:missing"]}
+            PUT_LIVE_URL, {"selection": json.dumps([selected, "weapon:missing"])}
         )
         assert response.status_code == 400
         assert staged_props(response)["selected"] == [selected, "weapon:missing"]
@@ -323,6 +325,35 @@ class TestPuttingSelectedContentLive:
     def test_get_cannot_release_content(self, client, author, held):
         assert client.get(PUT_LIVE_URL).status_code == 405
         assert Weapon.objects.filter(staged=True).count() == 2
+
+    @pytest.mark.parametrize(
+        "selection", ["null", "{}", '"all"', "[1]", "[null]", "not-json"]
+    )
+    def test_malformed_selection_releases_nothing(
+        self, client, author, held, selection
+    ):
+        response = client.post(PUT_LIVE_URL, {"selection": selection})
+        assert response.status_code == 400
+        assert Weapon.objects.filter(staged=True).count() == 2
+
+    def test_more_than_a_thousand_entries_fit_in_one_form_field(
+        self, client, author, held
+    ):
+        weapons = [
+            create_weapon(f"Bulk weapon {index}", staged=True) for index in range(1001)
+        ]
+        response = client.post(
+            PUT_LIVE_URL,
+            {
+                "csrfmiddlewaretoken": "token",
+                "selection": json.dumps([f"weapon:{weapon.pk}" for weapon in weapons]),
+            },
+        )
+        assert response.status_code == 302
+        assert Weapon.objects.filter(staged=True).count() == 2
+        assert not Weapon.objects.filter(
+            pk__in=[weapon.pk for weapon in weapons], staged=True
+        ).exists()
 
     def test_more_staged_entries_do_not_add_queries(self, client, author, held):
         client.get(STAGED_URL)

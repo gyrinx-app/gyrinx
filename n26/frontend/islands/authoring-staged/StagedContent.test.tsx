@@ -84,8 +84,10 @@ it("selects all loaded entries, allows exclusions and clears the selection", asy
     await user.click(screen.getByRole("checkbox", { name: "Select Parry" }));
     await user.click(screen.getByRole("button", { name: "Put selected live" }));
     expect(
-        new FormData(screen.getByRole("dialog").querySelector("form")!).getAll(
-            "selection",
+        JSON.parse(
+            new FormData(screen.getByRole("dialog").querySelector("form")!).get(
+                "selection",
+            ) as string,
         ),
     ).toEqual(["weapon:one", "weapon:two"]);
     await user.click(screen.getByRole("button", { name: "Cancel" }));
@@ -115,7 +117,8 @@ it("confirms exact mixed-kind IDs and keeps duplicate names independent", async 
     expect(within(dialog).getByText(/Lasgun — House/)).toBeTruthy();
     expect(within(dialog).queryByText(/Trading post/)).toBeNull();
     const form = dialog.querySelector("form")!;
-    expect(new FormData(form).getAll("selection")).toEqual([
+    expect(new FormData(form).getAll("selection")).toHaveLength(1);
+    expect(JSON.parse(new FormData(form).get("selection") as string)).toEqual([
         "weapon:one",
         "skill:one",
     ]);

@@ -14,6 +14,7 @@ The composer and the preview pane hang off this same skeleton later
 """
 
 import inspect
+import json
 import re
 from collections import Counter
 from dataclasses import replace
@@ -3002,7 +3003,14 @@ def staged_put_live(request):
     """Release only the staff author's explicit selection."""
     from n26.library import authoring
 
-    selection = request.POST.getlist("selection")
+    try:
+        selection = json.loads(request.POST.get("selection", "[]"))
+    except ValueError:
+        selection = None
+    if not isinstance(selection, list) or not all(
+        isinstance(value, str) for value in selection
+    ):
+        return _staged_page(request, errors=["Select content to put live."], status=400)
     try:
         count = authoring.put_selected_live(selection)
     except ValidationError as refused:
