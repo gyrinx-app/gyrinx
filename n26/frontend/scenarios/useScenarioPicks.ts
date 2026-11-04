@@ -4,6 +4,7 @@ import { QUERY_CHANGE } from "../runtime/useQueryHref";
 type Picks = { picks: Record<string, string>; sidePicks: string[] };
 
 function normalise(pick: string) {
+    if (pick === "leave") return "";
     if (pick === "roll") return "general";
     return /^[1-6]$/.test(pick) ? `general-${pick}` : pick;
 }
@@ -44,12 +45,13 @@ export function useScenarioPicks({
                 ? sideJobKeys.slice(0, count).map((key) => {
                       const pick = normalise(query.get(`${key}_pick`) ?? "");
                       const set = query.get(`${key}_set`);
+                      if (set === "leave") return "";
                       return set !== null &&
                           !(pick === set || (set && pick.startsWith(`${set}-`)))
                           ? set
                           : pick;
                   })
-                : initialSidePicks,
+                : initialSidePicks.map(normalise),
         };
     }
     const [state, setState] = useState(read);

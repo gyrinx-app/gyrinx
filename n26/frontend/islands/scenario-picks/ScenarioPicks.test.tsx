@@ -37,6 +37,24 @@ beforeEach(() =>
     window.history.replaceState(null, "", "/n26/scenario/?crew=2"),
 );
 
+it("uses an empty selection for legacy leave-out links without offering that option", () => {
+    window.history.replaceState(
+        null,
+        "",
+        "/n26/scenario/?side_job_pick=leave&side_jobs=1",
+    );
+    render(<ScenarioPicks {...props} />);
+    const set = screen.getByLabelText<HTMLSelectElement>("Side job 1 set");
+    expect(set.value).toBe("");
+    expect([...set.options].some((option) => option.value === "leave")).toBe(
+        false,
+    );
+    expect(screen.getByLabelText("Side job 1")).toHaveProperty(
+        "disabled",
+        true,
+    );
+});
+
 it("keeps the set dropdown beside its dependent job dropdown without submitting", () => {
     const submit = vi.fn((event) => event.preventDefault());
     render(

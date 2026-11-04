@@ -43,7 +43,6 @@ def test_a_side_job_has_a_set_menu_and_a_disabled_job_menu(client, campaign):
     assert menu["label"] == "Side job 1"
     assert [label for _, label in menu["set_options"]] == [
         "Choose a side job set",
-        "Leave out",
         "General side jobs",
         "Escher side jobs",
         "Goliath side jobs",
@@ -65,7 +64,7 @@ def test_a_picked_set_stays_visible_beside_its_jobs(client, campaign):
     assert labels[0] == "Roll a D6"
     assert labels[2] == "2. Personal Vendetta"
     assert "Change set" not in labels
-    assert len(menu["set_options"]) == 6
+    assert len(menu["set_options"]) == 5
     assert not menu["disabled"]
 
 

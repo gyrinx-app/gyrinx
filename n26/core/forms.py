@@ -1482,10 +1482,11 @@ class ScenarioGeneratorForm(forms.Form):
                     "value": pick,
                     "set_name": name.removesuffix("_pick") + "_set",
                     "set_id": f"id_{name.removesuffix('_pick')}_set",
-                    "set_value": found.key if found else pick,
+                    "set_value": found.key
+                    if found
+                    else ("" if pick == self.LEAVE_OUT else pick),
                     "set_options": [
                         ("", "Choose a side job set"),
-                        (self.LEAVE_OUT, "Leave out"),
                     ]
                     + [(each.key, each.label) for each in SIDE_JOB_SETS],
                     "disabled": found is None,

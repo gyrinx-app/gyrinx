@@ -82,9 +82,14 @@ export function Button({
     ...props
 }: ComponentProps<"button"> & {
     variant?: keyof typeof cotton.button;
-    size?: "default" | "sm";
+    size?: "default" | "sm" | "xs";
 }) {
-    const recipe = size === "sm" ? cotton.buttonSmall : cotton.button;
+    const recipe =
+        size === "xs"
+            ? cotton.buttonExtraSmall
+            : size === "sm"
+              ? cotton.buttonSmall
+              : cotton.button;
     return (
         <button
             {...props}
@@ -1220,12 +1225,20 @@ export function PickBox({
 export function PickLegend({
     name,
     caption,
+    tone = "default",
 }: {
     name: string;
     caption: string;
+    tone?: "default" | "muted";
 }) {
     return (
-        <legend className={cotton.pickList.legend}>
+        <legend
+            className={
+                tone === "muted"
+                    ? cotton.pickList.mutedLegend
+                    : cotton.pickList.legend
+            }
+        >
             {name}
             {caption && (
                 <>

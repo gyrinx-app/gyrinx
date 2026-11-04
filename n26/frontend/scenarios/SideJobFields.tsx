@@ -1,4 +1,4 @@
-import { Button, Field, Icon, NativeSelect } from "../ui";
+import { Button, Field, Icon, NativeSelect, PickLegend } from "../ui";
 
 export type SideJobSet = {
     key: string;
@@ -39,9 +39,11 @@ export function SideJobFields({
                 const id = `${prefix}-${key}`;
                 return (
                     <fieldset key={key} className="space-y-3">
-                        <legend className="mb-2 text-sm font-semibold">
-                            Side job {index + 1}
-                        </legend>
+                        <PickLegend
+                            name={`Side job ${index + 1}`}
+                            caption=""
+                            tone="muted"
+                        />
                         <Field
                             label="Side job set"
                             htmlFor={`${id}-set`}
@@ -64,7 +66,6 @@ export function SideJobFields({
                                 }
                             >
                                 <option value="">Choose a side job set</option>
-                                <option value="leave">Leave out</option>
                                 {sets.map((each) => (
                                     <option key={each.key} value={each.key}>
                                         {each.label}
@@ -115,20 +116,26 @@ export function SideJobFields({
                             </NativeSelect>
                         </Field>
                         {index > 0 && (
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                disabled={disabled}
-                                aria-label={`Remove side job ${index + 1}`}
-                                onClick={() =>
-                                    onChange(
-                                        picks.filter((_, at) => at !== index),
-                                    )
-                                }
-                            >
-                                <Icon name="trash-2" /> Remove side job
-                            </Button>
+                            <div className="flex justify-end">
+                                <Button
+                                    type="button"
+                                    variant="text"
+                                    size="xs"
+                                    className="inline-flex items-center gap-1.5 whitespace-nowrap"
+                                    disabled={disabled}
+                                    aria-label={`Remove side job ${index + 1}`}
+                                    onClick={() =>
+                                        onChange(
+                                            picks.filter(
+                                                (_, at) => at !== index,
+                                            ),
+                                        )
+                                    }
+                                >
+                                    <Icon name="trash-2" className="size-3.5" />{" "}
+                                    Remove side job
+                                </Button>
+                            </div>
                         )}
                     </fieldset>
                 );

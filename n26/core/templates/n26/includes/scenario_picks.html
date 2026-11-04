@@ -22,7 +22,7 @@ available without JavaScript; submitted selections are validated by Django.
     </div>
     {% for menu in form.side_job_menus %}
         <fieldset class="mt-4 space-y-3">
-            <legend class="mb-2 text-sm font-semibold">{{ menu.label }}</legend>
+            <c-n26.pick-list.legend name="{{ menu.label }}" tone="muted" />
             <c-ui.field label="Side job set"
                         error="x"
                         :form="form"
@@ -54,14 +54,19 @@ available without JavaScript; submitted selections are validated by Django.
                 </c-ui.select.native>
             </c-ui.field>
             {% if menu.place > 1 %}
-                <c-ui.button type="submit"
-                             variant="ghost"
-                             name="remove_side_job"
-                             value="{{ menu.place }}"
-                             data-busy="off"
-                             aria-label="Remove side job {{ menu.place }}">
-                    Remove side job
-                </c-ui.button>
+                <div class="flex justify-end">
+                    <c-ui.button type="submit"
+                                 variant="text"
+                                 size="xs"
+                                 class="inline-flex items-center gap-1.5 whitespace-nowrap"
+                                 name="remove_side_job"
+                                 value="{{ menu.place }}"
+                                 data-busy="off"
+                                 aria-label="Remove side job {{ menu.place }}">
+                        <c-n26.icon name="trash-2" class="size-3.5" />
+                        Remove side job
+                    </c-ui.button>
+                </div>
             {% endif %}
         </fieldset>
     {% endfor %}

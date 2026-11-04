@@ -63,7 +63,6 @@ The side job controls come last, after Crew. Each side job has two lists.
 **Side job set** offers:
 
 - **Choose a side job set**, the default, which adds no side job
-- **Leave out**
 - **General side jobs**, **Escher side jobs**, **Goliath side jobs** and
   **Orlock side jobs**
 
@@ -72,7 +71,8 @@ until a set is selected. Both lists stay visible, so you can change sets at any
 time. Changing the set resets its job to **Roll a D6**.
 
 **Add side job** adds another pair, up to six. **Remove side job** removes an
-extra pair; the later side jobs move up. Selecting, adding and removing update
+extra pair; the later side jobs move up. Leave the set unselected to add no side
+job. Selecting, adding and removing update
 the controls and the URL without reloading the page. Reload and Back/Forward
 restore the selections. Without JavaScript, selecting a set and pressing
 **Generate scenario** rolls on that set.

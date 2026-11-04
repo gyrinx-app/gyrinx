@@ -1,10 +1,11 @@
 {% comment %}
 <c-n26.pick-list.legend> — The heading of one group in a grouped pick list, with its caption after it.
+tone="muted" uses the compact uppercase group-heading style.
 {% endcomment %}
 
-<c-vars name="" caption="" />
+<c-vars name="" caption="" tone="default" />
 
-<legend class="mb-1 block text-base font-semibold text-ink-900 dark:text-ink-100">
+<legend class="mb-1 block {% if tone == 'muted' %}text-xs font-semibold uppercase tracking-wide text-muted{% else %}text-base font-semibold text-ink-900 dark:text-ink-100{% endif %}">
     {{ name }}
     {% if caption %}<span class="text-sm font-normal text-muted">{{ caption }}</span>{% endif %}
 </legend>
