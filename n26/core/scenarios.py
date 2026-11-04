@@ -22,6 +22,12 @@ from n26.library.scenario_tables import (
     side_job_table,
 )
 
+SCENARIO_PICK_KEYS = (
+    *(f"{table.key}_pick" for table in TABLES),
+    *(f"{key}_{suffix}" for key in SIDE_JOB_KEYS for suffix in ("pick", "set")),
+    "side_jobs",
+)
+
 
 @dataclass(frozen=True)
 class ScenarioResult:

@@ -25,9 +25,10 @@ def share_props(
     variant="ghost",
     label="Share",
     compact=True,
+    query_keys=None,
 ):
     """The link React shares, and the button shape it draws."""
-    return {
+    props = {
         "url": "" if url is None else str(url),
         "label": "Share" if label is None else str(label),
         "compact": bool(compact),
@@ -35,6 +36,9 @@ def share_props(
         "size": size if size in SIZES else "xs",
         "variant": variant if variant in VARIANTS else "ghost",
     }
+    if query_keys:
+        props["queryKeys"] = list(query_keys)
+    return props
 
 
 @register.simple_tag

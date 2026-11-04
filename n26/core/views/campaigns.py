@@ -1055,6 +1055,7 @@ def scenario_generator(request, pk):
     from n26.core.campaign_permissions import may_record_campaign
     from n26.core.forms import ScenarioGeneratorForm
     from n26.core.scenarios import parse, rolls_of
+    from n26.core.views.scenario_props import scenario_picks_props
     from n26.core.views.scenarios import reroll_dialog, side_job_changes
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=True)
@@ -1089,6 +1090,7 @@ def scenario_generator(request, pk):
         {
             "campaign": found,
             "form": form,
+            "scenario_picks": scenario_picks_props(form),
             "scenario": scenario,
             "rolls": rolls,
             "wrong": wrong,

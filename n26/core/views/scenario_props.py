@@ -50,3 +50,32 @@ def battle_scenario_props(mapping):
             for found in SIDE_JOB_SETS
         ],
     }
+
+
+def scenario_picks_props(form):
+    form.is_valid()
+    return {
+        "tables": [
+            {
+                "key": table.key,
+                "label": table.name,
+                "choices": list(form.fields[form.pick_name(table)].choices),
+            }
+            for table in form.tables
+        ],
+        "sideJobKeys": list(SIDE_JOB_KEYS),
+        "sideJobLimit": SIDE_JOB_LIMIT,
+        "sideJobSets": [
+            {
+                "key": found.key,
+                "name": found.name,
+                "label": found.label,
+                "entries": [
+                    {"roll": entry.roll, "name": entry.label} for entry in found.entries
+                ],
+            }
+            for found in SIDE_JOB_SETS
+        ],
+        "sidePicks": form.side_job_picks(),
+        "errors": {key: list(errors) for key, errors in form.errors.items()},
+    }

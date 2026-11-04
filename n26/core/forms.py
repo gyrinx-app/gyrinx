@@ -1205,9 +1205,8 @@ class ScenarioGeneratorForm(forms.Form):
     a named entry. Every table rolls unless the reader says otherwise.
 
     Then any number of side jobs, up to ``SIDE_JOB_LIMIT``, each with one
-    menu. It first offers the side job sets; once a set is picked, it
-    offers Roll a D6, that set's jobs, and Change set to go back. A side
-    job adds nothing until a set is picked.
+    pair of menus: its set, then Roll a D6 or a named job from that set.
+    A side job adds nothing until a set is picked.
 
     Read from the query string, since generating saves nothing. A pick's
     field is ``<key>_pick``, so the table's own key stays free for the
@@ -1261,10 +1260,32 @@ class ScenarioGeneratorForm(forms.Form):
             side_job_choices += [
                 (f"{found.key}-{entry.roll}", entry.label) for entry in found.entries
             ]
+        side_job_values = {value for value, _ in side_job_choices}
         self.side_job_names = []
         for place in range(1, self.side_job_count + 1):
-            name = f"{side_job_key(place)}_pick"
+            key = side_job_key(place)
+            name = f"{key}_pick"
             self.side_job_names.append(name)
+            set_name = f"{key}_set"
+            self.fields[set_name] = forms.ChoiceField(
+                required=False,
+                label="Side job set",
+                choices=[("", "Choose a side job set"), (self.LEAVE_OUT, "Leave out")]
+                + [(found.key, found.label) for found in SIDE_JOB_SETS],
+                error_messages={"invalid_choice": "Select a side job set."},
+            )
+            # A native form can submit a new set beside the previous set's
+            # job. That selection starts with a random job from the new set.
+            if set_name in self.data:
+                selected = self.data[set_name]
+                if selected in {"", self.LEAVE_OUT, *(s.key for s in SIDE_JOB_SETS)}:
+                    pick = self.data.get(name, "")
+                    if selected in ("", self.LEAVE_OUT) or (
+                        pick in side_job_values
+                        and not (pick == selected or pick.startswith(f"{selected}-"))
+                    ):
+                        self.data = self.data.copy()
+                        self.data[name] = selected
             self.fields[name] = forms.ChoiceField(
                 required=False,
                 label=f"Side job {place}",
@@ -1284,7 +1305,9 @@ class ScenarioGeneratorForm(forms.Form):
         data = self.data or {}
         self._holds_side_jobs = any(data.get(key) for key in SIDE_JOB_KEYS)
         if self.SIDE_JOBS in data or any(
-            f"{key}_pick" in data for key in SIDE_JOB_KEYS
+            f"{key}_{suffix}" in data
+            for key in SIDE_JOB_KEYS
+            for suffix in ("pick", "set")
         ):
             return
         found = [
@@ -1429,9 +1452,7 @@ class ScenarioGeneratorForm(forms.Form):
         return self.chosen_picks(picks)
 
     def side_job_menus(self):
-        """Each side job menu as the generator draws it: before a set is
-        picked, the sets; after, Roll a D6, the set's jobs and Change set.
-        An option that changes which menu shows has ``switch`` set."""
+        """The persistent set and job controls for each side job."""
         from n26.library.scenario_tables import SIDE_JOB_SETS
 
         picks = (
@@ -1444,19 +1465,14 @@ class ScenarioGeneratorForm(forms.Form):
             zip(self.side_job_names, picks, strict=True), start=1
         ):
             found, _ = self._side_job_choice(pick)
+            label = f"Side job {place}"
             if found:
-                label = f"Side job {place}: {found.label}"
-                options = [(found.key, "Roll a D6", False)] + [
-                    (f"{found.key}-{entry.roll}", f"{entry.roll}. {entry.label}", False)
+                options = [(found.key, "Roll a D6")] + [
+                    (f"{found.key}-{entry.roll}", f"{entry.roll}. {entry.label}")
                     for entry in found.entries
                 ]
-                options.append((self.CHOOSE_SET, "Change set", True))
             else:
-                label = f"Side job {place}"
-                options = [
-                    (self.CHOOSE_SET, "Choose a side job set", False),
-                    (self.LEAVE_OUT, "Leave out", False),
-                ] + [(each.key, each.label, True) for each in SIDE_JOB_SETS]
+                options = [("", "Choose a side job set first")]
             menus.append(
                 {
                     "place": place,
@@ -1464,6 +1480,15 @@ class ScenarioGeneratorForm(forms.Form):
                     "id": f"id_{name}",
                     "label": label,
                     "value": pick,
+                    "set_name": name.removesuffix("_pick") + "_set",
+                    "set_id": f"id_{name.removesuffix('_pick')}_set",
+                    "set_value": found.key if found else pick,
+                    "set_options": [
+                        ("", "Choose a side job set"),
+                        (self.LEAVE_OUT, "Leave out"),
+                    ]
+                    + [(each.key, each.label) for each in SIDE_JOB_SETS],
+                    "disabled": found is None,
                     "options": options,
                     "field": self[name],
                 }

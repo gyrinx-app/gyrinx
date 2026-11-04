@@ -1,5 +1,5 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation react %}
+{% load navigation react scenario_controls %}
 {% comment %}
 The scenario generator for one campaign. On wide screens the scenario
 components sit on the left and the generated scenario on the right, with
@@ -23,6 +23,7 @@ may use it.
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
+    {% scenario_pick_keys as scenario_query %}
     <div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
         <c-n26.page-header title="Generate a scenario"
                            lead="Roll or choose components for a battle in {{ campaign.name }}. Nothing is saved until you save the scenario or record a battle.">
@@ -37,7 +38,7 @@ may use it.
             </c-slot>
             {% if scenario %}
                 <c-slot name="breadcrumb_actions">
-                    <c-n26.share :url="share_url" />
+                    <c-n26.share :url="share_url" :query_keys="scenario_query" />
                 </c-slot>
             {% endif %}
         </c-n26.page-header>
@@ -75,23 +76,15 @@ may use it.
                     {% endcomment %}
                     <div class="flex flex-wrap items-center justify-end gap-2 border-t border-box-border pt-4">
                         <c-n26.share :url="share_url"
+                                     :query_keys="scenario_query"
                                      label="Share result"
                                      size="sm"
                                      variant="ghost"
                                      :compact="False" />
-                        <c-ui.button href="{{ print_url }}">
-                            <span class="flex items-center justify-center gap-2">
-                                <c-n26.icon name="printer" class="size-4" />
-                                Print
-                            </span>
-                        </c-ui.button>
+                        {% scenario_link print_url "Print" icon="printer" %}
                         {% if record_href %}
-                            <c-ui.button href="{{ save_href }}">
-                                Save to log
-                            </c-ui.button>
-                            <c-ui.button variant="primary" href="{{ record_href }}">
-                                Record a battle
-                            </c-ui.button>
+                            {% scenario_link save_href "Save to log" variant="default" %}
+                            {% scenario_link record_href "Record a battle" variant="primary" %}
                         {% endif %}
                     </div>
                 {% else %}

@@ -33,8 +33,7 @@ def _generator_url(query):
 
 
 def side_job_changes(request, form, here, extra=None):
-    """A redirect for Add side job, a side job's remove button, a side
-    job menu that changes what it lists, or a side job's Reroll, keeping
+    """A redirect for native Add/Remove side job forms or Reroll, keeping
     the scenario in view. None for any other request, such as Generate."""
     from n26.core.scenarios import parse, rolls_of
 
@@ -51,8 +50,6 @@ def side_job_changes(request, form, here, extra=None):
         except ValueError:
             place = 0
         picks = form.with_side_job_removed(place)
-    elif "update" in request.GET:
-        picks = form.chosen_picks()
     elif "reroll_set" in request.GET:
         return _rerolled(request, form, here, extra)
     else:
@@ -161,6 +158,8 @@ def _render_generator(request, *, dialog=None, dialog_form=None, data=None):
     from n26.core.scenarios import parse, rolls_of
 
     data = request.GET if data is None else data
+    from n26.core.views.scenario_props import scenario_picks_props
+
     form = ScenarioGeneratorForm(request.GET)
     valid = form.is_valid()
     scenario, wrong = parse(data)
@@ -251,6 +250,7 @@ def _render_generator(request, *, dialog=None, dialog_form=None, data=None):
         "n26/generate_scenario.html",
         {
             "form": form,
+            "scenario_picks": scenario_picks_props(form),
             "scenario": scenario,
             "wrong": wrong,
             "rolls": rolls,

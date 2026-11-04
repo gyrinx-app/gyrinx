@@ -52,7 +52,8 @@ developer can maintain or extend it. For what the feature does, see
 | `n26/tests/test_views_scenario_side_jobs.py` | View tests for side job sets: the menus, adding and removing, rolling without repeats, older links, bold text, battles and the log. |
 | `n26/core/templates/n26/includes/scenario_picks.html` | The menus shared by both generators, including the side job menus. |
 | `n26/frontend/islands/scenario-reroll/` | The generators' **Reroll** dialog, which asks which set to roll a side job on. |
-| `n26/core/static/n26/scenario-picks.js` | Redraws a side job menu when a set or **Change set** is picked. |
+| `n26/frontend/islands/scenario-picks/` | The generators' controls, updated locally with selections retained in the URL. |
+| `n26/frontend/scenarios/` | The shared dependent set/job controls and URL history used by generators and battle panels. |
 
 ### Changed
 
@@ -135,16 +136,23 @@ Every redirect is built with `reverse(...)`.
 - Each side job's field is `<key>_pick` too. Its value is blank (choose a
   set, the default), `leave`, a set key to roll on that set, or `set-roll`
   for a named job. Older links' `roll` and bare rolls read as General.
-  `side_job_menus()` gives the template each menu's label and options;
-  options that redraw the menu are marked `switch`.
-- **Add side job**, each remove (dustbin) button, and a menu option marked `switch`
-  submit the form with `add_side_job`, `remove_side_job=N` or `update`.
-  `side_job_changes` in `n26/core/views/scenarios.py` redirects these to a
-  clean address keeping the scenario shown, anchored at
-  `#scenario-components`. `n26/core/static/n26/scenario-picks.js` presses the
-  hidden Update button when a `switch` option is chosen. Both generators use
-  `side_job_changes` and the shared include
-  `n26/core/templates/n26/includes/scenario_picks.html`.
+  `side_job_menus()` prepares a persistent set selector and a dependent job
+  selector for each slot. Native forms also submit `<key>_set`; changing it
+  resets a job from another set to a random roll. Canonical links keep the
+  existing encoded `<key>_pick` values.
+- The `scenario-picks` island owns both generators' controls. It uses the
+  shared `SideJobFields` component and `useScenarioPicks` hook, also used by
+  `battle-scenario`. Choices, adding and removing update local controls and
+  `history.pushState`, preserving results and unrelated query parameters.
+  `popstate` restores the controls for Back/Forward. No selection reloads
+  the page. Generation still submits the native GET form to Django.
+- The `scenario-link` island and the share control merge current pick
+  parameters into their action URLs. They subscribe to the shared query-change
+  event and Back/Forward, so Reroll, Print, Share and save/create actions retain
+  local edits while keeping their own results, connection and dialog parameters.
+- `includes/scenario_picks.html` retains native controls without JavaScript.
+  **Add side job** and **Remove side job** then submit `add_side_job` or
+  `remove_side_job=N`; `side_job_changes` redirects to the updated form.
 - A side job's **Reroll** link adds `reroll=<key>` to the address.
   `reroll_dialog` in `n26/core/views/scenarios.py` then gives the
   `scenario-reroll` island its props, and each side job's link for

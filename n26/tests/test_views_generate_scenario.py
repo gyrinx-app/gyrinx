@@ -87,6 +87,7 @@ def test_the_page_opens_with_three_components_to_roll_and_a_side_job_to_choose(
         "Deployment",
         "Objective",
         "Crew",
+        "Side job set",
         "Side job 1",
     ]
     assert form.picks() == {

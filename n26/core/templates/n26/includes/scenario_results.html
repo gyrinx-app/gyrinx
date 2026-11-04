@@ -1,4 +1,4 @@
-{% load static platform_tags %}
+{% load static platform_tags scenario_controls %}
 {% comment %}
 What each scenario table landed on: the table, the entry's name and
 roll, its description, and its map where it has one. Drawn by the
@@ -18,12 +18,9 @@ the link opens a dialog that asks which set to roll it on.
                         <p class="text-xs font-semibold uppercase tracking-wide text-muted">{{ result.heading }}</p>
                         {% with reroll=reroll_links|get_item:result.table.key %}
                             {% if reroll %}
-                                <c-ui.button href="{{ reroll }}"
-                                             variant="text"
-                                             size="sm"
-                                             aria-label="Reroll {{ result.heading }}">
-                                    Reroll
-                                </c-ui.button>
+                                {% with label="Reroll "|add:result.heading %}
+                                    {% scenario_link reroll "Reroll" variant="text" size="sm" aria_label=label %}
+                                {% endwith %}
                             {% endif %}
                         {% endwith %}
                     </div>

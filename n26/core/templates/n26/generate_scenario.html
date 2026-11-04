@@ -1,5 +1,5 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation react %}
+{% load navigation react scenario_controls %}
 {% comment %}
 The scenario generator outside a campaign, from the N26 menu, for campaign
 and skirmish play. The campaign's own generator is scenario_generator.html.
@@ -24,12 +24,13 @@ of the reader's campaigns the scenario is for.
     {% include "n26/_nav.html" with here="scenario" %}
 {% endblock %}
 {% block content %}
+    {% scenario_pick_keys as scenario_query %}
     <div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
         <c-n26.page-header title="Generate a scenario"
                            lead="Roll or choose components for a battle. Use the result to create a battle or connect it to an existing battle.">
             {% if scenario %}
                 <c-slot name="breadcrumb_actions">
-                    <c-n26.share :url="share_url" />
+                    <c-n26.share :url="share_url" :query_keys="scenario_query" />
                 </c-slot>
             {% endif %}
         </c-n26.page-header>
@@ -69,25 +70,17 @@ of the reader's campaigns the scenario is for.
                     {% endcomment %}
                     <div class="flex flex-wrap items-center justify-end gap-2 pt-4">
                         <c-n26.share :url="share_url"
+                                     :query_keys="scenario_query"
                                      label="Share result"
                                      size="sm"
                                      variant="ghost"
                                      :compact="False" />
-                        <c-ui.button href="{{ print_url }}">
-                            <span class="flex items-center justify-center gap-2">
-                                <c-n26.icon name="printer" class="size-4" />
-                                Print
-                            </span>
-                        </c-ui.button>
+                        {% scenario_link print_url "Print" icon="printer" %}
                         {% if may_connect %}
-                            <c-ui.button href="{{ save_url }}">
-                                Connect to battle
-                            </c-ui.button>
+                            {% scenario_link save_url "Connect to battle" variant="default" %}
                         {% endif %}
                         {% if may_record %}
-                            <c-ui.button variant="primary" href="{{ record_url }}">
-                                Create a battle
-                            </c-ui.button>
+                            {% scenario_link record_url "Create a battle" variant="primary" %}
                         {% endif %}
                     </div>
                 {% else %}

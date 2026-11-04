@@ -37,11 +37,11 @@ def generated(client, **picks):
     return response["Location"], query_of(response["Location"])
 
 
-def test_a_side_job_menu_lists_the_sets_until_one_is_picked(client, campaign):
+def test_a_side_job_has_a_set_menu_and_a_disabled_job_menu(client, campaign):
     response = client.get(reverse(GENERATOR))
     (menu,) = response.context["form"].side_job_menus()
     assert menu["label"] == "Side job 1"
-    assert [label for _, label, _ in menu["options"]] == [
+    assert [label for _, label in menu["set_options"]] == [
         "Choose a side job set",
         "Leave out",
         "General side jobs",
@@ -49,31 +49,39 @@ def test_a_side_job_menu_lists_the_sets_until_one_is_picked(client, campaign):
         "Goliath side jobs",
         "Orlock side jobs",
     ]
+    assert menu["disabled"]
+    assert menu["options"] == [("", "Choose a side job set first")]
+    assert response.context["scenario_picks"]["sideJobLimit"] == 6
+    assert 'data-react-name="scenario-picks"' in response.content.decode()
 
 
-def test_a_picked_set_lists_its_jobs_and_a_way_back(client, campaign):
+def test_a_picked_set_stays_visible_beside_its_jobs(client, campaign):
     response = client.get(reverse(GENERATOR), {"side_job_pick": "goliath-2"})
     (menu,) = response.context["form"].side_job_menus()
-    assert menu["label"] == "Side job 1: Goliath side jobs"
+    assert menu["label"] == "Side job 1"
+    assert menu["set_value"] == "goliath"
     assert menu["value"] == "goliath-2"
-    labels = [label for _, label, _ in menu["options"]]
+    labels = [label for _, label in menu["options"]]
     assert labels[0] == "Roll a D6"
     assert labels[2] == "2. Personal Vendetta"
-    assert labels[-1] == "Change set"
-    assert [value for value, _, switch in menu["options"] if switch] == [""]
+    assert "Change set" not in labels
+    assert len(menu["set_options"]) == 6
+    assert not menu["disabled"]
 
 
-def test_changing_a_menu_keeps_the_scenario_in_view(client, campaign):
+def test_a_native_form_can_change_sets_without_javascript(client, campaign):
+    _, query = generated(client, side_job_set="orlock", side_job_pick="escher-3")
+    assert query["side_job_pick"] == ["orlock"]
+    assert query["side_job"][0].startswith("orlock-")
+
+
+def test_an_unknown_job_is_not_hidden_by_the_selected_set(client, campaign):
     response = client.get(
         reverse(GENERATOR),
-        {"side_job_pick": "escher", "update": "1", "side_jobs": "1", "crew": "2"},
+        {"generate": "1", "side_job_set": "escher", "side_job_pick": "no-such-job"},
     )
-    assert response.status_code == 302
-    assert response["Location"].endswith("#scenario-components")
-    assert query_of(response["Location"]) == {
-        "side_job_pick": ["escher"],
-        "crew": ["2"],
-    }
+    assert response.status_code == 200
+    assert "side_job_pick" in response.context["form"].errors
 
 
 def test_add_side_job_adds_a_menu_up_to_the_limit(client, campaign):
@@ -398,16 +406,13 @@ def test_a_link_with_side_jobs_but_no_menus_keeps_them_on_generate_again(
     assert query["side_job_2"][0].startswith("goliath-")
 
 
-def test_change_set_on_the_only_side_job_is_not_undone(client, campaign):
+def test_clearing_the_only_set_is_not_undone_by_existing_results(client, campaign):
     response = client.get(
         reverse(GENERATOR),
-        {"side_job": "escher-3", "side_job_pick": "", "side_jobs": "1", "update": "1"},
+        {"side_job": "escher-3", "side_job_pick": "", "side_jobs": "1"},
     )
-    query = query_of(response["Location"])
-    assert query["side_jobs"] == ["1"]
-    assert "side_job_pick" not in query
-    page = client.get(response["Location"])
-    assert page.context["form"].side_job_menus()[0]["value"] == ""
+    assert response.context["form"].chosen_picks()["side_jobs"] == 1
+    assert response.context["scenario_picks"]["sidePicks"] == [""]
 
 
 def test_a_preview_reroll_never_returns_the_side_job_it_replaces(client, campaign):

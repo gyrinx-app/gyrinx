@@ -1,5 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
+import {
+    fireEvent,
+    render,
+    screen,
+    waitFor,
+    within,
+} from "@testing-library/react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { BattleScenario, type BattleScenarioProps } from "./BattleScenario";
 const props: BattleScenarioProps = {
     rollUrl: "/n26/scenario/",
@@ -31,6 +37,7 @@ const props: BattleScenarioProps = {
         },
     ],
 };
+beforeEach(() => window.history.replaceState(null, "", "/"));
 afterEach(() => vi.unstubAllGlobals());
 it("generates an optional scenario without changing the battle name", async () => {
     const request = vi.fn().mockResolvedValue({
@@ -263,15 +270,15 @@ it("picks a set, then a job from it, for each side job", async () => {
     });
     vi.stubGlobal("fetch", request);
     const { container } = render(<BattleScenario {...withSideJobs} />);
-    fireEvent.change(screen.getByLabelText("Side job 1"), {
+    fireEvent.change(screen.getByLabelText("Side job 1 set"), {
         target: { value: "escher" },
     });
-    const escher = screen.getByLabelText("Side job 1: Escher side jobs");
+    const escher = screen.getByLabelText("Side job 1");
     expect(
         [...(escher as HTMLSelectElement).options].map((option) => option.text),
-    ).toEqual(["Roll a D6", "5. Experimental Chem", "Change set"]);
+    ).toEqual(["Roll a D6", "5. Experimental Chem"]);
     fireEvent.click(screen.getByRole("button", { name: "+ Add side job" }));
-    fireEvent.change(screen.getByLabelText("Side job 2"), {
+    fireEvent.change(screen.getByLabelText("Side job 2 set"), {
         target: { value: "general" },
     });
     fireEvent.click(screen.getByRole("button", { name: "+ Add side job" }));
@@ -349,7 +356,7 @@ it("rerolls one side job on the set chosen and keeps the rest", async () => {
         screen.getByRole("button", { name: "Reroll Side job 2 (General)" }),
     );
     const dialog = screen.getByRole("dialog", { name: "Reroll side job 2" });
-    const menu = screen.getByLabelText("Side job set");
+    const menu = within(dialog).getByLabelText("Side job set");
     expect(menu).toHaveProperty("value", "general");
     expect(dialog.closest("section")).toBeNull();
     fireEvent.change(menu, { target: { value: "escher" } });
@@ -363,9 +370,10 @@ it("rerolls one side job on the set chosen and keeps the rest", async () => {
     expect(url.searchParams.get("side_job_2")).toBe("general-2");
     expect(url.searchParams.get("generate")).toBeNull();
     // The menu that gave that side job now rolls on its new set.
-    expect(
-        screen.getByLabelText("Side job 2: Escher side jobs"),
-    ).toHaveProperty("value", "escher");
+    expect(screen.getByLabelText("Side job 2 set")).toHaveProperty(
+        "value",
+        "escher",
+    );
     expect(screen.queryByRole("dialog")).toBeNull();
     await screen.findAllByText("Side job 2 (Escher)");
 });
@@ -385,12 +393,14 @@ it("keeps a saved battle's side jobs when generating again", async () => {
             rolls={{ side_job: "escher-5", side_job_2: "2" }}
         />,
     );
-    expect(
-        screen.getByLabelText("Side job 1: Escher side jobs"),
-    ).toHaveProperty("value", "escher");
-    expect(
-        screen.getByLabelText("Side job 2: General side jobs"),
-    ).toHaveProperty("value", "general");
+    expect(screen.getByLabelText("Side job 1 set")).toHaveProperty(
+        "value",
+        "escher",
+    );
+    expect(screen.getByLabelText("Side job 2 set")).toHaveProperty(
+        "value",
+        "general",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Generate again" }));
     await waitFor(() => expect(request).toHaveBeenCalled());
     const url = new URL(request.mock.calls[0][0]);

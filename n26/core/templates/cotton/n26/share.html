@@ -8,6 +8,7 @@ If clipboard is missing or the copy fails, the browser navigates to the URL inst
 AbortError from the share sheet is ignored.
 Pass a path. The button shares the link's own href, which the browser has already made absolute.
 label defaults to Share. compact False keeps the label visible and uses the button size without breadcrumb overrides.
+query_keys retains named query parameters from the current address as controls update it.
 The word Share is hidden below sm when compact is True. Keep the aria-label so a reader who cannot see the icon still hears the name.
 The padding overrides keep this 20px tall so it can sit on the breadcrumb row.
 A button's own padding is 29px and would push the heading down.
@@ -24,8 +25,9 @@ Change the size prop and these measurements need doing again.
     size="xs"
     variant="ghost"
     class=""
+    query_keys=""
 />
-{% share_props url=url message=message size=size variant=variant label=label compact=compact as props_ %}
+{% share_props url=url message=message size=size variant=variant label=label compact=compact query_keys=query_keys as props_ %}
 {% share_host_class class as host_class %}
 {% react_host "share" props_ class=host_class %}
     <c-ui.button size="{{ size }}" variant="{{ variant }}" href="{{ url }}"

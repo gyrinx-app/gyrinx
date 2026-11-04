@@ -59,20 +59,23 @@ The page has one drop-down list for each table. Each list offers:
 - **Leave out**, for a component the players already have covered
 - any of the table's six entries, chosen by name
 
-The side job lists come last, after Crew. A side job's list first offers:
+The side job controls come last, after Crew. Each side job has two lists.
+**Side job set** offers:
 
 - **Choose a side job set**, the default, which adds no side job
 - **Leave out**
 - **General side jobs**, **Escher side jobs**, **Goliath side jobs** and
   **Orlock side jobs**
 
-Once a set is picked, the same list shows **Roll a D6**, that set's six jobs
-and, at the bottom, **Change set**, which goes back to the list of sets.
+**Side job** offers **Roll a D6** and the selected set's six jobs. It is disabled
+until a set is selected. Both lists stay visible, so you can change sets at any
+time. Changing the set resets its job to **Roll a D6**.
 
-**Add side job** below the last list adds another, up to six. Each side job
-list after the first has a dustbin button that removes it; the later side jobs
-move up. Without JavaScript, picking a set and pressing **Generate scenario**
-rolls on that set.
+**Add side job** adds another pair, up to six. **Remove side job** removes an
+extra pair; the later side jobs move up. Selecting, adding and removing update
+the controls and the URL without reloading the page. Reload and Back/Forward
+restore the selections. Without JavaScript, selecting a set and pressing
+**Generate scenario** rolls on that set.
 
 **Generate scenario** shows the result. The result gives each component its
 name, its number, its full description and, for Deployment, its map. Your

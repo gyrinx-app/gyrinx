@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { SideJobFields } from "../../scenarios/SideJobFields";
+import { useScenarioPicks } from "../../scenarios/useScenarioPicks";
 import {
     Button,
     ButtonLink,
     Dialog,
     Field,
     FormActions,
-    Icon,
     NativeSelect,
 } from "../../ui";
 
@@ -69,22 +70,19 @@ export type BattleScenarioProps = {
 export function BattleScenario(props: BattleScenarioProps) {
     const [rolls, setRolls] = useState(props.rolls);
     const [revision, setRevision] = useState(props.save?.revision);
-    const [picks, setPicks] = useState<Record<string, string>>({});
     const sideJobKeys = props.sideJobKeys ?? [];
     const sideJobSets = props.sideJobSets ?? [];
-    // A saved battle's side jobs each start with a menu rolling on their
-    // set, so Generate again keeps them.
-    const [sidePicks, setSidePicks] = useState<string[]>(() => {
-        const sets = sideJobKeys.flatMap((key) => {
-            const value = props.rolls[key];
-            if (!value) return [];
-            const set = setOf(
-                value.includes("-") ? value : "general",
-                sideJobSets,
-            );
-            return set ? [set.key] : [];
-        });
-        return sets.length ? sets : [""];
+    const initialSidePicks = sideJobKeys.flatMap((key) => {
+        const value = props.rolls[key];
+        if (!value) return [];
+        const set = setOf(value.includes("-") ? value : "general", sideJobSets);
+        return set ? [set.key] : [];
+    });
+    const { picks, sidePicks, setPicks, setSidePicks } = useScenarioPicks({
+        tableKeys: props.tables.map((table) => table.key),
+        sideJobKeys,
+        limit: props.sideJobLimit ?? 6,
+        initialSidePicks: initialSidePicks.length ? initialSidePicks : [""],
     });
     const [pending, setPending] = useState(false);
     const [error, setError] = useState("");
@@ -359,122 +357,20 @@ export function BattleScenario(props: BattleScenarioProps) {
                             </NativeSelect>
                         </Field>
                     ))}
-                    {sideJobKeys.length > 0 &&
-                        sidePicks.map((pick, index) => {
-                            const set = setOf(pick, sideJobSets);
-                            const id = `preview-${sideJobKeys[index]}`;
-                            return (
-                                <Field
-                                    key={index}
-                                    label={
-                                        set
-                                            ? `Side job ${index + 1}: ${set.label}`
-                                            : `Side job ${index + 1}`
-                                    }
-                                    htmlFor={id}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <div className="min-w-0 flex-1">
-                                            <NativeSelect
-                                                id={id}
-                                                disabled={pending}
-                                                value={pick}
-                                                onChange={(event) =>
-                                                    setSidePicks(
-                                                        sidePicks.map(
-                                                            (each, at) =>
-                                                                at === index
-                                                                    ? event
-                                                                          .target
-                                                                          .value
-                                                                    : each,
-                                                        ),
-                                                    )
-                                                }
-                                            >
-                                                {set ? (
-                                                    <>
-                                                        <option value={set.key}>
-                                                            Roll a D6
-                                                        </option>
-                                                        {set.entries.map(
-                                                            (entry) => (
-                                                                <option
-                                                                    key={
-                                                                        entry.roll
-                                                                    }
-                                                                    value={`${set.key}-${entry.roll}`}
-                                                                >
-                                                                    {`${entry.roll}. ${entry.name}`}
-                                                                </option>
-                                                            ),
-                                                        )}
-                                                        <option value="">
-                                                            Change set
-                                                        </option>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <option value="">
-                                                            Choose a side job
-                                                            set
-                                                        </option>
-                                                        <option value="leave">
-                                                            Leave out
-                                                        </option>
-                                                        {sideJobSets.map(
-                                                            (each) => (
-                                                                <option
-                                                                    key={
-                                                                        each.key
-                                                                    }
-                                                                    value={
-                                                                        each.key
-                                                                    }
-                                                                >
-                                                                    {each.label}
-                                                                </option>
-                                                            ),
-                                                        )}
-                                                    </>
-                                                )}
-                                            </NativeSelect>
-                                        </div>
-                                        {index > 0 && (
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                disabled={pending}
-                                                aria-label={`Remove side job ${index + 1}`}
-                                                title={`Remove side job ${index + 1}`}
-                                                onClick={() =>
-                                                    setSidePicks(
-                                                        sidePicks.filter(
-                                                            (_, at) =>
-                                                                at !== index,
-                                                        ),
-                                                    )
-                                                }
-                                            >
-                                                <Icon name="trash-2" />
-                                            </Button>
-                                        )}
-                                    </div>
-                                </Field>
-                            );
-                        })}
                 </div>
-                {sideJobKeys.length > 0 &&
-                    sidePicks.length < (props.sideJobLimit ?? 6) && (
-                        <Button
-                            size="sm"
-                            className="mt-3"
+                {sideJobKeys.length > 0 && (
+                    <div className="mt-4">
+                        <SideJobFields
+                            prefix="preview"
+                            picks={sidePicks}
+                            sets={sideJobSets}
+                            keys={sideJobKeys}
+                            limit={props.sideJobLimit ?? 6}
                             disabled={pending}
-                            onClick={() => setSidePicks([...sidePicks, ""])}
-                        >
-                            + Add side job
-                        </Button>
-                    )}
+                            onChange={setSidePicks}
+                        />
+                    </div>
+                )}
             </details>
             {error && (
                 <p
