@@ -53,7 +53,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
-it("starts empty and offers only individual selection", () => {
+it("starts with nothing selected and release disabled", () => {
     render(<StagedContent {...props} />);
     expect(screen.getAllByRole("checkbox")).toHaveLength(3);
     expect(
@@ -68,6 +68,39 @@ it("starts empty and offers only individual selection", () => {
     ).toBe(true);
     expect(screen.queryByRole("checkbox", { name: /all/i })).toBeNull();
     expect(screen.queryByText("Put everything live")).toBeNull();
+});
+
+it("selects all loaded entries, allows exclusions and clears the selection", async () => {
+    const user = userEvent.setup();
+    render(<StagedContent {...props} />);
+    await user.click(screen.getByRole("button", { name: "Select all" }));
+    expect(
+        screen
+            .getAllByRole<HTMLInputElement>("checkbox")
+            .every((box) => box.checked),
+    ).toBe(true);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("status").textContent).toContain("3 selected");
+    await user.click(screen.getByRole("checkbox", { name: "Select Parry" }));
+    await user.click(screen.getByRole("button", { name: "Put selected live" }));
+    expect(
+        new FormData(screen.getByRole("dialog").querySelector("form")!).getAll(
+            "selection",
+        ),
+    ).toEqual(["weapon:one", "weapon:two"]);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Select all" }));
+    await user.click(screen.getByRole("button", { name: "Clear selection" }));
+    expect(
+        screen
+            .getAllByRole<HTMLInputElement>("checkbox")
+            .every((box) => !box.checked),
+    ).toBe(true);
+    expect(
+        screen.getByRole<HTMLButtonElement>("button", {
+            name: "Put selected live",
+        }).disabled,
+    ).toBe(true);
 });
 
 it("confirms exact mixed-kind IDs and keeps duplicate names independent", async () => {

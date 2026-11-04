@@ -57,6 +57,7 @@ export function StagedContent(props: StagedContentProps) {
         return () => window.removeEventListener("pageshow", restored);
     }, []);
     const chosen = rows.filter((row) => selected.has(row.id));
+    const allSelected = chosen.length === rows.length;
     const csrf = (
         <input
             type="hidden"
@@ -85,6 +86,21 @@ export function StagedContent(props: StagedContentProps) {
                             </Button>
                         }
                     >
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                                setSelected(
+                                    new Set(
+                                        allSelected
+                                            ? []
+                                            : rows.map((row) => row.id),
+                                    ),
+                                )
+                            }
+                        >
+                            {allSelected ? "Clear selection" : "Select all"}
+                        </Button>
                         <span role="status" className="text-sm text-muted">
                             {chosen.length} selected · {rows.length}{" "}
                             {rows.length === 1 ? "thing" : "things"} staged

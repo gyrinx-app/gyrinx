@@ -83,7 +83,9 @@ authoring pages, where a staged row carries a **Staged** badge.
   staged, kind by kind, with **Put live** beside each entry. Tick the
   entries you want to release and use **Put selected live**. Review the
   selected names before confirming. The selected content goes live together
-  or none of it does. Related content must be selected separately.
+  or none of it does. **Select all** ticks every entry loaded on the page;
+  you can then untick individual entries or use **Clear selection**.
+  Related content must be selected separately.
 
 ## Working on a new book
 
