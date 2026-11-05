@@ -43,6 +43,7 @@
  * print.css for fragmentation constraints.
  */
 @import "./print.css";
+@import "./share-card.css";
 
 /*
  * Emit the full palette because components can resolve arbitrary shades through CSS

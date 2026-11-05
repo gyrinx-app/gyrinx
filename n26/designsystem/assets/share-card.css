@@ -1,0 +1,134 @@
+/* The Share card dialog, drawn like the new card style: a bevelled frame with
+ * a striped band, a dark nameplate behind the title and a paper body. The
+ * geometry and colours copy the Gang Tactics cards (tactics.css, PR 3020); move
+ * both onto one shared set of rules when the new model card style reaches main.
+ * Unlayered, so these rules beat the dialog's own utilities. */
+.n26-share-dialog {
+    --share-ink: var(--color-ink-900);
+    --share-plate: var(--color-black);
+    --share-background: var(--color-white);
+    --share-texture:
+        linear-gradient(#ffffffad, #ffffffad), url("./print/tactics-paper.jpg");
+    --share-frame: var(--color-box-border);
+    --share-outline: var(--color-ink-400);
+    --share-button: rgb(255 255 255 / 50%);
+    --share-bevel-top: 10px;
+    --share-bevel-bottom: 20px;
+    --share-band: 16px;
+    border: 0;
+    border-radius: 0 var(--share-bevel-top) var(--share-bevel-bottom) 0;
+    corner-shape: bevel;
+    background: transparent;
+    color: var(--share-ink);
+    color-scheme: light;
+    isolation: isolate;
+    padding-top: var(--share-band);
+    box-shadow:
+        0 2px 4px #1c19171a,
+        0 12px 32px #1c19172e;
+}
+/* The paper, clipped to the bevelled corners. */
+.n26-share-dialog::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    clip-path: polygon(
+        0 0,
+        calc(100% - var(--share-bevel-top)) 0,
+        100% var(--share-bevel-top),
+        100% calc(100% - var(--share-bevel-bottom)),
+        calc(100% - var(--share-bevel-bottom)) 100%,
+        0 100%
+    );
+    background: var(--share-background);
+    background-image: var(--share-texture);
+    background-position: center;
+    background-size: cover;
+    box-shadow: inset 0 0 0 1px var(--share-outline);
+    pointer-events: none;
+}
+/* The striped band along the top edge. */
+.n26-share-dialog::before {
+    content: "";
+    position: absolute;
+    inset: 1px 1px auto;
+    height: calc(var(--share-band) - 1px);
+    border-radius: 0 var(--share-bevel-top) 0 0;
+    corner-shape: bevel;
+    background-color: color-mix(
+        in srgb,
+        var(--share-frame) 25%,
+        var(--share-background)
+    );
+    background-image: repeating-linear-gradient(
+        -45deg,
+        transparent 0 5px,
+        var(--share-frame) 5px 10px
+    );
+    pointer-events: none;
+}
+.n26-share-dialog > form {
+    padding-top: 0;
+}
+/* The title sits on a dark nameplate, full width, with a torn lower edge. */
+.n26-share-dialog h2 {
+    position: relative;
+    isolation: isolate;
+    margin-inline: -1.5rem;
+    margin-bottom: 0.75rem;
+    padding: 0.75rem 1.5rem 0.875rem;
+    color: var(--color-white);
+    font-size: 1.125rem;
+    font-weight: 650;
+}
+.n26-share-dialog h2::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 -3px;
+    z-index: -1;
+    background: var(--share-plate);
+    /* Fill the top of the paper mask to leave only its torn lower edge. */
+    mask:
+        linear-gradient(#000 0 0) top / 100% calc(100% - 6px) no-repeat,
+        url("./print/nameplate.png") center / 100% 100% no-repeat;
+}
+/* Buttons follow the cards' Save notes button: an ink outline with the
+ * lower right corner cut off. */
+.n26-share-button {
+    border: 1px solid var(--share-ink);
+    border-radius: 0 0 10px 0;
+    corner-shape: bevel;
+    background: var(--share-button);
+    color: var(--share-ink);
+    font-weight: 650;
+    box-shadow: none;
+}
+.n26-share-button:not(:disabled):hover {
+    background: color-mix(in srgb, var(--share-ink) 10%, var(--share-button));
+}
+.n26-share-button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+.n26-share-button:focus-visible {
+    outline: 2px solid var(--share-ink);
+    outline-offset: 2px;
+}
+
+.dark .n26-share-dialog {
+    color-scheme: dark;
+    --share-ink: var(--color-ink-100);
+    --share-plate: color-mix(in srgb, var(--color-ink-500) 33%, transparent);
+    --share-background: var(--color-black);
+    --share-texture: none;
+    --share-outline: var(--color-box-border);
+    --share-button: transparent;
+}
+.dark .n26-share-dialog h2 {
+    box-shadow: inset 0 0 0 1px var(--color-ink-500);
+}
+.dark .n26-share-button {
+    color: var(--color-ink-300);
+    border-color: currentColor;
+}

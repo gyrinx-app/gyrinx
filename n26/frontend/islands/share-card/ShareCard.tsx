@@ -342,6 +342,7 @@ function ShareDialog({
     return (
         <Dialog
             title={LABEL}
+            className="n26-share-dialog"
             lead={`Show ${name}’s card on another website, or send it as a picture or a link.`}
             onDismiss={onDismiss}
             onSubmit={(event) => event.preventDefault()}
@@ -353,7 +354,7 @@ function ShareDialog({
                         <Button
                             onClick={sharePicture}
                             disabled={!picture}
-                            className="w-full"
+                            className="n26-share-button w-full"
                         >
                             Share picture
                         </Button>
@@ -365,7 +366,10 @@ function ShareDialog({
                     </div>
                 )}
                 <div className="grid gap-1">
-                    <Button onClick={shareLink} className="w-full">
+                    <Button
+                        onClick={shareLink}
+                        className="n26-share-button w-full"
+                    >
                         Share link
                     </Button>
                     <p className="text-sm text-muted">
@@ -373,7 +377,10 @@ function ShareDialog({
                     </p>
                 </div>
                 <div className="grid gap-1">
-                    <Button onClick={copyHtml} className="w-full">
+                    <Button
+                        onClick={copyHtml}
+                        className="n26-share-button w-full"
+                    >
                         Embed HTML
                     </Button>
                     <p className="text-sm text-muted">
@@ -383,7 +390,10 @@ function ShareDialog({
                 </div>
                 {copies && (
                     <div className="grid gap-1">
-                        <Button onClick={copyImage} className="w-full">
+                        <Button
+                            onClick={copyImage}
+                            className="n26-share-button w-full"
+                        >
                             Copy image
                         </Button>
                         <p className="text-sm text-muted">
