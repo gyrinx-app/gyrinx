@@ -1,0 +1,11 @@
+asgiref==3.12.1
+bleach==6.4.0
+django==6.0.7
+django-cotton==2.7.2
+django-cotton-ui==0.3.4
+pillow==12.3.0
+sqlparse==0.6.0
+tinycss2==1.5.1
+webencodings==0.6.1
+lucide==1.1.4
+defusedxml==0.7.1

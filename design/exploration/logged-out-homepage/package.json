@@ -1,0 +1,27 @@
+{
+  "name": "gyrinx-logged-out-homepage-exploration",
+  "private": true,
+  "type": "module",
+  "overrides": {
+    "@parcel/watcher": "^2.6.0"
+  },
+  "scripts": {
+    "build": "python prepare.py && vite build --config vite.homepage.config.js && tailwindcss --input src/homepage-theme.css --output public/homepage.css --minify",
+    "start": "python server.py",
+    "check": "node check_homepage.mjs",
+    "format": "prettier --write src/*.{jsx,css} *.mjs *.js *.json",
+    "format:check": "prettier --check src/*.{jsx,css} *.mjs *.js *.json"
+  },
+  "dependencies": {
+    "lucide-react": "^1.53.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.3.0",
+    "playwright": "^1.0.0",
+    "prettier": "3.9.10",
+    "tailwindcss": "4.3.0",
+    "vite": "^7.0.0"
+  }
+}
