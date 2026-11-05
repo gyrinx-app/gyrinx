@@ -1,0 +1,8 @@
+node_modules/
+dist/
+qa/
+__pycache__/
+src/cotton.json
+src/campaign-base.json
+src/theme.css
+src/cotton-ui.sources.css
