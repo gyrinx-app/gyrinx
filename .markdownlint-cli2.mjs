@@ -28,7 +28,7 @@ const options = {
         ["markdownlint-cli2-formatter-pretty", { appendLink: true }],
     ],
     ignores: [
-        "node_modules",
+        "**/node_modules",
         "CHANGELOG.md",
         ".claude",
         "staticfiles",

@@ -1,0 +1,53 @@
+from django.contrib.auth.models import Group
+from django.contrib.flatpages.models import FlatPage
+from django.db import models
+
+
+class Document(models.Model):
+    title = models.CharField(max_length=200)
+    body = models.TextField(blank=True)
+
+    def __str__(self):
+        return self.title
+
+
+class FlatPageOptions(models.Model):
+    """Local counterparts of Gyrinx's page sidecars, without production dependencies."""
+
+    page = models.OneToOneField(
+        FlatPage, on_delete=models.CASCADE, related_name="options"
+    )
+    introduction = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="Introduction",
+        help_text="Shown at the top of the page, above the contents list and the page content. Optional.",
+    )
+    show_contents = models.BooleanField(
+        default=False,
+        verbose_name="Show contents",
+        help_text="Show a list of the page's headings above the content.",
+    )
+
+    class Meta:
+        verbose_name = "flat page options"
+        verbose_name_plural = "flat page options"
+
+    def __str__(self):
+        return f"Options for {self.page}"
+
+
+class FlatPageVisibility(models.Model):
+    page = models.ForeignKey(FlatPage, on_delete=models.CASCADE)
+    groups = models.ManyToManyField(
+        Group,
+        verbose_name="Visible to Groups",
+        help_text="Select the groups allowed by this rule. A rule with no groups grants no access. Other rules can still allow access to the page.",
+    )
+
+    class Meta:
+        verbose_name = "flat page visibility rule"
+        verbose_name_plural = "flat page visibility rules"
+
+    def __str__(self):
+        return f"Visibility for {self.page}"
