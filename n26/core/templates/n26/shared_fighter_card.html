@@ -1,0 +1,36 @@
+{% load static %}
+{% comment %}
+One fighter's card, framed by another website. A page of its own rather
+than an extension of the site layout: a framed page carries no navigation,
+and the other site sizes the frame, so the card fills its width. The card
+is drawn as a reader who does not own the gang sees it, without the Lore
+and Notes tabs, so there is nothing on it to click. Links open in a new tab
+because the frame is too small to browse Gyrinx in. No colour-mode toggle:
+the frame sits on the other site's page, which is usually light.
+{% endcomment %}<!DOCTYPE html>
+<html lang="en-gb">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="robots" content="noindex">
+        <title>{{ card.name }} · {{ gang.name }} | Gyrinx</title>
+        <meta property="og:type" content="website">
+        <meta property="og:site_name" content="Gyrinx">
+        <meta property="og:title" content="{{ card.name }} – {{ gang.name }}">
+        <base target="_blank">
+        <link rel="stylesheet" href="https://use.typekit.net/rso6ezl.css">
+        <link rel="stylesheet" href="{% static 'designsystem/app.css' %}">
+    </head>
+    <body class="bg-surface text-ink-900">
+        <main class="flex flex-col gap-2 p-2 sm:p-3">
+            {# The owner's Copy image takes its picture of this element. #}
+            <div data-shared-card>
+                <c-n26.model-card :card="card" mode="view" :tabs="False" />
+            </div>
+            <footer class="text-xs text-muted">
+                <a class="underline" href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</a>
+                · Updated live from <a class="underline" href="https://gyrinx.app/">Gyrinx</a>
+            </footer>
+        </main>
+    </body>
+</html>

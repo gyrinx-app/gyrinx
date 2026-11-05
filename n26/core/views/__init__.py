@@ -137,6 +137,7 @@ from n26.core.views.scenarios import (
     record_scenario_battle,
     save_scenario_to_campaign,
 )
+from n26.core.views.shared_cards import shared_fighter_card
 from n26.core.views.skills import skills
 from n26.core.views.switchers import switcher_page
 from n26.core.views.trade_points import fighter_hire_time_action
@@ -256,6 +257,7 @@ __all__ = [
     "rename_fighter",
     "restore_offer",
     "sell_assignment",
+    "shared_fighter_card",
     "switcher_page",
     "tally_counter",
     "invite_user",

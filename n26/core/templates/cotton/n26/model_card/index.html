@@ -12,10 +12,11 @@ card.collections and card.effects are on the structure and are not drawn.
 An empty href draws nothing. A print sheet or hire preview that passes none cannot be clicked.
 card.base_rating_href offers a pencil beside the total rating on the owner's Edit page.
 card.rename_href lets the name pencil fetch a dialog on the owner's Edit page.
+card.share_card draws the owner's Share card control, a React island that copies the card as an embed or a picture.
 status_hx needs the host in n26/includes/status_dialogs.html.
 {% endcomment %}
 
-{% load richtext theme %}
+{% load react richtext theme %}
 <c-vars
     :card="None"
     mode="gang"
@@ -120,7 +121,7 @@ status_hx needs the host in n26/includes/status_dialogs.html.
                     {% include "n26/includes/model_rating.html" with rating_id=card.id rating=card.rating rating_name=card.name rating_href=card.base_rating_href rating_override=card.rating_override rating_breakdown=card.rating_breakdown %}
                 </div>
 
-                {% if actions or card.image_url or card.model_cards_href %}
+                {% if actions or card.image_url or card.model_cards_href or card.share_card %}
 
                     <div class="col-start-2 row-start-2 flex min-w-0 flex-wrap items-center justify-end">
                         {% if card.image_url %}
@@ -154,6 +155,20 @@ status_hx needs the host in n26/includes/status_dialogs.html.
                                 </c-ui.button>
                                 <c-slot name="content">Model cards</c-slot>
                             </c-ui.tooltip>
+                        {% endif %}
+                        {% if card.share_card %}
+                            {# Without script, the icon opens the card's own page. #}
+                            {% react_host "share-card" card.share_card class="inline-flex" %}
+                                <c-ui.button size="xs"
+                                             variant="ghost" :compact="True"
+                                             href="{{ card.share_card.cardUrl }}"
+                                             aria-label="Share card"
+                                             title="Share card">
+                                    <span class="n26-icon-only">
+                                        <c-n26.icon name="share-2" class="size-3.5" />
+                                    </span>
+                                </c-ui.button>
+                            {% endreact_host %}
                         {% endif %}
                         {{ actions }}
                     </div>
