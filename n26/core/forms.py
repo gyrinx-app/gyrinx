@@ -766,6 +766,7 @@ class BattleOutcomeForm(forms.Form):
                 self.add_error(None, exc)
         return cleaned
 
+
 class MatchmakerForm(forms.Form):
     """The arbitrator's choice of gangs and matchup rules for a random draw.
 
