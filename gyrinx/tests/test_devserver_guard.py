@@ -251,7 +251,13 @@ def run_ready(monkeypatch, settings, *, guard_on, run_main, argv):
     else:
         monkeypatch.delenv("RUN_MAIN", raising=False)
     monkeypatch.setattr("sys.argv", argv)
+    watched = []
+    monkeypatch.setattr(
+        "gyrinx.devserver.python_watch.install",
+        lambda root: watched.append(root),
+    )
     apps.get_app_config("gyrinx_devserver").ready()
+    return watched
 
 
 def test_the_guard_starts_in_the_process_that_serves(monkeypatch, settings, started):
@@ -284,8 +290,51 @@ def test_the_guard_skips_the_autoreloaders_parent(monkeypatch, settings, started
 
 def test_the_guard_stays_off_unless_settings_turn_it_on(monkeypatch, settings, started):
     argv = ["manage", "runserver"]
-    run_ready(monkeypatch, settings, guard_on=False, run_main=True, argv=argv)
+    watched = run_ready(monkeypatch, settings, guard_on=False, run_main=True, argv=argv)
     assert started == []
+    assert watched == []
+
+
+def test_the_source_watch_starts_in_the_process_that_serves(
+    monkeypatch, settings, started
+):
+    watched = run_ready(
+        monkeypatch,
+        settings,
+        guard_on=True,
+        run_main=True,
+        argv=["manage", "runserver"],
+    )
+    assert len(started) == 1
+    assert watched == [settings.BASE_DIR]
+
+
+def test_the_source_watch_stays_off_without_the_autoreloader(
+    monkeypatch, settings, started
+):
+    watched = run_ready(
+        monkeypatch,
+        settings,
+        guard_on=True,
+        run_main=False,
+        argv=["manage", "runserver", "--noreload"],
+    )
+    assert len(started) == 1
+    assert watched == []
+
+
+def test_the_source_watch_stays_off_in_the_autoreloader_parent(
+    monkeypatch, settings, started
+):
+    watched = run_ready(
+        monkeypatch,
+        settings,
+        guard_on=True,
+        run_main=False,
+        argv=["manage", "runserver"],
+    )
+    assert started == []
+    assert watched == []
 
 
 def test_a_server_over_its_limit_restarts_under_the_autoreloader():
