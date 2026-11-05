@@ -1,11 +1,23 @@
 import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
+
+import { resolveCheckoutModule } from "./n26/frontend/tooling/checkout_module.mjs";
 
 const repositoryRoot = fileURLToPath(new URL(".", import.meta.url));
 const frontendRoot = resolve(repositoryRoot, "n26/frontend");
 const islandsRoot = resolve(frontendRoot, "islands");
+
+function checkoutReact(checkout: string): Plugin {
+    return {
+        name: "checkout-react",
+        enforce: "pre",
+        resolveId(source) {
+            return resolveCheckoutModule(checkout, source);
+        },
+    };
+}
 
 const entries = Object.fromEntries(
     readdirSync(islandsRoot, { withFileTypes: true })
@@ -22,6 +34,7 @@ export default defineConfig(({ mode }) => {
     return {
         root: frontendRoot,
         base: "./",
+        plugins: [checkoutReact(repositoryRoot)],
         build: {
             outDir: resolve(repositoryRoot, "n26/core/static/n26/react"),
             emptyOutDir: true,

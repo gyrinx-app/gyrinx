@@ -75,6 +75,8 @@ the generated image out of git and check it for private data before uploading.
 - `dev.sh`: Starts the full development environment — forks the per-worktree database, runs
   migrations, and launches Django plus `npm run watch`. The single command you use day-to-day.
   Pass `--setup-only` to prepare a worktree without starting Django or `npm run watch`.
+  It skips `npm run js:dev` when the development build is already current, and it
+  stops when `react-dom` resolves outside this checkout.
   See [docs/useful-scripts.md](../docs/useful-scripts.md) for the other flags.
 - `setup-local-postgres.sh`: One-time machine setup. Installs PostgreSQL 16 via Homebrew (macOS),
   initialises the cluster with ICU collation, and migrates data from any pre-existing Docker

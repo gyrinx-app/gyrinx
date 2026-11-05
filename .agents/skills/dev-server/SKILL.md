@@ -24,11 +24,23 @@ This single command:
 1. Ensures local Postgres is running
 2. Creates/forks the database if needed
 3. Runs pending migrations
-4. Runs `npm install` if `node_modules` is missing or out of date (vs. `package*.json`)
-5. Runs an **initial** `npm run css` build if `styles.css` is missing or stale
-6. Starts `npm run watch` in the background (watches scss/html → rebuilds CSS on change)
-7. Starts Django `runserver` in the foreground
-8. Logs to `./logs/runserver.log`, `./logs/npm-watch.log`, and `./logs/npm-css-build.log`
+4. Runs `npm install` if `node_modules` is missing, out of date (vs. `package*.json`), or has no `react-dom`
+5. Runs `npm run js:dev` unless this checkout already has a current development build
+6. Runs an **initial** `npm run css` build if `styles.css` is missing or stale
+7. Starts `npm run watch` in the background (watches scss/html → rebuilds CSS on change)
+8. Starts Django `runserver` in the foreground
+9. Logs to `./logs/runserver.log`, `./logs/npm-watch.log`, `./logs/npm-js-build.log`, and `./logs/npm-css-build.log`
+
+`react-dom` has to be inside this checkout. If `./scripts/dev.sh` stops because
+that package resolves outside the checkout, remove this checkout's
+`node_modules` and run `npm ci --no-audit --no-fund` here. Do not edit the
+other checkout's `node_modules`. A concurrent install there can leave
+`react-dom-client.development.js` half-written, and the development build
+fails with `Unterminated string`.
+
+A current development build prints `React ready:` with `(development build is
+current)` and does not run Vite again. Delete
+`n26/core/static/n26/react/.dev-build` to force `npm run js:dev`.
 
 ## Verifying CSS Is Built
 
@@ -36,7 +48,7 @@ This single command:
 rebuilds on file *changes*; it does no initial build, so a fresh worktree without an initial CSS
 build will render unstyled pages.
 
-`scripts/dev.sh` now guarantees this for you (steps 4–5 above) and prints a `CSS ready: <path>
+`scripts/dev.sh` now guarantees this for you (steps 4–6 above) and prints a `CSS ready: <path>
 (<bytes> bytes)` line plus a `CSS file:` row in the startup banner. Before using the server in a
 browser (or otherwise treating it as ready), check that line appeared and that the file is
 non-empty:

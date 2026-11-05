@@ -721,19 +721,120 @@ _frontend_conflict_file() {
   return 0
 }
 
+# _frontend_react_dom_state <worktree_root>
+#   Prints "local", "missing", or "outside <realpath>".
+#   "outside" means node_modules or react-dom resolves to another checkout.
+#   Vite walks parent directories, so a nested worktree otherwise parses that
+#   copy. A concurrent npm ci can leave react-dom-client.development.js
+#   half-written, and npm run js:dev then fails with Unterminated string.
+_frontend_react_dom_state() {
+  local wt_root="$1"
+  local root_real modules="${wt_root}/node_modules" located pkg pkg_real
+  root_real=$(cd "$wt_root" && pwd -P) || return 1
+  if [ ! -e "$modules" ] && [ ! -L "$modules" ]; then
+    printf 'missing\n'
+    return 0
+  fi
+  if ! located=$(cd "$modules" 2>/dev/null && pwd -P); then
+    printf 'missing\n'
+    return 0
+  fi
+  case "$located" in
+    "$root_real"/*) ;;
+    *)
+      printf 'outside %s\n' "$located"
+      return 0
+      ;;
+  esac
+  pkg="${modules}/react-dom"
+  if [ ! -e "$pkg" ] && [ ! -L "$pkg" ]; then
+    printf 'missing\n'
+    return 0
+  fi
+  if ! pkg_real=$(cd "$pkg" 2>/dev/null && pwd -P); then
+    printf 'missing\n'
+    return 0
+  fi
+  case "$pkg_real" in
+    "$root_real"/*) printf 'local\n' ;;
+    *) printf 'outside %s\n' "$pkg_real" ;;
+  esac
+  return 0
+}
+
+# _frontend_refuse_foreign_react <worktree_root> <realpath>
+#   Prints the refusal and returns 1. npm ci must not follow the path.
+_frontend_refuse_foreign_react() {
+  local wt_root="$1"
+  local where="$2"
+  echo "ERROR: react-dom resolves to ${where}, outside this checkout (${wt_root})." >&2
+  echo "Vite reads that copy during npm run js:dev. Another npm ci can leave react-dom-client.development.js half-written, which fails with Unterminated string." >&2
+  echo "Remove ${wt_root}/node_modules, then run npm ci --no-audit --no-fund in this checkout." >&2
+  echo "Do not edit the other checkout's node_modules." >&2
+  return 1
+}
+
+# _frontend_react_guard <worktree_root>
+#   Returns 0 when this checkout has react-dom, 10 when it is missing, and 1
+#   after refusing a path outside the checkout.
+_frontend_react_guard() {
+  local wt_root="$1"
+  local state
+  state=$(_frontend_react_dom_state "$wt_root") || return 1
+  case "$state" in
+    local) return 0 ;;
+    missing) return 10 ;;
+    outside\ *)
+      _frontend_refuse_foreign_react "$wt_root" "${state#outside }"
+      return 1
+      ;;
+    *)
+      echo "ERROR: unexpected react-dom state: ${state}" >&2
+      return 1
+      ;;
+  esac
+}
+
+# _frontend_dev_build_current <worktree_root>
+#   True when dev.sh has already written a development build newer than the
+#   inputs. The stamp is n26/core/static/n26/react/.dev-build. A production
+#   manifest from npm run js has no stamp, so the next dev.sh still runs
+#   npm run js:dev.
+_frontend_dev_build_current() {
+  local wt_root="$1"
+  local manifest="${wt_root}/n26/core/static/n26/react/manifest.json"
+  local stamp="${wt_root}/n26/core/static/n26/react/.dev-build"
+  [ -f "$manifest" ] || return 1
+  [ -f "$stamp" ] || return 1
+  [ ! "${wt_root}/package-lock.json" -nt "$stamp" ] || return 1
+  [ ! "${wt_root}/package.json" -nt "$stamp" ] || return 1
+  [ ! "${wt_root}/vite.config.mts" -nt "$stamp" ] || return 1
+  if _frontend_inputs_newer "$wt_root" "$stamp"; then
+    return 1
+  fi
+  return 0
+}
+
 # _frontend_repair_plan <worktree_root>
 #   Prints "install", "js", or "install js" when node_modules or the React
-#   manifest needs recovery. Prints nothing when both are current.
+#   manifest needs recovery. Prints nothing when both are current. A missing
+#   react-dom counts as an install even when the node_modules directory
+#   exists, so Vite does not walk into a parent checkout.
 _frontend_repair_plan() {
   local wt_root="$1"
   local manifest="${wt_root}/n26/core/static/n26/react/manifest.json"
   local install=false
   local js=false
+  local react_state
   if [ ! -d "${wt_root}/node_modules" ] \
     || [ "${wt_root}/package-lock.json" -nt "${wt_root}/node_modules" ] \
     || [ "${wt_root}/package.json" -nt "${wt_root}/node_modules" ]; then
     install=true
   fi
+  react_state=$(_frontend_react_dom_state "$wt_root") || return 1
+  case "$react_state" in
+    missing) install=true ;;
+  esac
   if [ ! -f "$manifest" ] \
     || [ "${wt_root}/package-lock.json" -nt "$manifest" ] \
     || [ "${wt_root}/package.json" -nt "$manifest" ] \
@@ -763,6 +864,8 @@ _frontend_repair_plan() {
 #   Conflict markers in those inputs make the build fail. The js step is
 #   skipped, the conflicted file is named, and the caller's command still runs
 #   so it can resolve the markers.
+#   react-dom must resolve inside this checkout. A symlink into another
+#   checkout is refused before npm ci, which would otherwise follow it.
 #
 #   The freshness check and the install/build share one lock, matching
 #   provision_worktree_venv, so two Codex commands cannot npm ci at once.
@@ -782,6 +885,12 @@ provision_worktree_frontend() {
   if [ -x "${wt_root}/.venv/bin/python" ]; then
     PATH="${wt_root}/.venv/bin:${PATH}"
     export PATH
+  fi
+
+  local react_guard=0
+  _frontend_react_guard "$wt_root" || react_guard=$?
+  if [ "$react_guard" -eq 1 ]; then
+    return 1
   fi
 
   local plan
@@ -823,6 +932,11 @@ provision_worktree_frontend() {
 
   local provision_status
   if (
+    react_guard=0
+    _frontend_react_guard "$wt_root" || react_guard=$?
+    if [ "$react_guard" -eq 1 ]; then
+      return 1
+    fi
     plan=$(_frontend_repair_plan "$wt_root")
     if [ -z "$plan" ]; then
       return 0

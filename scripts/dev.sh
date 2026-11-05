@@ -238,20 +238,53 @@ if ! command -v npm >/dev/null 2>&1; then
   exit 1
 fi
 
-if [ ! -d "${WT_ROOT}/node_modules" ] \
+# react-dom has to live in this checkout. A parent directory or a symlink is
+# the shared checkout's copy, and npm run js:dev parses
+# react-dom-client.development.js there. Refuse that path before npm install
+# so the install does not follow the symlink.
+react_guard=0
+_frontend_react_guard "$WT_ROOT" || react_guard=$?
+if [ "$react_guard" -eq 1 ]; then
+  exit 1
+fi
+
+react_installed=false
+if [ "$react_guard" -eq 10 ] \
+  || [ ! -d "${WT_ROOT}/node_modules" ] \
   || [ "${WT_ROOT}/package-lock.json" -nt "${WT_ROOT}/node_modules" ] \
   || [ "${WT_ROOT}/package.json" -nt "${WT_ROOT}/node_modules" ]; then
   echo "Installing npm dependencies (node_modules missing or out of date)..."
   (cd "$WT_ROOT" && npm install --no-audit --no-fund)
+  react_installed=true
+  react_guard=0
+  _frontend_react_guard "$WT_ROOT" || react_guard=$?
+  if [ "$react_guard" -eq 10 ]; then
+    echo "ERROR: react-dom is still missing from ${WT_ROOT}/node_modules after npm install." >&2
+    echo "Run npm ci --no-audit --no-fund in this checkout. Do not install into a parent checkout." >&2
+    exit 1
+  fi
+  if [ "$react_guard" -ne 0 ]; then
+    exit 1
+  fi
 fi
 
-# Tailwind must see the current Cotton recipes before its source scan.
-echo "Building React islands..."
-(cd "$WT_ROOT" && npm run js:dev > "$LOG_DIR/npm-js-build.log" 2>&1) || {
-  tail -20 "$LOG_DIR/npm-js-build.log" >&2
-  exit 1
-}
-echo "React ready: ${WT_ROOT}/n26/core/static/n26/react/manifest.json"
+# npm run js:dev selects React's development runtime. Skip it when this
+# checkout already has that build and the inputs are unchanged. A production
+# manifest from npm run js has no stamp, so it is rebuilt in development mode.
+REACT_MANIFEST="${WT_ROOT}/n26/core/static/n26/react/manifest.json"
+REACT_STAMP="${WT_ROOT}/n26/core/static/n26/react/.dev-build"
+if [ "$react_installed" = false ] && _frontend_dev_build_current "$WT_ROOT"; then
+  echo "React ready: ${REACT_MANIFEST} (development build is current)"
+else
+  echo "Building React islands..."
+  (cd "$WT_ROOT" && npm run js:dev > "$LOG_DIR/npm-js-build.log" 2>&1) || {
+    tail -20 "$LOG_DIR/npm-js-build.log" >&2
+    exit 1
+  }
+  mkdir -p "$(dirname "$REACT_STAMP")"
+  : > "$REACT_STAMP"
+  echo "React ready: ${REACT_MANIFEST}"
+fi
 
 # Rebuild if styles.css is missing, older than package-lock.json (deps
 # changed), or older than any source file under the scss directory (a
