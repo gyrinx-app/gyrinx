@@ -1,20 +1,11 @@
-"""What a gang's pages say, captured as plain data for comparing two
-states of the world.
+"""Capture player-visible gang facts for conversion equivalence checks.
 
-A conversion that moves content from one shape to another must leave
-every page saying the same things. The capture holds exactly the facts
-that must not change — names, numbers, the questions asked and what
-settled them — as plain primitives, sorted wherever the page's own
-order carries no meaning (a statline keeps its printed order; a run of
-rules does not), so two captures compare with ``==`` and any difference
-is a mistake by definition. Addresses and provenance wording are
-deliberately absent — a conversion may change where a control leads and
-which machinery asks a question, never what the reader is told — and
-the one id kept is the model key, so a difference names the fighter it
-is about.
+Build on ``render_gang`` and compare plain primitives with equality.
+Include names, values, choices and selections. Preserve meaningful order,
+such as statline columns, and sort unordered groups such as rules.
 
-Built on ``render_gang``, the same derivation every screen uses, so the
-capture cannot agree with a broken page.
+Omit action URLs and provenance wording, which may change during a content
+conversion. Retain model keys so differences identify the affected fighter.
 """
 
 from n26.core.render import group_campaign_assets, render_gang
@@ -35,9 +26,7 @@ def _each(lines):
 
 
 def _line_label(line):
-    """A line's name as the reader is told it: with the name of any
-    model the kit brought after it, since a collar that reads "Collar
-    (Fang)" and one that reads "Collar" say different things."""
+    """Include the names of pets created by this equipment in its captured label."""
     return str(line.name) + line.brought_mark
 
 
@@ -128,9 +117,7 @@ def _model_state(card):
         "rating": card.rating,
         "profile": card.profile_name,
         "type_line": card.type_line,
-        # Whose kit brought this model in, as the card says it — "Owned
-        # by Yolanda", "In the stash" — so a conversion that re-pointed
-        # a pet's cause, or lost it, is a difference on the pet's card.
+        # Capture pet ownership so a changed or missing cause alters the comparison.
         "owner": card.owner_line,
         "statline": _statline(card.statline),
         "subtypes": _names(card.subtypes),
@@ -140,16 +127,9 @@ def _model_state(card):
         "rules": _names(card.rules),
         "equipment": _rated(card.equipment),
         "equipment_choices": _item_choices(card.equipment),
-        # Gear drawn under its category's own heading, kept apart here as
-        # it is on the card. Folding it back into equipment would let a
-        # conversion move a possession between headings and still call the
-        # two pages equal.
-        #
-        # A list in the card's own order, not a dict: heading order is the
-        # taxonomy's and a reader sees it, so it is a fact worth holding.
-        # Keying by name would also collide, since a category name is only
-        # unique within its section — two headings alike would fold into
-        # one and hide a move between them.
+        # Preserve category headings and their order. Names are unique only
+        # within sections, so a dictionary keyed by heading would merge distinct
+        # categories and hide movements between them.
         "gear_groups": [
             (group.name, _rated(group.lines)) for group in card.gear_groups
         ],
@@ -184,9 +164,8 @@ def gang_state(gang):
         "counters": sorted(
             (str(counter.name), str(counter.value)) for counter in sheet.counters
         ),
-        # What the campaign gave, which the sheet keeps apart from the gang's
-        # own rows and counters — so a conversion that broke a campaign
-        # carrier, or what it brought, would show here rather than nowhere.
+        # Capture campaign-provided content separately to detect broken carriers
+        # and grants.
         "campaign": (
             {
                 "name": sheet.campaign.name,
