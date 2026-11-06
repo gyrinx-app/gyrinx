@@ -1,27 +1,8 @@
 {% load listing %}
 {% comment %}
-The partial update for one act on an equip screen — rendered by
-n26.core.views.equip.render_update, never included by a page.
-
-Nothing here is targeted by the click that caused it. Each element carries
-hx-swap-oob and the id of the element on the page it replaces, so which parts
-of the page an act updates is decided in this one template and can grow
-without any call site changing. Messages are not among them: they ride the
-HX-Trigger response header and are shown as toasts, because a page that is
-not re-rendered draws no alert block.
-
-A row is the ordinary one — the same include the catalogue draws — so a
-row delivered by an update and a row drawn with the page cannot come to look
-different. It replaces the row of its own key, which is why buying a first
-copy or selling a last one can deliver a row of a different shape entirely:
-what is held is a state of its row.
-
-Usually one row, sometimes two — which acts change a second one is
-n26.core.views.equip.render_update's business, not this template's.
-
-Where the screen no longer has a row for a key, the row is removed
-instead. A listing always keeps a row; a screen showing only what is held
-loses the row along with the last copy.
+Partial response from n26.core.views.equip.render_update. Each replacement uses its own
+stable ID and hx-swap-oob; ordinary catalogue includes render updated entries, while
+removed held-only entries receive removal targets.
 {% endcomment %}
 {% for row_key, row in rows %}
     {% if row %}
@@ -31,45 +12,35 @@ loses the row along with the last copy.
     {% endif %}
 {% endfor %}
 {% comment %}
-The model's card, where the screen is a model's: what was bought is on it,
-and so is what the purchase changed — a rule the kit confers, a
-characteristic it shifts — so the card above the listing says what the
-listing now says. The gang's own screen draws no card and delivers none.
+Refresh the model card after equipment changes because grants can also change its rules,
+choices and stats.
 {% endcomment %}
 {% if card %}
     {% include "n26/includes/model_card_host.html" with redrawn=True htmx=True %}
     {% include "n26/includes/action_panels.html" with oob=True %}
 {% endif %}
 {% comment %}
-The money, and not the model count beside it. An act on kit never changes
-how many models the gang fields, and the count opens onto a tally whose own
-Alpine state does not survive being re-rendered mid-life — so what did not
-change is left alone.
+Replace monetary figures without replacing the unchanged roster count and its open
+popover state.
 {% endcomment %}
 <c-n26.gang-figures.wealth :sheet="gang"
                            trade_points_href="{{ trade_points_href }}"
                            credits_href="{{ credits_href }}"
                            hx-swap-oob="true" />
 {% comment %}
-The whole set of accessory panels, as the screen now stands. Each panel is
-drawn per gun and opened by a control that names it by id, so a gun bought
-since the page was drawn has no panel until this delivers one, and a gun
-parted with would leave its panel behind.
+Replace accessory panels to match the currently owned weapons.
 {% endcomment %}
 <div id="n26-accessorise-host" hx-swap-oob="true">{% include "n26/includes/equip_accessorise.html" %}</div>
 {% comment %}
-The founding allowance, where the screen is drawing one: the purchase came off
-it, so what it has left has just changed. Only where the page has the block —
-htmx drops an out-of-band element whose id is not on the page, so emitting it
-for a screen without one would be a silent nothing rather than an error.
+Update a founding allowance only when its matching host exists; htmx discards unmatched
+out-of-band targets.
 {% endcomment %}
 {% if founding_budget %}
     {% include "n26/includes/founding_budget.html" with redrawn=True %}
 {% endif %}
 {% if closed %}
     {% comment %}
-    The act was submitted from a confirmation panel; an empty host replaces
-    whatever was open there, closing it.
+    An empty confirmation host closes the submitted dialog.
     {% endcomment %}
     <div id="n26-dialog-host" hx-swap-oob="true"></div>
 {% endif %}
