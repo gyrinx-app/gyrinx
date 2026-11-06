@@ -1,9 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Adding credits to a gang, or removing them, by hand. Reached by the gang's
-owner from the gang page and by the campaign's arbitrator from the gangs
-table; the view decides where Cancel and a save return to.
+Allow the gang owner or campaign arbitrator to adjust credits. The view supplies return
+targets for both entry points.
 {% endcomment %}
 {% block head_title %}Manage credits — {{ gang.name }}{% endblock head_title %}
 {% block nav_switcher %}

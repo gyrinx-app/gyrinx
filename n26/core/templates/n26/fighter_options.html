@@ -1,10 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-One model's own page, Options face — the choices the hire row offered,
-reopened. The groups draw exactly as the hire row drew them, checked from
-what the model currently takes, and Save hands the picks to op.rechoose:
-the price difference lands on the hire's own line in either direction.
+Reopen the model's hire option groups with current selections. Save calls op.rechoose,
+which records the price adjustment against the hire.
 {% endcomment %}
 {% block head_title %}{{ miniature.name }} options{% endblock head_title %}
 {% block nav_switcher %}
@@ -38,10 +36,8 @@ the price difference lands on the hire's own line in either direction.
                                 credits_href="{{ credits_href }}" />
         </c-slot>
         {% comment %}
-        The model's card above the tabs, as the Edit face draws it, so what
-        the options change is in view while they are changed. No host on
-        this page takes a partial update, so every control on the card is
-        a plain link or form and lands its act on the model's own page.
+        Card actions navigate to the model's Edit page because this page has no partial-
+        update hosts.
         {% endcomment %}
         <c-slot name="card">
             {% include "n26/includes/model_card_host.html" with htmx=False %}
@@ -58,9 +54,8 @@ the price difference lands on the hire's own line in either direction.
                     <div class="flex flex-col gap-1">
                         {% for group in groups %}
                             {% comment %}
-                            The same words the hire row says over its second and
-                            later sets, over every set here: this page has no
-                            fighter row above it doing the introducing.
+                            Show selection instructions for every group because there is
+                            no preceding hire entry label.
                             {% endcomment %}
                             <div class="{% if not forloop.first %}mt-2 border-t border-box-border pt-3{% endif %} flex min-h-6 items-center gap-2">
                                 <span class="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -99,9 +94,8 @@ the price difference lands on the hire's own line in either direction.
                         {% endfor %}
                     </div>
                     {% comment %}
-                    Save is green because it ends the form; what it charges
-                    or returns is the ledger's answer, quoted back in the
-                    confirmation rather than promised here.
+                    The ledger determines the final charge or return, reported after
+                    submission.
                     {% endcomment %}
                     <div class="mt-3 flex justify-end">
                         <c-ui.button type="submit" variant="success" size="sm">
