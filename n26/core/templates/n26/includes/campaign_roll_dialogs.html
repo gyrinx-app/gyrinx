@@ -1,6 +1,7 @@
 {% comment %}
 Keep a stable host for URL-selected campaign roll dialogs. Partial responses replace it
-by ID and restore the previous URL on dismissal.
+by ID and restore the previous URL on dismissal. Delete a reopened dialog first so
+HTMX settling cannot copy attributes from the previous element with the same ID.
 {% endcomment %}
 {% if reopened %}<div id="n26-dialog" hx-swap-oob="delete"></div>{% endif %}
 <div id="n26-roll-dialog-host"
