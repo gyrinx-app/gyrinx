@@ -1,20 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Who is in the campaign, and how to ask somebody else.
-
-Those already asked sit above the search, because the question a reader
-arrives with is usually "who have I got" rather than "who else is there".
-
-The search reaches the server, since the accounts it looks through are not on
-the page — so it is a real GET form and not <c-n26.search-bar>'s :live, which
-narrows what is already drawn. htmx makes the same request as you type and
-swaps the results in; with no scripting the Search button does the same thing
-a moment later, and either way the address carries the query.
-
-Which person the message box is being written for rides the address too, so
-the dialog is a state the server draws: a reload lands back on the same
-question and Back closes it.
+Search accounts with a GET request because results are not preloaded. Both the query and
+selected invitation recipient are URL state, including when htmx updates the results.
 {% endcomment %}
 {% block head_title %}Players in {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -81,9 +69,7 @@ question and Back closes it.
         <section class="flex flex-col gap-3">
             <h2 class="text-sm font-medium text-muted">Invite somebody</h2>
             {% comment %}
-            The htmx sits on a wrapper so the search bar stays the plain form
-            it is: without scripting the button submits it, and with scripting
-            the wrapper watches the field it contains and swaps the results.
+            Keep htmx on the wrapper so the search bar remains a native GET form.
             {% endcomment %}
             <div hx-get="{% url 'n26-campaign-add-player' campaign.pk %}"
                  hx-trigger="input changed delay:300ms from:find input"
@@ -99,11 +85,8 @@ question and Back closes it.
                                   placeholder="Search by username" />
             </div>
             {% comment %}
-            A translucent veil over the results, rather than a row pushed
-            above them: what is already there keeps its height and shows
-            through, so an answer arriving swaps the rows without moving
-            anything further down the page. It sits outside the element htmx
-            replaces, which would otherwise take the veil with it.
+            Keep the loading overlay outside the swap target so replacing results cannot
+            remove it or change their height.
             {% endcomment %}
             <div id="looking" class="n26-awaiting relative">
                 <span class="n26-awaiting-mark absolute inset-0 z-10 items-center justify-center gap-2 bg-white/70 text-sm text-muted dark:bg-ink-950/70">
@@ -119,10 +102,6 @@ question and Back closes it.
                             {% if person.pk in asked_already %}
                                 <span class="text-sm text-muted">Already asked</span>
                             {% else %}
-                                {% comment %}
-                            A link, not a button: it opens the message box by
-                            going to the address that draws it.
-                                {% endcomment %}
                                 <c-ui.button size="sm"
                                              variant="primary"
                                              href="?q={{ query|urlencode }}&amp;invite={{ person.pk }}">
@@ -142,8 +121,8 @@ question and Back closes it.
         </section>
     </div>
     {% comment %}
-    The panel renders its own form, so the slot carries only the token and the
-    question's own fields. Dismissing goes to the address without the name.
+    The dialog supplies its own form; include only CSRF and invitation fields in its
+    slot.
     {% endcomment %}
     {% if asking %}
         <c-n26.dialog title="Invite {{ asking.username }}"
@@ -156,7 +135,7 @@ question and Back closes it.
             {% csrf_token %}
             <input type="hidden" name="user" value="{{ asking.pk }}">
             <c-ui.field label="Message" for="invite-message">
-                {# The bare textarea: the kit's wrapper keeps name for itself and the box would post nothing. #}
+                {# Use a native textarea because the kit wrapper consumes name without forwarding it to the input. #}
                 <c-ui.textarea.impl id="invite-message" name="message" rows="3" />
             </c-ui.field>
         </c-n26.dialog>
