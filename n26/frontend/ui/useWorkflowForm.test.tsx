@@ -40,3 +40,27 @@ test("review cannot discard an unresolved write without a confirmed conflict", a
         new URLSearchParams(sessionStorage.getItem("example")!).get("amount"),
     ).toBe("0");
 });
+
+test("history restoration protects a later form's unresolved command", () => {
+    const reload = vi.fn();
+    function Example() {
+        useWorkflowForm({
+            values: { name: "Old draft", snapshot: "old" },
+            errors: {},
+            commandHref: "/save/",
+            csrfToken: "csrf",
+            recoveryKey: "example",
+            interpret: () => null,
+            onReload: reload,
+        });
+        return null;
+    }
+    render(<Example />);
+    const retained = "name=Later+draft&snapshot=later";
+    sessionStorage.setItem("example", retained);
+    window.dispatchEvent(
+        new PageTransitionEvent("pageshow", { persisted: true }),
+    );
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(sessionStorage.getItem("example")).toBe(retained);
+});

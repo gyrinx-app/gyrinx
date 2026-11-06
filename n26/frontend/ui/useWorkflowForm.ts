@@ -75,12 +75,16 @@ export function useWorkflowForm<
     const [failure, setFailure] = useState(0);
     useEffect(() => {
         const restore = (event: PageTransitionEvent) => {
-            if (event.persisted && saved.current)
+            if (
+                event.persisted &&
+                (saved.current ||
+                    recover(options.recoveryKey, Object.keys(options.values)))
+            )
                 (options.onReload ?? (() => window.location.reload()))();
         };
         window.addEventListener("pageshow", restore);
         return () => window.removeEventListener("pageshow", restore);
-    }, [options.onReload]);
+    }, [options.onReload, options.recoveryKey, options.values]);
     useEffect(() => {
         if (failure) summary.current?.focus();
     }, [failure]);

@@ -346,3 +346,21 @@ test("refreshes a completed form restored by Back without discarding an unsaved 
     );
     expect(reload).toHaveBeenCalledTimes(1);
 });
+
+test("refreshes an older cached draft when a later form has an unresolved save", () => {
+    const reload = vi.fn();
+    render(<ManageCredits {...props} onReload={reload} />);
+    const retained = new URLSearchParams({
+        direction: "add",
+        amount: "40",
+        note: "Later form",
+        request_key: "later-command",
+        back: props.back,
+    }).toString();
+    sessionStorage.setItem(props.recoveryKey, retained);
+    window.dispatchEvent(
+        new PageTransitionEvent("pageshow", { persisted: true }),
+    );
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(sessionStorage.getItem(props.recoveryKey)).toBe(retained);
+});
