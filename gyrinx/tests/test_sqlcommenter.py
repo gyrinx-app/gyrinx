@@ -1,7 +1,6 @@
 """Request SQL metadata survives the supported OpenTelemetry middleware."""
 
 import pytest
-from django.conf import settings
 from django.db import connection
 from django.http import HttpResponse
 from django.test import RequestFactory
@@ -12,7 +11,14 @@ from django.utils.module_loading import import_string
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("query_count", [1, 5])
-def test_sql_comments_preserve_request_metadata_without_extra_queries(query_count):
+def test_sql_comments_preserve_request_metadata_without_extra_queries(
+    query_count, settings
+):
+    settings.MIDDLEWARE = [
+        "django.middleware.security.SecurityMiddleware",
+        *settings.MIDDLEWARE,
+    ]
+
     def view(request):
         for _ in range(query_count):
             with connection.cursor() as cursor:
@@ -29,7 +35,9 @@ def test_sql_comments_preserve_request_metadata_without_extra_queries(query_coun
         app_names=["core"],
         route="security-probe/",
     )
-    middleware = import_string(settings.MIDDLEWARE[0])(view)
+    middleware_path = "opentelemetry.instrumentation.django.middleware.sqlcommenter_middleware.SqlCommenter"
+    assert middleware_path in settings.MIDDLEWARE
+    middleware = import_string(middleware_path)(view)
 
     with CaptureQueriesContext(connection) as queries:
         response = middleware(request)
