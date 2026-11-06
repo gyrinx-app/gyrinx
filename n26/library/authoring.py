@@ -1,28 +1,12 @@
-"""Authoring verbs — the one vocabulary for building library content.
+"""Create and update library content through the authoring API.
 
-These verbs are the authoring API, and the admin's forms compile to
-exactly these calls — a form that can't be expressed as a verb here
-can't exist, and a verb here is what a spec describes
-(design/authoring.md).
+Specs describe these functions and generated forms call them. Scope functions
+accept condition objects; modifiers combine one scope with one effect.
+Effects prefixed ``ef_`` are computed when content is read. Effects prefixed
+``op_`` write player data when their carrier is acquired.
 
-The grammar (design/authoring-build-plan.md):
-
-* **Scopes** say who a modifier reaches, and take nested **conditions**::
-
-      targets_model(has_subtypes(leader, champion))
-      targets_model(counter_at_least(xp, 75))
-      targets_weapons(has_traits(melee))
-
-* **Effects** carry a prefix saying *when they happen*: ``ef_`` is
-  worked out at read time, ``op_`` writes once at purchase time.
-
-* **Glue**: ``modifier(name, scope, effect, attach_to=…)`` builds one
-  rule; ``attach_modifiers_to(assignable, modifiers)`` hangs reusable
-  rules on further carriers.
-
-Everything is pack-aware: omit ``pack`` and it lands in the default
-pack, exactly as admin ingestion would. Nothing here stores rules text —
-see n26/library/models/AGENTS.md.
+An omitted pack uses the model's default pack. See design/authoring.md and
+design/authoring-build-plan.md for the authoring pipeline.
 """
 
 import re
@@ -65,10 +49,9 @@ def create_gang_type(
     library_author_help="",
     **kwargs,
 ):
-    """A kind of gang. The name is the whole of what a player sees when
-    the create-gang page offers it, so a blank one is refused here rather
-    than drawn as an empty card — whatever path asked for it. Stored
-    stripped, since a padded name draws with the padding.
+    """Create a gang type with a trimmed, non-empty name.
+
+    The name labels the gang type on the founding page.
     """
     name = (name or "").strip()
     if not name:
@@ -91,11 +74,12 @@ def create_gang_type(
 def create_campaign_type(
     name, qualifier="", description="", library_author_help="", **kwargs
 ):
-    """A kind of campaign, for a campaign to be founded on. Its asset
-    types are added afterwards with ``add_asset_type``, and its assets
-    under those with ``create_asset``. Stored stripped, as a gang type's
-    name is. The description is for the arbitrator founding on the type;
-    the author help is for whoever builds content against it."""
+    """Create a campaign type with a trimmed, non-empty name.
+
+    Add its asset types with ``add_asset_type`` and their assets with
+    ``create_asset``. The description appears during campaign founding;
+    ``library_author_help`` is shown to content authors.
+    """
     from n26.library.models import CampaignType
 
     name = (name or "").strip()
@@ -120,14 +104,10 @@ def add_asset_type(
     display_group="",
     **kwargs,
 ):
-    """One asset type a campaign type deals in, at the end of its listing
-    unless placed. Two asset types of one campaign type cannot share a
-    label, whatever the case: a campaign page would print two headings
-    that read the same.
+    """Add an asset type, appending it unless ``position`` is supplied.
 
-    An asset type is part of its campaign type, so it lands in that type's
-    pack unless told otherwise — a campaign type in a campaign's own pack
-    keeps its asset types there.
+    Labels must be unique within the campaign type, ignoring case.
+    The asset type inherits its campaign type's pack unless overridden.
     """
     from n26.library.models import AssetType
 
@@ -156,12 +136,10 @@ def add_asset_type(
 
 @guarded_write
 def remove_asset_type(asset_type):
-    """Take an asset type off its campaign type.
+    """Delete an asset type only when it has no assets.
 
-    Refused in words while any asset is of this type: each of those would
-    be left of no type at all, and the database would refuse the delete
-    with nobody's name on it. An asset's type is settled when it is made,
-    so the way clear is to delete the assets first.
+    Raise ``ValidationError`` naming the remaining assets before database
+    protection would reject the deletion.
     """
     count = asset_type.assets.count()
     if count:
@@ -186,23 +164,12 @@ def create_asset(
     given_to_every_gang=True,
     **kwargs,
 ):
-    """One asset of one asset type — a Settlement, the Old Ruins territory.
+    """Create a named asset in its asset type's pack unless overridden.
 
-    An asset is one entry in its campaign type's list, so it lands in that
-    type's pack unless told otherwise — a campaign type in a campaign's own
-    pack keeps its assets there. A blank name is refused here rather than
-    drawn as an empty line on a campaign page. ``income`` is written as
-    the asset's Income contribution (``set_income``); 0 writes nothing.
-
-    With ``given_to_every_gang`` enabled, an asset of a **Possession**
-    asset type is built into a campaign type here, so every gang that
-    joins is given one with no further step
-    (``n26.library.possessions``). ``given_by`` names that type; without
-    it, the asset type's own campaign type gives the asset. A campaign
-    writing an asset into its own pack under a shared asset type names
-    its additions type, because the giver has to be in the asset's pack
-    — a shared type giving one campaign's asset would hand it to every
-    campaign founded on it.
+    ``income`` creates its Income contribution; zero creates no contribution.
+    When automatic distribution is enabled for an inherent asset, add it to
+    ``given_by`` or the asset type's campaign type. The giver must share the
+    asset's pack, so campaign-specific assets use their campaign's additions type.
     """
     from n26.library.models import Asset, AssetType
 
@@ -215,8 +182,7 @@ def create_asset(
     if asset_type.ownership == AssetType.Ownership.POSSESSION and given_to_every_gang:
         giver = given_by if given_by is not None else asset_type.campaign_type
         pack_id = kwargs["pack"].pk if "pack" in kwargs else kwargs["pack_id"]
-        # Settled before anything is written, so a refused asset leaves
-        # no row behind.
+        # Validate the giver before inserting the asset to avoid a partial write.
         if giver.pack_id != pack_id:
             raise ValueError(
                 f"{name} would be in a different pack from {giver}. The "
@@ -255,14 +221,11 @@ def set_given_to_every_gang(asset, enabled):
 
 
 def take_out_of_built_ins(thing):
-    """Stop every campaign type giving this asset or asset table: its live
-    built-in memberships go, the way ``remove_default_member`` takes any
-    member off — archived where a gang has already been given one, deleted
-    where none has. Gangs already holding it keep it.
+    """Remove an asset or table from every live built-in set.
 
-    Called when a possession or a table is deleted or archived, so a
-    thing that is gone stops arriving on gangs that join afterwards. A
-    holding is never built in, so this finds nothing for one.
+    Archive memberships already issued to gangs; delete unused memberships.
+    Existing assignments remain. Future joining gangs stop receiving the asset
+    or table. Holdings have no built-in memberships.
     """
     from n26.library.models import DefaultAssignment
 
@@ -274,7 +237,7 @@ def take_out_of_built_ins(thing):
 
 
 def _default_member_kwarg(thing):
-    """The ``DefaultAssignment`` column a built-in naming ``thing`` fills."""
+    """Return the ``DefaultAssignment`` field naming this content kind."""
     from n26.library.models import DefaultAssignment
 
     for name in DefaultAssignment.ASSIGNABLE_FIELDS:
@@ -293,23 +256,15 @@ def create_asset_table(
     given_by=None,
     **kwargs,
 ):
-    """One table of one Holding asset type's assets — the Territory
-    Selection Table. Its entries are added afterwards with
+    """Create a table for a Holding asset type, rejecting inherent-asset types.
+
+    Use the asset type's pack unless overridden. ``dice`` selects a rolled table;
+    blank creates an ordered selection list. Add entries with
     ``add_asset_table_entry``.
 
-    A table is one of its campaign type's, so it lands in that type's
-    pack unless told otherwise. ``dice`` names the die the table is rolled
-    on; blank makes an ordered list that is chosen from rather than
-    rolled. Refused in words for a Possession asset type: every gang has
-    its own of those, so there is nothing to roll for.
-
-    A table is built into a campaign type here, so every gang that joins
-    holds it with no further step (``n26.library.tables``). ``given_by``
-    names that type; without it, the asset type's own campaign type gives
-    the table. A campaign writing a table into its own pack under a shared
-    asset type names its additions type, because the giver has to be in
-    the table's pack — a shared type giving one campaign's table would
-    hand it to every campaign founded on it.
+    Build the table into ``given_by`` or the asset type's campaign type.
+    The giver must share the table's pack, so campaign-specific tables use
+    their campaign's additions type.
     """
     from n26.library.models import AssetTable
 
@@ -325,8 +280,7 @@ def create_asset_table(
         )
     giver = given_by if given_by is not None else asset_type.campaign_type
     pack_id = kwargs["pack"].pk if "pack" in kwargs else kwargs["pack_id"]
-    # Settled before anything is written, so a refused table leaves no
-    # row behind.
+    # Validate the giver before inserting the table to avoid a partial write.
     if giver.pack_id != pack_id:
         raise ValueError(
             f"{name} would be in a different pack from {giver}. The campaign "
@@ -349,13 +303,10 @@ def create_asset_table(
 def add_asset_table_entry(
     table, asset, position=None, roll_low=None, roll_high=None, **kwargs
 ):
-    """One more asset on a table, at the end unless placed.
+    """Add an asset to a table of the same asset type.
 
-    Refused where the asset is of another asset type: a table lists one
-    asset type's assets and a roll on it has to add one of those. On a
-    rolled table, ``roll_low`` and ``roll_high`` are the band of rolls
-    that lands here — give both, or give ``roll_low`` alone for a band of
-    one roll.
+    Append unless ``position`` is supplied. On a rolled table, ``roll_low`` and
+    ``roll_high`` define an inclusive band; omit the upper bound for one result.
     """
     from n26.library.models import AssetTableEntry
     from n26.library.models.slots import band_problem
@@ -390,28 +341,20 @@ def add_asset_table_entry(
 
 @guarded_write
 def remove_asset_table_entry(entry):
-    """Take one asset off one table. The asset itself stays in the
-    library and on every other table that lists it; a campaign that
-    already rolled it keeps what it rolled."""
+    """Remove a table entry without deleting its asset or existing holdings."""
     entry.delete()
 
 
 @guarded_write
 @preserves_income_choices
 def set_income(asset, amount):
-    """What the asset brings its holder each cycle, written as a modifier:
-    the gang carrying the asset has ``amount`` added to its Income
-    counter's reading for as long as it holds the asset.
+    """Set the asset's Income contribution in its own pack.
 
-    The modifier is the asset's own, in the asset's pack, named after it.
-    Setting the figure again changes that modifier's amount in place, so
-    a campaign already holding the asset reads the new figure on its
-    next read. Setting a directly carried contribution to 0 removes it.
-    A declared Income option keeps its modifier at 0, so the option and
-    each holding's override retain their identity. For direct Income, several
-    contributions attached by hand are folded into the first. Independent
-    additions to a declared choice stay separate. Returns the modifier, or
-    None when the asset brings nothing.
+    Update the existing modifier so held assets use the new amount on their
+    next read. Zero removes a direct contribution but preserves a declared
+    Income option's modifier and per-holding overrides. Combine multiple direct
+    contributions into the first; keep independent additions to declared choices.
+    Return the modifier, or ``None`` when no contribution remains.
     """
     from n26.library.income import (
         ensure_income_counter,
@@ -506,12 +449,10 @@ def create_stat(
 
 @guarded_write
 def create_statline_type(name, stats=(), **kwargs):
-    """A statline shape — the columns a profile prints in.
+    """Create a statline type with characteristics in ``stats`` order.
 
-    ``stats`` is an ordered list of :class:`Stat`, and list order
-    becomes print position. Given none, the shape starts bare and
-    stats are added with ``add_stat_to_statline_type``: print order
-    matters, and a multi-select cannot express it.
+    An empty type can be populated with ``add_stat_to_statline_type``.
+    A multi-select cannot represent the required characteristic order.
     """
     statline_type = StatlineType.objects.create(name=name, **kwargs)
     for position, stat in enumerate(stats):
@@ -529,10 +470,9 @@ def add_stat_to_statline_type(
     is_first_of_group=False,
     **kwargs,
 ):
-    """Put one characteristic in a shape, at the end unless placed.
+    """Add a characteristic, appending unless positioned.
 
-    ``short_name_override`` heads the column with something other than
-    the stat's own abbreviation, for a shape that prints it differently.
+    ``short_name_override`` replaces its abbreviation on this statline type.
     """
     if position is None:
         position = statline_type.stats.count()
@@ -583,20 +523,12 @@ def create_profile(
 
 @guarded_write
 def set_statline(owner, pack=None, **values):
-    """Give a fighter profile or weapon profile a statline.
+    """Set the supplied characteristics on a fighter or weapon profile.
 
-    Values are keyed by stat field name.
-
-    ``set_statline(juve, movement=4, weapon_skill=3, toughness=3)``
-
-    Settable twice, which is what the name promises: a second call
-    writes the characteristics it names over the ones already there and
-    leaves the rest as they are. A statline is one row per owner, so
-    founding a second would not be an alternative reading — it would be
-    an error.
-
-    Raises ``KeyError`` if a name isn't part of the profile's statline type,
-    so a typo fails loudly rather than silently doing nothing.
+    Values use stat field names, for example ``set_statline(juve, movement=4)``.
+    Repeated calls update those characteristics and preserve unspecified values.
+    Each owner has one statline. Raise ``KeyError`` for a characteristic outside
+    its statline type.
     """
     extra = {"pack": pack} if pack else {}
     statline = getattr(owner, "statline", None)
@@ -625,20 +557,11 @@ def set_statline(owner, pack=None, **values):
 @guarded_write
 @preserves_income_choices
 def revise(row, **fields):
-    """Write the named columns of a row that already exists, and save.
+    """Update scalar fields on existing content through the shared write path.
 
-    The other verbs make things; changing one is a write to the columns
-    the kind already names, so this takes no spec of its own — its
-    parameters are the row's own fields, and the row's kind is what
-    describes those. One write path, shared by the authoring pages and
-    by a re-import of a changed spreadsheet, so the two cannot come to
-    disagree about what editing means.
-
-    A many-to-many field is refused rather than assigned. A set is
-    replaced by the verb that owns it (``set_traits``,
-    ``set_usable_by``, ``set_statline``), because replacing a set is a
-    decision — what happens to a member the new value does not name —
-    and ``setattr`` has no way to express one.
+    Authoring forms and ingest use this function. Many-to-many fields require
+    their replacement function, such as ``set_traits`` or ``set_usable_by``,
+    which defines how omitted members are handled.
     """
     for name, value in fields.items():
         if row._meta.get_field(name).many_to_many:
@@ -659,12 +582,10 @@ def revise(row, **fields):
 
 
 def stage(row):
-    """Hold a row back from players until it is put live.
+    """Mark content as staged so ordinary player discovery excludes it.
 
-    Nothing about the row changes but who is offered it: every surface
-    where a player adds to a gang leaves it out, and whoever may see
-    staged content meets it there as players will once it is live
-    (``n26.library.staged``).
+    Users with staged-content access can preview it through the same surfaces.
+    See ``n26.library.staged``.
     """
     return revise(row, staged=True)
 
@@ -676,9 +597,9 @@ def put_live(row):
 
 @guarded_write
 def stage_all(rows):
-    """Hold back several rows at once — what an import does with everything
-    it made. One write per kind, and the rows in hand are marked too, so a
-    caller reading them back sees what was written.
+    """Stage several records with one update per content kind.
+
+    Also update the supplied instances so callers see their new staged state.
     """
     from collections import defaultdict
 
@@ -746,12 +667,10 @@ def put_selected_live(selection):
 
 @guarded_write
 def set_traits(weapon_profile, traits):
-    """The traits printed on a weapon profile, replaced.
+    """Replace a weapon profile's complete trait set.
 
-    The statlines sheet is the whole statement about a line's traits,
-    and a card prints them, so a trait the sheet stops naming goes.
-    Added to instead, a line rewritten from Rapid Fire (1) to Rapid
-    Fire (2) would print both forever.
+    Ingest treats the sheet's traits as the complete set. Replacing Rapid Fire
+    (1) with Rapid Fire (2) must remove the old trait.
     """
     weapon_profile.traits.set(traits)
     return weapon_profile
@@ -774,13 +693,12 @@ def create_wargear(
     library_author_help="",
     **kwargs,
 ):
-    """Equipment a model carries. A thing that bolts onto a weapon is a
-    weapon accessory, not this.
+    """Create equipment carried by a model.
 
-    The ``usable_by_*`` lists are the bracket the book prints after the
-    name, true of this wherever it is listed. Empty means everyone; a
-    restriction only one list prints belongs on that list's entry
-    instead (``add_entry``).
+    Use ``create_weapon_accessory`` for equipment attached to a weapon.
+    The ``usable_by_*`` lists restrict the item everywhere it is offered;
+    empty lists permit everyone. Restrictions specific to a collection belong
+    on its entry through ``add_entry``.
     """
     from n26.library.models import Wargear
 
@@ -817,13 +735,10 @@ def create_weapon_accessory(
     library_author_help="",
     **kwargs,
 ):
-    """Something bolted onto a weapon, with the bracket saying what it
-    fits — ``fits_category`` for "(Las Weapons Only)",
-    ``fits_asterisked`` for "(Weapons Marked With * Only)".
+    """Create equipment attached to a compatible weapon.
 
-    The two brackets answer different questions and both are stored: the
-    ``fits_*`` pair is which weapons this goes on, the ``usable_by_*``
-    lists which models may use it. Empty means everyone.
+    ``fits_category`` and ``fits_asterisked`` restrict weapons.
+    The independent ``usable_by_*`` lists restrict models; empty lists permit everyone.
     """
     from n26.library.models import WeaponAccessory
 
@@ -893,12 +808,10 @@ def create_skill(
     position=0,
     **kwargs,
 ):
-    """A skill, homed in its set — ``create_skill("Catfall", agility)``.
+    """Create a skill in its category, for example ``create_skill("Catfall", agility)``.
 
-    The ``usable_by_*`` lists are the bracket the book prints in a
-    skill's heading — "(Fighter Or Walker Only)". Empty means everyone,
-    and it gates the advancement table's free pick as well as the
-    listing.
+    The ``usable_by_*`` restrictions apply to both listings and free advancement
+    picks. Empty restrictions permit every model.
     """
     from n26.library.models import Skill
 
@@ -932,10 +845,10 @@ def create_power(
     position=0,
     **kwargs,
 ):
-    """A Wyrd power — ``create_power("Force Blast", "(Free), Continuous")``.
+    """Create a Wyrd power with optional use restrictions.
 
-    The ``usable_by_*`` lists are the bracket a power's heading prints,
-    read the same way a skill's is. Empty means everyone.
+    The ``usable_by_*`` lists behave as they do for skills; empty lists permit
+    every model.
     """
     from n26.library.models import Power
 
@@ -958,14 +871,10 @@ def create_power(
 
 
 def split_annotation(text):
-    """``"Leash (3\\")"`` → ``("Leash", '3"')``; ``"Melee"`` → ``("Melee", "")``.
+    """Split a printed name into its name and parenthesised annotation.
 
-    How a printed name in brackets is read, in one place, because two
-    writers use it: the importer reading a sheet cell, and the authoring
-    forms reading what a person typed. They must agree — a rule's
-    annotation is part of its identity, so ``Leash`` + ``3"`` and a rule
-    literally named ``Leash (3")`` are different rows that print the
-    same, which is precisely the duplicate the annotation prevents.
+    ``"Leash (3\")"`` becomes ``("Leash", '3"')``. Ingest and inline authoring
+    share this parsing because a rule's annotation forms part of its identity.
     """
     smart = {"“": '"', "”": '"', "’": "'", "‘": "'"}
     for curly, plain in smart.items():
@@ -993,8 +902,7 @@ def create_rule(name, annotation="", qualifier="", library_author_help="", **kwa
 
 @guarded_write
 def create_hidden(name, effects=(), qualifier="", library_author_help="", **kwargs):
-    """A carrier for effects that draws no row of its own; ``effects``
-    are (scope, effect) pairs."""
+    """Create an undisplayed modifier carrier from ``(scope, effect)`` pairs."""
     from n26.library.models import Hidden
 
     carrier = Hidden.objects.create(
@@ -1014,8 +922,11 @@ def create_hidden(name, effects=(), qualifier="", library_author_help="", **kwar
 def create_affiliation(
     name, effects=(), qualifier="", library_author_help="", **kwargs
 ):
-    """A leftover chosen-carrier kind. New gang-level choices are a
-    slot type. ``effects`` are (scope, effect) pairs."""
+    """Create an affiliation for compatibility with existing content.
+
+    Use slot types for new gang-level choices. ``effects`` contains
+    ``(scope, effect)`` pairs.
+    """
     from n26.library.models import Affiliation
 
     carrier = Affiliation.objects.create(
@@ -1366,10 +1277,9 @@ def rank_allowance_rule(counter, **kwargs):
 def create_slot_type(
     name, plural_name="", allows_repeats=True, is_lasting_effect=False, **kwargs
 ):
-    """What is chosen — Gang Legacy, Specialisation, Path.
+    """Create a type of choice, such as Gang Legacy or Specialisation.
 
-    The first thing built: its pickables, its picklists and the slots
-    themselves all name it, and authoring refuses a mismatch.
+    Its pickables, picklists and slots must all reference this slot type.
     """
     from n26.library.models import SlotType
 
@@ -1395,19 +1305,12 @@ def create_pickable(
     record_only=False,
     **kwargs,
 ):
-    """One pickable a choice offers; ``effects`` are (scope, effect) pairs.
+    """Create a choice option with ``(scope, effect)`` modifier pairs.
 
-    Everything the pickable *means* rides it as ordinary modifiers — an
-    equipment list opened, a subtype granted, a further choice given —
-    except a linked ``category``, consulted for categorisation
-    decisions: a rule placing "the chosen set" reads it to learn which
-    category the pick means, which is how a Skill Tree pick stands for
-    the set it names.
-
-    ``rating_contribution`` is what holding the pick adds to the model's
-    rating, in credits: a Power Boost result adds 20. A pick the gang
-    holds adds nothing. A pick is never paid for, so this is a rating,
-    not a price.
+    Modifiers supply its effects. A linked ``category`` supplies the category
+    used by placement rules, such as the skill set represented by a Skill Tree
+    pick. ``rating_contribution`` adds to the holding model's rating in credits.
+    Gang-held picks add no rating, and acquiring a pick spends no credits.
     """
     from n26.library.models import Pickable
 
