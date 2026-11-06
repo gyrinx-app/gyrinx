@@ -349,7 +349,7 @@ def _movement_note(moved, reason):
 
 
 class Operation:
-    """Track changed models and stashes for recomputation at settlement."""
+    """Track changed miniatures for recomputation at settlement."""
 
     #: Bound recursive model grants to reject cyclic content.
     MAX_STORED_EFFECT_DEPTH = 3
@@ -450,8 +450,8 @@ class Operation:
         if list_price is None:
             list_price = paid + discount
         if rating is None:
-            # Discounts reduce payment without reducing rating. Without a separate
-            # list price, payment determines both. Moving equipment retains this rating.
+            # Rating defaults to list_price, which defaults to paid + discount.
+            # Moving equipment retains this rating.
             rating = list_price
         if reason is None:
             reason = _reason_for(paid, caused_by)
