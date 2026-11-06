@@ -1,21 +1,6 @@
 {% comment %}
-The options a thing offers when acquired, drawn as one section — each
-set an outlined card, headed in the rulebook's own words, so an admin
-transcribing "may be armed with one of the following…" sees that
-sentence on the page they are filling in. The main pick wears a badge,
-and the standard option of every pick-one set wears one too, because
-"which one do you get if you say nothing" was the question this page
-kept making people ask.
-
-Two forms share the section, folded closed until needed. "Add an
-option" is pinned to a set by the control that was clicked — each
-card's add button carries ?set= (or ?add=option for the main pick) in
-the URL, so the redrawn page arrives with the form open and the form
-holds the destination as a hidden field — and "Offer another set of
-options" makes the next set. Two acts, one section: the acts route the
-POST, the drawing is ours.
-
-Takes `hire_options` (built by views._hire_options_context) and `thing`.
+Group options by their acquisition set.
+The selected set comes from ?set= or ?add=option and is submitted as a hidden field.
 {% endcomment %}
 <c-n26.form-section title="{{ hire_options.title }}"
                     description="{{ hire_options.description }}"
@@ -29,12 +14,7 @@ Takes `hire_options` (built by views._hire_options_context) and `thing`.
                     <div class="flex flex-wrap items-baseline justify-between gap-2">
                         <p class="text-sm">
                             <span class="font-semibold text-ink-900 dark:text-ink-100">{{ group.how|capfirst }}</span>
-                            {% comment %}
-                            No class= on c-ui.badge: it does not declare one,
-                            so a passed class renders as a second class
-                            attribute and the browser drops the badge's own —
-                            an unstyled badge, silently.
-                            {% endcomment %}
+                            {# c-ui.badge does not accept class; passing it creates duplicate class attributes. #}
                             {% if group.is_main %}
                                 <c-ui.badge color="blue" size="xs">
                                     Main pick
@@ -109,11 +89,7 @@ Takes `hire_options` (built by views._hire_options_context) and `thing`.
             {{ hire_options.nothing_yet }}
         </c-ui.description>
     {% endif %}
-    {% comment %}
-    The two forms, folded. :expanded comes from the view: a control that
-    leads here (?set= / ?add=) or a submission refused with errors
-    arrives open; otherwise the fold keeps the page short.
-    {% endcomment %}
+    {# Expand forms when requested by the URL or when validation errors need displaying. #}
     <div id="add-option" class="mt-8">
         <c-ui.collapse :expanded="hire_options.option_open">
             <c-slot name="trigger">

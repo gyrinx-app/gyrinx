@@ -1,15 +1,6 @@
 {% comment %}
-The cell naming one piece of content, on every authoring table that
-lists other people's things.
-
-The link carries the thing as it is called, and nothing else: an author
-following a name should open the thing, not the words hung beside it to
-tell it from its twin. The qualifier follows as plain text, so it reads
-as an aside rather than as part of the name.
-
-Takes `row`, with `label`, `qualifier`, and `url` — the view decides
-where a name leads, and a thing with no page of its own is still named,
-only unlinked.
+Only the content label links to row.url; display the author-only qualifier separately.
+Content without an authoring page has no link.
 {% endcomment %}
 <td class="whitespace-nowrap">
     {% if row.url %}
