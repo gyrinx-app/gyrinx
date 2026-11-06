@@ -490,12 +490,13 @@ class Optioned(models.Model):
         return taken
 
     def options_taken(self, recorded_sets):
-        """Resolve recorded default-set identifiers to acquisition options in offer order.
+        """Resolve recorded default-set identifiers to acquisition options in offer
+        order.
 
         Do not infer choices when none were recorded, as built-in content does not
-        materialise acquisition options. Omit single-option groups because they offer
-        no choice. Consume each recorded set once when multiple options share it,
-        matching ``resolve_selection``.
+        materialise acquisition options. Omit single-option pick-one groups
+        because they offer no choice. Consume each recorded set once when multiple
+        options share it, matching ``resolve_selection``.
         """
         unspent = set(recorded_sets)
         taken = []
