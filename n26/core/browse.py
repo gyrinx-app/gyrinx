@@ -199,7 +199,7 @@ def browse(collection, terms=None, *, include_staged=False):
 
     Apply sweep eligibility from those terms, while preserving explicit curated
     entries. Include only ammunition listed by entries or matched by selectors.
-    Group it beneath its listed weapon at the listing's own price.
+    Group ammunition beneath its listed weapon at the listing's own price.
 
     Display Trade Point values when the collection deals in them or terms
     count them. Keep original values on lines even when the display omits them.
