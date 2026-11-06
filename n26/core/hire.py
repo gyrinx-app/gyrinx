@@ -1,37 +1,16 @@
-"""The hire view: what you would get, before you get it.
+"""Build hire previews using the same ModelCard structures as stored fighters.
 
-A gang sheet shows the models a player owns; a hire view shows the ones
-they could buy. Both are lists of ``ModelCard`` — the same structure, from
-the same renderer — because a preview is built by the same machinery that
-builds a real card, just from library content instead of stored
-assignments.
+``build_card_from_profile`` mirrors ``Operation.hire`` with library content
+instead of assignments. Tests compare the preview with the resulting hire.
 
-That matters more than it sounds. The alternative is a second, parallel
-"what you'd get" renderer, which drifts from the real card the first time
-anyone changes either. Here they cannot drift: ``build_card_from_profile``
-mirrors ``Operation.hire``, and a test asserts a preview card equals the
-card of the model actually hired from it.
+Show one card per option against otherwise default selections, avoiding
+all possible option combinations. A combined selection can be previewed
+by passing its selected sets explicitly.
 
-Options come grouped, so the view is *one card per option*, never one per
-combination: each option's card shows that option taken against an
-otherwise-default selection, and a specific combination's card is a
-``build_card_from_profile(profile, option=[...])`` away. Enumerating the
-combinations is exactly the explosion the groups exist to avoid.
-
-The gang list itself is a collection the gang carries, and so is every
-other list of fighters it is offered — a corruption's Aberrants and Chaos
-Spawn arrive that way, at the corruption's own prices. A collection says
-which it is through its default section: named for the gang list's own
-taxonomy section, its fighters are the gang's list and file under the
-rank headings; named anything else, or not at all, they are a block of
-their own. Both are built from the same entries by the same functions,
-with the collection's price standing in for the fighter's own (``Offer``,
-``collection_offers``). A gang carrying no list of its own hires from its
-gang type's profiles.
-
-Query budget, as everywhere: previewing a whole gang list is a fixed
-number of queries whatever its length, and so is a gang's carried
-collections however many it carries.
+Carried fighter collections use their collection prices. Gang-list collections
+use taxonomy rank headings; supplementary collections use their own blocks.
+Without an own gang list, use the gang type's profiles. Batch content
+loading so query count stays fixed as the list grows.
 """
 
 from dataclasses import dataclass, field
@@ -41,9 +20,8 @@ from n26.core.effects import compute
 from n26.core.render import ModelCard, card_to_model_card
 from n26.core.taxonomy import UNCATEGORISED, group_by_home
 
-#: What an option is called when a profile offers no alternatives. Every
-#: profile has at least one thing you can hire, so a UI always draws the
-#: same shape rather than branching on whether choices exist.
+#: Fallback option label keeps profiles without alternatives in the same
+#: preview structure.
 STANDARD_OPTION_NAME = "As standard"
 
 
@@ -57,31 +35,21 @@ class HireOption:
     #: The price of the hire with this option taken and all else default.
     total_price: int
     is_default: bool
-    #: None when the caller asked for a list without drawn cards — a
-    #: page that fetches each card on demand instead of shipping every
-    #: one. ``preview_model_card`` is the single card such a page serves.
+    #: None for lazy preview lists; preview_model_card serves one card on demand.
     card: ModelCard | None
     #: None when the profile offers no alternatives and this is the
     #: synthesised standard one.
     default_set: object = None
-    #: Where a drawn card for exactly this option can be fetched, when
-    #: the surface serves them on demand. A display address, so the view
-    #: that knows its URLs fills it in; empty means the card is inline.
+    #: View-supplied preview URL for this option, empty for inline cards.
     card_url: str = ""
 
 
 @dataclass
 class HireGroup:
-    """One set of the options a profile offers.
+    """A profile's one-of or any-of option group.
 
-    ``choose`` is "one" (radio: exactly one, the default marked) or
-    "any" (checkboxes: take any number, none by default).
-
-    A set has no name here, deliberately. The one the content carries
-    is the author's label for their own page — a player is shown the
-    options, and a heading naming the set would be a second vocabulary
-    they never agreed to. What a reader needs is that these options go
-    together, which is the grouping itself.
+    Mark the default for one-of groups and select none by default for any-of
+    groups. Omit the author's internal set name from player-facing headings.
     """
 
     choose: str
@@ -104,18 +72,13 @@ class HireEntry:
     """One profile a player could hire, with every set of its options."""
 
     profile: object
-    #: The default group first — never empty, "As standard" is synthesised
-    #: when the profile offers no plain alternatives — then each named
-    #: group in position order.
+    #: Default group first, synthesising As standard when needed, then named
+    #: groups in authored order.
     groups: list[HireGroup] = field(default_factory=list)
-    #: The collection entry that offered this row, where a collection did.
-    #: Its price is the one the row quotes and the one the hire charges, so
-    #: a click has to say which entry offered it — hence ``key``.
+    #: Source entry supplies this offer's price and purchase identity.
     entry: object = None
-    #: Where a card for this row is fetched from before any option is
-    #: named — what the offer is priced by, and nothing about the
-    #: selection. A surface following every control adds the ticked
-    #: options to it; empty means the row carries its cards inline.
+    #: Base preview URL before option selection, empty for inline cards.
+    #: The client adds selected options.
     card_url: str = ""
 
     @property
@@ -202,16 +165,10 @@ class Offer:
     #: The curated entry that offered this, when one did. A swept profile
     #: has none, exactly as a swept line in a browse has none.
     entry: object = None
-    #: Which collection is offering. None where the gang type's own
-    #: fighter entries were the offer, which is what a gang with no list
-    #: of its own hires from.
+    #: Source collection, or None for the gang type's fallback profiles.
     collection: object = None
-    #: The name of the offering collection's default section, or None
-    #: where it declares none. On this screen that name is where the
-    #: collection's fighters are filed: "Gang List" files them as the
-    #: gang's own list, under the rank headings; any other name is a
-    #: block of that name; no section at all is a block named after the
-    #: collection.
+    #: Default section label controls grouping: Gang List uses rank headings,
+    #: other labels name supplementary blocks, and absent labels use the collection name.
     default_section: str | None = None
 
     @property
@@ -384,17 +341,14 @@ def collection_offers(collections, *, include_staged=False):
     from n26.core import select
     from n26.library.models import CollectionEntry, CollectionSelector, Profile
 
-    # A collection withdrawn, or not yet put live for this reader, offers
-    # nothing here — the same reading every discovery surface gives
-    # archived and staged content.
+    # Discovery excludes archived collections and staged collections without permission.
     ids = set(visible_to(collections, include_staged=include_staged))
     if not ids:
         return []
     collections = [collection for collection in collections if collection.pk in ids]
 
-    # An archived entry is a line the list no longer offers, whoever is
-    # looking; a staged one is a line it does not offer yet. A staged
-    # profile is dropped below, where the profiles are fetched.
+    # Exclude archived entries and staged entries without permission.
+    # Profile staging is checked during profile loading.
     listed = CollectionEntry.objects.filter(
         collection_id__in=ids, profile__isnull=False
     ).unarchived()
@@ -442,12 +396,8 @@ def collection_offers(collections, *, include_staged=False):
         for sweep in sweeps:
             if sweep.collection_id != collection.pk:
                 continue
-            # The sweep is decided against the profiles already fetched
-            # rather than by a query of its own, so a gang carrying six
-            # swept lists costs what one costs. A selector can only ask
-            # about a profile's kind, its home and its Trade Point price
-            # — facts printed on the profile — so no possession is needed
-            # to answer it.
+            # Evaluate selectors against already loaded profile facts to share reads
+            # across carried collections.
             selector = sweep.as_selector()
             for profile in found.values():
                 if profile.pk in taken:
@@ -670,8 +620,7 @@ def hireable_profiles(gang_type=None, *, include_staged=False):
     from n26.library.models import Profile
     from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
 
-    # default_pickable rides along for slots arriving already settled —
-    # the preview card draws the starting pick, so it is read per member.
+    # Preload default picks for slots already resolved in the hire preview.
     members = [
         f"members__{name}" for name in (*DEFAULT_ASSIGNABLE_FIELDS, "default_pickable")
     ]
@@ -681,21 +630,16 @@ def hireable_profiles(gang_type=None, *, include_staged=False):
         "members__weapon_profile__traits",
         "members__weapon_profile__statline__stats__statline_type_stat__stat",
     )
-    # A profile that is not hireable is not a secret — its card still
-    # previews wherever it is granted — it just is not for sale here:
-    # a pet arrives behind its collar, not off the hire screen. An archived
-    # one is off the screen too, as archived content is off every
-    # discovery surface, and a staged one is not for sale to anyone who
-    # may not see staged content.
+    # Non-hireable profiles can be previewed as grants but are not sold here.
+    # Also exclude archived profiles and staged profiles without permission.
     found = Profile.objects.filter(hireable=True).unarchived()
     if not include_staged:
         found = found.live()
     if gang_type is not None:
         found = found.filter(gang_type=gang_type)
     return (
-        # category__section rides along for the section headings — without
-        # it, grouping a listing costs two queries per profile. gang_type
-        # for the all-profiles scope, whose sections are the gang types.
+        # Preload category sections for rank headings and gang types for the
+        # all-profiles grouping.
         found.select_related(
             "profile_type", "built_ins", "category__section", "gang_type"
         )
