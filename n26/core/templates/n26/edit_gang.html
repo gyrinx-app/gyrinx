@@ -2,20 +2,14 @@
 {% load navigation %}
 {% load static %}
 {% comment %}
-Editing a standing gang, in tabs the URL picks (?tab=notes). Notes and Lore
-each have their own form so one save cannot discard the other's text. htmx
-saves without rebuilding the page; TinyMCE stays, because swapping the
-editor out would throw its undo history away. A tab is a link, so the
-choice survives a reload and works with no script. The one difference of
-substance from the create form: the type is a fact rather than a
-question, because it fixed who could be hired and what the founding
-brought, and those rows exist.
+Select editing tabs through the URL and save Notes and Lore independently. Partial saves
+preserve TinyMCE instances and their undo histories; the gang type remains fixed after
+founding.
 {% endcomment %}
 {% block head_title %}Edit {{ gang.name }}{% endblock head_title %}
 {% comment %}
-richtext.js before form.media: it registers the listener that swaps the
-editor's skin with the colour mode, and django-tinymce's own initialiser
-reads the config after that listener has run.
+Load richtext.js before form.media so theme configuration runs before TinyMCE
+initialisation.
 {% endcomment %}
 {% block extra_head %}
     <script src="{% static 'n26/richtext.js' %}"></script>
@@ -36,9 +30,7 @@ reads the config after that listener has run.
     {% url 'n26-edit-gang' gang.pk as edit_url %}
     {% if tab != "general" %}
         {% comment %}
-        Two forms, not one wrapping page: a form inside a form is not
-        markup, and each box has to post without the other. The column
-        matches form-page's cap so the tab still reads as the same page.
+        Keep separate forms for independent editors because forms cannot nest.
         {% endcomment %}
         <div class="max-w-3xl space-y-8">
             <c-n26.page-header title="Edit {{ gang.name }}">
@@ -88,9 +80,8 @@ reads the config after that listener has run.
                     <input type="hidden" name="act" value="notes">
                     <c-n26.form-section title="Notes">
                         {% comment %}
-                        The editor wraps itself in the field — label, description
-                        and errors ride the component, and a second wrapper would
-                        draw the frame twice.
+                        The editor component includes its field label, description and
+                        errors, so omit an outer field wrapper.
                         {% endcomment %}
                         <c-n26.rich-text :field="notes_form.notes"
                                          label="Notes"
@@ -120,7 +111,7 @@ reads the config after that listener has run.
                     </c-n26.form-section>
                 </form>
                 {% comment %}
-                The picture is its own act — a form inside a form is not markup.
+                Keep the picture upload in its own form outside other forms.
                 {% endcomment %}
                 <c-n26.form-section title="Picture">
                     <c-n26.picture-box action="{{ edit_url }}"
@@ -167,9 +158,7 @@ reads the config after that listener has run.
                                 value="{{ form.name.value|default:'' }}" />
                 </c-ui.field>
                 {% comment %}
-                The one answer the create form asks that this one cannot: the
-                type fixed who could be hired and what the founding brought,
-                so it is stated rather than offered.
+                Gang type is fixed by founding and its existing grants.
                 {% endcomment %}
                 <div class="flex flex-col gap-1">
                     <span class="text-sm font-medium text-ink-900 dark:text-ink-100">Gang type</span>
@@ -179,9 +168,7 @@ reads the config after that listener has run.
             </c-n26.form-section>
             <c-n26.form-section title="Setup">
                 {% comment %}
-                The floor is stated in the field's own help rather than left
-                to the error: the reader deciding a budget needs the number
-                they are deciding against, not a refusal after they guess.
+                Show the minimum budget before submission through the field help.
                 {% endcomment %}
                 <c-ui.field label="Credits budget"
                             description="Leave blank to spend as much as you like. A budget must cover what the gang is already worth — {{ wealth }}¢ — and what is left over becomes credits in hand."

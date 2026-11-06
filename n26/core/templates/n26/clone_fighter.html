@@ -1,11 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Copying one model inside its gang. The owner names the copy; the operation
-takes its profile, equipment and standing state from the source.
-
-The model's edit page is both the way in and the way out: Cancel returns to
-the source, and a completed clone opens the new model there.
+Clone the model's profile, equipment and state within its gang. Cancel returns to the
+source; success opens the new model's edit page.
 {% endcomment %}
 {% block head_title %}Clone {{ source.name }}{% endblock head_title %}
 {% block nav_switcher %}

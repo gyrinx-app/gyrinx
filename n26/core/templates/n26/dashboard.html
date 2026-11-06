@@ -1,22 +1,10 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-The edition's front page: the signed-in user's gangs and the site
-changelog, drawn entirely from the design system — the gallery's shell
-home (designsystem/shell/home.html) is this page with sample rows, so
-what was judged there is what ships here.
-
-The type filter is <c-n26.record-table>'s own, client-side: every row
-registers its facets and the table narrows as you type. The search box
-does that too, and clicking Search hands the query to the gangs page,
-which can find gangs this tab never carried.
+Dashboard using the same gang table as the full list. Local filtering narrows loaded
+gangs; submitting search opens the full gangs page.
 {% endcomment %}
 {% block head_title %}Home{% endblock head_title %}
-{% comment %}
-The bar names the page through the switcher rather than a plain heading:
-the name is a link, and the chevron beside it offers the app's other
-places — the same pattern a gang's screens use for their siblings.
-{% endcomment %}
 {% block nav_switcher %}
     {% places_switcher here='home' as places_ %}
     <c-n26.quick-switcher.of :switcher="places_" hotkey="f" />
@@ -26,10 +14,8 @@ places — the same pattern a gang's screens use for their siblings.
 {% endblock %}
 {% block content %}
     {% comment %}
-    A mark on the tab rather than a count: what matters is that something is
-    waiting, and a reader who opens the tab sees how many for themselves. The
-    markup is the view's, so nothing here quotes HTML inside an attribute, and
-    the classes sit somewhere the stylesheet's scan can find them.
+    Pass the invitation marker as view-provided markup so it remains outside attribute
+    escaping and its classes are visible to the stylesheet scanner.
     {% endcomment %}
     <c-n26.view.dashboard new_gang_href="{% url 'n26-create-gang' %}"
                           :campaigns_mark="campaigns_mark"
@@ -37,11 +23,8 @@ places — the same pattern a gang's screens use for their siblings.
                           new_campaign_href="{% url 'n26-create-campaign' %}"
                           new_campaign_label="Set up campaign">
         {% comment %}
-        The greeting names the reader with the badge their account actually
-        holds. Which one that is follows from their supporter standing and
-        staff flag against the platform's registry, which c-n26.user-link is
-        what asks — an account entitled to nothing gets the name alone, with
-        no gap left after it.
+        The platform badge component resolves the account's supporter or staff badge and
+        renders no gap when there is none.
         {% endcomment %}
         <c-slot name="username">
             <c-n26.user-link :user="user" tone="current" underline="none" />
