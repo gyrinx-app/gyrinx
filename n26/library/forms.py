@@ -1,33 +1,12 @@
-"""Forms generated from specs — the admin surface of the authoring verbs.
+"""Generate authoring forms from specs and compile validated data into API calls.
 
-Step 2 of design/authoring-build-plan.md. ``generate_form(spec)`` turns
-one verb's spec into a plain Django ``Form``; a valid form **compiles to
-the verb call** (``form.compile()``), so what the admin can build and
-what the API can express are the same thing by construction. On top sits
-``ModifierComposerForm``, the hand-written shell for the one assembly
-that is always three rows: pick a WHO, pick a WHAT, and say where the
-modifier hangs.
+Verb signatures determine required fields and defaults. Specs provide field
+help, choices and relation restrictions. Conditions use formsets whose
+payloads are compiled by their own specs. Rule and subtype union fields
+also support creating name-only content.
 
-The rules the forms keep:
-
-* **Requiredness comes from the verb's signature** — a parameter with a
-  default is optional, one without is required. Nothing is declared
-  twice.
-* **Help is the spec's help**, which is the model field's own words.
-* **Refusals are words at form level, never database errors**: a
-  section of the wrong collection, an effect that cannot apply to a
-  scope — each is a ``ValidationError`` that says why, in the same
-  words the models use.
-* **Conditions are a formset of chips**: each chip picks a condition
-  kind and fills that kind's fields, compiled by that condition's own
-  spec.
-* **The union picker can create name-only leaves inline** (a Rule, a
-  Subtype) — a name and nothing else, because the wording stays in the
-  book.
-
-Templates are deliberately absent (merge-time); everything here is
-asserted through form data in tests, the structures-before-renderers
-rule again.
+``ModifierComposerForm`` combines the generated scope and effect forms,
+conditions and modifier naming. See design/authoring-build-plan.md.
 """
 
 import inspect
@@ -49,9 +28,7 @@ from n26.library.specs import (
     specs,
 )
 
-#: What each scope verb's targets can ever be — the form-level mirror of
-#: ``n26.library.models.modifier._possible_kinds``, checked against it by a
-#: drift test rather than trusted.
+#: Target kinds produced by scope functions, checked against modifier._possible_kinds.
 SCOPE_PRODUCES = {
     "targets_model": "model",
     "targets_every_model": "model",
@@ -95,14 +72,10 @@ NAME_ONLY_HELP = (
 
 
 class StagedForm(forms.Form):
-    """Whether a new row is held back from players — asked beside the
-    creating form rather than by it.
+    """Choose whether newly authored content is staged, defaulting to staged.
 
-    Not a spec field: staging is not part of what a thing *is*, and a verb
-    that took it would make every importer and every test say it. Starts
-    switched on, because content typed on these pages is the kind that is
-    checked before players meet it; the import page asks the same question
-    the same way round.
+    This separate form is shared by creation and ingest pages; staging is not
+    a parameter on each content creation spec.
     """
 
     staged = forms.BooleanField(
@@ -114,8 +87,7 @@ class StagedForm(forms.Form):
 
 
 class PendingCreate:
-    """A name-only leaf the form will create at compile time — typed
-    into the union picker instead of picked."""
+    """A name-only rule or subtype to create after form validation."""
 
     def __init__(self, kind, name):
         self.kind = kind
@@ -123,8 +95,7 @@ class PendingCreate:
 
 
 def _is_required(spec, name):
-    """A parameter without a default must be filled; one with a default
-    may be left alone. Read off the verb, never declared twice."""
+    """Derive required fields from parameters without defaults, excluding ``*args``."""
     parameter = inspect.signature(spec.verb).parameters[name]
     return (
         parameter.default is inspect.Parameter.empty
@@ -133,13 +104,10 @@ def _is_required(spec, name):
 
 
 def _switch_default(spec, name):
-    """What the verb does with a switch nobody says anything about.
+    """Read a Boolean parameter's default from the authoring function.
 
-    ``True`` or ``False`` where the parameter has a default, and neither
-    where it has none — that switch is the author's to answer. Two things
-    read it: a create form draws the switch where the verb starts it, and an
-    unchecked box may only be dropped as "say nothing" where saying nothing
-    means off.
+    Create forms use it as the initial value. An unchecked box can omit the
+    parameter only when its default is false.
     """
     return inspect.signature(spec.verb).parameters[name].default
 
@@ -151,13 +119,7 @@ def _model_class(label):
 
 
 class _AuthoringChoiceField(forms.ModelChoiceField):
-    """A picker that reads as an author needs it to.
-
-    Two things may print the same name — the books give Delaque's and
-    Goliath's beasts the same Ferocious jaws — so a picker showing only
-    what a card shows would offer the same row twice. It labels with
-    ``authoring_label`` where a kind has one.
-    """
+    """Show authoring labels to distinguish same-named content with qualifiers."""
 
     def label_from_instance(self, obj):
         return getattr(obj, "authoring_label", None) or str(obj)
@@ -169,14 +131,7 @@ class _AuthoringMultipleChoiceField(forms.ModelMultipleChoiceField):
 
 
 def _labelled(model):
-    """A picker's option queryset, with what the labels read joined in.
-
-    Several kinds say themselves through a foreign key — a category
-    names its section, a section its collection — so a picker labelling
-    each option one row at a time costs a query per choice. Joining
-    every forward relation keeps the option list to one query whatever
-    the kind.
-    """
+    """Join forward relations used by option labels to avoid a query per choice."""
     related = [
         field.name
         for field in model._meta.get_fields()
@@ -186,7 +141,7 @@ def _labelled(model):
 
 
 def _form_fields(spec, name, kind):
-    """The Django form field(s) one spec field becomes."""
+    """Build Django fields for one spec parameter."""
     if isinstance(kind, One):
         return {
             name: _AuthoringChoiceField(
@@ -211,9 +166,7 @@ def _form_fields(spec, name, kind):
                 required=_is_required(spec, name),
                 help_text=kind.help,
                 label=kind.label,
-                # The column's own floor, so a negative number is this
-                # field's error rather than the database refusing the
-                # INSERT as a 500.
+                # Apply the model field's minimum before attempting a database write.
                 min_value=kind.min_value,
                 max_value=kind.max_value,
             )
@@ -233,9 +186,7 @@ def _form_fields(spec, name, kind):
                 required=_is_required(spec, name),
                 help_text=kind.help,
                 label=kind.label,
-                # The column's own limit, so an overlong value is this
-                # field's error rather than the database refusing the
-                # INSERT as a 500.
+                # Apply the model field's length limit before attempting a database write.
                 max_length=kind.max_length,
                 widget=forms.Textarea(attrs={"rows": 3})
                 if getattr(kind, "long", False)
@@ -335,8 +286,7 @@ def _form_fields(spec, name, kind):
 
 
 def _union_asks(kind):
-    """``{through column: (kinds that declare it)}`` for one union —
-    each kind's own ATTACHMENT_ASKS, folded across the union's kinds."""
+    """Map attachment fields to the union kinds declaring them."""
     from n26.library.offers import attachment_asks
 
     if kind.through is None:
@@ -349,12 +299,10 @@ def _union_asks(kind):
 
 
 def _initial_from(spec, row):
-    """A form's opening values, read off a row that already exists.
+    """Read initial form values from existing content.
 
-    Straight off the columns, which is what nearly every spec field
-    names. The two shapes that are not: a union fills two controls (the
-    kind, and that kind's picker), and a choice whose stored column is
-    not the parameter says how it reads itself back.
+    Union fields need both a kind and an object control. Choices whose stored
+    field differs from the function parameter use their ``reads`` accessor.
     """
     initial = {}
     for name, kind in spec.fields.items():
@@ -373,9 +321,7 @@ def _initial_from(spec, row):
             if chosen is not None:
                 initial[f"{name}_kind"] = chosen
                 initial[f"{name}_{chosen}"] = getattr(row, chosen)
-            # The asks the chosen kind declares ride the same row, so an
-            # edit opens on them too — otherwise saving a grant without
-            # touching its pick would silently drop the pick.
+            # Restore attachment parameters too, so saving an unchanged grant preserves its starting pick.
             for ask_name, options in _union_asks(kind).items():
                 if chosen in options and getattr(row, ask_name, None) is not None:
                     initial[ask_name] = getattr(row, ask_name)
@@ -391,16 +337,12 @@ def _initial_from(spec, row):
 
 
 def cross_pack_refusal(writing_into, referenced):
-    """Why a row in ``writing_into`` may not point at ``referenced``, in
-    words — or nothing, where it may.
+    """Explain a forbidden cross-pack reference, or return no message.
 
-    System content is what every pack builds on, so it can point only at
-    system content: a system row naming something in a pack a person owns
-    would carry that person's content into every gang that holds the
-    row, and would stop resolving for them the day the pack was deleted.
-    Owned content may point at anything it can see. One statement of the
-    rule, read by every form and page that writes a reference; the models
-    do not check it (design/campaign-assets.md).
+    System content may reference only system content. Otherwise every gang
+    using it could depend on a user's private or deleted pack. Owned content
+    may reference any content visible to its author. Forms enforce this rule;
+    models do not. See design/campaign-assets.md.
     """
     pack = getattr(referenced, "pack", None)
     if pack is None or writing_into.owner_id is not None or pack.owner_id is None:
@@ -414,10 +356,9 @@ def cross_pack_refusal(writing_into, referenced):
 
 
 def picks_in(spec_fields, cleaned):
-    """Every content row a form's picks name, by the field to refuse on.
+    """Map form field names to the selected content they must validate.
 
-    A union's refusal lands on the chosen kind's picker, because the
-    union's own name is not a field on the form.
+    Union errors belong on the selected kind's object field.
     """
     from n26.library.models.base import Content
 
@@ -434,10 +375,10 @@ def picks_in(spec_fields, cleaned):
 
 
 def refuse_cross_pack_references(form, writing_into, picks):
-    """Put a refusal on each field of ``form`` whose pick crosses packs.
+    """Add errors for selected content incompatible with the destination pack.
 
-    ``picks`` is ``{field name: rows}``. Reads the pack off each row, so
-    a picker whose queryset joined the pack pays no query per row.
+    ``picks`` maps field names to content. Prefetching packs avoids a query
+    for each selection.
     """
     for name, rows in picks.items():
         for row in rows:
@@ -447,8 +388,7 @@ def refuse_cross_pack_references(form, writing_into, picks):
 
 
 class GeneratedForm(forms.Form):
-    """Base for spec-generated forms: filtered_by and unions in clean,
-    and ``compile()`` performing the verb call."""
+    """Validate spec fields and compile their values into an authoring API call."""
 
     spec = None
     #: ``{union field: {through column: (kinds that declare it)}}`` —
@@ -458,11 +398,9 @@ class GeneratedForm(forms.Form):
 
     def __init__(self, *args, collection=None, carrier=None, editing=None, **kwargs):
         super().__init__(*args, **kwargs)
-        #: The collection this form is being filled *within*, when the
-        #: flow knows one — what filtered_by checks against.
+        #: The containing collection used to validate filtered_by fields.
         self.collection = collection
-        #: The thing this part is being added to, when the flow knows
-        #: one — what ``within`` narrows a picker to.
+        #: The carrier whose related records constrain within pickers.
         self.carrier = carrier
         #: The row this form was opened on, when it edits one that already
         #: exists — whose pack an edit stays in.
@@ -476,11 +414,11 @@ class GeneratedForm(forms.Form):
                 self._offer_the_carriers_kinds(name, kind, carrier)
 
     def _offer_the_carriers_kinds(self, name, kind, carrier):
-        """Narrow a built-in picker to the kinds its carrier declares
-        (``built_in_kinds``), the first of them as the default, and drop
-        the pickers for the rest — so what is offered and what is
-        accepted are the same list. A carrier declaring nothing keeps
-        every kind."""
+        """Restrict built-in selectors to the carrier's declared kinds.
+
+        Choose the first allowed kind initially. A carrier declaring no restrictions
+        keeps every kind.
+        """
         offered = getattr(carrier, "built_in_kinds", None)
         if offered is None:
             return
@@ -501,13 +439,8 @@ class GeneratedForm(forms.Form):
         for name, kind in self.spec.fields.items():
             if isinstance(kind, One) and kind.within and self.carrier is not None:
                 picked = cleaned.get(name)
-                # Asked of the same accessor that narrowed the picker, so
-                # what is offered and what is accepted are one statement
-                # rather than two that can come to disagree — and one that
-                # holds for any kind, not only the ones whose rows can name
-                # what they belong to. Asked of the database rather than of
-                # a list, so a wide accessor costs one row and not all of
-                # them.
+                # Validate against the same accessor used to narrow choices.
+                # Use an existence query instead of loading the whole related set.
                 if (
                     picked is not None
                     and not getattr(self.carrier, kind.within)
@@ -543,12 +476,10 @@ class GeneratedForm(forms.Form):
         return cleaned
 
     def writes_into(self):
-        """The pack the row this form writes belongs to.
+        """Resolve the destination pack for creation or editing.
 
-        An edit stays in its row's pack. A part whose verb writes it into
-        its carrier's pack (``Spec.joins_carrier_pack``) goes there.
-        Anything else lands in the default pack, which is where the verbs
-        put a row unless handed a pack, and these forms hand none.
+        Edits retain their pack. Parts marked ``joins_carrier_pack`` use the carrier's
+        pack. Other creations use the default pack, matching the authoring API.
         """
         from n26.library.models.pack import get_default_pack
 
@@ -558,7 +489,7 @@ class GeneratedForm(forms.Form):
         return pack if pack is not None else get_default_pack()
 
     def _clean_union(self, name, kind, cleaned):
-        """Exactly one thing, picked or newly named, of the chosen kind."""
+        """Resolve exactly one existing or newly named object of the selected kind."""
         chosen = cleaned.get(f"{name}_kind")
         if not chosen:
             return
@@ -588,15 +519,10 @@ class GeneratedForm(forms.Form):
             self._refuse_as_the_row_would(name, kind, chosen, picked, asks)
 
     def _refuse_as_the_row_would(self, name, kind, chosen, picked, asks):
-        """An ask the chosen kind declares is judged by the row it is
-        written into, before the verb runs.
+        """Validate attachment parameters using an unsaved through record.
 
-        The through row's own ``clean`` knows both ends — a starting
-        pick belongs to a hidden slot of its own type — and the verb
-        raises what it says. Asking the row here puts that refusal on
-        the ask's field instead of letting it surface as a failed
-        request. A newly named thing is not judged: it does not exist
-        yet, and the verb creates it as the kind's plain default.
+        Map its ``clean()`` errors to the corresponding form fields before the
+        function writes anything. New name-only content is validated by its creator.
         """
         try:
             kind.through(**{chosen: picked}, **asks).clean()
@@ -609,10 +535,10 @@ class GeneratedForm(forms.Form):
                 self.add_error(field if field in self.fields else picker, errors)
 
     def verb_data(self):
-        """The spec-field values a valid form holds, ready for the verb:
-        helper fields (a union's ``_kind`` and per-kind pickers) are
-        gone, empties fall back to the verb's defaults, and name-only
-        creations happen here — after validation, before the verb.
+        """Return validated API parameters, resolving union controls and inline creations.
+
+        Omit empty optional values so the function's defaults apply. Inline creation
+        runs after validation and before the main function call.
         """
         from n26.library import authoring
 
@@ -648,11 +574,7 @@ class GeneratedForm(forms.Form):
         return data
 
     def compile(self, conditions=()):
-        """The verb call this valid form amounts to.
-
-        ``conditions`` are ``(verb_name, payload)`` pairs from the
-        condition formset, passed through to the spec.
-        """
+        """Call the spec with validated data and compiled condition payloads."""
         data = self.verb_data()
         if conditions:
             data["conditions"] = list(conditions)
@@ -660,26 +582,11 @@ class GeneratedForm(forms.Form):
 
     @classmethod
     def opened_on(cls, thing, data=None, files=None, prefix="edit"):
-        """The same form, filled in from a row that already exists.
+        """Populate an edit form from an existing record and remove fixed fields.
 
-        A creating spec describes its verb's parameters, and for the
-        leaf kinds every one of those names a column on the thing the
-        verb makes — so the spec reads both ways, and editing needs no
-        second description of a kind. A guard holds that true
-        (tests/sandbox/test_authoring_views.py).
-
-        Prefixed, because a thing's page carries the form that adds a
-        part as well as this one, and the two specs name fields alike:
-        unprefixed, a weapon's page draws two inputs called
-        ``is_exclusive`` sharing one id, and the switches cross-wire —
-        saving the weapon marks it exclusive because the other form's
-        control answered for it.
-
-        What the spec calls **fixed** is left out: those answers are
-        what the thing is, and the way to a different answer is a
-        different thing. Left out rather than refused, and taken off the
-        form rather than only hidden — ``apply_to`` writes the fields the
-        form carries, so a submission naming one anyway writes nothing.
+        Prefix the form to prevent field names and HTML identifiers colliding with
+        part-creation forms on the same page. Removed fixed fields cannot be changed
+        by submitting extra keys because ``apply_to`` writes only form fields.
         """
         initial = _initial_from(cls.spec, thing)
         form = cls(data, files, initial=initial, prefix=prefix, editing=thing)
@@ -699,28 +606,12 @@ class GeneratedForm(forms.Form):
         return form
 
     def apply_to(self, thing):
-        """Write this valid form's fields onto an existing row.
+        """Update existing content through ``authoring.revise`` and set-replacement functions.
 
-        The verb is for making things; changing one is a write to the
-        columns the spec already names, which is ``authoring.revise`` —
-        one write path, shared with a re-import of a changed
-        spreadsheet. Values the form does not carry are left alone
-        rather than blanked.
-
-        A many-to-many field is the exception the shared verb refuses,
-        and rightly: replacing a set is a decision. Here the decision is
-        already made — a multi-select carries the whole set, so what it
-        does not name has been taken off — and the spec field names the
-        verb that owns saying so (``Many.replaced_by``), so this writes
-        through the same verb an importer does. Sets sharing a verb are
-        handed over together, because facts stated together are stated
-        together: the four use lists are one answer about one row.
-
-        An empty box over a column that cannot hold nothing says nothing,
-        so the stored value stands. A number field left blank cleans to no
-        value at all, and writing that would have the database refuse the
-        whole save — with a message about whatever the caller guessed a
-        refusal means. Nought is said by typing nought.
+        Preserve fields absent from the form. ``Many.replaced_by`` defines replacement
+        for multi-select fields; combine fields sharing a replacement function into
+        one call. Blank values leave non-nullable scalar fields unchanged; entering
+        zero explicitly stores zero.
         """
         from n26.library.authoring import revise
 
@@ -773,11 +664,10 @@ class GeneratedForm(forms.Form):
 
 
 def generate_form(spec):
-    """A plain Django ``Form`` subclass for one verb, from its spec.
+    """Create a Django Form subclass from a spec.
 
-    ``Conditions`` fields do not become flat form fields — they ride a
-    formset built by :func:`condition_formset_for`, and the compiled
-    payloads are handed to ``compile()``.
+    Conditions use ``condition_formset_for`` separately; pass the compiled
+    payloads into the form's ``compile()`` call.
     """
     attrs = {"spec": spec, "union_asks": {}}
     for name, kind in spec.fields.items():
@@ -804,12 +694,10 @@ def _camel(verb_name):
 
 
 def condition_chip_form(kinds):
-    """One chip: pick a condition kind, fill that kind's fields.
+    """Build one condition selector containing every allowed kind's fields.
 
-    The chip carries the union of every allowed kind's fields, all
-    optional at the field level; ``clean()`` requires exactly the chosen
-    kind's, in words. ``payload()`` is what the scope form's
-    ``compile()`` wants.
+    Fields are individually optional; ``clean()`` requires the chosen kind's
+    parameters. ``payload()`` returns values for the scope form to compile.
     """
     attrs = {
         "kinds": kinds,
@@ -865,18 +753,11 @@ def condition_chip_form(kinds):
 
 
 def condition_formset_for(spec, data=None, prefix="conditions", extra=0, initial=None):
-    """The formset of condition chips a scope form carries, or ``None``
-    for scopes that take no conditions. ``extra`` is how many empty
-    chips to draw — the composer page carries it in the URL, so "add a
-    condition" is a link and the state survives a refresh. ``initial``
-    is the narrowing a scope already has, one entry per chip.
+    """Build condition chips, or return ``None`` when the scope takes none.
 
-    A scope narrowed too far is corrected by taking a condition off it,
-    and the chip goes there and then: the click posts the form,
-    the view drops that chip from what arrived
-    (``without_condition_chip``) and sends the rest back as an address.
-    There is no delete field, because a tickbox that only takes effect
-    on the next save reads as a control that does nothing.
+    ``initial`` holds existing conditions; ``extra`` adds empty chips.
+    The view stores the count in the URL and removes submitted chips through
+    ``without_condition_chip`` before redirecting with the remaining form state.
     """
     kinds = next(
         (kind.kinds for kind in spec.fields.values() if isinstance(kind, Conditions)),
@@ -889,16 +770,9 @@ def condition_formset_for(spec, data=None, prefix="conditions", extra=0, initial
 
 
 def without_condition_chip(data, index, prefix="conditions"):
-    """Posted form data with one condition chip taken out of it.
+    """Remove a submitted condition and renumber the remaining formset entries.
 
-    A formset addresses its forms by position, so dropping one means
-    renumbering every chip after it and telling the management form
-    there is one fewer. Left as a gap, the missing position reads as a
-    chip the author emptied and the last chip is read twice.
-
-    An index naming no chip leaves the data alone — a click cannot be
-    allowed to rewrite a form on the strength of a number that came
-    from the page.
+    Update management counts to match. An out-of-range index leaves data unchanged.
     """
     try:
         total = int(data.get(f"{prefix}-TOTAL_FORMS", 0))
@@ -923,12 +797,9 @@ def without_condition_chip(data, index, prefix="conditions"):
 
 
 def _conditions_of(scope):
-    """The narrowing a scope already carries, as chips a formset opens on.
+    """Read every declared scope condition into initial formset data.
 
-    Every scope states its narrowing the same way — rows hung off it —
-    so one loop reads them all back. A narrowing missing from here is one
-    the composer drops the moment an author saves the modifier for any
-    other reason.
+    Omitting a condition here would remove it when the modifier is saved.
     """
     # A condition's relation on its scope and the verb that builds it
     # are the same word, which is what lets rows be read back without a
@@ -944,15 +815,11 @@ def _conditions_of(scope):
 
 
 def suggestion_form_for(kind_model):
-    """The form for what a new ``kind_model`` usually comes with, or
-    ``None`` when it suggests nothing (``SUGGESTED_BUILT_INS``, resolved
-    by library/offers.py).
+    """Build optional fields for ``SUGGESTED_BUILT_INS``, or return ``None``.
 
-    One field group per suggestion, everything optional — blank means
-    skipped. A fixed suggestion asks only for its extra values (Starting
-    XP is one number field); an open one is a picker over the
-    pre-queried candidates. ``apply(created)`` performs ``add_built_in``
-    for whatever was taken, in the create view's own transaction.
+    Fixed suggestions ask only for attachment values; open suggestions also
+    ask for content. Blank suggestions are skipped. ``apply(created)`` adds the
+    selected built-ins within the creation view's transaction.
     """
     from n26.library.offers import built_in_offer
 
@@ -1001,8 +868,7 @@ def suggestion_form_for(kind_model):
         from n26.library.models.base import Content
         from n26.library.models.pack import get_default_pack
 
-        # Named rather than super(): this becomes a method of a class
-        # built by type(), which has no class cell for super to read.
+        # Call the base explicitly because dynamically generated methods lack a __class__ cell.
         cleaned = forms.Form.clean(self)
         picks = {}
         for suggestion in self.offer:
@@ -1062,14 +928,9 @@ SCOPE_MODELS = {
 
 
 def _verb_label(name, model_label):
-    """A verb choice as an author reads it — the spec's own label where
-    it states one, the model's verbose name otherwise, the verb name
-    when nothing better is known.
+    """Use a spec label, model verbose name or function name for a kind choice.
 
-    The spec speaks first because two verbs can write one model, and a
-    picker labelling both from the model shows one choice twice — the
-    author cannot tell which of the two "places category" rows carries
-    the category field.
+    Spec labels distinguish functions that create the same model.
     """
     spec = specs().get(name)
     if spec is not None and spec.label:
@@ -1081,12 +942,7 @@ def _verb_label(name, model_label):
 
 
 def _scope_verb(scope):
-    """Which verb builds this scope row — SCOPE_MODELS read backwards,
-    for a composer opened on a modifier that already exists.
-
-    Two scope models each carry two verbs, told apart by the row: the
-    reach an author picked is which verb they picked.
-    """
+    """Resolve a stored scope to its creation function, including its reach variant."""
     name = type(scope).__name__
     if name == "TargetsMiniature":
         return (
@@ -1100,12 +956,7 @@ def _scope_verb(scope):
 
 
 def _effect_verb(effect):
-    """Which verb builds this effect row.
-
-    One model can have two verbs where both write the same columns and
-    mean different things: a placement either names a category or takes
-    whatever the carrier chose, and the flag is which.
-    """
+    """Resolve an effect's creation function, distinguishing placement variants."""
     name = type(effect).__name__
     if name == "PlacesCategory":
         return "ef_places_choice" if effect.the_chosen else "ef_places"
@@ -1128,12 +979,9 @@ def _effect_choices():
     ]
 
 
-#: What each effect verb can ever apply to — the kind pickers' own copy
-#: of the models' ``accepts()``, for greying an effect card the moment a
-#: scope is picked. Stated rather than derived, because ``ef_adds`` and
-#: ``ef_removes`` reach a weapon's line only through a trait, which a
-#: bare instance's ``accepts()`` cannot see; a drift test holds the rest
-#: of the table to the models.
+#: Accepted target kinds used to disable incompatible effect choices.
+#: Declare this table explicitly because an unsaved grant cannot resolve trait
+#: compatibility with weapon profiles; tests compare the other cases to accepts().
 EFFECT_CAN_TARGET = {
     "ef_adds": ("model", "weapon_profile", "gang"),
     "ef_removes": ("model", "weapon_profile", "gang"),
@@ -1163,11 +1011,9 @@ _TARGET_WORDS = {
 
 
 def scope_kind_cards(picked="", carrier=None):
-    """The WHO picker as cards: label, blurb and example off each verb's
-    spec, plus what the scope produces (for the client-side effect gate)
-    and — when the composer hangs on a carrier — whether this scope can
-    ever speak for it. "The weapon it's fitted to" is greyed on anything
-    that is never bolted to a weapon, with the reason on the card.
+    """Build scope cards with labels, examples and target kinds.
+
+    When a carrier is supplied, disable incompatible scopes and include a reason.
     """
     cards = []
     for name in specs():
@@ -1199,10 +1045,7 @@ def scope_kind_cards(picked="", carrier=None):
 
 
 def chosen_kind_cards(modifier):
-    """The two cards this modifier's kinds were picked from — label and
-    blurb only, for a page that shows the settled kinds rather than
-    offering them again. The kinds are what a modifier *is*, so the page
-    that corrects one states them and never asks."""
+    """Return labels and descriptions for a modifier's fixed scope and effect kinds."""
     scope_kind, effect_kind = _scope_verb(modifier.scope), _effect_verb(modifier.effect)
     return (
         {
@@ -1217,10 +1060,10 @@ def chosen_kind_cards(modifier):
 
 
 def effect_kind_cards(picked=""):
-    """The WHAT picker as cards, each carrying the target kinds it can
-    apply to — the client greys it the moment the picked scope produces
-    something outside them, and the compose submit refuses the pair in
-    words either way."""
+    """Build effect cards with accepted target kinds for compatibility filtering.
+
+    The server validates compatibility again on submission.
+    """
     cards = []
     for name in specs():
         if not name.startswith(("ef_", "op_")):
@@ -1244,24 +1087,14 @@ def effect_kind_cards(picked=""):
 
 
 class ModifierComposerForm(forms.Form):
-    """One form for the three-row assembly: a WHO pane, a WHAT pane,
-    and where the modifier hangs.
+    """Compose or edit a modifier using generated scope and effect forms.
 
-    The panes are spec-generated forms bound from the same data under
-    the ``who-`` and ``what-`` prefixes, picked by ``scope_kind`` and
-    ``effect_kind``; conditions ride the ``conditions-`` formset. The
-    composer opens from an assignable's page ("attach here" —
-    ``attach_to=``) or standalone; ``make_reusable`` decides what an
-    unnamed modifier is called, never where it goes.
+    The panes use ``who-`` and ``what-`` prefixes; conditions use ``conditions-``.
+    An optional carrier controls attachment. ``make_reusable`` changes automatic
+    naming, while attachment still follows ``attach_to``.
 
-    ``save()`` is ``modifier(auto_name, scope, effect, attach_to=…)``
-    where the auto-name is the modifier's own sentence, or the carrier
-    and what it does where the author wants a name of this carrier's
-    own — see ``_written_name``.
-
-    Opened on a modifier that already exists (``opened_on``) the same
-    form edits it: the panes start filled, the kinds are fixed, and
-    ``save()`` rewrites the row every carrier is already holding.
+    ``opened_on`` fixes the existing kinds and populates their fields.
+    Saving an edit updates the modifier used by every carrier.
     """
 
     scope_kind = forms.ChoiceField(choices=_scope_choices, label="Who it reaches")
@@ -1269,8 +1102,7 @@ class ModifierComposerForm(forms.Form):
     name = forms.CharField(
         required=False,
         help_text="Blank writes the modifier's own sentence as its name.",
-        # The column's own limit, so an overlong name is this field's
-        # error in words rather than the database refusing the INSERT.
+        # Validate names against the model field's length limit.
         max_length=200,
     )
     make_reusable = forms.BooleanField(
@@ -1304,13 +1136,9 @@ class ModifierComposerForm(forms.Form):
 
     @classmethod
     def unbound(cls, scope_kind, effect_kind, *, attach_to=None, chips=0):
-        """The composer ready to draw, before anything is submitted.
+        """Build panes from URL-selected kinds before submission.
 
-        The bound path builds its panes in ``clean()`` from the posted
-        kinds; a page rendering step two of the flow has no data yet,
-        only the kinds carried in the URL. ``chips`` is how many empty
-        condition rows to offer — also URL state, so "add a condition"
-        is a plain link.
+        ``chips`` adds empty condition forms and is also URL state.
         """
         form = cls(
             attach_to=attach_to,
@@ -1323,14 +1151,9 @@ class ModifierComposerForm(forms.Form):
 
     @classmethod
     def opened_on(cls, row, *, chips=0):
-        """The composer filled in from a modifier that already exists.
+        """Populate an existing modifier's fixed kinds, fields and condition chips.
 
-        The kinds are not offered again. What a modifier reaches and
-        what it does are what it *is*; swapping either is composing a
-        different one, and the effect may not even accept the other
-        scope's targets. Everything inside the two kinds is filled from
-        the rows, conditions included — they arrive as chips already
-        written, and ``chips`` adds empty ones after them.
+        ``chips`` appends empty conditions to those already stored.
         """
         scope_kind, effect_kind = _scope_verb(row.scope), _effect_verb(row.effect)
         form = cls(
@@ -1354,19 +1177,10 @@ class ModifierComposerForm(forms.Form):
 
     @classmethod
     def carried(cls, data, *, attach_to=None, editing=None):
-        """The composer as the author left it, filled in from data that
-        has travelled — a post being redrawn, or an address a removed
-        condition redirected to.
+        """Restore submitted or URL-carried form data without displaying validation errors.
 
-        Bound rather than opened on initial values, so everything typed
-        into the chips and both panes comes back exactly as it was sent.
-        Then quietened: what arrives here is a form mid-edit, not an
-        attempt to save one, and a pane the author has not reached yet
-        is not a refusal yet either.
-
-        Validation has to run before it can be set aside, because the
-        panes are built in ``clean()`` — an unvalidated composer has no
-        panes to draw.
+        Validation must run to construct the panes. Clear errors afterwards because
+        restoring an unfinished form is not a save attempt.
         """
         form = cls(data, attach_to=attach_to, editing=editing)
         form.full_clean()
@@ -1415,12 +1229,7 @@ class ModifierComposerForm(forms.Form):
         return cleaned
 
     def _check_compatibility(self, scope_kind, effect_kind):
-        """The Modifier.clean() check, before anything is written.
-
-        Runs ``accepts()`` on an *unsaved* effect instance, so a trait
-        aimed at a model is a form error in words — never a database
-        constraint tripping after rows exist.
-        """
+        """Validate scope targets against an unsaved effect before any writes."""
         effect = self._transient_effect(effect_kind)
         target_kind = SCOPE_PRODUCES[scope_kind]
         if not effect.accepts(target_kind):
@@ -1438,10 +1247,8 @@ class ModifierComposerForm(forms.Form):
         if effect_kind in ("ef_adds", "ef_removes"):
             thing = self.what_form.cleaned_data.get("thing")
             if isinstance(thing, PendingCreate):
-                # A new-named Rule or Subtype, not yet a row — its kind
-                # names the column, and the raw id is enough for
-                # accepts(), which reads nothing else: a rule may land
-                # on the gang where a subtype may not.
+                # An unsaved Rule or Subtype needs only its prospective field value for accepts().
+                # Rules may target gangs; subtypes cannot.
                 return model(**{f"{thing.kind}_id": 1})
             field = next(
                 name
@@ -1454,27 +1261,11 @@ class ModifierComposerForm(forms.Form):
         return model()
 
     def _written_name(self, scope, effect):
-        """The name a modifier gets when the author leaves the box empty.
+        """Generate a name from the modifier's behaviour and optional carrier.
 
-        Reusable means named for what it does and nothing else, so the
-        same row reads true on every carrier it is later given to. The
-        scope stays in that name: two reusable modifiers doing one thing
-        to different people are different modifiers, and a list of them
-        all called "adds Catfall" says nothing about which is which.
-
-        Named specifically, the carrier takes the scope's place at the
-        front — for a modifier hanging on one profile, that profile *is*
-        who it reaches, and "targets the model" beside its name is a
-        sentence about the machinery rather than about the fighter.
-
-        A scope that narrows keeps its say. Only the generic half of a
-        scope is machinery; the narrowing half is the one fact telling
-        two otherwise identical rows on one carrier apart. A skill grid
-        hangs a row per rank off a single affiliation and several ranks
-        put the same category in the same collection section, so dropping the rank
-        would name both rows the same thing — and the second one would
-        be refused by the unique-name constraint rather than merely read
-        oddly.
+        Reusable names include the scope. Carrier-specific names replace the generic
+        scope with the carrier but retain conditions, which distinguish modifiers
+        that otherwise have identical effects and would violate name uniqueness.
         """
         from django.utils.text import Truncator
 
@@ -1493,17 +1284,10 @@ class ModifierComposerForm(forms.Form):
         return Truncator(written).chars(limit)
 
     def save(self):
-        """Compile both panes, glue with the modifier verb, attach.
+        """Create or recompose a modifier and attach it to the supplied carrier.
 
-        Attaching happens either way. The reusable flag decides what the
-        row is *called*, never where it goes: an author composing on a
-        carrier wants it on that carrier, and one that saved itself
-        somewhere else would be a click that appeared to do nothing.
-
-        Editing takes the same two compiled parts to
-        ``recompose_modifier``, which puts them on the row the carriers
-        already hold — so a correction reaches every one of them and
-        none of them is re-attached.
+        Reusable naming does not change attachment. Editing recomposes the existing
+        modifier so every current carrier receives the correction.
         """
         from n26.library import authoring
 
@@ -1530,16 +1314,11 @@ class ModifierComposerForm(forms.Form):
 
 
 def statline_form_for(statline_type):
-    """One field per stat of a statline type — the one form the spec
-    system deliberately cannot generate.
+    """Generate characteristic fields from the statline type's content.
 
-    A spec describes a *verb's parameters*, and ``set_statline`` takes
-    ``**values`` whose names come from content: the stats of whichever
-    statline type the owner uses. So this reads the shape off the data
-    instead, and compiles to the same verb. Every field is optional —
-    a blank cell is a stat the book leaves blank, drawn as a dash — and
-    every value is stored as typed, since ``S`` (the wielder's Strength)
-    and ``E`` (engaged only) are as legitimate as ``4``.
+    A spec cannot enumerate ``set_statline(**values)`` because the type defines
+    the parameter names. All fields are optional and accept textual values such
+    as ``S`` and ``E`` as well as numbers.
     """
     type_stats = list(statline_type.stats.select_related("stat"))
     attrs = {"statline_type": statline_type, "type_stats": type_stats}
@@ -1562,23 +1341,15 @@ def statline_form_for(statline_type):
     }
 
     def clean(self):
-        """Refuse what cannot be stored, and nothing else.
+        """Validate storage length and reject separators from pasted multi-cell data.
 
-        A characteristic is not always a number: ``S`` stands for the
-        wielder's own Strength, ``D6`` is rolled, ``-`` is none. Turning
-        those away would make this editor refuse content the spreadsheet
-        importer accepts, so the only refusals are about storage —
-        something too long for the column, and something with a
-        separator in it, which is a whole row pasted into one box.
+        Textual characteristics such as ``S`` and ``D6`` remain valid.
         """
         from n26.library.models import StatlineStat
 
-        # Named base rather than a bare super(): this form is built by
-        # type() rather than declared, so there is no class cell for the
-        # no-argument form to find.
+        # Call the base explicitly because this generated method lacks a __class__ cell.
         cleaned = forms.Form.clean(self)
-        # Read off the column rather than written down here, so the
-        # refusal cannot come to disagree with what will actually fit.
+        # Read the storage limit from the model field to keep validation consistent.
         limit = StatlineStat._meta.get_field("value").max_length
         for type_stat in self.type_stats:
             value = (cleaned.get(type_stat.field_name) or "").strip()
@@ -1597,16 +1368,10 @@ def statline_form_for(statline_type):
         return cleaned
 
     def opened_on(cls, owner, data=None, prefix="statline"):
-        """The same form, filled in from the characteristics already stored.
+        """Populate the editor with canonical stored characteristic values.
 
-        The values shown are the stored ones, which are canonical: an
-        author who typed 4 for a Movement is shown the ``4"`` a card
-        prints. Stripping the mark for display would leave the editor and
-        the card disagreeing about what the value is, with no way to tell
-        whose quote mark it was.
-
-        Prefixed, because a thing's page carries its own generated form
-        beside this one and the two can name a field alike.
+        Retain units such as the Movement inch mark. Prefix the form to prevent
+        collisions with the neighbouring content form.
         """
         statline = getattr(owner, "statline", None)
         initial = (
@@ -1617,16 +1382,10 @@ def statline_form_for(statline_type):
         return cls(data, initial=initial, prefix=prefix)
 
     def cells(self, placeholders=None):
-        """The characteristics as the editor draws them, in type order.
+        """Return bound characteristic controls in type order.
 
-        Values come off the bound field rather than the database, so a
-        form redrawn after a refusal shows what was typed — a complaint
-        about a value no longer on the screen is one nobody can act on.
-
-        ``placeholders``, keyed by field name, replaces what an empty box
-        suggests. An editor where empty means "keep what is already
-        printed" has something truer to show there than an example: the
-        value that stands if nothing is typed.
+        Bound fields preserve submitted values after validation errors.
+        ``placeholders`` can show the values retained when controls are left blank.
         """
         from n26.core.render import EditableStatCell
 
@@ -1648,12 +1407,7 @@ def statline_form_for(statline_type):
         ]
 
     def save(self, owner):
-        """Record the characteristics that were typed.
-
-        Nothing typed means nothing to record: a profile added with
-        every box empty is a profile with no statline, not a statline of
-        blanks.
-        """
+        """Save supplied characteristic values; leave an entirely blank owner without a statline."""
         from n26.library import authoring
 
         values = {
@@ -1666,19 +1420,10 @@ def statline_form_for(statline_type):
         return authoring.set_statline(owner, **values)
 
     def save_every_value(self, owner):
-        """Record every characteristic the form drew, blanks included.
+        """Replace displayed characteristic values, including cleared controls.
 
-        Editing means something different by an empty box than adding
-        does. ``set_statline`` leaves a characteristic it is not told
-        about alone, which is right for a spreadsheet whose column is
-        missing and wrong for a person looking at a box they have just
-        cleared — an author who cannot empty one is stuck with a typo
-        for good. A blank is stored as a blank, which every surface
-        prints as a dash.
-
-        An owner with no statline and nothing typed keeps none: a
-        profile whose page was opened and saved has not thereby been
-        given a row of dashes.
+        Blank values display as dashes. Preserve an absent statline when all controls
+        remain blank, so merely saving the page does not create an empty statline.
         """
         from n26.library import authoring
 

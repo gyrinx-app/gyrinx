@@ -166,8 +166,7 @@ def built_in_offer(kind_model):
 
 
 def _built_in_key(kind_model):
-    """The DefaultAssignment column this kind rides — and the loud
-    refusal when a declaration suggests something built-ins cannot name."""
+    """Resolve a kind's DefaultAssignment field or reject an unassignable declaration."""
     from n26.library.models import DefaultAssignment
 
     for name in DefaultAssignment.ASSIGNABLE_FIELDS:
