@@ -1073,8 +1073,8 @@ export function SiteNavAccount({
 }
 
 /**
- * Show positive counts capped visually at max, with the full accessible count
- * supplied by label.
+ * Cap displayed counts at max. With label, announce the uncapped count followed
+ * by label as a suffix.
  */
 export function CountBadge({
     count,
