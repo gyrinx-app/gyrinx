@@ -324,34 +324,16 @@ class StateMachineAccessor:
         metadata: dict | None = None,
         save: bool = True,
     ):
-        """
-        Transition to a new status with validation and history tracking.
+        """Validate and record a transition using the locked database status.
 
-        Validation reads the status from the *locked* parent row rather than
-        from this instance, which may be stale. Two concurrent transitions
-        therefore serialise: the second one sees the first's committed status
-        and is rejected, instead of both validating against the same starting
-        status and both applying.
+        Concurrent transitions serialise on the parent record. Each validates
+        against the status committed by the preceding transition, preventing
+        validation against a stale instance. Other unsaved fields remain intact.
 
-        Note this only reads the status column — fields set on the instance but
-        not yet saved are left alone, which is what makes ``save=False`` usable
-        by callers that batch the status write in with other fields.
-
-        ``save=False`` requires the caller to already be inside a transaction,
-        and raises if it is not: the transition record would otherwise commit
-        while the parent row still held its old status.
-
-        Args:
-            new_status: The status to transition to
-            metadata: Optional dict of metadata to store with the transition
-            save: Whether to save the model after transitioning (default: True)
-
-        Returns:
-            The created transition record
-
-        Raises:
-            InvalidStateTransition: If the transition is not allowed
-            RuntimeError: If save=False outside a transaction
+        With save=True, save the new status and return the transition record.
+        With save=False, the caller must already hold a transaction and persist
+        the parent status before it commits. Raise RuntimeError otherwise.
+        Raise InvalidStateTransition when the locked status disallows the change.
         """
         model_name = self.instance.__class__.__name__
 
@@ -369,11 +351,8 @@ class StateMachineAccessor:
             old_status = self._locked_status()
             allowed = self.sm.transitions.get(old_status, [])
             if new_status not in allowed:
-                # Raised before the span opens, deliberately. A rejection is a
-                # routine outcome — a double-clicked button, the loser of a race,
-                # both of which the views turn into a flash message — and span()
-                # records exceptions, so raising inside would file every one of
-                # them as an error in the traces.
+                # Reject invalid transitions before opening a span so expected validation
+                # failures are not recorded as tracing errors.
                 raise InvalidStateTransition(old_status, new_status, allowed)
 
             with span(
