@@ -1,13 +1,9 @@
-"""Render structures — what a card and a gang look like, as plain data.
+"""Build plain display data for model cards, gangs and campaigns.
 
-Nothing here knows about HTML, templates or terminals. These are dataclasses
-a renderer consumes: the text renderer in ``n26.core.render_text`` is one, a web
-template would be another. Building them is pure reading, so they are easy
-to assert against in tests without rendering anything.
-
-Query budget is the point. Building a whole gang's worth of cards is a fixed
-number of queries regardless of how many models or how much kit — see
-``render_gang`` and the assertions in ``tests/sandbox/test_render.py``.
+Dataclasses contain display facts without HTML. Web templates and
+``n26.core.render_text`` consume the same structures. Gang rendering uses
+a fixed query count as its roster and equipment grow; see ``render_gang``
+and ``n26/tests/sandbox/test_render.py``.
 """
 
 from dataclasses import dataclass, field, replace
@@ -65,13 +61,9 @@ from n26.library.models import (
 )
 from n26.library.standard_content import XP_COUNTER
 
-#: The kinds that draw no line of their own. A hidden carrier by
-#: definition; a slot because its line *is* its choice row; a pick
-#: because it appears as that row's answer — which holds only where
-#: that row is drawn on the same card, so ``_speaks_for_itself`` below
-#: reads the one case where it is not. Their effects still show, named
-#: in whatever they changed. An asset table because holding one is a
-#: fact the campaign's roll controls read, not something a sheet says.
+#: Kinds represented through choices or effects rather than independent
+#: card lines. Picks whose source is on another card are handled by
+#: _speaks_for_itself.
 DRAWS_NO_LINE = (Hidden, Slot, Pickable, AssetTable, Action, RankTable)
 
 
@@ -115,11 +107,9 @@ WEAPON_SLOTS_PER_CARD = 3
 
 @dataclass(frozen=True)
 class Provenance:
-    """Where a thing on a card came from.
+    """The source and acquisition reason for a displayed assignable.
 
-    Every assignable a card shows carries one — that is the rule. It is
-    data for a renderer to use (a tooltip, a picker link, a "default"
-    badge), never something a renderer is obliged to print.
+    Renderers may use this for annotations, badges or picker links.
     """
 
     #: The name of what brought it: "Mounted", "Specialist", "Khimerix".
@@ -150,12 +140,10 @@ class Provenance:
 
 
 class SlotMarked:
-    """A line that draws the book's asterisk after a two-slot weapon's name.
+    """Shared weapon-slot annotation for card lines.
 
-    ``slots`` is the library's number for a weapon and 1 for anything
-    else — the number that draws no mark — so one template composes a
-    weapon's line, a wargear's and a skill's the same way: the name,
-    then ``slot_mark``, then whatever count follows.
+    Weapons supply their slot count. Other kinds use one, which produces
+    no asterisk.
     """
 
     @property
@@ -188,34 +176,18 @@ def tier_mark(choices):
 
 @dataclass(frozen=True)
 class AssignableLine(SlotMarked):
-    """One assignable drawn on a card: its name, and where it came from.
+    """An assignable's name, provenance, rating contribution and available actions.
 
-    ``rating`` is what the line contributed to the model's rating, and
-    zero is drawn as nothing — right for skills, traits and everything
-    granted, where there is no figure to state, and for gear it means
-    only lines that moved the rating carry a number.
+    ``id`` addresses a stored possession and is empty for computed grants,
+    previews and non-equipment. Views fill ``sell`` and ``more`` with permitted
+    actions; see ``n26.core.views.owned.link_possession_actions``.
 
-    ``id`` is the assignment's pk when this line draws a stored
-    possession — what a control acting on it names. Empty on a granted
-    line, a hire preview, and everything that is not kit. ``sell`` and
-    ``more`` are filled in by whoever knows the URL space; see
-    ``n26.core.views.owned.link_possession_actions``. Empty is a name
-    with nothing to click, which is what a gang sheet, a print sheet
-    and a hire preview all want.
+    ``count`` combines identical lines. Combined lines have no assignment ID
+    because an action could not identify a single copy. ``brought_in`` lists
+    named living pets created by this equipment, excluding unnamed and dead pets.
 
-    ``count`` is how many identical lines this one stands for — see
-    :func:`collapse`. Above one, a renderer writes the count after the
-    name (``count_mark``), and the line names no assignment: a control
-    acting on one of three could not say which.
-
-    ``brought_in`` names the models this kit brought onto the roster —
-    a pet, as its owner named it; two where the kit carries two such
-    effects — written after the name in brackets (``brought_mark``), so
-    the line reads "Phyrr Cat (Fang)". Empty for kit that brought
-    nothing; a pet its owner has not named yet, or one that has died,
-    is left out of it: the line is what the model carries, and a dead
-    pet is not that any more. A renderer writes the marks in one order
-    everywhere: the name, the slot mark, the chosen tier, the pets, then the count.
+    Render annotations in order: name, weapon-slot mark, selected tier, pets,
+    then repeat count. Zero rating contributions display no number.
     """
 
     name: str
@@ -262,35 +234,19 @@ class AssignableLine(SlotMarked):
 
 @dataclass
 class CounterLine:
-    """One counter a model keeps, drawn on its card.
+    """A displayed counter value and optional update control.
 
-    A counter is a running number rather than a possession, so it draws
-    its own line and never appears among the kit — but it *is* an
-    assignment underneath, and ``assignment_id`` is what a control that
-    changes it posts to. Empty where the card depicts nobody (a hire
-    preview, a gallery sample).
-
-    ``href`` is where a change is posted, filled in by whoever knows the
-    URL space — like a choice's own href, and empty by default. A line
-    with none draws as a fact with nothing to click, which is what a
-    print sheet, a hire preview and any reader who does not own the gang
-    all want.
-
-    ``back`` is the screen the control belongs to, carried so a reader
-    with no scripting lands on it rather than on the address the act
-    posts to. Filled in beside the href, because the same caller knows
-    both — and it cannot be read off the request, which for a card
-    redrawn after an act is the act's own address.
+    ``assignment_id`` addresses a stored counter and is empty on previews.
+    Views fill ``href`` with an authorised command URL and ``back`` with
+    the page containing the control. The command request itself cannot supply
+    that return page when redrawing a card after a write.
     """
 
     name: str
     value: int
-    #: The half of ``value`` that is written down — what a tally moves
-    #: and what it floors at. Contributions make up the rest, and they
-    #: cannot be tallied away, so a control offering to take one off
-    #: asks this rather than the whole reading: a counter standing at 2
-    #: purely by contribution has nothing to take off, and offering it
-    #: would write a ledger event saying nothing happened.
+    #: Stored counter value and minimum, excluding modifier contributions.
+    #: Update controls use these values because tallying cannot remove a
+    #: computed contribution.
     tallied: int = 0
     assignment_id: str = ""
     href: str = ""
@@ -299,19 +255,12 @@ class CounterLine:
     #: and so does every counter on the model's edit page. Empty leaves
     #: the one-point buttons.
     adjust_href: str = ""
-    #: Whether this is the XP counter, decided where the counter itself is
-    #: to hand rather than re-derived from ``name`` — which is what a
-    #: reader sees, and carries the counter's annotation with it, so an
-    #: annotated XP would stop being recognised as XP.
+    #: Identify XP by its content object; display names may include annotations.
     is_xp: bool = False
-    #: Whether the counter is one a reader is shown. A counter marked
-    #: undrawn stays on the card so conditions can check it, and is
-    #: kept out of every drawing of it — ``counter_lines`` is what
-    #: leaves it out.
+    #: Author-controlled visibility. Hidden counters still satisfy conditions
+    #: but counter_lines excludes them from display.
     drawn: bool = True
-    #: Where the counter came from, where something brought it — a
-    #: campaign type giving every member gang Reputation. Empty for a
-    #: counter assigned directly, which is what a model's own reads as.
+    #: Grant source, empty for directly assigned counters.
     provenance: Provenance = field(default_factory=Provenance)
     is_income: bool = False
     income_sources: list[IncomeSource] = field(default_factory=list)
@@ -349,11 +298,7 @@ class StatCell:
 
     @property
     def changed_by(self):
-        """The sources the tooltip lists, repeats stacked as Name (xn).
-
-        Each change still stands on ``modified_by`` — a second Hand
-        Injury is a second change. This is only how the sentence reads.
-        """
+        """Tooltip source names grouped as Name (xn), preserving individual changes."""
         labels = []
         for change in self.modified_by:
             name = change.source or "a modifier"
@@ -364,11 +309,9 @@ class StatCell:
 
     @property
     def held_note(self):
-        """The sentence the tooltip adds for a cell held at a limit.
+        """Describe a limiting bound using the stat's improvement direction.
 
-        Said in the stat's own direction rather than as "minimum" or
-        "maximum": a Save held at 6+ shows the largest number on the
-        row, and calling that its minimum would read as the wrong way.
+        For target numbers such as Save, a larger numeral is a worse characteristic.
         """
         return HELD_NOTES.get(self.held_at, "")
 
@@ -382,18 +325,10 @@ HELD_NOTES = {
 
 @dataclass
 class EditableStatCell:
-    """One characteristic as a box an author types in.
+    """A characteristic input sharing its display facts with ``StatCell``.
 
-    The reading half of this is ``StatCell``, and the two carry the same
-    display facts on purpose: an editor that placed its dividers or its
-    tint differently from the card would be showing a different statline
-    from the one being edited.
-
-    ``value`` is the stored string, which is already canonical — a
-    Movement of four is held as ``4"`` — so what the author sees back is
-    what a card prints. ``name`` is the input's name in the form that
-    submits it, and ``error`` is the refusal to show against this box,
-    empty when there is none.
+    ``value`` is the canonical stored string, such as ``4"`` for Movement.
+    ``name`` identifies the form input; ``error`` contains its validation message.
     """
 
     short_name: str
@@ -425,21 +360,11 @@ class Statline:
 
 @dataclass
 class WeaponProfileLine:
-    """One of a weapon's profiles: what it added, and how it shoots.
+    """A weapon profile's characteristics and recorded rating contribution.
 
-    ``rating`` is what this line contributed to the model's rating — as
-    every number on a card is — and not what the thing is worth. Three
-    different situations all read 0: the mandatory first profile, which
-    genuinely comes free with the weapon; an ammo type bundled into a
-    hire, whose 50 credits are inside the package price on the fighter's
-    line; and an owner's hand-set gift. A renderer therefore must not call a
-    zero "free" — it cannot tell those apart, and the second one is a
-    priced item the player paid for.
-
-    Named for ``n26.library.WeaponProfile`` in full, because "profile" alone
-    means the fighter entry everywhere else: a plain ``ProfileLine`` would
-    read as a line for a ``n26.library.Profile``, which is what a Legacy
-    profile will want when it gets one.
+    Zero contribution does not imply a free profile. Its price may be included
+    in the hire package, or an owner may have assigned it without payment.
+    Use the full WeaponProfile name to distinguish it from fighter profiles.
     """
 
     #: Blank for the weapon's own line, which is most of them: the book
@@ -475,10 +400,7 @@ class WeaponProfileLine:
 class WeaponLine(SlotMarked):
     name: str
     base_rating: int
-    #: The assignment's pk, as a string, when this line draws a stored
-    #: weapon — what a selection UI keys its checkboxes on. Empty on a
-    #: hire preview, whose weapons exist on no ledger and cannot be
-    #: selected for anything.
+    #: Stored weapon assignment ID for selection controls, empty on previews.
     id: str = ""
     #: Weapon slots this takes on a card — the library's own number:
     #: 1 for most, 2 for asterisked weapons, 0 for grenades.
@@ -487,10 +409,7 @@ class WeaponLine(SlotMarked):
     #: Accessories hung off this weapon — a sight, suspensors.
     accessories: list[AssignableLine] = field(default_factory=list)
     provenance: Provenance = field(default_factory=Provenance)
-    #: Sell and the rest of what can happen to this weapon, filled in
-    #: by whoever knows the URL space — see
-    #: ``n26.core.views.owned.link_possession_actions``. Empty is a
-    #: name with nothing to click.
+    #: Views fill permitted weapon actions; see link_possession_actions.
     sell: object = None
     more: tuple = ()
     #: The way to bolt something onto this weapon. Only a stored
@@ -526,12 +445,11 @@ class WeaponLine(SlotMarked):
 
     @property
     def total_brought_in(self):
-        """Every model this weapon's line brought, its profiles' and its
-        fittings' included — what goes where the weapon goes, as
-        ``total_rating`` counts what rides on it. For a picker that
-        ticks the whole assignment at once, and so has one label for
-        what the card draws on several rows; a profile assigned straight
-        to the model names its pet on its own row, and here."""
+        """Named pets created by this weapon, its profiles and its accessories.
+
+        Selection controls use the combined list because they select the weapon's
+        entire subtree.
+        """
         return (
             *self.brought_in,
             *(name for profile in self.profiles for name in profile.brought_in),
@@ -544,12 +462,9 @@ class WeaponLine(SlotMarked):
 
     @property
     def extras_rating(self):
-        """What rides on the weapon: its paid profiles and its accessories.
+        """Total rating from the weapon's paid profiles and accessories.
 
-        Both go where the weapon goes — selling it sells them — so both
-        belong in what the weapon is worth. A screen that counted only
-        the profiles would leave a sight's price attributed to the
-        fighter with no line of theirs to account for it.
+        Both accompany a sale and belong in the weapon's displayed total.
         """
         return sum(profile.rating for profile in self.profiles) + sum(
             accessory.rating for accessory in self.accessories
@@ -561,58 +476,31 @@ class WeaponLine(SlotMarked):
 
     @property
     def own_line(self):
-        """The profile that *is* the weapon — the unnamed one, or None.
+        """Find the weapon's unique unnamed profile, independent of display position.
 
-        Its stats belong on the weapon's own row, because the book prints
-        an Autogun's first line as "Autogun". A weapon may have at most one
-        (a database constraint refuses the second: two would print as the
-        weapon twice with no way to tell them apart), so ``next`` is a
-        lookup and not a choice between candidates.
-
-        Searched rather than taken from position 0: the unnamed line is
-        conventionally first but nothing guarantees it, and a renderer that
-        assumes so prints the weapon's name on an ammo type's stats.
+        Its stats appear on the weapon's main line. A database constraint prevents
+        multiple unnamed profiles for one weapon.
         """
         return next((p for p in self.profiles if not p.name), None)
 
     @property
     def own_stats(self):
-        """The characteristics the weapon's own row carries, if any.
+        """Return the weapon's main-line stats when they contain displayable values.
 
-        Having an unnamed profile and having stats to print on the
-        weapon's line are two different facts, and a combi-weapon is
-        where they part company: it carries an unnamed profile that is
-        the weapon's identity — "Combi-weapon (laspistol/meltagun)" —
-        and does its shooting entirely through the named profiles
-        beneath, so the weapon's own row has nothing to put in the stat
-        columns.
-
-        A renderer asks this rather than asking whether an own line
-        exists, because what it needs to know is whether the name shares
-        the row with anything: alone on it, the name takes the whole
-        width instead of being squeezed into the first column while the
-        rest of the row stands empty.
+        Combi-weapons may have an unnamed identity profile with no characteristics;
+        their named profiles supply the stat rows.
         """
         own = self.own_line
         return own.statline.cells if own is not None else []
 
     @property
     def named_profiles(self):
-        """The profiles that get a row beneath the weapon — the named ones.
-
-        With ``own_line`` this is the whole layout rule, kept here so the
-        card on screen, the card on paper and the card as text derive it
-        rather than each deciding it. They had drifted once already.
-        """
+        """Profiles with names, displayed beneath the weapon's main line."""
         return [p for p in self.profiles if p.name]
 
     @property
     def accessories_have_actions(self):
-        """Whether any accessory has something to click.
-
-        A stacked list keeps each menu beside the assignment it changes;
-        the compact comma-separated run has nowhere to put one.
-        """
+        """Whether accessories need individual controls instead of compact display."""
         return any(line.sell for line in self.accessories)
 
 
@@ -1056,16 +944,9 @@ def lift_landing(offer, landed, threshold=False):
 
 @dataclass
 class GearGroup:
-    """Gear filed under a category that draws its own row on a card.
+    """Possessions whose category requests a separate card heading.
 
-    The Gear row is where a possession goes unless its category asks for
-    a heading of its own — a Goliath's Gene-smithing upgrades read as
-    what the model *is*, not as kit they happen to be carrying, and a
-    reader scanning for them should not have to find them among the
-    grenades.
-
-    Not frozen: the actions on its lines are filled in afterwards by
-    whoever knows the URL space, exactly as the Gear row's are.
+    Views fill line actions after construction, so this structure remains mutable.
     """
 
     name: str
@@ -1073,13 +954,7 @@ class GearGroup:
 
     @property
     def has_actions(self):
-        """Whether any line here has somewhere to click.
-
-        The same question ``ModelCard.equipment_has_actions`` asks of the
-        Gear row, and asked per group: a card drawn for its owner gets a
-        line each with its own menu, and every other surface gets the
-        compact run.
-        """
+        """Whether this group needs per-assignment controls instead of compact display."""
         return any(line.sell or line.choices for line in self.lines)
 
 
@@ -1104,11 +979,7 @@ class ModelCard:
     name: str
     rating: int
     statline: Statline
-    #: The miniature's pk, as a string, when this card draws a *stored*
-    #: model — what a renderer builds links from (Equip, Delete). Empty on
-    #: a hire preview or a gallery sample, which depict nobody: a card is
-    #: the same structure either way, and "" is how it says "nowhere to
-    #: link to".
+    #: Stored model ID for links, empty on hire previews and gallery samples.
     id: str = ""
     #: Offered only on the owner's Edit page, including partial redraws.
     base_rating_href: str = ""
@@ -1139,8 +1010,7 @@ class ModelCard:
     #: Named special rules — "Automated Repair Systems". The book prints
     #: them apart from skills, so the card keeps them apart too.
     rules: list[AssignableLine] = field(default_factory=list)
-    #: Wyrd powers the model knows. Not skills — but placed and picked
-    #: through the same sections; drawn as their own row.
+    #: Powers share section placement with skills but display separately.
     powers: list[AssignableLine] = field(default_factory=list)
     equipment: list[AssignableLine] = field(default_factory=list)
     #: Gear held apart from the Gear row, under its category's name. One
@@ -1155,15 +1025,9 @@ class ModelCard:
     #: Every one of them, XP included; ``counter_lines`` is what to draw.
     counters: list[CounterLine] = field(default_factory=list)
     choices: list[ChoiceLine] = field(default_factory=list)
-    #: Open questions filed into the card's own rows, kept apart from
-    #: the general run. They are drawn in the Skills and Powers rows,
-    #: beside what the model already knows, because those are the rows a
-    #: reader looks at to find out what this fighter can do — a founding
-    #: pick left in the general run of slots is an obligation filed
-    #: under the same heading as their legacy. ``question_row`` says
-    #: which questions qualify. A slot already chosen for is not here:
-    #: the thing chosen is a skill or a power, and it sits in its row
-    #: with the others.
+    #: Unresolved choices displayed beside existing Skills or Powers, as
+    #: selected by question_row. Resolved choices appear through their selected
+    #: assignables instead.
     skill_choices: list[ChoiceLine] = field(default_factory=list)
     power_choices: list[ChoiceLine] = field(default_factory=list)
 
@@ -1174,11 +1038,7 @@ class ModelCard:
     #: rows named here have one. ``question_row`` routes against this,
     #: and a guard test holds it to rows that really exist.
     QUESTION_BUCKETS = {"skills": "skill_choices", "powers": "power_choices"}
-    #: Where the way into the skills screen leads, or empty when there is
-    #: nowhere to send anyone. Filled in by whoever knows the URL space,
-    #: like a choice's own href — this module knows what a grid *is* and
-    #: not where a browsing screen lives. Empty draws no control, which
-    #: is what a print sheet and a hire preview want.
+    #: Skills listing URL supplied by the view, empty where no control applies.
     skills_href: str = ""
     #: Owner-only equipment-card management. Empty on previews and prints.
     model_cards_href: str = ""
@@ -1193,11 +1053,8 @@ class ModelCard:
     #: Kept outside question_lists so only the Edit page can restore them;
     #: they never draw among the card's choices, including on print.
     dismissed_choices: list[ChoiceLine] = field(default_factory=list)
-    #: The collections this model's grid places a category into, by id.
-    #: Standing access, computed rather than assigned: it is what a
-    #: screen for selecting is built on, and asking which of these hold
-    #: what a model *is* costs one query for a whole roster rather than
-    #: one per card.
+    #: Collection IDs reached through the model's computed category placements.
+    #: Batch readers can resolve selectable content once for the roster.
     placed_in: tuple[str, ...] = ()
     effects: list[EffectLine] = field(default_factory=list)
     #: What the app has to say about this card — a limit the model is
@@ -1210,11 +1067,7 @@ class ModelCard:
     #: two cards. None and empty for a model hired in its own right.
     owned_by: str | None = None
     owned_by_id: str = ""
-    #: Where the owner's name leads — the owner's card, on a sheet that
-    #: draws it. Filled in by whoever draws the sheet, like a choice's
-    #: own href: this module knows who the owner is and not where their
-    #: card is. Empty draws the name as words, which is what the model's
-    #: own page, a print, and a sheet the owner has left all want.
+    #: Owner card URL supplied by the view. Empty renders an unlinked name.
     owner_href: str = ""
     #: Whether the purchase that brought this model in sits in the
     #: stash: a pet bought there has no owner, and the card says where
@@ -1257,19 +1110,10 @@ class ModelCard:
 
     @property
     def questions(self):
-        """Every question still open on this card, in one run.
+        """Return every choice on this card, including choices nested in named rows.
 
-        Where a question is drawn is a surface's business: on screen the
-        ones filed to a row go in the Skills or Powers row, beside what
-        the fighter already knows. A renderer with no rows to fold them
-        into — the text card, the printed one — draws the lot, because a
-        choice still to be made is worth a line on paper and none of them
-        should go missing for want of somewhere to put it.
-
-        Not all of them can be settled here: a pick the gang holds and
-        this card draws is a fact with no address, so whatever turns
-        these into controls reads the address on the line rather than
-        assuming one.
+        Print and text renderers use the complete list. Only choices with an
+        address can become controls.
         """
         return [*self.row_questions, *self.item_questions]
 
@@ -1280,13 +1124,10 @@ class ModelCard:
         return [*self.choices, *self.skill_choices, *self.power_choices]
 
     def question_lists(self):
-        """The lists the card's questions live in — the lists themselves,
-        for something that takes lines off a card.
+        """Return each mutable choice list, including item and named-row choices.
 
-        ``questions`` is a reading of them; this hands over the lists so
-        a line can be removed from wherever it is filed without the
-        caller knowing which rows a card keeps. Every list is named here
-        or a dismissed offer would stay drawn in the one it is filed in.
+        Linking and dismissal update these lists directly so no display location
+        is omitted.
         """
         return [
             self.choices,
@@ -1318,17 +1159,10 @@ class ModelCard:
 
     @property
     def weapon_columns(self):
-        """The stat columns a weapon table draws, as cells to read names off.
+        """Return headings from the first profile with characteristic cells.
 
-        One shape for the whole table: every weapon on a card is drawn to
-        the same columns, so a renderer needs a single row of headings and
-        a single count to span a nameless row across.
-
-        The first profile that has any characteristics, rather than the
-        first profile there is. A combi-weapon's own line carries the
-        weapon's identity and no numbers, and asking that one for the
-        columns gives a table of headings that is empty while every row
-        beneath it still prints its stats.
+        All weapons share these columns. Skip empty identity profiles, including
+        those used by combi-weapons.
         """
         for weapon in self.weapons:
             for profile in weapon.profiles:
@@ -1338,14 +1172,10 @@ class ModelCard:
 
     @property
     def owner_line(self):
-        """What the card says under the profile name about who holds the
-        kit that brought this model in: "Owned by Yolanda", "In the
-        stash", or nothing for a model hired in its own right.
+        """Describe the model holding the equipment that created this pet.
 
-        One sentence for every renderer, so the sheet, the print and
-        the text card cannot say it three ways. A sheet that can link
-        the owner's card draws the name as the link and the rest as
-        words.
+        Return Owned by followed by the name, In the stash, or empty for a model
+        hired independently.
         """
         if self.owned_by:
             return f"{self.owner_prefix} {self.owned_by}"
@@ -1355,10 +1185,7 @@ class ModelCard:
 
     @property
     def owner_prefix(self):
-        """The words before the owner's name in ``owner_line`` — what a
-        renderer that draws the name as a link writes on its own, so
-        the sentence is the same one whether or not the name is a link.
-        Empty for a model nobody's purchase brought in."""
+        """The unlinked prefix before the owner's name, empty for independent hires."""
         return OWNED_BY if self.owned_by else ""
 
     @property
@@ -1382,19 +1209,11 @@ class ModelCard:
 
     @property
     def counter_lines(self):
-        """The counters to draw — every one a reader is shown, bar an XP
-        nobody can move.
+        """Return visible counters, omitting XP unless its line has an update control.
 
-        XP has a cell in the statline already, and the cell is the better
-        reading: it carries the target beside the value. The line earns
-        its place only by being where the number is changed, so on a
-        screen that offers no control — a gang sheet, a print sheet, a
-        hire preview — it would say the same number twice and is left
-        out. Every other counter has no cell and draws either way.
-
-        A counter the author marked undrawn is left out of all of them:
-        it stays on the card so conditions can check it, and is not
-        something a reader is meant to see or change.
+        XP already appears in the statline. Other visible counters need their
+        own lines even without controls. Author-hidden counters remain available
+        to computation but never appear here.
         """
         return [
             line
@@ -1404,13 +1223,7 @@ class ModelCard:
 
     @property
     def equipment_has_actions(self):
-        """Whether any gear line has something to click.
-
-        A stacked list keeps each menu beside the assignment it changes;
-        a comma-separated run has nowhere to put one. Asked of the lines
-        themselves, so a gang sheet, a print sheet and a hire preview —
-        none of which fill the acts in — keep the compact drawing.
-        """
+        """Whether equipment needs per-assignment controls instead of compact display."""
         return any(line.sell or line.choices for line in self.equipment)
 
 
@@ -1426,10 +1239,7 @@ class StashLine(SlotMarked):
     #: mid-sentence: a renderer using it as a heading capitalises it.
     kind: str = ""
     provenance: Provenance = field(default_factory=Provenance)
-    #: The assignment's pk, as a string — what a control acting on this
-    #: line names. The stash holds stored assignments and nothing
-    #: computed, so every line drawn one to an assignment has one; a
-    #: line standing for several (``count``) names none.
+    #: Stored assignment ID for controls, empty when several copies are collapsed.
     id: str = ""
     #: The content this is one of, as ``n26.core.owned.thing_key``
     #: writes it; what :func:`collapse` stacks identical lines by.
@@ -1440,14 +1250,10 @@ class StashLine(SlotMarked):
     count: int = 1
     #: An accessory moves onto a weapon rather than a model.
     is_accessory: bool = False
-    #: Whether a founding allowance paid for this line or anything hung
-    #: off it. A gang with no credit budget refunds nothing else, so this
-    #: is what says whether the act is worth offering there.
+    #: Whether this line or its descendants used Trade Points. Gangs without
+    #: a credit budget use this to decide whether a refund returns anything.
     paid_trade_points: bool = False
-    #: What can happen to this line, each a link to a dialog on the page
-    #: that drew it — see ``n26.core.views.owned.link_stash_actions``.
-    #: Empty is a name with nothing to click, which is what a print-out
-    #: and a reader who does not own the gang want.
+    #: View-supplied stash actions; see link_stash_actions. Empty means no controls.
     menu: tuple = ()
     #: Weapon slots this takes on a card — the library's number for a
     #: weapon, 1 for anything else — so the stash marks a two-slot
@@ -4249,12 +4055,9 @@ class RosterLine:
 
 @dataclass
 class RosterSummary:
-    """The roster reduced to its arithmetic — what a reader tallies.
+    """Profile counts by rank and each model's pinned rating.
 
-    Two readings of the same list: which profiles at which ranks and how
-    many of each, and every model with its pinned rating. Both keep the
-    roster's own order — a group sits where its first member does, so a
-    pet's row follows its keeper's the way the gang list prints them.
+    Preserve roster order and place each group at its first member's position.
     """
 
     groups: list[RosterGroup]
