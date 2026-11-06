@@ -57,7 +57,7 @@ def impersonation(request):
     """Expose active impersonation and an eligible page owner to templates.
 
     An active session supplies the impersonated user and real admin. A page
-    may supply impersonate_subject for a direct account-menu action, which
+    may call note_page_subject(request, user) for a direct account-menu action, which
     is unavailable during an existing impersonation session. Check for that
     subject before resolving request.user on error pages.
     """

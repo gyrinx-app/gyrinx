@@ -176,7 +176,7 @@ def sanitize_inline_svg(
     Remove unsafe markup and root width and height. Retain a supplied viewBox
     or derive one from intrinsic dimensions.
     The root is aria-hidden because adjacent text supplies the accessible name.
-    By default colours become currentColor; preserve_colour retains valid badge
+    By default colours become currentColor; preserve_colour retains allowed badge
     colours under the same attribute allowlist.
 
     root_class and extra_classes supply classes on the rebuilt root tag. Stored
