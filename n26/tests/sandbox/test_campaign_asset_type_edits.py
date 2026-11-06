@@ -72,6 +72,7 @@ def tab_url(campaign):
 def props(response):
     page = BeautifulSoup(response.content, "html.parser")
     host = page.select_one('[data-react-name="edit-asset-type"]')
+    assert host is not None, "The Edit asset type React mount is missing"
     return json.loads(page.find(id=host["data-react-props"]).string)
 
 
@@ -556,6 +557,29 @@ def test_wrong_subject_and_tampered_snapshots_cannot_edit_types(campaign, racket
     data = workflow_data(campaign, racket, label_singular="Changed")
     data["snapshot"] += "tampered"
     assert not change(campaign, racket, campaign.owner, data).saved
+    racket.refresh_from_db()
+    assert racket.label_singular == "Rakit"
+
+
+@pytest.mark.parametrize(
+    "missing", ["values", "locked", "modified", "actor", "subject"]
+)
+def test_unusable_signed_snapshot_is_a_form_error(client, campaign, racket, missing):
+    from django.core import signing
+
+    from n26.core.asset_type_edit import SALT
+
+    data = workflow_data(campaign, racket, label_singular="Changed")
+    snapshot = signing.loads(data["snapshot"], salt=SALT)
+    del snapshot[missing]
+    data["snapshot"] = signing.dumps(snapshot, salt=SALT)
+    client.force_login(campaign.owner)
+    target = reverse(
+        "n26-campaign-edit-asset-type-command", args=[campaign.pk, racket.pk]
+    )
+    response = client.post(target, data)
+    assert response.status_code == 422
+    assert response.json()["errors"]["snapshot"]
     racket.refresh_from_db()
     assert racket.label_singular == "Rakit"
 

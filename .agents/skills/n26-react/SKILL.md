@@ -196,3 +196,8 @@ type row. Validate a disabled field against its signed starting value, then
 compare current state under the lock. Return current facts and require review
 when a new constraint changes the submitted intent. Preserve Inherent and
 Transferable, the displayed labels from the model.
+
+Signed snapshots can outlive a deployment. Validate their shape as well as their
+signature and return a form error for unsupported input. Keep retry formats
+compatible with retained commands; a validation refusal cannot resolve an
+earlier uncertain write.

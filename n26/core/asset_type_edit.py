@@ -14,6 +14,21 @@ SALT = "n26.edit-asset-type"
 FIELDS = ("label_singular", "label_plural", "display_group", "ownership")
 
 
+def _snapshot(token):
+    snapshot = signing.loads(token, salt=SALT)
+    if not (
+        isinstance(snapshot, dict)
+        and isinstance(snapshot.get("subject"), str)
+        and isinstance(snapshot.get("actor"), int)
+        and isinstance(snapshot.get("modified"), str)
+        and isinstance(snapshot.get("locked"), bool)
+        and isinstance(snapshot.get("values"), dict)
+        and all(isinstance(snapshot["values"].get(name), str) for name in FIELDS)
+    ):
+        raise signing.BadSignature("Unsupported asset type edit snapshot")
+    return snapshot
+
+
 class TypeEditForm(EditAssetTypeForm):
     snapshot = forms.CharField(widget=forms.HiddenInput)
 
@@ -58,7 +73,7 @@ def change(campaign, asset_type, user, data):
     )
     result = TypeEdit(form)
     try:
-        snapshot = signing.loads(data.get("snapshot", ""), salt=SALT)
+        snapshot = _snapshot(data.get("snapshot", ""))
     except signing.BadSignature:
         form.is_valid()
         form.add_error(
