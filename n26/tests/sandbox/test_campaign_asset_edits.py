@@ -57,6 +57,7 @@ def detail(campaign, holding):
 def props(response):
     page = BeautifulSoup(response.content, "html.parser")
     host = page.select_one('[data-react-name="edit-holding"]')
+    assert host is not None, "The Edit holding React mount is missing"
     return json.loads(page.find(id=host["data-react-props"]).string)
 
 

@@ -742,6 +742,7 @@ def test_editing_base_income_keeps_boons_and_other_holdings(client, inline_boons
     edit_url = reverse("n26-campaign-asset-edit", args=[campaign.pk, holding.pk])
     page = BeautifulSoup(client.get(edit_url).content, "html.parser")
     host = page.select_one('[data-react-name="edit-holding"]')
+    assert host is not None, "The Edit holding React mount is missing"
     form = json.loads(page.find(id=host["data-react-props"]).string)
     response = client.post(
         edit_url,

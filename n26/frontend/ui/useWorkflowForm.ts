@@ -42,9 +42,8 @@ export function useWorkflowForm<
     onNavigate?: (url: string) => void;
     onReload?: () => void;
 }) {
-    const [recovery] = useState(() =>
-        recover(options.recoveryKey, Object.keys(options.values)),
-    );
+    const [fields] = useState(() => Object.keys(options.values));
+    const [recovery] = useState(() => recover(options.recoveryKey, fields));
     const [values, setValues] = useState<Values<V>>(
         () =>
             Object.fromEntries(
@@ -77,21 +76,23 @@ export function useWorkflowForm<
         const restore = (event: PageTransitionEvent) => {
             if (
                 event.persisted &&
-                (saved.current ||
-                    recover(options.recoveryKey, Object.keys(options.values)))
+                (saved.current || recover(options.recoveryKey, fields))
             )
                 (options.onReload ?? (() => window.location.reload()))();
         };
         window.addEventListener("pageshow", restore);
         return () => window.removeEventListener("pageshow", restore);
-    }, [options.onReload, options.recoveryKey, options.values]);
+    }, [options.onReload, options.recoveryKey, fields]);
     useEffect(() => {
         if (failure) summary.current?.focus();
     }, [failure]);
     useEffect(() => {
         if (!uncertain && !pending) return;
         const warn = (event: BeforeUnloadEvent) => {
-            if (unknownOutcome.current) event.preventDefault();
+            if (unknownOutcome.current) {
+                event.preventDefault();
+                event.returnValue = true;
+            }
         };
         window.addEventListener("beforeunload", warn);
         return () => window.removeEventListener("beforeunload", warn);
