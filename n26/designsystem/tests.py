@@ -1,9 +1,5 @@
-"""The gallery's failures are soft, so something has to look at the page.
-
-A catalog entry whose template path does not resolve, and a demo directory
-whose name does not match its slug, both render a polite fallback rather than
-raising. Registering a component and never loading its page is therefore
-indistinguishable from registering it wrongly — which is what this asks.
+"""Check rendered gallery content because missing templates and demo directories can return
+fallback pages without raising errors.
 """
 
 import re
@@ -15,15 +11,13 @@ from django.contrib.auth import get_user_model
 
 from n26.core import icons
 
-#: The colour <c-n26.founding-mark> paints itself. One component draws the
-#: mark, so finding this on a page is finding the mark.
+#: CSS class identifying the shared c-n26.founding-mark rendering.
 MARK = "text-violet-600"
 
 
 @pytest.fixture
 def reader(client, db):
-    """Staff, because the gallery is a workshop rather than a page of
-    the app."""
+    """Authenticated staff client for the gallery."""
     user = get_user_model().objects.create_user(
         "gallery-reader", "gallery-reader@example.com", "password", is_staff=True
     )
@@ -32,15 +26,13 @@ def reader(client, db):
 
 
 class TestTheReactMarks:
-    """A component that renders through a React island says so, in the
-    sidebar and in its page title, and one that does not stays unmarked."""
+    """Mark components that mount React in both navigation and page titles."""
 
     def test_components_are_marked_from_their_templates(self):
         from n26.designsystem import catalog
 
         react = {c.slug for c in catalog.COMPONENTS if c.uses_react}
-        # quick-switcher's island is in one of its parts, not its main file;
-        # switch's is in switch/impl.html, which only its index draws.
+        # Detect islands mounted through component parts, including switch/impl.html.
         assert {
             "action-menu",
             "checkbox-card",
@@ -51,7 +43,7 @@ class TestTheReactMarks:
             "share",
             "switch",
         } <= react
-        # These sit beside React components in the shared n26/ folder.
+        # Do not infer React usage from unrelated components in the shared n26 folder.
         assert "tab-links" not in react
         assert "model-header" not in react
 
@@ -70,7 +62,7 @@ class TestTheReactMarks:
         introspect._mounts_react.cache_clear()
         try:
             assert introspect.mounts_react("widget/index.html")
-            # Outside the widget's folder, the same tag is not followed.
+
             assert not introspect.mounts_react("plain.html")
         finally:
             introspect._mounts_react.cache_clear()
@@ -79,8 +71,7 @@ class TestTheReactMarks:
         react_page = reader.get("/n26/design/c/pick-list/").content.decode()
         plain_page = reader.get("/n26/design/c/button/").content.decode()
 
-        # Every gallery page carries the sidebar, so both show the marks
-        # for the React components listed there.
+        # Both pages include the sidebar marks; check their headings separately.
         assert 'aria-label="Uses React"' in plain_page
         title = re.search(r"<h1.*?</h1>", react_page, re.S).group(0)
         assert "React" in title
@@ -113,8 +104,7 @@ class TestReactDemo:
 
 
 class TestTheSidebar:
-    """The gallery-nav island filters every component the catalog lists, and
-    its fallback draws the same links until it mounts."""
+    """List every catalogue component in the filterable sidebar and its native fallback."""
 
     def _nav(self, reader, address):
         import json
@@ -152,7 +142,7 @@ class TestTheSidebar:
             c["slug"] for g in props["groups"] for c in g["components"] if c["current"]
         ]
         assert current == ["button"]
-        # The fallback marks the same link before the island mounts.
+
         (marked,) = host.select("[aria-current='page']")
         assert marked["href"] == "/n26/design/c/button/"
 
@@ -166,20 +156,19 @@ class TestTheSidebar:
 
 
 class TestTheQuickSwitchersPage:
-    """Its props, its subcomponent and its demos all reach the gallery."""
+    """Render quick-switcher props, parts and demos."""
 
     def test_all_demos_render_rather_than_falling_back(self, reader):
         page = reader.get("/n26/design/c/quick-switcher/").content.decode()
-        # The titles come from the demo files; the destination comes from the
-        # markup they rendered. Both, because a directory the catalog cannot
-        # find yields "No examples yet" instead of an error.
+        # Check demo output as well as titles because a missing demo directory renders a
+        # fallback.
         assert "The chevron on its own" in page
         assert "A long list, narrowed" in page
         assert "#the-rust-sermon" in page
 
 
 class TestTheFilterMenuPage:
-    """The menu is a React island, and the apply demo still hears the event."""
+    """Render the filter-menu island and its apply-event demo."""
 
     def test_the_demos_render_the_island_outside_the_listener(self, reader):
         import json
@@ -200,7 +189,7 @@ class TestTheFilterMenuPage:
 
 
 class TestTheSharePage:
-    """Its props and both demos reach the gallery drawn."""
+    """Render share props and both demos."""
 
     def test_the_demos_render_rather_than_falling_back(self, reader):
         page = reader.get("/n26/design/c/share/").content.decode()
@@ -210,7 +199,7 @@ class TestTheSharePage:
 
 
 class TestTheButtonPage:
-    """The kit button has no disabled prop; the gallery has to say so."""
+    """Document native disabled attributes rather than an unsupported disabled prop."""
 
     def test_the_page_says_a_false_disabled_attribute_is_still_disabled(self, reader):
         page = unescape(reader.get("/n26/design/c/button/").content.decode())
@@ -225,20 +214,19 @@ class TestTheButtonPage:
 
 
 class TestThePictureBoxPage:
-    """Its props and both of its states reach the gallery drawn."""
+    """Render stored and empty picture-box states."""
 
     def test_both_demos_render_rather_than_falling_back(self, reader):
         page = reader.get("/n26/design/c/picture-box/").content.decode()
         assert "No picture yet" in page
         assert "A picture stored" in page
-        # From the markup the demos rendered, not their titles: the stored
-        # state must actually draw its input and its Remove.
+        # Require the actual input and Remove control, not only a demo title.
         assert 'id="demo-picture-stored"' in page
         assert "Remove picture" in page
 
 
 class TestTheActivityCardPage:
-    """Its props, its body subcomponent and its demos reach the gallery."""
+    """Render activity-card props, parts and demos."""
 
     def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/activity-card/").content.decode()
@@ -254,7 +242,7 @@ class TestTheActivityCardPage:
 
 
 class TestTheActivitiesSquarePage:
-    """Its props and permission-dependent states reach the gallery drawn."""
+    """Render the activities square and its permission-dependent controls."""
 
     def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/activities-square/").content.decode()
@@ -311,8 +299,7 @@ class TestTheActivitiesSquarePage:
 
 
 class TestTheFoundingMarkPage:
-    """The one place the founding mark's drawing and colour are stated, and
-    the four places it is drawn."""
+    """Use the shared founding mark in each displayed location."""
 
     def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/founding-mark/").content.decode()
@@ -330,7 +317,7 @@ class TestTheFoundingMarkPage:
 
 
 class TestTheStashPage:
-    """The stash's notice slot, filled the way the gang sheet fills it."""
+    """Render the stash notice slot with gang-sheet context."""
 
     def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/stash/").content.decode()
@@ -369,8 +356,7 @@ class TestTheCountOnAModelCardLine:
 
 
 class TestThePetOnAModelCard:
-    """A pet's card names its owner, linked where the demo gives the
-    anchor; the owner's kit line names the pet after the kit."""
+    """Link pet cards to their owners and identify pets beside their granting equipment."""
 
     def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/model-card/").content.decode()
@@ -392,10 +378,7 @@ class TestThePetOnAModelCard:
     def test_every_card_on_the_page_has_an_anchor_of_its_own(
         self, reader, url, at_least
     ):
-        """The sample card is drawn many times over — the card page's
-        variants, the gang sheet's five members — and each drawing is a
-        copy under its own id, so the owner link lands on one card and
-        no page holds an id twice."""
+        """Give each card variant a unique anchor so pet-owner links identify one card."""
         import re
 
         page = reader.get(url).content.decode()
@@ -409,8 +392,7 @@ class TestThePetOnAModelCard:
 
 
 class TestTheHeaderBandSpecimens:
-    """The four cards that hold the header's whole contents at once, so
-    the band can be looked at while the names either side of it grow."""
+    """Exercise header layout with short and long model and owner names."""
 
     def test_the_gallery_page_renders_its_examples(self, reader):
         from n26.designsystem import sampledata
@@ -456,8 +438,9 @@ class TestTheHeaderBandSpecimens:
             assert name in page
 
     def test_the_specimens_carry_nothing_below_the_statline(self):
-        """What makes them readable: a specimen carrying the sample
-        card's weapons and gear would bury the band being looked at."""
+        """Keep header specimens free of weapon and gear sections that would obscure the
+        header comparison.
+        """
         from n26.designsystem import sampledata
 
         for build in (
@@ -474,7 +457,7 @@ class TestTheHeaderBandSpecimens:
 
 
 class TestTheRadioCardsPage:
-    """Its props, its card subcomponent and its demos all reach the gallery."""
+    """Render radio-card props, parts and demos."""
 
     def test_both_demos_render_rather_than_falling_back(self, reader):
         page = reader.get("/n26/design/c/radio-cards/").content.decode()
@@ -482,8 +465,7 @@ class TestTheRadioCardsPage:
         assert "No badges, no detail, and a wider card" in page
         assert "A sentence-long name wraps" in page
         assert "Lines of detail under the description" in page
-        # From the markup the demos rendered, not from their titles: a demo
-        # directory the catalog cannot find yields "No examples yet" instead.
+        # Require rendered demo content because a missing directory returns a fallback.
         assert 'name="demo-gang-type"' in page
         assert 'name="demo-purpose"' in page
         assert 'name="demo-campaign-type"' in page
@@ -491,8 +473,7 @@ class TestTheRadioCardsPage:
 
 
 class TestTheTickListPage:
-    """Its props and its demo reach the gallery drawn, not as a polite
-    fallback."""
+    """Render tick-list props and demo content."""
 
     def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/tick-list/").content.decode()
@@ -504,8 +485,7 @@ class TestTheTickListPage:
 
 
 class TestTheChoicePicksPage:
-    """Its props and both its demos reach the gallery drawn, not as a
-    polite fallback."""
+    """Render choice-picks props and both demo states."""
 
     def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/choice-picks/").content.decode()
@@ -518,8 +498,7 @@ class TestTheChoicePicksPage:
 
 
 class TestTheRollPages:
-    """The roll controls and the roll panel reach the gallery drawn, in
-    every state the demos claim, not as a polite fallback."""
+    """Render roll controls and result panels in each demo state."""
 
     def test_the_controls_page_draws_both_ways_to_record_a_roll(self, reader):
         page = reader.get("/n26/design/c/roll-table/").content.decode()
@@ -537,8 +516,7 @@ class TestTheRollPages:
 
 
 class TestTheOwnedDialogsPage:
-    """The two questions the panel grew reach the gallery drawn, not as a
-    polite fallback."""
+    """Render owned-equipment confirmation dialogs."""
 
     def test_the_change_options_example_has_live_preview_props(self, reader):
         import json
@@ -570,7 +548,7 @@ class TestTheOwnedDialogsPage:
 
 
 class TestTheSelectPage:
-    """Its demos reach the gallery drawn, not as a polite fallback."""
+    """Render select demo content."""
 
     def test_the_multiple_demo_draws_a_list_not_a_dropdown(self, reader):
         page = reader.get("/n26/design/c/select/").content.decode()
@@ -582,7 +560,7 @@ class TestTheSelectPage:
 
 
 class TestTheFilterSelectsPage:
-    """Its props and its demos reach the gallery, and the select survives."""
+    """Render filter-select props and demos with the native select preserved."""
 
     def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/filter-select/").content.decode()
@@ -600,9 +578,7 @@ class TestTheFilterSelectsPage:
 
 
 class TestTheStatlineEditorInTheGallery:
-    """The writing half of the statline, on the same page as the reading
-    half — which is the point of documenting it there: the two are meant to
-    show the same columns, and a reader can see whether they do."""
+    """Show matching statline columns in the display and editor demos."""
 
     def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/statline/").content.decode()
@@ -616,7 +592,7 @@ class TestTheStatlineEditorInTheGallery:
 
 
 class TestTheGangTypeBadgeInTheGallery:
-    """The one badge that is content rather than a drawing we ship."""
+    """Render gang-type artwork supplied as content."""
 
     def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/flair-link/").content.decode()
@@ -626,15 +602,8 @@ class TestTheGangTypeBadgeInTheGallery:
 
 
 class TestProseInsideCVarsIsNotAPropList:
-    """A component may write a {% comment %} among its props to explain one of
-    them. Tokenised as declarations, that prose became props: a reader of the
-    profile picker's page was shown forty-three, among them "and", "from" and
-    "endcomment", and the page is meant to be the reference the spec agrees
-    with.
-
-    The quieter half is what the noise did to the slots. A name counted as
-    declared is a name the slot scan skips, so the word "empty" in a sentence
-    took the component's real `empty` slot off its own page.
+    """Exclude comments inside c-vars from prop declarations and slot detection. A word in
+    prose must not hide a public slot with that name.
     """
 
     def test_only_the_declared_props_are_listed(self):
@@ -660,8 +629,9 @@ class TestProseInsideCVarsIsNotAPropList:
         assert "empty" in api.slots
 
     def test_there_is_something_to_check(self):
-        """Worth nothing if that component stops explaining itself in place,
-        which is how this would quietly pass forever."""
+        """Require explanatory content so its disappearance cannot make the tooltip check
+        pass vacuously.
+        """
         import re
 
         from n26.designsystem.introspect import _CVARS, api_for
@@ -707,12 +677,7 @@ class TestTheIconPage:
 
 
 class TestTheShellStillDraws:
-    """The shell pages are the gallery's claim that the library composes.
-
-    The dashboard's rows carry their type's artwork now, which changed the
-    shape of the sample data they loop over — a page that renders is the
-    cheapest proof the two agree.
-    """
+    """Render composition previews using the same input structures as their components."""
 
     def test_the_home_shell_lists_its_gangs(self, reader):
         page = reader.get("/n26/design/shell/").content.decode()
@@ -720,34 +685,28 @@ class TestTheShellStillDraws:
         assert "Goliath (HoC)" in page
 
     def test_the_gang_shell_draws_the_activities_square(self, reader):
-        """Whether the square reads as one of the grid's squares depends on
-        the stash and the cards beside it, which only the shell has."""
+        """Render the activities square beside the stash and roster cards."""
         page = reader.get("/n26/design/shell/gang/").content.decode()
         assert "Spend founding TP" in page
         assert "Complete action" in page
-        # The stash card's own heading, not the wealth strip's figure of
-        # the same name, which sits further up the page.
+        # Match the stash heading separately from the wealth figure with the same name.
         assert page.index("Spend founding TP") < page.index(">Stash</span>")
 
     def test_a_range_menu_with_two_thumbs_binds_both(self, reader):
-        """The gallery's two-thumb range menu draws two real range inputs,
-        each bound to the caller's variable — the slider is called once for
-        each form rather than with a conditional inside one call."""
+        """Bind both range inputs to their respective caller values."""
         page = reader.get("/n26/design/c/range-menu/").content.decode()
         assert 'aria-label="Minimum"' in page and 'aria-label="Maximum"' in page
         assert ':value="lowCost"' in page and ':value="highCost"' in page
         assert "{% if" not in page
 
     def test_the_campaign_shell_draws_the_tables(self, reader):
-        """The gangs table and an assets table both fill from the sample
-        sheet, and every slot the view declares is drawn from the page
-        rather than from a context variable of the same name."""
+        """Populate gang and asset tables from the sample sheet and render each declared
+        slot.
+        """
         page = reader.get("/n26/design/shell/campaign/").content.decode()
         assert "Territory campaign" in page
         assert "Gravebolt Kin" in page
-        # Each gang names its owner under its name, through the same
-        # component the app draws people with — a sample person is a
-        # username, so the name comes through and no badge follows it.
+        # Sample users provide names but no profiles, so no account badge is displayed.
         from n26.tests.fixtures import island_props
 
         rows = island_props(page, "campaign-gangs")["gangs"]
@@ -755,8 +714,7 @@ class TestTheShellStillDraws:
             row = next(row for row in rows if row["type"] == gang_type)
             assert row["owner"]["name"] == owner
             assert row["owner"]["badge"] is None
-        # The players and the log name people the same way; the
-        # arbitrator's own acts read "You", as the page reads them.
+        # Use account labels for other players and You for the arbitrator's own actions.
         assert re.search(r"<td[^>]*>\s*<span[^>]*>vey<", page)
         assert re.search(r"<span[^>]*font-medium[^>]*>ossian<", page)
         assert ">You</span>" in page
@@ -775,14 +733,8 @@ class TestTheShellStillDraws:
         assert "Escher (HoB)" in page
 
     def test_the_sample_banner_draws_a_button_that_answers(self, reader):
-        """A bar with a call to action is the thing this page is here to
-        show, and the button has to survive being followed.
-
-        The shell sends it by way of the click tracker, whose address
-        accepts none but a real id — so a sample id that is merely a word
-        is an address that cannot be built, and takes every shell page
-        down with it. Nothing is stored under the sample's id, so
-        following it finds nothing, which it must be able to say.
+        """Build the tracker URL with a valid UUID and handle its missing synthetic banner
+        record.
         """
         page = reader.get("/n26/design/shell/").content.decode()
         start = page.index("n26-announcement")
@@ -794,10 +746,9 @@ class TestTheShellStillDraws:
         assert reader.get(href).status_code == 404
 
     def test_the_equip_shell_draws_a_listing_with_a_group_of_options(self, reader):
-        """One line in the sample catalogue offers alternatives at
-        purchase — a mount and its weapon swaps — so this is where that
-        control is documented. The sample carries what the real browse
-        produces, so a page that draws it is the proof the two agree."""
+        """Render purchase alternatives from the sample catalogue's production browse
+        structures.
+        """
         page = reader.get("/n26/design/shell/shop/").content.decode()
         assert "Grav-cutter plasma guns" in page
         assert "+15¢" in page
@@ -805,7 +756,7 @@ class TestTheShellStillDraws:
 
 
 class TestTheModelHeaderPage:
-    """Its card slot reaches the gallery drawn, above the tab strip."""
+    """Render the model-header card slot above the tabs."""
 
     def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/model-header/").content.decode()
@@ -821,14 +772,13 @@ class TestTheViewPreview:
     """The standalone preview draws one view on its own page shell."""
 
     def test_it_loads_the_menu_placement_script(self, reader):
-        """The dashboard's gang rows open fixed-position menus, which call
-        n26PositionMenu. Without the script, opening one throws."""
+        """Load n26PositionMenu for fixed-position dashboard menus."""
         page = reader.get("/n26/design/view/view-dashboard/").content.decode()
         assert "n26/menu-position.js" in page
 
 
 class TestTheModelEditPage:
-    """The card above the tabs, then the boxes in their order, Lore last."""
+    """Render the model card before its editing sections, with Lore last."""
 
     def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/view/view-model-edit/").content.decode()
@@ -874,14 +824,8 @@ class TestTheModelEditPage:
 
 
 class TestCounterLinesInTheGallery:
-    """Only one sample card offers to move a number.
-
-    The base sample is what the gang sheet's sample, the hire previews
-    and the print specimens are all built from, so an address on its
-    counters would put a pair of buttons on every one of them — screens
-    that never carry the control in the app. It would also give XP a
-    line beside the statline cell that already holds it, which is the
-    doubled reading the card exists to avoid.
+    """Restrict counter adjustment controls to the editable sample card. Sheets, hire
+    previews and print specimens use the read-only base card.
     """
 
     def test_the_base_sample_offers_nothing_to_click(self):
@@ -916,9 +860,9 @@ class TestCounterLinesInTheGallery:
         assert all(line.adjust_href for line in lines)
 
     def test_the_editable_sample_offers_the_listing_acts_on_its_kit(self):
-        """The model's own page is where kit is taken off, so the
-        sample that documents that page carries Sell and Add accessory.
-        The base sample is the gang sheet's card and must not."""
+        """Offer Sell and Add accessory only on the editable sample, leaving the base sheet
+        card read-only.
+        """
         from n26.designsystem import sampledata
 
         base = sampledata.model_card()
@@ -931,8 +875,9 @@ class TestCounterLinesInTheGallery:
 
 
 class TestTheModelCardsTooltips:
-    """The card's tooltips are real components, never a native title —
-    which shows only under a mouse and never on touch."""
+    """Render explanatory popovers usable on touch devices rather than native title
+    attributes.
+    """
 
     def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/model-card/").content.decode()
@@ -958,12 +903,7 @@ class TestTheModelCardsTooltips:
 
 
 class TestThePrintSheet:
-    """Paper shows what a slot holds, not the control that fills it.
-
-    The sample card carries lasting injuries with room left, so the
-    screen card draws Add beside them. A printed card is read away from
-    the picker, and the Add has nowhere to go.
-    """
+    """Print choice values without interactive Add controls."""
 
     def test_a_partial_several_pick_does_not_print_add(self, reader):
         page = reader.get("/n26/design/print/sheet/?specimen=cards").content.decode()
@@ -973,18 +913,15 @@ class TestThePrintSheet:
 
 
 class TestTheArrivalBlockPage:
-    """The screen after an act, block by block, and the shell page that
-    draws the whole screen from sample data."""
+    """Render individual arrival blocks and their complete follow-up screen."""
 
     def test_all_three_demos_render_rather_than_falling_back(self, reader):
         body = reader.get("/n26/design/c/arrival-block/").content.decode()
         assert "Choose a gang archetype" in body
         assert "Chosen: Chaos Corrupted" in body
         assert "Choose a Chaos god" in body
-        # A block draws no control of its own: Continue and Skip sit once
-        # at the foot of the whole screen, which the shell page draws.
-        # Matched on the control, because the page's own words name it
-        # and the layout carries a "Skip to main content" link.
+        # Continue and Skip belong to the complete screen, not individual blocks. Match
+        # controls to exclude explanatory prose and the layout's skip link.
         assert not re.search(r"<a[^>]*>\s*Skip\s*</a>", body)
         assert "could not be rendered" not in body.lower()
 
@@ -992,22 +929,20 @@ class TestTheArrivalBlockPage:
         body = reader.get("/n26/design/shell/next/").content.decode()
         assert "Choices for The Forgotten" in body
         assert "Founded The Forgotten." in body
-        # The Chaos god may be skipped, so it never holds Continue.
+        # The optional Chaos god choice must not prevent continuing.
         assert "Choose Gang archetype to continue." in unescape(body)
-        # Each picker is named by the heading that asks its question.
+
         assert 'id="ask-1-gang-1-1"' in body
         assert 'aria-labelledby="ask-1-gang-1-1' in body
         assert "nterstitial" not in body
 
     def test_the_founding_shell_asks_only_the_gangs_own_questions(self, reader):
-        """Founding brings the gang type's slots and nothing else, so a
-        model's question cannot appear on this screen. The sample says
-        so too: every question here is the gang's."""
+        """Keep model-hosted choices out of the gang founding preview."""
         body = unescape(reader.get("/n26/design/shell/next/").content.decode())
         assert "The Forgotten" in body
         for key in ("gang:1:1", "gang:1:2", "gang:1:3"):
             assert key in body
-        # No question hosted on a model: those keys lead with its pk.
+        # Model-hosted keys start with the model ID.
         assert 'value="1:' not in body and 'value="2:' not in body
 
     def test_the_shells_forms_post_nowhere(self, reader):
