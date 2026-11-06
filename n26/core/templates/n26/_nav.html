@@ -1,48 +1,8 @@
 {% load navigation %}
 {% comment %}
-The places the app has, for the navigation drawer. One include rather than
-each page writing its own list, for the same reason the gallery's shell has
-one: two copies of the same links is two places for one to drift. The
-gallery's version (designsystem/shell/_nav.html) points at the shell walk;
-this one points at the pages that write.
-
-The same list on every screen, authoring included. A drawer that changed with
-the area meant an author had to know which half of the app they were standing
-in before they could tell what clicking the burger would give them — and the
-way back to a gang was a link called "App" rather than the gang's own name.
-
-Content Packs is a plain word rather than a link: it has no page, and
-offering a reader a link that answers 404 teaches them to distrust the rest
-of the list.
-
-Help leads out of the edition, to the guides written for it. Those are
-flatpages, addressed by the URL they are stored under rather than by a route
-this template could reverse — and no screen that draws this drawer is ever one
-of them, so the row has no current state to mark.
-
-Making a gang is an action rather than a place, and it has a button on both
-pages that would list it.
-
-  --- the authoring section ---
-
-Its own group under the app's places, drawn only for staff. Writing content is
-something a handful of accounts do, and a heading over the four is what keeps
-them from reading as four more places everyone has.
-
-The rule is drawn above the section by the section itself, so a reader without
-these pages gets neither a heading nor a stray line where they would have been.
-It is called Authoring rather than anything with "staff" in it: the account
-menu already has a "Staff only" group, and two differently-populated sections
-under one name is worse than naming this one after what is in it.
-
-Modifiers before Foundations: modifiers are what an author comes back to day
-after day, and foundations are the rows you plant once.
-
-Takes `here` — "home", "gangs", "campaigns" or "scenario" on the app's side; "library", "modifiers",
-"foundations" or "ingest" on the authoring side. The authoring pages with no
-item of their own — the kind leaves, the detail pages — pass "library": they
-are reached from the library index, and a drawer with nothing marked reads as
-a page that belongs nowhere.
+Shared application navigation. here identifies the current destination; authoring detail
+pages use library. Help links use stored flatpage URLs, and staff-only authoring links
+share one conditional group.
 {% endcomment %}
 <c-ui.navbar.item href="{% url 'n26-dashboard' %}"
                   current="{% if here == 'home' %}1{% endif %}">Home</c-ui.navbar.item>
@@ -58,10 +18,8 @@ a page that belongs nowhere.
 </c-ui.navbar.item>
 {% if user.is_staff %}
     {% comment %}
-    The rule and the heading are drawn inside the same list as the links, not
-    in a section of their own, so the links keep the styling the container
-    gives its own children — and the scriptless strip under the bar, which
-    draws this list a second time, gets the group without knowing about it.
+    Keep the heading and divider in the same list so drawer and scriptless navigation
+    inherit identical item styles.
     {% endcomment %}
     <div class="mx-2 my-2 h-px bg-ink-200 dark:bg-ink-800" role="separator"></div>
     <h2 class="px-3 pb-1 text-xs font-medium tracking-wide text-ink-500 uppercase dark:text-ink-400">Authoring</h2>
