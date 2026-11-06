@@ -1,38 +1,18 @@
-"""Confirmations — the third answer a click can get.
+"""Confirmation data for actions requiring explicit player agreement.
 
-Two already exist and neither fits everything. A ``n26.core.notes.Note``
-says something and lets the click through, which is the edition's usual
-answer: we inform, never police. A ``n26.core.operations.Refusal`` stops
-the click dead, and only one rule earns it — a gang may not spend past
-its credits budget. Between them sits an act nobody wants to forbid but
-nobody wants to do by accident: spending Trade Points a gang has not
-got, and whatever joins it later. That is a confirmation, and it is
-worth its own name because the alternative is faking it with a refusal
-the caller catches, which reads as a rule and behaves as a prompt.
+Notes inform without blocking; refusals reject invalid actions. Confirmations
+allow actions such as spending beyond a Trade Point allowance after the
+player reviews the quantities involved.
 
-A confirmation is a **navigation, not a modal**. The click posts; the
-server answers with a page that names the act, gives the numbers it was
-decided against, and offers a button that posts the very same fields
-back with one more saying the reader meant it. Back is a real answer,
-a reload does not lose it, and none of it needs scripting.
-
-The numbers are the point. A confirmation that only named the thing
-would be asking a reader to check a decision against a word they have
-already read — the same reason the gang deletion page counts the roster
-rather than repeating the name.
-
-``carry`` is what makes the second post identical to the first: every
-field of the original submission, re-emitted. The view re-derives the
-whole click from them exactly as it did the first time, so nothing here
-is trusted — a tampered hidden field can name nothing the listing does
-not offer, and the prices are bounded on the way through either way.
+The HTML flow posts to a confirmation page and repeats the submitted
+fields with an explicit confirmation marker. ``carry`` preserves those
+fields. Views must rederive available choices and validate prices on
+every submission; hidden fields are untrusted input.
 """
 
 from dataclasses import dataclass
 
-#: The field the confirming post carries, and what it has to say. Read
-#: by the view that asked, so the two cannot come to disagree about what
-#: counts as "yes".
+#: Shared confirmation field and affirmative value used by the view.
 CONFIRM_FIELD = "confirmed"
 
 #: What the confirming post never carries forward: the token belongs to
@@ -59,13 +39,9 @@ class Fact:
 
 @dataclass(frozen=True)
 class Aside:
-    """A second line under a confirmation's body, opening in bold.
+    """Secondary confirmation text with an opening bold phrase.
 
-    What the reader needs after the arithmetic: that the act is allowed,
-    and what it leaves behind. Kept off the first line because the two
-    say different things — one is the position, the other is the
-    permission — and a reader skimming for the second should not have to
-    read the first twice to find it.
+    Keep permission and consequences separate from the main numeric comparison.
     """
 
     lead: str
@@ -74,10 +50,9 @@ class Aside:
 
 @dataclass(frozen=True)
 class Checkbox:
-    """A tick box the confirming post carries, for a choice the act asks.
+    """An optional checkbox on the confirmation form.
 
-    Drawn unticked unless ``checked``; an unticked box posts nothing, so
-    the view reads its absence as the default.
+    Unchecked boxes submit no value, so the view must supply the default.
     """
 
     name: str
@@ -89,16 +64,11 @@ class Checkbox:
 
 @dataclass(frozen=True)
 class Confirmation:
-    """An act that will go ahead, once the reader says they meant it.
+    """Action details and submission fields for an explicit confirmation.
 
-    ``action`` is the address the confirming post goes to — the same one
-    the first post went to, so the click is read once, in one place.
-    ``cancel_url`` is where saying no lands, which is the page the click
-    came from.
-
-    ``checkbox`` is a choice asked alongside the yes, where the act has
-    one. ``variant`` is the alert's: warning where the act may not have
-    been meant, info where it only needs a choice made.
+    ``action`` is the original command URL; ``cancel_url`` returns to the
+    originating page. ``checkbox`` adds an optional choice. ``variant`` selects
+    warning for an unusual action or info when only a choice is required.
     """
 
     title: str
