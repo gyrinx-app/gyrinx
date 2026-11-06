@@ -1,33 +1,6 @@
 {% comment %}
-The two roll questions the campaign page can ask: Roll territory to add an
-unclaimed one to the campaign when the address names an asset type
-(`?roll=`), and Roll starting territory for one gang when it names a gang
-and a type (`?starting=…&type=…`). Each takes the asset type's own word, so
-a campaign of Rackets asks to roll a racket. Expects `rolling`, `starting`,
-`form`, `campaign` and `redrawn` from the view; the panel itself is
-campaign_roll_dialog.html.
-
-Drawn inside a host of its own so a click can fetch the question alone: the
-Roll controls ask over htmx, the server sends back this host with the panel
-in it, and the page underneath is not rebuilt. Without a script the same
-click is a plain link and the whole page is served with the panel open.
-Fetched on its own the host is swapped in by id, and the panel counts as one
-this page opened, so dismissing it puts the address back rather than
-navigating.
-
-The panel posts over htmx. A roll that happens comes back as the page's
-sections redrawn out of band and this host emptied (campaign_update.html);
-a roll refused comes back as this host with the panel open again and the
-reason inside it. Without a script the form posts as any form does and the
-plain campaign page is served.
-
-A refused roll's panel arrives while the one it replaces is still open,
-under the same id. htmx settles a new element's attributes against the old
-one of that id, which would write the in-flow class back onto the promoted
-modal and leave it at the top left of the page — so the open panel is
-deleted first, by id, and the host then arrives into a page with nothing to
-settle against. Removing an open dialog does not fire its close event, so
-nothing navigates.
+Keep a stable host for URL-selected campaign roll dialogs. Partial responses replace it
+by ID and restore the previous URL on dismissal.
 {% endcomment %}
 {% if reopened %}<div id="n26-dialog" hx-swap-oob="delete"></div>{% endif %}
 <div id="n26-roll-dialog-host"
