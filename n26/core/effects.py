@@ -34,7 +34,7 @@ from n26.library.models.modifier import GANG, MODEL, WEAPON_PROFILE
 if TYPE_CHECKING:
     from n26.core.models import CampaignAsset
 
-#: Bound grant recursion to reject cyclic or excessively nested content.
+#: Limit grant and retraction depth for cyclic or excessively nested content.
 MAX_CHAIN_DEPTH = 5
 
 #: Shared holder label for gang-hosted content on member cards.
@@ -331,7 +331,7 @@ class StoredEffect:
 class PlannedStep:
     """A modifier's execution order, scope, effect and outcome.
 
-    ``ComputedCard.plan`` records each round as plain data for inspection.
+    ``ComputedCard.plan`` records each step in execution order, including its round.
     """
 
     source: object
@@ -1738,7 +1738,7 @@ def _held(nodes):
         thing = node.assignable
         if not isinstance(thing, (Profile, Subtype, Wargear)):
             continue
-        # Only the primary profile defines the model's identity for selectors.
+        # Count only the primary profile in composition tallies.
         if isinstance(thing, Profile) and not node.is_primary_profile:
             continue
         key = ModifierIndex.key(thing)
