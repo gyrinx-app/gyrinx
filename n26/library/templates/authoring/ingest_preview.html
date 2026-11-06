@@ -92,10 +92,7 @@
         {% if preview.ok %}
             <form method="post" class="mt-6 space-y-5">
                 {% csrf_token %}
-                {% comment %}
-                Staging applies only to new content. Updates to existing
-                content apply immediately.
-                {% endcomment %}
+                {# Staging applies only to new content. Updates to existing content apply immediately. #}
                 <c-ui.field variant="toggle"
                             label="Stage new content"
                             description="Publish new content from the Staged content page when it is ready for players. Updates to existing content apply immediately."

@@ -16,16 +16,8 @@
         </c-slot>
     </c-n26.page-header>
     {% comment %}
-    The whole page is one rendered document (a markdown file beside
-    n26/library/views.py) — the view drops the file's own title, anchors
-    every heading, and hands the headings over as a contents list, so the
-    sidebar and the anchors come from one walk and cannot disagree. The
-    prose component gives the body the same typography as every other run
-    of authored copy.
-
-    The contents keep to a reading-width screen's left column and go with
-    the flow on anything narrower: a long list of section names above the
-    document would be a page of chrome before the first word of it.
+The view generates heading anchors and contents from one Markdown parse.
+Place the contents after the document on narrow screens.
     {% endcomment %}
     <div class="mt-6 grid items-start gap-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
         <aside class="hidden lg:block">

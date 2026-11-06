@@ -3,29 +3,13 @@
 {% block head_title %}
     {{ thing }}
 {% endblock head_title %}
-{% comment %}
-No nav_heading: the bar says where you are standing — the kind, carried
-by its switcher's leading link — and the thing being looked at is the
-page heading's to name. A row's name in the bar would say the same
-thing twice, a line apart.
-{% endcomment %}
 {% block content %}
     <c-n26.page-header title="{{ thing }}">
-        {% comment %}
-        The rows of this kind, so checking one against the next is a click
-        rather than a trip back to the listing. Capped, so a kind with three
-        hundred rows costs the page the same as a kind with three.
-        {% endcomment %}
         <c-slot name="trailing">
             {% siblings_switcher kind thing as siblings_ %}
             <c-n26.quick-switcher.of :switcher="siblings_" hotkey="r" />
         </c-slot>
-        {% comment %}
-        Whether players see this yet, and the one click that changes it. A
-        badge and a button rather than a switch on the edit form: putting a
-        thing live is an act of its own, not a field saved along with a
-        price. Drawn only for kinds players are offered somewhere.
-        {% endcomment %}
+        {# Publishing is a separate operation, available only for kinds exposed to players. #}
         {% if stageable %}
             <c-slot name="actions">
                 <form method="post" class="flex items-center gap-3">
@@ -53,11 +37,7 @@ thing twice, a line apart.
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
-                {% comment %}
-                A kind made on its parent's page has no listing of its
-                own, so the trail runs through the parent's kind instead:
-                Content library, Campaign types, the type, the asset.
-                {% endcomment %}
+                {# Nested kinds have no listing page; breadcrumbs follow the containing campaign type. #}
                 {% if nested %}
                     <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' parent.kind %}">
                         {{ parent.verbose_name_plural|capfirst }}
@@ -67,13 +47,7 @@ thing twice, a line apart.
                         {{ verbose_name_plural|capfirst }}
                     </c-ui.breadcrumbs.item>
                 {% endif %}
-                {% comment %}
-                A kind filed under another names it here, which is the
-                only place some pages name it at all: a field settled
-                when the thing was made is not offered on the edit form,
-                so a picklist would otherwise never say which slot type
-                it belongs to.
-                {% endcomment %}
+                {# Show fixed parent relationships here because the edit form omits them. #}
                 {% if parent %}
                     <c-ui.breadcrumbs.item href="{% url 'authoring-detail' parent.kind parent.thing.pk %}">
                         {{ parent.thing }}
@@ -91,21 +65,8 @@ thing twice, a line apart.
                          variant="ghost">Grant to fighter entries →</c-ui.button>
         </div>
     {% endif %}
-    {% comment %}
-    Two columns on a wide screen: the forms, and beside them the about
-    column — what this thing does and how anyone comes to have it, in
-    sentences (n26.library.prose). On anything narrower the column
-    follows the flow at the end: an author editing on a phone came to
-    edit, and the explanation should not cost them a screen before the
-    first field.
-    {% endcomment %}
     <div class="mt-2 grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div class="min-w-0">
-            {% comment %}
-    No documentation of the kind here. It belongs where an author is
-    deciding what to make; by the time they are looking at one, they
-    know what it is, and a paragraph above every row is in the way.
-            {% endcomment %}
             {% if thing.library_author_help %}
                 <c-n26.prose class="mt-3 max-w-2xl">
                     <p>{{ thing.library_author_help }}</p>
@@ -113,14 +74,8 @@ thing twice, a line apart.
             {% endif %}
             {% if edit_form %}
                 <c-n26.form-section title="This {{ verbose_name }}" class="mt-8">
-                    {# A form carrying an upload has to say so, or the browser posts the #}
-                    {# file's name and nothing else. The form knows whether it holds one. #}
-                    {% comment %}
-            The width sits on the fields rather than on the form, because a
-            statline is wider than a column of inputs wants to be: thirteen
-            characteristics do not fit beside a name and a price, and boxed
-            into that width they would be a scrolling strip on a desktop.
-                    {% endcomment %}
+                    {# Use multipart encoding when the form includes a file upload. #}
+                    {# Limit ordinary fields without constraining the wider characteristic editor. #}
                     <form method="post"
                           {% if edit_form.is_multipart %}enctype="multipart/form-data"{% endif %}
                           class="space-y-5">
@@ -134,17 +89,10 @@ thing twice, a line apart.
                                 <c-n26.statline.edit :cells="statline_cells" />
                             </c-n26.form-section>
                         {% endif %}
-                        {# No way out: this form is a section of the page it is on, so #}
-                        {# there is nowhere for a cancel to lead that is not here. #}
                         <div class="max-w-xl">
                             <c-n26.form-actions submit_label="Save changes" />
                         </div>
                     </form>
-                    {% comment %}
-            A link to a page, not a button in this form — deleting has
-            its own address, its own question, and its own refusal when
-            anything still uses the row.
-                    {% endcomment %}
                     <div class="mt-4 flex flex-wrap gap-4">
                         {% if kind == "picklist" %}
                             <c-n26.link href="{% url 'authoring-picklist-clone' thing.pk %}"
@@ -165,22 +113,11 @@ thing twice, a line apart.
                     </div>
                 </c-n26.form-section>
             {% endif %}
-            {% comment %}
-    A page may carry more than one section of parts. A weapon has
-    profiles that only weapons have, and — like everything an author can
-    give a fighter — it can also come with something. Each section is a
-    form of its own posting back here, and each names itself in `act` so
-    the view knows which was clicked; the kind's own parts name nothing,
-    there being at most one such section.
-            {% endcomment %}
+            {# Each part section routes its form through act; the kind-specific section uses the empty act. #}
             {% for section in part_sections %}
                 <c-n26.form-section title="{{ section.part_verbose_name_plural|capfirst }}"
                                     description="{{ section.parts_description }}"
                                     class="mt-8">
-                    {% comment %}
-                    A rolled table's bands are checked as a whole above
-                    its rows — the one fact no row carries on its own.
-                    {% endcomment %}
                     {% if section.coverage %}
                         {% include "authoring/_coverage.html" with coverage=section.coverage.coverage unclaimed_said=section.coverage.unclaimed_said doubled_said=section.coverage.doubled_said bandless_said=section.coverage.bandless_said %}
                     {% endif %}
@@ -191,17 +128,7 @@ thing twice, a line apart.
                             <tbody>
                                 {% for part in section.parts %}
                                     <tr>
-                                        {% comment %}
-                                nowrap, because the notes cell's w-full
-                                otherwise squeezes this one to a word a
-                                line — and the name is what the row is.
-
-                                The name leads to the part's own page
-                                where it has one, which is where the
-                                part is corrected. A part with nowhere
-                                to go reads as plain words rather than
-                                as a control that does nothing.
-                                        {% endcomment %}
+                                        {# Prevent the name column wrapping under pressure from w-full notes; omit links for parts without a page. #}
                                         <td class="whitespace-nowrap">
                                             {% if part.href %}
                                                 <c-n26.link href="{{ part.href }}">
@@ -211,14 +138,7 @@ thing twice, a line apart.
                                                 {{ part.label }}
                                             {% endif %}
                                         </td>
-                                        {% comment %}
-                                Removing is a question asked at its own address, not an
-                                act done from here: what it means depends on what else
-                                holds the set, which this row cannot say. Adding one of
-                                a gun's own lines is likewise a page of its own, scoped
-                                to this row — which gun the line rides is settled by
-                                where the author clicked.
-                                        {% endcomment %}
+                                        {# A paid profile attachment must identify its particular weapon member. #}
                                         {% if part.remove_url or part.add_profile_url %}
                                             <td class="w-full text-muted">{{ part.notes|join:" · " }}</td>
                                             <td class="whitespace-nowrap text-right">
@@ -239,15 +159,9 @@ thing twice, a line apart.
                                             <td class="text-right text-muted">{{ part.notes|join:" · " }}</td>
                                         {% endif %}
                                     </tr>
-                                    {% comment %}
-                                A gun's own lines sit under it, indented — the
-                                grammar a card uses for profiles under
-                                weapons — so which gun each line rides is read
-                                off the page rather than remembered.
-                                    {% endcomment %}
                                     {% for line in part.children %}
                                         <tr>
-                                            {# pl-6! — the table component's [&_td]:px-3 outweighs a plain pl-6. #}
+                                            {# pl-6! overrides the table component's higher-specificity [&_td]:px-3 rule. #}
                                             <td class="whitespace-nowrap pl-6!">{{ line.label }}</td>
                                             {% if line.remove_url %}
                                                 <td class="w-full text-muted">{{ line.notes|join:" · " }}</td>
@@ -265,23 +179,11 @@ thing twice, a line apart.
                             </tbody>
                         </c-ui.table>
                     {% else %}
-                        {% comment %}
-                A section may say what having none of these means, where
-                that is a state rather than a gap: a profile with no
-                options is hired one way, which is a perfectly good thing
-                for a profile to be.
-                        {% endcomment %}
                         <c-ui.description>
                             {{ section.nothing_yet|default:"None yet." }}
                         </c-ui.description>
                     {% endif %}
                 </c-n26.form-section>
-                {% comment %}
-                A section whose parts are added elsewhere draws the way
-                there instead of a form. Primary, not success: this
-                begins the journey that the green button on the page it
-                leads to finishes.
-                {% endcomment %}
                 {% if section.add_url %}
                     <div class="mt-6">
                         <c-ui.button href="{{ section.add_url }}" variant="primary">
@@ -323,11 +225,6 @@ thing twice, a line apart.
                             {% endif %}
                             <c-n26.form-actions submit_label="{{ section.submit_label }}" />
                         </form>
-                        {% comment %}
-                A way in for a part this form cannot offer — a weapon
-                profile, which only means something beside a gun, is
-                added from a page that knows which gun.
-                        {% endcomment %}
                         {% if section.door_url %}
                             <div class="mt-4">
                                 <c-n26.link href="{{ section.door_url }}" class="text-sm">
@@ -338,11 +235,6 @@ thing twice, a line apart.
                     </c-n26.form-section>
                 {% endif %}
             {% endfor %}
-            {% comment %}
-    What points at this thing from elsewhere in the library. Names and
-    ways to them and nothing else: none of it is made here, and each is
-    corrected on its own page.
-            {% endcomment %}
             {% for section in related_sections %}
                 <c-n26.form-section title="{{ section.title }}"
                                     description="{{ section.description }}"
@@ -365,11 +257,7 @@ thing twice, a line apart.
                     {% endif %}
                 </c-n26.form-section>
             {% endfor %}
-            {% comment %}
-    Options and their sets are drawn as one section, grouped the way a
-    hire offers them, so they leave the generic loop to an include of
-    their own. Their two acts still post back here like any section's.
-            {% endcomment %}
+            {# Options and option sets share a grouped renderer but retain separate POST actions. #}
             {% if hire_options %}
                 {% include "authoring/_hire_options.html" %}
             {% endif %}
@@ -382,11 +270,7 @@ thing twice, a line apart.
                             <tbody>
                                 {% for row in modifier_rows %}
                                     <tr>
-                                        {% comment %}
-                                The name leads to the modifier's own page, which is
-                                where it is corrected or removed. Detaching, beside
-                                it, only takes it off this carrier.
-                                        {% endcomment %}
+                                        {# The modifier link opens editing; Detach removes it only from this carrier. #}
                                         <td class="whitespace-nowrap">
                                             <c-n26.link href="{% url 'authoring-modifier' row.pk %}">{{ row.label }}</c-n26.link>
                                         </td>
@@ -416,12 +300,6 @@ thing twice, a line apart.
                             <input type="hidden" name="act" value="attach">
                             <div class="grow">
                                 <c-ui.field data-field label="Attach an existing modifier" for="attach-modifier">
-                                    {% comment %}
-                            Every reusable modifier in the library is offered
-                            here, and a modifier's label is a whole sentence —
-                            the longest list on the page, and the one least
-                            worth scrolling.
-                                    {% endcomment %}
                                     <c-n26.filter-select placeholder="Type to filter modifiers">
                                         <c-ui.select.native name="modifier"
                                                             id="attach-modifier"
@@ -440,11 +318,6 @@ thing twice, a line apart.
                             </c-ui.button>
                         </form>
                     {% endif %}
-                    {% comment %}
-            Changing the kinds leads to the composer's own address rather
-            than back here: this page is long, and redrawing it on every
-            choice of kind lands the reader at the top of it again.
-                    {% endcomment %}
                     {% url 'authoring-modifier-create' as compose_url %}
                     {% include "authoring/_composer.html" with composer_action=compose_url composer_carrier_kind=kind composer_carrier_pk=thing.pk composer_title="Build a new modifier" composer_description="Pick who it reaches and what it does; the fields for both follow." composer_class="rounded-box border border-box-border p-4" composer_submit_label="Add modifier" composer_cancel_url="" %}
                 </c-n26.form-section>
