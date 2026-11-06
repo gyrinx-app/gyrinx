@@ -331,8 +331,8 @@ class StateMachineAccessor:
         validation against a stale instance. Other unsaved fields remain intact.
 
         With save=True, save the new status and return the transition record.
-        With save=False, the caller must already hold a transaction and persist
-        the parent status before it commits. Raise RuntimeError otherwise.
+        With save=False, raise RuntimeError unless a transaction is already open.
+        The caller must persist the parent status before committing.
         Raise InvalidStateTransition when the locked status disallows the change.
         """
         model_name = self.instance.__class__.__name__
