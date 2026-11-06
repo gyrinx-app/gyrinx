@@ -1,20 +1,23 @@
 """Plan content deletion, including eligible staff test gangs and free copies.
 
-The shared reference reader classifies dependencies as cascading parts,
-eligible test data or blocking references. Test gangs must be staff-owned
-and share no campaign or battle with player gangs. A campaign is eligible
-only when every gang is eligible. Preserve reusable carried modifiers;
-delete unshared modifiers that reference removed content.
+The shared reference reader classifies dependencies as cascading parts, eligible
+test data or blocking references. Test gangs must be staff-owned and share no
+campaign or battle with player gangs. A campaign is eligible only when every gang
+is eligible. Preserve reusable carried modifiers; delete unshared modifiers that
+reference removed content.
 
-``remove_free_lines`` permits removal of unpaid weapon profiles without
-dependent content. ``remove_built_in_copies`` permits equivalent free default
-copies after authors remove every live membership granting them. Paid copies
-and copies with dependants block deletion.
+``remove_free_lines`` permits removal of unpaid weapon profiles without dependent
+content. ``remove_built_in_copies`` permits equivalent free default copies after
+authors remove every live membership granting them. Paid copies and copies with
+dependants block deletion.
 
 The preview enumerates the complete plan. ``apply`` locks and replans before
-writing, rejecting changes since confirmation. Player-data removals run gang
-by gang with reconciliation checks and delete the library record only after
-its remaining references are gone.
+deleting eligible test gangs, campaigns and library content in one transaction. It
+rejects changed plans and performs no ledger reconciliation.
+
+Free-copy removal uses ``remove_free_lines_from`` gang by gang with reconciliation
+checks. The final gang deletes unused library content once its remaining
+references are gone.
 """
 
 from collections import Counter

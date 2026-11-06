@@ -1,14 +1,15 @@
 """Plan equipment-list ordering from the routes that grant each collection.
 
-Trace built-ins and modifier grants through hidden carriers. Preserve
-unresolved or cyclic routes in the preview so they remain visible.
+Trace built-ins and modifier grants through hidden carriers. Preserve unresolved
+or cyclic routes in the preview so they remain visible.
 
-A collection reached only through non-archetype pickables is a variant list
-and receives ``VARIANT_POSITION``. Preserve existing authored positions and
-leave other collections unchanged. Equip sorts using these positions.
+A collection reached only through non-archetype pickables is a variant list and
+receives ``VARIANT_POSITION``. Preserve existing authored positions and leave
+other collections unchanged. Equip sorts using these positions.
 
-The write is library-only and transactional. Lock collections and rebuild the
-plan before applying to reject changes since confirmation.
+The write is library-only and transactional. Lock the collections to change and
+verify their existence and recorded positions before applying. Changes to grant
+routes are not revalidated.
 """
 
 from dataclasses import dataclass, replace
@@ -294,9 +295,11 @@ def find():
 
 
 def apply(plan):
-    """Lock collections and apply exactly the confirmed positions in one transaction.
+    """Lock the collections to change and apply confirmed positions in one
+    transaction.
 
-    Reject a changed plan, including positions edited after preview.
+    Validate that each planned collection still exists at its recorded position.
+    Grant routes are not revalidated.
     """
     from n26.library.models import Collection
 
