@@ -1917,7 +1917,7 @@ def apply_changes(stat, raw, changes):
     can therefore apply after earlier penalties reached the floor. Non-numeric
     values such as S and E remain unchanged.
 
-    Return the raw value, sources and limiting bound: minimum, maximum
+    Return the resulting value, sources and limiting bound: minimum, maximum
     or empty.
     """
     if not changes:
@@ -2481,9 +2481,10 @@ def identity(line):
 def collapse(lines, key=identity):
     """Combine identical lines at their first position and record their count.
 
-    ``key=None`` keeps a line separate. Clear assignment IDs on combined lines
-    because controls cannot address an individual copy. Use only for displays
-    without per-assignment actions; model editing retains separate lines.
+    Keep lines separate when ``key(line)`` returns None. Clear assignment IDs
+    on combined lines because controls cannot address an individual copy.
+    Use only for displays without per-assignment actions; model editing
+    retains separate lines.
     """
     kept = []
     at = {}
