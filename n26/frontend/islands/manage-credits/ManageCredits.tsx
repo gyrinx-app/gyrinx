@@ -1,11 +1,5 @@
-import {
-    type ComponentProps,
-    type FormEvent,
-    useEffect,
-    useRef,
-    useState,
-} from "react";
-import { CommandError, postForm } from "../../http/command";
+import { type ComponentProps, useState } from "react";
+import { fieldErrors } from "../../http/command";
 import {
     Breadcrumbs,
     Button,
@@ -19,6 +13,7 @@ import {
     RadioCards,
     UserLink,
     WorkflowPage,
+    useWorkflowForm,
 } from "../../ui";
 
 type Errors = Record<string, string[]>;
@@ -44,182 +39,40 @@ export interface ManageCreditsProps {
     recoveryKey: string;
 }
 
-function recover(key: string): URLSearchParams | null {
-    try {
-        const stored = sessionStorage.getItem(key);
-        if (!stored) return null;
-        const data = new URLSearchParams(stored);
-        return ["direction", "amount", "note", "request_key", "back"].every(
-            (name) => data.has(name),
-        )
-            ? data
-            : null;
-    } catch {
-        return null;
-    }
-}
-
-function clearRecovery(key: string) {
-    try {
-        sessionStorage.removeItem(key);
-    } catch {
-        /* A retained receipt can still be retried safely. */
-    }
-}
-
-function fieldErrors(value: unknown): value is Errors {
-    return (
-        !!value &&
-        typeof value === "object" &&
-        !Array.isArray(value) &&
-        Object.values(value).every(
-            (errors) =>
-                Array.isArray(errors) &&
-                errors.every((error) => typeof error === "string"),
-        )
-    );
-}
-
 export function ManageCredits(
     props: ManageCreditsProps & {
         onNavigate?: (url: string) => void;
         onReload?: () => void;
     },
 ) {
-    const [recovery] = useState(() => recover(props.recoveryKey));
-    const [values, setValues] = useState(
-        recovery
-            ? {
-                  direction: recovery.get("direction")!,
-                  amount: recovery.get("amount")!,
-                  note: recovery.get("note")!,
-                  request_key: recovery.get("request_key")!,
-              }
-            : props.values,
-    );
     const [balance, setBalance] = useState(props.balance);
-    const [errors, setErrors] = useState(props.errors);
-    const [pending, setPending] = useState(false);
-    const [uncertain, setUncertain] = useState(!!recovery);
-    const [notice, setNotice] = useState(
-        recovery
-            ? "An earlier save has not been confirmed. Retry it before making another change."
-            : "",
-    );
-    const inFlight = useRef(false);
-    const saved = useRef(false);
-    const unknownOutcome = useRef(!!recovery);
-    const submitted = useRef<URLSearchParams | null>(recovery);
-    const summary = useRef<HTMLDivElement>(null);
-    const [failure, setFailure] = useState(0);
-    useEffect(() => {
-        const restore = (event: PageTransitionEvent) => {
-            if (event.persisted && saved.current) {
-                (props.onReload ?? (() => window.location.reload()))();
-            }
-        };
-        window.addEventListener("pageshow", restore);
-        return () => window.removeEventListener("pageshow", restore);
-    }, [props.onReload]);
-    useEffect(() => {
-        if (failure) summary.current?.focus();
-    }, [failure]);
-    useEffect(() => {
-        if (!uncertain && !pending) return;
-        const warn = (event: BeforeUnloadEvent) => {
-            if (unknownOutcome.current) event.preventDefault();
-        };
-        window.addEventListener("beforeunload", warn);
-        return () => window.removeEventListener("beforeunload", warn);
-    }, [uncertain, pending]);
-
-    async function save(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        if (inFlight.current) return;
-        inFlight.current = true;
-        unknownOutcome.current = true;
-        setPending(true);
-        setNotice("");
-        if (!uncertain) {
-            submitted.current = new URLSearchParams();
-            new FormData(event.currentTarget).forEach((value, name) =>
-                submitted.current!.append(name, String(value)),
-            );
-            submitted.current.delete("csrfmiddlewaretoken");
-        }
-        try {
-            try {
-                sessionStorage.setItem(
-                    props.recoveryKey,
-                    submitted.current!.toString(),
-                );
-            } catch {
-                throw new CommandError(
-                    "Your browser could not keep this save for recovery. Allow session storage before saving.",
-                    "rejected",
-                );
-            }
-            const body = new URLSearchParams(submitted.current!);
-            body.set("csrfmiddlewaretoken", props.csrfToken);
-            const { status, data } = await postForm(
-                props.commandHref,
-                body,
-                props.csrfToken,
-            );
-            if (status === 200 && typeof data.nextUrl === "string") {
-                saved.current = true;
-                unknownOutcome.current = false;
-                clearRecovery(props.recoveryKey);
-                setUncertain(false);
-                (props.onNavigate ?? ((url) => window.location.assign(url)))(
-                    data.nextUrl,
-                );
-                return;
-            }
+    const form = useWorkflowForm({
+        ...props,
+        interpret(status, data) {
+            if (status === 200 && typeof data.nextUrl === "string")
+                return { kind: "saved", nextUrl: data.nextUrl };
             if (
                 (status === 422 || status === 409) &&
                 fieldErrors(data.errors) &&
                 typeof data.balance === "number"
             ) {
-                setErrors(data.errors);
                 setBalance(data.balance);
-                if (uncertain) {
-                    unknownOutcome.current = true;
-                    setNotice(
-                        "The earlier save is still unconfirmed. Keep this form open until you can retry.",
-                    );
-                } else {
-                    clearRecovery(props.recoveryKey);
-                    unknownOutcome.current = false;
-                    setUncertain(false);
-                }
-            } else {
-                throw new CommandError(
-                    "The save could not be confirmed. Retry this save before making another change.",
-                    "unknown",
-                );
+                return { kind: "invalid", errors: data.errors };
             }
-        } catch (error) {
-            const problem =
-                error instanceof CommandError
-                    ? error
-                    : new CommandError(
-                          "The save could not be confirmed. Retry this save before making another change.",
-                          "unknown",
-                      );
-            setNotice(problem.message);
-            // An earlier uncertain write remains unresolved even if a retry is rejected.
-            unknownOutcome.current = uncertain || problem.outcome === "unknown";
-            if (!unknownOutcome.current) clearRecovery(props.recoveryKey);
-            setUncertain(unknownOutcome.current);
-        } finally {
-            inFlight.current = false;
-            setPending(false);
-            setFailure((n) => n + 1);
-        }
-    }
-    const hasErrors =
-        !!notice || Object.values(errors).some((e) => e.length > 0);
+            return null;
+        },
+    });
+    const {
+        values,
+        setValues,
+        errors,
+        pending,
+        uncertain,
+        notice,
+        summary,
+        hasErrors,
+        save,
+    } = form;
     return (
         <WorkflowPage
             title="Manage credits"
@@ -291,7 +144,7 @@ export function ManageCredits(
                         )}
                 </div>
             )}
-            <fieldset disabled={pending || uncertain} className="contents">
+            <fieldset disabled={form.frozen} className="contents">
                 <FormSection title="The change">
                     <RadioCards
                         legend="Add or remove *"

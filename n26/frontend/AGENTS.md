@@ -17,7 +17,7 @@ n26/frontend/
 │       ├── <Feature>.tsx      # Feature component and prop types
 │       └── <Feature>.test.tsx # Behaviour tests beside the feature
 ├── runtime/                   # Generic island mounting and lifecycle code
-├── http/                      # Shared JSON transport, when introduced by a consumer
+├── http/                      # Shared form-encoded JSON transport
 ├── ui/                        # Shared Cotton-derived React primitives
 ├── generated/                 # Ignored output produced by the tooling
 ├── tooling/                   # Build-time exporters and migration inventories
@@ -42,8 +42,8 @@ at the root instead of copying them.
   extracted when Hire and Equip use the same contract. Put transport in `http/`
   and shared presentation in `ui/`; keep workflow-specific rules in the island.
 - `http` is for session credentials, CSRF and response/error handling. It must
-  not depend on feature props, Django routes or domain calculations. This is a
-  planned location, not an existing transport implementation.
+  not depend on feature props, Django routes or domain calculations. Use
+  `command.ts` for the shared request and field-error envelope.
 - `ui` is the public design-system adapter boundary. Islands import from
   `../../ui`, not from `generated` or an adapter's internal file.
 - `runtime` mounts React islands. It must not depend on feature props,
@@ -101,3 +101,12 @@ require an explicit review action before loading a new baseline. Recovery input
 can differ from the native POST that produced page props: do not apply that
 POST's conflict/errors to a different retained command. Keep workflow-specific
 conflict decisions outside shared HTTP transport.
+
+## Shared workflow form controller
+
+`ui/useWorkflowForm.ts` now serves Manage credits, Edit holding and Edit asset
+type. Import it from `../../ui`. It owns pending/recovery state, focus and
+navigation guards; the island interprets each domain response. Only a specific,
+validated revision conflict may enable review of a newer baseline. A general
+409 or validation refusal cannot resolve an earlier uncertain write. Run all
+three consumers' tests when changing this shared lifecycle.

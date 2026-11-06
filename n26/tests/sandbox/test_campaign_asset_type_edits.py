@@ -5,6 +5,8 @@ type behaves, so it is fixed once the type has any assets. Asset types that
 come with the campaign type are library content and are not edited here.
 """
 
+import json
+
 import pytest
 from bs4 import BeautifulSoup
 from django.apps import apps
@@ -65,6 +67,21 @@ def edit_url(campaign, asset_type):
 
 def tab_url(campaign):
     return reverse("n26-edit-campaign", args=[campaign.pk]) + "?tab=asset-types"
+
+
+def props(response):
+    page = BeautifulSoup(response.content, "html.parser")
+    host = page.select_one('[data-react-name="edit-asset-type"]')
+    return json.loads(page.find(id=host["data-react-props"]).string)
+
+
+def submit(client, target, data, **kwargs):
+    page = client.get(target)
+    if page.status_code == 200:
+        soup = BeautifulSoup(page.content, "html.parser")
+        if soup.select_one('[data-react-name="edit-asset-type"]'):
+            data = {"snapshot": props(page)["values"]["snapshot"], **data}
+    return client.post(target, data, **kwargs)
 
 
 class TestEditingAnAssetType:
@@ -233,13 +250,13 @@ class TestTheEditPage:
         client.force_login(campaign.owner)
         page = client.get(edit_url(campaign, racket))
         assert page.status_code == 200
-        soup = BeautifulSoup(page.content, "html.parser")
-        assert soup.find("input", {"name": "label_singular"})["value"] == "Rakit"
-        assert soup.find("input", {"name": "label_plural"})["value"] == "Rakits"
-        checked = soup.find("input", {"name": "ownership", "checked": True})
-        assert checked["value"] == HOLDING
+        data = props(page)
+        assert data["values"]["label_singular"] == "Rakit"
+        assert data["values"]["label_plural"] == "Rakits"
+        assert data["values"]["ownership"] == HOLDING
 
-        response = client.post(
+        response = submit(
+            client,
             edit_url(campaign, racket),
             {"label_singular": "Racket", "label_plural": "", "ownership": HOLDING},
             follow=True,
@@ -251,7 +268,8 @@ class TestTheEditPage:
 
     def test_an_unchanged_save_says_so(self, client, campaign, racket):
         client.force_login(campaign.owner)
-        response = client.post(
+        response = submit(
+            client,
             edit_url(campaign, racket),
             {"label_singular": "Rakit", "label_plural": "Rakits", "ownership": HOLDING},
             follow=True,
@@ -260,28 +278,30 @@ class TestTheEditPage:
 
     def test_a_refusal_stays_on_the_form(self, client, campaign, racket):
         client.force_login(campaign.owner)
-        response = client.post(
+        response = submit(
+            client,
             edit_url(campaign, racket),
             {"label_singular": "Territory", "ownership": HOLDING},
         )
         assert response.status_code == 200
-        assert "Dust Falls already has an asset type called Territory." in (
-            response.content.decode()
-        )
+        assert props(response)["errors"]["__all__"] == [
+            "Dust Falls already has an asset type called Territory."
+        ]
 
     def test_a_fixed_ownership_is_stated_and_cannot_be_posted(
         self, client, campaign, racket
     ):
         create_campaign_asset(campaign, racket, "Still")
         client.force_login(campaign.owner)
-        page = client.get(edit_url(campaign, racket)).content.decode()
-        soup = BeautifulSoup(page, "html.parser")
-        assert soup.find("input", {"name": "ownership"}) is None
+        data = props(client.get(edit_url(campaign, racket)))
+        assert data["ownerships"] == []
         assert (
-            "Transferable. You cannot change this now. Dust Falls already has rakits."
-        ) in page
+            data["ownershipNote"]
+            == "Transferable. You cannot change ownership. Dust Falls already has rakits."
+        )
 
-        response = client.post(
+        response = submit(
+            client,
             edit_url(campaign, racket),
             {"label_singular": "Racket", "ownership": POSSESSION},
         )
@@ -294,13 +314,12 @@ class TestTheEditPage:
     ):
         create_campaign_table(campaign, racket, "Rakit table")
         client.force_login(campaign.owner)
-        page = client.get(edit_url(campaign, racket)).content.decode()
-        soup = BeautifulSoup(page, "html.parser")
-        assert soup.find("input", {"name": "ownership"}) is None
+        data = props(client.get(edit_url(campaign, racket)))
+        assert data["ownerships"] == []
         assert (
-            "Transferable. You cannot change this now. "
-            "Dust Falls already has a table of rakits."
-        ) in page
+            data["ownershipNote"]
+            == "Transferable. You cannot change ownership. Dust Falls already has a table of rakits."
+        )
 
     def test_a_shared_type_has_no_edit_page(self, client, campaign, core):
         territory = core.asset_types.get(label_singular="Territory")
@@ -315,7 +334,8 @@ class TestTheEditPage:
         client.force_login(player)
         assert client.get(tab_url(campaign)).status_code == 404
         assert client.get(edit_url(campaign, racket)).status_code == 404
-        response = client.post(
+        response = submit(
+            client,
             edit_url(campaign, racket),
             {"label_singular": "Mine", "ownership": HOLDING},
         )
@@ -335,7 +355,8 @@ class TestAssetDisplayGroups:
             if creating
             else edit_url(campaign, racket)
         )
-        response = client.post(
+        response = submit(
+            client,
             url,
             {
                 "label_singular": "Depot",
@@ -347,8 +368,13 @@ class TestAssetDisplayGroups:
         assert response.status_code == 200
         errors = response.context["form"].errors["display_group"]
         assert errors
-        text = BeautifulSoup(response.content, "html.parser").get_text(" ", strip=True)
-        assert all(error in text for error in errors)
+        if creating:
+            text = BeautifulSoup(response.content, "html.parser").get_text(
+                " ", strip=True
+            )
+            assert all(error in text for error in errors)
+        else:
+            assert props(response)["errors"]["display_group"] == errors
         assert not campaign.additions.asset_types.filter(
             label_singular="Depot"
         ).exists()
@@ -357,7 +383,8 @@ class TestAssetDisplayGroups:
 
     def test_arbitrator_can_create_and_change_a_display_group(self, client, campaign):
         client.force_login(campaign.owner)
-        response = client.post(
+        response = submit(
+            client,
             reverse("n26-campaign-add-asset-type", args=[campaign.pk]),
             {
                 "label_singular": "Depot",
@@ -371,7 +398,8 @@ class TestAssetDisplayGroups:
         assert kind.display_group == "Supply sites"
         response = client.get(edit_url(campaign, kind))
         assert response.context["form"]["display_group"].value() == "Supply sites"
-        response = client.post(
+        response = submit(
+            client,
             edit_url(campaign, kind),
             {
                 "label_singular": "Depot",
@@ -400,3 +428,214 @@ class TestAssetDisplayGroups:
             )
         racket.refresh_from_db()
         assert racket.display_group == ""
+
+
+def workflow_data(campaign, kind, **changes):
+    from n26.core.asset_type_edit import initial_form
+
+    kind.refresh_from_db()
+    return {**initial_form(campaign, kind, campaign.owner).initial, **changes}
+
+
+@pytest.mark.parametrize("transport", ["html", "json"])
+@pytest.mark.parametrize("label", ["Racket", "Territory", "", "x" * 201])
+def test_asset_type_transports_share_validation_and_events(
+    client, campaign, racket, transport, label
+):
+    client.force_login(campaign.owner)
+    target = (
+        edit_url(campaign, racket)
+        if transport == "html"
+        else reverse(
+            "n26-campaign-edit-asset-type-command", args=[campaign.pk, racket.pk]
+        )
+    )
+    data = workflow_data(
+        campaign,
+        racket,
+        label_singular=label,
+        label_plural="",
+        display_group="Supply sites",
+    )
+    before = campaign.events.count()
+    response = client.post(target, data)
+    saved = label == "Racket"
+    assert response.status_code == (
+        (302 if saved else 200) if transport == "html" else (200 if saved else 422)
+    )
+    assert campaign.events.count() == before + int(saved)
+    racket.refresh_from_db()
+    assert racket.label_singular == ("Racket" if saved else "Rakit")
+    if saved:
+        assert racket.label_plural == "" and racket.plural == "Rackets"
+        assert racket.display_group == "Supply sites"
+        assert (
+            response.url if transport == "html" else response.json()["nextUrl"]
+        ) == tab_url(campaign)
+
+
+def test_asset_type_retries_and_conflicts_use_the_locked_starting_state(
+    campaign, racket
+):
+    from n26.core.asset_type_edit import change
+
+    original = workflow_data(campaign, racket, label_singular="Racket")
+    before = campaign.events.count()
+    first = change(campaign, racket, campaign.owner, original)
+    retry = change(campaign, racket, campaign.owner, original)
+    assert first.saved and first.applied
+    assert retry.saved and not retry.applied
+    assert campaign.events.count() == before + 1
+    edit(campaign, racket, "Newer name", HOLDING)
+    before = campaign.events.count()
+    conflict = change(campaign, racket, campaign.owner, original)
+    assert conflict.conflict and not conflict.saved
+    assert conflict.current["label_singular"] == "Newer name"
+    assert campaign.events.count() == before
+    reviewed = workflow_data(campaign, racket, label_singular="Reviewed name")
+    assert change(campaign, racket, campaign.owner, reviewed).saved
+    assert change(campaign, racket, campaign.owner, original).conflict
+    racket.refresh_from_db()
+    assert racket.label_singular == "Reviewed name"
+
+
+@pytest.mark.parametrize("dependency", ["asset", "table"])
+def test_new_ownership_constraints_conflict_even_without_a_type_row_change(
+    campaign, racket, dependency
+):
+    from n26.core.asset_type_edit import change
+
+    data = workflow_data(campaign, racket, ownership=POSSESSION)
+    version = racket.modified
+    if dependency == "asset":
+        create_campaign_asset(campaign, racket, "Still")
+    else:
+        create_campaign_table(campaign, racket, "Rakit table")
+    racket.refresh_from_db()
+    assert racket.modified == version
+    before = campaign.events.count()
+    result = change(campaign, racket, campaign.owner, data)
+    assert result.conflict and not result.saved
+    assert result.current["ownership"] == HOLDING
+    assert result.current["fixedReason"]
+    assert campaign.events.count() == before
+
+
+def test_locked_ownership_still_ignores_tampered_input_in_the_shared_workflow(
+    campaign, racket
+):
+    from n26.core.asset_type_edit import change
+
+    create_campaign_asset(campaign, racket, "Still")
+    data = workflow_data(
+        campaign, racket, label_singular="Racket", ownership=POSSESSION
+    )
+    result = change(campaign, racket, campaign.owner, data)
+    assert result.saved
+    racket.refresh_from_db()
+    assert racket.ownership == HOLDING and racket.label_singular == "Racket"
+
+
+def test_type_noop_rechecks_current_owner_before_accepting_a_replay(campaign, racket):
+    from n26.core.asset_type_edit import change
+
+    data = workflow_data(campaign, racket)
+    owner = campaign.owner
+    campaign.owner = User.objects.create_user("new-owner")
+    campaign.save(update_fields=["owner"])
+    result = change(campaign, racket, owner, data)
+    assert not result.saved and result.form.non_field_errors()
+
+
+def test_wrong_subject_and_tampered_snapshots_cannot_edit_types(campaign, racket):
+    from n26.core.asset_type_edit import change
+
+    other = add_campaign_asset_type(campaign, "Other")
+    data = workflow_data(campaign, other, label_singular="Changed")
+    assert not change(campaign, racket, campaign.owner, data).saved
+    data = workflow_data(campaign, racket, label_singular="Changed")
+    data["snapshot"] += "tampered"
+    assert not change(campaign, racket, campaign.owner, data).saved
+    racket.refresh_from_db()
+    assert racket.label_singular == "Rakit"
+
+
+def test_type_command_checks_authentication_csrf_and_subjects(
+    client, campaign, racket, core
+):
+    from django.test import Client
+
+    target = reverse(
+        "n26-campaign-edit-asset-type-command", args=[campaign.pk, racket.pk]
+    )
+    assert client.post(target, {}).status_code == 401
+    client.force_login(campaign.owner)
+    assert client.get(target).status_code == 405
+    protected = Client(enforce_csrf_checks=True)
+    protected.force_login(campaign.owner)
+    assert (
+        protected.post(
+            target, workflow_data(campaign, racket), HTTP_ACCEPT="application/json"
+        ).status_code
+        == 403
+    )
+    shared = core.asset_types.get(label_singular="Territory")
+    shared_url = reverse(
+        "n26-campaign-edit-asset-type-command", args=[campaign.pk, shared.pk]
+    )
+    assert client.post(shared_url, {}).status_code == 404
+    bad = reverse("n26-campaign-edit-asset-type-command", args=[campaign.pk, "invalid"])
+    assert client.post(bad, {}).status_code == 404
+
+
+def test_edit_type_queries_do_not_grow_with_assets(client, campaign, racket):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    client.force_login(campaign.owner)
+    create_campaign_asset(campaign, racket, "First")
+    client.get(edit_url(campaign, racket))
+    with CaptureQueriesContext(connection) as small:
+        assert client.get(edit_url(campaign, racket)).status_code == 200
+    for index in range(8):
+        create_campaign_asset(campaign, racket, f"Extra {index}")
+    with CaptureQueriesContext(connection) as large:
+        assert client.get(edit_url(campaign, racket)).status_code == 200
+    assert len(small) == len(large)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_simultaneous_type_drafts_cannot_overwrite_each_other(campaign, racket):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from django.db import close_old_connections, connections
+
+    from n26.core.asset_type_edit import change
+    from n26.core.models import Campaign
+
+    original = workflow_data(campaign, racket)
+    ready = Barrier(2)
+
+    def save(label):
+        close_old_connections()
+        try:
+            current_campaign = Campaign.objects.get(pk=campaign.pk)
+            kind = AssetType.objects.get(pk=racket.pk)
+            user = User.objects.get(pk=campaign.owner_id)
+            ready.wait(timeout=10)
+            result = change(
+                current_campaign, kind, user, {**original, "label_singular": label}
+            )
+            return result.saved, result.conflict
+        finally:
+            connections.close_all()
+
+    before = campaign.events.filter(kind=CampaignEvent.Kind.ASSET_TYPE_EDITED).count()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(save, ["First type", "Second type"]))
+    assert sorted(results) == [(False, True), (True, False)]
+    assert (
+        campaign.events.filter(kind=CampaignEvent.Kind.ASSET_TYPE_EDITED).count()
+        == before + 1
+    )

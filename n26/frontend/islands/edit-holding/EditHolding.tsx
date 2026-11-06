@@ -1,5 +1,5 @@
-import { type FormEvent, useEffect, useRef, useState } from "react";
-import { CommandError, postForm } from "../../http/command";
+import { useState } from "react";
+import { fieldErrors } from "../../http/command";
 import {
     Breadcrumbs,
     Button,
@@ -10,6 +10,7 @@ import {
     FormSection,
     Input,
     WorkflowPage,
+    useWorkflowForm,
 } from "../../ui";
 
 type Errors = Record<string, string[]>;
@@ -43,198 +44,45 @@ function currentValues(value: unknown): value is Current {
     );
 }
 
-function recover(key: string): URLSearchParams | null {
-    try {
-        const stored = sessionStorage.getItem(key);
-        if (!stored) return null;
-        const data = new URLSearchParams(stored);
-        return ["name", "income", "snapshot"].every((name) => data.has(name))
-            ? data
-            : null;
-    } catch {
-        return null;
-    }
-}
-
-function clearRecovery(key: string) {
-    try {
-        sessionStorage.removeItem(key);
-    } catch {
-        /* Repeating a stored submission does not apply it twice. */
-    }
-}
-
-function fieldErrors(value: unknown): value is Errors {
-    return (
-        !!value &&
-        typeof value === "object" &&
-        !Array.isArray(value) &&
-        Object.values(value).every(
-            (errors) =>
-                Array.isArray(errors) &&
-                errors.every((error) => typeof error === "string"),
-        )
-    );
-}
-
 export function EditHolding(
     props: EditHoldingProps & {
         onNavigate?: (url: string) => void;
         onReload?: () => void;
     },
 ) {
-    const [recovery] = useState(() => recover(props.recoveryKey));
-    const [values, setValues] = useState(
-        recovery
-            ? {
-                  name: recovery.get("name")!,
-                  income: recovery.get("income")!,
-                  snapshot: recovery.get("snapshot")!,
-              }
-            : props.values,
-    );
-    const [conflict, setConflict] = useState(recovery ? null : props.conflict);
-    const [errors, setErrors] = useState<Errors>(recovery ? {} : props.errors);
-    const [pending, setPending] = useState(false);
-    const [uncertain, setUncertain] = useState(!!recovery);
-    const [notice, setNotice] = useState(
-        recovery
-            ? "An earlier save has not been confirmed. Retry it before making another change."
-            : "",
-    );
-    const inFlight = useRef(false);
-    const saved = useRef(false);
-    const unknownOutcome = useRef(!!recovery);
-    const submitted = useRef<URLSearchParams | null>(recovery);
-    const summary = useRef<HTMLDivElement>(null);
-    const [failure, setFailure] = useState(0);
-    useEffect(() => {
-        const restore = (event: PageTransitionEvent) => {
-            if (event.persisted && saved.current) {
-                (props.onReload ?? (() => window.location.reload()))();
-            }
-        };
-        window.addEventListener("pageshow", restore);
-        return () => window.removeEventListener("pageshow", restore);
-    }, [props.onReload]);
-    useEffect(() => {
-        if (failure) summary.current?.focus();
-    }, [failure]);
-    useEffect(() => {
-        if (!uncertain && !pending) return;
-        const warn = (event: BeforeUnloadEvent) => {
-            if (unknownOutcome.current) event.preventDefault();
-        };
-        window.addEventListener("beforeunload", warn);
-        return () => window.removeEventListener("beforeunload", warn);
-    }, [uncertain, pending]);
-
-    async function save(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        if (inFlight.current || conflict) return;
-        inFlight.current = true;
-        unknownOutcome.current = true;
-        setPending(true);
-        setNotice("");
-        if (!uncertain) {
-            submitted.current = new URLSearchParams();
-            new FormData(event.currentTarget).forEach((value, name) =>
-                submitted.current!.append(name, String(value)),
-            );
-            submitted.current.delete("csrfmiddlewaretoken");
-        }
-        try {
-            try {
-                sessionStorage.setItem(
-                    props.recoveryKey,
-                    submitted.current!.toString(),
-                );
-            } catch {
-                throw new CommandError(
-                    "Your browser could not keep this save for recovery. Allow this site to store data, then try again.",
-                    "rejected",
-                );
-            }
-            const body = new URLSearchParams(submitted.current!);
-            body.set("csrfmiddlewaretoken", props.csrfToken);
-            const { status, data } = await postForm(
-                props.commandHref,
-                body,
-                props.csrfToken,
-            );
-            if (status === 200 && typeof data.nextUrl === "string") {
-                saved.current = true;
-                unknownOutcome.current = false;
-                clearRecovery(props.recoveryKey);
-                setUncertain(false);
-                (props.onNavigate ?? ((url) => window.location.assign(url)))(
-                    data.nextUrl,
-                );
-                return;
-            }
+    const [current, setCurrent] = useState(props.conflict);
+    const form = useWorkflowForm({
+        ...props,
+        initialConflict: !!props.conflict,
+        interpret(status, data) {
+            if (status === 200 && typeof data.nextUrl === "string")
+                return { kind: "saved", nextUrl: data.nextUrl };
             if (
                 status === 409 &&
                 data.code === "revision_conflict" &&
                 currentValues(data.current) &&
                 fieldErrors(data.errors)
             ) {
-                setConflict(data.current);
-                setErrors(data.errors);
-                setUncertain(true);
-                unknownOutcome.current = false;
-            } else if (status === 422 && fieldErrors(data.errors)) {
-                setErrors(data.errors);
-                if (uncertain) {
-                    unknownOutcome.current = true;
-                    setNotice(
-                        "The earlier save is still unconfirmed. Keep this form open until you can retry.",
-                    );
-                } else {
-                    clearRecovery(props.recoveryKey);
-                    unknownOutcome.current = false;
-                    setUncertain(false);
-                }
-            } else {
-                throw new CommandError(
-                    "The save could not be confirmed. Retry this save before making another change.",
-                    "unknown",
-                );
+                setCurrent(data.current);
+                return { kind: "conflict", errors: data.errors };
             }
-        } catch (error) {
-            const problem =
-                error instanceof CommandError
-                    ? error
-                    : new CommandError(
-                          "The save could not be confirmed. Retry this save before making another change.",
-                          "unknown",
-                      );
-            setNotice(problem.message);
-            // An earlier uncertain write remains unresolved even if a retry is rejected.
-            unknownOutcome.current = uncertain || problem.outcome === "unknown";
-            if (!unknownOutcome.current) clearRecovery(props.recoveryKey);
-            setUncertain(unknownOutcome.current);
-        } finally {
-            inFlight.current = false;
-            setPending(false);
-            setFailure((n) => n + 1);
-        }
-    }
-    function reviewCurrent() {
-        try {
-            sessionStorage.removeItem(props.recoveryKey);
-        } catch {
-            setNotice(
-                "Your browser could not clear this draft. Check this site’s storage settings, then try again.",
-            );
-            return;
-        }
-        unknownOutcome.current = false;
-        (props.onNavigate ?? ((url) => window.location.replace(url)))(
-            props.action,
-        );
-    }
-    const hasErrors =
-        !!notice || Object.values(errors).some((e) => e.length > 0);
+            if (status === 422 && fieldErrors(data.errors))
+                return { kind: "invalid", errors: data.errors };
+            return null;
+        },
+    });
+    const {
+        values,
+        setValues,
+        errors,
+        pending,
+        uncertain,
+        notice,
+        summary,
+        hasErrors,
+        save,
+    } = form;
+    const conflict = form.conflicted ? current : null;
     return (
         <WorkflowPage
             title={props.heading}
@@ -258,7 +106,7 @@ export function EditHolding(
                         <Button
                             type="button"
                             variant="primary"
-                            onClick={reviewCurrent}
+                            onClick={() => form.review(props.action)}
                         >
                             Review current asset
                         </Button>
@@ -324,10 +172,7 @@ export function EditHolding(
                     </p>
                 </div>
             )}
-            <fieldset
-                disabled={pending || uncertain || !!conflict}
-                className="contents"
-            >
+            <fieldset disabled={form.frozen} className="contents">
                 <FormSection title="Details">
                     <p className="text-sm text-muted">
                         Catalogue entry: {props.catalogueName} · Income:{" "}
