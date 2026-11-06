@@ -18,8 +18,7 @@ export function AccessoriseLink({
     name,
 }: AccessoriseLinkProps) {
     function open(event: MouseEvent<HTMLAnchorElement>) {
-        // A modified click, or a link aimed at another window, is the
-        // browser's to handle: open the drawn panel in a new tab, and so on.
+        // Leave modified clicks and other-window targets to the browser.
         if (
             event.button !== 0 ||
             event.metaKey ||
