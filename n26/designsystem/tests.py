@@ -629,9 +629,7 @@ class TestProseInsideCVarsIsNotAPropList:
         assert "empty" in api.slots
 
     def test_there_is_something_to_check(self):
-        """Require explanatory content so its disappearance cannot make the tooltip check
-        pass vacuously.
-        """
+        """Keep an inline c-vars comment for the prop and slot parsing tests above."""
         import re
 
         from n26.designsystem.introspect import _CVARS, api_for
