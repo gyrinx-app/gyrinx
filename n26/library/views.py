@@ -1,16 +1,10 @@
-"""The authoring views — the admin surface, starting at the leaves.
+"""Staff authoring pages for library content.
 
-The admin forms come before the preview pane, so the things can be
-created — beginning with the most fundamental assignables. Each page
-here is one leaf kind: the recent
-rows of that kind, and the spec-generated form that creates one more.
-The form *is* the verb (``form.compile()`` performs the ``create_*``
-call), so nothing an author can build here is outside the API, and the
-help they read is the model's own words.
+Registries connect content kinds to listing, detail and creation pages.
+Specs generate forms that call the authoring API. Model docstrings and
+field help text supply the explanations shown to authors.
 
-Nothing fancy on purpose: two views, one template each, staff-only.
-The composer and the preview pane hang off this same skeleton later
-(design/authoring.md, design/preview-contexts.md).
+Specialised pages handle modifiers, collections, slot types and ingest.
 """
 
 import inspect
@@ -105,27 +99,18 @@ LEAF_KINDS = {
 RETIRED_KINDS = frozenset({"affiliation"})
 
 
-#: Kinds made on another kind's page rather than from the menu. An asset
-#: is one entry in a campaign type's list of what it hands out, filed
-#: under one of the type's kinds, so it is added there, under that kind;
-#: a menu entry, a listing and a create page of its own would offer the
-#: same thing a second way, from a page that cannot say which kind. Each
-#: row keeps a page of its own — reached from the parent's — for its
-#: modifiers and the rest of its fields, and its breadcrumb runs through
-#: the parent's kind rather than a listing it does not have. A table is
-#: made the same way, under a Holding asset type.
+#: Create assets and tables from their asset-type section on a campaign type page.
+#: Their detail pages link back through the parent because they have no standalone listing.
 NESTED_KINDS = frozenset({"asset", "asset-table"})
 
 
 #: Kinds whose page is a place you come back to: the thing, and the
 #: parts you add to it over time. ``kind -> the verb that adds a part``.
 def _describe_weapon_profile(profile):
-    """A weapon profile, as the author needs to check it: what it is
-    called, the stats they typed, its traits, and its price.
+    """Describe a weapon profile's stats, traits and price.
 
-    An unnamed line is the weapon's own, so it is labelled with the
-    weapon and says so — a blank cell would read as a missing name
-    rather than a deliberate one.
+    Use the weapon's name for an unnamed profile and identify it as the
+    weapon's own line.
     """
     label = profile.name or profile.weapon.name
     notes = []
@@ -138,12 +123,9 @@ def _describe_weapon_profile(profile):
 
 
 def _statline_summary(owner):
-    """A statline as one short string — 'SR 8"  LR 24"' — so a page can
-    show what was typed without rebuilding the card machinery.
+    """Format a statline in characteristic order, for example ``SR 8"  LR 24"``.
 
-    Reads the stats with ``.all()`` and sorts in Python, so a page that
-    prefetched them (the parts hints below) summarises a whole listing
-    without a query per line.
+    Read ``stats.all()`` and sort in Python to reuse a caller's prefetch.
     """
     statline = getattr(owner, "statline", None)
     if statline is None:
@@ -157,11 +139,7 @@ def _statline_summary(owner):
 
 
 def _describe_statline_stat(type_stat):
-    """One column of a shape. Not prefixed with the shape's name — the
-    page is already that shape — and showing the display flags and any
-    renaming, which are the only things about the row a reader cannot
-    infer. The row is named for the stat, so a shape that heads the
-    column differently has to say so."""
+    """Describe a statline column's display flags and abbreviation override."""
     notes = []
     if type_stat.short_name_override:
         notes.append(f"prints as {type_stat.short_name_override}")
@@ -173,12 +151,11 @@ def _describe_statline_stat(type_stat):
 
 
 def _describe_built_in(member):
-    """One row of what a profile comes with. A collection member is
-    access rather than kit — the list this entry may use — and the
-    page says so; everything else reads as its kind. An extra weapon
-    line naming no gun of its set rides whatever matching gun its
-    acquirer holds, which is worth a row's words because nothing else
-    on the page says where it lands."""
+    """Describe a built-in member and how it is assigned.
+
+    Collections provide catalogue access. A weapon profile without a specified
+    gun member attaches to an acquired matching weapon.
+    """
     from n26.library.models import Collection
 
     thing = member.assignable
@@ -209,19 +186,15 @@ def _describe_built_in(member):
 
 
 def _library_content(model):
-    """Rows staff maintain, not what one campaign wrote for itself.
-
-    An arbitrator's asset or table keeps the shared asset type and lives
-    in the campaign's pack. The campaign type pages list the library's
-    copy; the campaign's own pages list the one it wrote.
-    """
+    """Return staff-maintained content outside campaign-specific packs."""
     return model.objects.outside_campaign_packs()
 
 
 def _asset_type_parts(parts):
-    """Each asset type's library assets, with what describing one reads —
-    its modifiers and, among them, its Income contribution — loaded along.
-    Tables the same way: a campaign's own table is not listed here."""
+    """Prefetch library assets with income data and tables with entry counts.
+
+    Campaign-specific assets and tables are excluded.
+    """
     from django.db.models import Prefetch
 
     from n26.library.income import with_income
@@ -234,8 +207,7 @@ def _asset_type_parts(parts):
 
 
 def _tables_with_entry_counts():
-    """A type's library tables with how many entries each has, read along
-    with the tables rather than once per row."""
+    """Count entries for each library table in the table query."""
     from django.db.models import Count
 
     from n26.library.models import AssetTable
@@ -263,8 +235,7 @@ def _describe_asset_table(table):
 
 
 def _describe_asset_table_entry(entry):
-    """One entry on a table: its band, leading, then the asset it names.
-    Its place in the order is not said: the rows are printed in it."""
+    """Describe the roll band and asset; the displayed order supplies position."""
     label = f"{entry.band} — {entry.label}" if entry.band else entry.label
     return label, []
 
@@ -321,13 +292,9 @@ def _describe_asset_type(asset_type):
 
 
 def _describe_asset(asset):
-    """One asset under its asset type: its income, and how many modifiers
-    ride it besides — what those do is read on the asset's own page,
-    which the name leads to. The income is a modifier too, and is not
-    counted twice.
+    """Describe income and count other modifiers using prefetched relations.
 
-    Reads the modifiers with ``.all()``, so a page that prefetched them
-    describes every asset of a type without a query per row.
+    Exclude the income modifier from the additional modifier count.
     """
     from n26.library.income import boons_of, income_of
 
@@ -346,11 +313,7 @@ def _describe_asset(asset):
 
 
 def _describe_picklist_member(member):
-    """One pickable on one list: what this list calls it, and — where
-    that is not the pickable's own name — what it is called elsewhere.
-
-    Its place in the order is not said: the rows are printed in it.
-    """
+    """Describe the list's label and the pickable's name when they differ."""
     notes = []
     if member.label_override:
         notes.append(f"the {member.pickable} pickable, under another name")
@@ -360,9 +323,7 @@ def _describe_picklist_member(member):
 
 
 def _describe_interstitial_attachment(attachment):
-    """One slot an interstitial is attached to: the slot as an author
-    reads it, and what the choice says about itself. Its place in the
-    order is not said: the rows are printed in it."""
+    """Describe the linked slot's authoring label and choice text."""
     return _label_for(attachment.slot), _describe_slot(attachment.slot)
 
 
@@ -395,9 +356,7 @@ def _roll_table_summary(picklist):
 
 
 def _weapon_parts(parts):
-    """What ``_describe_weapon_profile`` reads, loaded for every line at
-    once — unhinted, each profile fetches its weapon, its statline's
-    stats and its traits on its own."""
+    """Load weapons, statline characteristics and traits for profile descriptions."""
     return parts.select_related("weapon", "statline").prefetch_related(
         "statline__stats__statline_type_stat__stat", "traits"
     )
@@ -415,13 +374,11 @@ def _built_in_parts(parts):
 
 
 def _arrange_built_ins(pairs):
-    """The comes-with rows, with each gun's own lines under it.
+    """Nest each weapon profile under its specified gun member.
 
-    ``pairs`` is ``(member, drawn row)`` in listing order. A member
-    naming its gun nests under that gun's row — the grammar a card uses
-    for profiles under weapons — and every weapon row gains the way
-    to build one of its lines in beside it. A member naming no gun
-    lists flat, its row saying where it lands.
+    ``pairs`` contains ``(member, displayed data)`` in listing order.
+    Profiles without a gun member remain at the top level. Each weapon gains
+    a link for adding its built-in profiles.
     """
     drawn_by_pk = {}
     for member, drawn in pairs:
@@ -442,23 +399,17 @@ def _arrange_built_ins(pairs):
 
 
 def _describe_option(option):
-    """One option, as the author needs to check it: what taking it
-    adds to the price, and what it brings.
-
-    Which set it belongs to is not said here — the page draws options
-    under their set's own heading, so the row repeating it would be
-    noise.
-    """
+    """Describe an option's additional price and content within its group."""
     brings = ", ".join(_label_for(member.assignable) for member in _brought_by(option))
     price = f"+{option.default_set.price}cr"
     return option.name, [price, f"brings {brings}" if brings else "brings nothing"]
 
 
 def _brought_by(option):
-    """What one option's set holds, in the order it was written.
-    Archived members are off the set — taking the option no longer
-    brings them — and are skipped in Python so the option listing's
-    prefetch of members stays warm."""
+    """List an option's live default members in their stored order.
+
+    Skip archived members in Python to reuse the listing's prefetch.
+    """
     return [
         member for member in option.default_set.members.all() if not member.archived
     ]
@@ -482,14 +433,10 @@ def _describe_option_group(group):
 
 
 def _option_parts(parts):
-    """The options of one carrier, listed set by set.
+    """Group a carrier's options by set, with the main set first.
 
-    Their own ordering is by position alone, which is what a hire needs:
-    within a set, the first is the one taken unasked. On a page listing
-    every set at once that interleaves them — the first option of the
-    second set sits between the first and second options of the main
-    one — so the set leads here. The main pick-one set is first, having
-    no group row at all.
+    Option positions are relative to their set. Sorting by position alone
+    would interleave options from different sets.
     """
     from django.db.models import F
 
@@ -596,10 +543,7 @@ DETAIL_KINDS = {
         # one: what deleting a line reaches — a gang that holds it, a
         # hire that comes with it — cannot be read off the row.
         "removes": "authoring-weapon-profile-delete",
-        # Adding one happens at an address of its own rather than in a
-        # form under the listing. A line is a form and a whole statline
-        # both, and the page already carries the weapon's own fields
-        # above them. Named by the weapon, there being no line yet.
+        # Create weapon profiles on a separate page to accommodate their characteristic form.
         "adds": "authoring-weapon-profile-add",
     },
     "statline-type": {
@@ -631,12 +575,8 @@ DETAIL_KINDS = {
         # An asset type has no page of its own: its four fields are
         # edited in place, on the row that lists it.
         "editable": True,
-        # Under each asset type, the assets of it, and the form that adds
-        # one more. An asset is one entry in the campaign type's list, so
-        # it is made here rather than from the menu: the asset type is the
-        # carrier its form is handed, and the asset joins the type's pack.
-        # A Holding asset type also lists its tables here, for the same
-        # reason; a Possession has none, so its block is left out.
+        # Create assets under their asset type, inheriting its pack.
+        # Holding types also offer tables; inherent asset types do not.
         "under_each": (
             {
                 "act": "add-asset",
@@ -744,10 +684,7 @@ DETAIL_KINDS = {
         "nothing_yet": (
             "No pickables yet — a choice drawing on this list has nothing to offer."
         ),
-        # Taking a pickable off a list is a question asked at its own
-        # address, like every other part: what the act reaches — the
-        # pickable itself, every other list offering it — cannot be read
-        # off the row.
+        # Confirm membership removal on its own page, explaining what content remains.
         "removes": "authoring-picklist-member-remove",
     },
     "interstitial": {
@@ -780,32 +717,15 @@ DETAIL_KINDS = {
 
 
 def _gives_to_every_gang(thing):
-    """Whether this thing's built-ins are what every gang is given on
-    joining a campaign — a campaign type — so the section says so rather
-    than "comes with", which reads as kit arriving with a purchase."""
+    """Identify campaign types so built-ins are described as joining grants."""
     from n26.library.models import CampaignType
 
     return isinstance(thing, CampaignType)
 
 
-#: What a thing always comes with, in the same shape as a kind's own
-#: parts — but filed apart from them, because this is not one kind's
-#: section. Every assignable can carry built-ins, so which pages draw
-#: it is read off the model (``_carries_built_ins``) rather than listed,
-#: and it sits alongside whatever else the kind carries: a weapon has
-#: profiles *and* can come with something.
-#:
-#: Naming itself in ``act`` is what lets it do that. A post that names
-#: no section is for the kind's own parts, of which there is at most
-#: one; this one shares its page and so has to say which form was
-#: clicked.
-#:
-#: The words are ours rather than the part model's, because the row is a
-#: DefaultAssignment — accurate, and nothing an author says. They avoid
-#: naming any one carrier: a profile is hired and a piece of wargear is
-#: bought, and both come with what is listed here. A campaign type is
-#: the exception: nothing acquires one, so its section says what every
-#: gang that joins is given.
+#: Built-ins form a separate part section on kinds that support them.
+#: Its explicit act distinguishes it from the kind-specific part form.
+#: Campaign-type labels describe grants on joining rather than acquisition kit.
 BUILT_INS_PART = {
     "act": "built_in",
     "verb": "add_built_in",
@@ -830,15 +750,12 @@ BUILT_INS_PART = {
             "stays in the library, and anything already holding it keeps it."
         )
     ),
-    # The add form's heading and button on a campaign type, where "Add a
-    # built-in" would name the mechanism rather than what the author does.
+    # Campaign-type labels describe what joining gangs receive.
     "add_title": lambda thing: (
         "Add something every gang gets" if _gives_to_every_gang(thing) else ""
     ),
     "submit_label": lambda thing: "Add" if _gives_to_every_gang(thing) else "",
-    # Where a row's Remove control leads. A part is taken off at its
-    # own address, never from the listing, because what the act means
-    # cannot be read off the row.
+    # Each removal link opens a dedicated confirmation page.
     "removes": "authoring-built-in-remove",
     # An asset member is a possession built in by its asset type, and
     # deleting the asset is what takes it out; the row offers no Remove.
@@ -872,16 +789,9 @@ BUILT_INS_PART = {
 }
 
 
-#: The alternatives a thing offers when it is acquired, in the same
-#: shape as a kind's own parts. Filed apart for the same reason
-#: built-ins are: which pages draw it is read off the model
-#: (``_offers_options``) rather than listed.
-#:
-#: An option's own set of things is never mentioned. The author says
-#: what the choice is called, what taking it adds and what it brings;
-#: the set that holds them is founded by the verb and named for authors
-#: alone, because two profiles may both offer "As standard" while a set
-#: name may appear once in a pack.
+#: Acquisition options use a separate section on supported kinds.
+#: Authoring creates and names their default sets automatically to avoid
+#: pack-wide name collisions between options on different carriers.
 OPTIONS_PART = {
     "act": "option",
     "verb": "offer_option",
@@ -936,47 +846,25 @@ ACTION_PRICE_PART = {
 
 
 def _carries_modifiers(kind):
-    """Whether this kind's rows can carry modifiers — true for every
-    assignable (the mixin's M2M is the tell), never for the foundation
-    shapes. Derived, not enumerated: a new assignable kind gets its
-    modifier section without anyone remembering to say so."""
+    """Detect modifier support from the model's many-to-many fields."""
     return hasattr(_model_for(_spec_for(kind)), "modifiers")
 
 
 def _carries_built_ins(kind):
-    """Whether this kind's rows can come with things.
-
-    Two facts, both read off the model. ``built_ins`` is a column on the
-    assignable mixin, so coming with something is available to every
-    assignable and absent from the foundation shapes; and the kind itself
-    says whether a set would ever be materialised (``takes_built_ins``)
-    — no, for the kinds that only arrive by being chosen. Derived for the
-    same reason modifiers are, so a new assignable kind gets the section
-    without anyone remembering to say so.
-    """
+    """Detect a built-in field on a kind that materialises built-in sets."""
     model = _model_for(_spec_for(kind))
     return hasattr(model, "built_in_members") and model.takes_built_ins
 
 
 def _offers_options(kind):
-    """Whether this kind's rows offer alternatives when acquired.
-
-    Read off the model, like the built-ins section: a profile and a
-    piece of wargear opt into the mixin that gives them ``options``, and
-    a kind that opts in later gets these sections without anyone
-    remembering to say so.
-    """
+    """Detect option support from the model's relations."""
     return hasattr(_model_for(_spec_for(kind)), "options")
 
 
 def _part_sections(kind):
-    """Every section of parts this kind's page draws, in the order they
-    appear: what only this kind has, then what anything can come with,
-    then what it lets the buyer choose between.
+    """Order a kind's parts, built-ins and options for rendering and POST routing.
 
-    The options come last, and their sets after them for the post
-    routing's sake — the page draws the two as one section
-    (``_hire_options_context``), grouped the way a hire offers them.
+    The renderer groups the final options and option-set sections together.
     """
     sections = []
     if kind in DETAIL_KINDS:
@@ -991,13 +879,9 @@ def _part_sections(kind):
 
 
 def _narrow_a_slots_picklists(form, slot):
-    """A choice offers its own slot type's picklists and no others.
+    """Limit an existing slot's picklists to its slot type.
 
-    The page that *makes* a slot cannot narrow this — no slot type has
-    been chosen at the moment the picker is drawn — but the page that
-    corrects one knows the slot type already, and a picker offering
-    picklists from another one is an invitation to write content whose
-    pickables could never settle the choice.
+    Creation cannot apply this filter until a slot type is supplied.
     """
     form.fields["picklist"].queryset = slot.slot_type.picklists.all()
 
@@ -1010,7 +894,7 @@ EDIT_NARROWING = {"slot": _narrow_a_slots_picklists}
 
 
 def _narrowed_for_editing(kind, thing, form):
-    """The edit form, with whatever its kind narrows narrowed."""
+    """Apply kind-specific restrictions to an edit form."""
     narrowing = EDIT_NARROWING.get(kind)
     if narrowing is not None:
         narrowing(form, thing)
@@ -1018,14 +902,10 @@ def _narrowed_for_editing(kind, thing, form):
 
 
 def _statline_editor_for(thing):
-    """The statline form a thing's own page carries, or ``None``.
+    """Build an editor when the model owns a statline with characteristics.
 
-    Which kinds may own a statline is read off the columns that hold
-    one, never listed here: a weapon has a statline type but it is a
-    weapon's *profiles* that carry values, and a new kind of owner
-    should get its editor without anyone remembering to come back. A
-    shape with no characteristics in it yet draws no editor — there
-    would be nothing to type in.
+    Detect ownership from the model fields. A weapon's statline type describes
+    its profiles; the weapon itself does not own characteristic values.
     """
     from n26.library.models import Statline
 
@@ -1039,13 +919,7 @@ def _statline_editor_for(thing):
 
 
 def _has_detail(kind):
-    """Whether this kind's rows have a page of their own.
-
-    Every authored kind does: a row's page is where it is edited, and
-    the parts (DETAIL_KINDS), a kind's own view (DETAIL_VIEWS, defined
-    below the views themselves) and an assignable's modifier section
-    are what some of them add on top of that.
-    """
+    """Return whether a kind has an authoring detail page."""
     return (
         kind in LEAF_KINDS
         or kind in DETAIL_KINDS
@@ -1054,21 +928,14 @@ def _has_detail(kind):
     )
 
 
-#: The most empty condition rows a composer will offer at once. The
-#: count rides in the URL, where any number can be typed, and each row
-#: is a whole rendered form — a scope narrowed twenty ways is already
-#: past what an author can read.
+#: Limit URL-requested empty condition forms to bound rendering work.
 MAX_CHIPS = 20
 
 
 def _carrier_counts(modifiers):
-    """How many things carry each of these modifiers, keyed by pk.
+    """Count carriers by modifier primary key with one query per carrier kind.
 
-    The number is what stops an author editing a shared modifier
-    thinking it is theirs alone. The kinds share no table, so the tally
-    costs one query per kind — per *page*, though, not per kind per
-    modifier: a page listing every modifier would otherwise spend
-    hundreds of queries counting.
+    Batch across the page to avoid querying each kind for every modifier.
     """
     counts = Counter()
     pks = [modifier.pk for modifier in modifiers]
@@ -1082,7 +949,7 @@ def _carrier_counts(modifiers):
 
 
 def _carrier_count(modifier):
-    """How many things carry this one modifier."""
+    """Count all carriers of one modifier."""
     return _carrier_counts([modifier])[modifier.pk]
 
 
@@ -1092,15 +959,9 @@ def _kind_slugs():
 
 
 def _naming(row):
-    """How a listing row says which thing it is about.
+    """Return the player label, author-only qualifier and author help separately.
 
-    Three separate facts, because they are read differently. The label
-    is the thing itself, as a player would read it, and is what the link
-    carries: clicking a name opens the thing, not the words an author
-    hung beside it. The qualifier — author facing, never a player's —
-    follows the link as plain text. The help is the author's own note
-    about wielding this while building other content; the foundation
-    kinds have neither, and plenty of rows have no help written yet.
+    Only the player label links to the content page.
     """
     return {
         "label": str(row),
@@ -1138,13 +999,7 @@ def _named_row(row, model, slugs):
 
 
 def _carriers(modifier):
-    """Everything holding this modifier, named and linked.
-
-    A count says how far a change reaches; the names say whether this
-    is the one the author meant. Both are wanted before an edit or a
-    delete, and cost the same query — one per kind, a fixed number
-    whatever the pack holds.
-    """
+    """Return named, linked carriers with one query per content kind."""
     slugs = _kind_slugs()
     found = []
     for model in _assignable_models():
@@ -1162,13 +1017,9 @@ def _carriers(modifier):
 
 
 def _holders_of(default_set):
-    """Everything that arrives with this set of defaults, named and linked.
+    """Find carriers and options referencing a default set.
 
-    Usually one thing — a profile's built-ins are founded for that
-    profile — but nothing makes that so: any assignable may point its
-    ``built_ins`` at any set, and an option offers one as an
-    alternative. A page about to change what a set holds asks who is
-    holding it rather than assuming.
+    Sets may be shared, so callers cannot assume the set belongs to one profile.
     """
     from n26.library.models import Option
 
@@ -1222,11 +1073,7 @@ def _reach_said(reach, adding, later="what is acquired from now on"):
 
 
 def _kept_sentence(reach, label):
-    """What taking a built-in off a set leaves behind, in a sentence.
-
-    Counts the assignments naming the member: every one of them stays
-    exactly where it is, whatever the set says from here on.
-    """
+    """Describe existing assignments preserved when a built-in member is removed."""
     if reach.uses == 0:
         return ""
     times = "once" if reach.uses == 1 else f"{reach.uses} times"
@@ -1236,9 +1083,7 @@ def _kept_sentence(reach, label):
 
 
 def _built_in_reach_said(thing):
-    """The reach sentence for a thing's own built-ins: the set it has,
-    or — before a first built-in founds one — the set it would get,
-    whose uses are the thing's own."""
+    """Describe propagation from an existing or newly created built-in set."""
     from n26.core.propagation import reach_of, reach_of_new_built_ins
 
     reach = (
@@ -1256,22 +1101,15 @@ def _built_in_reach_said(thing):
 
 
 def _article_for(word):
-    """ "a" or "an" in front of a word we chose ourselves.
-
-    The leading letter and nothing more, which is enough for the kind
-    names: they are the app's own words, not the books', so there is no
-    "a Unification Elder" here to get wrong.
-    """
+    """Choose an article by the initial letter of an application-defined kind name."""
     return "an" if str(word)[:1].lower() in "aeiou" else "a"
 
 
 def _opens_url(opens, part):
-    """Where a part's name leads, blank where it leads nowhere.
+    """Resolve a part's destination from a route name or a callable.
 
-    A URL name for a part with a page of its own, or a callable where
-    the row joins two things and the name is one of them: a picklist
-    member's name is a pickable's, and an author following it wants the
-    pickable rather than the listing row.
+    A membership links to its content, such as a pickable, rather than to the
+    membership record.
     """
     if not opens:
         return ""
@@ -1281,22 +1119,14 @@ def _opens_url(opens, part):
 
 
 def _label_for(row):
-    """How an author reads one row.
-
-    Assignables carry a label that adds the qualifier telling two
-    same-named things apart. The foundation kinds — a category, a stat,
-    a statline shape — are not assignables and simply read as
-    themselves.
-    """
+    """Use an assignable's authoring label, including its qualifier, when available."""
     return getattr(row, "authoring_label", None) or str(row)
 
 
 def _describe_row(row):
-    """What a listing says about one row beyond its name.
+    """Describe common ordering and pricing fields for a listing.
 
-    Generic on purpose: whatever a kind actually carries — where it
-    sorts, what it is priced at — rather than a column per kind. Kinds with
-    something particular to say override below.
+    Kind-specific describers can replace this default.
     """
     notes = []
     category = getattr(row, "category", None)
@@ -1343,11 +1173,7 @@ def _describe_profile(profile):
 
 
 def _describe_gang_type(gang_type):
-    """The founding budget, and whether the type can be founded at all.
-
-    A type nobody can pick is the surprising state, so the listing says it
-    rather than leaving an author to open each row to find out.
-    """
+    """Describe the founding budget and flag gang types unavailable for founding."""
     notes = []
     if gang_type.starting_credits is not None:
         notes.append(f"founds with {gang_type.starting_credits}cr")
@@ -1357,13 +1183,10 @@ def _describe_gang_type(gang_type):
 
 
 def _describe_campaign_type(campaign_type):
-    """A campaign type, as a listing needs to tell one from the next:
-    the asset types it has and how many library assets it hands out.
+    """Describe a campaign type's asset types and library assets.
 
-    Reads the asset types and their assets with ``.all()``, so a listing
-    that prefetched them describes every type without a query per row.
-    The prefetch is the library's assets only (``_campaign_type_listing``):
-    an asset a campaign wrote under a shared asset type is not counted.
+    Use prefetched relations; campaign-specific assets are excluded by the
+    listing queryset.
     """
     asset_types = list(campaign_type.asset_types.all())
     count = sum(len(asset_type.assets.all()) for asset_type in asset_types)
@@ -1380,12 +1203,7 @@ def _describe_campaign_type(campaign_type):
 
 
 def _campaign_type_listing(rows):
-    """Campaign types with the library assets under each asset type.
-
-    The listing's count reads ``assets.all()``, so this prefetch is the
-    same set the type page draws. An asset a campaign wrote under a
-    shared asset type is not in it.
-    """
+    """Prefetch the library assets counted and displayed on campaign type pages."""
     from django.db.models import Prefetch
 
     from n26.library.models import Asset, AssetType
@@ -1419,11 +1237,7 @@ def _describe_slot_type(slot_type):
 
 
 def _pickable_notes(pickable):
-    """How many picklists offer one pickable.
-
-    On no list at all is the state worth seeing: a pickable nothing
-    offers can only be handed over by an owner.
-    """
+    """Count offering picklists and identify pickables that are not offered."""
     listed = len(pickable.listed_on.all())
     return [
         f"on {listed} list{'' if listed == 1 else 's'}" if listed else "on no list yet"
@@ -1458,12 +1272,10 @@ def _picks_said(slot):
 
 
 def _slot_terms(slot):
-    """How many picks a choice takes, and the two things about it a
-    reader would otherwise have to open it to learn: that the gang holds
-    what is picked, and that it draws no row.
+    """Describe pick limits, gang assignment and hidden display status.
 
-    Said apart from the picklist, because a page listing the slots that
-    draw on one list would print that list once a row.
+    Keep these details separate from the picklist label to avoid repeating it
+    on a page listing slots for one picklist.
     """
     notes = [_picks_said(slot)]
     if slot.assigned_to == slot.WillBeAssignedTo.GANG:
@@ -1484,17 +1296,12 @@ def _describe_slot(slot):
 
 
 def _interstitial_notes(interstitial):
-    """Whether the reader may carry on without picking. Said on the
-    slot's page too, where the interstitials it carries are listed."""
+    """Describe whether an interstitial allows continuing without a pick."""
     return ["skippable" if interstitial.skippable else "cannot be skipped"]
 
 
 def _describe_interstitial(interstitial):
-    """Whether it can be skipped, and how many slots show it.
-
-    Attached to none is the state worth seeing: an interstitial no slot
-    carries is never shown to anyone.
-    """
+    """Describe skip behaviour and count slot attachments, including zero."""
     # The listing draws archived rows too. An archived interstitial, or
     # one in an archived pack, is shown nowhere whatever is attached to
     # it — the same terms ``Slot.interstitials`` reads by.
@@ -1531,10 +1338,7 @@ LEAF_DESCRIBE = {
 
 
 def _profile_listing(rows):
-    """What ``_describe_profile`` walks, loaded for the whole listing at
-    once — per row it reads two foreign keys and the built-ins' members,
-    which unhinted is a handful of queries times every profile in the
-    library."""
+    """Load profile types, gang types and built-in members for a whole listing."""
     from django.db.models import Prefetch
 
     from n26.library.models import DefaultAssignment
@@ -1550,9 +1354,7 @@ def _profile_listing(rows):
 
 
 def _interstitial_listing(rows):
-    """What ``_describe_interstitial`` walks, loaded for the whole listing
-    at once: the interstitial's own pack, and the attachments each with
-    theirs, since the count reads whether either is archived."""
+    """Prefetch packs and attachments used to count live interstitial links."""
     from django.db.models import Prefetch
 
     from n26.library.models import InterstitialSlot
@@ -1565,10 +1367,7 @@ def _interstitial_listing(rows):
 
 
 def _interstitial_staged_loading(rows):
-    """What ``_describe_interstitial`` walks, loaded onto rows already
-    read — the staged page holds a list, not a queryset — in two
-    queries for the lot: each row's pack, and the attachments with
-    theirs."""
+    """Load packs and attachments onto an existing list in two queries."""
     from django.db.models import Prefetch, prefetch_related_objects
 
     from n26.library.models import InterstitialSlot
@@ -1626,29 +1425,19 @@ def _spec_for(kind):
 #: ``literal`` in a docstring, as the page should draw it.
 _LITERAL = re.compile(r"``([^`]+)``")
 
-#: **The load-bearing sentence** in a docstring, likewise. Docstrings
-#: are written for two readers and the emphasis is for both, so a page
-#: showing the asterisks is showing the author the punctuation instead
-#: of the point. A lone ``**kwargs`` has no closing pair and is left
-#: exactly as it was typed.
+#: Remove paired Markdown emphasis from model docstrings rendered as help.
+#: Leave an unmatched **kwargs expression intact.
 _EMPHASIS = re.compile(r"\*\*([^*]+)\*\*")
 
 
 def kind_summary(model):
-    """The one-line definition — a docstring's first paragraph, which
-    is where every model says plainly what it is."""
+    """Return the first paragraph of the model's docstring for the kind summary."""
     paragraphs = kind_help(model)
     return paragraphs[0] if paragraphs else ""
 
 
 def kind_help(model):
-    """What this kind *is*, in the model's own words.
-
-    Sourced, never written — the same rule the field help follows, one
-    level up: a kind is explained once, in its docstring, and authors
-    and developers read the same paragraphs. Returned as a list so the
-    page can lead with the definition and follow with the detail.
-    """
+    """Return the model docstring as paragraphs for author-facing help."""
     text = inspect.getdoc(model) or ""
     return [
         # Escape first, mark up second: a docstring is ours, but the
@@ -1669,15 +1458,8 @@ def _model_for(spec):
     return spec.creates
 
 
-#: Kinds the menu lists out in full underneath their own row.
-#:
-#: A slot type is a place other content is filed under rather than a
-#: thing in its own right, so what an author is after is nearly always
-#: one particular slot type — the Skill Tree one, the Gang Legacy one —
-#: and going by way of the listing to find it is a step for nothing.
-#: There are few enough to read at a glance, which is what makes this
-#: affordable; a kind with hundreds of rows would bury the menu it is
-#: part of.
+#: Expand these kinds into individual content links in the authoring menu.
+#: Restrict this to small kinds so the menu remains usable.
 INDEX_LISTS = ("slot-type",)
 
 
@@ -1772,13 +1554,7 @@ def docs(request):
 
 @staff_member_required
 def doc(request, slug):
-    """One documentation page: its markdown file, rendered.
-
-    The prose lives beside this module, so a page is edited as prose,
-    reviewed as prose, and never drifts from what the page shows. The
-    cookbook is written for authors — the things to create and how to
-    join them; the concepts page states what each kind is.
-    """
+    """Render a library Markdown file as author-facing documentation."""
     from pathlib import Path
 
     if slug not in DOCS:
@@ -1786,8 +1562,7 @@ def doc(request, slug):
     title, filename, _ = DOCS[slug]
     source = (Path(__file__).parent / filename).read_text(encoding="utf-8")
     rendered, contents = _recipe_page(source)
-    # Markdown committed to this repo, through the same renderer the kind
-    # help goes through: nothing a reader writes reaches this page.
+    # Render only repository-owned Markdown through this documentation path.
     document = mark_safe(rendered)  # nosec B703 B308 - our own markdown
     return render(
         request,
@@ -1803,14 +1578,10 @@ def recipes(request):
 
 
 def _recipe_page(source):
-    """A documentation file rendered for its page, plus a table of contents.
+    """Render documentation with heading anchors and a nested table of contents.
 
-    Each file opens with its own title so it reads whole as markdown; the
-    page supplies that heading itself, so the duplicate is dropped here.
-    Every remaining heading gets an anchor and links to itself, and the
-    contents nest the h3s under their h2 — one walk of the token stream
-    answers both, which is what keeps the sidebar and the anchors from
-    ever disagreeing.
+    The page supplies the title, so remove the file's opening heading.
+    Build both anchors and contents from the same Markdown token stream.
     """
     from django.utils.text import slugify
     from markdown_it import MarkdownIt
@@ -1858,12 +1629,7 @@ def _recipe_page(source):
 
 @staff_member_required
 def leaf(request, kind):
-    """One leaf kind: what it is, and every one of them.
-
-    Reading and writing are separate pages. This one is the list an
-    author checks content against, so it holds no form — making one is
-    a button, and changing one is the row itself.
-    """
+    """List one content kind with links to its creation and detail pages."""
     if kind in NESTED_KINDS:
         raise Http404(f"{kind!r} is listed on its parent's page, not on its own")
     spec = _spec_for(kind)
@@ -1910,9 +1676,7 @@ def leaf(request, kind):
             "kind_help": kind_help(model),
             "rows": rows,
             "count": len(rows),
-            # Ticking rows to act on several at once is offered only
-            # where the act exists: hanging a modifier on a thing that
-            # can carry one.
+            # Offer bulk selection only for kinds that can accept a modifier.
             "bulk_attach": _carries_modifiers(kind),
             "retired": kind in RETIRED_KINDS,
             "authoring_list": {
@@ -1930,14 +1694,10 @@ def leaf(request, kind):
 
 @staff_member_required
 def attach_modifier(request, kind):
-    """Hang one modifier on several things of a kind at once.
+    """Attach a modifier to the content selected in the URL.
 
-    The listing's tick boxes lead here with the ticked rows in the
-    address, so the page survives a reload and Back is a real answer.
-    Nothing changes until the form posts, and the post carries the
-    same rows as hidden fields. A thing that already carries the
-    modifier is left alone and counted, so the same selection can be
-    posted twice without harm.
+    POST carries the same selection in hidden fields. Already-attached content
+    is counted and left unchanged, making repeated submissions harmless.
     """
     from n26.library import authoring
     from n26.library.models import Modifier
@@ -1950,8 +1710,7 @@ def attach_modifier(request, kind):
     plural = model._meta.verbose_name_plural
 
     asked = request.POST if request.method == "POST" else request.GET
-    # The pack rides along: attaching checks each row's against the
-    # modifier's, and reading it per row would be a query per selection.
+    # Load packs with selected carriers to avoid a query for each compatibility check.
     things = list(
         _selected(_rows(model, kind).select_related("pack"), asked.getlist("pk"))
     )
@@ -1967,9 +1726,8 @@ def attach_modifier(request, kind):
             Modifier.objects.outside_campaign_packs().select_related("pack"),
             pk=request.POST.get("modifier", ""),
         )
-        # Every selected row is a carrier the modifier would be referenced
-        # from, so the first that may not reference it refuses the whole
-        # act: attaching to some of a selection is not what was asked.
+        # Validate the complete selection before attaching; partial attachment would
+        # violate the submitted bulk operation.
         refusals = [
             refusal
             for refusal in (
@@ -2035,9 +1793,7 @@ def attach_modifier(request, kind):
 
 
 def _selected(rows, pks):
-    """The rows a page was handed, by pk — none at all if a pk is not
-    even the shape of one, rather than an error page for a mistyped
-    address."""
+    """Resolve selected primary keys, returning no results for malformed identifiers."""
     try:
         return rows.filter(pk__in=pks) if pks else rows.none()
     except ValueError, ValidationError:
@@ -2082,8 +1838,7 @@ def create(request, kind):
                     created = form.compile()
                     if suggestions is not None:
                         suggestions.apply(created)
-                    # Inside the transaction, so no reader meets the row
-                    # live in the moment before it is held back.
+                    # Stage new content inside the creation transaction to avoid temporary live visibility.
                     if staged:
                         authoring.stage(created)
             except ValidationError as refused:
@@ -2093,11 +1848,7 @@ def create(request, kind):
                 # they were typed into, not on an error page.
                 _refuse_content_form(form, refused)
             except IntegrityError:
-                # Not every kind calls its name "name" — the spec says
-                # which field an author reads as one, so the refusal
-                # lands on a field the form actually has. A fieldless
-                # configuration has no value to blame, so its refusal is
-                # about the submission as a whole.
+                # Map API errors to the spec's name field, or to the whole form for fieldless settings.
                 named = spec.identity
                 noun = model._meta.verbose_name
                 if named is None:
@@ -2140,15 +1891,10 @@ def create(request, kind):
 
 @staff_member_required
 def _hire_options_context(request, kind, thing, drawn):
-    """The two option sections as one drawn block, grouped as a hire
-    offers them: each set under a heading in the rulebook's own words
-    ("one of the following", "any of the following"), options beneath
-    it, and an add control per set.
+    """Group option controls and forms by their acquisition set.
 
-    The option form's set is decided by which control was clicked — it
-    rides the URL (``?set=``) into the form as a hidden field, so the
-    form itself never asks. A refusal on that hidden field would be
-    invisible, so it is said again as a form-wide error.
+    The ``?set=`` selection becomes a hidden form field. Repeat errors on that
+    field as form-wide errors so they remain visible.
     """
     by_act = {section["act"]: section for section in drawn}
     option_section = by_act.get("option")
