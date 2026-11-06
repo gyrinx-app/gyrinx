@@ -1560,9 +1560,10 @@ def _check_power_boost_table():
 
 
 def _status_modifier(pickable, status):
-    """Create and attach a named status modifier once.
+    """Reuse a named status modifier and attach it to the pickable.
 
-    A pre-existing named modifier is preserved, including a deliberate detachment.
+    An existing attachment is unchanged. A detached modifier is reattached; create
+    the modifier only when no matching name exists.
     """
     from n26.core.status import Status
     from n26.library.authoring import modifier, op_sets_status, targets_model
