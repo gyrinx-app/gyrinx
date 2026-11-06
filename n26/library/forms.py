@@ -574,7 +574,11 @@ class GeneratedForm(forms.Form):
         return data
 
     def compile(self, conditions=()):
-        """Call the spec with validated data and compiled condition payloads."""
+        """Call the spec with validated fields and uncompiled condition pairs.
+
+        ``conditions`` contains ``(verb_name, payload)`` pairs compiled by the
+        spec.
+        """
         data = self.verb_data()
         if conditions:
             data["conditions"] = list(conditions)
@@ -606,12 +610,14 @@ class GeneratedForm(forms.Form):
         return form
 
     def apply_to(self, thing):
-        """Update existing content through ``authoring.revise`` and set-replacement functions.
+        """Update existing content through ``authoring.revise`` and set-replacement
+        functions.
 
-        Preserve fields absent from the form. ``Many.replaced_by`` defines replacement
-        for multi-select fields; combine fields sharing a replacement function into
-        one call. Blank values leave non-nullable scalar fields unchanged; entering
-        zero explicitly stores zero.
+        Preserve fields absent from the form. ``Many.replaced_by`` defines
+        replacement for multi-select fields; combine fields sharing a replacement
+        function into one call. Values cleaned to ``None`` leave non-nullable
+        scalar fields unchanged. Empty strings clear text fields; entering zero
+        explicitly stores zero.
         """
         from n26.library.authoring import revise
 
@@ -666,8 +672,8 @@ class GeneratedForm(forms.Form):
 def generate_form(spec):
     """Create a Django Form subclass from a spec.
 
-    Conditions use ``condition_formset_for`` separately; pass the compiled
-    payloads into the form's ``compile()`` call.
+    Conditions use ``condition_formset_for`` separately. Pass uncompiled
+    ``(verb_name, payload)`` pairs into the form's ``compile()`` call.
     """
     attrs = {"spec": spec, "union_asks": {}}
     for name, kind in spec.fields.items():
