@@ -513,12 +513,10 @@ GANG_SLOT_HOST = _GANG_SLOT_HOST
 
 @dataclass
 class ChoiceLine:
-    """A choice, drawn as its own row like any other assignable.
+    """A displayed choice and its current selection.
 
-    Resolved, it reads as the chosen thing's row; unresolved is information,
-    not an error — we inform, we do not police. Its provenance (what offered
-    the choice) tells two slots of the same kind apart, and is where the
-    picker link a real UI will hang — but a renderer does not show it.
+    An unresolved choice provides information without blocking play. Provenance
+    distinguishes choices of the same kind and identifies their source.
     """
 
     kind_label: str
@@ -531,10 +529,7 @@ class ChoiceLine:
     #: stored assignments: a preview depicts nobody, so it has no slot to
     #: choose for.
     key: str = ""
-    #: Where a Choose control leads. Filled in by whoever knows the URL
-    #: space, because this module knows what a slot *is* and not where a
-    #: picker lives. Empty draws the prompt as plain text, which is what a
-    #: print sheet and a gallery sample want.
+    #: Picker URL filled by the view. Empty means a non-interactive prompt.
     href: str = ""
     #: Whether the choice will take another pick. A choice that holds one
     #: is full the moment it is resolved; one worked at a pick at a time
@@ -559,11 +554,8 @@ class ChoiceLine:
     #: and the gang's Dismissed choices tab offer Restore instead of Choose.
     dismissed: bool = False
     allow_dismissal: bool = True
-    #: Where dismissing this offer posts to, and where restoring it does.
-    #: Filled in by whoever knows the URL space, as ``href`` is, and only
-    #: for the owner: an open offer carries the first, a dismissed one
-    #: the second, and a line with either draws the control. Empty draws
-    #: nothing, which is what every other reader and a print sheet want.
+    #: Owner-only dismiss and restore command URLs, filled by the view.
+    #: Empty URLs produce no control.
     dismiss_href: str = ""
     restore_href: str = ""
     #: The screen to land on once either act is done, carried in the form
@@ -597,9 +589,7 @@ class Choosable:
     #: ahead of the name so a player finds their roll by scanning.
     band: str = ""
     thing: object = None
-    #: True for a thing the surface opens on already marked: what a slot
-    #: already holds, or — where a list is ticked rather than picked — one
-    #: the model already has.
+    #: Initially selected because the choice or model already holds it.
     is_current: bool = False
     #: Remarks about picking this one — "usable by Walkers only". Said,
     #: never enforced; the list is an offer, not a rule.
@@ -676,17 +666,10 @@ class ChoosableGroup:
 
 @dataclass
 class ChoiceOffer:
-    """A slot and what may be chosen for it — the pick screen, as data.
+    """A choice's options in the shared picker display structure.
 
-    One structure whatever the offer names, which is the point: a skill, an
-    pick and an affiliation differ in the rows they list and in
-    nothing else, so one page draws all three.
-
-    A choice holding several picks is settled a pick at a time —
-    ``takes_several`` — and each option carries its own control saying
-    what a click on it does. One that holds a single pick is the older
-    shape: the whole list is settled in a single go, and settling it
-    again replaces what was chosen.
+    Multi-pick choices add or remove individual options through their controls.
+    Single-pick choices submit a selection that replaces the previous pick.
     """
 
     label: str
@@ -703,15 +686,11 @@ class ChoiceOffer:
 
 @dataclass(frozen=True)
 class ArrivalQuestion:
-    """One slot that just arrived, as the screen after an act draws it:
-    whose question it is, what it asks, and the picker for it.
+    """A newly available choice, its recipient and its picker.
 
-    ``settled`` is whether the reader may carry on past it: the choice
-    holds every pick it asks for, asks for none, or has nothing to offer
-    this reader — a screen must not stand in the way of a choice nobody
-    can make.
-    ``offer`` is the same structure the pick screen draws, so the two
-    cannot list different things.
+    ``settled`` permits continuation when enough picks exist, no picks are
+    required, or no options are available. ``offer`` uses the same structure
+    as the standalone picker.
     """
 
     #: The address the pick screen reads — ``card:carrier:offer``.
@@ -733,39 +712,30 @@ class ArrivalQuestion:
 
     @property
     def heading_id(self):
-        """The id the heading carries, which the picker under it is
-        labelled by: several questions share one page, and a reader who
-        hears the options has to hear which question they answer. Made
-        from the address and the block, so it is one per drawing of the
-        question however the page is ordered."""
+        """A stable heading ID linking the picker to its question's label.
+
+        Combine choice address and block identity to distinguish repeated drawings.
+        """
         block = f"{self.under}-" if self.under else ""
         return f"ask-{block}" + self.key.replace(":", "-")
 
     @property
     def field_name(self):
-        """What this question's radios are named. One form carries the
-        whole screen, so every question needs a name of its own or the
-        browser would hold one selection across the lot. The address is
-        what makes it unique, and what the view reads it back by."""
+        """A unique radio group name per choice in the shared arrival form."""
         return f"thing:{self.key}"
 
     @property
     def remove_name(self):
-        """What a take-back on this question submits under. Named like
-        the picker for the same reason: one form carries the page, so a
-        click has to say which question it answered."""
+        """The submission field identifying this choice's remove control."""
         return f"remove:{self.key}"
 
 
 @dataclass(frozen=True)
 class ArrivalBlock:
-    """One screen an author attached to the slots that arrived: its
-    heading and words, then each arriving slot's question beneath.
+    """Authored guidance and the newly available choices it groups.
 
-    A block attached to several arriving slots draws once with every one
-    of them under it. ``skippable`` is what the author said: a reader
-    may carry on past it without picking, so its questions never hold
-    Continue.
+    A block attached to several choices appears once. ``skippable`` permits
+    continuation without resolving those choices.
     """
 
     heading: str
@@ -780,39 +750,29 @@ class ArrivalBlock:
 
 @dataclass(frozen=True)
 class ArrivalScreen:
-    """Everything the screen after an act says: the blocks, and where
-    Continue leads. Derived from the address every time; nothing about
-    it is stored."""
+    """Arrival guidance blocks and the continuation URL, rebuilt from the request."""
 
     blocks: tuple[ArrivalBlock, ...]
     next_url: str
 
     @property
     def may_continue(self):
-        """Whether the reader may carry on: every question the author
-        made compulsory is settled — it holds every pick it asks for,
-        asks for none, or has nothing to offer. A question on a
-        skippable block never holds anybody: leaving it blank is the
-        way past it, and Continue writes whatever was picked."""
+        """Whether every compulsory choice is settled or has no available options.
+
+        Choices in skippable blocks do not prevent continuation.
+        """
         return all(block.settled for block in self.blocks if not block.skippable)
 
     @property
     def skip_url(self):
-        """Where Skip leads: on past the whole screen, writing nothing.
-        Offered only where no question is compulsory — a Skip that
-        walked past a choice the author made compulsory would make the
-        word meaningless."""
+        """The continuation URL when every block is skippable, without saving choices."""
         return self.next_url if all(block.skippable for block in self.blocks) else ""
 
     @property
     def outstanding(self):
-        """The questions still open, in the order drawn, each named by
-        its label — and by whose it is where two share a label, so
-        "Primary skill for Kal" and "Primary skill for Vex" read apart.
+        """Unresolved compulsory choices in display order, deduplicated by address.
 
-        Each question once, by its address: a slot two screens ask about
-        is drawn under each of them, and one pick settles every drawing,
-        so the line that names what is left to choose names it once.
+        Include recipient names when labels alone cannot distinguish them.
         """
         open_questions = []
         named = set()
@@ -1277,25 +1237,13 @@ class StashLine(SlotMarked):
 
 @dataclass(frozen=True)
 class CampaignAssetLine:
-    """One asset the gang has from its campaign, before display grouping.
+    """A campaign holding or possession with its authored type and effective income.
 
-    The individual name and income stay available for campaign tables and
-    comparison captures.
-
-    ``type_label`` is the campaign type's own word for the class of thing
-    — "Settlement", "Territory" — as the author wrote it, so it reads as
-    a row label. Where the thing the campaign gave is not an asset at
-    all, it is that kind's own name ("Special rule"): the same fact,
-    taken from the model rather than from an asset type.
-
-    ``income`` is the asset's effective contribution to the gang's Income
-    counter, including its current selections; the gang's credits do not
-    move for it. ``provenance`` names the carrier that brought a
-    possession, and is empty on a holding — a holding's source is the
-    campaign, and the block is already drawn under the campaign's name.
-    ``campaign_asset_id`` names the campaign's asset, set on a holding
-    and empty on a possession, so a renderer can tell the two apart and
-    link a holding to the campaign's assets.
+    ``type_label`` uses the campaign asset type's label, or the assignable
+    kind for non-assets. ``income`` includes current selections without moving
+    credits. ``provenance`` names a possession's carrier; holdings are already
+    shown within their source campaign's block. ``campaign_asset_id`` identifies
+    a holding and is empty for possessions.
     """
 
     type_label: str
@@ -1487,26 +1435,11 @@ def holding_boons(computed, holding, choices=()):
 
 @dataclass
 class CampaignBlock:
-    """What the gang has because it is in a campaign, under the campaign's
-    name.
+    """Campaign-provided assignments, choices, counters and holdings for a gang.
 
-    Everything in ``lines`` is caused by one of the membership's two
-    carriers — the campaign's shared type and its additions — and names
-    that carrier as its source, the way any granted line does. The
-    choices come from those same carriers. The counters carry their
-    standing values, and are drawn as ordinary counter rows so a
-    campaign's Reputation reads as any counter the gang
-    keeps. Nothing here is the gang's own: it arrived with the campaign
-    and leaves with it, which is why the sheet keeps it apart from the
-    gang's own rows and counters.
-
-    ``holdings`` are the campaign's assets the gang holds — held, never
-    owned, and worth nothing to the gang's rating. They take the
-    same row shape as a possession, because a reader asking what this
-    gang has from the campaign is asking one question. What holding one
-    does for the gang lands where any modifier's work does: a Reputation
-    contribution in the counter's reading here, a rule among the gang's
-    rules, each credited to the campaign's asset.
+    Assignments descend from the membership's shared type or additions carrier
+    and leave when the membership closes. Holdings contribute no gang rating.
+    Their modifiers appear with other computed facts, credited to the asset.
     """
 
     name: str
@@ -1516,11 +1449,8 @@ class CampaignBlock:
     holdings: list[CampaignAssetLine] = field(default_factory=list)
     choices: list[ChoiceLine] = field(default_factory=list)
     boon_assets: list[AssetBoonLine] = field(default_factory=list)
-    #: Where the campaign's name and its holdings lead — the campaign
-    #: page, and its assets section — filled in by whoever knows both the
-    #: URL space and who may open them, as a counter's own href is. Empty
-    #: draws plain text, which is what a visitor who is not signed in gets:
-    #: the page behind these would only send them to sign in.
+    #: Authorised campaign and holdings URLs supplied by the view.
+    #: Empty values render unlinked text.
     href: str = ""
     assets_href: str = ""
     #: Available types remain visible even when this gang holds none.
@@ -1565,13 +1495,10 @@ class CampaignBlock:
 
 @dataclass
 class GangSheet:
-    """The whole gang, derived — never assembled by hand.
+    """Gang display data derived from ``GangCard`` and ``ComputedGang``.
 
-    Everything here comes from ``GangCard`` and ``ComputedGang``
-    (design/gang-sheet.md): the gang's own rows, its choice slots, its
-    counters, the stash's contents, and every member's card. Tests that care
-    what the gang *is* assert on those structures; this is what a
-    renderer draws.
+    Include gang assignments, choices, counters, stash contents and member
+    cards. See ``design/gang-sheet.md`` for the read structures.
     """
 
     name: str
@@ -1641,18 +1568,11 @@ class GangSheet:
 
     @property
     def questions(self):
-        """Every question this sheet draws, including its campaign's.
-
-        Named to match a card's, so anything that has business with a
-        holder's open questions — pointing them at their pickers, counting
-        them — asks the two shapes the same way and cannot be told about
-        one list and not another.
-        """
+        """Return gang and campaign choices through the shared holder interface."""
         return [choice for choices in self.question_lists() for choice in choices]
 
     def question_lists(self):
-        """The lists holding the gang and campaign questions, for linking
-        and dismissal — see ``ModelCard.question_lists``."""
+        """Return gang and campaign choice lists for linking and dismissal."""
         lists = [self.choices]
         if self.campaign is not None:
             lists.append(self.campaign.choices)
@@ -1661,18 +1581,11 @@ class GangSheet:
 
 @dataclass
 class CampaignGangLine:
-    """One gang at the campaign's table, as the gangs table draws it.
+    """A campaign table entry with gang totals and ordered counter or asset values.
 
-    The money figures are the gang's pinned totals, read off its row. The
-    counters and the assets are the campaign's, in the order the sheet's
-    ``counter_columns`` and ``asset_types`` name them, so a renderer lays
-    each value under its heading by position and never by name. A counter
-    the gang does not carry reads ``None``, which is drawn as a dash: a
-    blank cell in a column of numbers reads as a number that failed to
-    arrive. A counter the gang does carry is the whole ``CounterLine``,
-    with the assignment behind it, so the table can offer the control
-    that moves it to a reader who may — the addresses are the view's to
-    fill, as on a card.
+    Position values under ``counter_columns`` and ``asset_types`` rather than
+    matching names. A missing counter is None and displays as a dash. Existing
+    counters retain their assignment identity for view-supplied controls.
     """
 
     gang_id: str
@@ -1847,8 +1760,7 @@ class CampaignAssetEntry:
     #: Whether the reader owns the holding gang, which is what lets them
     #: hand the asset over.
     holder_yours: bool = False
-    #: Where each act on this asset is asked. Empty is no control: the
-    #: view fills them for the reader who may act and nobody else.
+    #: View-supplied action URLs, empty for inaccessible actions.
     assign_href: str = ""
     edit_href: str = ""
     unassign_href: str = ""
@@ -1878,17 +1790,14 @@ class CampaignAssetTable:
     label: str
     plural: str
     entries: list[CampaignAssetEntry] = field(default_factory=list)
-    #: Where an asset of this type is added to the campaign, and where a
-    #: new asset of this type is written into the campaign's pack. Empty
-    #: for a reader who may not.
+    #: URLs to add an asset or author a new one, empty without permission.
     add_href: str = ""
     create_href: str = ""
     #: The rolled tables of this type the campaign itself holds — built
     #: into its type or its additions — which is what the pool is rolled
     #: on. Empty where nothing of this type is rolled for.
     tables: list[HeldTable] = field(default_factory=list)
-    #: Where the pool roll is asked. Empty for a reader who may not, and
-    #: where there is no rolled table to roll on.
+    #: Pool-roll URL, empty without permission or a rollable table.
     roll_href: str = ""
     setup_hint: str = ""
     inventory_view: dict = field(default_factory=dict)
@@ -1908,22 +1817,12 @@ class CampaignAssetTable:
 
 @dataclass
 class CampaignSheet:
-    """The whole campaign, derived — the gang sheet's sibling.
+    """Campaign display data built by ``render_campaign`` with a fixed query count.
 
-    Built by ``render_campaign`` in a fixed number of queries however many
-    gangs are at the table. Tests that care what the campaign *is*
-    assert on this; the template draws it.
-
-    ``counter_columns`` are the campaign's counters in the order the
-    gangs table shows them: Reputation first, then the rest by name. A
-    counter is the campaign's where a member gang's card credits it to
-    the campaign — which every counter the type or the arbitrator builds
-    in is. ``label_columns`` are the labels the arbitrator asks every
-    gang to pick, in the order they were added; a gang's pick for each is
-    on its line. ``asset_types`` are every asset type the campaign deals in, the
-    shared type's first, then the arbitrator's own, each in its authored
-    position; ``assets`` are the Holding ones among them with the
-    campaign's assets under each.
+    ``counter_columns`` orders campaign-sourced counters with Reputation first,
+    then by name. ``label_columns`` retains the order labels were added.
+    ``asset_types`` places shared content before additions, preserving authored
+    positions. ``assets`` groups the campaign's Holding assets by type.
     """
 
     name: str
@@ -1948,8 +1847,7 @@ class CampaignSheet:
     asset_types: list[AssetTypeColumn] = field(default_factory=list)
     assets: list[CampaignAssetTable] = field(default_factory=list)
     battles_fought: int = 0
-    #: Where the arbitrator adds an asset type, a counter and a label.
-    #: Empty for a reader who may not, as every address here is.
+    #: URLs to add campaign asset types, counters and labels, empty without permission.
     add_asset_type_href: str = ""
     add_counter_href: str = ""
     add_label_href: str = ""
