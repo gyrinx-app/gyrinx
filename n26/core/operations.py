@@ -302,15 +302,10 @@ class AlreadyInACampaign(Refusal):
 
 
 class NotOnOffer(Refusal):
-    """The thing picked cannot settle the choice that was offered.
+    """The selected assignable's kind cannot resolve the offered choice.
 
-    A choice names one kind of thing and only that kind settles it: a
-    slot asking for a skill is not settled by the powers filed beside
-    them in the same collection, because a slot reads as resolved only
-    where what was chosen matches the offer. The pick screen lists what
-    may be chosen (``n26.core.browse.offered_by``), so a click that
-    lands here is a
-    stale page or a hand-made address rather than a choice worth writing.
+    Choices resolve only when the selected kind matches the offer. See
+    ``n26.core.browse.offered_by`` for the choices presented by the picker.
     """
 
     def __init__(self, anchor, chosen, message=""):
@@ -2077,28 +2072,15 @@ class Operation:
         return founding
 
     def rechoose(self, carrier, option=None, note=""):
-        """Change which of its options an assignment's thing is taken with.
+        """Replace an assignment's selected option sets and adjust its price.
 
-        The later edit ``ChosenProfileOption`` is stored for: a hire took
-        a set at purchase, and the owner changes their mind. The new
-        selection resolves exactly as the hire's did — one-of groups fall
-        back to their heads, a set the thing does not offer is refused —
-        so what this prices is what materialises. Naming the selection
-        already held is a no-op.
+        Resolve defaults and validate the selection as at acquisition. An unchanged
+        selection is a no-op. Refund departing sets and paid descendants; create
+        arriving sets as free dependants, retaining the built-ins.
 
-        The sets no longer taken leave the way a refund leaves: their
-        materialised assignments archive, anything *paid* inside their
-        subtrees comes back, and anything they caused — a spawned model —
-        goes with them. The sets newly taken materialise exactly as at
-        hire: free assignments caused by the carrier, the built-ins
-        untouched.
-
-        The price difference lands on the carrier's own entry as one
-        amendment, on paid and list and rating alike — an option is a way
-        the thing itself is built, so purchase's surcharge rule holds in
-        both directions — and the discount stands: what was agreed at the
-        table never moves. ``settle`` refuses an upgrade the gang cannot
-        afford, unwinding the whole change.
+        Apply the price difference to payment, list price and rating on the
+        carrier's entry, preserving its discount. Settlement rolls back an
+        unaffordable upgrade.
         """
         thing = carrier.assignable
         taken = (
@@ -2122,18 +2104,16 @@ class Operation:
                 )
             row.delete()
         arriving = [chosen for chosen in taken if chosen.pk not in before_pks]
-        # The founding is gang-hosted and about no model; a membership is
-        # gang-hosted too but about its model, which is where its grants
-        # belong — the same split the hire makes.
+        # Founding grants belong to the gang; membership grants belong to
+        # its model even though the membership itself is gang-hosted.
         gang = (
             carrier.gang
             if carrier.miniature_root_id is None and carrier.gang_id is not None
             else None
         )
         self._record_options(carrier, arriving)
-        # The arriving sets are fresh: their copies from an earlier
-        # taking were archived by that set leaving, and re-taking the
-        # set must bring its kit again.
+        # Newly selected sets must recreate kit archived when a previous
+        # selection of the same set was removed.
         self.reconcile_defaults(carrier, gang=gang, built_ins=False, fresh=arriving)
 
         delta = sum(chosen.price for chosen in taken) - sum(
@@ -2379,32 +2359,19 @@ class Operation:
         )
 
     def choose(self, anchor, chosen, slot=None, offer=None, **kwargs):
-        """Make a choice — pick a specialism, pick a gang legacy.
+        """Create a free selection linked to the choice that provided it.
 
-        ``anchor`` is the assignment that asked: the one whose assignable
-        carries a modifier offering the choice (the Specialist subtype's),
-        the line a chain of grants stands on where the offerer was itself
-        granted, or a **slot's** own assignment. What was chosen is a free
-        assignment caused by it, so removing what asked takes the answer
-        along, and it points back through ``chosen_for`` so the card reads
-        the choice as settled.
+        ``anchor`` is the source assignment, or the stored root of a computed
+        grant chain. ``slot`` and ``offer`` distinguish multiple choices from
+        that source. The selection records ``chosen_for`` and is caused by the
+        anchor, so removing the source removes its selection.
 
-        ``slot`` and ``offer`` name which choice is being settled where
-        the anchor cannot say. What a modifier *gave* has no assignment of
-        its own, so the anchor is the written line it stands on — which
-        may carry no offer itself, and may carry several — and the one
-        being answered is named here.
+        A mismatched assignable kind raises ``NotOnOffer``. Narrowed picklists
+        inform the picker without preventing an owner from selecting off-list.
 
-        Something of a kind the choice does not name is refused
-        (:class:`NotOnOffer`), because it would settle nothing: the row
-        resolves by the same match, so the choice would stay open with
-        a stray assignment beside it. Within the kind nothing is checked — a
-        narrowed offer shortens the list a picker draws and is not a rule,
-        so an owner may still hand over something off-list.
-
-        A CampaignAsset can anchor a gang-level Slot during its current
-        ownership period. Its pick names the holding rather than an
-        Assignment cause. Callers take campaign_operation before operation.
+        A campaign holding may anchor a gang-level slot during its current
+        ownership period. Such picks reference the holding instead of an
+        assignment cause. Acquire ``campaign_operation`` before ``operation``.
         """
         from n26.core import select
         from n26.library.models import Slot
@@ -2448,15 +2415,13 @@ class Operation:
                 raise Refusal("Choose this result through its earned action flow.")
 
         if offer is None:
-            # A slot's own assignment says which choice it is without being
-            # told; a named offer has already said.
+            # Infer the slot from its assignment when no offer was supplied.
             if slot is None and isinstance(anchor.assignable, Slot):
                 slot = anchor.assignable
             if slot is not None:
                 return self._choose_for_slot(anchor, slot, chosen, **kwargs)
         if kwargs.get("roll") is not None:
-            # Only a slot's table is rolled on; an offer has no dice, so a
-            # roll handed to one is a caller's mistake, not a refusal.
+            # Rolls belong to slot tables; supplying one for an offer is a caller error.
             raise ValueError("Only a choice backed by a slot is rolled for.")
 
         asked = (
@@ -2475,16 +2440,9 @@ class Operation:
         ]
         if not matched:
             raise NotOnOffer(anchor, chosen)
-        # What was chosen lands on the host the offer names: the bearer
-        # of the question by default — a fighter's choice on the fighter, a
-        # gang's (a Venator's ranked trees) on the gang — or the gang,
-        # when the offer says so (the Outcast Leader picks the
-        # legacy; the gang carries it, and it dies with the Leader
-        # through the caused_by cascade). An explicit host wins over all
-        # of it — a *gang-carried* offer scoped to fighters ("Leaders
-        # and Champions each select a skill") puts a slot on every
-        # matching card, and the caller says whose is being settled:
-        # ``choose(founding, skill, miniature=leader)``.
+        # Use the offer's destination, defaulting to its bearer. An explicit host
+        # selects the recipient of a gang-carried offer scoped to individual models.
+        # The cause still links the selection to its source for recursive removal.
         if not any(key in kwargs for key in ("miniature", "gang", "stash", "parent")):
             if any(
                 offer.will_be_assigned_to == OffersChoice.WillBeAssignedTo.GANG
@@ -2492,9 +2450,7 @@ class Operation:
             ):
                 kwargs |= {"gang": anchor.gang or anchor.gang_root}
             else:
-                # The same ladder _choose_for_slot climbs: a bearer where
-                # there is one, the stash for a stashed carrier, the gang
-                # last — never four empty hosts, whatever holds the anchor.
+                # Resolve the bearer, stash, then gang, matching _choose_for_slot.
                 bearer = anchor.miniature or anchor.member_or_none()
                 if bearer:
                     kwargs |= {"miniature": bearer}
@@ -2508,10 +2464,8 @@ class Operation:
         return self.assign(
             chosen,
             caused_by=kwargs.pop("caused_by", anchor),
-            # Which question this answers. One line may ask twice over one
-            # kind, and nothing about the answer tells the two apart, so a
-            # caller that knows says — and where the line asks once there
-            # is only one question it can be.
+            # Preserve offer identity when an assignment provides multiple choices
+            # of the same kind.
             chosen_for_offer=settled,
             paid=0,
             reason=Reason.GRANTED,
@@ -2519,44 +2473,20 @@ class Operation:
         )
 
     def _choose_for_slot(self, anchor, slot, chosen, roll=None, **kwargs):
-        """Settle one slot: write the pick, pointing back at what asked.
+        """Write a slot selection with its source, destination and optional roll.
 
-        The pick names both the assignment that asked and the slot it
-        settles. One assignment may ask twice — a thing giving two choices
-        of one slot type — and the pair says which of them this answers.
+        The assignment and slot together identify the choice. Require matching
+        slot types, while allowing pickables outside the displayed picklist.
 
-        The one check is the slot type — a Gang Legacy choice is settled
-        by a Gang Legacy pickable and by nothing else, because the row
-        reads as settled by the same match and anything else would leave
-        the choice open with a stray assignment beside it. Which
-        pickables the picklist offers is not checked: a shorter list
-        informs, and an owner may still hand over something off it.
+        Use the slot's configured host unless the caller supplies one. A choice
+        in the stash keeps its pick with its item so they move together.
 
-        Where the pick lands is the slot's own business — the bearer, or
-        the gang where the slot says so (the Leader is asked and the gang
-        holds the answer). An explicit host wins over both, which is how
-        a slot the gang holds is settled for one particular fighter.
+        ``roll`` must identify an unused roll for this gang, model and choice.
+        Archived picks release their roll. Do not enforce the rolled table result:
+        rules can substitute results, and the journal retains both roll and pick.
 
-        A choice that arrived in the stash has no bearer to land on, and
-        its pick belongs with the item rather than with the gang: a
-        thing bought unassigned takes what was chosen for it along when
-        somebody finally carries it.
-
-        ``roll`` is the event :meth:`roll` wrote, where the table was
-        rolled for this pick. It has to be a roll for this very choice
-        and one nothing has been picked for yet — a roll is applied
-        once, and the second click is refused in words rather than
-        writing a second pick. Which row the roll landed on is not
-        checked: the rules substitute results ("counts as Out Cold"),
-        and the record shows the roll beside whatever was picked.
-
-        A pick is never paid for, but it may carry a rating: a Power
-        Boost result raises the Spyrer's value by the amount the table
-        prints. The pickable says what it adds (``rating_contribution``,
-        0 for almost every pickable) and the pick is written with that
-        as its rating and nothing paid — so removing the pick drops the
-        rating and moves no credits. A pick the gang holds adds nothing:
-        rating is what the models are worth. An explicit ``rating`` wins.
+        Free picks may contribute their pickable's ``rating_contribution``.
+        Gang-hosted picks add no rating. An explicit ``rating`` overrides the default.
         """
         from n26.library.models import Pickable, Slot
 
@@ -2883,51 +2813,32 @@ class Operation:
         option=None,
         **kwargs,
     ):
-        """Buy something for a model — a browsed line, or freely.
+        """Buy an assignable using listing defaults or explicit purchase terms.
 
-        ``line`` is what browsing produced, and it *is* the purchase: the
-        thing, the effective price in credits, the Trade Points where this
-        surface charges them, and the entry that priced it (None on a
-        derived collection — that is fine, the ledger just has no entry to
-        point at). Nothing is checked; the line pre-fills what the ledger
-        remembers, and any of it may be overridden at purchase.
+        ``line`` supplies the item, effective credits, Trade Points and source
+        entry; callers may override those values. Without a line, ``thing`` and
+        an explicit price support off-list purchases.
 
-        ``option`` names what was chosen where the thing offers a choice —
-        a mount swapping its weapon. Its built-ins and the sets taken
-        materialise on the host, caused by the purchase, so selling the
-        thing takes them with it. Pricing composes the same way a hire's
-        does: the item's own price (or the list's override of it), plus
-        its built-ins, plus every set taken.
+        ``option`` selects option sets. Materialise these and built-ins as
+        purchase dependants. Compose the price from the item's base or listing
+        override, built-ins and selected sets.
 
-        The get-out is unchanged: pass ``thing`` with no line and any
-        price you like — off-list, hand-set, the owner's call.
+        ``activity`` identifies the allowance charged, or None for an untracked
+        purchase. Record the buyer so model-specific spending remains attributed
+        when equipment moves.
 
-        ``activity`` is the open activity this counts against, decided by the
-        surface: a trip to the trading post, founding and equipping the
-        gang. None where none is open, which is a purchase that counts
-        against nothing — allowed, once the owner has said they meant it.
-        The buyer is recorded alongside it, because an allowance may be
-        one model's own and what it has spent must follow the model that
-        spent it rather than wherever the thing ends up.
-
-        ``holder`` is a model, the gang's stash, or an assignment the
-        purchase hangs off. Buying into the stash is the same purchase
-        with a different destination, and a stashed weapon keeps its free
-        profiles so it moves onto a model whole. Buying onto an
-        assignment is how a weapon's paid ammo is bought: a profile
-        belongs to one particular gun, not to the fighter carrying it.
+        ``holder`` may be a model, stash or parent assignment. A weapon keeps
+        its free profiles in the stash; paid ammunition attaches to its weapon.
         """
         from n26.core.models import Activity, Assignment, Stash
         from n26.library.models import Weapon
         from n26.library.models.collection import price_of
 
         if isinstance(holder, Stash):
-            # Nobody's allowance buys into the stash: it is the gang's
-            # spare kit, and what it holds was never given to a model.
+            # Stash purchases do not spend a model's allowance.
             host, buyer = {"stash": holder}, None
         elif isinstance(holder, Assignment):
-            # A weapon's paid rounds hang off the gun, and it is the
-            # model carrying the gun whose points they came out of.
+            # Charge paid ammunition to the model carrying its weapon.
             host, buyer = {"parent": holder}, holder.miniature_root
         else:
             host, buyer = {"miniature": holder}, holder
@@ -2963,8 +2874,7 @@ class Operation:
         )
         if paid is None:
             if hasattr(thing, "price_with"):
-                # An entry overrides the item's own price; what it comes
-                # with keeps its own.
+                # Entry overrides replace only the item's base price.
                 override = entry.price_override if entry is not None else None
                 paid = thing.price_with(taken, base=override)
             elif line is not None:
@@ -2980,9 +2890,7 @@ class Operation:
             trade_points=trade_points,
             bought_from=entry,
             activity=activity,
-            # Recorded only where something counted it: with no activity
-            # open the purchase counts against nothing, and naming a
-            # buyer would claim an allowance nobody spent.
+            # Attribute a buyer only when an activity allowance was used.
             spent_by=buyer if activity is not None else None,
             **host,
             **kwargs,
@@ -2993,10 +2901,8 @@ class Operation:
             )
         if hasattr(thing, "resolve_selection"):
             self._record_options(bought, taken)
-        # Whatever the thing has built in arrives with it — a weapon's
-        # augmentation choice as much as a wargear's kit. A thing with
-        # nothing built in and no set taken has nothing to reconcile, and
-        # asking would read two empty sets on every purchase.
+        # Skip reconciliation queries when there are no built-ins or
+        # selected option sets.
         if getattr(thing, "built_ins_id", None) is not None or taken:
             self.reconcile_defaults(bought)
         return bought
@@ -3030,24 +2936,13 @@ class Operation:
         dice=None,
         action_record=None,
     ):
-        """Roll on a choice's table and put the roll on the record.
+        """Record a choice's table roll before a result is selected.
 
-        The roll is written the moment it is made, before anything is
-        picked for it and whether or not anything ever is: once the dice
-        are down the result stands, and a roll that was made and then
-        rolled again should read that way. The event is about the model
-        whose card the choice was on, or the gang for the gang's own
-        choices, and names the slot so the pick that follows can be
-        checked against it.
+        The event identifies the gang, model and slot so a subsequent selection
+        can validate its origin. ``rolled`` supplies a manual result and must be
+        valid for the die. ``rng`` allows deterministic tests.
 
-        ``rolled`` is a roll made at the table and entered here rather
-        than generated; it goes on the record the same way, with the
-        note saying so, and has to be a roll the die can make. ``rng``
-        is for a test that wants the dice loaded.
-
-        A slot whose list is not a roll table has nothing to roll; no
-        page draws a control for one, so that is a caller's mistake
-        rather than a refusal.
+        A slot without a roll table raises a caller error.
         """
         from n26.library.models import Dice
 
@@ -3477,15 +3372,10 @@ def subtree(assignment):
 
 
 def _sold_separately(line, entry, weapon):
-    """The profile ids the listing behind a purchase sells apart from the gun.
+    """Return this weapon's profile IDs priced separately by the listing.
 
-    A listing that names an ammo type as a row of its own — priced its
-    own way — is selling it, not including it. A purchase made through a
-    collection entry asks that collection which of this weapon's
-    profiles it lists; a swept line carries the same split as its parts.
-    A purchase with no listing behind it — a hire's built-in weapon, an
-    owner's hand-set gift — includes everything, which is what content
-    means by a zero-priced profile.
+    A collection entry uses its collection's profile entries; a swept line
+    uses its parts. Without a listing, return no exclusions from the free profiles.
     """
     from n26.library.models import CollectionEntry, WeaponProfile
 
@@ -3507,16 +3397,10 @@ def _sold_separately(line, entry, weapon):
 
 
 def _clear_dismissal(anchor, identity, kwargs):
-    """Take off any dismissal of the slot a pick is landing on.
+    """Clear the resolved choice's dismissal on its displayed host.
 
-    Whichever screen the pick came from — the pick screen, the skills
-    listing, a tick on the model's page — settling an offer is the owner
-    changing their mind about it, so the row that hid it goes here, on
-    the one path every route runs through. The slot is addressed as the
-    card that drew it addresses it: the model named to receive the pick
-    or bearing the carrier — read off the root where the carrier is
-    nested, a sight on a weapon on a model — and the gang's own word
-    where there is none.
+    Use the explicit recipient, carrier's model or root, then the gang host.
+    Holding choices use their holding and slot identity instead.
     """
     from n26.core.models import DismissedOffer
     from n26.core.models.dismissed_offer import GANG_SLOT_HOST
