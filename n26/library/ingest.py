@@ -2015,7 +2015,10 @@ def _placements(carrier):
 
 @dataclass
 class IngestResult:
-    """Counts of records created, updated and retained by ``perform()``."""
+    """Mappings from plan keys to created, updated and existing model instances.
+
+    ``counts()`` tallies only the newly created records.
+    """
 
     created: dict = field(default_factory=dict)  # key -> model instance
     updated: dict = field(default_factory=dict)
