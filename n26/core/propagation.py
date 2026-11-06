@@ -1,43 +1,21 @@
-"""Built-in propagation — a built-in set change reaches everything
-already holding the set, asynchronously.
+"""Reconcile existing carriers after built-in set edits through background tasks.
 
-New acquisitions bring the change from the moment it commits; this
-module is how everything acquired before it catches up, within
-seconds, without the author doing anything.
+Authoring creates a fresh BuiltInPropagationTask in the edit transaction
+and publishes after commit. A worker claims PENDING to RUNNING under a
+row lock, so duplicate deliveries cannot run the same task concurrently.
+Reconcile each gang in its own operation through ``reconcile_defaults``;
+provenance prevents repeat grants.
 
-The authoring verb creates a
-:class:`~n26.core.models.BuiltInPropagationTask` in its own
-transaction and publishes a task message after commit. The task claims
-the row — the PENDING → RUNNING transition, validated under the row's
-lock, so of two deliveries one wins and the other stands down — and
-reconciles every gang holding the set, one
-:func:`~n26.core.operations.operation` per gang, through the same
-:meth:`~n26.core.operations.Operation.reconcile_defaults` every
-acquisition uses. That creates only what provenance says is missing,
-so a run is idempotent and at-least-once delivery is safe.
+Every edit needs a fresh task: reusing a pending task could let a worker
+read content before the edit commits and omit the change. Redundant later
+tasks safely reconcile to no changes.
 
-Every edit creates its own row; a standing row is never reused. A
-shared row can be claimed, and the library read, before the edit that
-found it commits — the change would silently never be applied. A
-fresh row's message publishes only after its own edit commits, so the
-run that claims it always sees the change; the redundant runs this
-buys are no-ops.
+The sweep republishes pending tasks, fails abandoned runs and files fresh
+tasks for retryable failures. Completed task records remain unchanged.
 
-Publishing can lose a message, so a scheduled sweep re-publishes rows
-left PENDING, marks a run whose worker died FAILED, and creates a
-fresh row after a failure — the graph is strictly forward, and an
-ended row is a record.
-
-The running side sits behind a feature flag; the filing does not.
-Shut loses no work: every edit still files its row, deliveries stand
-down leaving it PENDING, and the sweep — which stands down too —
-drains the whole backlog when the flag opens.
-
-The same carrier resolution also answers, without writing anything,
-how far a change would travel (:func:`reach_of` and its siblings) —
-what the authoring and ingest previews say before an author commits.
-The preview is informative only: the pass recomputes against the
-library as it stands when it runs.
+The execution flag gates workers and sweeps, while edits always file
+tasks. Disabled execution preserves a pending backlog. Preview helpers use
+the same carrier resolution, but workers recompute against current content.
 """
 
 import logging
@@ -57,31 +35,22 @@ from n26.flags import BUILT_IN_PROPAGATION, switched_on
 
 logger = logging.getLogger(__name__)
 
-#: How long a PENDING row may stand before the sweep assumes its
-#: message was lost and publishes another. Well past a healthy
-#: delivery, well inside an author's patience.
+#: Republish interval for pending tasks whose delivery may have been lost.
 REPUBLISH_AFTER = timedelta(minutes=2)
 
-#: How long a RUNNING pass may stand before the sweep declares its
-#: worker dead. Longer than any delivery deadline, so a slow pass
-#: finishes rather than being declared lost while still working.
+#: Timeout beyond delivery deadlines before treating a running worker as lost.
 GIVE_UP_RUNNING_AFTER = timedelta(minutes=15)
 
-#: How many passes over one set may fail in a row before the sweep
-#: stops filing retries. A failure that survives this many attempts
-#: needs a fix, not a schedule — and the next authoring edit files a
-#: fresh row anyway, so nothing is stranded for good.
+#: Consecutive failure limit for automatic retries. A later authoring edit
+#: still creates a fresh task.
 MAX_FAILURES_IN_A_ROW = 3
 
 
 def file_propagation_task(default_set):
-    """File the pass a set change is owed, in the caller's transaction.
+    """Create a fresh propagation task within the caller's edit transaction.
 
-    Called by the authoring verb that adds a member, so the filing
-    rides the edit: rolled back together, committed together. Every
-    call inserts a fresh row — see the module docstring for why a
-    standing row is never reused — and publishes after commit, when
-    the library the pass will read includes this edit.
+    Publish after commit so the worker sees the edited content. Rollbacks
+    discard both the edit and its task.
     """
     filed = BuiltInPropagationTask.objects.create(default_set=default_set)
     _publish(filed.pk)
@@ -159,12 +128,9 @@ def _holders(default_sets):
 
 
 def _carriers_of(default_sets):
-    """The assignments owed a pass: every use of a holder, and every
-    carrier that chose one of the sets as an option. A removal is
-    machinery, not a use; an archived carrier is settled history.
+    """Find live non-removal assignments using these built-ins or selected sets.
 
-    This one queryset is what the pass reconciles and what the reach
-    counts count, so the two can never come to disagree.
+    Execution and preview reach counts share this queryset.
     """
     holds = Q(chosen_options__default_set__in=default_sets)
     by_field = {}
@@ -246,9 +212,10 @@ def _reach(carriers):
 
 
 def _reconcile_holders(default_set):
-    """One pass over every gang holding the set, each gang its own
-    operation committing on its own — a gang the pass cannot settle is
-    recorded and stepped past, never allowed to starve the rest."""
+    """Reconcile each affected gang in a separate operation and transaction.
+
+    Record failures and continue so one invalid gang cannot block the rest.
+    """
     by_gang = {}
     for carrier_id, gang_id in Assignment.objects.filter(
         pk__in=_carrier_ids(default_set)
@@ -258,9 +225,7 @@ def _reconcile_holders(default_set):
 
     summary = {"gangs": 0, "granted": 0, "skipped": 0, "failures": {}}
     for gang_id in sorted(by_gang, key=str):
-        # An archived gang is one its owner parted with; nothing is
-        # granted behind their back. Unarchived later, it catches up
-        # with the next pass over this set, or with the backfill.
+        # Skip archived gangs. Restored gangs catch up on another pass or backfill.
         gang = Gang.objects.filter(pk=gang_id, archived=False).first()
         if gang is None:
             continue
@@ -309,15 +274,12 @@ def _reconcile_gang(gang, carrier_ids):
 
 @task
 def sweep_built_in_propagations():
-    """Drain what the happy path dropped.
+    """Republish pending work, fail abandoned runs and retry eligible failures.
 
-    Three legs, each idempotent, so overlapping sweeps do no harm: a
-    duplicate publish stands down at the claim, and a duplicate filing
-    only buys a redundant no-op pass.
+    Duplicate messages cannot claim an already claimed task. Redundant tasks
+    reconcile idempotently, making overlapping sweeps safe.
     """
-    # Shut, the sweep stands down whole — republishing or refiling
-    # would only feed deliveries that stand down too. The rows keep,
-    # and the first sweep after the flag opens drains them all.
+    # While disabled, retain pending work without republishing or refiling it.
     if not switched_on(BUILT_IN_PROPAGATION):
         return
     now = timezone.now()
@@ -328,10 +290,8 @@ def sweep_built_in_propagations():
     ).values_list("pk", flat=True):
         propagate_built_ins.enqueue(propagation_id=str(propagation_id))
 
-    # A pass RUNNING this long lost its worker. Declaring it FAILED
-    # keeps every row's ending written; the retry leg below files the
-    # fresh row. A worker that was merely slow finds its own ending
-    # already written and stands down.
+    # Fail timed-out tasks before filing fresh retries. A slow worker that
+    # later finishes finds the task already ended and stops.
     for propagation in BuiltInPropagationTask.objects.filter(
         status="RUNNING", modified__lt=now - GIVE_UP_RUNNING_AFTER
     ):
@@ -347,7 +307,7 @@ def sweep_built_in_propagations():
 
 
 def _refile_failures():
-    """A set whose latest pass failed is owed another, up to the cap."""
+    """Retry sets whose latest propagation failed, up to the attempt cap."""
     latest = (
         BuiltInPropagationTask.objects.filter(default_set=OuterRef("default_set"))
         .order_by("-created")
