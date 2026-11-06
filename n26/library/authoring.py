@@ -2034,14 +2034,15 @@ def offer_option(
 ):
     """Add an acquisition option for a profile or piece of wargear.
 
-    ``name`` labels the option and ``price`` sets the acquisition surcharge on a newly created default set.
-    A supplied ``default_set`` retains its stored price.
-    Create the set when needed, or pass an existing ``default_set``.
+    ``name`` labels the option and ``price`` sets the acquisition surcharge on a
+    newly created default set. A supplied ``default_set`` retains its stored
+    price. Create the set when needed, or pass an existing ``default_set``.
     ``thing`` adds a member; ``amount`` and ``default_pickable`` configure that
     member rather than the option.
 
-    Append to ``group`` or the main pick-one set. Its first option is the default.
-    Default-set names are derived and author-facing to avoid pack-wide collisions.
+    Append to ``group`` or the main pick-one set. Only pick-one groups select the
+    first option by default. Default-set names are derived and author-facing to
+    avoid pack-wide collisions.
     """
     from n26.library.models import Option
 
@@ -2072,10 +2073,11 @@ def offer_option(
 
 @guarded_write
 def stop_offering(option):
-    """Remove an option and delete its default set if nothing else references it.
+    """Remove an option and attempt to delete its default set.
 
-    Shared default sets and their content remain. Existing assignments remain;
-    the change affects options offered on future acquisitions.
+    Shared sets, recorded acquisitions or issued members can protect the set.
+    Referenced content and existing assignments remain; the change affects options
+    offered on future acquisitions.
     """
     from django.db.models import ProtectedError
 
@@ -2084,7 +2086,7 @@ def stop_offering(option):
     try:
         default_set.delete()
     except ProtectedError:
-        # ProtectedError means another option or carrier still references this set.
+        # Shared sets, recorded choices or materialised member references can protect the set.
         pass
 
 
