@@ -354,7 +354,7 @@ def _movement_note(moved, reason):
 
 
 class Operation:
-    """Track changed models and stashes for recomputation at settlement."""
+    """Track changed miniatures for recomputation at settlement."""
 
     #: Bound recursive model grants to reject cyclic content.
     MAX_STORED_EFFECT_DEPTH = 3
