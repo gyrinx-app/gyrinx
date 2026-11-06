@@ -2,8 +2,9 @@
 {% load navigation %}
 {% comment %}
 Render the model's selectable skills with the shared ChoiceOffer component. Selection
-adds a skill directly without resolving a slot; an empty grid still has a page
-explaining its state.
+answers a matching open starting-skill offer when its anchor has an assignment;
+otherwise it adds a standing selection. An empty grid still has a page explaining its
+state.
 {% endcomment %}
 {% block head_title %}{% if nothing_to_select %}Skills{% else %}{{ chosen }}{% endif %} — {{ miniature.name }}{% endblock head_title %}
 {% block nav_switcher %}
