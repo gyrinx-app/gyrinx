@@ -321,7 +321,7 @@ class GangCard:
     def members_under(self, assignment_set):
         """Reassemble member cards under an equipment selection without refetching.
 
-        Return the existing cards when no selection is supplied.
+        Return the existing cards when ``assignment_set`` is None.
         """
         if assignment_set is None:
             return self.members
@@ -542,7 +542,7 @@ def _option_offer_paths():
 
 
 def set_by_hand(**filters):
-    """Load characteristic overrides as ``{model ID: {cell ID: value}}``.
+    """Load characteristic overrides as ``{miniature ID: {cell ID: value}}``.
 
     One query covers every matching model. Empty values fall back to the
     profile's printed characteristic.
@@ -764,7 +764,7 @@ def build_card(
 
 
 def build_cards_for_gang(gang, with_statlines=True):
-    """Build member cards keyed by model ID from one assignment fetch.
+    """Build member cards keyed by miniature ID from one assignment fetch.
 
     Gang-hosted assignments share ``gang_root`` and become broadcast nodes
     on every member card without another assignment query.

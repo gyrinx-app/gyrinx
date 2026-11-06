@@ -12,7 +12,7 @@ every submission; hidden fields are untrusted input.
 
 from dataclasses import dataclass
 
-#: Shared confirmation field and affirmative value used by the view.
+#: Shared confirmation field name used by the view.
 CONFIRM_FIELD = "confirmed"
 
 #: What the confirming post never carries forward: the token belongs to

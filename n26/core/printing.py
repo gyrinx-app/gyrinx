@@ -119,7 +119,7 @@ def estimate_lines(text: str, chars_per_line: int, label: str = "") -> int:
 def balance_columns[T: HasHeight](groups: list[T], columns: int = 2) -> list[list[T]]:
     """Split groups into non-empty columns in their existing reading order.
 
-    Choose columns minus one cuts that minimise the tallest column. Keeping
+    Choose ``columns - 1`` cut points that minimise the tallest column. Keeping
     contiguous groups preserves top-to-bottom reading order; omitting empty
     columns avoids reserving unused horizontal space.
     """
