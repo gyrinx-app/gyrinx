@@ -161,3 +161,18 @@ with `data-busy="off"`; the React `WorkflowPage` adapter does this by default.
 Test Back after saving: a cached completed form must not submit a consumed key
 as a new command. Manage credits prevents HTTP caching and refreshes completed
 forms restored from the back-forward cache, while retaining unsaved drafts.
+
+## Absolute edits
+
+Use Edit campaign holding (`n26/core/asset_edit.py`, `edit-holding`) as the
+absolute-edit example. Sign the subject, actor and starting state; compare current
+values and revision under the same lock as the write. A matching desired state
+is a no-op success; a stale different state returns a specific revision conflict
+with current facts. Keep the draft frozen until an explicit review action loads
+a fresh baseline. Never automatically overwrite a newer edit.
+
+A retained submission takes precedence over native POST props. Ignore errors or
+conflict metadata for another submission until retry resolves the retained one.
+Test simultaneous drafts, delayed old requests, same-value retries, blank versus
+zero, and reload recovery. Do not reuse a money-adjustment receipt for an absolute
+edit merely because the forms look similar.

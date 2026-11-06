@@ -95,3 +95,9 @@ mutate React-owned controls or leave a cancelled navigation disabled.
 Check restoration from the back-forward cache after success. Refresh completed
 forms whose command identity was consumed; preserve unsaved drafts and retain
 the original identity of unresolved saves.
+
+For absolute-edit conflicts, show current facts alongside the frozen draft and
+require an explicit review action before loading a new baseline. Recovery input
+can differ from the native POST that produced page props: do not apply that
+POST's conflict/errors to a different retained command. Keep workflow-specific
+conflict decisions outside shared HTTP transport.
