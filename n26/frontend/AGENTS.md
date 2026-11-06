@@ -92,3 +92,6 @@ CSRF tokens. Test reauthentication, which rotates the token, before promising
 recovery from session expiry.
 `WorkflowPage` sets `data-busy="off"` so the shared busy-link handler cannot
 mutate React-owned controls or leave a cancelled navigation disabled.
+Check restoration from the back-forward cache after success. Refresh completed
+forms whose command identity was consumed; preserve unsaved drafts and retain
+the original identity of unresolved saves.

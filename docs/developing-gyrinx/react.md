@@ -669,6 +669,12 @@ React workflow forms use `data-busy="off"` to opt out of the shared
 links. If a reader cancels a navigation warning, the shared handler would
 otherwise leave the link disabled without a new page to clear it.
 
+Test Back after a successful command. Manage credits returns its HTML with
+`never_cache`, and refreshes a completed form restored from the browser's
+back-forward cache. That obtains a fresh balance and request key for a new
+adjustment. Keep unsaved drafts intact when restoring a form that has not saved;
+an unresolved save must retain its existing identity instead.
+
 The single-event receipt suits credits adjustments. A workflow producing several
 events must identify one durable command receipt and its canonical payload;
 do not assume an operation's grouping `batch` is unique. Prove simultaneous

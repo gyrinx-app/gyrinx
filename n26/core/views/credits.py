@@ -8,6 +8,7 @@ from django.http import Http404, JsonResponse
 from django.middleware.csrf import get_token
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST
 
 from n26.core import credits
@@ -58,6 +59,7 @@ def _props(request, gang, form, back):
 
 
 @login_required
+@never_cache
 @require_http_methods(["GET", "POST"])
 def gang_credits(request, pk):
     gang, back = _prepare(request, pk)

@@ -318,3 +318,31 @@ test.each([422, 409])(
         ).toBe(false);
     },
 );
+
+test("refreshes a completed form restored by Back without discarding an unsaved draft", async () => {
+    vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(json({ nextUrl: props.back })),
+    );
+    const reload = vi.fn();
+    render(
+        <ManageCredits
+            {...props}
+            values={{ ...props.values, amount: "10" }}
+            onNavigate={() => {}}
+            onReload={reload}
+        />,
+    );
+    window.dispatchEvent(
+        new PageTransitionEvent("pageshow", { persisted: true }),
+    );
+    expect(reload).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+        expect(sessionStorage.getItem(props.recoveryKey)).toBeNull(),
+    );
+    window.dispatchEvent(
+        new PageTransitionEvent("pageshow", { persisted: true }),
+    );
+    expect(reload).toHaveBeenCalledTimes(1);
+});

@@ -649,3 +649,15 @@ def test_recovery_confirms_a_replay_without_announcing_another_adjustment(
         "This credit adjustment was already saved."
     ]
     assert fresh(table.gang).credits == 110
+
+
+def test_credit_forms_are_not_http_cached_with_an_already_used_request_key(
+    client, table
+):
+    client.force_login(table.owner)
+    first = client.get(url(table.gang))
+    second = client.get(url(table.gang))
+    assert "no-store" in first.headers["Cache-Control"]
+    assert (
+        props(first)["values"]["request_key"] != props(second)["values"]["request_key"]
+    )

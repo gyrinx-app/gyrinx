@@ -81,7 +81,10 @@ function fieldErrors(value: unknown): value is Errors {
 }
 
 export function ManageCredits(
-    props: ManageCreditsProps & { onNavigate?: (url: string) => void },
+    props: ManageCreditsProps & {
+        onNavigate?: (url: string) => void;
+        onReload?: () => void;
+    },
 ) {
     const [recovery] = useState(() => recover(props.recoveryKey));
     const [values, setValues] = useState(
@@ -104,10 +107,20 @@ export function ManageCredits(
             : "",
     );
     const inFlight = useRef(false);
+    const saved = useRef(false);
     const unknownOutcome = useRef(!!recovery);
     const submitted = useRef<URLSearchParams | null>(recovery);
     const summary = useRef<HTMLDivElement>(null);
     const [failure, setFailure] = useState(0);
+    useEffect(() => {
+        const restore = (event: PageTransitionEvent) => {
+            if (event.persisted && saved.current) {
+                (props.onReload ?? (() => window.location.reload()))();
+            }
+        };
+        window.addEventListener("pageshow", restore);
+        return () => window.removeEventListener("pageshow", restore);
+    }, [props.onReload]);
     useEffect(() => {
         if (failure) summary.current?.focus();
     }, [failure]);
@@ -154,6 +167,7 @@ export function ManageCredits(
                 props.csrfToken,
             );
             if (status === 200 && typeof data.nextUrl === "string") {
+                saved.current = true;
                 unknownOutcome.current = false;
                 clearRecovery(props.recoveryKey);
                 setUncertain(false);

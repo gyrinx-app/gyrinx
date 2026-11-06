@@ -158,3 +158,6 @@ unresolved command's identity.
 Keep an earlier uncertain save frozen after any rejected retry, including a
 structured form refusal. Opt workflow forms out of the shared busy-link handler
 with `data-busy="off"`; the React `WorkflowPage` adapter does this by default.
+Test Back after saving: a cached completed form must not submit a consumed key
+as a new command. Manage credits prevents HTTP caching and refreshes completed
+forms restored from the back-forward cache, while retaining unsaved drafts.
