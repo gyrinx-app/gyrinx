@@ -4,8 +4,9 @@ Build on ``render_gang`` and compare plain primitives with equality.
 Include names, values, choices and selections. Preserve meaningful order,
 such as statline columns, and sort unordered groups such as rules.
 
-Omit action URLs and provenance wording, which may change during a content
-conversion. Retain model keys so differences identify the affected fighter.
+Omit action URLs and control targets. Preserve reader-visible ownership
+lines and brought marks. Retain model keys so differences identify the
+affected fighter.
 """
 
 from n26.core.render import group_campaign_assets, render_gang
@@ -26,7 +27,7 @@ def _each(lines):
 
 
 def _line_label(line):
-    """Include the names of pets created by this equipment in its captured label."""
+    """Append the rendered brought mark to the captured line name."""
     return str(line.name) + line.brought_mark
 
 
