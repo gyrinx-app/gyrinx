@@ -114,13 +114,16 @@ export function ManageCredits(
     const [failure, setFailure] = useState(0);
     useEffect(() => {
         const restore = (event: PageTransitionEvent) => {
-            if (event.persisted && saved.current) {
+            if (
+                event.persisted &&
+                (saved.current || recover(props.recoveryKey))
+            ) {
                 (props.onReload ?? (() => window.location.reload()))();
             }
         };
         window.addEventListener("pageshow", restore);
         return () => window.removeEventListener("pageshow", restore);
-    }, [props.onReload]);
+    }, [props.onReload, props.recoveryKey]);
     useEffect(() => {
         if (failure) summary.current?.focus();
     }, [failure]);

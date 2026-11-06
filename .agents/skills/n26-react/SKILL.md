@@ -161,3 +161,7 @@ with `data-busy="off"`; the React `WorkflowPage` adapter does this by default.
 Test Back after saving: a cached completed form must not submit a consumed key
 as a new command. Manage credits prevents HTTP caching and refreshes completed
 forms restored from the back-forward cache, while retaining unsaved drafts.
+Read recovery storage again on persisted history restoration. A cached older
+form can predate a later unresolved save for the same task; refresh it rather
+than allowing it to replace that command's key or payload. Preserve an unsaved
+draft only when no command needs recovery.

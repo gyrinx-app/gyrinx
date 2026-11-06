@@ -672,8 +672,10 @@ otherwise leave the link disabled without a new page to clear it.
 Test Back after a successful command. Manage credits returns its HTML with
 `never_cache`, and refreshes a completed form restored from the browser's
 back-forward cache. That obtains a fresh balance and request key for a new
-adjustment. Keep unsaved drafts intact when restoring a form that has not saved;
-an unresolved save must retain its existing identity instead.
+adjustment. Also refresh an older cached draft when recovery storage now holds an
+unresolved command from a later form. Read storage at restoration time, not only
+at mount, so the older draft cannot overwrite that command. Preserve an unsaved
+draft only when no command needs recovery.
 
 The single-event receipt suits credits adjustments. A workflow producing several
 events must identify one durable command receipt and its canonical payload;
