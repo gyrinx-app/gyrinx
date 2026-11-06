@@ -634,3 +634,18 @@ def test_a_committed_command_can_be_recovered_after_csrf_rotation(table):
         == 1
     )
     assert_reconciled(fresh(table.gang))
+
+
+def test_recovery_confirms_a_replay_without_announcing_another_adjustment(
+    client, table
+):
+    client.force_login(table.owner)
+    target = reverse("n26-gang-credits-command", args=[table.gang.pk])
+    data = {"direction": "add", "amount": "10", "request_key": str(uuid4())}
+    client.post(target, data)
+    client.get(url(table.gang))
+    retry = client.post(target, data)
+    assert [str(message) for message in get_messages(retry.wsgi_request)] == [
+        "This credit adjustment was already saved."
+    ]
+    assert fresh(table.gang).credits == 110

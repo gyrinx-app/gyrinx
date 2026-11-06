@@ -642,8 +642,9 @@ with a database uniqueness constraint per gang. Under the gang lock, the command
 checks current access and compares a replay's actor, direction, amount and note
 with the recorded adjustment. Matching replays succeed without another event;
 a different payload is rejected. Failed adjustments do not consume the key.
-Analytics run after commit, only for a new adjustment. Success feedback is
-retained across a lost response and deduplicated by request key.
+Analytics run after commit, only for a new adjustment. Unread success feedback
+is deduplicated by request key. If it was already consumed, a replay confirms
+that the adjustment was already saved instead of announcing another adjustment.
 
 Use `n26/frontend/http/command.ts` for the transport. Keep response interpretation
 in the workflow. A network error, a server error or an unreadable success response

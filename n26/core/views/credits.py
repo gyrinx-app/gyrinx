@@ -33,12 +33,17 @@ def _feedback(request, gang, result):
         record(request, N26Noun.GANG, EventVerb.UPDATE, gang, credits=result.amount)
     tag = f"credits-{result.form.cleaned_data['request_key']}"
     storage = messages.get_messages(request)
-    already_shown = any(
+    already_queued = any(
         tag in (message.extra_tags or "").split() for message in storage
     )
     storage.used = False
-    if not already_shown:
-        messages.success(request, result.message(gang), extra_tags=tag)
+    if not already_queued:
+        message = (
+            result.message(gang)
+            if result.applied
+            else "This credit adjustment was already saved."
+        )
+        messages.success(request, message, extra_tags=tag)
 
 
 def _props(request, gang, form, back):
