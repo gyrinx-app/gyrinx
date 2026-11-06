@@ -1045,9 +1045,10 @@ def _offers_of_kind(thing):
 
 
 def _carriers_of(modifiers):
-    """Batch carriers by modifier identity, querying each content kind once.
+    """Batch carriers by modifier identity.
 
-    Fetch carrier records only for kinds with matches.
+    Query matching carrier IDs per content kind, then bulk-fetch the carrier
+    records for kinds with matches.
     """
     if not modifiers:
         return {}
