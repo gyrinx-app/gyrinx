@@ -160,15 +160,10 @@ def write_pause_view(request, scope):
 
 
 def _operations_listing():
-    """The repairs on offer, newest first, each with how often it has run.
+    """List runnable repairs with run counts, newest release date first.
 
-    Newest first because these are one-off repairs rather than a standing
-    menu: the list only grows, and whoever opens the page has almost always
-    come for something written this week. Registration order buried that at
-    the bottom.
-
-    An operation with no date given sorts last rather than first — undated
-    means nobody said, which is not a claim to be recent.
+    Undated repairs sort last. Release dates also order repairs that have
+    never run.
     """
     ran = _runs_by_operation()
     listing = [
@@ -182,9 +177,7 @@ def _operations_listing():
         }
         for op in operations()
     ]
-    # Sorted on a key rather than by ``added`` directly, since a date and
-    # None do not compare. Stable, so registration order still separates
-    # two repairs written on one day.
+    # Keep undated repairs last; preserve registration order for equal dates.
     listing.sort(key=lambda op: (op["added"] is None, _reverse_date(op["added"])))
     return listing
 
@@ -211,9 +204,7 @@ def _runs_by_operation():
 
 def backfill_detail_view(request, pk):
     backfill = get_object_or_404(Backfill, pk=pk)
-    # How a run's summary reads is operation-specific — reconcile shows
-    # rating/stash movement, the stash migration shows moved items — so the
-    # operation supplies that fragment. Without one, fall back to a plain dump.
+    # Use the operation's summary template, or JSON when none is registered.
     operation = resolve_operation(backfill.operation)
     ctx = page_context(
         request,
@@ -233,9 +224,7 @@ def backfill_cancel_view(request, pk):
     detail_url = reverse("admin:maintenance_backfill_detail", args=[backfill.id])
     if request.method != "POST":
         return HttpResponseRedirect(detail_url)
-    # Atomic RUNNING->CANCELLED so we can't clobber a result the chain sets
-    # concurrently (a final batch flipping the record to DONE between a read
-    # and a save). Only a still-RUNNING record is affected.
+    # Update only RUNNING records so cancellation cannot overwrite a completed result.
     updated = Backfill.objects.filter(pk=pk, status=Backfill.Status.RUNNING).update(
         status=Backfill.Status.CANCELLED, modified=timezone.now()
     )
