@@ -1,38 +1,16 @@
-"""Merging a duplicate into the row it duplicates.
+"""Merge duplicate library content into a selected surviving record.
 
-Two rows can come to stand for one thing: a weapon imported twice under
-one name, a first attempt kept beside the corrected one. Fighters have
-bought the duplicate, lists offer it, a built-in set brings it, so it
-cannot simply be deleted — and it should not be, because what those
-fighters have is the real thing under the wrong row. Merging points
-everything that names the duplicate at the survivor, then deletes the
-duplicate through the ordinary delete, which by then finds nothing
-holding it.
+Repoint assignments and library references, then delete the duplicate.
+Preserve purchase ledger entries and verify each gang reconciles around its
+own transaction; merging changes no recorded prices or ratings.
 
-**It moves no money.** What a purchase was worth is pinned on its
-ledger entry and never rewritten; a fighter who paid for the duplicate
-has paid for the survivor. Every gang is proved to reconcile around its
-own commit.
+Weapon profiles require same-named counterparts on the survivor. Deduplicate
+free copies and grant missing free survivor profiles. Reject unmatched lines
+and duplicate-side modifiers, restrictions or built-ins that need an author's
+decision before merging.
 
-**A firing line follows by name.** A weapon's lines are assignments of
-their own on every fighter that has the weapon, so each of the
-duplicate's lines must have a line of the same name on the survivor to
-become. One without refuses the whole merge in words, naming the line:
-the author adds it to the survivor, or deletes it from the duplicate
-first. Two lines of one name on the duplicate become one line on the
-fighter; the survivor's free lines a fighter lacks are granted, as they
-would have been had the fighter bought the survivor.
-
-**What the duplicate itself carries is not moved.** Modifiers, use
-restrictions and built-ins on the duplicate are the author's decisions
-and refuse the merge until moved or detached; a merge that guessed at
-them would change what fighters get in silence.
-
-The plan is the contract: :func:`plan_merge` reads and describes, the
-page draws it, and the gang-by-gang run (:func:`merge_gang`) reads each
-gang again under its lock and performs exactly its part, with the
-library's own references and the delete done by the last gang
-(:func:`merge_library`).
+``plan_merge`` produces the preview. ``merge_gang`` locks and processes each
+gang; the last gang finishes references and deletion through ``merge_library``.
 """
 
 from dataclasses import dataclass, replace
@@ -402,9 +380,10 @@ class MergeRun:
 
 
 def merge_run(plan):
-    """Read the plan again under the runner's lock. What changed since
-    the page was read refuses the whole run in words. A plan naming no
-    gang does the library's part here and ends the run itself."""
+    """Rebuild the plan under the runner lock and reject changes since confirmation.
+
+    Finish library-only plans immediately when they affect no gang.
+    """
     now = plan_again(plan)
     if not now.same_as(plan):
         return MergeRun(
@@ -421,16 +400,11 @@ def merge_run(plan):
 
 
 def merge_gang(gang_id, plan):
-    """Point one gang's assignments at the survivor, committed on its
-    own, and finish the library's part with the last gang.
+    """Repoint one gang in its own transaction, then finish library cleanup if last.
 
-    Read again under the gang's lock: a purchase made since the page
-    was read is repointed like the rest — it names the same thing —
-    and a line that has no counterpart refuses, naming it. The books
-    are checked before and after; the entries are untouched, so the
-    numbers cannot move, and the check is what proves it. A duplicate
-    already gone means a delivery replayed after the work: nothing left
-    to do.
+    Lock and reload the gang. Include newer purchases, but reject profiles
+    without survivor counterparts. Preserve ledger entries and reconcile before
+    and after. An already deleted duplicate makes a replay a no-op.
     """
     from django.apps import apps
 
@@ -472,16 +446,13 @@ def merge_gang(gang_id, plan):
             )
 
         moved = 0
-        # The weapon rows first, both columns in one statement so the
-        # one-assignable constraint holds throughout. A bulk write is
-        # safe here where it usually is not: the roots follow the host,
-        # and the host is not what changes.
+        # Update both assignable columns together to preserve the exactly-one constraint.
+        # Bulk updates are safe because assignment hosts and roots do not change.
         Assignment.objects.filter(pk__in=[a.pk for a in held]).update(
             **{column: survivor}
         )
         moved += len(held)
-        # Then the lines, by name. Two of one name under one weapon
-        # become one: the later free one goes.
+        # Merge profiles by name, removing a later duplicate when it is free.
         seen = {}
         for line in lines:
             target = to_line[str(line.weapon_profile_id)]
@@ -497,14 +468,10 @@ def merge_gang(gang_id, plan):
             Assignment.objects.filter(pk=line.pk).update(weapon_profile_id=target)
             seen[(line.parent_id, target)] = line.pk
             moved += 1
-        # The survivor's free lines a fighter lacks arrive, as they would
-        # have with the survivor bought outright. Written directly: the
-        # gang's history must not say its owner did something today.
+        # Add missing free profiles directly, without attributing a purchase to the owner.
         granted = 0
-        # Every free line of the survivor, as an outright purchase grants
-        # them. A list that prices one of those lines on its own is not
-        # known here — the purchase's list is not read — so such a line
-        # arrives free where the list would have charged for it.
+        # Add every free profile of the survivor. Collection-specific profile prices
+        # are unavailable here because the original purchase collection is not read.
         free = [line for line in _lines_of(survivor) if line.price == 0]
         for weapon in Assignment.objects.filter(pk__in=[a.pk for a in held]):
             has = set(
@@ -533,8 +500,7 @@ def merge_gang(gang_id, plan):
         said = f"gang {gang.name}: pointed {moved} assignment{'' if moved == 1 else 's'} at {_said(survivor)}"
         if granted:
             said += f", granting {granted} free line{'' if granted == 1 else 's'}"
-        # The library's part goes with the last gang: after this one,
-        # nothing on any gang may name the duplicate any more.
+        # After the last gang is processed, remove library references to the duplicate.
         if not _any_gang_names(duplicate):
             said += "; " + merge_library(plan)
         return said

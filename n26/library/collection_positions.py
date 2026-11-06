@@ -1,38 +1,14 @@
-"""Which equipment lists sink below the gang's own on Equip, and
-writing that down.
+"""Plan equipment-list ordering from the routes that grant each collection.
 
-A fighter reaches several lists at once: the house list their profile
-brings, the list an archetype swaps in, the one a corruption variant
-hangs on. They are sorted by ``Collection.position`` once
-(``n26.core.access``), and the Equip screen opens on the first. Nothing
-ever wrote that column for a collection, so every list is at 0 and the
-walk's own order decides — which puts the variant's list before the
-gang's on a fresh gang.
+Trace built-ins and modifier grants through hidden carriers. Preserve
+unresolved or cyclic routes in the preview so they remain visible.
 
-This reads every collection and says how each one reaches a card:
-built into a gang type or a profile, or granted by a modifier and, if
-so, what carries that modifier. A hidden assignable is a carrier that
-is itself granted or built in — a bundle a pick hands over — so a route
-through one is followed back to whatever grants the bundle, and named
-with the bundle it passed through. A bundle nothing grants is reported
-as exactly that, so it is seen before anything is applied.
+A collection reached only through non-archetype pickables is a variant list
+and receives ``VARIANT_POSITION``. Preserve existing authored positions and
+leave other collections unchanged. Equip sorts using these positions.
 
-Then one rule is applied. A list reached **only** through pickables
-that are not gang archetypes — the Outcast archetypes named in
-``archetype_display`` — is a variant's list, and is given
-:data:`VARIANT_POSITION` so it sinks. Everything else is left where it
-is: the gang's own lists at 0, and any list an author has already
-numbered at that number.
-
-The rule is a reading of the library's shape, not a survey of the
-rows, so the preview shows every collection and every route — the
-table is where the rule is checked against production before it is
-applied. Whoever finds a list the rule gets wrong gives it its number
-on the collection's authoring page, which is where the numbers live
-from here on.
-
-Library-only: no gang, no assignment and no ledger entry is touched,
-and the whole write is one transaction.
+The write is library-only and transactional. Lock collections and rebuild the
+plan before applying to reject changes since confirmation.
 """
 
 from dataclasses import dataclass, replace
@@ -41,18 +17,16 @@ from django.db import transaction
 
 from n26.library.archetype_display import GANG_ARCHETYPE_IDS
 
-#: Where a variant's list is put, so it sorts after the gang's own,
-#: which stays at 0. Well clear of 0, so ordering the low numbers by
-#: hand afterwards never meets it.
+#: Place variant lists after the gang list at position zero, leaving room for
+#: manual ordering between them.
 VARIANT_POSITION = 100
 
-#: What the hidden kind calls itself — the one carrier a route is
-#: followed through rather than stopped at.
+#: Follow grants through this hidden carrier kind when tracing collection access.
 HIDDEN_KIND = "hidden assignable"
 
 
 class Refused(Exception):
-    """The world is not the one the reading found."""
+    """The confirmed collection-position plan no longer matches current content."""
 
 
 @dataclass(frozen=True)
@@ -196,13 +170,10 @@ def _pickable_details(rows):
 
 
 def _routes_to(field):
-    """Every direct route to every row of one kind, keyed by that row's
-    pk. ``field`` is the column an effect or a built-in names the kind
-    by — ``"collection"``, ``"hidden"``.
+    """Batch direct grant and built-in routes by target primary key.
 
-    A fixed number of queries however many rows there are: two per
-    carrier kind for the modifier grants, one per kind for the
-    built-ins, and one for the pickables' slot types.
+    ``field`` names the content field on effects and default memberships.
+    Query each carrier kind together rather than per target.
     """
     from n26.library.models import AddsAssignable, DefaultAssignment
 
@@ -271,12 +242,9 @@ def _routes_to(field):
 
 
 def _resolved(route, hidden_routes, seen=frozenset()):
-    """The route with any hidden carrier followed back to what grants
-    it — a pick, a gang type, a profile — and named as passed through.
+    """Follow hidden-carrier routes back to their sources.
 
-    A hidden carrier nothing grants, or one reached round in a circle,
-    is where the route stops: it is kept, marked unresolved, so the
-    page shows it rather than losing it.
+    Retain unreferenced and cyclic routes as unresolved rather than dropping them.
     """
     if route.kind != HIDDEN_KIND:
         return [route]
@@ -316,8 +284,7 @@ def find():
                 name=collection.authoring_label,
                 pack=str(collection.pack),
                 position=collection.position,
-                # A carrier granting a list twice — to the gang and to
-                # every member — is one route, said once.
+                # Deduplicate a carrier that grants the same list to both the gang and its members.
                 routes=tuple(
                     sorted(set(found), key=lambda r: (r.how, r.kind, r.name, r.via))
                 ),
@@ -327,11 +294,9 @@ def find():
 
 
 def apply(plan):
-    """Write exactly the numbers the reading proposed, in one transaction.
+    """Lock collections and apply exactly the confirmed positions in one transaction.
 
-    The rows are locked and read again before anything is written: a
-    list numbered by hand between the reading and the click keeps that
-    number, and the run refuses rather than writing over it.
+    Reject a changed plan, including positions edited after preview.
     """
     from n26.library.models import Collection
 
