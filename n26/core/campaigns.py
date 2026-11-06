@@ -2164,8 +2164,9 @@ def _playing_gangs(campaign):
 def own_additions(campaign, kind):
     """Return live counter or label members authored in this campaign's pack.
 
-    ``kind`` is counter or slot. Shared campaign-type content and gang-owned
-    content are excluded because the arbitrator cannot archive them here.
+    ``kind`` is the field name ``"counter"`` or ``"slot"``. Shared campaign-type
+    content and gang-owned content are excluded because the arbitrator cannot
+    archive them here.
     """
     return _additions(campaign, kind, archived=False)
 
@@ -2442,7 +2443,7 @@ def addable_assets(campaign, *, include_staged=False):
 
 
 def _on_a_held_table(campaign, asset):
-    """Whether a held table extends eligibility to this asset's pack."""
+    """Whether a held table lists this asset, regardless of its pack."""
     from n26.library.models import AssetTableEntry
 
     return AssetTableEntry.objects.filter(
