@@ -159,7 +159,7 @@ class TestWhatTheCardCallsAChoice:
 
 
 class TestWhatAListMayBeOffered:
-    """New memberships offer only live pickables of the list's slot type.
+    """New memberships offer only unarchived pickables of the list's slot type.
 
     Archiving preserves existing memberships.
     """
