@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=84.1.0", "setuptools-scm"]
+requires = ["setuptools>=84.2.1", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -69,7 +69,7 @@ dependencies = [
     "requests==2.34.2",
     "rich==15.0.0",
     "ruff==0.17.3",
-    "setuptools==84.1.0",
+    "setuptools==84.2.1",
     "simpleeval==1.0.8",
     "sqlparse==0.6.0",
     # Security: minimum versions for vulnerable transitive dependencies
