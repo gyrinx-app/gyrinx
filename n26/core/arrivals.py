@@ -9,8 +9,7 @@ purchases and clones do not. ``onward`` encodes arriving choices and the
 continuation URL in the n26-next address. The screen is rederived from
 that address without storing navigation state.
 
-A library with no applicable screens requires only the initial existence
-query and no card derivation.
+When existence checks find no applicable screens, skip card derivation.
 """
 
 from urllib.parse import parse_qs, urlencode, urlsplit
