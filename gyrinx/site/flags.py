@@ -42,10 +42,10 @@ def enabled(slug, user) -> bool:
 
 
 def switched_on(slug) -> bool:
-    """Return whether the feature is enabled for any signed-in users.
+    """Return whether feature availability is ALLOWLIST or EVERYONE.
 
-    Background jobs use this without a user. Missing records disable the
-    feature; unregistered slugs raise ValueError.
+    Background jobs use the configured state without checking group membership.
+    Missing records disable the feature; unregistered slugs raise ValueError.
     """
     from gyrinx.site.models import Availability, FeatureFlag
 
