@@ -1,10 +1,7 @@
-"""Where a gang type's badge is allowed to come from.
+"""Verify artwork resolves only through site storage and never fetches arbitrary URLs.
 
-The badge is drawn inline, so the server reads the bytes at whatever address
-the row holds. That makes the address a security boundary rather than a
-convenience: these pin that only this site's own storage resolves, that
-everything else draws nothing, and that neither an upload nor a paste can make
-the server go and fetch something.
+Inline SVG rendering reads bytes on the server, so uploads and pasted
+addresses share the same storage boundary.
 """
 
 import json
@@ -276,8 +273,7 @@ class TestTheAuthoringPage:
 
 
 class TestTheAdmin:
-    """The admin is the other surface an author edits content from, so it
-    offers the same pair rather than a bare address box."""
+    """Verify admin editing exposes the same upload and address controls."""
 
     def _payload(self, default_pack, **extra):
         return {

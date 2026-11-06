@@ -72,11 +72,9 @@ class TestASlotTypeNamesWhatIsChosen:
 
 
 class TestOneSlotTypeThroughout:
-    """A slot, its list and every pickable on it share one slot type.
+    """Validate that a slot, its picklists and pickables share a slot type.
 
-    The check is an authoring sense check rather than a database one:
-    the columns are each perfectly valid on their own, and only the row
-    seeing both can tell they disagree.
+    These are cross-record authoring checks; each foreign key is independently valid.
     """
 
     def test_a_list_refuses_a_pickable_of_another_slot_type(
@@ -161,9 +159,10 @@ class TestWhatTheCardCallsAChoice:
 
 
 class TestWhatAListMayBeOffered:
-    """The picker on a list's page offers its slot type's pickables — the ones
-    still on offer. Archiving one takes it out of what may be *newly*
-    listed; every list already naming it goes on naming it."""
+    """New memberships offer only live pickables of the list's slot type.
+
+    Archiving preserves existing memberships.
+    """
 
     def test_its_slot_types_pickables(self, legacies, cawdor):
         assert list(legacies.may_offer) == [cawdor]
