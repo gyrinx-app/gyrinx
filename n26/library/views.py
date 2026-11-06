@@ -3720,7 +3720,7 @@ def option_add(request, pk):
 
 @staff_member_required
 def option_remove(request, pk):
-    """Confirm removal of an option and its unshared default set.
+    """Confirm removal of an option and, when unprotected, its default set.
 
     The referenced weapons and skills remain. Removing the last option also
     changes the acquisition choices, which the confirmation page explains.
@@ -3759,7 +3759,7 @@ def option_remove(request, pk):
             "carrier": carrier,
             "set_label": option.group.name if option.group_id else "",
             "brings": [_label_for(member.assignable) for member in _brought_by(option)],
-            # Delete an unshared option set with its option; retain shared sets and their content.
+            # Delete the default set only if no protected references remain; retain its referenced content.
             "shared_with": shared_with,
             "last_in_its_set": bool(option.group_id)
             and option.group.options.count() == 1,
