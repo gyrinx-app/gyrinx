@@ -1,31 +1,18 @@
-/* The crop dialog on a picture input.
+/*
+ * Crop picture-input uploads with Cropper.js before submitting the form.
  *
- * Wires every <input type="file" data-crop="4:5"> to the <dialog> its
- * component renders beside it (<c-n26.picture-input>). Picking a file
- * opens the dialog: Cropper.js draws a rectangle of the declared shape
- * over the picture, opening at the largest window the picture holds,
- * dragged and resized by its handles. Confirming draws the chosen
- * window to a canvas and puts the result back on the input — so the
- * form's own save sends exactly what the dialog showed. Leaving the
- * dialog any other way clears the pick.
+ * Confirmation replaces the selected file with the cropped JPEG. Forms marked
+ * with data-crop-submit save from the dialog and display validation errors
+ * there.
+ * Cancelling an unconfirmed crop clears the file input.
  *
- * On a form that is the picture's own, confirming also saves, and the
- * dialog stays open until that lands: the reader watches the button
- * work, a picture the server would not take is refused in the dialog
- * on the same rectangle they can send again, and only a save that
- * landed closes it. A refusal read on a page nobody sees is a refusal
- * nobody gets.
- *
- * Without this script — or without Cropper.js beside it — the input is
- * an ordinary file box and the server centre-crops to the same ratio
- * (n26/core/images.py). The server does that to every upload
- * regardless: the dialog picks the window, it is not trusted with the
- * rules.
+ * The server still validates, resizes and centre-crops every upload in
+ * n26/core/images.py, including uploads made without this script or
+ * Cropper.js.
  */
 (function () {
     function wire(input) {
-        // Wiring runs again over a region redrawn in place; an element
-        // already carrying its listeners must not gain a second set.
+        // Partial page updates can call wire again on an input that already has listeners.
         if (input.dataset.cropWired) return;
         input.dataset.cropWired = "1";
         var box = input.closest(".n26-picture-input");
@@ -35,15 +22,10 @@
 
         var parts = (input.dataset.crop || "1:1").split(":");
         var ratio = parseFloat(parts[0]) / parseFloat(parts[1]);
-        // A malformed shape declaration falls back to square rather
-        // than an unconstrained rectangle nobody asked for.
+
         if (!isFinite(ratio) || ratio <= 0) ratio = 1;
 
-        // The stored picture's long side, stated on the input by the
-        // server (n26/core/images.py). Encoding bigger than the server
-        // will keep only fattens the upload; without a declared cap the
-        // canvas is the crop at its natural size, and the server still
-        // brings it to shape.
+        // Limit the canvas to the server's maximum stored image size to avoid uploading pixels it will discard.
         var cap = parseInt(input.dataset.cropMax || "", 10);
         if (!isFinite(cap) || cap <= 0) cap = undefined;
 
@@ -56,9 +38,7 @@
         var name = "";
         var confirmed = false;
 
-        // With the script driving, confirming the crop is the save —
-        // the form's own submit control is the scriptless path, and
-        // showing both would offer the same act twice.
+        // The crop confirmation submits picture-only forms, so hide their fallback submit button.
         if ("cropSubmit" in input.dataset && input.form) {
             var fallback = input.form.querySelector("[data-crop-fallback]");
             if (fallback) fallback.hidden = true;
@@ -75,13 +55,10 @@
             }
         }
 
-        /* The dialog while its save is in flight.
-         *
-         * The busy state is the design library's, set here rather than by
-         * n26/busy.js: this save is a background post from a plain button,
-         * which is none of the three things that script watches. Both controls
-         * are shut for the duration — the save cannot be sent twice, and
-         * leaving halfway would strand a post nothing is waiting for. */
+        /*
+         * This fetch bypasses busy.js. Disable both buttons until it finishes
+         * to prevent duplicate saves or cancellation during a save.
+         */
         function working(on) {
             if (on) {
                 confirm.setAttribute("data-busy", "on");
@@ -94,9 +71,10 @@
             cancel.disabled = on;
         }
 
-        /* What the server said, at one level, from a page fetched rather than
-         * drawn. Alerts state their level in data-message
-         * (n26/includes/messages.html). */
+        /*
+         * Read messages from the fetched page using the levels rendered by
+         * n26/includes/messages.html.
+         */
         function saidAt(page, level) {
             var found = [];
             page.querySelectorAll('[data-message="' + level + '"]').forEach(
@@ -114,13 +92,10 @@
             if (problemText) problemText.textContent = "";
         }
 
-        /* A refusal, shown where the reader is standing.
-         *
-         * The dialog stays open on the same rectangle, so the answer to a
-         * picture the server would not take is to choose again and send
-         * again. The pick stops counting as confirmed, so leaving now clears
-         * it: nothing was stored, and a file left on the input would ride the
-         * next save of any other field on the page. */
+        /*
+         * Keep the crop open for correction. Mark it unconfirmed so
+         * cancellation clears a file the server has rejected.
+         */
         function refuse(said) {
             confirmed = false;
             working(false);
@@ -129,8 +104,10 @@
             problem.hidden = false;
         }
 
-        /* Said out loud on the page the reader stays on, since the page the
-         * server said it on is one nobody sees. */
+        /*
+         * The fetched response is not displayed, so announce its success
+         * messages on the current page.
+         */
         function announce(said) {
             window.dispatchEvent(
                 new CustomEvent("toast", {
@@ -145,19 +122,14 @@
             settle();
             name = file.name;
             confirmed = false;
-            // createObjectURL only ever mints blob: addresses; the
-            // guard states that where a checker can see it, so nothing
-            // file-derived reaches the src as anything else.
+            // Keep the file preview restricted to blob URLs.
             var address = URL.createObjectURL(file);
             if (!address.startsWith("blob:")) return;
             picture.src = address;
             dialog.showModal();
             cropper = new Cropper(picture, {
                 aspectRatio: ratio,
-                // The rectangle opens at the largest window the picture
-                // holds, and can only be dragged and resized: the
-                // picture itself never moves, zooms, or rotates, so
-                // what the reader sees is the file as it is.
+                // Allow selection and resizing of the crop rectangle without transforming the source image.
                 viewMode: 1,
                 autoCropArea: 1,
                 dragMode: "none",
@@ -171,8 +143,7 @@
 
         confirm.addEventListener("click", function () {
             if (!cropper) return;
-            // One encoding, on confirm — dragging only ever moves the
-            // rectangle, so there is no stale result to race it.
+            // Encode only on confirmation so dragging cannot leave an outdated encoding pending.
             forget();
             working(true);
             cropper
@@ -194,10 +165,7 @@
                             input.files = transfer.files;
                             confirmed = true;
                         }
-                        // A form that is the picture's own saves from
-                        // here, with the dialog still open: a refusal is
-                        // read where the reader is standing, and the
-                        // dialog closes on a save that landed.
+                        // Keep picture-only forms open until saving succeeds so validation errors appear in the dialog.
                         if (
                             confirmed &&
                             "cropSubmit" in input.dataset &&
@@ -218,35 +186,21 @@
             dialog.close();
         });
 
-        // However the dialog was left — Cancel, Esc, anything but the
-        // confirm — an unconfirmed pick is cleared rather than sent
-        // uncropped behind the reader's back.
+        // Clear unconfirmed files on every dismissal path so a later form submission cannot upload the uncropped file.
         dialog.addEventListener("close", function () {
             if (!confirmed) input.value = "";
             forget();
             settle();
         });
 
-        /* Post the picture form from the open dialog and redraw its box in
-         * place, so the save does not move the reader's place on the page.
+        /*
+         * Save and replace the picture box without navigating. Close its
+         * dialog before replacement to release the cropper and object URL.
          *
-         * The response is the page the plain submit would have landed on, and
-         * it is read twice: for what the server said, and for the picture box
-         * to put in place of this one. A page fetched in the background is the
-         * only copy of those words — reading it is what marks them read — so a
-         * refusal shown in the dialog and a save said in a toast are the
-         * difference between an answer and silence.
-         *
-         * A save that landed closes the dialog before the box is swapped: the
-         * dialog stands inside that box, and replacing it while open would
-         * take a modal off the page without ever closing it, leaving the
-         * picture it was showing held in memory.
-         *
-         * Anything unexpected — no marker on either side, a bad status, the
-         * network — falls back to the plain submit, which is the same act with
-         * a page load. A refusal the server put into words is not that: it has
-         * somewhere to be read, and repeating the post would only earn it
-         * again. */
+         * Display validation errors in place; retrying them would repeat the
+         * same rejected save. Fall back to native submission on unexpected
+         * responses or network errors.
+         */
         function save(form) {
             var here = form.closest("[data-picture-box]");
             if (!here || typeof DOMParser === "undefined") {
@@ -273,8 +227,7 @@
                         return;
                     }
                     var fresh = page.querySelector("[data-picture-box]");
-                    // Saved, but the page holds no box to swap: a reload
-                    // shows what landed rather than posting it again.
+                    // The save succeeded; reload to display it without repeating the POST.
                     if (!fresh) {
                         window.location.reload();
                         return;
