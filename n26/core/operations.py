@@ -1174,10 +1174,10 @@ class Operation:
         return self._write_prose(miniature, "notes", notes, LedgerEvent.Kind.NOTED)
 
     def append_note(self, miniature, paragraph, note=""):
-        """Append an escaped HTML paragraph to the model's notes.
+        """Append an HTML paragraph already escaped by the caller to the model's notes.
 
-        The caller escapes the paragraph. The journal records ``note`` as the
-        reason for the change without copying the paragraph.
+        The journal records ``note`` as the reason for the change without
+        copying the paragraph.
         """
         miniature.refresh_from_db(fields=["notes"])
         miniature.notes = f"{miniature.notes}{paragraph}"
