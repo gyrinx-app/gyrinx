@@ -2,7 +2,8 @@
 
 Production uses PubSubBackend. This backend supports three modes:
 
-* eager runs inline during enqueue and is the test default.
+* eager normally runs inline and is the test default. Write pauses defer
+  registered tasks to the durable queue.
 * worker persists QueuedTask records for daemon threads, with leases, retries,
   backoff and optional fault injection.
 * manual persists records for explicit delivery by gyrinx.tasks.testing.
