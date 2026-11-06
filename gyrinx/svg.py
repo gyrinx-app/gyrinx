@@ -1,35 +1,18 @@
-"""Sanitisation for stored SVG artwork that is drawn inline.
+"""Sanitise stored SVG artwork before rendering it inline.
 
-Platform-owned rather than an edition's: what is safe to put in a page is a
-property of SVG and of the browser, not of any one game's content model. Both
-editions store small pieces of artwork somebody typed or uploaded, and two
-allowlists that drift apart is the one outcome nobody wants from a security
-boundary.
+Both editions use this allowlist to remove scripts, event handlers, foreign
+content and external references. Sanitise at rendering so policy changes
+apply to existing uploads. Callers cache results using their source identity.
 
-Stored SVGs are untrusted: they can carry ``<script>`` elements, ``on*`` event
-handlers, ``<foreignObject>`` HTML payloads and ``javascript:`` URLs. Artwork
-that is drawn *inline* — so ``fill: currentColor`` can match the surrounding
-text colour — cannot lean on the browser treating it as an opaque ``<img>``, so
-the markup goes through an explicit SVG allowlist before it is ever marked safe.
-
-Sanitisation runs at render time, not at save time, so tightening the allowlist
-later re-secures content that is already stored. Callers cache the result; this
-module does not, because what makes a good cache key depends on where the
-markup came from.
-
-Implementation note: ``bleach`` produces correctly-cased SVG markup (it
-preserves ``viewBox`` and other camelCase attributes), so we keep its output
-verbatim and only rewrite the root ``<svg>`` *start tag* via a bounded regex.
-We avoid round-tripping through BeautifulSoup's ``html.parser``, which would
-lowercase ``viewBox`` and the gradient/clipPath attributes and corrupt the icon.
+Keep bleach's correctly cased SVG output and rewrite only the root start tag.
+HTML parser round-trips would lowercase viewBox and other SVG attributes.
 """
 
 import re
 
 import bleach
 
-# Only structural/presentational SVG elements. Notably excludes <script>,
-# <style>, <foreignObject>, <a> and anything that can execute or embed HTML.
+# Allow structural and presentation elements; exclude executable and embedded HTML content.
 SVG_ALLOWED_TAGS = {
     "svg",
     "g",
@@ -67,13 +50,8 @@ def _use_attr_allowed(tag, name, value):
     return name in _USE_ALLOWED_ATTRS
 
 
-# Geometry/presentation attributes only. bleach drops any attribute not listed
-# here, which removes every ``on*`` event handler. ``style`` is deliberately
-# omitted to avoid a CSS attack surface — icons colour themselves via fill.
-# ``id`` is allowed so internal references resolve (``<use href="#x">``,
-# ``fill="url(#grad)"``, clipPath/mask targets); without it those refs would
-# silently break. Ids from different icons can collide in the DOM, which is a
-# cosmetic risk accepted for monochrome artwork of this size.
+# Exclude event handlers and style attributes. Keep IDs for local use, paint, clipPath
+# and mask references; IDs in separate inline icons may still collide.
 _PRESENTATION_ATTRS = [
     "id",
     "fill",
@@ -90,8 +68,7 @@ _PRESENTATION_ATTRS = [
     "opacity",
     "transform",
     "class",
-    # Pixel art needs "crispEdges" to survive, or the browser antialiases every
-    # edge and a 24x24 drawing turns to mush. Purely a rendering hint.
+    # Preserve crispEdges so the browser does not blur pixel artwork.
     "shape-rendering",
 ]
 
@@ -124,25 +101,18 @@ _SVG_START_TAG_RE = re.compile(r"<svg\b([^>]*)>", re.IGNORECASE)
 _ATTR_RE = re.compile(r'([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*"([^"]*)"')
 _SVG_NS = "http://www.w3.org/2000/svg"
 
-# bleach's strip=True removes the <script>/<style> *tags* but keeps their text
-# content (inert, but ugly). Drop those elements wholesale before sanitising.
+# Remove script and style contents before bleach, which otherwise retains their text.
 _SCRIPT_STYLE_RE = re.compile(
     r"<(script|style|foreignObject)\b.*?</\1>", re.IGNORECASE | re.DOTALL
 )
 
-# Rewrite explicit solid fill/stroke colours to currentColor so the icon matches
-# the surrounding text colour (the feature's core requirement). Without this, a
-# child element's hardcoded ``fill="#000000"`` would override the root's
-# currentColor and the icon would render in its baked-in colour.
+# Recolour child fills and strokes because they override the root currentColor.
 _COLOR_ATTR_RE = re.compile(r'\b(fill|stroke)\s*=\s*"([^"]*)"', re.IGNORECASE)
 
-# What a fill/stroke may look like once we agree to keep it. Deliberately narrow:
-# hex, rgb()/hsl() functions, and the CSS colour keywords are all covered by
-# these characters, and nothing here can close an attribute or open a tag.
+# Restrict preserved colours to characters that cannot close attributes or open tags.
 _COLOR_VALUE_RE = re.compile(r"^[#a-zA-Z0-9(),.%\s/-]+$")
 
-# The rendering hints SVG defines. An allowlist rather than a pattern because
-# the value is written straight back into the root tag.
+# Validate rendering hints before writing them into the rebuilt root tag.
 _SHAPE_RENDERING_VALUES = {
     "auto",
     "optimizespeed",
@@ -172,12 +142,9 @@ def _normalise_color(match):
 
 
 def _keep_color(match):
-    """Colour-preserving counterpart to ``_normalise_color``.
+    """Preserve allowed colour values and local paint references.
 
-    Concrete colours stay exactly as the artist drew them. Only two things are
-    rewritten: an external paint reference, and anything whose value does not
-    look like a colour at all — both become ``currentColor``, so the artwork
-    still draws rather than vanishing.
+    Replace external references and invalid colour values with currentColor.
     """
     value = match.group(2).strip()
     lowered = value.lower()
@@ -204,29 +171,17 @@ def sanitize_inline_svg(
     extra_classes: str = "",
     preserve_colour: bool = False,
 ) -> str:
-    """Return inline-safe SVG markup, or ``""`` if the input is unusable.
+    """Return sanitised inline SVG markup, or an empty string for unusable input.
 
-    Strips scripts/event handlers/foreign content via a bleach allowlist, then
-    normalises the root ``<svg>``: removes hardcoded ``width``/``height`` (so
-    CSS sizing wins), guarantees a ``viewBox`` for correct scaling, applies
-    ``fill="currentColor"`` so the icon matches surrounding text, and marks it
-    ``aria-hidden="true"`` — the artwork repeats a name the page already says.
+    Remove unsafe markup and root width and height. Retain a supplied viewBox
+    or derive one from intrinsic dimensions.
+    The root is aria-hidden because adjacent text supplies the accessible name.
+    By default colours become currentColor; preserve_colour retains valid badge
+    colours under the same attribute allowlist.
 
-    ``preserve_colour`` keeps the artwork's own palette instead of flattening it
-    to the surrounding text colour. Colour is not a security property — the
-    attribute allowlist is what holds the line, and ``style`` is not on it — so
-    this only changes how the drawing looks. Use it where the artwork *is* the
-    identity (a badge) rather than an icon that should read as text (a gang type
-    icon, which must recolour to match the heading it sits in).
-
-    ``root_class`` is the caller's own hook for styling the artwork it stores;
-    ``extra_classes`` is per-call. Both land on the root tag, which is rebuilt
-    from scratch, so nothing in the stored markup can override them.
-
-    An empty return means "draw nothing": the input was blank, was not an SVG
-    at all, or could not be scaled reliably. Callers must render no markup in
-    that case rather than a placeholder — artwork nobody supplied should hold
-    no space.
+    root_class and extra_classes supply classes on the rebuilt root tag. Stored
+    classes cannot override them. Callers must omit artwork markup when the
+    result is empty.
     """
     if not raw:
         return ""
@@ -242,9 +197,7 @@ def sanitize_inline_svg(
         strip_comments=True,
     )
 
-    # Recolour concrete fills/strokes to currentColor so the whole icon takes the
-    # surrounding text colour (root fill alone doesn't cascade past child fills).
-    # With preserve_colour the palette stays, but external paint refs still go.
+    # Recolour child fills and strokes unless preserving the palette; always reject external paint references.
     cleaned = _COLOR_ATTR_RE.sub(
         _keep_color if preserve_colour else _normalise_color, cleaned
     )
@@ -255,15 +208,14 @@ def sanitize_inline_svg(
 
     attrs = dict(_ATTR_RE.findall(match.group(1)))
 
-    # Resolve a viewBox: keep the source's if present, else synthesise one from
-    # the intrinsic width/height so the icon still scales correctly.
+    # Use intrinsic dimensions when the source has no viewBox.
     view_box = _find_attr(attrs, "viewBox")
     if not view_box:
         try:
             w = float(str(_find_attr(attrs, "width")).replace("px", "").strip())
             h = float(str(_find_attr(attrs, "height")).replace("px", "").strip())
         except TypeError, ValueError:
-            # No usable intrinsic size and no viewBox — can't scale reliably.
+            # Without a viewBox or usable dimensions, the artwork cannot be scaled.
             return ""
         view_box = f"0 0 {w:g} {h:g}"
 
@@ -271,10 +223,7 @@ def sanitize_inline_svg(
 
     preserve = _find_attr(attrs, "preserveAspectRatio")
 
-    # The root tag is rebuilt, so anything on it that the artwork needs has to be
-    # carried across explicitly — being in the attribute allowlist only saves it
-    # on child elements. "crispEdges" lives on the root of every pixel-art
-    # drawing we have, which is why it kept disappearing.
+    # Preserve root rendering hints explicitly; the allowlist alone only retains child attributes.
     shape_rendering = _find_attr(attrs, "shape-rendering")
     if (
         shape_rendering
@@ -282,9 +231,7 @@ def sanitize_inline_svg(
     ):
         shape_rendering = None
 
-    # Root fill: normally currentColor so the icon reads as text. When the
-    # palette is being kept, the artwork's own root fill wins if it has one and
-    # it looks like a colour.
+    # Preserve a valid solid root fill only when retaining the palette.
     root_fill = "currentColor"
     if preserve_colour:
         source_fill = (_find_attr(attrs, "fill") or "").strip()
@@ -295,9 +242,7 @@ def sanitize_inline_svg(
         ):
             root_fill = source_fill
 
-    # Rebuild the root start tag with a curated attribute set. Width/height are
-    # intentionally dropped (CSS controls size); fill/class/role/aria are set
-    # here so the stored markup cannot override them.
+    # CSS controls size; rebuild classes and accessibility attributes independently of stored markup.
     parts = [
         f'xmlns="{_SVG_NS}"',
         f'viewBox="{view_box}"',
