@@ -123,7 +123,10 @@ export function EditHolding(
     useEffect(() => {
         if (!uncertain && !pending) return;
         const warn = (event: BeforeUnloadEvent) => {
-            if (unknownOutcome.current) event.preventDefault();
+            if (unknownOutcome.current) {
+                event.preventDefault();
+                event.returnValue = true;
+            }
         };
         window.addEventListener("beforeunload", warn);
         return () => window.removeEventListener("beforeunload", warn);
