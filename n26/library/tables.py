@@ -1,32 +1,13 @@
-"""An asset table is given to every gang without an author's step.
+"""Distribute asset tables through campaign-type built-in sets.
 
-A table of one Holding asset type — the core rulebook's Territory
-Selection Table — is something every gang in a campaign of that type
-may roll on, and the way a campaign type gives anything to every gang
-that joins is its built-ins. So creating a table under a campaign type's
-asset type builds it into that type's built-in set, and deleting or
-archiving the table takes it out again, exactly as a possession is given
-(``n26.library.possessions``). The member is an ordinary
-``DefaultAssignment`` naming the table, so joining and catch-up
-propagation need nothing new, and the table draws no line anywhere.
+Tables in an asset type's pack use its campaign type as giver.
+Campaign-specific tables use that campaign's additions type, preventing
+shared types from distributing them to unrelated campaigns.
 
-Which campaign type gives a table follows the table's pack, by the rule
-possessions follow: a table in its asset type's own pack is given by
-that asset type's campaign type; a table an arbitrator writes into a
-campaign's own pack under a shared asset type is given by that
-campaign's additions type, so one campaign's table never reaches every
-campaign founded on the shared type.
-
-A table a modifier gives — a journal's House table, given by the Gang
-supertype pick — is that House's, not every gang's, and is never built
-in by the rule: ``is_granted`` tells the two apart, and both passes below
-leave a granted table alone.
-
-``authoring.create_asset_table`` applies the rule to live models and
-files the propagation pass. ``give_back`` puts an unarchived table back.
-``build_in_missing`` applies the rule to whatever is already there,
-written against the model classes it is handed so the seed and a data
-migration can run it on historical ones.
+Skip tables granted by modifiers, such as House-specific journal tables.
+Archiving removes future distribution; restoring revives the same membership
+to preserve provenance. ``build_in_missing`` accepts historical model classes
+and returns created memberships for the caller to propagate.
 """
 
 from django.apps import apps as live_models
@@ -38,10 +19,7 @@ from n26.library.possessions import _built_ins_of, giver_of
 
 
 def is_granted(table, apps):
-    """Whether a modifier gives this table — in which case it is one
-    House's and is not built into a campaign type. Written against the
-    classes handed in; a historical state from before a grant could name
-    a table has no such grant."""
+    """Detect modifier-granted tables, including historical states without table grants."""
     try:
         AddsAssignable = apps.get_model("library", "AddsAssignable")
         return AddsAssignable.objects.filter(asset_table=table).exists()
@@ -51,17 +29,10 @@ def is_granted(table, apps):
 
 @transaction.atomic
 def give_back(table):
-    """Give an unarchived table again, the mirror of the archive that
-    stopped it: gangs joining from here on are given it, and the gangs
-    that joined while it was archived catch up.
+    """Restore an unarchived table's built-in membership when eligible.
 
-    The archived membership is revived rather than replaced, for the
-    reason a possession's is: every copy already on a gang names that
-    membership as its provenance, and a fresh one would have the
-    catch-up pass hand those gangs a second copy. Where the membership
-    was deleted instead — nothing had come from it — a new one is added
-    through the authoring verb, which files the pass itself. Does
-    nothing where the table is already given.
+    Revive the archived membership to preserve provenance and avoid duplicate
+    catch-up grants. Create a new member when no archived one remains.
     """
     from n26.core.propagation import file_propagation_task
     from n26.library.authoring import add_built_in
@@ -84,18 +55,10 @@ def give_back(table):
 
 
 def build_in_missing(apps, campaign_type=None):
-    """Build every table into its giver's built-ins where no live member
-    names it, and return the members made.
+    """Return missing built-in table memberships created directly from the supplied models.
 
-    Idempotent: a table already given is left alone, so this can run over
-    a database that has some of it. Archived tables are skipped — an
-    archived table is one taken out on purpose — and so are tables a
-    modifier gives, which are one House's. ``campaign_type`` narrows to
-    the tables of one type's asset types, for the seed.
-
-    Members are written directly rather than through the authoring verb,
-    because the classes handed in may be historical ones; the caller
-    files whatever propagation the sets that changed are owed.
+    Skip archived tables, modifier-granted tables and existing live memberships.
+    Optionally limit to one campaign type. The caller schedules propagation.
     """
     AssetTable = apps.get_model("library", "AssetTable")
     DefaultAssignment = apps.get_model("library", "DefaultAssignment")
@@ -108,8 +71,7 @@ def build_in_missing(apps, campaign_type=None):
         tables = tables.filter(asset_type__campaign_type=campaign_type)
 
     made = []
-    # One instance per giver for the whole pass, so the first table to
-    # found a type's set is the only one that does.
+    # Reuse each campaign type instance so subsequent tables see its new built-in set.
     givers = {}
     for table in tables.order_by("name"):
         giver = giver_of(table, apps)

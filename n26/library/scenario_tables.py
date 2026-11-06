@@ -1,16 +1,12 @@
-"""The scenario generator's tables, each rolled on a D6: Deployment,
-Objective and Crew, then any number of side jobs, up to
-``SIDE_JOB_LIMIT``, each from a set of side jobs the reader picks.
+"""Define the scenario generator's D6 tables and side-job sets.
 
-These are game content, original to Gyrinx, and fixed: they ship with
-the code rather than being authored in the library's pages, so they are
-constants here. ``n26.core.scenarios`` reads them to roll, check and
-describe a scenario.
+``n26.core.scenarios`` rolls and validates Deployment, Objective, Crew and
+up to ``SIDE_JOB_LIMIT`` side jobs. This original game content is stored as
+constants rather than authored through the library.
 
-Each table's ``key``, each side job set's ``key`` and each entry's
-``roll`` are what links and saved battles name, so they must not change.
-Names and text can be revised; a battle shows its entries as they read
-now. Text between asterisks, ``*like this*``, is drawn in bold.
+Table keys, side-job-set keys and roll values are stored in links and battles
+and must remain stable. Display names and text can change; saved battles
+render current text. Asterisks mark bold text.
 """
 
 import re
@@ -53,10 +49,10 @@ _BOLD = re.compile(r"\*([^*]+)\*")
 
 @dataclass(frozen=True)
 class ScenarioTable:
-    """One table. ``key`` is what URLs and stored battles use; ``name`` is
-    what a reader sees. A side job in a scenario is drawn from a table for
-    its place, "Side job 2", whose ``side_job_set`` is the set it came
-    from."""
+    """A scenario table with a stable stored key and a display name.
+
+    A side-job instance also identifies its source set and numbered position.
+    """
 
     key: str
     name: str
@@ -449,9 +445,10 @@ SIDE_JOB_LIMIT = 6
 
 
 def side_job_key(place):
-    """The key a scenario's side job is stored under, by its place from 1:
-    "side_job" for the first, as before there could be more, then
-    "side_job_2" and on."""
+    """Return the stored key for a one-based side-job position.
+
+    The first uses ``side_job`` for compatibility; later keys include the number.
+    """
     return "side_job" if place == 1 else f"side_job_{place}"
 
 

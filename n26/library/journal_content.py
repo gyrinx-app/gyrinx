@@ -1,33 +1,13 @@
-"""The Underhive Journal territories — House of Chains, Blades and Iron.
+"""Seed journal territories and House-specific D6 tables as staged system content.
 
-Each journal adds a D6 table of six Territories that a gang of its House
-may roll its starting Territory on (design/house-and-territory-tables.md).
-Every Territory has its baseline income figure. Additional boons and
-battlefield effects are not seeded.
+Create six territories for each of Goliath, Escher and Orlock with baseline
+Income, plus one table per House. Grant each table through the matching
+Gang supertype pick so Clan House Outcast gangs also receive it.
 
-What the seed writes, all in the system pack and all ``staged`` until an
-author puts it live:
-
-* Eighteen ``Asset`` rows under the Territory asset type of the Territory
-  campaign type, each with its income as an Income contribution
-  (``n26/library/income.py``).
-* Three ``AssetTable`` rows, Goliath, Escher and Orlock Territories, a
-  D6 each with six entries on bands 1–1 to 6–6 in the book's order. They
-  are House tables, not built into the campaign type: each is given by a
-  modifier on the matching Gang supertype pickable
-  (``n26/library/gang_supertypes.py``) — the gang alone gains the table —
-  so every gang of that House holds it, Clan House Outcasts included, and
-  no other gang does until an arbitrator opens it. The supertype
-  pickables are markers that carry no boon logic; a table grant is how a
-  House table reaches its gangs, and is the one modifier they carry.
-
-Missing content is matched on its natural key. The maintenance run also
-removes the known seeded House Controlled modifiers and unused placeholder
-rules. Modified or reused content is retained and reported; protected rule
-references, including player assignments, are preserved. Names and numbers
-are the book's; nothing else is. Written through the authoring verbs, so it
-runs on live model classes only: as a maintenance operation after a deploy,
-never from a migration.
+Match natural keys and retain authored content. Maintenance removes only
+known seeded Controlled modifiers and unused placeholder rules; preserve
+modified, shared and protected content. Use live authoring functions after
+deployment rather than historical migrations.
 """
 
 from dataclasses import dataclass
@@ -274,14 +254,10 @@ def _remove_seeded_boons(pack, territory, picks, income):
 
 
 def seed_journal_content():
-    """Create missing journal territories and tables,
-    remove known seeded Controlled boons, and report changes and skips.
+    """Create missing journal territories and tables and remove recognised placeholder boons.
 
-    The Territory campaign type and the Gang supertype are created first
-    where they are missing, so this runs on a fresh database as readily
-    as on one that has them; their lines are returned too. A House whose
-    supertype pickable cannot be found still gets its territories and
-    table, but no grant, and is named on the record.
+    Seed prerequisite campaign content and supertypes first. Report a missing
+    House marker while retaining its newly created table and territories.
     """
     from n26.library.authoring import (
         add_asset_table_entry,
@@ -322,9 +298,8 @@ def seed_journal_content():
             pack=pack, name__iexact=table_name, qualifier=""
         ).first()
         if table is None:
-            # Written directly rather than through create_asset_table,
-            # which builds a table into its campaign type: this one is
-            # the House's, given by the pick below.
+            # Create the table directly: create_asset_table would attach it to the
+            # campaign type, but this table is granted by the House pick.
             table = AssetTable.objects.create(
                 name=table_name, asset_type=territory, dice=DICE, **staged
             )
@@ -392,10 +367,10 @@ class _RolledBack(Exception):
 
 
 def preview():
-    """What ``seed_all`` would do, without doing it: the seed runs inside
-    a transaction that is rolled back, so the lines are exactly the run's
-    own and nothing is written — not even the propagation filings, whose
-    messages publish only on commit."""
+    """Run the seed in a rolled-back transaction and return its exact report.
+
+    Propagation messages publish on commit, so preview publishes none.
+    """
     try:
         # seed_all takes exclusive admission before any nested authoring guard.
         with transaction.atomic():

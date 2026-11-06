@@ -1,21 +1,10 @@
-"""The Territory Selection Table — the core rulebook's table of Territories.
+"""Seed the core Territory Selection Table and its D66 asset entries.
 
-The Territory campaign type deals in Territories, and the Arbitrator
-generates a campaign's Territories by rolling a D66 on one table of them.
-That table is content: an ``AssetTable`` of the Territory asset type in
-the system pack, with one entry per Territory claiming its band of
-rolls. Every Territory it names is an asset of that type; one the seed
-does not find is created with no income and no boons, for the content
-pass that follows to fill in. Creating the table builds it into the
-Territory campaign type by the rule every table follows
-(``n26/library/tables.py``), so every gang that joins a campaign of that
-type holds the table and may roll on it.
+Create missing territories with no income or boons. Build the table into
+the Territory campaign type so joining gangs receive it.
 
-Everything is matched on its natural key and left alone if it is already
-there, so this can run against a database that has some of it, and
-running it twice changes nothing the second time. Written against
-whatever model classes it is handed, so a migration can run it on
-historical ones.
+Match natural keys and preserve existing content. The functions accept
+historical model classes for migration use.
 """
 
 from django.conf import settings
@@ -53,18 +42,12 @@ ENTRIES = (
 
 
 def seed_territory_table(apps):
-    """Create what is missing of the Territory Selection Table, and return
-    ``(lines, made)``: one line per row created or skipped, so a caller
-    can say what happened, and the built-in members this run made, so a
-    caller can file the propagation those sets are owed.
+    """Create missing Territory table content and return ``(lines, made)``.
 
-    The Territory campaign type and its Territory asset type are created
-    first where they are missing (``seed_core_campaign``), so this runs on
-    a fresh database as readily as on one that has the type already. An
-    asset is matched on the columns its uniqueness is stated in — pack and
-    name — so a same-named asset already standing under another asset
-    type is found rather than collided with; its entry is skipped, and
-    the line says so, for a person to sort out.
+    ``lines`` reports each created or skipped record; ``made`` contains built-in
+    members requiring propagation. Seed the campaign and asset type first.
+    If a same-named asset belongs to another type, skip its entry and report it
+    instead of violating the pack-and-name uniqueness constraint.
     """
     lines = seed_core_campaign(apps)
     ContentPack = apps.get_model("library", "ContentPack")
