@@ -1,28 +1,12 @@
-"""The Chaos God conversion — both doors, one slot type.
+"""Convert two Chaos God choice offers into slots sharing one slot type and picklist.
 
-Today: two affiliation-labelled offers, both labelled "Chaos God", both
-landing on the gang. One is carried by a Hidden built into the Helot
-gang type; the other is carried by the Chaos Corrupted affiliation
-(the Variant pick, still an Affiliation until that system converts).
-The menu is four gods with no payload.
+One offer belongs to a Hidden carrier and one to an Affiliation carrier.
+Create separate qualified slots, replace their offers and rewrite live and
+archived choices on their existing anchors. Preserve source content and
+unrelated offers.
 
-After: a "Chaos God" slot type; the four gods as pickables; one
-picklist; two slot rows of that type, same list, one granted by each
-door; every stored god pick — live and archived — is re-said as a pick
-on its same anchor.
-
-Nothing is deleted. Chaos Corrupted stays an Affiliation. Emptied
-affiliation rows and the menu stay where they are. Other
-affiliation-labelled offers (Outcast, already slots; Variants; fossils)
-are other systems and are left standing.
-
-The system is found by structure, not by production names: live
-affiliation-labelled offers whose label casefolds to "chaos god", one
-carried by a Hidden alone, one carried by an Affiliation alone. A
-shared offer that is not solely carried is a refusal, not nothing_here.
-
-Production converts from the maintenance console, once, after the code
-deploys — see :mod:`n26.maintenance`.
+Identify offers by kind, case-insensitive label and exclusive carrier shape.
+Run through n26.maintenance.
 """
 
 from n26.library.conversion.affiliation import _affiliations_on, _qualifier_for
@@ -51,12 +35,7 @@ PROVEN = 15
 
 
 def _door_qualifier(carrier):
-    """What tells this door's slot apart from the other.
-
-    Two slots share the printed name, so they need distinct qualifiers.
-    The carrier's own name, unless that *is* the slot name — then the
-    carrier's kind, so authors are not shown “Chaos God — Chaos God”.
-    """
+    """Distinguish same-named slots using the carrier name, or its kind if names match."""
     if carrier.name.lower() == SLOT_NAME.lower():
         return type(carrier).__name__
     return carrier.name
@@ -69,10 +48,8 @@ def plan_chaos_god():
 
     problems = []
 
-    # Live Chaos God-labelled offers carried by something. A detached
-    # one is a fossil: carried by nothing, it does nothing on any page,
-    # and it is left where it lies. Offers wearing another label
-    # (Affiliation, Variant, Corruption) are other systems.
+    # Select live offers with this system's label and at least one carrier.
+    # Leave detached offers and differently labelled systems unchanged.
     carried = []
     for modifier in Modifier.objects.filter(
         offers_choice__isnull=False,
@@ -203,9 +180,8 @@ def plan_chaos_god():
         elif pick.caused_by_id not in door_anchors:
             problems.append(f"pick {pick.pk} does not hang from either Chaos God door")
 
-    # A live pick of an affiliation the menu does not offer, hanging from
-    # either door, would keep its line and lose its question when the
-    # offer is swapped. Refuse rather than strand it.
+    # Reject active choices absent from the source menu; replacing their offer
+    # would otherwise leave an assignment without its original choice.
     strays = (
         Assignment.objects.filter(
             affiliation__isnull=False,
@@ -371,8 +347,7 @@ def plan_chaos_god():
         system=SYSTEM,
         steps=tuple(steps),
         gang_ids=tuple(proven),
-        # Live gangs only: archived ones still have their picks rewritten,
-        # but a stale archived gang must not lock or refuse the write.
+        # Rewrite archived picks but exclude archived gangs from locking and reconciliation.
         holder_ids=tuple(sorted(live_holders, key=str)),
         reaches=len(live_holders),
         left_alone=len(spares),
