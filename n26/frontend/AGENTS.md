@@ -90,3 +90,5 @@ Retain unresolved input across reloads, scoped to actor and workflow. Restore
 the command key and business values using fresh page credentials; do not persist
 CSRF tokens. Test reauthentication, which rotates the token, before promising
 recovery from session expiry.
+`WorkflowPage` sets `data-busy="off"` so the shared busy-link handler cannot
+mutate React-owned controls or leave a cancelled navigation disabled.

@@ -652,6 +652,9 @@ editing and offer a retry of that save. A rejected retry does not resolve an
 earlier uncertain write. Warn before leaving during pending or uncertain saves;
 clear that warning before confirmed-success navigation. Do not mint another key
 and let the user submit edited values while the earlier write is unresolved.
+This also applies to structured validation or permission refusals on retry:
+they describe that request, not an earlier request's outcome. Only a confirmed
+matching success resolves an uncertain credits save.
 
 Keep unresolved command input in session storage, scoped to the actor and
 workflow, before sending the request. Restore it after reload with the same key
@@ -659,6 +662,11 @@ and business values, but use the fresh page's CSRF token. Do not persist session
 credentials or CSRF tokens. This allows recovery after signing in again, which
 rotates the CSRF secret. Clear recovery input after a confirmed result; if it
 cannot be retained, do not start a write that the page cannot safely recover.
+
+React workflow forms use `data-busy="off"` to opt out of the shared
+`n26/core/static/n26/busy.js` DOM mutations. React owns pending state, including
+links. If a reader cancels a navigation warning, the shared handler would
+otherwise leave the link disabled without a new page to clear it.
 
 The single-event receipt suits credits adjustments. A workflow producing several
 events must identify one durable command receipt and its canonical payload;

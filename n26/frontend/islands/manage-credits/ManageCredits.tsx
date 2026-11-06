@@ -169,9 +169,16 @@ export function ManageCredits(
             ) {
                 setErrors(data.errors);
                 setBalance(data.balance);
-                clearRecovery(props.recoveryKey);
-                unknownOutcome.current = false;
-                setUncertain(false);
+                if (uncertain) {
+                    unknownOutcome.current = true;
+                    setNotice(
+                        "The earlier save is still unconfirmed. Keep this form open until you can retry.",
+                    );
+                } else {
+                    clearRecovery(props.recoveryKey);
+                    unknownOutcome.current = false;
+                    setUncertain(false);
+                }
             } else {
                 throw new CommandError(
                     "The save could not be confirmed. Retry this save before making another change.",

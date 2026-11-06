@@ -273,3 +273,48 @@ test("does not send a save when its recovery payload cannot be retained", async 
     expect(fetch).not.toHaveBeenCalled();
     expect(screen.getByRole("spinbutton").matches(":disabled")).toBe(false);
 });
+
+test.each([422, 409])(
+    "a structured %s refusal cannot resolve an earlier uncertain save",
+    async (status) => {
+        vi.stubGlobal(
+            "fetch",
+            vi
+                .fn()
+                .mockRejectedValueOnce(new Error())
+                .mockResolvedValueOnce(
+                    json(
+                        {
+                            balance: 110,
+                            errors: {
+                                __all__: [
+                                    "You can no longer change this gang's credits.",
+                                ],
+                            },
+                        },
+                        status,
+                    ),
+                ),
+        );
+        render(
+            <ManageCredits
+                {...props}
+                values={{ ...props.values, amount: "10" }}
+            />,
+        );
+        await userEvent.click(screen.getByRole("button", { name: "Save" }));
+        await userEvent.click(
+            await screen.findByRole("button", { name: "Retry save" }),
+        );
+        await screen.findByText(/The earlier save is still unconfirmed/);
+        expect(screen.getByRole("spinbutton").matches(":disabled")).toBe(true);
+        expect(sessionStorage.getItem(props.recoveryKey)).toContain(
+            props.values.request_key,
+        );
+        expect(
+            screen
+                .getByRole("button", { name: "Retry save" })
+                .matches(":disabled"),
+        ).toBe(false);
+    },
+);

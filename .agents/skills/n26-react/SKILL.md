@@ -155,3 +155,6 @@ unresolved business input and its key before sending, scoped to actor and task;
 restore that input with a fresh CSRF token. Never retain credentials or an old
 CSRF token with the recovery payload. A reload instruction must not discard an
 unresolved command's identity.
+Keep an earlier uncertain save frozen after any rejected retry, including a
+structured form refusal. Opt workflow forms out of the shared busy-link handler
+with `data-busy="off"`; the React `WorkflowPage` adapter does this by default.

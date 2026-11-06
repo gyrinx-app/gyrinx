@@ -1382,7 +1382,7 @@ export function WorkflowPage({
     const recipe = cotton.workflowPage;
     const h = recipe.header;
     return (
-        <form {...form} className={recipe.root}>
+        <form {...form} data-busy="off" className={recipe.root}>
             <div className={h[0]}>
                 <div className={h[1]}>
                     <div className={h[2]}>{breadcrumb}</div>
