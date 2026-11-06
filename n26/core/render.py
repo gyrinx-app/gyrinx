@@ -1498,7 +1498,7 @@ class GangSheet:
     """Gang display data derived from ``GangCard`` and ``ComputedGang``.
 
     Include gang assignments, choices, counters, stash contents and member
-    cards. See ``design/gang-sheet.md`` for the read structures.
+    cards. See ``design/gang-sheet.md`` for the display structures.
     """
 
     name: str
