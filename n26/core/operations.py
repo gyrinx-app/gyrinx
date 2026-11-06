@@ -347,7 +347,7 @@ def _movement_note(moved, reason):
 
 
 class Operation:
-    """Track changed models and stashes for recomputation at settlement."""
+    """Track changed miniatures for recomputation at settlement."""
 
     #: Bound recursive model grants to reject cyclic content.
     MAX_STORED_EFFECT_DEPTH = 3
@@ -448,8 +448,8 @@ class Operation:
         if list_price is None:
             list_price = paid + discount
         if rating is None:
-            # Discounts reduce payment without reducing rating. Without a separate
-            # list price, payment determines both. Moving equipment retains this rating.
+            # Rating defaults to list_price, which defaults to paid + discount.
+            # Moving equipment retains this rating.
             rating = list_price
         if reason is None:
             reason = _reason_for(paid, caused_by)
@@ -1174,10 +1174,10 @@ class Operation:
         return self._write_prose(miniature, "notes", notes, LedgerEvent.Kind.NOTED)
 
     def append_note(self, miniature, paragraph, note=""):
-        """Append an escaped HTML paragraph to the model's notes.
+        """Append an HTML paragraph already escaped by the caller to the model's notes.
 
-        The caller escapes the paragraph. The journal records ``note`` as the
-        reason for the change without copying the paragraph.
+        The journal records ``note`` as the reason for the change without
+        copying the paragraph.
         """
         miniature.refresh_from_db(fields=["notes"])
         miniature.notes = f"{miniature.notes}{paragraph}"

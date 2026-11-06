@@ -284,7 +284,7 @@ class StatCell:
 
     @property
     def changed_by(self):
-        """Tooltip source names grouped as Name (xn), preserving individual changes."""
+        """Tooltip source names grouped as Name (xn), preserving repeated-source counts."""
         labels = []
         for change in self.modified_by:
             name = change.source or "a modifier"
@@ -1480,7 +1480,7 @@ class GangSheet:
     """Gang display data derived from ``GangCard`` and ``ComputedGang``.
 
     Include gang assignments, choices, counters, stash contents and member
-    cards. See ``design/gang-sheet.md`` for the read structures.
+    cards. See ``design/gang-sheet.md`` for the display structures.
     """
 
     name: str
