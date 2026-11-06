@@ -1,8 +1,7 @@
 {% load react %}
 {% comment %}
-One model's results in the post-battle editor. A change to a result, the
-final status or the equipment posts the form and swaps this fieldset for the
-server's copy (see post_battle_refresh.html), so the id must stay put.
+Keep this fieldset ID stable: changes to results, status or equipment replace it through
+post_battle_refresh.html.
 {% endcomment %}
 <fieldset id="result-{{ model.id }}"
           class="min-w-0 scroll-mt-24 border border-box-border bg-surface p-4 sm:p-5"
@@ -235,10 +234,8 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
                        value="{{ model.equipment }}">
                 <p class="text-sm text-muted">You can move equipment or mark it lost only when this model is dead or destroyed.</p>
                 {% comment %}
-                Without scripts the module is not redrawn when the status
-                changes, so the choice stays on offer. Posted after the hidden
-                field, its value is the one read; the report ignores it
-                unless the model ends dead.
+                The no-script choice follows the hidden field so its submitted value
+                wins. The report ignores it unless the model ends dead.
                 {% endcomment %}
                 <noscript>
                     {% include "n26/includes/post_battle_equipment.html" %}

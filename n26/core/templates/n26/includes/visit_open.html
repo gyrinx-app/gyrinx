@@ -1,15 +1,7 @@
 {% comment %}
-The gang's open Visit Trading Post action, said beside a model's founding
-allowance.
-
-Drawn only under the allowance block. A model with an allowance buys every
-list on the screen against it, so the gang's visit and the model's founding
-Trade Points are two pots at once and the page has to say which one a purchase
-comes off. Without an allowance the figure strip's TP already leads to the
-visit and this would say the same thing twice.
-
-Wants `visit_trade_points_left` (worked out in the view, so the figure is read
-once), `trade_points_href`, and `miniature` for the name in the sentence.
+Display the gang's open visit beside a model's founding allowance so their separate
+balances remain clear. Use the view's prepared visit_trade_points_left without another
+ledger query.
 {% endcomment %}
 <div class="self-start rounded-box border border-box-border p-3">
     <p class="text-sm font-medium text-ink-900 dark:text-ink-100">Trading Post visit</p>
