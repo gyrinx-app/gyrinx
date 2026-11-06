@@ -1,13 +1,5 @@
 {% extends "authoring/base.html" %}
-{% comment %}
-The question asked before a listing row is taken off, at an address of
-its own. A page rather than a prompt: it survives a reload, Back is a
-real answer, and it works with scripting switched off. Nothing here
-changes anything — the form's POST is the act.
-
-The first line says the one fact the row's Remove control cannot: what
-goes is this collection's row, never the thing it names.
-{% endcomment %}
+{# Remove only this collection membership; preserve the content and existing purchases. #}
 {% block head_title %}Remove {{ label }}{% endblock head_title %}
 {% block content %}
     <c-n26.form-page action="{% url 'authoring-entry-remove' thing.pk %}"

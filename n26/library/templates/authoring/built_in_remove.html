@@ -1,24 +1,7 @@
 {% extends "authoring/base.html" %}
 {% comment %}
-The question asked before a built-in is taken off, at an address of its
-own. A page rather than a prompt: it survives a reload, Back is a real
-answer, and it works with scripting switched off. Nothing here changes
-anything — the form's POST is the act, and following the link that leads
-here is not.
-
-The page exists to tell two acts apart. Beside a weapon's name, "remove"
-reads as one that deletes the weapon, and this one does not: it takes
-one line out of one set of defaults. So the heading names the set, the
-first thing said is what stays, and the act is worded as removal *from*
-somewhere rather than removal of something.
-
-Two further facts a reader cannot see from the row it was reached from,
-and both change what the act means: a set may be held by more than one
-thing, and a weapon takes its ammo lines with it.
-
-The act names only the direction it points. The heading above it has
-already named both the line and the set, and a label repeating the set's
-name runs the button off the end of the page.
+Remove one default membership, including its weapon-profile members where applicable.
+The content itself and copies already granted remain.
 {% endcomment %}
 {% block head_title %}Remove {{ label }}{% endblock head_title %}
 {% block content %}
@@ -42,15 +25,6 @@ name runs the button off the end of the page.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        {% comment %}
-        What is true, and only what is true. The membership goes and
-        nothing puts it back; the thing named is untouched, and so is
-        anything already carrying it — built-ins are given at the moment
-        of acquiring, and nothing retracts an assignment. The count of
-        what keeps it is said plainly rather than left as small print,
-        because adding and removing are not mirror images and an author
-        who has watched an addition travel will expect a removal to.
-        {% endcomment %}
         <c-ui.alert variant="info" title="The {{ kind_name }} is not deleted">
             {{ label }} stays in the library and on everything else that names it.
             What goes is this one line of {{ set_name }}.
@@ -97,11 +71,7 @@ name runs the button off the end of the page.
                         {% endfor %}
                     </tbody>
                 </c-ui.table>
-                {% comment %}
-                "Acquired" rather than "hired": a set may be held by a
-                fighter entry, which is hired, or by a piece of wargear,
-                which is bought, and the sentence has to be true of both.
-                {% endcomment %}
+                {# Use Acquired because defaults may belong to hired profiles or purchased equipment. #}
                 <c-ui.description>
                     Only what is acquired from here on.
                 </c-ui.description>
