@@ -1,17 +1,7 @@
 {% comment %}
-A weapon's name on the card, with the menu of what can happen to it —
-Add accessory, Sell and the rest. Expects `weapon` — an
-n26.render.WeaponLine — and reads `htmx` from the card's context, as the
-other kit menus on the card do.
-
-The held tier follows the name. An empty tier is not shown here; Edit
-keeps its Choose tier control beside the name.
-
-The asterisk after a two-slot weapon's name is the book's own mark
-(WeaponLine.slot_mark), drawn wherever the name is — the menu's label
-included, so a screen reader hears the same name a sighted reader sees.
-The name of a pet the weapon brought follows the tier
-(WeaponLine.brought_mark), as it does on a gear line.
+Render a WeaponLine name, equipment actions, held tier, slot mark and granting-pet mark.
+Include the same slot mark in accessible menu labels; empty tiers are omitted here while
+Edit retains its tier control.
 {% endcomment %}
 <span class="inline-flex flex-wrap items-center gap-1">
     <span class="min-w-0">{{ weapon.name }}{{ weapon.slot_mark }}{{ weapon.tier_mark }}{{ weapon.brought_mark }}</span>

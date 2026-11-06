@@ -1,17 +1,7 @@
 {% comment %}
-The partial update for an act on a model's card — rendered by
-n26.core.views.edit.render_card_update, never included by a page. The pattern
-these responses follow is documented in n26/core/views/htmx.py.
-
-The whole card, not the line that changed. Redrawing all of it is what keeps
-a tally honest where a value crosses a threshold: an effect conditioned on a
-counter can confer a rule, reveal a choice or shift a characteristic, and
-every one of those is drawn on this card. The boxes a player writes in sit
-under the card rather than inside it, so replacing it leaves their editors
-alone.
-
-The host is the one every per-model screen draws (model_card_host.html), so
-this lands on whichever of them the act came from.
+Partial response from n26.core.views.edit.render_card_update. Replace the whole model-
+card host because counter thresholds can affect rules, choices and stats; editors
+outside that host retain their content.
 {% endcomment %}
 {% include "n26/includes/model_card_host.html" with redrawn=True htmx=True %}
 {% if update_dismissed_choices %}
