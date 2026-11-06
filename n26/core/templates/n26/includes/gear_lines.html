@@ -1,10 +1,7 @@
 {% comment %}
-What sits under a gear heading on a model card, drawn one of two ways.
-
-Takes `lines`, `has_actions` and the card's `mode`. Edit actions need one line
-per assignment so each menu stays beside the name of the thing it changes.
-The gang sheet and print card keep the compact run. Non-tier choices still
-appear beneath it; an empty tier does not. Used by Gear and named gear rows.
+Use individual assignment lines when actions need per-assignment menus, and compact runs
+on sheets and prints. Preserve non-tier choices beneath the equipment while omitting
+empty tiers.
 {% endcomment %}
 {% if has_actions and mode == "edit" %}
     <ul class="flex flex-col gap-1">
