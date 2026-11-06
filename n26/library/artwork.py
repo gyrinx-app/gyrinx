@@ -1,15 +1,8 @@
-"""Where a gang type's icon lives — this edition's corner of the site's storage.
+"""Bind N26 artwork uploads to an edition-specific storage folder.
 
-The mechanism is the platform's (``gyrinx.artwork``): what an address is allowed
-to name, and how bytes come back from it, is a property of the site's storage
-rather than of this edition's content. What is edition-specific is only the
-folder uploads land in, which this module binds so no call site has to remember
-it.
-
-The rules that matter are stated where they are enforced. Two worth knowing from
-here: an address is resolved against this site's own storage and never fetched,
-so a pasted address cannot make the server reach anything; and the markup is
-cleaned at render (``n26.core.templatetags.artwork``), not on the way in.
+``gyrinx.artwork`` validates addresses and reads bytes from the site's own
+storage; it does not fetch arbitrary URLs. Rendering sanitises markup in
+``n26.core.templatetags.artwork``.
 """
 
 from gyrinx.artwork import (

@@ -187,52 +187,30 @@ class Assignable(models.Model):
         ),
     )
 
-    #: What attaching something of this kind asks for, beyond the pick:
-    #: the through row's columns that matter for this kind, keyed by the
-    #: through row's ``attachment_context`` (library/offers.py). The
-    #: kind's own knowledge — no form enumerates kinds by hand. The
-    #: default: anything purchasable may be repriced where a collection
-    #: lists it, and nothing extra when built in.
+    #: Additional attachment fields by through-model context; see library/offers.py.
+    #: Purchasable kinds accept catalogue price overrides and no extra built-in fields.
     ATTACHMENT_ASKS = {"entry": ("price_override", "trade_point_override")}
 
-    #: The model card's named row this kind's lines join — the card's own
-    #: vocabulary ("skills", "powers"), declared once here and read by
-    #: everything that files a line, a computed grant, or an open
-    #: question. None is the general run: lines draw as gear, questions
-    #: as rows of their own. Kinds a card draws some other way entirely —
-    #: a weapon block, a counter's cell — also say None and keep their
-    #: bespoke handling.
+    #: Card section used for assignments, grants and open choices of this kind.
+    #: None uses the general gear or choice layout, unless the kind has specialised
+    #: rendering such as a weapon block or counter cell.
     card_row = None
 
-    #: Whether assignments of this kind hang off a weapon's own
-    #: assignment — what makes "the weapon it's fitted to" a scope this
-    #: kind's modifiers can speak. The composer greys that scope on
-    #: everything else, with the reason on the card.
+    #: Whether this kind attaches to a weapon assignment and supports the
+    #: "the weapon it is fitted to" modifier scope.
     attaches_to_weapons = False
 
-    #: Whether a set of built-ins on this kind would ever come to
-    #: anything. A set is materialised when an assignment *arrives* — a
-    #: model hired, a gang founded, something bought — so a kind that
-    #: only ever arrives by being **chosen** runs nothing, and items
-    #: built into one would sit in the library unread. Such a kind says
-    #: False, and what it brings rides it as modifiers instead. The
-    #: authoring pages read this to decide whether to offer the
-    #: attachment at all, and ``add_built_in`` refuses one however it is
-    #: written.
+    #: Whether acquisition materialises this kind's built-in set.
+    #: Kinds acquired only by choosing use modifiers instead; authoring hides and
+    #: rejects built-in attachments for them.
     takes_built_ins = True
 
-    #: Whether the generic built-in picker offers this kind. A kind that
-    #: only means something beside one particular row of another kind —
-    #: a weapon's extra profile beside its gun — says False and is
-    #: attached from that row's own page instead, so the picker never
-    #: offers an act whose meaning it cannot ask for.
+    #: Whether the generic built-in picker can supply all required context.
+    #: Weapon profiles require a particular gun member and use its page instead.
     offered_as_built_in = True
 
-    #: Which kinds this kind's own built-in picker offers, by their
-    #: ``DefaultAssignment`` column names, the first being the default.
-    #: None offers every kind the picker has. A carrier nobody equips —
-    #: a campaign type — names the few that make sense for it, so its
-    #: form does not open on a weapon.
+    #: Allowed built-in kinds by DefaultAssignment field, with the first as default.
+    #: None permits every kind; campaign types restrict the list to campaign content.
     built_in_kinds = None
 
     class Meta:
@@ -253,11 +231,10 @@ class Assignable(models.Model):
 
     @property
     def built_in_members(self):
-        """What this always comes with, as the members of its built-ins
-        set — empty when it has none yet, so a page can list without
-        checking first. An archived member is one an author took off:
-        it no longer materialises, so no surface lists it, though what
-        it already granted keeps standing."""
+        """Return live built-in members, or an empty queryset when no set exists.
+
+        Archived members stop materialising but existing assignments remain.
+        """
         from n26.library.models.defaults import DefaultAssignment
 
         if self.built_ins_id is None:
@@ -368,12 +345,9 @@ class UsableBy(models.Model):
         return self.usable_by_selector().matches(fighter)
 
     def usable_by_words(self):
-        """Who is allowed, as a phrase — empty where anyone is.
+        """Describe use restrictions consistently for cards, listings and authoring pages.
 
-        The one place the three lists are read out for a reader, so a
-        note on a listing's line, a mark on a card and a row on an
-        authoring page name them the same way and in the same order.
-        Prefetch-aware, like the selector.
+        Return an empty phrase when unrestricted and reuse prefetched relations.
         """
         allowed = [
             *self.usable_by_profiles.all(),
@@ -516,28 +490,12 @@ class Optioned(models.Model):
         return taken
 
     def options_taken(self, recorded_sets):
-        """The options something was acquired with, in the offer's own order.
+        """Resolve recorded default-set identifiers to acquisition options in offer order.
 
-        ``recorded_sets`` is the ids of the sets recorded against it,
-        because a set is what materialises. Acquiring something records
-        every set it took, each pick-one group's head included, so what
-        comes back is what the thing actually has. Nothing is inferred
-        where nothing was recorded: something that arrived by another
-        road than a purchase — kit built into a profile, say — took no
-        options and had none materialised, and naming a group's head
-        would credit it with a weapon nobody ever gave it.
-
-        Groups offering no choice are left out, the same test the buying
-        screen makes: a pick-one set with a single option is taken
-        unasked, and naming it would tell a reader about a decision
-        nobody made.
-
-        Nothing stops two options bringing the same set, and a taking
-        records the set rather than the wording that reached it. Each
-        recorded set is therefore spent on the first option offering it,
-        exactly as ``resolve_selection`` spends what a player named — a
-        set taken once is named once, however many ways there were to
-        ask for it.
+        Do not infer choices when none were recorded, as built-in content does not
+        materialise acquisition options. Omit single-option groups because they offer
+        no choice. Consume each recorded set once when multiple options share it,
+        matching ``resolve_selection``.
         """
         unspent = set(recorded_sets)
         taken = []
@@ -813,16 +771,11 @@ class WeaponProfile(Content, Assignable, UsableBy):
     family = Family.GEAR
     attaches_to_weapons = True
 
-    #: A profile means nothing apart from its gun, so the generic
-    #: built-in picker never offers one cold: it is built in from a
-    #: weapon member's own row, where which gun it rides is already
-    #: settled.
+    #: Attach profiles through a specific weapon member rather than the generic picker.
     offered_as_built_in = False
 
-    #: Overrides the mixin's: most profiles have no name of their own.
-    #: The book prints the weapon's first line as the weapon — "Autogun"
-    #: — and names only the lines beneath it, "- warp round". A blank
-    #: name means this *is* the weapon's line.
+    #: A blank profile name identifies the weapon's own line; named profiles
+    #: identify ammunition or other additional lines.
     name = models.CharField(
         max_length=200,
         blank=True,
@@ -836,10 +789,8 @@ class WeaponProfile(Content, Assignable, UsableBy):
     weapon = models.ForeignKey(
         Weapon, on_delete=models.CASCADE, related_name="profiles"
     )
-    # ``price`` comes from the Assignable mixin — a weapon's first profile is
-    # free (0, the default); paid ammo prices its own row, as the book does.
-    # ``position`` overrides the mixin's: here it orders profiles within
-    # their weapon rather than within a category.
+    # The inherited price is zero for free profiles and the ammunition price otherwise.
+    # Position orders profiles within their weapon, independently of category ordering.
     position = models.PositiveIntegerField(default=0)
     traits = models.ManyToManyField(
         Trait,

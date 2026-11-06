@@ -1,35 +1,14 @@
-"""Campaign types and their assets — what a campaign is founded on.
+"""Define campaign types, asset types, assets and asset tables.
 
-A **campaign type** is to a campaign what a gang type is to a gang: the
-authored thing it is founded on. It holds a built-in set (what every
-member gang gets), campaign-wide modifiers, and its **asset types**, each
-of which lists the **assets** of that type. Shared types live in the
-system pack; an arbitrator's own additions to one campaign live in that
-campaign's own pack as a second campaign type layered on top. See
-design/campaign-assets.md.
+Campaign types supply joining built-ins, modifiers and asset types.
+Shared types use the system pack; campaign-specific additions use a separate
+type in that campaign's pack. Asset-type ownership distinguishes inherent
+assets assigned per gang from transferable holdings tracked by the campaign.
 
-An **asset type** is a row on the campaign type with a label and an
-ownership. The ownership is on the asset type rather than the asset
-because a whole class of asset behaves one way: a Settlement is a
-possession, owned separately by each gang that receives one; a Territory
-is a holding, kept by the campaign with one holder at a time.
-
-An **asset** is one entry in a campaign type's list of what it hands
-out, filed under one of the type's asset types — that is the whole of
-how it belongs to the campaign type, and it is authored on the campaign
-type's page. It is assignable so that a possession can be a built-in
-member and so that either ownership can carry modifiers for what having
-it does. An inherent asset with Give to every gang enabled is built into
-its campaign type when created, and taken out again when deleted or
-archived (``n26.library.possessions``). A holding is never
-assigned; the campaign's own record of the asset says who holds it.
-
-An **asset table** is a table of one Holding asset type's assets — the
-core rulebook's Territory Selection Table — with, on a rolled table, the
-band of rolls that lands on each entry. A gang may roll on any table it
-holds, so a table is assignable: built into its campaign type as it is
-created (``n26.library.tables``), given by a modifier, or built into a
-campaign's additions. It draws no line anywhere.
+Enabled inherent assets join their giver's built-ins on creation; archiving
+stops future distribution. Holding assets remain campaign records.
+Asset tables are assignable so gangs can receive roll access through
+built-ins or modifier grants. See design/campaign-assets.md.
 """
 
 from django.core.exceptions import ValidationError

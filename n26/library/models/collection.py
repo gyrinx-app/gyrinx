@@ -1,36 +1,15 @@
-"""Collections — views onto the assignables, with prices.
+"""Define collections of assignables and their effective offer prices.
 
-An equipment list, a trading post, later a hire list: a collection is a
-browsing surface, never a permission system. Operations do not consult
-collections; an entry merely *pre-fills* a purchase's price. The design is
-in design/collections.md.
+Collections provide browsing and price defaults, without constraining
+operations. Collection access comes from stored assignments or computed grants.
 
-Three things matter structurally:
+Explicit entries can independently override credit and trade-point prices.
+A reference-price correction does not change an explicit override.
+Entry use restrictions apply only to that listing and combine with item-wide
+restrictions; failed restrictions produce notes rather than blocking purchases.
 
-* **A collection is itself an assignable.** Having a list is an
-  assignment: the profile's own list arrives via its built-ins at hire,
-  the gang's shared list is a gang-hosted assignment, and a territory can
-  grant one computedly through an ordinary modifier. No parallel access
-  mechanism exists — a fighter's lists are read off their card.
-
-* **Entries override the reference price; they never replace it.** An
-  entry with neither override showing is just "this item, at what the
-  catalogue prints". The two overrides are independent — a list may
-  reprice credits without touching Trade Points, or vice versa. The
-  agreed consequence stands: a reference-price fix does not flow through
-  an override; each override is its own fact.
-
-* **An entry may narrow who the list offers the item to.** The books
-  print restrictions per list — a Goliath list's "Heavy rock saw
-  (Forge-born only)", where two other gangs list the same saw plainly —
-  so that fact belongs to the offer. The item's own ``UsableBy`` stays
-  for what is true of it wherever it appears; a fighter must satisfy
-  both, and failing either is noted, never refused.
-
-``price_of`` is the one effective-price function, used by curated
-collections (entry override → reference) and derived ones (reference
-alone: the default Trading Post has no entries at all) — one function,
-so the two species cannot drift.
+``price_of`` supplies shared effective pricing for entries and sweeps.
+See design/collections.md.
 """
 
 from dataclasses import dataclass
@@ -123,35 +102,19 @@ def price_of(assignable, entry=None):
     )
 
 
-#: Where a browse hangs a weapon's buyable profiles. One attribute name
-#: for both species of collection, so a curated list and a sweep cannot
-#: come to disagree about what rides under a gun.
+#: Shared attribute for buyable weapon profiles loaded by curated and swept catalogues.
 TRADEABLE_PROFILES = "tradeable_profiles"
 
 
 def paid_profiles(
     with_trade_point_price=False, *, include_staged=False, for_use_notes=False
 ):
-    """A weapon's named, paid profiles — the lines a listing prints under
-    the gun.
+    """Select named, paid profiles for display beneath weapons.
 
-    Named, because a blank profile is the weapon's own rather than an
-    alternative to it. Paid, because a free profile already rides
-    along with the weapon wherever it goes: listing one would put the
-    same ammo on the gun twice.
-
-    ``with_trade_point_price`` narrows to what a trading trip deals in —
-    membership at a Trading Post is having a TP price, and a sweep that
-    said so means it of the ammo as well as of the gun.
-
-    ``for_use_notes`` loads each profile's use lists with it, so noting a
-    round under a gun costs no query per round — the same prefetch the
-    gun itself gets on a surface that notes. Off, a listing that never
-    notes pays nothing for lists it will not read.
-
-    Archived lines are left out, as archived content is off every discovery
-    surface; staged lines are left out unless ``include_staged``: a round an
-    author has not put live is not on the listing under a gun that is.
+    Unnamed and free profiles belong to the weapon's standard grant.
+    ``with_trade_point_price`` limits profiles to Trading Post offers.
+    ``for_use_notes`` prefetches restrictions only when the listing displays them.
+    Exclude archived content and include staged content only when requested.
     """
     from n26.library.models.assignable import WeaponProfile
 
@@ -671,13 +634,8 @@ class CollectionEntry(NamesAnAssignable, Content, UsableBy):
         help_text="This list's TP price. Blank means at reference price.",
     )
 
-    # The four use lists come from ``UsableBy`` and are read by its own
-    # reader; the words are restated here because these columns say
-    # something the mixin's do not. On an item they are the bracket the
-    # book prints after its name, true of it everywhere. On an entry
-    # they are one list's own narrowing of one line, and the labels say
-    # "offered to" so that an author reading a listing's row cannot
-    # mistake the two.
+    # These UsableBy fields restrict this catalogue entry only.
+    # Override labels and help to distinguish them from item-wide restrictions.
     usable_by_profile_types = models.ManyToManyField(
         "library.ProfileType",
         blank=True,
