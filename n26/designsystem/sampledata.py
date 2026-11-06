@@ -205,7 +205,7 @@ class _Label:
 @dataclass(frozen=True)
 class _Stock:
     """Minimal library assignable with category and content identity. Catalogue field names
-    require distinct model labels and keys.
+    require a unique combination of model label and primary key.
     """
 
     name: str
@@ -340,8 +340,8 @@ OFFERED = {
         ),
         ("one-or-none", [("Smoke dispenser", 20)]),
     ],
-    #: A second optioned mount remains unowned so the gallery shows both purchase
-    #: controls and previously selected options.
+    #: The owned Ridge-runner shows selected options; the unowned Grav-cutter
+    #: shows purchase controls.
     "Ridge-runner": [
         (
             "one",
