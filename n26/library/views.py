@@ -2061,9 +2061,7 @@ def _prose_addresses(prose):
 #: this the page never names the type at all.
 DETAIL_PARENTS = {
     "picklist": ("slot-type", "slot_type"),
-    # The same fact on the other two pages of the family: slot_type is
-    # settled when the thing is made and dropped from the edit form, so
-    # the breadcrumb is where a reader learns it.
+    # Show the fixed slot type in breadcrumbs because editing omits that field.
     "pickable": ("slot-type", "slot_type"),
     "slot": ("slot-type", "slot_type"),
     # An asset is filed under the campaign type whose asset type it is one
@@ -2149,26 +2147,11 @@ def _related_sections(kind, thing):
 
 @staff_member_required
 def detail(request, kind, pk):
-    """One thing, and the parts added to it over time.
+    """Edit content, its parts, built-ins and modifiers through spec-generated forms.
 
-    The shape everything above the leaves needs: a weapon and its
-    profiles today; a collection and its sections, a carrier and its
-    modifiers, next. The part form is spec-generated like any other,
-    and where the part carries a statline the page composes one beside
-    it — that form's fields come from the owner's statline type, which
-    no spec can know. A thing that carries a statline of its own gets
-    the same form inside its edit form, so a fighter's characteristics
-    are typed where its name and price are.
-
-    A page may carry more than one section of parts: a weapon has
-    profiles of its own *and*, like every assignable, can come with
-    things.
-    Each section says which it is, so a post reaches the form that was
-    clicked; the one saying nothing is the kind's own.
-
-    Kinds in ``DETAIL_VIEWS`` have a page of their own shape instead —
-    a collection's page previews what its definition means right now,
-    and draws none of these sections.
+    Each POST identifies its section. Statline fields are generated separately
+    from the owner's statline type. ``DETAIL_VIEWS`` routes specialised kinds
+    to their dedicated pages.
     """
     own_view = DETAIL_VIEWS.get(kind)
     if own_view is not None:
@@ -2181,7 +2164,7 @@ def detail(request, kind, pk):
 
     composer = None
     act = request.POST.get("act", "")
-    # Before the modifier acts, which take any act they do not recognise.
+    # Route staging before the modifier dispatcher, which accepts unknown actions.
     if request.method == "POST" and act in STAGING_ACTS and stageable(model):
         return _staging_action(
             request, thing, act, reverse("authoring-detail", args=[kind, pk])
@@ -2195,8 +2178,7 @@ def detail(request, kind, pk):
             return where(thing)
         return reverse(where, args=[thing.pk]) if where else ""
 
-    # A section whose add form lives elsewhere has no form here to post
-    # to, so it is not a candidate however the act reads.
+    # Exclude sections whose creation forms are hosted on another page.
     posted_to = next(
         (
             one
@@ -2376,10 +2358,7 @@ def detail(request, kind, pk):
                 ),
                 "parts_description": worded(section.get("parts_description", "")),
                 "nothing_yet": section.get("nothing_yet", ""),
-                # Said beside the add form, so an author knows how far
-                # the addition travels before committing it. Only the
-                # built-ins section: a new option founds a set nobody
-                # holds yet, so there is nothing to say there.
+                # Preview propagation beside built-in additions. New option sets have no existing holders.
                 "reach_said": (
                     _built_in_reach_said(thing)
                     if section.get("act") == "built_in"
@@ -2399,8 +2378,7 @@ def detail(request, kind, pk):
                 else None,
                 "form": form,
                 "statline_form": statline_form,
-                # Blank for a section adding its parts in a form here;
-                # the page then draws that form rather than a way out.
+                # An empty destination means render this section's local add form.
                 "add_url": elsewhere or "",
                 # A further way in for parts the form cannot offer —
                 # blank for every section that has none.
@@ -2502,9 +2480,7 @@ def _edit_part(request, kind, thing, sections):
 
 
 def _under_acts(sections):
-    """The acts the forms adding things under these sections' parts post,
-    keyed to the block each act adds to — empty where no section holds
-    things under its parts."""
+    """Map nested-part POST actions to their containing section blocks."""
     section = next((one for one in sections if one.get("under_each")), None)
     if section is None:
         return {}
@@ -2566,9 +2542,7 @@ def _under_part(under, part, added):
         form = added[1]
     else:
         form = _under_form(under, part)
-    # No article before the name: the name is a label an author typed,
-    # and the a/an rule only holds for the app's own words. The carrier's
-    # pk rides along so the partial that draws this needs nothing else.
+    # Use authored labels without an inferred article; include pk for the rendering partial.
     return {
         "act": under["act"],
         "part_pk": part.pk,
@@ -2622,7 +2596,7 @@ def _add_under_part(request, kind, thing, sections, under):
     return None, ((under["act"], str(part.pk)), form)
 
 
-#: The two acts a row's own page offers on whether players see it.
+#: Separate actions for staging and publishing existing content.
 STAGING_ACTS = ("stage", "put_live")
 
 
@@ -2667,10 +2641,7 @@ def staged(request):
             raise Http404("No such kind") from None
         if not issubclass(model, Content):
             raise Http404("No such kind")
-        # Only a staged row: this page lists staged rows and nothing else,
-        # so a live one named here is a stale page. A pk that is not a ULID
-        # raises out of the field rather than failing to match, and is the
-        # same bad link.
+        # Reject live content and malformed identifiers as stale or invalid staged-page links.
         try:
             row = get_object_or_404(
                 model.objects.outside_campaign_packs().filter(staged=True),
@@ -2779,11 +2750,9 @@ def _refuse_content_form(form, refused):
 
 
 def _modifier_action(request, kind, thing, act):
-    """One modifier action against a carrier: compose, attach, detach.
+    """Compose, attach or detach a modifier for a carrier.
 
-    Returns ``(response, composer)`` — a redirect when the action
-    landed, or ``(None, bound_form)`` when a compose refused and the
-    page should redraw with its errors in place.
+    Return a redirect on success, or ``(None, bound_form)`` for composition errors.
     """
     from n26.library import authoring
     from n26.library.forms import ModifierComposerForm
@@ -2868,19 +2837,10 @@ def _refuse_the_line(form, spec, refused):
 
 @staff_member_required
 def weapon_profile(request, pk):
-    """One weapon profile, on a page of its own.
+    """Edit a weapon profile using its creation spec and a characteristic form.
 
-    A weapon's page lists its lines and adds new ones; correcting one
-    happens here, where there is room for the whole of it — the name and
-    the price, the characteristics in their own boxes, and the traits as
-    a set. The form is the spec-generated one that *adds* a line, opened
-    on a line that already exists, so the two cannot come to ask for
-    different things.
-
-    Editing means something different by an empty box than adding does,
-    so the characteristics are written with every value the form drew,
-    blanks included: a line whose Strength was typed by mistake can be
-    emptied again.
+    Store every displayed characteristic, including cleared values, so an author
+    can remove a value entered by mistake.
     """
     from n26.library.models import WeaponProfile
     from n26.library.prose import prose_for
@@ -2923,8 +2883,7 @@ def weapon_profile(request, pk):
         request,
         "authoring/weapon_profile.html",
         {
-            # The bar stands in Weapons: a weapon profile has no listing of
-            # its own, and the weapon is where its reader came from.
+            # Weapon profiles use Weapons navigation because they have no listing of their own.
             "kind": "weapon",
             "thing": profile,
             "stageable": stageable(WeaponProfile),
@@ -3006,8 +2965,7 @@ def weapon_profile_add(request, pk):
         request,
         "authoring/weapon_profile_add.html",
         {
-            # The bar stands in Weapons, as the line's own page does:
-            # a weapon profile has no listing of its own.
+            # Weapon profiles use Weapons navigation because they have no listing of their own.
             "kind": "weapon",
             "weapon": weapon,
             "weapons_plural": str(weapon._meta.verbose_name_plural),
@@ -3071,12 +3029,7 @@ def weapon_profile_delete(request, pk):
 
 
 def _back_to(holders):
-    """Where the built-in page's way out leads.
-
-    The one thing holding the set when exactly one does, which is where
-    the reader came from. With several holders there is no single page
-    to return to, so the way out is the library's front door.
-    """
+    """Return to the default set's unique holder, or the library index if shared."""
     pages = [holder for holder in holders if holder["kind"]]
     if len(pages) == 1:
         return reverse("authoring-detail", args=[pages[0]["kind"], pages[0]["pk"]])
@@ -3085,18 +3038,10 @@ def _back_to(holders):
 
 @staff_member_required
 def built_in_remove(request, pk):
-    """The question asked before a built-in is taken off, at its own address.
+    """Confirm removal of a built-in membership and any anchored weapon profiles.
 
-    What goes is the *membership*. The weapon, skill or equipment list
-    named stays in the library and everything else holding it is
-    untouched — worth saying before anything happens, because a control
-    beside a weapon's name reads as one that deletes weapons.
-
-    A page rather than a control in the row, because two things decide
-    what the act means and neither can be read off the row: a set of
-    defaults may be held by more than one thing, and a gun takes its
-    ammo lines with it. GET asks and changes nothing; the POST from
-    this page is the act.
+    Preserve the referenced content and existing assignments. Show the affected
+    set and holders before accepting POST.
     """
     from n26.core.propagation import assignments_naming
     from n26.library import authoring
@@ -3342,19 +3287,10 @@ def set_profiles(request, pk):
 
 
 def _deleting(request, thing):
-    """Take a row out of the library, or say what is standing in the way.
+    """Delete content and return ``True``, or add an error message and return ``False``.
 
-    ``True`` when the row went. On a refusal the words are already on
-    the page and the caller sends the reader back to the question. The
-    two delete pages differ in where they lead and in nothing else: what
-    a refusal says is one sentence, said in one place.
-
-    Deleting is for the unused, and the database is the authority — it
-    refuses first, and its own list of protectors is what the words fall
-    back on. What is standing in the way is otherwise read through the
-    one reference reader (``n26.library.references``), the same one the
-    reach column reads, so a page cannot come to name a different set of
-    things from the one that explains where the row is used.
+    Database protection is authoritative. Reference details come from the same
+    reader used by the reach descriptions.
     """
     from django.db.models import ProtectedError
 
@@ -3391,12 +3327,10 @@ def _carrier_page(carrier):
 
 
 def _deletion_words(plan, label):
-    """What a delete page says about a plan: the test gangs it takes,
-    what refuses it, and the one button.
+    """Describe blocked references, affected test gangs and the confirmation button.
 
-    A refused plan draws no button — a click that could only be refused
-    is a question with one answer. A plan taking gangs names them on the
-    button, so the count is read before the click, not after.
+    A blocked plan has no submit button. Plans deleting gangs include their
+    count in the button label.
     """
 
     def drawn(holder):
@@ -3470,17 +3404,11 @@ def _deletion_words(plan, label):
 
 
 def _perform_deletion(request, plan, label, here):
-    """Do what a delete page's plan says, and say where to go next.
+    """Execute a deletion plan or queue it when player data is affected.
 
-    Three endings. A refusal is said on the page and nothing is
-    deleted. A plan that takes a gang or a campaign is recorded and run
-    on the task runner, and the reader is sent to the record. A plan
-    that takes only library rows is done here, now.
-
-    ``here`` is the delete page's own address, reversed by the caller,
-    which is where a refusal leads back to. Returns a redirect for the
-    first two endings, or ``None`` when the rows were deleted here and
-    the caller decides where to lead.
+    Return a redirect for a refusal or queued task. Return ``None`` after an
+    immediate library-only deletion so the caller chooses the destination.
+    ``here`` is the confirmation page to revisit after a refusal.
     """
     from n26.library.deletion import Refused, apply
     from n26.maintenance import AnotherRunning, start_authoring_deletion
@@ -3574,14 +3502,10 @@ MERGEABLE_KINDS = frozenset({"weapon", "wargear", "weapon-accessory"})
 
 @staff_member_required
 def thing_merge(request, kind, pk):
-    """Merge a duplicate into the row it duplicates.
+    """Preview a duplicate merge into the survivor selected by ``?into=``.
 
-    The survivor is chosen in the address, so a chosen plan can be
-    reloaded, sent, and returned to. Without one the page asks for it;
-    with one it says what merging would do — the gangs whose fighters
-    are pointed at the survivor, the lines that follow by name, the list
-    lines and built-ins that move — or what refuses it. The act runs
-    gang by gang on the task runner, and the reader lands on its outcome.
+    Queue the confirmed plan through the gang-by-gang runner and redirect to its
+    recorded outcome.
     """
     from n26.library.merging import plan_merge
     from n26.maintenance import AnotherRunning, start_authoring_deletion
@@ -4399,23 +4323,16 @@ def _carriers_said(count):
 
 
 def _what_it_does(modifier):
-    """The about column for a modifier: its sentence, and nothing else.
-
-    The compiler also says who carries it, and this page drops that run:
-    the carriers are a table further up, with their kinds, their author
-    help and a link each, and the same fact said twice in two shapes is
-    the weaker one being read.
-    """
+    """Describe modifier effects, excluding carriers already listed separately."""
     from n26.library.prose import prose_for
 
     return _prose_addresses(replace(prose_for(modifier), referenced_by=()))
 
 
 def _modifier_or_404(pk):
-    """One modifier with everything its sentence reads already loaded.
+    """Load a modifier and relations used by its description.
 
-    A direct address remains an escape hatch for campaign content even
-    though authoring listings and attachment pickers leave it out.
+    Direct links allow campaign content even though library listings exclude it.
     """
     from n26.library.models import Modifier
 
@@ -4424,16 +4341,9 @@ def _modifier_or_404(pk):
 
 @staff_member_required
 def modifier_page(request, pk):
-    """One modifier: what it says, who carries it, and the form that
-    corrects it.
+    """Edit a modifier's fields and conditions while retaining its scope and effect kinds.
 
-    A modifier is shared — the same row hangs on as many carriers as
-    have been given it — so editing one changes all of them at once.
-    The carriers are therefore named above the form rather than counted
-    after it.
-
-    The kinds are not editable here (``ModifierComposerForm.opened_on``
-    says why); everything inside them is, conditions included.
+    List all carriers above the form because edits affect every carrier.
     """
     from n26.library.forms import ModifierComposerForm, chosen_kind_cards
 
@@ -4515,14 +4425,7 @@ def modifier_page(request, pk):
 
 @staff_member_required
 def modifier_delete(request, pk):
-    """The question asked before a modifier is deleted, at its own address.
-
-    GET asks and changes nothing; the POST from that page is the act.
-    What makes the question worth a page is sharing: deleting a
-    modifier takes the behaviour off every carrier holding it, and an
-    author reading a list has no way of knowing how many that is. So
-    the page names them.
-    """
+    """Confirm deletion of a modifier from all carriers before accepting POST."""
     from django.db.models import ProtectedError
 
     from n26.library import authoring
@@ -4665,9 +4568,7 @@ def collection_page(request, pk):
     # author is here to check, so they are on the preview too.
     view = browse(collection, EQUIPMENT_LIST, include_staged=True)
 
-    # The schema's own promise, kept on the preview: unplaced categories
-    # fall into the default section, so the group of things with no home
-    # prints under its name rather than "(no section)".
+    # Display unplaced categories under the collection's declared default section.
     default_section = next(
         (row for row in collection.sections.all() if row.is_default), None
     )
@@ -4708,9 +4609,7 @@ def collection_page(request, pk):
             categories.append({"name": category.name, "rows": rows})
         sections.append(
             {
-                # The schema's own promise, kept on the preview: unplaced
-                # categories fall into the default section, so the group
-                # with no home prints under its name, never "(no section)".
+                # Display unplaced categories under the collection's declared default section.
                 "name": section.name
                 or (default_section.name if default_section else ""),
                 "categories": categories,
@@ -4809,12 +4708,9 @@ def collection_page(request, pk):
 
 @staff_member_required
 def picklist_member_remove(request, pk):
-    """The question asked before a pickable is taken off a list.
+    """Confirm removal of one picklist membership.
 
-    What goes is the *listing*. The pickable stays in the library, on
-    every other list that offers it, and on every card that has already
-    picked it — worth saying before anything happens, because a control
-    beside a pickable's name reads as one that deletes pickables.
+    Keep the pickable, its other memberships and existing picks.
     """
     from n26.library import authoring
     from n26.library.models import PicklistMember
@@ -4850,13 +4746,9 @@ def picklist_member_remove(request, pk):
 
 @staff_member_required
 def interstitial_detach(request, pk):
-    """The question asked before an interstitial stops showing for one
-    slot.
+    """Confirm removal of one slot's interstitial attachment.
 
-    What goes is the *attachment*. The interstitial stays in the library
-    and on every other slot it is attached to, and the slot arrives as
-    it did before — worth saying before anything happens, because a
-    control beside a slot's name reads as one that deletes slots.
+    Keep the interstitial and its other attachments.
     """
     from n26.library import authoring
     from n26.library.models import InterstitialSlot
@@ -4890,12 +4782,9 @@ def interstitial_detach(request, pk):
 
 @staff_member_required
 def asset_table_entry_remove(request, pk):
-    """The question asked before an asset is taken off a table.
+    """Confirm removal of an asset table entry.
 
-    What goes is the entry. The asset stays in the library, on every
-    other table that lists it, and in every campaign that already rolled
-    it — worth saying before anything happens, because a control beside
-    an asset's name reads as one that deletes assets.
+    Keep the asset, its other entries and existing campaign holdings.
     """
     from n26.library import authoring
     from n26.library.models import AssetTableEntry
@@ -4922,12 +4811,9 @@ def asset_table_entry_remove(request, pk):
 
 @staff_member_required
 def asset_type_remove(request, pk):
-    """The question asked before an asset type is taken off its campaign
-    type.
+    """Confirm asset type deletion, showing assets that block it.
 
-    Refused in words while any asset is of the type — each would be left
-    of no type at all — so the page says up front how many stand in the
-    way, and the act itself says so again if they are still there.
+    The authoring API checks for blocking assets again on submission.
     """
     from n26.library import authoring
     from n26.library.models import AssetType
@@ -4974,23 +4860,11 @@ def asset_type_remove(request, pk):
 
 @staff_member_required
 def entry_edit(request, pk):
-    """One listing row, corrected on a page of its own.
+    """Edit collection-specific price overrides and use restrictions with the entry spec.
 
-    The form is the spec-generated one that *adds* an entry, opened on
-    an entry that already exists, so the two cannot come to ask for
-    different things. The thing listed is left off: an entry is its
-    collection and the thing it names, and the way to a different thing
-    is another entry. What remains is what this collection's entries
-    take (``Collection.entry_asks``) — the overrides and who this list
-    offers the line to. A menu's entries take nothing, so a menu's
-    entry has no page here.
-
-    Editing means something different by an empty box than adding does.
-    An override left blank is written as blank, because blank means "at
-    reference price" and clearing a price this list once set is the
-    very correction this page is for. The use lists are replaced whole,
-    as the item's own page replaces them: a multi-select carries the
-    whole set.
+    Content identity stays fixed. Blank overrides restore reference pricing.
+    Replace complete restriction lists from the form; menus without editable
+    entry parameters have no edit page.
     """
     from n26.library.models import CollectionEntry
     from n26.library.models.assignable import UsableBy
@@ -5743,20 +5617,10 @@ def ingest_preview(request):
 
 
 def _rows(model, kind=None):
-    """Every authorable row of a kind, in the order an author wants to read them.
+    """List authorable content outside campaign packs in taxonomy and roll order.
 
-    Not by recency: a listing is for checking content, and thirty-nine
-    skills entered in one go would hide all but the last few. Kinds
-    that sort into the taxonomy read set by set, and within a set by
-    the number they are rolled on.
-
-    A campaign pack holds one campaign's player-authored machinery. It
-    remains readable wherever the campaign uses it, but is not part of
-    the library staff maintain.
-
-    With ``kind``, what that kind's labels and describers read is
-    loaded up front (``LEAF_LISTING_HINTS``) — every reader of a set of
-    rows wants the hints, so they live here rather than in each caller.
+    Apply ``LEAF_LISTING_HINTS`` when a kind is supplied so labels and
+    descriptions reuse the same loaded relations.
     """
     rows = model.objects.outside_campaign_packs()
     if any(field.name == "category" for field in model._meta.get_fields()):
@@ -5768,12 +5632,7 @@ def _rows(model, kind=None):
 
 
 def coverage(picklist, members=None):
-    """The picklist's bands checked against its die (``band_coverage``).
-
-    A caller that has already fetched the members hands them over rather
-    than paying for the same rows twice; otherwise one query however long
-    the table, with each member's pickable for its label.
-    """
+    """Check picklist bands against the die, reusing supplied members when available."""
     from n26.library.models.slots import band_coverage
 
     if members is None:
@@ -5812,15 +5671,10 @@ def picklist_clone(request, pk):
 
 @staff_member_required
 def picklist_table(request, pk):
-    """One roll table, whole: its rows in roll order, and whether its
-    bands cover the die.
+    """Show a rolled picklist's complete bands, coverage and member form.
 
-    The picklist's own page adds and removes members one at a time; this
-    page exists for the fact no single row carries — a gap or an overlap
-    in the table. The add-a-row form is the detail page's own, handed
-    the picklist so its picker offers this slot type's pickables and
-    nothing else. An ordinary list has no table to show, so its address
-    here leads back to its own page.
+    Restrict new members to the list's slot type. Redirect ordinary picklists
+    to their detail page.
     """
     from django.db.models import F
 
