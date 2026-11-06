@@ -2752,7 +2752,9 @@ def _refuse_content_form(form, refused):
 def _modifier_action(request, kind, thing, act):
     """Compose, attach or detach a modifier for a carrier.
 
-    Return a redirect on success, or ``(None, bound_form)`` for composition errors.
+    Return ``(redirect_response, None)`` after handling an action, or ``(None,
+    bound_form)`` for composition errors. Condition removal returns its response
+    and form through ``_dropping_a_condition``.
     """
     from n26.library import authoring
     from n26.library.forms import ModifierComposerForm
