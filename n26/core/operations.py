@@ -108,16 +108,11 @@ def refund_of(assignment):
 
 
 def option_grants(carrier, default_set):
-    """The live assignments one chosen set materialised, one per member.
+    """Find live assignments materialised by a selected set for this carrier.
 
-    Provenance answers directly: each materialised copy names the
-    member it came from and the carrier it came for, so the set's
-    grants are the copies whose member belongs to it — archived
-    members included, because a copy an author's removal left
-    standing still leaves when its set is no longer taken.
-
-    Ammo is the one kind provenance does not cover, and its copies
-    are found by the shape they were written in, below.
+    Provenance includes archived set members, whose surviving copies must
+    still leave when the option is removed. Ammunition without provenance
+    uses :func:`_ammo_rows_without_provenance`.
     """
     from n26.core.builtins import copies_of_set
 
@@ -128,20 +123,15 @@ def option_grants(carrier, default_set):
 
 
 def _ammo_rows_without_provenance(carrier, default_set, tagged):
-    """The set's ammo grants among lines with no provenance recorded.
+    """Find ammunition grants whose assignments have no recorded provenance.
 
-    A granted profile is written in the same shape as a weapon's own
-    free profiles, so it is the one kind of grant never tagged with
-    provenance and the one kind still read by shape: the newest live
-    profile on the host, caused by a gun, as many as the set granted
-    and provenance has not already accounted for. Every other kind
-    answers by provenance alone — an untagged copy of anything else
-    is the owner's own business and is never seized.
+    Granted profiles share the representation of free weapon profiles. Match
+    the newest live copies caused by a weapon on the same host, up to the
+    set's remaining required quantity. Other assignable kinds require provenance.
 
-    Every tagged copy counts against the wanted number, archived
-    included: a grant the owner parted with is settled, not something
-    to seize a look-alike for. And only live members count: an
-    archived member may never have materialised for this carrier.
+    Tagged copies, including archived copies, count towards that quantity so
+    removing an earlier grant cannot cause an unrelated copy to be removed.
+    Only live set members can require additional matches.
     """
     from n26.core.models import Reason
 
@@ -271,13 +261,10 @@ class Refusal(UserFacingError):
 
 
 class LibraryError(Exception):
-    """The library asks for something no operation can do.
+    """Content requires an operation that cannot be performed.
 
-    A content bug, not a player's act: nobody clicked their way to it
-    and no sentence would help them. It is not a ``Refusal``, which a
-    view shows to the player, and not a ``ValueError``, which a view
-    reads as a tampered link — so it surfaces as the error it is, and
-    the operation unwinds whole.
+    This exception rolls back the operation and retains its traceback.
+    Views must not present it as a player validation error.
     """
 
 
@@ -431,36 +418,21 @@ class Operation:
         roll=None,
         action_record=None,
     ):
-        """Write one assignment: an assignable, a host, and a cause.
+        """Create an assignment, ledger entry and opening event together.
 
-        Those are the three components of every assignment. ``assignable``
-        is what is held; the host is the specific object it sits on — a
-        model, the gang, a parent item, or the stash — and ``caused_by`` is
-        what brought it, so removing the cause removes this too. The
-        ledger entry and the opening event are written in the same breath,
-        which is why nothing outside an operation may create one.
+        ``assignable`` identifies the content; the host is a model, gang, stash
+        or parent assignment. ``caused_by`` links dependants for recursive removal.
 
-        ``chosen_for`` names the choice this settles, where it settles
-        one — the assignment that asked, so a card reads what was chosen
-        rather than guessing from what kind of thing it is.
-        ``chosen_for_slot`` and ``chosen_for_offer`` name which of that
-        assignment's choices, for the case where one asks more than once —
-        the first for a slot's question, the second for an offer's.
+        ``chosen_for`` identifies the assignment providing a choice.
+        ``chosen_for_slot`` and ``chosen_for_offer`` distinguish multiple choices
+        on that assignment. ``roll`` links the recorded roll validated by
+        ``_choose_for_slot``.
 
-        ``materialised_from`` and ``materialised_for`` are the provenance
-        of a built-in: which set membership this copy came from, and for
-        which carrier. Only ``reconcile_defaults`` sets them.
+        ``materialised_from`` and ``materialised_for`` identify a built-in's set
+        member and carrier. ``reconcile_defaults`` supplies these provenance fields.
 
-        ``activity`` is the open activity this counted against, where the
-        surface that bought it says one applies. What an activity has
-        spent is the sum over what points at it. ``spent_by`` is whose
-        Trade Points those were, where the allowance was one model's own
-        rather than the gang's.
-
-        ``roll`` is the ledger event recording the roll this pick came
-        from, where a table was rolled for it. It has to be a roll made
-        for the choice the pick settles, with no standing pick already
-        naming it; ``_choose_for_slot`` is where that is checked.
+        ``activity`` identifies the allowance used. ``spent_by`` identifies the
+        model whose Trade Points were spent, even if equipment later moves.
         """
         assignment = Assignment.objects.create(
             assignable=assignable,
@@ -483,13 +455,8 @@ class Operation:
         if list_price is None:
             list_price = paid + discount
         if rating is None:
-            # A discount is a deal on the real price, so the thing still
-            # counts at full value. A caller passing no list price means the
-            # price paid is the full price, so it is also the rating; the
-            # equip page passes the item's full price where a list asks
-            # less than it. Whatever number
-            # lands here is pinned on this assignment for good: moving the
-            # thing later never re-prices it.
+            # Discounts reduce payment without reducing rating. Without a separate
+            # list price, payment determines both. Moving equipment retains this rating.
             rating = list_price
         if reason is None:
             reason = _reason_for(paid, caused_by)
@@ -518,8 +485,7 @@ class Operation:
         )
         self.touched(assignment.miniature_root)
         self.written.add(str(assignment.pk))
-        # A removal is not an arrival: the thing named is being taken
-        # away, so nothing it would write on arrival may run.
+        # Removal assignments must not trigger acquisition effects.
         if not removes:
             self._run_stored_effects(assignment, assignable)
             self._default_asset_income(assignment, assignable)
@@ -578,10 +544,9 @@ class Operation:
             self.choose(assignment, member.pickable, slot=declared.slot)
 
     def _run_stored_effects(self, assignment, assignable):
-        """Execute anything this assignable writes rather than computes.
+        """Run the assignable's effects that write persistent state.
 
-        Each effect owns its own ``perform``, the way each scope owns its
-        ``targets`` — the operation just hands itself over.
+        Each effect implements ``perform`` and receives this operation.
         """
         modifiers = getattr(assignable, "modifiers", None)
         if modifiers is None or self._effect_depth >= self.MAX_STORED_EFFECT_DEPTH:
@@ -2062,14 +2027,10 @@ class Operation:
         return miniature
 
     def found(self, gang_type, taken=(), **kwargs):
-        """Give the gang its type: the founding assignment and its built-ins.
+        """Create the gang's free founding assignment and its built-ins.
 
-        What ``hire`` is to a model, one level up. The assignment is free
-        — founding *grants* a budget where hiring *spends* one, and the
-        budget bounds the ledger rather than appearing in it — but it is
-        an assignment all the same, so the gang's equipment list arrives
-        caused by it and its gang-wide modifiers have a carrier that
-        every member's card can find.
+        The gang-hosted carrier supplies equipment lists and gang-wide modifiers.
+        The gang's budget is stored separately from the founding's ledger entry.
         """
         from n26.core.models import Stash
 
@@ -2084,33 +2045,18 @@ class Operation:
         return founding
 
     def refound(self, gang_type):
-        """Say the gang is a different type, keeping the act that founded it.
+        """Change the gang type while preserving the founding's identity and history.
 
-        Founding is something the owner did, and the founding assignment
-        carries the ledger entry and the history event that say so.
-        Repointing that assignment keeps both: the gang's history still
-        opens with its own creation, on its own date and in its owner's
-        name, and now names the type the gang really is. Founding again
-        instead would delete that act — the entry and the event cascade
-        with the assignment — and write a new one in whatever name did
-        the founding.
+        Update the existing founding assignment so its ledger entry and events
+        survive. A gang without a founding uses ordinary founding.
 
-        The new type's built-ins arrive caused by that same founding. A
-        gang with no founding at all is simply founded.
-
-        Refused where the founding already granted something. Taking the
-        old type's kit away means unwinding purchases that hang off it
-        and saying in the ledger that they went, which is a refund's job
-        — deleting the rows here would take their entries and events
-        with them and say nothing, and the ledger is written to once and
-        never altered.
+        Refuse when the founding has already granted equipment: removing those
+        assignments requires ledgered refunds, which this operation does not perform.
         """
         from n26.core.models import Stash
 
-        # Refused before anything is written, in memory as much as in the
-        # database: a caller that catches this and carries on would
-        # otherwise hold a gang saying it is something the database says
-        # it is not.
+        # Validate before mutating the instance, which callers may retain
+        # after catching a refusal.
         founding = self.gang.founding
         if founding is not None and (
             founding.caused.exists() or founding.chosen_options.exists()
@@ -2119,9 +2065,7 @@ class Operation:
                 f"You cannot change {self.gang}'s type. Its founding type gave "
                 "it things, and those would have to be given back first."
             )
-        # The gang says what it is as well as its founding, and the two
-        # disagreeing is a gang whose pages and whose history describe
-        # different types.
+        # Keep the gang type and founding assignment consistent.
         self.gang.gang_type = gang_type
         self.gang.save(update_fields=["gang_type", "modified"])
         if founding is None:
@@ -2226,10 +2170,9 @@ class Operation:
         return carrier
 
     def _record_options(self, carrier, taken):
-        """Record the sets taken with an acquisition, on the carrier.
+        """Record selected sets before reconciling their members.
 
-        Written before reconciling, because the plan reads what is
-        recorded — recording a set is what makes its members owed.
+        The reconciliation plan reads these records to determine required copies.
         """
         from n26.core.models import ChosenProfileOption
 
@@ -2250,77 +2193,36 @@ class Operation:
         omit=(),
         _chain=(),
     ):
-        """Create what the carrier's sets say is missing, and nothing else.
+        """Materialise missing built-ins and selected options for a carrier.
 
-        ``carrier`` is the assignment that brought the thing in — a
-        model's membership, a bought mount's own assignment, a gang's
-        founding. Its sets are its thing's built-ins and the option sets
-        recorded as taken (``_record_options``); a member is satisfied
-        when a copy naming it and this carrier exists, archived included
-        — the owner parted with the thing, and it is never re-granted
-        behind their back. Run twice, the second pass creates nothing,
-        which is what lets a set change reach carriers acquired long ago.
+        ``carrier`` is the acquisition assignment, such as a membership or founding.
+        Its recorded selections determine the required sets. A copy with matching
+        member and carrier provenance satisfies a requirement even when archived,
+        preventing automatic replacement of equipment the owner removed. Satisfied
+        members never call ``assign`` or repeat stored effects.
 
-        Everything created is **caused by** the carrier and hosted
-        alongside it, so removing the carrier removes all of it, and a
-        card draws the grants as ordinary lines with the carrier as
-        their source. Pass ``gang`` for a gang-hosted carrier, which has
-        no model to hang things on. A satisfied member is skipped before
-        ``assign`` runs at all: stored effects fire inside it, and a
-        false "missing" would breed a second pet.
+        Grants are caused by their carrier and normally share its host. Pass
+        ``gang`` for gang-hosted carriers. Process ammunition after weapons:
+        ``gun_member`` identifies an exact weapon copy, while unanchored ammunition
+        uses the newest live matching weapon on the host. Missing weapons raise
+        content errors during acquisition (``strict``) and become skips during repair.
 
-        Nothing is ever replaced: the option not taken is simply never
-        created. A thing that may be swapped for something else is an
-        *option*, not a built-in.
+        A slot member may include a starting pick. Write it through ordinary
+        choosing, and preserve an already resolved slot's selection.
 
-        A weapon-profile member is an extra ammo type: it stacks on its
-        weapon's assignment — the same shape ``buy_weapon_profile``
-        writes — and that weapon may arrive from any of these sets, so
-        ammo is placed after every weapon has been. An anchored member
-        names its gun member (``gun_member``), and the line lands on
-        that member's own live copy for this carrier; an unanchored one
-        rides whatever live matching weapon the host holds, newest
-        first — how an option set arms a gun the built-ins bring. Ammo
-        with no gun to land on is a content bug at acquisition
-        (``strict``) and a recorded skip on a later reconcile — a
-        carrier must not be unrepairable because one member is.
+        ``kinds`` limits grant kinds, defaulting to the carrier's role. A Legacy
+        profile therefore grants lists without duplicating equipment. ``fresh``
+        names newly selected sets, for which only live copies satisfy requirements.
+        This permits reselecting an option whose previous copies were archived.
 
-        A slot member brings the choice open. Where the member also
-        names a starting pick, the pick is written in the same breath,
-        settling the slot exactly as a click would — changing it later
-        is the ordinary rechoose. An already-settled slot is a satisfied
-        member: its pick stands untouched.
+        ``event_kind`` overrides the grant event kind, allowing propagation to
+        identify catch-up grants. ``omit`` contains member IDs already satisfied
+        by another route; record these as skips without creating copies.
 
-        ``kinds`` narrows what materialises (derived from the carrier's
-        role when not given — a Legacy profile brings its lists but not
-        a second set of free kit). ``fresh`` names sets being taken
-        right now, judged by live copies alone: archived copies guard
-        against unattended re-grants, and taking a set is an acquisition
-        (``plan_defaults``). A bare reconcile passes neither.
-
-        ``event_kind`` is the history's word for each grant. Left None,
-        a grant reads as any caused assignment does; the propagation
-        pass says its grants arrived by catch-up, so a reader asking
-        why a thing appeared long after the hire gets the answer.
-
-        ``omit`` names members, by primary key, the caller has judged
-        the carrier already holds another way. Each is treated as
-        satisfied and recorded among the skips with that reason, so
-        nothing is created for it and the outcome still says so.
-
-        A copy created here is itself an arrival, and a thing with
-        built-ins of its own brings them wherever it arrives — a subtype
-        granted by a profile brings the counters built into the subtype.
-        Each copy created here is reconciled as a carrier in turn, under
-        the same narrowing, its grants caused by the copy — so the
-        outcome returned covers every level, and a grant's ``caused_by``
-        is its own carrier, not always the one passed in. That is the
-        provenance the propagation pass writes when it visits the copy
-        later, so the two agree. The nesting is the library's own, and a
-        library that nests a thing inside itself is a content bug: at
-        acquisition (``strict``) the chain is refused in words rather
-        than followed off the end of the stack, and on a later reconcile
-        it is a recorded skip.
+        Reconcile every created copy's own built-ins recursively. Each nested
+        grant names its immediate carrier, preserving provenance for later
+        propagation. Cyclic content raises during strict acquisition and is
+        recorded as a skip during repair.
         """
         from n26.core.builtins import (
             ReconcileOutcome,
@@ -2343,10 +2245,8 @@ class Operation:
         elif miniature is not None:
             host = {"miniature": miniature}
         else:
-            # A stash purchase's option set lands in the stash beside it —
-            # the Trazior's chosen deployment option rides the stash,
-            # and whatever it *spawns* (``OpAddsMiniature``) is a gang
-            # member like any other.
+            # Stashed carriers grant option equipment into the stash. Spawned models
+            # still join the gang's roster.
             host = {"stash": carrier.stash_root}
 
         created = []
@@ -2381,9 +2281,7 @@ class Operation:
             if isinstance(assignable, Weapon):
                 self._grant_free_profiles(assignable, assignment)
             elif member.default_pickable_id is not None:
-                # A slot arriving already settled. The pick goes
-                # where the slot says, which need not be where the
-                # slot itself landed.
+                # Starting picks use the slot's configured destination.
                 self._choose_for_slot(assignment, assignable, member.default_pickable)
             elif member.counter_id is not None:
                 # A counter opens at its member's amount — Starting XP.
@@ -2395,18 +2293,16 @@ class Operation:
             member = entry.member
             weapon_profile = member.assignable
             if member.gun_member_id is not None:
-                # The member names its gun, so the line lands on that
-                # member's own live copy for this carrier — the receipt,
-                # not a guess by type.
+                # Anchored ammunition targets the exact live weapon copy recorded for
+                # this set member and carrier.
                 gun = (
                     copies_of(member.gun_member, carrier, include_archived=False)
                     .order_by("-pk")
                     .first()
                 )
             else:
-                # An unnamed gun means whatever matching weapon the host
-                # holds — a set chosen after the hire arms a gun the
-                # built-ins brought, or one the owner gave by hand.
+                # Unanchored ammunition may use any matching weapon on the host,
+                # including one supplied by another set.
                 gun = (
                     Assignment.objects.filter(
                         weapon=weapon_profile.weapon,
@@ -2419,8 +2315,7 @@ class Operation:
                 )
             if gun is None:
                 if strict:
-                    # A content bug, not a player mistake: the set names
-                    # ammo for a weapon nothing here brings.
+                    # Ammunition without a matching weapon is invalid content.
                     raise LibraryError(
                         f"{carrier.assignable} grants {weapon_profile}, but "
                         f"nothing it brings is its weapon "
@@ -2436,11 +2331,8 @@ class Operation:
                 )
                 skipped.append((entry, why))
                 continue
-            # Caused by the weapon, like its free profiles: the card says
-            # "from the grenade launcher array", not "from the profile".
-            # Provenance names the member and the carrier all the same —
-            # it records which set membership this satisfies, and the gun
-            # is only where the copy landed.
+            # The weapon is the cause and host. Provenance still records
+            # the set member and carrier that supplied the ammunition.
             created.append(
                 self.assign(
                     weapon_profile,
@@ -2453,8 +2345,8 @@ class Operation:
                     kind=event_kind,
                 )
             )
-        # After ammo, so a copy of any kind created in this pass is an
-        # arrival in its own right, ammo included.
+        # Reconcile nested built-ins after every copy, including ammunition,
+        # has been created.
         chain = (*_chain, carrier.assignable)
         entry_for = {entry.member.pk: entry for entry in plan.entries}
         for assignment in list(created):
@@ -2939,12 +2831,9 @@ class Operation:
         return restore_pick
 
     def add_legacy_profile(self, miniature, profile, **kwargs):
-        """A second profile on a model — the Venator case.
+        """Associate a Legacy profile with a model and grant its equipment lists.
 
-        A Legacy is an *association*, not a second hire: it brings the
-        other profile's **equipment lists** — a Venator uses their
-        Legacy's list — and nothing else. No free weapons, no subtypes,
-        no second helping of default kit.
+        The association grants no weapons, subtypes or other default equipment.
         """
         assignment = self.assign(profile, miniature=miniature, **kwargs)
         ProfileRole.objects.create(assignment=assignment, role=ProfileRole.Role.LEGACY)
@@ -2964,16 +2853,11 @@ class Operation:
         return assignment
 
     def _grant_free_profiles(self, weapon, assignment, sold_separately=frozenset()):
-        """A weapon's free profiles ride along with it, however it arrived.
+        """Grant a weapon's free profiles on every acquisition path.
 
-        Bought or granted as default equipment, a weapon is the same weapon:
-        without this its card line would have no statline and no traits.
-
-        ``sold_separately`` names the profiles the listing behind this
-        purchase prices as rows of their own. Those are not the weapon —
-        they are the next thing the buyer may pay for — so granting them
-        here would hand over free what the listing charges 55 credits
-        for, and leave a second copy when the buyer pays anyway.
+        Exclude ``sold_separately`` profile IDs, which the purchase's listing
+        prices independently. Including them would grant paid ammunition for free
+        and duplicate it when subsequently bought.
         """
         for profile in weapon.profiles.filter(price=0):
             if profile.pk in sold_separately:
@@ -3118,19 +3002,10 @@ class Operation:
         return bought
 
     def select(self, miniature, thing, note=""):
-        """Take on something a model *is* — a skill, a power.
+        """Grant an earned skill or power and record its reference rating.
 
-        Free, and recorded as a reward. No credits move: what a fighter
-        selects is earned rather than bought, and a purchase is not the
-        way to it. What it adds to the gang's rating is the thing's own
-        reference price, which is nothing for a skill the rules hand
-        out and whatever content says for one that is worth something.
-
-        Nothing causes it. A skill is not a consequence of the assignment whose
-        grid placed the set it came from, so swapping a profile — or
-        dropping the wargear that opened a set up — never takes one back.
-        That is the difference between this and ``choose``,
-        where what was chosen belongs to the offer and dies with it.
+        No credits move. The assignment has no cause, so removing a profile or
+        other source of access to its collection does not remove the selection.
         """
         from n26.library.models.collection import price_of
 
