@@ -1,23 +1,8 @@
 {% load react %}
 {% comment %}
-One roll question as a panel. Expects `question` (built by
-n26.core.views.campaigns._rolling or _starting and finished by
-_roll_context: kind, title, lead, action, asset_type_id, tables, only,
-choices and roll_fields), `form` (a RollAssetForm — unbound for a fresh
-panel, bound and carrying the refusal for one drawn again), `campaign` and
-`redrawn`.
-
-One table offered is not a choice: the panel names it as a settled fact and
-posts it hidden. Several are radio cards, and they stay live whether or not
-a roll is typed, because a manual roll still has to be read against one
-table's rows.
-
-The campaign-roll island draws the table, the own-roll field and the
-panel's Cancel and submit: typing a roll changes the act's name from Roll to
-Use my roll, and the sentence under the field names what the selected
-table's die can make. The server checks the roll against the die
-regardless. Without a script the markup below shows, with every die's
-sentence and the act named Roll.
+Render a prepared campaign roll question and bound or unbound RollAssetForm. A single
+table submits as a hidden value; multiple tables remain selectable even for manual
+rolls, which the server validates against the chosen die.
 {% endcomment %}
 <c-n26.dialog title="{{ question.title }}"
               action="{{ question.action }}"
@@ -39,7 +24,7 @@ sentence and the act named Roll.
         {% if question.only %}
             <input type="hidden" name="table" value="{{ question.only.table_id }}">
             {% include "n26/includes/campaign_roll_table.html" %}
-            {# A table posted that is not this one is refused in the form's words. #}
+            {# Preserve field errors when a submitted table differs from the fixed offered table. #}
             <c-ui.error :form="form" name="table" />
         {% else %}
             <c-n26.radio-cards label="Table" name="table" :form="form" min="12rem">
