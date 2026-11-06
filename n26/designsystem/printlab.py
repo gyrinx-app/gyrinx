@@ -1,23 +1,8 @@
-"""The print lab: a harness for finding out what a page actually does.
+"""Build database-free print specimens and parse their URL options. The lab previews the
+real sheet in an iframe and exposes the same URL for phones and PDF rendering.
 
-Print is the one part of the system you cannot check by looking at it. The
-failures are specific to a medium the browser only enters when asked, and the
-worst of them — a card sliced across the fold, a two-column block collapsed to
-one — happen on engines that are not the one you are developing in. v1 found
-every one of its print bugs through a lab like this and none of them by reading
-the CSS, which is the argument for building it before needing it.
-
-So: a page of controls, a live preview of the real sheet in an iframe, and a
-direct URL for the sheet on its own. The direct URL is the load-bearing part.
-It is what you open on a phone, what you hand to headless Chrome to make a PDF,
-and what a simulator loads — every control is a query parameter precisely so
-that the thing under test can be addressed from outside the browser you are
-sitting in.
-
-The specimens are chosen to break things rather than to look good: a fixed-size
-card that content can overflow, a table long enough to cross pages, a worksheet
-of write-in boxes, and a stress case with the longest content the components
-will ever be handed.
+Specimens cover fixed-height cards, multi-page tables, worksheets and overflowing
+content.
 """
 
 from __future__ import annotations
@@ -36,13 +21,8 @@ from . import sampledata
 
 # ---------------------------------------------------------------------- paper
 
-#: Page sizes in millimetres, portrait.
-#:
-#: These same numbers are in print.css, keyed off data-page, and that is where
-#: rendering reads them — a component has to work without a view behind it. This
-#: copy exists for the readout, which needs arithmetic a stylesheet cannot do.
-#: Two copies of one fact is a drift risk, so a test parses the stylesheet and
-#: asserts they still agree.
+#: Portrait dimensions in millimetres for the geometry readout. Tests compare them with
+#: print.css, which supplies the rendered page sizes.
 PAGE_SIZES = {
     "a4": (210.0, 297.0),
     "a5": (148.0, 210.0),
@@ -68,12 +48,8 @@ _SPECIMEN_KEYS = {key for key, _ in SPECIMENS}
 
 @dataclass(frozen=True)
 class Options:
-    """Everything the sheet renders from, parsed and clamped.
-
-    Every field comes off the query string, so every field has to survive
-    whatever is in the query string. Clamped rather than rejected: a lab that
-    404s on a typo in a URL you are hand-editing on a phone is a lab you stop
-    using.
+    """Parse and clamp sheet options from the query string. Invalid values use defaults so
+    manually edited preview URLs remain usable.
     """
 
     specimen: str = "cards"
@@ -99,12 +75,10 @@ class Options:
                 get("orientation"), {"portrait", "landscape"}, "portrait"
             ),
             margin_mm=_number(get("margin"), 6.0, low=0.0, high=40.0),
-            # Six is where the CSS stops, because the end-of-row rule is written
-            # out per column count. Clamping here means the two agree.
+            # The stylesheet defines end-of-row rules for at most six columns.
             columns=int(_number(get("columns"), 2, low=1, high=6)),
             gutter_mm=_number(get("gutter"), 4.0, low=0.0, high=20.0),
-            # Zero is not a small card, it is the auto-height card — the prop is
-            # simply left off, and the card is as tall as its content.
+            # Zero omits the height prop, allowing content to determine card height.
             card_h_mm=_number(get("cardh"), 110.0, low=0.0, high=400.0),
             count=int(_number(get("count"), 8, low=1, high=60)),
             paged=get("paged") == "1",
@@ -130,18 +104,17 @@ class Options:
 
     @property
     def cell_w_mm(self) -> float:
-        """What one card comes out as. The same sum print.css does in calc()."""
+        """Card width using the same gutter calculation as print.css."""
         gutters = (self.columns - 1) * self.gutter_mm
         return (self.content_w_mm - gutters) / self.columns
 
     @property
     def rows_per_page(self) -> int | None:
-        """How many rows of cards fit before the fold. None if they are not
-        a fixed height, in which case nobody can say."""
+        """Number of complete card rows per page, or None for auto-height cards."""
         if not self.card_h_mm:
             return None
-        # The last row on a page needs no gutter under it, so the space to
-        # divide is one gutter more than the page.
+        # The final row needs no trailing gutter, so add one gutter before dividing by
+        # the row pitch.
         pitch = self.card_h_mm + self.gutter_mm
         return max(0, int((self.content_h_mm + self.gutter_mm) // pitch))
 
@@ -152,7 +125,7 @@ class Options:
 
     @property
     def query(self) -> str:
-        """The options as a query string, so the sheet URL mirrors the form."""
+        """Serialise sheet options for the preview URL."""
         pairs = {
             "specimen": self.specimen,
             "page": self.page,
@@ -178,7 +151,7 @@ def _number(value, fallback, low, high):
         number = float(value)
     except TypeError, ValueError:
         return fallback
-    # NaN fails every comparison, so it would sail through a min/max clamp.
+    # Reject NaN explicitly because its comparisons do not reliably clamp it.
     if number != number:
         return fallback
     return max(low, min(high, number))
@@ -192,19 +165,13 @@ def _trim(number: float) -> str:
 # ------------------------------------------------------------------ specimens
 
 
-# DetailGroup, detail_groups and detail_columns live in n26.core.printing —
-# the real print pages need them, and core cannot import the gallery. The
-# names are re-exported here so the lab's templates and context read the
-# same either way.
+# Re-export core printing helpers for lab callers; core printing cannot depend on the
+# gallery.
 
 
 def specimen_cards(count: int) -> list:
-    """``count`` fighter cards, varied enough to be worth tiling.
-
-    One real card from the sample data, then variations on it: different names
-    and costs so a page of them does not read as a printing error, and different
-    weapon counts so the cards are not all the same height. Nothing here needs a
-    database — a gallery has to render on an empty one.
+    """Build sample cards with varied names, ratings and weapon counts to exercise tiling
+    without a database.
     """
     base = sampledata.model_card()
     names = [
@@ -220,8 +187,7 @@ def specimen_cards(count: int) -> list:
     cards = []
     for index in range(count):
         name, rating = names[index % len(names)]
-        # Vary the weapon count so rows differ in height on an auto-height card,
-        # which is where a tiling bug shows itself.
+        # Vary weapon counts to exercise rows of different heights.
         keep = 1 + (index % len(base.weapons))
         cards.append(
             replace(base, name=name, rating=rating, weapons=base.weapons[:keep])
@@ -230,11 +196,8 @@ def specimen_cards(count: int) -> list:
 
 
 def stress_cards(count: int) -> list:
-    """The same cards, loaded with everything at once.
-
-    A name that cannot fit on one line, every weapon, and enough skills and gear
-    to overflow a fixed-height card — which is the case the shrink-to-fit script
-    exists for, and the case that clips visibly when it is switched off.
+    """Build cards with long names and repeated details to exercise overflow and shrink-to-
+    fit.
     """
     base = sampledata.model_card()
     long_name = "Maximilian Aurelius Thunderbolt III, the Unrelenting"
@@ -247,11 +210,7 @@ def stress_cards(count: int) -> list:
     return [padded for _ in range(count)]
 
 
-#: The labels on a blank card, already dealt into the two columns.
-#:
-#: Dealt here rather than in the template because a template can only split a
-#: list by testing forloop.counter against divisibleby, which reads as
-#: arithmetic and hides what is actually a layout decision.
+#: Preassign worksheet labels to their display columns.
 WORKSHEET_LEFT = ["Type", "Skills", "Gear"]
 WORKSHEET_RIGHT = ["Cost", "Weapons", "Rules"]
 
@@ -259,24 +218,19 @@ WORKSHEET_RIGHT = ["Cost", "Weapons", "Rules"]
 # -------------------------------------------------------------------- context
 
 
-#: How many times the sample catalogue is repeated for the table specimen.
-#:
-#: Fixed rather than driven by the count control, because "crosses several
-#: pages" is what this specimen is *for* — a header that repeats correctly is
-#: not something you can observe on a table that fits on one page, so the
-#: specimen has to guarantee it does not.
+#: Keep the table multi-page independently of the card count control so repeated headers
+#: remain testable.
 TABLE_REPEATS = 4
 
 
 def table_rows() -> list[dict]:
-    """The sample catalogue, flattened and repeated until it needs pages."""
+    """Repeat the flattened sample catalogue to span multiple pages."""
     flat = [
         {
             "name": line.name,
             "category": category.name,
             "price": line.credits,
-            # Exclusive prints "E", not a number, because it is not one — see
-            # <c-n26.collection-picker.item> and n26.browse.narrow.
+            # Display exclusive availability as E, matching the catalogue.
             "availability": "E" if line.is_exclusive else line.trade_points,
         }
         for section in sampledata.trading_post().sections
@@ -287,17 +241,8 @@ def table_rows() -> list[dict]:
 
 
 def sheet_context(options: Options) -> dict:
-    """Everything the sheet template renders from.
-
-    Each card arrives with its detail columns already worked out, because the
-    split is a Python decision (see n26.printing) and a template cannot call a
-    function with an argument to ask for it.
-
-    The lengths are pre-formatted as CSS strings rather than passed as numbers
-    with the unit appended in the template. A card height of zero has to reach
-    the component as an *absent* prop — the auto-height card is the one with no
-    height at all, not the one with a height of 0mm — and "" is how a Cotton
-    prop is absent.
+    """Prepare specimen data, detail columns and CSS lengths for the sheet template.
+    Represent zero card height as an empty prop so the component uses auto height.
     """
     if options.specimen == "stress":
         cards = stress_cards(options.count)
@@ -311,12 +256,9 @@ def sheet_context(options: Options) -> dict:
         "rows": [{"card": card, "columns": detail_columns(card)} for card in cards],
         "worksheet_left": WORKSHEET_LEFT,
         "worksheet_right": WORKSHEET_RIGHT,
-        # The blank cards have no data behind them, so the only thing that says
-        # how many to draw is the count.
         "blanks": range(options.count),
         "table_rows": table_rows(),
         "specimen_template": f"designsystem/print/_{options.specimen}.html",
-        # CSS lengths, ready to hand to a component.
         "margin_css": f"{_trim(options.margin_mm)}mm",
         "gutter_css": f"{_trim(options.gutter_mm)}mm",
         "card_height_css": (
