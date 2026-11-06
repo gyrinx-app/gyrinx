@@ -9,7 +9,7 @@ by passing its selected sets explicitly.
 
 Carried fighter collections use their collection prices. Gang-list collections
 use taxonomy rank headings; supplementary collections use their own blocks.
-Without an own gang list, use the gang type's profiles. Batch content
+Without its own gang list, use the gang type's profiles. Batch content
 loading so query count stays fixed as the list grows.
 """
 

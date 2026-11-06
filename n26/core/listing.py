@@ -544,7 +544,7 @@ def build_stash_catalogue(owned, name, refunds=True, expanded_key=""):
 def build_catalogue(view, owned, name=None, refunds=True, expanded_key=""):
     """Combine browsed sections with possessions using content-key lookups.
 
-    ``owned`` is the index from ``owned.possessions``. ``refunds`` controls
+    ``owned`` is the index from ``n26.core.owned.possessions``. ``refunds`` controls
     credit-refund availability on each copy; Trade Point refunds remain
     available where recorded. Preserve browse order and label otherwise
     unnamed sections Uncategorised so tabs have visible text.
