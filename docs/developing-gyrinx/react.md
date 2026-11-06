@@ -621,3 +621,40 @@ roots removed by other systems](https://react.dev/reference/react-dom/client/cre
 Vite documents [backend integration through its build manifest and modulepreload
 graph](https://vite.dev/guide/backend-integration). This implementation keeps that
 integration inside Django; it does not require a separate application server.
+
+### Manage credits command example
+
+Manage credits uses `n26/core/credits.py` for access, form validation, the locked
+permission check and the adjustment. Its HTML POST and JSON command adapters
+share that function. The page embeds its initial display props; it has no extra
+GET API. `manage-credits` owns the complete form body, while Django keeps the
+route and shared navigation.
+
+The command accepts form-encoded `direction`, `amount`, `note`, `back` and
+`request_key`. It returns `200` with a validated `nextUrl`, `422` with field or
+`__all__` errors and the current balance, or `409` for conflicting key reuse.
+Authentication and CSRF failures return `401` and `403`. Access failures remain
+`404`. The shared CSRF handler returns JSON only for an explicit
+`Accept: application/json`; native form failures retain their redirect.
+
+A successful credits adjustment stores its request key on its ledger event,
+with a database uniqueness constraint per gang. Under the gang lock, the command
+checks current access and compares a replay's actor, direction, amount and note
+with the recorded adjustment. Matching replays succeed without another event;
+a different payload is rejected. Failed adjustments do not consume the key.
+Analytics run after commit, only for a new adjustment. Success feedback is
+retained across a lost response and deduplicated by request key.
+
+Use `n26/frontend/http/command.ts` for the transport. Keep response interpretation
+in the workflow. A network error, a server error or an unreadable success response
+leaves the write uncertain. Retain the exact submitted payload and key, freeze
+editing and offer a retry of that save. A rejected retry does not resolve an
+earlier uncertain write. Warn before leaving during pending or uncertain saves;
+clear that warning before confirmed-success navigation. Do not mint another key
+and let the user submit edited values while the earlier write is unresolved.
+
+The single-event receipt suits credits adjustments. A workflow producing several
+events must identify one durable command receipt and its canonical payload;
+do not assume an operation's grouping `batch` is unique. Prove simultaneous
+retries, lost responses, conflicting payloads, rollback, locked access checks and
+feedback before reusing this pattern for another write.

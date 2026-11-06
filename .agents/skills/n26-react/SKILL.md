@@ -134,3 +134,18 @@ code after checking its other callers. Report the feature and migration outcomes
 including any concrete deferral reason.
 These instructions do not authorise unrelated refactors, scheduled jobs,
 deployment, automatic merges or access to another user's data.
+
+## Command migration checks
+
+Use Manage credits (`n26/core/credits.py` and the `manage-credits` island) as the
+first complete form example. Its form-encoded command shares Django validation
+with native POST, uses `http/command.ts`, and records a durable request key.
+Choose the receipt from the workflow's actual effects; a ledger grouping batch
+is not a unique command key. Test concurrent replay and changed-payload rejection.
+
+For an uncertain write, keep the exact submitted payload and key and freeze
+editing until a retry confirms its outcome. A rejected retry cannot prove an
+earlier write failed. Protect navigation during pending saves as well as after
+network failure. Test the real CSRF failure handler, which runs before the view,
+and preserve success feedback without duplicating it on replay. Generic transport
+tests in `.test.ts` are included by the shared Vitest configuration.

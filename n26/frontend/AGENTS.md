@@ -76,3 +76,13 @@ discovery excludes the gitignored Vite output, `generated/`, `node_modules`,
 `staticfiles`, and `logs`, so an editable install does not keep those
 directories. Do not
 run `npm audit fix` unless the task is the audit itself.
+
+## Saving workflow forms
+
+The shared `http/command.ts` posts form data with same-origin credentials and a
+CSRF token. It distinguishes rejected requests from writes whose outcome is
+unknown. Keep domain response parsing and draft state in the island. After an
+unknown outcome, retain the exact payload and request key and prevent editing
+until retry resolves the save. Protect navigation while pending or uncertain,
+and clear the warning before confirmed-success navigation. Manage credits is
+the first consumer; its tests cover lost responses and rejected retries.

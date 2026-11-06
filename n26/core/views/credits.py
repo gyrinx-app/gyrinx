@@ -1,89 +1,68 @@
-"""Adding credits to a gang, or removing them, by hand.
+"""HTML and JSON adapters for Manage credits."""
 
-For whatever the app does not record itself: credits a scenario paid
-out, a purchase made away from the app, a correction. The gang's owner
-may do it, and so may the arbitrator of the campaign it is playing. A
-gang with unlimited credits has no figure to change, so the page is not
-there for it; its budget is set on the Edit page.
-"""
+from uuid import uuid4
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import Http404
+from django.http import Http404, JsonResponse
+from django.middleware.csrf import get_token
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.views.decorators.http import require_http_methods, require_POST
 
+from n26.core import credits
 from n26.core.forms import CreditsForm
-from n26.core.views.permissions import (
-    _any_gang_or_404,
-    _safe_redirect,
-    credits_campaign,
-)
+from n26.core.views.permissions import _any_gang_or_404, _safe_redirect
 
-DIRECTION_HELP = {
-    CreditsForm.ADD: "Credits the gang gained outside the app, such as a scenario reward.",
-    CreditsForm.REMOVE: (
-        "Credits the gang spent or lost outside the app. "
-        "To buy equipment, use Equip instead."
-    ),
-}
+
+def _prepare(request, pk):
+    gang = _any_gang_or_404(request, pk)
+    default = credits.destination(gang, request.user)
+    if default is None:
+        raise Http404("No such gang")
+    back = _safe_redirect(
+        request, request.POST.get("back") or request.GET.get("back"), default
+    ).url
+    return gang, back
+
+
+def _feedback(request, gang, result):
+    if result.applied:
+        from n26.analytics import EventVerb, N26Noun, record
+
+        record(request, N26Noun.GANG, EventVerb.UPDATE, gang, credits=result.amount)
+    tag = f"credits-{result.form.cleaned_data['request_key']}"
+    storage = messages.get_messages(request)
+    already_shown = any(
+        tag in (message.extra_tags or "").split() for message in storage
+    )
+    storage.used = False
+    if not already_shown:
+        messages.success(request, result.message(gang), extra_tags=tag)
+
+
+def _props(request, gang, form, back):
+    return {
+        **credits.display(gang, request.user, form),
+        "back": back,
+        "action": reverse("n26-gang-credits", args=[gang.pk]),
+        "commandHref": reverse("n26-gang-credits-command", args=[gang.pk]),
+        "csrfToken": get_token(request),
+    }
 
 
 @login_required
+@require_http_methods(["GET", "POST"])
 def gang_credits(request, pk):
-    from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.operations import NotEnoughCredits, Refusal, operation
-
-    gang = _any_gang_or_404(request, pk)
-    if gang.credits_unlimited:
-        raise Http404("No such gang")
-    yours = gang.owner_id == request.user.pk
-    if yours:
-        back = reverse("n26-gang", args=[gang.pk])
-    else:
-        # The arbitrator came from the campaign's gangs table and goes
-        # back to it.
-        campaign = credits_campaign(gang, request.user)
-        if campaign is None:
-            raise Http404("No such gang")
-        back = reverse("n26-campaign", args=[campaign.pk]) + "#gangs"
-
-    back = _safe_redirect(
-        request, request.POST.get("back") or request.GET.get("back"), back
-    ).url
-
-    form = CreditsForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        amount = form.signed_amount()
-        try:
-            with operation(gang, actor=request.user) as op:
-                # Asked again under the gang's lock: the gang may have been
-                # archived or left the campaign since the check above.
-                if not _still_allowed(gang, request.user, yours):
-                    raise Refusal("You can no longer change this gang's credits.")
-                op.adjust_credits(amount, form.cleaned_data["note"])
-        except NotEnoughCredits as short:
-            # What the gang held under the operation's lock, not the
-            # figure read before it.
-            had = -amount - short.shortfall
-            form.add_error(
-                "amount", f"You cannot remove more than {gang.name} has ({had}¢)."
-            )
-            gang.refresh_from_db(fields=["credits"])
-        except Refusal as refusal:
-            form.add_error(None, str(refusal))
-            gang.refresh_from_db(fields=["credits"])
-        else:
-            record(request, N26Noun.GANG, EventVerb.UPDATE, gang, credits=amount)
-            if amount > 0:
-                messages.success(request, f"Added {amount}¢ to {gang.name}.")
-            else:
-                messages.success(request, f"Removed {-amount}¢ from {gang.name}.")
+    gang, back = _prepare(request, pk)
+    if request.method == "POST":
+        result = credits.change(gang, request.user, request.POST)
+        form = result.form
+        if result.saved:
+            _feedback(request, gang, result)
             return redirect(back)
-
-    direction = form["direction"].value()
-    if direction not in {CreditsForm.ADD, CreditsForm.REMOVE}:
-        direction = CreditsForm.ADD
+    else:
+        form = CreditsForm(initial={"request_key": uuid4()})
     return render(
         request,
         "n26/gang_credits.html",
@@ -91,29 +70,21 @@ def gang_credits(request, pk):
             "gang": gang,
             "form": form,
             "back": back,
-            "directions": [
-                {
-                    "value": value,
-                    "label": label,
-                    "description": DIRECTION_HELP[value],
-                    "checked": value == direction,
-                }
-                for value, label in form.fields["direction"].choices
-            ],
-            # The history page is the owner's alone.
-            "history_href": (
-                reverse("n26-gang-history", args=[gang.pk]) + "?kind=credits"
-                if yours
-                else ""
-            ),
+            "credits_props": _props(request, gang, form, back),
         },
     )
 
 
-def _still_allowed(gang, user, yours):
-    """Whether ``user`` may still change the gang's credits, read after the
-    operation has taken the gang's lock."""
-    gang.refresh_from_db(fields=["archived"])
-    if gang.archived:
-        return False
-    return yours or credits_campaign(gang, user) is not None
+@require_POST
+def gang_credits_command(request, pk):
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Sign in again to save this change."}, status=401)
+    gang, back = _prepare(request, pk)
+    result = credits.change(gang, request.user, request.POST)
+    if result.saved:
+        _feedback(request, gang, result)
+        return JsonResponse({"nextUrl": back})
+    return JsonResponse(
+        {"errors": dict(result.form.errors), "balance": gang.credits},
+        status=409 if result.conflict else 422,
+    )
