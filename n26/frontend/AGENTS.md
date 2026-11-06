@@ -86,3 +86,7 @@ unknown outcome, retain the exact payload and request key and prevent editing
 until retry resolves the save. Protect navigation while pending or uncertain,
 and clear the warning before confirmed-success navigation. Manage credits is
 the first consumer; its tests cover lost responses and rejected retries.
+Retain unresolved input across reloads, scoped to actor and workflow. Restore
+the command key and business values using fresh page credentials; do not persist
+CSRF tokens. Test reauthentication, which rotates the token, before promising
+recovery from session expiry.

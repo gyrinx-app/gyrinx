@@ -653,6 +653,13 @@ earlier uncertain write. Warn before leaving during pending or uncertain saves;
 clear that warning before confirmed-success navigation. Do not mint another key
 and let the user submit edited values while the earlier write is unresolved.
 
+Keep unresolved command input in session storage, scoped to the actor and
+workflow, before sending the request. Restore it after reload with the same key
+and business values, but use the fresh page's CSRF token. Do not persist session
+credentials or CSRF tokens. This allows recovery after signing in again, which
+rotates the CSRF secret. Clear recovery input after a confirmed result; if it
+cannot be retained, do not start a write that the page cannot safely recover.
+
 The single-event receipt suits credits adjustments. A workflow producing several
 events must identify one durable command receipt and its canonical payload;
 do not assume an operation's grouping `batch` is unique. Prove simultaneous

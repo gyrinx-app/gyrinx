@@ -48,6 +48,7 @@ def _props(request, gang, form, back):
         "action": reverse("n26-gang-credits", args=[gang.pk]),
         "commandHref": reverse("n26-gang-credits-command", args=[gang.pk]),
         "csrfToken": get_token(request),
+        "recoveryKey": f"credits:{request.user.pk}:{gang.pk}",
     }
 
 

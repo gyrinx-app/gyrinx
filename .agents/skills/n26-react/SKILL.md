@@ -149,3 +149,9 @@ earlier write failed. Protect navigation during pending saves as well as after
 network failure. Test the real CSRF failure handler, which runs before the view,
 and preserve success feedback without duplicating it on replay. Generic transport
 tests in `.test.ts` are included by the shared Vitest configuration.
+
+Prove reload and reauthentication recovery as well as an immediate retry. Persist
+unresolved business input and its key before sending, scoped to actor and task;
+restore that input with a fresh CSRF token. Never retain credentials or an old
+CSRF token with the recovery payload. A reload instruction must not discard an
+unresolved command's identity.

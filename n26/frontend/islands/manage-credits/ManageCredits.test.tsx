@@ -33,13 +33,18 @@ const props: ManageCreditsProps = {
     action: "/credits/",
     commandHref: "/credits/change/",
     csrfToken: "csrf",
+    recoveryKey: "credits:player:gang",
 };
 const json = (data: unknown, status = 200) => ({
     status,
     headers: new Headers({ "content-type": "application/json" }),
     json: async () => data,
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    sessionStorage.clear();
+});
 
 test("saves the selected direction, note, request key and exact return URL", async () => {
     const fetch = vi.fn().mockResolvedValue(json({ nextUrl: props.back }));
@@ -209,4 +214,62 @@ test("warns before leaving while a save is pending and clears the warning after 
     expect(leaving.defaultPrevented).toBe(true);
     finish(json({ nextUrl: props.back }));
     await waitFor(() => expect(navigate).toHaveBeenCalled());
+});
+
+test("restores an uncertain save after reauthentication with its original key and a fresh CSRF token", async () => {
+    const fetch = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("lost response"))
+        .mockResolvedValueOnce(json({ nextUrl: props.back }));
+    vi.stubGlobal("fetch", fetch);
+    const first = render(
+        <ManageCredits
+            {...props}
+            values={{ ...props.values, amount: "40", note: "Scenario reward" }}
+        />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByRole("button", { name: "Retry save" });
+    expect(sessionStorage.getItem(props.recoveryKey)).not.toContain(
+        "csrfmiddlewaretoken",
+    );
+    first.unmount();
+    const navigate = vi.fn();
+    render(
+        <ManageCredits
+            {...props}
+            csrfToken="rotated-csrf"
+            values={{ ...props.values, request_key: "another-key" }}
+            onNavigate={navigate}
+        />,
+    );
+    expect(screen.getByRole("spinbutton").matches(":disabled")).toBe(true);
+    expect((screen.getByRole("spinbutton") as HTMLInputElement).value).toBe(
+        "40",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    const options = fetch.mock.calls[1][1];
+    expect(options.body.get("request_key")).toBe(props.values.request_key);
+    expect(options.body.get("note")).toBe("Scenario reward");
+    expect(options.body.get("csrfmiddlewaretoken")).toBe("rotated-csrf");
+    expect(options.headers["X-CSRFToken"]).toBe("rotated-csrf");
+    expect(navigate).toHaveBeenCalledWith(props.back);
+    expect(sessionStorage.getItem(props.recoveryKey)).toBeNull();
+});
+
+test("does not send a save when its recovery payload cannot be retained", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+        throw new Error("storage blocked");
+    });
+    render(
+        <ManageCredits {...props} values={{ ...props.values, amount: "40" }} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText(
+        /Your browser could not keep this save for recovery/,
+    );
+    expect(fetch).not.toHaveBeenCalled();
+    expect(screen.getByRole("spinbutton").matches(":disabled")).toBe(false);
 });

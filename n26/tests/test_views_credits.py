@@ -600,3 +600,37 @@ def test_manage_credits_queries_do_not_grow_with_ledger_history(client, table):
     with CaptureQueriesContext(connection) as large:
         assert client.get(url(table.gang)).status_code == 200
     assert len(large) == len(small)
+
+
+def test_a_committed_command_can_be_recovered_after_csrf_rotation(table):
+    from django.test import Client
+
+    client = Client(enforce_csrf_checks=True)
+    client.force_login(table.owner)
+    original = props(client.get(url(table.gang)))
+    target = original["commandHref"]
+    data = {
+        "direction": "add",
+        "amount": "10",
+        "request_key": original["values"]["request_key"],
+        "csrfmiddlewaretoken": original["csrfToken"],
+    }
+    assert client.post(target, data, HTTP_ACCEPT="application/json").status_code == 200
+    client.logout()
+    client.force_login(table.owner)
+    fresh_page = props(client.get(url(table.gang)))
+    assert client.post(target, data, HTTP_ACCEPT="application/json").status_code == 403
+    retry = client.post(
+        target,
+        {**data, "csrfmiddlewaretoken": fresh_page["csrfToken"]},
+        HTTP_ACCEPT="application/json",
+    )
+    assert retry.status_code == 200
+    assert fresh(table.gang).credits == 110
+    assert (
+        LedgerEvent.objects.filter(
+            gang=table.gang, request_key=data["request_key"]
+        ).count()
+        == 1
+    )
+    assert_reconciled(fresh(table.gang))

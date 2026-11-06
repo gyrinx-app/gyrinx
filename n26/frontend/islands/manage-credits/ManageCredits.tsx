@@ -41,6 +41,30 @@ export interface ManageCreditsProps {
     action: string;
     commandHref: string;
     csrfToken: string;
+    recoveryKey: string;
+}
+
+function recover(key: string): URLSearchParams | null {
+    try {
+        const stored = sessionStorage.getItem(key);
+        if (!stored) return null;
+        const data = new URLSearchParams(stored);
+        return ["direction", "amount", "note", "request_key", "back"].every(
+            (name) => data.has(name),
+        )
+            ? data
+            : null;
+    } catch {
+        return null;
+    }
+}
+
+function clearRecovery(key: string) {
+    try {
+        sessionStorage.removeItem(key);
+    } catch {
+        /* A retained receipt can still be retried safely. */
+    }
 }
 
 function fieldErrors(value: unknown): value is Errors {
@@ -59,15 +83,29 @@ function fieldErrors(value: unknown): value is Errors {
 export function ManageCredits(
     props: ManageCreditsProps & { onNavigate?: (url: string) => void },
 ) {
-    const [values, setValues] = useState(props.values);
+    const [recovery] = useState(() => recover(props.recoveryKey));
+    const [values, setValues] = useState(
+        recovery
+            ? {
+                  direction: recovery.get("direction")!,
+                  amount: recovery.get("amount")!,
+                  note: recovery.get("note")!,
+                  request_key: recovery.get("request_key")!,
+              }
+            : props.values,
+    );
     const [balance, setBalance] = useState(props.balance);
     const [errors, setErrors] = useState(props.errors);
     const [pending, setPending] = useState(false);
-    const [uncertain, setUncertain] = useState(false);
-    const [notice, setNotice] = useState("");
+    const [uncertain, setUncertain] = useState(!!recovery);
+    const [notice, setNotice] = useState(
+        recovery
+            ? "An earlier save has not been confirmed. Retry it before making another change."
+            : "",
+    );
     const inFlight = useRef(false);
-    const unknownOutcome = useRef(false);
-    const submitted = useRef<URLSearchParams | null>(null);
+    const unknownOutcome = useRef(!!recovery);
+    const submitted = useRef<URLSearchParams | null>(recovery);
     const summary = useRef<HTMLDivElement>(null);
     const [failure, setFailure] = useState(0);
     useEffect(() => {
@@ -94,15 +132,30 @@ export function ManageCredits(
             new FormData(event.currentTarget).forEach((value, name) =>
                 submitted.current!.append(name, String(value)),
             );
+            submitted.current.delete("csrfmiddlewaretoken");
         }
         try {
+            try {
+                sessionStorage.setItem(
+                    props.recoveryKey,
+                    submitted.current!.toString(),
+                );
+            } catch {
+                throw new CommandError(
+                    "Your browser could not keep this save for recovery. Allow session storage before saving.",
+                    "rejected",
+                );
+            }
+            const body = new URLSearchParams(submitted.current!);
+            body.set("csrfmiddlewaretoken", props.csrfToken);
             const { status, data } = await postForm(
                 props.commandHref,
-                submitted.current!,
+                body,
                 props.csrfToken,
             );
             if (status === 200 && typeof data.nextUrl === "string") {
                 unknownOutcome.current = false;
+                clearRecovery(props.recoveryKey);
                 setUncertain(false);
                 (props.onNavigate ?? ((url) => window.location.assign(url)))(
                     data.nextUrl,
@@ -116,6 +169,7 @@ export function ManageCredits(
             ) {
                 setErrors(data.errors);
                 setBalance(data.balance);
+                clearRecovery(props.recoveryKey);
                 unknownOutcome.current = false;
                 setUncertain(false);
             } else {
@@ -135,6 +189,7 @@ export function ManageCredits(
             setNotice(problem.message);
             // An earlier uncertain write remains unresolved even if a retry is rejected.
             unknownOutcome.current = uncertain || problem.outcome === "unknown";
+            if (!unknownOutcome.current) clearRecovery(props.recoveryKey);
             setUncertain(unknownOutcome.current);
         } finally {
             inFlight.current = false;
