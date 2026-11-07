@@ -70,8 +70,8 @@ def _render(
             table.check_complete()
             complete = True
         except ValidationError:
-            pass
-        if complete:
+            complete = False
+        if complete and not table.archived:
             picks = {"generate": "1"}
             if table.purpose == ScenarioTable.Purpose.SIDE_JOB:
                 picks.update(

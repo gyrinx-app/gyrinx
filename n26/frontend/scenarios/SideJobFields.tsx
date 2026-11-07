@@ -134,6 +134,13 @@ export function SideJobFields({
                                 )}
                             </NativeSelect>
                         </Field>
+                        {submitNames && unavailable && (
+                            <input
+                                type="hidden"
+                                name={`${key}_pick`}
+                                value={pick}
+                            />
+                        )}
                         {index > 0 && (
                             <div className="flex justify-end">
                                 <Button

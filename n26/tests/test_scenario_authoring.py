@@ -449,3 +449,129 @@ def test_legacy_general_picks_cannot_silently_drop_a_retired_set(legacy_pick):
     assert not form.is_valid()
     assert "side_job_pick" in form.errors
     assert parse({"side_job": "2"})[0][0].entry.roll == 2
+
+
+@pytest.mark.parametrize("lifecycle", ["staged", "archived"])
+def test_stale_scalar_edit_preserves_latest_lifecycle(draft, lifecycle):
+    complete(draft)
+    authoring.put_live(draft)
+    stale = ScenarioTable.objects.get(pk=draft.pk)
+    authoring.revise(draft, **{lifecycle: True})
+    authoring.revise(stale, name="Edited after lifecycle changed")
+    stale.refresh_from_db()
+    assert getattr(stale, lifecycle)
+    assert stale.key not in {each.key for each in load_catalogue().side_job_sets}
+
+
+def test_retired_editor_has_no_new_generation_preview(client, staff, draft):
+    complete(draft)
+    authoring.revise(draft, archived=True)
+    props = island_props(client.get(here(draft)).content, "scenario-authoring")
+    assert props["complete"]
+    assert not props["previewUrl"]
+
+
+@pytest.mark.parametrize("campaign_page", [False, True])
+@pytest.mark.parametrize("explicit_menus", [False, True])
+def test_full_generators_reroll_with_retired_results_and_keep_menu_positions(
+    client, staff, draft, campaign_type, campaign_page, explicit_menus
+):
+    from urllib.parse import parse_qsl, urlsplit
+
+    from n26.tests.sandbox.actions import found_campaign
+
+    complete(draft)
+    authoring.put_live(draft)
+    authoring.revise(draft, archived=True)
+    if campaign_page:
+        campaign = found_campaign("Retained generator", campaign_type, owner=staff)
+        url = reverse("n26-scenario-generator", args=[campaign.pk])
+    else:
+        url = reverse("n26-generate-scenario")
+    query = {
+        "deployment_pick": "leave",
+        "objective_pick": "leave",
+        "crew_pick": "leave",
+        "side_job": f"{draft.key}-3",
+        "side_job_2": "escher-2",
+    }
+    if explicit_menus:
+        query.update(
+            side_jobs="3",
+            side_job_pick="",
+            side_job_2_pick=draft.key,
+            side_job_3_pick="escher",
+        )
+    response = client.get(url, query)
+    props = island_props(response.content, "scenario-picks")
+    expected = ["", draft.key, "escher"] if explicit_menus else [draft.key, "escher"]
+    assert props["sidePicks"] == expected
+    assert not props["errors"]
+    assert draft.key in {s["key"] for s in props["referencedSideJobSets"]}
+    assert draft.key not in {s["key"] for s in props["sideJobSets"]}
+
+    response = client.get(
+        url, {**query, "reroll": "side_job_2", "reroll_set": "escher"}
+    )
+    assert response.status_code == 302
+    state = dict(parse_qsl(urlsplit(response.url).query))
+    assert state["side_job"] == f"{draft.key}-3"
+    assert state["side_job_2"].startswith("escher-")
+    pick_slot = "side_job_3_pick" if explicit_menus else "side_job_2_pick"
+    assert state[pick_slot] == "escher"
+
+    refused = client.get(url, {**state, "generate": "1"})
+    assert refused.status_code == 200
+    assert refused.context["form"].errors
+
+    response = client.get(url, {**state, "reroll": "side_job", "reroll_set": "general"})
+    assert response.status_code == 302
+    state = dict(parse_qsl(urlsplit(response.url).query))
+    assert state["side_job"].startswith("general-")
+    replaced_slot = "side_job_2_pick" if explicit_menus else "side_job_pick"
+    assert state[replaced_slot] == "general"
+    response = client.get(url, {**state, "generate": "1"})
+    assert response.status_code == 302
+    state = dict(parse_qsl(urlsplit(response.url).query))
+    assert state["side_job"].startswith("general-")
+    assert state["side_job_2"].startswith("escher-")
+
+
+def test_native_replacement_set_discards_only_the_known_previous_retired_pick(draft):
+    complete(draft)
+    authoring.put_live(draft)
+    authoring.revise(draft, archived=True)
+    form = ScenarioGeneratorForm(
+        {
+            "generate": "1",
+            "side_job_set": "general",
+            "side_job_pick": draft.key,
+            "side_job": f"{draft.key}-3",
+        }
+    )
+    assert form.is_valid(), form.errors
+    assert form.generate()["side_job"].startswith("general-")
+
+
+def test_native_retained_named_pick_selects_its_set_and_cannot_silently_disappear(
+    draft,
+):
+    complete(draft)
+    authoring.put_live(draft)
+    authoring.revise(draft, archived=True)
+    value = f"{draft.key}-3"
+    form = ScenarioGeneratorForm({"side_job_pick": value, "side_job": value})
+    assert form.is_valid(), form.errors
+    menu = form.side_job_menus()[0]
+    assert menu["unavailable"]
+    assert menu["set_value"] == draft.key
+    generated = ScenarioGeneratorForm(
+        {
+            "generate": "1",
+            "side_job": value,
+            "side_job_set": menu["set_value"],
+            "side_job_pick": menu["value"],
+        }
+    )
+    assert not generated.is_valid()
+    assert "side_job_pick" in generated.errors

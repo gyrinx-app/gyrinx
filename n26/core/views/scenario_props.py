@@ -89,6 +89,17 @@ def scenario_picks_props(form):
             }
             for found in form.catalogue.side_job_sets
         ],
+        "referencedSideJobSets": [
+            {
+                "key": found.key,
+                "name": found.name,
+                "label": found.label,
+                "entries": [
+                    {"roll": entry.roll, "name": entry.label} for entry in found.entries
+                ],
+            }
+            for found in form.referenced_side_job_sets.values()
+        ],
         "sidePicks": form.side_job_picks(),
         "errors": {key: list(errors) for key, errors in form.errors.items()},
     }

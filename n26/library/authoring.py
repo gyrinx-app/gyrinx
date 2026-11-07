@@ -569,6 +569,7 @@ def revise(row, **fields):
         with transaction.atomic():
             table_id = row.pk if isinstance(row, ScenarioTable) else row.table_id
             ScenarioTable.objects.select_for_update().get(pk=table_id)
+            row.refresh_from_db()
             for name, value in fields.items():
                 setattr(row, name, value)
             row.full_clean()

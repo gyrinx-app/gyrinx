@@ -110,20 +110,19 @@ it("keeps a refused entry open with the submitted description and its error", ()
     ).toBeTruthy();
 });
 
-it("offers restoration for a retired set and preserves the preview link", () => {
+it("offers restoration for a retired set without a generation preview", () => {
     render(
         <ScenarioAuthoring
             {...props}
             table={{ ...props.table!, archived: true }}
+            previewUrl=""
         />,
     );
     expect(screen.getByRole("button", { name: "Restore set" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Put live" })).toBeNull();
     expect(
-        screen
-            .getByRole("link", { name: "Preview in generator" })
-            .getAttribute("href"),
-    ).toBe(props.previewUrl);
+        screen.queryByRole("link", { name: "Preview in generator" }),
+    ).toBeNull();
 });
 
 it("uses the create form and reports publication errors on an incomplete table", () => {
