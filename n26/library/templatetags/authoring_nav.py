@@ -14,29 +14,11 @@ register = template.Library()
 
 @register.simple_tag
 def kinds_switcher(here="", menu_label="Switch kind", named=False):
-    """Every kind of content, as somewhere to go.
+    """Build an alphabetically sorted kind switcher without database queries.
 
-    Costs no query: the kinds are a dict and their names come off the
-    model classes, so there is nothing to save by leaving this off the
-    pages that are not one kind.
-
-    ``here`` is the kind slug the page is showing. A page showing none
-    passes nothing and the list opens with no row marked.
-
-    ``named`` draws the leading link: the kind's own listing when the
-    page is showing one, the library index when it is not — so from a
-    row's page the name is the way up to its listing, and the chevron
-    the way across to another kind. The bar wants that; beside a heading
-    that already names the kind, the default chevron alone is right.
-
-    ``menu_label`` is the chevron's accessible name. A page drawing this
-    twice — once in the bar, once beside its heading — must name the
-    second one itself: two controls announced identically tell a reader
-    who cannot see where they sit nothing about either.
-
-    Sorted by name rather than left in ``LEAF_KINDS`` order, which is
-    menu order within a family and reads as no order at all once the
-    families are flattened into one list.
+    ``here`` marks the current kind. ``named`` adds its listing link, or the
+    library index when no kind is selected. ``menu_label`` supplies an accessible
+    name; pages with two switchers must distinguish their names.
     """
     from django.urls import reverse
 
