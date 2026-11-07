@@ -1,0 +1,15 @@
+{% load n26_rows %}
+{% comment %}
+Read-only members of a composed print group. Keep campaign asset names as an
+accessible list so punctuation inside a name is not mistaken for a separator.
+{% endcomment %}
+{% for part in group.parts %}
+    {% if part.kind == "asset_group" and part.value.names %}
+        <c-n26.name-list :names="part.value.names" label="{{ part.value.label }}" />
+    {% else %}
+        {{ part|read_part }}
+    {% endif %}
+    {% if not forloop.last %},{% endif %}
+{% empty %}
+    {{ group.text }}
+{% endfor %}
