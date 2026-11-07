@@ -7,7 +7,7 @@ register = template.Library()
 
 @register.simple_tag
 def announcement_props(dismiss_url="", banner_id="", csrf=""):
-    """Where a remembered dismissal posts, when the shell asks for one."""
+    """Serialise the dismissal URL, banner identity and CSRF token for the announcement control."""
     return {
         "dismissUrl": "" if dismiss_url is None else str(dismiss_url),
         "bannerId": "" if banner_id is None else str(banner_id),

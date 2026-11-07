@@ -74,9 +74,7 @@ def filter_select_props(markup, min_options=15, placeholder="", empty=""):
 
     attributes = parser.select
     multiple = "multiple" in attributes
-    # The select is hidden once React draws the trigger. What a script or a
-    # form reads stays on the select; what a screen reader reads moves to the
-    # trigger, which is the control a person reaches.
+    # Keep form and data attributes on the native select; move ARIA attributes to the visible React trigger.
     passthrough = {
         name: value or ""
         for name, value in attributes.items()
