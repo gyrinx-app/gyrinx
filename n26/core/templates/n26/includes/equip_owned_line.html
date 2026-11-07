@@ -1,10 +1,6 @@
 {% comment %}
-A row for something already held. Expects `row` — an n26.core.listing.OwnedRow —
-and `held_label` from the page when the host is the stash; `htmx` from the page
-says the screen receives partial updates, and `redrawn` that this render is one.
-
-Owning something is a *state of its row*, not a list of its own: where a copy is
-held, the count stands where Buy would be and opens the row onto what they have.
+Render an OwnedRow with its count and per-copy controls. held_label identifies stash
+ownership; htmx and redrawn configure partial updates.
 {% endcomment %}
 {% if row.expanded %}
     {% querystring owned=None as owned_toggle_href %}
@@ -36,7 +32,7 @@ held, the count stands where Buy would be and opens the row onto what they have.
                     {% else %}
                         <div class="flex min-h-9 items-center gap-2">
                             <span class="min-w-0 flex-1 text-sm text-muted">Buy another</span>
-                            {# A div: the price box is its own element, and a span cannot hold one. #}
+                            {# Use a div because the price component renders block content. #}
                             <div class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">
                                 {% include "n26/includes/equip_price.html" with field=row.buy.price_field quoted=row.buy.price label=row.buy.marked_name %}
                             </div>
