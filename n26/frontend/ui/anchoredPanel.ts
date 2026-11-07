@@ -8,12 +8,9 @@ import {
 } from "react";
 
 /**
- * Closes an open panel when the reader moves on: a pointer pressed outside
- * `root`, focus landing outside it, or Escape anywhere.
- *
- * Escape closes and returns focus to `trigger`. `onEscape` replaces both, for
- * a panel whose Escape does more than close. A control inside the panel that
- * handles Escape itself stops the event there and this never sees it.
+ * Close on outside pointer or focus events, or Escape. Escape restores trigger
+ * focus unless onEscape supplies a replacement handler; nested controls can
+ * stop propagation to handle Escape themselves.
  */
 export function useDismiss(
     root: RefObject<HTMLElement | null>,
@@ -75,18 +72,16 @@ export type AnchoredPlacementOptions = {
     /** Space kept clear of the window's edges, in pixels. */
     margin?: number;
     /**
-     * Off: the panel opens below, or above when the whole panel fits there.
-     * With room on neither side it stays below and can overflow the window.
-     * On: the panel takes the side with more room when it overflows below,
-     * and its height is capped to the room on that side.
+     * When enabled, use the side with more room if the panel overflows below,
+     * and cap its height. Otherwise move above only if the full panel fits.
      */
     clampHeight?: boolean;
 };
 
 const MIN_CLAMPED_HEIGHT = 80;
 
-// A fixed box with an automatic width shrinks to the room right of its left
-// edge. max-content keeps the measured width the same wherever the panel sits.
+// max-content keeps the measured width independent of the panel's current
+// horizontal position.
 function contentWidth(minWidth: string, margin: number): CSSProperties {
     const room = `calc(100vw - ${2 * margin}px)`;
     return {
@@ -96,8 +91,8 @@ function contentWidth(minWidth: string, margin: number): CSSProperties {
     };
 }
 
-// Transparent rather than hidden until placed: a hidden panel cannot take
-// focus, and a caller may focus into the panel as it opens.
+// Keep the unplaced panel focusable; display:none and visibility:hidden
+// would prevent focus on opening.
 const UNPLACED: CSSProperties = { opacity: 0, pointerEvents: "none" };
 
 function hiddenStyle(
@@ -123,22 +118,13 @@ function sameStyle(a: CSSProperties, b: CSSProperties) {
 }
 
 /**
- * Places a `position: fixed` panel beside its trigger, so no scrolling
- * ancestor clips it. Returns the panel's style: transparent and ignoring the
- * pointer until the first placement, then placed again on every resize and
- * scroll.
+ * Position a fixed panel beside its trigger on opening, resize and scroll. It
+ * remains transparent until the first measurement.
  *
- * Across, the panel always stays `margin` clear of both window edges.
- *
- * Down, it depends on `clampHeight`:
- * - Off: the panel sits `gap` below the trigger, or above when the whole
- *   panel fits there. The hook sets no height. When neither side has room, it
- *   stays below and can run past the bottom of the window, unless the panel's
- *   own CSS caps its height. It also follows a trigger scrolled out of view.
- * - On: the top stays between `margin` and the window's height less
- *   `margin`, and `maxHeight` is capped to the room on the chosen side. The
- *   cap is never under 80px, so with less room than that the panel can still
- *   pass the margin.
+ * Horizontal placement preserves the viewport margin. With clampHeight
+ * disabled, the panel may overflow below when neither side fits. With it
+ * enabled, maxHeight follows the available space, with an 80px minimum that
+ * can exceed that space.
  */
 export function useAnchoredPlacement({
     open,
@@ -220,8 +206,8 @@ export function useAnchoredPlacement({
         return () => {
             window.removeEventListener("resize", place);
             window.removeEventListener("scroll", place, true);
-            // Reopening measures the panel unplaced again, as the first
-            // opening did.
+            // Reset placement so reopening measures the panel without its
+            // previous constraints.
             setStyle(hiddenStyle(width, minWidth, margin));
         };
     }, [

@@ -12,20 +12,19 @@ import cotton from "../generated/cotton.json";
 import { isVirtualClick } from "./ActionMenu";
 import { useAnchoredPlacement, useDismiss } from "./anchoredPanel";
 
-// Every kind of row a menu holds: links, form buttons and radio choices.
+// Include links, submit buttons and radio options in keyboard navigation.
 const ITEMS =
     '[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]';
 
 type Edge = "first" | "last";
 
-// How a row closes the menu it sits in.
+// Allow nested entries to dismiss their containing menu.
 const CloseMenu = createContext<() => void>(() => {});
 
 /**
- * A button that opens a menu of mixed rows, following the WAI-ARIA menu
- * button pattern over every item the panel holds. Arrow keys, Home and End
- * move between them; Escape closes and returns focus to the button; Tab
- * closes and moves on. ActionMenu is the links-only form.
+ * A WAI-ARIA menu button supporting links, form submissions and radio options.
+ * Arrow keys, Home and End navigate; Escape restores trigger focus, and Tab
+ * continues from it.
  */
 export function MenuButton({
     label,
@@ -83,9 +82,8 @@ export function MenuButton({
         pendingFocus.current = null;
     }, [open]);
 
-    // A posting row cannot close the menu as it is used: a form taken out
-    // of the page before its submission runs is not sent. So a page the
-    // browser restores from its back-forward cache closes the menu instead.
+    // Keep submitting forms mounted until navigation. Close the restored
+    // menu on back/forward cache return.
     useEffect(() => {
         function onPageShow(event: PageTransitionEvent) {
             if (event.persisted) setOpen(false);
@@ -148,8 +146,8 @@ export function MenuButton({
                 }
                 break;
             case "Tab":
-                // Focus the button before the panel goes, so Tab moves on
-                // from it rather than from the start of the page.
+                // Restore trigger focus before unmounting so Tab continues
+                // from it in document order.
                 button.current?.focus();
                 setOpen(false);
                 break;
@@ -215,7 +213,7 @@ export function MenuButton({
 const itemClass = (tone: "default" | "danger") =>
     tone === "danger" ? cotton.actionMenu.itemDanger : cotton.actionMenu.item;
 
-/** A menu row that goes somewhere. */
+/** A link entry that closes the menu on activation. */
 export function MenuLink({
     href,
     tone = "default",
@@ -240,8 +238,8 @@ export function MenuLink({
 }
 
 /**
- * A menu row that posts a form. The form is not a menu row itself, so it
- * is hidden from the menu's structure.
+ * A submit entry whose form wrapper is excluded from the accessible menu
+ * structure.
  */
 export function MenuSubmit({
     action,
@@ -282,10 +280,7 @@ export function MenuSeparator() {
     );
 }
 
-/**
- * A section of a menu under a heading, as `<c-ui.dropdown.group>` draws it.
- * The heading names the group, so a screen reader says it on entering.
- */
+/** A named group of menu entries, equivalent to c-ui.dropdown.group. */
 export function MenuGroup({
     label,
     children,

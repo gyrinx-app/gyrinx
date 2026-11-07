@@ -191,7 +191,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    "google.cloud.sqlcommenter.django.middleware.SqlCommenter",
+    "opentelemetry.instrumentation.django.middleware.sqlcommenter_middleware.SqlCommenter",
     # Clears the thread-local the next middleware sets; must sit above it so
     # the clear runs after the response (threads are reused under gunicorn).
     "gyrinx.middleware.ClearLoggingRequestMiddleware",
@@ -573,6 +573,8 @@ SQLCOMMENTER_WITH_CONTROLLER = True
 SQLCOMMENTER_WITH_FRAMEWORK = True
 SQLCOMMENTER_WITH_ROUTE = True
 SQLCOMMENTER_WITH_APP_NAME = True
+SQLCOMMENTER_WITH_OPENTELEMETRY = False
+SQLCOMMENTER_WITH_DB_DRIVER = False
 
 # Tracing configuration
 # Options: "off" (no-op), "console" (print to stdout), "gcp" (Google Cloud Trace)

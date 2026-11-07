@@ -280,7 +280,7 @@ class TestTheTextRenderer:
         # ledger, where a profile stands alone, still says the weapon.
         assert "- Firestorm ammo (+30cr)" in text
         assert "Skills: Nerves of Steel" in text
-        assert "Equipment: Mesh Armour" in text
+        assert "Gear: Mesh Armour" in text
         assert "XP: 13/19" in text
 
     def test_the_statline_prints_as_two_rows_of_headings_and_values(self, yolanda):
