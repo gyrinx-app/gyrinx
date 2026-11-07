@@ -146,7 +146,7 @@ impersonation state, gtm_container_id, messages and user.
                             class="dark">
                 {% comment %}
                 Use a slot for the badge markup so it is not escaped as an attribute.
-                Omit href to avoid nesting a link inside the account button.
+                Set :linked="False" to avoid nesting a link inside the account button.
                 {% endcomment %}
                 {% if user.is_authenticated %}
                     <c-slot name="user_label">
