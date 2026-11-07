@@ -132,6 +132,7 @@ class TestTinyMCEUpload:
         ("filename", "content_type"),
         [
             ("active.svg", "image/svg+xml"),
+            ("active.png", "image/svg+xml"),
             ("active.svg", "image/png"),
             ("active.html", "image/png"),
         ],
