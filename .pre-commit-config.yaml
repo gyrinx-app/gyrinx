@@ -177,6 +177,13 @@ repos:
         language: system
         files: \.md$
 
+      - id: security-mermaid
+        name: Parse security Mermaid diagrams
+        entry: npm run lint:mermaid
+        language: system
+        files: ^docs/security/.*\.md$
+        pass_filenames: false
+
   # Skipped becuase they take too long
   # - repo: local
   #   hooks:

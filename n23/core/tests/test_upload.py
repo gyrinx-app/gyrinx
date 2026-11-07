@@ -128,6 +128,28 @@ class TestTinyMCEUpload:
         data = response.json()
         assert data["error"] == "File upload failed due to validation errors"
 
+    @pytest.mark.parametrize(
+        ("filename", "content_type"),
+        [
+            ("active.svg", "image/svg+xml"),
+            ("active.png", "image/svg+xml"),
+            ("active.svg", "image/png"),
+            ("active.html", "image/png"),
+        ],
+    )
+    def test_upload_rejects_executable_media(
+        self, authenticated_client, filename, content_type
+    ):
+        client, _ = authenticated_client
+        file = SimpleUploadedFile(
+            filename, b"<svg><script>alert(1)</script></svg>", content_type=content_type
+        )
+
+        response = client.post(reverse("core:tinymce-upload"), {"file": file})
+
+        assert response.status_code == 400
+        assert UploadedFile.objects.count() == 0
+
     def test_upload_file_too_large(self, authenticated_client, large_image):
         """Test that files over 10MB are rejected."""
         client, user = authenticated_client

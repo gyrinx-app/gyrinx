@@ -8,6 +8,8 @@ from simple_history.models import HistoricalRecords
 
 from gyrinx.base_models import AppBase
 
+UPLOAD_ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp"}
+
 
 def upload_to(instance, filename):
     """Generate upload path using UUID."""
@@ -120,10 +122,19 @@ class UploadedFile(AppBase):
                 "image/png",
                 "image/gif",
                 "image/webp",
-                "image/svg+xml",
             ]
 
             if self.content_type not in allowed_types:
                 raise ValidationError(
-                    f"File type '{self.content_type}' is not allowed. Allowed types: JPEG, PNG, GIF, WebP, SVG."
+                    f"File type '{self.content_type}' is not allowed. Allowed types: JPEG, PNG, GIF, WebP."
+                )
+
+        # The public CDN serves the stored file using its extension. Reject
+        # executable extensions even if the browser claims a raster MIME type.
+        name = (self.file.name if self.file else "") or self.original_filename
+        if name:
+            ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+            if ext not in UPLOAD_ALLOWED_EXTENSIONS:
+                raise ValidationError(
+                    f"File extension '.{ext}' is not allowed. Allowed: JPG, JPEG, PNG, GIF, WebP."
                 )

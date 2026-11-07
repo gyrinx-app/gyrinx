@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
-from django.test import Client
+from django.test import Client, RequestFactory, override_settings
 from django.urls import reverse
 
 from gyrinx.tasks import TaskRoute
@@ -240,6 +240,67 @@ def test_pubsub_handler_passes_args_and_kwargs(client, bypass_oidc):
     assert response.status_code == 200
     assert received["args"] == ("arg1", "arg2")
     assert received["kwargs"] == {"key1": "value1", "key2": 42}
+
+
+# =============================================================================
+# OIDC Token Verification Tests
+# =============================================================================
+
+
+@pytest.mark.parametrize(
+    ("configured", "claim_email", "expected"),
+    [
+        (None, "pubsub-invoker@project-a.iam.gserviceaccount.com", True),
+        (None, "other@project-a.iam.gserviceaccount.com", False),
+        ("custom@example.test", "custom@example.test", True),
+        (
+            "custom@example.test",
+            "pubsub-invoker@project-a.iam.gserviceaccount.com",
+            False,
+        ),
+    ],
+)
+def test_oidc_sender_matches_provisioned_service_account(
+    monkeypatch, configured, claim_email, expected
+):
+    from gyrinx.tasks.views import _verify_oidc_token
+
+    monkeypatch.setenv("CLOUD_RUN_SERVICE_URL", "https://service.test")
+    if configured is None:
+        monkeypatch.delenv("TASKS_SERVICE_ACCOUNT", raising=False)
+    else:
+        monkeypatch.setenv("TASKS_SERVICE_ACCOUNT", configured)
+
+    request = RequestFactory().post(
+        "/tasks/pubsub/", HTTP_AUTHORIZATION="Bearer signed-token"
+    )
+    with (
+        override_settings(DEBUG=False, GCP_PROJECT_ID="project-a"),
+        patch(
+            "google.oauth2.id_token.verify_oauth2_token",
+            return_value={"email": claim_email},
+        ) as verify,
+    ):
+        assert _verify_oidc_token(request) is expected
+
+    verify.assert_called_once()
+    assert verify.call_args.kwargs["audience"] == "https://service.test"
+
+
+def test_oidc_sender_fails_closed_without_identity(monkeypatch):
+    from gyrinx.tasks.views import _verify_oidc_token
+
+    monkeypatch.setenv("CLOUD_RUN_SERVICE_URL", "https://service.test")
+    monkeypatch.delenv("TASKS_SERVICE_ACCOUNT", raising=False)
+    request = RequestFactory().post(
+        "/tasks/pubsub/", HTTP_AUTHORIZATION="Bearer signed-token"
+    )
+    with (
+        override_settings(DEBUG=False, GCP_PROJECT_ID=None),
+        patch("google.oauth2.id_token.verify_oauth2_token") as verify,
+    ):
+        assert _verify_oidc_token(request) is False
+    verify.assert_not_called()
 
 
 @pytest.mark.django_db

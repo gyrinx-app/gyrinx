@@ -29,6 +29,8 @@
 - [Group-Based Features](developing-gyrinx/group-based-features.md)
 - [Deployment Environment Variables](deployment-environment-variables.md)
 - [Logging and Tracing Reference](logging-and-tracing-reference.md)
+- [Threat Model](security/index.md)
+  - [Maintaining the Threat Model](security/process.md)
 - [Security Baseline](security-baseline.md)
 - [Task Framework](technical-reference/task-framework.md)
 - [State Machine](technical-reference/state-machine.md)
