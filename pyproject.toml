@@ -29,7 +29,7 @@ dependencies = [
     "djlint==1.47.1",
     "docutils==0.23",
     "fido2==2.2.1",
-    "filelock==4.2.7",
+    "filelock==4.2.8",
     "google-cloud-logging==3.17.0",
     "google-cloud-pubsub==2.43.0",
     "google-cloud-scheduler==2.21.0",
@@ -74,7 +74,7 @@ dependencies = [
     "sqlparse==0.6.1",
     # Security: minimum versions for vulnerable transitive dependencies
     "urllib3>=2.8.0",
-    "virtualenv>=21.15.3",
+    "virtualenv>=21.15.5",
     "whitenoise==6.12.0",
     "markdown-it-py>=4.2.0",
 ]
