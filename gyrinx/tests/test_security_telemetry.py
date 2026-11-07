@@ -12,7 +12,7 @@ from django.test import Client, RequestFactory, override_settings
 
 from gyrinx.adapter import CustomAccountAdapter
 from gyrinx.middleware import SecurityTelemetryMiddleware
-from gyrinx.security_events import record_security_event
+from gyrinx.security_events import login_target_fingerprint, record_security_event
 from gyrinx.views_csrf import csrf_failure
 
 
@@ -43,6 +43,10 @@ def test_rejected_account_forms_emit_bounded_audit(monkeypatch, path, data, acti
     assert labels["request_id"]
     assert "secret" not in str(labels)
     assert "nobody" not in str(labels)
+    if action == "login":
+        assert len(labels["target_fingerprint"]) == 64
+    else:
+        assert labels["target_fingerprint"] is None
 
 
 @pytest.mark.django_db
@@ -113,6 +117,15 @@ def test_trace_context_is_validated_and_request_id_is_generated():
 
     assert audit.call_args.kwargs["trace_id"] == "0123456789abcdef0123456789abcdef"
     assert len(audit.call_args.kwargs["request_id"]) == 32
+
+
+def test_rejected_login_target_is_stable_across_case_and_whitespace():
+    factory = RequestFactory()
+    first = factory.post("/accounts/login/", {"login": " User@Example.com "})
+    second = factory.post("/accounts/login/", {"login": "user@example.com"})
+
+    assert login_target_fingerprint(first) == login_target_fingerprint(second)
+    assert "user@example.com" not in login_target_fingerprint(first)
 
 
 @override_settings(TRUSTED_X_FORWARDED_FOR_HOPS=2)

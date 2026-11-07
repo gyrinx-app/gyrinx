@@ -316,12 +316,13 @@ def test_create_list_view_logs_event(client, user, content_house):
 
 @pytest.mark.django_db
 @patch("gyrinx.analytics.models.Event.objects.create")
-def test_log_event_error_handling(mock_create):
+@patch("gyrinx.analytics.models.logger")
+def test_log_event_error_handling(mock_logger, mock_create):
     """Test that log_event handles errors gracefully."""
     user = User.objects.create_user(username="testuser")
 
     # Make Event.objects.create raise an exception
-    mock_create.side_effect = Exception("Database error")
+    mock_create.side_effect = Exception("Database error password=secret")
 
     # This should not raise an exception
     result = log_event(
@@ -329,6 +330,7 @@ def test_log_event_error_handling(mock_create):
         noun=PlatformNoun.USER,
         verb=EventVerb.UPDATE,
         field=EventField.PASSWORD,
+        password="secret",
     )
 
     # Should return None when error occurs
@@ -336,6 +338,7 @@ def test_log_event_error_handling(mock_create):
 
     # Verify create was attempted
     assert mock_create.called
+    assert "secret" not in str(mock_logger.error.call_args)
 
 
 @pytest.mark.django_db
@@ -359,8 +362,10 @@ def test_event_save_logging_error_handling(mock_logger, mock_track):
     assert event.id is not None
     assert Event.objects.count() == 1
 
-    # Should have logged the exception
-    mock_logger.exception.assert_called_once_with("Failed to log event to stream")
+    # Streaming exceptions may echo payload values, so only their type is logged.
+    mock_logger.error.assert_called_once_with(
+        "Failed to log event to stream", extra={"error_type": "Exception"}
+    )
 
 
 @override_settings(TRUSTED_X_FORWARDED_FOR_HOPS=2)

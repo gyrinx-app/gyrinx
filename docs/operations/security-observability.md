@@ -11,7 +11,7 @@ links application records when a trace header is unavailable.
 
 | Event | Meaning | Useful fields |
 | --- | --- | --- |
-| `security_request` | Rejected login, signup, MFA, CSRF, permission (403 or login redirect), or invalid-host request | `action`, `outcome`, `reason`, `route`, `actor_id`, `client_ip`, `request_id`, `trace_id` |
+| `security_request` | Rejected login, signup, MFA, CSRF, permission (403 or login redirect), or invalid-host request | `action`, `outcome`, `reason`, `route`, `actor_id`, `target_fingerprint`, `client_ip`, `request_id`, `trace_id` |
 | `http_route_response` | All 4xx/5xx and a 10% sample of successful responses | `route`, `status`, `duration_ms`, `request_id`, `trace_id`, `sampled` |
 | `db_pool_stats` | Once per minute per worker with an active psycopg pool | `pool_size`, `pool_available`, `requests_waiting`, `requests_queued`, `requests_errors` |
 | `db_pool_timeout` | A request failed to acquire a database connection | `route`, `request_id`, `trace_id` |
@@ -68,8 +68,10 @@ for growing `requests_waiting`, depleted `pool_available`, and rising
 `requests_errors`. The app's response sample is useful for route timing; use
 Cloud Run request metrics for total request and error rates. A 302 from the
 custom CSRF handler is identified by `security_request.action="csrf"`, not
-by status alone. Account form rejection logs show no attempted username or
-email, so they cannot identify a targeted account by themselves.
+by status alone. Rejected login attempts carry a keyed `target_fingerprint`.
+Group equal fingerprints to find attempts against the same identifier without
+putting usernames or email addresses in logs. An authorised investigator can
+compare a known account identifier against those fingerprints locally.
 
 ## Alerts
 
@@ -131,7 +133,6 @@ These records show attempts that reached Django and were handled by its
 instrumented routes. CDN or load-balancer rejections may appear only in edge
 logs. A redirect to login may also be an ordinary navigation by a signed-out
 user, so investigate its timing and source before calling it an attack. The
-security log does not capture a submitted account identifier; investigation of
-credential attacks is limited to IP, route, timing and successful account
-events. Cloud Run request logs remain necessary for complete request counts
-and network attribution.
+security log does not capture submitted account identifiers in plaintext.
+Cloud Run request logs remain necessary for complete request counts and network
+attribution.

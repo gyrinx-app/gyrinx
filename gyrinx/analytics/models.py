@@ -215,9 +215,12 @@ class Event(AppBase):
                 field=self.field,
                 context=self.context,
             )
-        except Exception:
+        except Exception as exc:
             # Preserve the stored event if stream logging fails.
-            logger.exception("Failed to log event to stream")
+            logger.error(
+                "Failed to log event to stream",
+                extra={"error_type": type(exc).__name__},
+            )
 
 
 def ensure_json_serializable(data):
@@ -309,16 +312,18 @@ def log_event(
             event_data["object_type"] = ContentType.objects.get_for_model(object)
 
         return Event.objects.create(**event_data)
-    except Exception as e:
+    except Exception as exc:
         logger.error(
-            f"Failed to log event: {noun} {verb}",
-            exc_info=True,
+            "Failed to log event: %s %s",
+            noun,
+            verb,
             extra={
                 "user_id": getattr(user, "id", None),
                 "noun": noun,
                 "verb": verb,
-                "error": str(e),
-                "context": context,
+                # Database exceptions can echo parameters, and context can
+                # contain credentials if a caller used an unrecognised key.
+                "error_type": type(exc).__name__,
             },
         )
         return None

@@ -1,7 +1,11 @@
 """Small, bounded audit records for rejected HTTP requests."""
 
+import hashlib
+import hmac
 import re
 from uuid import uuid4
+
+from django.conf import settings
 
 from gyrinx.client_ip import get_client_ip
 from gyrinx.tracker import track
@@ -26,6 +30,25 @@ def trace_id(request):
     return raw.lower() if _TRACE_ID.fullmatch(raw) else None
 
 
+def login_target_fingerprint(request):
+    """Link rejected attempts against one login without logging its identifier."""
+    try:
+        raw = request.POST.get("login")
+    except Exception:
+        # An invalid or oversized body must not turn a rejection into a 500.
+        return None
+    if not isinstance(raw, str):
+        return None
+    normalized = raw.strip().casefold()
+    if not normalized or len(normalized) > 512:
+        return None
+    return hmac.new(
+        settings.SECRET_KEY.encode(),
+        b"login-target\0" + normalized.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+
 def record_security_event(
     request, action, reason, *, outcome="rejected", response_status=None
 ):
@@ -39,6 +62,9 @@ def record_security_event(
         route=request_route(request),
         method=request.method,
         actor_id=str(user.pk) if user is not None and user.is_authenticated else None,
+        target_fingerprint=login_target_fingerprint(request)
+        if action == "login"
+        else None,
         client_ip=get_client_ip(request),
         request_id=request_id(request),
         trace_id=trace_id(request),
