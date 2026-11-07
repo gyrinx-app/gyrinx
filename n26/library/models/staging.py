@@ -21,7 +21,7 @@ rhythm while an edition is being built.
 from functools import partial
 
 from django.db import models, transaction
-from django.db.models.signals import post_delete
+from django.db.models.signals import pre_delete
 from django.dispatch import receiver
 
 from n26.core.models import Base, Owned
@@ -107,12 +107,12 @@ class UploadedSheet(Base, Owned):
 
 
 @receiver(
-    post_delete,
+    pre_delete,
     sender=UploadedSheet,
     dispatch_uid="delete_unreferenced_uploaded_sheet_file",
 )
 def cleanup_uploaded_sheet_file(sender, instance, using, **kwargs):
-    """Remove bytes after any instance, queryset or cascade deletion commits."""
+    """Capture the file before deletion and remove its bytes after commit."""
     schedule_file_cleanup(
         instance.file.storage,
         instance.file.name,

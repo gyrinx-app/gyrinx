@@ -42,3 +42,26 @@ def test_direct_deletion_waits_for_commit_and_preserves_shared_legacy_bytes(
         assert deleted == []
 
     assert deleted == [first.file.name]
+
+
+def test_direct_deletion_captures_a_deferred_file_before_removing_its_row(
+    monkeypatch,
+    django_capture_on_commit_callbacks,
+):
+    """Read deferred file details while the database row still exists."""
+    owner = User.objects.create_user("deferred-author")
+    held = store_sheet(
+        owner,
+        "equipment",
+        SimpleUploadedFile("equipment.csv", b"Name,Price\nKnife,5\n"),
+    )
+    stored = held.file.name
+    deleted = []
+    monkeypatch.setattr(held.file.storage, "delete", deleted.append)
+    deferred = UploadedSheet.objects.only("pk").get(pk=held.pk)
+
+    with django_capture_on_commit_callbacks(execute=True):
+        deferred.delete()
+        assert deleted == []
+
+    assert deleted == [stored]
