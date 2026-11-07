@@ -13,16 +13,19 @@ export type PickListProps = {
     /** The checkboxes' field name. */
     name: string;
     groups: PickGroup[];
-    /** Options not on the list, offered by the switcher and listed once ticked. */
+    /**
+     * Additional options offered by the switcher and added to the list when
+     * selected.
+     */
     addable: PickOption[];
     addLabel: string;
     placeholder: string;
     grouped: boolean;
     /** Heads the ticked addable options when the list is grouped. */
     addedLabel: string;
-    /** The submit button's words; empty draws no buttons. */
+    /** Submit button label; empty hides the action buttons. */
     save: string;
-    /** The form a Reset button submits; empty draws no Reset. */
+    /** Form ID submitted by Reset; empty hides Reset. */
     resetForm: string;
 };
 
@@ -35,8 +38,8 @@ function initiallyPicked(groups: PickGroup[], addable: PickOption[]) {
 }
 
 /**
- * A ticked list with a switcher for what is not on it yet. Only the boxes
- * post: the switcher ticks a box, and adds no input of its own.
+ * A checkbox list with a switcher for adding options. Only checked inputs
+ * submit values; the switcher updates those inputs.
  */
 export function PickList({
     name,

@@ -19,36 +19,11 @@ Assets retain their authored groups and links. This component draws its own card
             </h2>
         </c-slot>
         <dl class="divide-y divide-box-border px-4">
-            {% for choice in campaign.other_choices %}
-                {% include "n26/includes/campaign_choice.html" %}
-            {% endfor %}
-            {% for counter in campaign.counters %}
-                <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 py-2.5">
-                    <dt class="min-w-0 break-words text-sm text-muted">{{ counter.name }}</dt>
-                    <dd class="flex items-center justify-end text-sm tabular-nums">
-                        {% include "n26/includes/campaign_counter_value.html" with redrawn=False steps=True %}
-                    </dd>
-                </div>
-            {% endfor %}
-            {% for line in campaign.other_lines %}
-                <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-baseline gap-3 py-2.5">
-                    <dt class="min-w-0 break-words text-sm text-muted">{{ line.type_label }}</dt>
-                    <dd class="min-w-0 break-words text-right text-sm">{{ line.name }}{% if line.income %}<span class="text-muted"> · income {{ line.income }}¢</span>{% endif %}</dd>
-                </div>
-            {% endfor %}
-            {% for group in campaign.asset_groups %}
-                <div class="grid grid-cols-1 items-baseline gap-1 py-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] sm:gap-3">
-                    <dt class="min-w-0 break-words text-sm text-muted">{{ group.label }}</dt>
-                    <dd class="min-w-0 text-sm">
-                        {% if group.names %}
-                            {% if group.held %}
-                                <c-n26.name-list :names="group.names" label="{{ group.label }}" href="{{ campaign.assets_href }}" class="sm:justify-end" />
-                            {% else %}
-                                <c-n26.name-list :names="group.names" label="{{ group.label }}" class="sm:justify-end" />
-                            {% endif %}
-                        {% else %}
-                            <span class="sm:block sm:text-right">None</span>
-                        {% endif %}
+            {% for row in campaign.detail_rows %}
+                <div class="grid {% if row.has_asset_groups %}grid-cols-1 gap-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] sm:gap-3{% else %}grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3{% endif %} items-baseline py-2.5">
+                    <dt class="min-w-0 break-words text-sm text-muted">{{ row.label }}</dt>
+                    <dd class="min-w-0 text-right text-sm">
+                        {% include "n26/includes/row_parts.html" with parts=row.parts campaign_style=True slot_style=False %}
                     </dd>
                 </div>
             {% endfor %}

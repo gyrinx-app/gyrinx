@@ -39,10 +39,8 @@ export function mount(
             initialSelections,
             focusedChoice,
         });
-    // The server-drawn box is editable before this module loads. Start from
-    // what is typed there, or a slow load would put the quote back. If that
-    // box still has focus, put it back on the replacement so the next
-    // keystroke is not lost.
+    // Preserve input and focus from before module loading so mounting
+    // cannot overwrite edits or interrupt typing.
     const box = element.querySelector<HTMLInputElement>(
         `input[name="${props.field}"]`,
     );

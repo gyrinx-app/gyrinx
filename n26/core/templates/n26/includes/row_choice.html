@@ -1,0 +1,44 @@
+{% comment %}
+One independently addressable question within a composed heading.
+Named prompts stay beside their Skills or Powers facts. Other questions retain
+their own pick, add and dismissal controls, even when several share a heading.
+{% endcomment %}
+{% if named_prompt %}
+    <c-n26.model-card.mode when="gang view edit">
+        <span class="inline-flex items-center gap-0">
+            {% if choice.href %}
+                <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">
+                    Choose {{ choice.kind_label|lower }}
+                </c-ui.button>
+            {% else %}
+                <span class="text-xs text-muted">Choose {{ choice.kind_label|lower }}</span>
+            {% endif %}
+            <c-n26.choice-dismiss :choice="choice" />
+        </span>
+    </c-n26.model-card.mode>
+{% else %}
+    {% if mode == "readonly" %}
+        {{ choice.chosen|default_if_none:"None" }}
+    {% else %}
+        {% if choice.is_resolved %}
+            {% if choice.href %}
+                <c-ui.button href="{{ choice.href }}"
+                             variant="ghost"
+                             size="xs"
+                             class="max-w-full whitespace-normal! text-left px-0!">
+                    {{ choice.chosen }}
+                </c-ui.button>
+            {% else %}
+                {{ choice.chosen }}
+            {% endif %}
+        {% endif %}
+        {% if not choice.is_full %}
+            {% if choice.takes_several %}
+                {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Add</c-ui.button>{% else %}<span class="text-xs text-muted">Add</span>{% endif %}
+            {% elif not choice.is_resolved %}
+                {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.follows_status %}<span class="inline-flex items-center gap-1">Resolve <c-n26.icon name="arrow-right" class="size-3.5 shrink-0" /></span>{% else %}Choose{% endif %}</c-ui.button>{% else %}<span class="text-xs text-muted">Choose</span>{% endif %}
+            {% endif %}
+        {% endif %}
+        <c-n26.choice-dismiss :choice="choice" />
+    {% endif %}
+{% endif %}
