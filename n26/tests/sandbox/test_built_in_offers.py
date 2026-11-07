@@ -1,12 +1,5 @@
-"""What attaching a thing asks for, and what a create page offers.
-
-The rule under test (library/offers.py): no form ever knows a kind by
-name. A counter's opening value appears on the add-built-in form
-because *the counter declares it* (``ATTACHMENT_ASKS``); the profile
-create page offers Starting XP and an equipment list because *the
-profile declares it* (``SUGGESTED_BUILT_INS``). Both resolve to frozen
-structures, and the structures are what these tests hold still —
-the forms are derivations.
+"""Attachment asks and suggested built-ins come from model declarations. These tests
+validate those declarations and the forms derived from their resolved offers.
 """
 
 import pytest
@@ -19,7 +12,7 @@ pytestmark = pytest.mark.django_db
 
 
 def library_assignables():
-    """Every concrete kind carrying the Assignable mixin, discovered."""
+    """Discover every concrete Assignable model."""
     from django.apps import apps
 
     from n26.library.models.assignable import Assignable
@@ -32,18 +25,13 @@ def library_assignables():
 
 
 def chosen_only_kinds():
-    """The kinds declaring they take no built-ins — the things a gang
-    picks rather than acquires."""
+    """Kinds whose declarations prohibit built-ins."""
     return [model for model in library_assignables() if not model.takes_built_ins]
 
 
 def a_row_of(model, name):
-    """One row of ``model``, with bare rows of whatever it requires.
-
-    Built by reflection rather than by a maker per kind: the guards
-    below are about *every* chosen-only kind, and one this could not
-    build would quietly drop out of them. A relation with a default —
-    the pack — is left to it.
+    """Create a minimal row and its required related rows by reflection, so newly
+    discovered kinds remain covered. Fields with defaults retain them.
     """
     required = {
         field.name: a_row_of(field.related_model, f"{name} {field.name}")
@@ -54,9 +42,7 @@ def a_row_of(model, name):
 
 
 def _naming_field(model):
-    """The column a bare row of ``model`` is named by: ``name`` where the
-    model has one, else its first required text column — an asset type
-    is named by its label."""
+    """Use name when present, otherwise the first required text field."""
     names = {field.name for field in model._meta.fields}
     if "name" in names:
         return "name"
@@ -68,8 +54,7 @@ def _naming_field(model):
 
 
 def acquired_kind_pages():
-    """The authoring pages of every kind that *is* acquired — the pages
-    the built-ins section belongs on."""
+    """Authoring pages for kinds that allow built-ins."""
     from n26.library.views import _kind_slugs
 
     slugs = _kind_slugs()
@@ -81,9 +66,7 @@ def acquired_kind_pages():
 
 
 class TestTheDeclarationsHoldTogether:
-    """The guard: a declaration is per kind and free-form, so a typo'd
-    context or a field the through row does not have must fail here,
-    not as a silent nothing on some form."""
+    """Declarations must use valid contexts and fields available on their through model."""
 
     def test_there_is_something_to_check(self):
         assert len(library_assignables()) > 10
@@ -97,14 +80,13 @@ class TestTheDeclarationsHoldTogether:
                 f"through row calls itself. Known: {sorted(contexts)}."
             )
             for field_name in field_names:
-                contexts[context]._meta.get_field(field_name)  # raises if absent
+                contexts[context]._meta.get_field(field_name)
 
     @pytest.mark.parametrize("model", library_assignables(), ids=lambda m: m.__name__)
     def test_every_suggestion_is_a_kind_built_ins_can_name(self, model):
-        """The declaration names the class itself — a kind that does not
-        exist is already unwritable — and this holds the rest: every
-        suggested kind must be one a DefaultAssignment can carry, and
-        the offer must compute (which refuses the contradictions)."""
+        """Every suggested kind must be representable by DefaultAssignment and resolve to a
+        valid offer.
+        """
         from n26.library.offers import Suggest, _built_in_key
 
         for suggest in getattr(model, "SUGGESTED_BUILT_INS", ()):
@@ -121,7 +103,7 @@ class TestAttachmentAsks:
         (ask,) = attachment_asks(Counter, DefaultAssignment)
         assert ask.name == "amount"
         assert ask.input == "number"
-        # Sourced, never written: the through row field's own words.
+        # Help comes from the through-model field.
         assert ask.help == str(DefaultAssignment._meta.get_field("amount").help_text)
 
     def test_a_collection_built_in_asks_for_nothing(self):
@@ -130,8 +112,7 @@ class TestAttachmentAsks:
         assert attachment_asks(Collection, DefaultAssignment) == ()
 
     def test_a_collection_entry_asks_for_its_price_overrides(self):
-        """The other context, ready for the collection detail page:
-        anything purchasable may be repriced where a list names it."""
+        """Purchasable collection entries expose price overrides."""
         from n26.library.models import CollectionEntry, Weapon
 
         names = [ask.name for ask in attachment_asks(Weapon, CollectionEntry)]
@@ -177,9 +158,7 @@ class TestTheBuiltInOffer:
         assert (starting_xp.many, equipment.many) == (False, False)
 
     def test_a_missing_named_row_falls_back_to_candidates(self, default_pack):
-        """Before foundations are seeded there is no XP counter; the
-        offer degrades to a pick over whatever counters exist rather
-        than lying that XP is available."""
+        """Without the named XP counter, the offer falls back to available counters."""
         from n26.library.authoring import create_counter
         from n26.library.models import Profile
 
@@ -196,9 +175,9 @@ class TestTheBuiltInOffer:
             _built_in_key(GangType)
 
     def test_many_contradicts_a_named_row_and_asks(self, default_pack):
-        """A specific row is one row, and per-pick values have no field
-        to live in — both refuse when the offer is computed, so a bad
-        declaration cannot reach a page."""
+        """Multi-select offers cannot name a single row or collect per-pick attachment
+        values.
+        """
         from n26.library.models import Counter, Subtype
         from n26.library.offers import Suggest
 
@@ -224,9 +203,7 @@ class TestTheBuiltInOffer:
 
 
 class TestTheUnionCarriesTheAsks:
-    """The add-built-in form's amount field exists because Counter
-    declares it — marked for the counter kind alone, kept only when a
-    counter is the chosen kind."""
+    """The amount field applies only when the selected kind is Counter."""
 
     def form(self, data=None):
         return generate_form(specs()["add_built_in"])(data)
@@ -254,9 +231,9 @@ class TestTheUnionCarriesTheAsks:
         assert form.verb_data() == {"thing": xp, "amount": 61}
 
     def test_another_kinds_ask_is_dropped_not_passed(self, default_pack):
-        """An amount typed, then the kind switched to collection: the
-        stale value must not ride along — it only means what the chosen
-        kind says it means."""
+        """Changing the selected kind discards attachment values belonging to the previous
+        kind.
+        """
         from n26.library.authoring import create_collection
 
         post = create_collection("Trading Post")
@@ -310,8 +287,7 @@ class TestTheSuggestionForm:
         assert by_thing[xp].amount == 61
 
     def test_an_unofferable_suggestion_is_left_out(self, default_pack):
-        """No XP counter and no counters at all: the Starting XP group
-        has nothing to offer, so the form simply omits it."""
+        """An empty counter collection omits the Starting XP suggestion."""
         from n26.library.authoring import create_collection
         from n26.library.models import Profile
 
@@ -321,8 +297,7 @@ class TestTheSuggestionForm:
         assert "equipment_list" in form.fields
 
     def test_a_many_suggestion_takes_several_picks(self, default_pack, make_profile):
-        """The multi-select: two subtypes chosen at create, two
-        built-ins made."""
+        """Each selected subtype becomes a built-in."""
         from n26.library.authoring import create_subtype
         from n26.library.models import Profile
 
@@ -342,12 +317,8 @@ class TestTheSuggestionForm:
 
 
 class TestTheKindsOnlyEverChosen:
-    """Built-in items are handed over when a row *arrives* — a model
-    hired, a gang founded, something bought. A kind that only ever
-    arrives by being chosen never reaches that, so items built into one
-    would sit in the library and never be granted: the attachment is not
-    offered on its pages, and the verb refuses one, whoever is writing.
-    What such a kind brings rides it as modifiers.
+    """Chosen-only kinds receive modifiers rather than built-ins. Their pages omit the
+    built-in section, and the authoring verb rejects attachments.
     """
 
     def test_there_is_something_to_check(self):
@@ -367,8 +338,7 @@ class TestTheKindsOnlyEverChosen:
         "model", chosen_only_kinds(), ids=lambda model: model.__name__
     )
     def test_the_verb_refuses_to_build_anything_into_one(self, model, default_pack):
-        """The refusal is at the verb, so an importer building content
-        through the same API is turned away with the same words."""
+        """The authoring verb enforces the same restriction for importers."""
         from django.core.exceptions import ValidationError
 
         from n26.library.authoring import add_built_in, create_rule
@@ -392,8 +362,7 @@ class TestTheKindsOnlyEverChosen:
         assert suggestion_form_for(model) is None
 
     def test_a_kind_that_says_both_things_refuses_loudly(self):
-        """Taking no built-ins and suggesting some contradict: the create
-        page would offer items nothing would ever hand over."""
+        """A kind cannot prohibit built-ins while suggesting them on its create page."""
         from n26.library.models import Counter
         from n26.library.offers import Suggest
 
@@ -407,9 +376,7 @@ class TestTheKindsOnlyEverChosen:
     def test_the_page_of_a_chosen_thing_draws_no_comes_with_form(
         self, client, default_pack
     ):
-        """The whole section goes, not just the pick: an author of an
-        affiliation is never asked what it comes with, while an author of
-        wargear still is."""
+        """Affiliation pages omit built-ins; wargear pages retain them."""
         from django.contrib.auth.models import User
         from django.urls import reverse
 
