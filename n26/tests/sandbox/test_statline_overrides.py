@@ -1,22 +1,7 @@
-"""Setting a model's characteristics by hand.
-
-A model's characteristics are its entry's, and the rules move them about
-from there. An owner may also set one themselves — a campaign advance
-nothing in the library carries, a change agreed at the table, an entry
-that reads differently from the book.
-
-The rules this file pins:
-
-* What is set replaces the printed value of that cell and nothing else:
-  overriding a Toughness leaves the rest of the row following the entry.
-* It replaces the **base**, so a rule that improves the characteristic
-  improves what was set — a Weapon Skill set to 3+ and improved is 2+.
-* An emptied box is an answer: the override goes and the entry prints
-  again.
-* A card, a print-out and the editor all say the same thing, because
-  there is one place the value is folded in.
-* None of it is money. Nothing moves a rating, nothing writes a ledger
-  row, and a gang still reconciles.
+"""Verify owner overrides of model characteristics. Overrides replace individual base
+values before modifiers apply; clearing a field restores the profile value. Keep editor,
+screen, print and text output consistent without changing ratings, credits or purchase
+ledger entries.
 """
 
 import re
@@ -43,7 +28,7 @@ from n26.tests.sandbox.actions import (
 
 pytestmark = pytest.mark.django_db
 
-#: What the entry prints, before anyone touches it.
+#: Baseline profile values before overrides or modifiers.
 PRINTED = {
     "movement": 5,
     "weapon_skill": 4,
@@ -60,9 +45,9 @@ def player(db):
 
 @pytest.fixture
 def ganger(fighter_type, gang_type, make_statline, default_pack):
-    """An entry carrying the thirteen real characteristics, five of them
-    filled in — enough to show one being taken over while the others
-    carry on printing."""
+    """Standard Fighter characteristics with five stored values for override and fallback
+    comparisons.
+    """
     from n26.library.models import Profile
 
     profile = Profile.objects.create(
@@ -87,7 +72,7 @@ def yolanda(gang, ganger):
 
 @pytest.fixture
 def cell_for(ganger):
-    """Look one cell of a statline type up by the name a form posts."""
+    """Resolve a characteristic definition by its posted field name."""
 
     def _cell(field_name):
         return next(
@@ -100,7 +85,7 @@ def cell_for(ganger):
 
 
 def set_by_hand(miniature, cell_for, **values):
-    """Set characteristics the way the page does, without going through it."""
+    """Write model-specific overrides directly for display fixtures."""
     for field_name, value in values.items():
         StatOverride.objects.update_or_create(
             miniature=miniature,
@@ -118,7 +103,7 @@ def card_for(miniature, with_effects=True):
 
 
 def values(card):
-    """``{short name: what the cell reads}`` for a whole statline."""
+    """Return displayed characteristic values keyed by short name."""
     return {cell.short_name: cell.value for cell in card.statline.cells}
 
 
@@ -127,11 +112,8 @@ def edit_url(miniature):
 
 
 def box(page, field_name):
-    """One characteristic's box, as its attributes read.
-
-    The whole tag, so an assertion about a value or a suggestion is
-    about *that* box: a page carrying thirteen of them has a value="4"
-    somewhere whatever the one under test says.
+    """Return the specific input tag so assertions cannot accidentally match another
+    characteristic's value or placeholder.
     """
     match = re.search(rf"<input[^>]*name=\"statline-{field_name}\"[^>]*>", page)
     assert match, f"no box for {field_name} on the page"
@@ -139,11 +121,8 @@ def box(page, field_name):
 
 
 def post_statline(client, miniature, ganger, **values):
-    """Save the characteristics form as a browser sends it.
-
-    Every box goes, filled or not — the page draws the whole row, so a
-    payload naming one characteristic would prove the view tolerates
-    something nobody can produce.
+    """Submit every characteristic field, including empty inputs, matching the browser
+    form.
     """
     payload = {"act": "statline"}
     for type_stat in ganger.statline_type.stats.all():
@@ -154,7 +133,7 @@ def post_statline(client, miniature, ganger, **values):
 
 
 class TestWhatTheCardShows:
-    """A set characteristic stands in for the printed one, alone."""
+    """Replace only the overridden characteristic and preserve profile values elsewhere."""
 
     def test_the_cell_reads_what_the_owner_set(self, yolanda, cell_for):
         set_by_hand(yolanda, cell_for, toughness="4")
@@ -169,32 +148,25 @@ class TestWhatTheCardShows:
         assert printed["Ld"] == "7"
 
     def test_the_cell_says_the_owner_set_it(self, yolanda, cell_for):
-        """Marked the way a shifted cell is, and naming the same kind of
-        cause: a reader should not have to guess why a number differs
-        from the book's."""
+        """Mark the cell as modified and attribute the change to the owner."""
         set_by_hand(yolanda, cell_for, toughness="4")
         toughness = card_for(yolanda).statline.get("T")
         assert toughness.modified
         assert [source.source for source in toughness.modified_by] == ["the owner"]
 
     def test_it_is_stored_as_its_stat_reads(self, yolanda, cell_for):
-        """A Movement typed as 4 means 4 inches, as it does everywhere
-        else, so the box and the card cannot come to print it
-        differently."""
+        """Canonicalise stored override values using the characteristic's display rules."""
         set_by_hand(yolanda, cell_for, movement="4")
         assert StatOverride.objects.get(miniature=yolanda).value == '4"'
         assert values(card_for(yolanda))["M"] == '4"'
 
     def test_anything_short_may_be_set(self, yolanda, cell_for):
-        """The library's own values are free strings, and so are these:
-        a characteristic that is rolled, or borrowed, or nonsense the
-        owner meant, is theirs to set."""
+        """Allow symbolic and dice strings within storage limits."""
         set_by_hand(yolanda, cell_for, toughness="2D6")
         assert values(card_for(yolanda))["T"] == "2D6"
 
     def test_the_entrys_other_models_are_untouched(self, gang, ganger, cell_for):
-        """One model's setting is one model's: the entry is shared
-        content, and nothing here writes to it."""
+        """Store overrides on the model without changing its shared profile."""
         yolanda = hire(gang, ganger, "Yolanda", paid=55)
         donna = hire(gang, ganger, "Mad Donna", paid=55)
         set_by_hand(yolanda, cell_for, toughness="4")
@@ -202,20 +174,18 @@ class TestWhatTheCardShows:
         assert_reconciled(gang)
 
     def test_a_deleted_model_takes_its_settings_with_it(self, yolanda, cell_for):
-        """Nothing a player clicks deletes a model — leaving the roster
-        is archiving — but a row that outlived its model would be a
-        setting belonging to nobody."""
+        """Cascade override rows when the model is deleted."""
         set_by_hand(yolanda, cell_for, toughness="4")
         yolanda.delete()
         assert StatOverride.objects.count() == 0
 
 
 class TestWhatTheRulesDoToIt:
-    """The set value is the base the rules then work on."""
+    """Apply modifiers to the overridden base value."""
 
     @pytest.fixture
     def keen_eyed(self, fighter_stats):
-        """A subtype improving Weapon Skill by one."""
+
         subtype = create_subtype("Keen-eyed")
         modifier(
             "Keen-eyed sharpens the eye",
@@ -228,9 +198,7 @@ class TestWhatTheRulesDoToIt:
     def test_an_improvement_lands_on_what_the_owner_set(
         self, yolanda, cell_for, keen_eyed
     ):
-        """4+ printed, set to 3+, improved once: 2+. Improving the
-        printed value instead would read 3+ — the same number the owner
-        already set, and the improvement lost."""
+        """Override printed 4+ with 3+, then apply the improvement to reach 2+."""
         set_by_hand(yolanda, cell_for, weapon_skill="3+")
         assign(keen_eyed, miniature=yolanda)
         assert values(card_for(yolanda))["WS"] == "2+"
@@ -252,7 +220,7 @@ class TestWhatTheRulesDoToIt:
 
 
 class TestTheEditPage:
-    """The whole flow through the page an owner uses."""
+    """Verify owner editing, validation, clearing and unrelated notes submissions."""
 
     def test_the_page_offers_a_box_per_characteristic(
         self, client, player, yolanda, ganger
@@ -264,8 +232,7 @@ class TestTheEditPage:
             assert f'name="statline-{field_name}"' in page
 
     def test_an_empty_box_suggests_what_the_entry_prints(self, client, player, yolanda):
-        """Not an example value — the number that stands if nothing is
-        typed, which is what an owner needs to see to decide."""
+        """Use the current profile value as the override field's placeholder."""
         client.force_login(player)
         page = client.get(edit_url(yolanda)).content.decode()
         assert 'placeholder="5&quot;"' in box(page, "movement")
@@ -280,13 +247,11 @@ class TestTheEditPage:
         assert response.url == edit_url(yolanda)
         shown = values(card_for(yolanda))
         assert (shown["T"], shown["W"]) == ("4", "2")
-        # And the boxes read back what was set, beside the ones that
-        # stayed empty.
+        # Prefill overridden fields and leave the others empty.
         page = client.get(edit_url(yolanda)).content.decode()
         assert 'value="4"' in box(page, "toughness")
         assert 'value=""' in box(page, "movement")
-        # The card on the same page says it too, marked and explained —
-        # the boxes and the card are one screen and must agree.
+        # Show override attribution on the card beside the form.
         assert "T changed by the owner" in page
 
     def test_an_emptied_box_gives_the_entrys_value_back(
@@ -303,10 +268,9 @@ class TestTheEditPage:
     def test_a_value_too_long_is_refused_in_words(
         self, client, player, yolanda, ganger
     ):
-        """The one kind of refusal there is: something that cannot be
-        stored. The page comes back with what was typed still in the box
-        — a complaint about a value nobody can see is one nobody can act
-        on."""
+        """Reject values beyond the storage limit and retain the rejected text beside its
+        error.
+        """
         client.force_login(player)
         response = post_statline(
             client, yolanda, ganger, toughness="four or thereabouts"
@@ -320,8 +284,7 @@ class TestTheEditPage:
     def test_saving_the_notes_leaves_the_settings_alone(
         self, client, player, yolanda, ganger
     ):
-        """Two forms on one page: clicking one must not clear the
-        other's answers."""
+        """Submitting notes must not clear the separate characteristic form."""
         client.force_login(player)
         post_statline(client, yolanda, ganger, toughness="4")
         client.post(edit_url(yolanda), {"act": "notes", "notes": "<p>Owes Kaine.</p>"})
@@ -345,7 +308,7 @@ class TestTheEditPage:
 
 
 class TestOnPaper:
-    """One seam, so the print-out says what the screen says."""
+    """Use the same overridden values in print and text cards."""
 
     def test_the_printed_card_carries_the_set_value(
         self, client, player, gang, yolanda, cell_for
@@ -372,13 +335,12 @@ class TestOnPaper:
 
 
 class TestTheQueryBudget:
-    """Settings are read with the roster, so a gang full of them costs
-    what a gang with none costs."""
+    """Batch model overrides with the roster so query counts do not grow per fighter."""
 
     def test_a_gang_of_them_costs_what_two_of_them_cost(self, gang, ganger, cell_for):
-        """Every model on the sheet has a full row set by hand, so a
-        reading that asked each of them separately would show as the
-        count climbing with the roster."""
+        """Give every compared model overrides so per-model reads would appear as query
+        growth.
+        """
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -405,7 +367,7 @@ class TestTheQueryBudget:
 
         for index in range(2):
             recruit(f"Sister {index}")
-        # The first reading pays one-time caches that no later one does.
+        # Warm one-off caches before comparing query counts.
         measure()
         few, few_models = measure()
 
