@@ -1,4 +1,4 @@
-{% load richtext %}
+{% load richtext n26_rows %}
 {% load static %}
 <!DOCTYPE html>
 <html lang="en-gb">
@@ -78,39 +78,17 @@
             {% endif %}
             {% if campaign %}
                 <c-n26.print.card title="{{ campaign.name }}">
+                    {% campaign_columns campaign as columns %}
                     <c-n26.print.columns>
-                        {% if campaign.asset_groups or campaign.other_lines %}
+                        {% for column in columns %}
                             <c-n26.print.column>
-                                {% for group in campaign.asset_groups %}
+                                {% for group in column %}
                                     <c-n26.print.entry label="{{ group.label }}">
-                                        {% if group.names %}
-                                            <c-n26.name-list :names="group.names" label="{{ group.label }}" />
-                                        {% else %}
-                                            None
-                                        {% endif %}
-                                    </c-n26.print.entry>
-                                {% endfor %}
-                                {% for line in campaign.other_lines %}
-                                    <c-n26.print.entry label="{{ line.type_label }}">
-                                        {{ line.name }}
+                                        {% include "n26/includes/print_row_parts.html" %}
                                     </c-n26.print.entry>
                                 {% endfor %}
                             </c-n26.print.column>
-                        {% endif %}
-                        {% if campaign.counters or campaign.choices %}
-                            <c-n26.print.column>
-                                {% for counter in campaign.counters %}
-                                    <c-n26.print.entry label="{{ counter.name }}">
-                                        {{ counter.value }}
-                                    </c-n26.print.entry>
-                                {% endfor %}
-                                {% for choice in campaign.choices %}
-                                    <c-n26.print.entry label="{{ choice.kind_label }}">
-                                        {{ choice.chosen|default:'—' }}
-                                    </c-n26.print.entry>
-                                {% endfor %}
-                            </c-n26.print.column>
-                        {% endif %}
+                        {% endfor %}
                     </c-n26.print.columns>
                 </c-n26.print.card>
             {% endif %}
@@ -199,7 +177,7 @@
                                     <c-n26.print.column>
                                         {% for group in column %}
                                             <c-n26.print.entry label="{{ group.label }}">
-                                                {{ group.text }}
+                                                {% include "n26/includes/print_row_parts.html" %}
                                             </c-n26.print.entry>
                                         {% endfor %}
                                     </c-n26.print.column>

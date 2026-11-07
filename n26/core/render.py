@@ -39,6 +39,7 @@ from n26.core.models.ledger import Reason
 from n26.core.owned import thing_key
 from n26.core.progression import RankSummary, progression_summaries
 from n26.core.rating import RatingReceipt, build_rating_receipt
+from n26.core.rows import campaign_owned_rows, campaign_rows, choice_rows, holder_rows
 from n26.core.status import Status, status_colour
 from n26.core.status import label_for as status_label
 from n26.library.models import (
@@ -213,6 +214,10 @@ class AssignableLine(SlotMarked):
     @property
     def tier_mark(self):
         return tier_mark(self.choices)
+
+    @property
+    def other_choice_rows(self):
+        return choice_rows(self.other_choices, owner=("item", self.id or id(self)))
 
     @property
     def other_choices(self):
@@ -425,6 +430,10 @@ class WeaponLine(SlotMarked):
     @property
     def tier_mark(self):
         return tier_mark(self.choices)
+
+    @property
+    def other_choice_rows(self):
+        return choice_rows(self.other_choices, owner=("item", self.id or id(self)))
 
     @property
     def other_choices(self):
@@ -947,15 +956,32 @@ class ModelCard:
     #: ("Critically Damaged"); the renderer draws it and decides nothing.
     status: str = ""
     status_label: str = ""
-    subtypes: list[AssignableLine] = field(default_factory=list)
+    subtypes: list[AssignableLine] = field(
+        default_factory=list,
+        metadata={
+            "row_elsewhere": "The statline header carries the model type and subtypes."
+        },
+    )
     weapons: list[WeaponLine] = field(default_factory=list)
-    skills: list[AssignableLine] = field(default_factory=list)
+    skills: list[AssignableLine] = field(
+        default_factory=list,
+        metadata={"row_label": "Skills", "row_kind": "names", "row_always": True},
+    )
     #: Named special rules — "Automated Repair Systems". The book prints
     #: them apart from skills, so the card keeps them apart too.
-    rules: list[AssignableLine] = field(default_factory=list)
+    rules: list[AssignableLine] = field(
+        default_factory=list,
+        metadata={"row_label": "Rules", "row_kind": "names", "row_always": False},
+    )
     #: Powers share section placement with skills but display separately.
-    powers: list[AssignableLine] = field(default_factory=list)
-    equipment: list[AssignableLine] = field(default_factory=list)
+    powers: list[AssignableLine] = field(
+        default_factory=list,
+        metadata={"row_label": "Powers", "row_kind": "names", "row_always": False},
+    )
+    equipment: list[AssignableLine] = field(
+        default_factory=list,
+        metadata={"row_label": "Gear", "row_kind": "gear", "row_always": True},
+    )
     #: Gear held apart from the Gear row, under its category's name. One
     #: group per category that asks for a row of its own, in the order
     #: the taxonomy puts them in. Drawn after Gear, because the Gear row
@@ -963,7 +989,12 @@ class ModelCard:
     gear_groups: list[GearGroup] = field(default_factory=list)
     #: Collections this model can browse — equipment lists, trading posts.
     #: Access to buy from, not things owned; drawn apart from equipment.
-    collections: list[AssignableLine] = field(default_factory=list)
+    collections: list[AssignableLine] = field(
+        default_factory=list,
+        metadata={
+            "row_elsewhere": "Purchase access belongs on the equipment browser, not among owned facts."
+        },
+    )
     #: The running numbers this model keeps — XP, a Spyrer's Kill Count.
     #: Every one of them, XP included; ``counter_lines`` is what to draw.
     counters: list[CounterLine] = field(default_factory=list)
@@ -995,7 +1026,12 @@ class ModelCard:
     rank_summaries: tuple[RankSummary, ...] = ()
     #: Kept outside question_lists so only the Edit page can restore them;
     #: they never draw among the card's choices, including on print.
-    dismissed_choices: list[ChoiceLine] = field(default_factory=list)
+    dismissed_choices: list[ChoiceLine] = field(
+        default_factory=list,
+        metadata={
+            "row_hidden": "Dismissed offers have separate restore controls outside the visible card rows."
+        },
+    )
     #: Collection IDs reached through the model's computed category placements.
     #: Batch readers can resolve selectable content once for the roster.
     placed_in: tuple[str, ...] = ()
@@ -1039,6 +1075,10 @@ class ModelCard:
     #: Where the model's picture is, or empty for none. A URL — a
     #: renderer does not reach into storage.
     image_url: str = ""
+
+    @property
+    def detail_rows(self):
+        return holder_rows(self, owner=("model", self.id or id(self)))
 
     @property
     def rating_breakdown(self):
@@ -1301,6 +1341,10 @@ class AssetBoonLine:
     effects: tuple[AssetBoonEffect, ...] = ()
     choices: tuple[ChoiceLine, ...] = ()
 
+    @property
+    def detail_rows(self):
+        return choice_rows(self.choices, owner=("asset", self.key))
+
 
 def _asset_origin_key(origin):
     from n26.core.models import CampaignAsset
@@ -1440,6 +1484,14 @@ class CampaignBlock:
     asset_types: list[tuple[str, str]] = field(default_factory=list)
 
     @property
+    def detail_rows(self):
+        return campaign_rows(self)
+
+    @property
+    def owned_choice_rows(self):
+        return campaign_owned_rows(self)
+
+    @property
     def asset_groups(self):
         return group_campaign_assets(
             [*self.lines, *self.holdings], types=self.asset_types
@@ -1498,7 +1550,9 @@ class GangSheet:
     #: The gang's special rules, apart from the other rows for the same
     #: reason a model card keeps its rules apart from its kit: the sheet
     #: prints them under their own term.
-    rules: list[AssignableLine] = field(default_factory=list)
+    rules: list[AssignableLine] = field(
+        default_factory=list, metadata={"row_label": "Rules"}
+    )
     #: Gang-level choices — a Venator's ranked skill sets.
     choices: list[ChoiceLine] = field(default_factory=list)
     #: Counters the gang keeps, with their standing values.
@@ -1560,6 +1614,10 @@ class GangSheet:
         if self.campaign is not None:
             lists.append(self.campaign.choices)
         return lists
+
+    @property
+    def detail_rows(self):
+        return holder_rows(self, owner="gang")
 
 
 @dataclass

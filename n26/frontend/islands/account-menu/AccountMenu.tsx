@@ -38,18 +38,21 @@ export type AccountMenuEntry =
       };
 
 export type AccountMenuProps = {
-    /** The button's name, before any unread count is added to it. */
+    /** Accessible button label before the unread count is appended. */
     label: string;
     unread: number;
-    /** The unread count in words, singular or plural, for the button's name. */
+    /** Pluralised unread count for the accessible button label. */
     unreadText: string;
     person: { name: string; badge: string | null };
     badges: Record<string, BadgeMark>;
-    /** In the order they are drawn; the server decides every break. */
+    /** Entries and separators in server-provided order. */
     items: AccountMenuEntry[];
 };
 
-/** The signed-in reader's menu: who they are, their doors and the way out. */
+/**
+ * Show account navigation, theme settings and sign-out controls for the
+ * signed-in user.
+ */
 export function AccountMenu(props: AccountMenuProps) {
     const badge = props.person.badge ? props.badges[props.person.badge] : null;
     const name = <UserLink name={props.person.name} badge={badge} />;
@@ -57,7 +60,8 @@ export function AccountMenu(props: AccountMenuProps) {
     function draw(entry: AccountMenuEntry, key: number) {
         switch (entry.type) {
             case "person":
-                // A line rather than a row: "Your account" below it is the door.
+                // Display the name outside keyboard navigation; the
+                // separate account link is selectable.
                 return (
                     <div
                         key={key}

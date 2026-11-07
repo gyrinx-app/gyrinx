@@ -107,7 +107,7 @@ class TestEverySurfaceDrawsIt:
 
     def test_the_text_card_gives_it_a_line(self, krath):
         text = "\n".join(render_model_card(card_of(krath)))
-        assert "Equipment: Respirator" in text
+        assert "Gear: Respirator" in text
         assert "Gene-smithing: Iron flesh" in text
 
     def test_the_captured_state_keeps_the_two_apart(self, krath):

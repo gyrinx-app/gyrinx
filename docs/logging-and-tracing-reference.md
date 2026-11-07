@@ -93,7 +93,7 @@ Location: `gyrinx/settings.py` (lines 127-147)
 
 ```python
 MIDDLEWARE = [
-    "google.cloud.sqlcommenter.django.middleware.SqlCommenter",
+    "opentelemetry.instrumentation.django.middleware.sqlcommenter_middleware.SqlCommenter",
     "google.cloud.logging_v2.handlers.middleware.RequestMiddleware",
     # ... other middleware
 ]
@@ -186,7 +186,7 @@ Adds SQL comments containing request metadata for Cloud SQL Query Insights.
 
 ```python
 MIDDLEWARE = [
-    "google.cloud.sqlcommenter.django.middleware.SqlCommenter",
+    "opentelemetry.instrumentation.django.middleware.sqlcommenter_middleware.SqlCommenter",
     # ...
 ]
 
@@ -194,6 +194,8 @@ SQLCOMMENTER_WITH_CONTROLLER = True
 SQLCOMMENTER_WITH_FRAMEWORK = True
 SQLCOMMENTER_WITH_ROUTE = True
 SQLCOMMENTER_WITH_APP_NAME = True
+SQLCOMMENTER_WITH_OPENTELEMETRY = False
+SQLCOMMENTER_WITH_DB_DRIVER = False
 ```
 
 ### Configuration Options
@@ -204,6 +206,8 @@ SQLCOMMENTER_WITH_APP_NAME = True
 | `SQLCOMMENTER_WITH_FRAMEWORK` | Include framework identifier | `True` |
 | `SQLCOMMENTER_WITH_ROUTE` | Include URL route | `True` |
 | `SQLCOMMENTER_WITH_APP_NAME` | Include Django app name | `True` |
+| `SQLCOMMENTER_WITH_OPENTELEMETRY` | Include trace context in SQL | `False` |
+| `SQLCOMMENTER_WITH_DB_DRIVER` | Include database driver name | `False` |
 
 ### Output Format
 

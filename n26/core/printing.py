@@ -18,8 +18,10 @@ grouped, which is all a column is.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
+
+from n26.core.rows import readable_parts, row_text
 
 
 class HasHeight(Protocol):
@@ -45,28 +47,23 @@ class DetailGroup:
     #: Measured from the rendered output rather than derived, because the
     #: alternative is modelling a font.
     chars_per_line: int = 30
+    parts: tuple = field(default=(), compare=False, repr=False)
 
     @property
     def height(self) -> int:
         return estimate_lines(self.text, self.chars_per_line, self.label)
 
 
-def _run(lines) -> str:
-    """A run of names: one that brought a pet written with the pet's
-    name, one standing for several written with its count — in that
-    order, as the screen card writes them."""
-    return ", ".join(
-        line.name + line.tier_mark + line.brought_mark + line.count_mark
-        for line in lines
-    )
-
-
 def _item_choices(lines) -> list[DetailGroup]:
     """A carried item's non-tier questions, labelled with the item that carries them."""
     return [
-        DetailGroup(f"{line.name} — {choice.kind_label}", choice.chosen or "—")
+        DetailGroup(
+            f"{line.name} — {row.label}",
+            row_text(row),
+            parts=tuple(readable_parts(row)),
+        )
         for line in lines
-        for choice in line.other_choices
+        for row in line.other_choice_rows
     ]
 
 
@@ -95,34 +92,26 @@ def detail_groups(card) -> list[DetailGroup]:
     it. Repeating the operation as prose both duplicates that fact and, after
     something such as Clean House, can contradict it.
     """
-    groups = []
-    for counter in card.counter_lines:
-        # XP is in the statline above, with its target beside it. Skipped
-        # here rather than left to counter_lines, which keeps XP for a
-        # card whose lines can be moved — nothing on paper can be.
-        if not counter.is_xp:
-            groups.append(DetailGroup(counter.name, str(counter.value)))
-    # A line standing for several of one thing is written once with its
-    # count, as the screen card writes it.
-    if card.skills:
-        groups.append(DetailGroup("Skills", _run(card.skills)))
-    if card.rules:
-        groups.append(DetailGroup("Rules", _run(card.rules)))
-    if card.powers:
-        groups.append(DetailGroup("Powers", _run(card.powers)))
-    if card.equipment:
-        groups.append(DetailGroup("Gear", _run(card.equipment)))
-        groups.extend(_item_choices(card.equipment))
-    for gear_group in card.gear_groups:
-        # Under the category's own name, as on screen. A group with
-        # nothing in it is not built, so there is no empty one to skip.
-        groups.append(DetailGroup(gear_group.name, _run(gear_group.lines)))
-        groups.extend(_item_choices(gear_group.lines))
-    for choice in card.row_questions:
-        # What it holds, or a blank. The Add on the screen card is a way
-        # into the picker, and nothing on paper can be added. A question
-        # a weapon carries prints beside the weapon instead.
-        groups.append(DetailGroup(choice.kind_label, choice.chosen or "—"))
+    groups = [
+        DetailGroup(
+            row.label,
+            text,
+            parts=tuple(readable_parts(row, skip_xp=hasattr(card, "statline"))),
+        )
+        for row in card.detail_rows
+        if (text := row_text(row, skip_xp=hasattr(card, "statline")))
+    ]
+    groups.extend(
+        DetailGroup(
+            row.label,
+            row_text(row, skip_xp=False),
+            parts=tuple(readable_parts(row, skip_xp=False)),
+        )
+        for row in getattr(card, "owned_choice_rows", ())
+    )
+    groups.extend(_item_choices(getattr(card, "equipment", ())))
+    for group in getattr(card, "gear_groups", ()):
+        groups.extend(_item_choices(group.lines))
     return groups
 
 
