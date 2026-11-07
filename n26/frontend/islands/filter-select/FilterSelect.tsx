@@ -122,8 +122,8 @@ export function FilterSelect({
         }
         syncSelect(next);
         setSelected(next);
-        // A native select fires both when a person changes it. The click on
-        // the panel never reached the select, so a listener would miss it.
+        // Dispatch both input and change to match a native selection; panel
+        // clicks do not reach the select.
         select.current?.dispatchEvent(new Event("input", { bubbles: true }));
         select.current?.dispatchEvent(new Event("change", { bubbles: true }));
         if (!multiple) close(true);
@@ -160,8 +160,8 @@ export function FilterSelect({
                 close(true);
             }
         } else if (event.key === "Tab") {
-            // Focus the trigger first so Tab and Shift+Tab move on from it.
-            // Otherwise the browser gives focus to the scrolling list.
+            // Focus the trigger before closing so Tab continues from it,
+            // rather than the scrolling list.
             close(true);
         }
     }
@@ -178,8 +178,8 @@ export function FilterSelect({
                 disabled={disabled}
                 aria-hidden="true"
                 tabIndex={-1}
-                // A hidden required select cannot take focus, so the browser
-                // blocks the submit without saying why. Open the list instead.
+                // Open the custom list for native validation because its
+                // hidden select cannot receive focus.
                 onInvalid={() => {
                     trigger.current?.focus();
                     show();

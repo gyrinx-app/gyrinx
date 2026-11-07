@@ -22,28 +22,32 @@ export type PrintModel = {
 };
 
 export type PrintPickerProps = {
-    /** The hidden input's name that tells the server the boxes were sent; empty for none. */
+    /**
+     * Hidden field indicating that checkbox values were submitted; empty omits
+     * it.
+     */
     marker: string;
     slotBudget: number;
     models: PrintModel[];
-    /** Ticks the server-drawn boxes showed at mount, by id; they win over `ticked`. */
+    /**
+     * Checkbox state read before mount, keyed by ID and taking precedence over
+     * ticked.
+     */
     shown?: {
         fighters: Record<string, boolean>;
         weapons: Record<string, boolean>;
     };
-    /** The server-drawn box that had focus at mount, to focus again. */
+    /** Checkbox to refocus after mounting, identified by field name and value. */
     focus?: { name: string; value: string } | null;
 };
 
 /**
- * The print setup's model and weapon boxes, inside the page's own form.
+ * Submit fighter and weapon selections through the containing form. Disabled
+ * weapon checkboxes retain their state but submit nothing while their model is
+ * unticked.
  *
- * The checkboxes post `fighters` and `weapons` themselves. A weapon box is
- * disabled while its model is unticked, so it stays out of the submission
- * but keeps its tick for when the model comes back. The slot counts and
- * the crew total are a preview; the print reckons its own. The hidden
- * marker tells the server the boxes were part of the submission, so a
- * failed island cannot save an empty setup.
+ * Totals are local previews; printing recalculates them. The hidden marker
+ * distinguishes an empty selection from a missing picker.
  */
 export function PrintPicker({
     marker,
@@ -87,8 +91,8 @@ export function PrintPicker({
             ).find((input) => input.value === value);
         let box = find(focus.name, focus.value);
         if (box?.disabled) {
-            // A weapon under an unticked model cannot take focus here, so
-            // focus goes to the box that would enable it.
+            // A disabled weapon checkbox cannot receive focus; use its
+            // model's enabling checkbox.
             const holder = models.find((model) =>
                 model.weapons.some((weapon) => weapon.id === focus.value),
             );
