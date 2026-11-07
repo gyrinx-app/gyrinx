@@ -1,12 +1,7 @@
-"""Request and redirect helpers.
+"""Validate request-provided redirect URLs against the current host and scheme.
 
-Every function here validates a user-supplied URL against the requesting host
-before handing it back, so a ``?next=`` or ``?return_url=`` cannot be turned into
-an open redirect. Use these rather than constructing
-:class:`~django.http.HttpResponseRedirect` from request data directly.
-
-Platform code, not edition code: none of it knows anything about gangs, fighters
-or campaigns.
+Use safe_redirect or get_return_url for untrusted destinations. Callers must
+supply trusted fallback URLs and trusted path arguments to build_safe_url.
 """
 
 from django.http import HttpResponseRedirect
@@ -14,16 +9,9 @@ from django.utils.http import url_has_allowed_host_and_scheme
 
 
 def safe_redirect(request, url, fallback_url="/"):
-    """
-    Perform a safe redirect, ensuring the URL is allowed.
+    """Redirect to an allowed URL, otherwise to the trusted fallback_url.
 
-    Args:
-        request: The current HTTP request
-        url: The URL to redirect to
-        fallback_url: The URL to use if validation fails (default: "/")
-
-    Returns:
-        HttpResponseRedirect to either the validated URL or the fallback
+    Require HTTPS for secure requests and allow only the request host.
     """
     if not url:
         return HttpResponseRedirect(fallback_url)
@@ -37,28 +25,20 @@ def safe_redirect(request, url, fallback_url="/"):
 
 
 def build_safe_url(request, path=None, query_string=None):
-    """
-    Build a safe URL from path and query string components.
+    """Combine path and query_string if the resulting URL passes host validation.
 
-    Args:
-        request: The current HTTP request
-        path: The path component (default: request.path)
-        query_string: The query string (without '?')
-
-    Returns:
-        A safe URL string that can be used for redirects
+    Default path to request.path. On validation failure return path unchanged,
+    so callers must supply a trusted path.
     """
-    # Use current path if not provided
+
     if path is None:
         path = request.path
 
-    # Build the full URL
     if query_string:
         url = f"{path}?{query_string}"
     else:
         url = path
 
-    # Validate the URL is safe
     if not url_has_allowed_host_and_scheme(
         url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
     ):
@@ -68,24 +48,12 @@ def build_safe_url(request, path=None, query_string=None):
 
 
 def get_return_url(request, default_url):
+    """Return a validated POST or GET return_url, otherwise the trusted default_url.
+
+    A non-empty POST value takes precedence. Require the request host and, for
+    secure requests, HTTPS.
     """
-    Get a validated return URL from request parameters.
 
-    Extracts return_url from POST data (for form submissions) or GET parameters.
-    Validates the URL for security and falls back to default_url if invalid.
-
-    Args:
-        request: The HTTP request object
-        default_url: Fallback URL if return_url is missing or invalid
-
-    Returns:
-        str: A validated URL safe for redirects
-
-    Example:
-        default_url = reverse("core:list", args=(list.id,))
-        return_url = get_return_url(request, default_url)
-    """
-    # Check POST first (form submissions), then GET (query params)
     return_url = request.POST.get("return_url") or request.GET.get(
         "return_url", default_url
     )

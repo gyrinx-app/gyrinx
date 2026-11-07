@@ -83,20 +83,10 @@ def with_query(url, **params):
 
 
 def is_possession(thing):
-    """Is this the sort of thing a gang *owns*, rather than something it is?
+    """Whether the library family represents equipment that can be moved or sold.
 
-    Gear is what a model carries, and carrying is what makes a thing
-    sellable, movable and droppable. Everything else it holds fails this:
-    a profile **is** the model, and parting with one is leaving the
-    roster rather than clearing out a kitbag; a skill or a subtype is what
-    the model is and knows; a collection is somewhere to buy from rather
-    than something owned; a counter is a running number; a gang type is
-    the gang itself.
-
-    Asked of the library's own families rather than a list kept here, so
-    a new kind of gear is sellable the day it is authored and nobody has
-    to remember this file — and so the set matches what the catalogue
-    sells, which is chosen the same way.
+    Discover possession kinds from the library's families, matching catalogue
+    purchase discovery. Exclude identity, abilities, collections and counters.
     """
     return getattr(type(thing), "family", None) == Family.GEAR
 
@@ -177,27 +167,22 @@ class OwnedPart:
     """
 
     id: str
-    #: The content this is one of, as :func:`thing_key` writes it —
-    #: so a part can say what it is without being looked up in whatever
-    #: is holding it.
+    #: Content key shared with catalogue lines, available without a parent lookup.
     key: str
     name: str
     rating: int
-    #: Empty for a weapon's own profile — it comes with the gun and
-    #: cannot be sold, refunded or removed on its own. Bought ammunition
-    #: keeps a real address.
+    #: Included weapon profiles have no independent removal controls.
+    #: Paid ammunition retains its own command URLs.
     sell_href: str
     refund_href: str
     remove_href: str
-    #: Whether a founding allowance paid for this copy or anything hung
-    #: off it. A gang with no credit budget refunds nothing else, so this
-    #: is what says whether the act is worth offering there.
+    #: Whether this subtree used Trade Points. This determines refund
+    #: availability when the gang has no credit budget.
     paid_trade_points: bool = False
-    #: Where to go to take this off and leave the fighter holding it.
-    #: Empty for a weapon profile, and for a sight the gun came with.
+    #: Detachment URL for an attached possession with no granting cause.
+    #: Weapon profiles and built-in parts have no detachment controls.
     detach_href: str = ""
-    #: Where to go to bolt this onto a different gun this fighter is
-    #: carrying. Empty unless there is another gun to name.
+    #: Refitting URL when this part is detachable and another weapon is available.
     fit_href: str = ""
 
 
@@ -209,40 +194,27 @@ class OwnedThing:
     #: The content this is a copy of, as :func:`thing_key` writes it.
     key: str
     name: str
-    #: What this copy contributes to the model's rating on its own. Its
-    #: parts state theirs; what a sale returns is worked out from the
-    #: assignments themselves at the moment of selling, never from here.
+    #: Rating for this copy alone; parts retain their contributions. Sales
+    #: recalculate from stored assignments.
     rating: int
     parts: tuple[OwnedPart, ...]
     sell_href: str
     reassign_href: str
     refund_href: str
     remove_href: str
-    #: Whether a founding allowance paid for this copy or anything hung
-    #: off it. A gang with no credit budget refunds nothing else, so this
-    #: is what says whether the act is worth offering there.
+    #: Whether this subtree used Trade Points. This determines refund
+    #: availability when the gang has no credit budget.
     paid_trade_points: bool = False
-    #: Where to go to bolt something onto this. Only a weapon has one:
-    #: an accessory hangs off the gun it changes, so nothing else on a
-    #: card is somewhere to fit one.
+    #: Accessory-fitting URL, available only on weapons.
     accessorise_href: str = ""
-    #: Where to go to bolt this onto one of the guns the fighter is
-    #: carrying — the other end of the same act. Only a loose accessory
-    #: has one, and only where there is a gun to put it on.
+    #: Fitting URL for a loose accessory when the bearer carries a weapon.
     fit_href: str = ""
-    #: Where to go to take this with different options. Only something
-    #: whose content offers a choice has one: everything else would be a
-    #: click onto a panel with nothing to pick.
+    #: Option-selection URL, available only when content offers a choice.
     rechoose_href: str = ""
-    #: Weapon slots this takes on a card — the library's number for a
-    #: weapon (2 for an asterisked one, 0 for a grenade), 1 for anything
-    #: that is not a weapon. Read off the loaded content, so it costs no
-    #: query.
+    #: Loaded weapon slot count, or one for other kinds. Reading it cannot query.
     slots: int = 1
-    #: What this copy was taken with, named as the buyer was offered it.
-    #: Per copy and not per content: two of the same mount may carry
-    #: different guns. Empty for anything that offered no choice, which
-    #: is most of what a model owns.
+    #: Option labels for this specific copy, which may differ from another
+    #: copy of the same content.
     chosen: tuple[str, ...] = ()
 
 
@@ -359,22 +331,15 @@ def weapons_on(host: EquipHost):
 
 
 def possessions(host: EquipHost):
-    """Everything this host carries, keyed the way a catalogue keys its rows.
+    """Index held copies by the catalogue's ``thing_key`` without querying.
 
-    Keyed by :func:`thing_key`, so a row looks its own key up and finds
-    the copies held — one dictionary read per row, however much is carried.
-
-    ``host.at`` is the page the reader is on, query string and all: the
-    confirmations open over it and Cancel returns to it, so the list they
-    were reading is still the list underneath.
+    ``host.at`` retains the current page and query string for confirmation
+    and cancellation links.
     """
     from n26.library.models import WeaponAccessory
 
-    # Whether this card has anywhere to fit an accessory, asked once for
-    # the whole of it. A fighter carrying no gun is offered no fitting:
-    # a screen must not ask a question its answer refuses. The stash is
-    # never asked — its accessories are fitted from the gang sheet,
-    # where the guns of the whole roster are in reach.
+    # Compute fitting availability once per bearer. Stash accessories are
+    # fitted from the gang sheet, which can reach weapons across the roster.
     guns = weapons_on(host)
     fittable = not host.is_stash and bool(guns)
 

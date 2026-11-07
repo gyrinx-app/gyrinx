@@ -73,15 +73,11 @@ def price_field(key, index=None):
 
 @dataclass(frozen=True)
 class Action:
-    """One thing a row offers, said in the row's own words.
+    """A listing control's submission or navigation target and semantic tone.
 
-    ``kind`` is how the click happens — :data:`SUBMIT` inside the
-    catalogue's form, or :data:`LINK` to an address. ``target`` is the
-    value a submit carries or the address a link goes to.
-
-    ``tone`` is what the act means: :data:`PRIMARY` for the one the
-    reader came to do, :data:`DANGER` for one that takes a thing away,
-    :data:`SECONDARY` for the rest. Colours are the drawing's business.
+    ``kind`` is SUBMIT or LINK. ``target`` is the submitted value or URL.
+    ``tone`` is PRIMARY for the main action, DANGER for removal, or SECONDARY.
+    Templates map these meanings to visual styles.
     """
 
     label: str
@@ -92,15 +88,10 @@ class Action:
 
 @dataclass(frozen=True)
 class OptionRow:
-    """A part bought with the line above it: a gun's paid ammo, a firing mode.
+    """A component selected as part of its parent purchase, such as ammunition.
 
-    Not a purchase of its own — a profile belongs to one particular
-    weapon, so buying one is a way of buying that weapon. It offers no
-    action for that reason: it rides the row's Buy.
-
-    ``index`` is its place in the line the server re-derives, which is
-    what the tick box submits. Naming the part any other way would let a
-    tampered form ask for something the catalogue never offered.
+    It shares the parent's Buy control. ``index`` identifies its position in
+    the server-derived list, preventing submission of an unoffered component.
     """
 
     name: str
@@ -113,23 +104,16 @@ class OptionRow:
     #: Where this part's own price is typed. A discount on the gun is not
     #: a discount on the rounds, so each is charged at its own figure.
     price_field: str
-    #: Remarks for the player about this part — a round restricted to a
-    #: fighter this one is not. The same channel as the row's own notes,
-    #: drawn under the part, and never a reason to leave it off.
+    #: Informational restrictions displayed beneath this part without hiding it.
     notes: tuple = ()
 
 
 @dataclass(frozen=True)
 class GroupOption:
-    """One option a reader may pick, from a group of options on a specific listing.
+    """An offered option and its surcharge within one listing's group.
 
-    ``value`` is its place in the set the server re-derives, which is what
-    the control submits — naming it any other way would let a tampered
-    form ask for something the listing never offered.
-
-    ``surcharge`` is what taking it adds to the figure in the listing's
-    price box, and ``surcharge_label`` is that as a reader sees it.
-    Nothing is drawn where taking it changes nothing.
+    ``value`` is its index in the server-derived alternatives. The server
+    validates against that list. ``surcharge_label`` is the displayed adjustment.
     """
 
     name: str
@@ -138,10 +122,7 @@ class GroupOption:
     #: Whether this is the one its set takes unasked. A fact about the
     #: offer, true wherever the offer is drawn.
     is_default: bool
-    #: Whether this control arrives already picked. A question about
-    #: *this* drawing rather than about the offer: buying starts on the
-    #: standard one, and changing what something already holds starts on
-    #: what it holds.
+    #: Initial selection for this display: acquisition defaults or held options.
     checked: bool = False
     #: Change previews compare full set prices, including a priced default.
     price: int = 0
@@ -157,24 +138,17 @@ class GroupOption:
 
 @dataclass(frozen=True)
 class PickGroup:
-    """A group of options on one listing, and how many to pick — one,
-    any, or one-or-none.
+    """An option group requiring one, any, or at most one selection.
 
-    ``choose`` is the listing's own word for how the group works, and
-    drawing it as radios or tick boxes is the template's business, the
-    same division as a tone and a colour.
-
-    The set is never named to a reader; see ``n26.core.browse``.
+    ``choose`` records that rule; templates choose the controls. Internal
+    set names are not exposed as player-facing group labels.
     """
 
     choose: str
     #: The input every option in this group shares.
     field: str
     options: tuple[GroupOption, ...]
-    #: Whether the control for taking nothing from this set is the one
-    #: picked. Radios cannot be unclicked, so a one-or-none set draws a
-    #: "None" beside its options, and this says whether that is where it
-    #: starts.
+    #: Initial None selection for one-or-none radio groups.
     nothing_taken: bool = True
 
 
@@ -247,23 +221,16 @@ class OwnedCopyRow(SlotMarked):
     id: str
     key: str
     name: str
-    #: What this copy contributed on its own — its parts state theirs.
-    #: Summing them is the caller's business; a sale prices itself from
-    #: the stored assignments at the moment of selling.
+    #: This copy's rating excluding parts. Settlement calculates current sale
+    #: proceeds from stored assignments.
     rating: int
     parts: tuple[OwnedPartRow, ...]
     sell: Action
     more: tuple[Action, ...]
-    #: The way to bolt something onto this copy. Only a weapon has one:
-    #: an accessory changes the gun it hangs off, so there is nowhere
-    #: else on a card to fit one. It stays out of ``more`` because it is
-    #: the one act here that adds something rather than taking it away,
-    #: and a chevron full of ways to lose a thing is no place for it.
+    #: Accessory-fitting URL for weapons, separate from removal actions.
     accessorise: Action | None = None
-    #: The options this copy was taken with, in the order the offer put
-    #: them — "Cutter plasma guns", "Smoke dispenser". What each added is
-    #: already inside the copy's rating, so no figure is said again
-    #: beside them. Empty where nothing was ever asked.
+    #: Selected option labels in offer order. Their surcharges already count
+    #: in the copy's rating.
     chosen: tuple[str, ...] = ()
     #: Weapon slots this takes on a card; see :class:`SlotMarked`.
     slots: int = 1
@@ -282,9 +249,8 @@ class OwnedRow(SlotMarked):
     name: str
     count: int
     copies: tuple[OwnedCopyRow, ...]
-    #: The row this would have been had they owned none, so a reader can
-    #: buy another. Absent on a manage-only row — gear held but not sold
-    #: by the list being read.
+    #: Listing for buying another copy, absent when the catalogue does not
+    #: sell this held item.
     buy: Listing | None = None
     expanded: bool = False
     #: Weapon slots this takes on a card; see :class:`SlotMarked`. The
@@ -323,26 +289,15 @@ class Catalogue:
 
 
 def _shown_trade_points(line):
-    """A line's Trade Point figure where the surface deals in them.
+    """Return displayed Trade Points only when the browse uses that currency.
 
-    A collection prices in what it deals in. An equipment list prices in
-    credits, so the TP number the item happens to carry answers no
-    question a reader of that list is asking, and drawing it invites
-    them to compare two lists by a figure only one of them charges.
-    The browsed line keeps the truth; this is what a row prints.
+    Keep the original amount on the browsed line even when hidden here.
     """
     return line.trade_points if line.shows_trade_points else None
 
 
 def _shown_exclusive(line):
-    """Whether to print "E".
-
-    "E" is a Trade Point value — it is what the catalogue's TP column
-    says for a thing the Trading Post never stocks. On a list that deals
-    in Trade Points it is worth saying; on an equipment list it is
-    tautological, because being on the list is the whole of what it
-    means.
-    """
+    """Whether to display E for an exclusive item in a Trade Point browse."""
     return line.is_exclusive and line.shows_trade_points
 
 
@@ -449,9 +404,8 @@ def listing_row(line):
         price_field=price_field(key),
         parts_field=parts_field(key),
         options=_options_of(line, key),
-        # The identity, never the price: the server re-browses the
-        # collection and finds the line itself, so a tampered form can
-        # name nothing that is not on the list.
+        # Submit identity only. The server rebuilds the listing and validates
+        # that this line is offered.
         buy=Action(label="Buy", kind=SUBMIT, target=key, tone=PRIMARY),
         choices=pick_groups(line.choices, key),
         slots=slots_of(line.thing),
@@ -459,16 +413,10 @@ def listing_row(line):
 
 
 def copy_row(copy, refunds=True):
-    """One copy a fighter holds, with the acts it offers named and toned.
+    """Describe one held copy's permitted controls and semantic tones.
 
-    Takes an :class:`n26.core.owned.OwnedThing`, which already knows where
-    each of its controls leads; this says what each of them means.
-
-    ``refunds`` is whether the gang refunds in credits at all. A gang
-    founded without a budget has no credits to give back, so its copies
-    offer Remove alone — unless this particular one took Trade Points out
-    of its buyer's founding allowance, which a refund does return. That
-    is what ``paid_trade_points`` on the copy says, and either is enough.
+    ``OwnedThing`` supplies their targets. Offer Refund when credits are
+    refundable or this copy was bought with refundable Trade Points.
     """
     return OwnedCopyRow(
         id=copy.id,
@@ -486,16 +434,10 @@ def copy_row(copy, refunds=True):
                     if part.sell_href
                     else None
                 ),
-                # A part is refundable for the same reason it is sellable:
-                # somebody paid for the wrong ammunition as easily as for
-                # the wrong gun. A weapon profile that came with the weapon
-                # is neither — selling it leaves no way to put it back.
-                # Removed rather than deleted, because what is left
-                # afterwards is still the fighter's gun.
+                # Paid ammunition can be refunded or removed independently. Included
+                # weapon profiles cannot, since they have no separate acquisition.
                 more=(
-                    # Acts that leave the fighter holding it, before the
-                    # ways of parting with it — Detach onto their own
-                    # kit, Fit onto another gun they already carry.
+                    # List detach and fit controls before removal controls.
                     *(
                         (Action("Detach", LINK, part.detach_href, SECONDARY),)
                         if part.detach_href
@@ -529,13 +471,8 @@ def copy_row(copy, refunds=True):
             else None
         ),
         more=(
-            # First, the acts that leave the fighter holding what they
-            # held, so they read before the ways of parting with it —
-            # each drawn only where it has an answer: options where the
-            # content asks anything, fitting where a loose accessory has
-            # a gun to go on. Fitting is named for what it does rather
-            # than called a move, because Reassign is about which fighter
-            # holds a thing and this one is not.
+            # List option and fitting controls before removal. Offer them only when
+            # the content has options or the fighter has a fitting destination.
             *(
                 (Action("Change options", LINK, copy.rechoose_href, SECONDARY),)
                 if copy.rechoose_href
@@ -605,20 +542,12 @@ def build_stash_catalogue(owned, name, refunds=True, expanded_key=""):
 
 
 def build_catalogue(view, owned, name=None, refunds=True, expanded_key=""):
-    """A browsed collection joined to what one fighter already holds.
+    """Combine browsed sections with possessions using content-key lookups.
 
-    ``owned`` is the index :func:`n26.core.owned.possessions` returns,
-    keyed the way rows are keyed — so the join is one dictionary read per
-    row, however much the fighter is carrying and however long the list.
-
-    ``refunds`` rides down to every owned copy: a gang with no budget
-    refunds no credits, so a copy is offered Refund only where it took
-    Trade Points out of a founding allowance.
-
-    Sections keep the order and the shape the browse gave them, with one
-    substitution: a section the content left unnamed is called
-    "Uncategorised" here. A catalogue is drawn as a strip of tabs, and a
-    tab with no word on it is one nobody can click.
+    ``owned`` is the index from ``n26.core.owned.possessions``. ``refunds`` controls
+    credit-refund availability on each copy; Trade Point refunds remain
+    available where recorded. Preserve browse order and label otherwise
+    unnamed sections Uncategorised so tabs have visible text.
     """
     catalogue = Catalogue(name=name or view.name)
     for section in view.sections:
