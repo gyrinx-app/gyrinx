@@ -1,22 +1,9 @@
-"""Founding House Escher, from a real 2026 gang list.
+"""Build and play an Escher gang with a curated equipment list.
 
-* **one House Escher Equipment List**, named once and referred to by
-  every fighter entry — so it belongs to the *gang type*, arrives
-  gang-hosted at founding, and nobody assigns it by hand;
-* a **two-level taxonomy** in that list (Ranged Weapons › Auto/Stub
-  Weapons, Wargear › Mounts) — the ``Category`` model, unchanged;
-* **house prices** differing from reference prices — entry overrides;
-* lines marked **"(Wyld Runner only)"** — ``usable_by_profiles``, noted
-  in the listing rather than removed from it;
-* **gang special rules**, including one that gives Leaders and Champions
-  a skill from their own Primary sets — carried by the gang type,
-  reaching models through the broadcast;
-* a **skill-access grid** of entries against sets — ``PlacesCategory``
-  modifiers on each profile;
-* a **mount** that comes with a weapon and offers two priced swaps —
-  options on a wargear.
-
-Rule *names* only; the rulebook's words are copyright (n26/AGENTS.md).
+The fixture covers category sections, House price overrides, profile use notes,
+gang-granted rules, a skill-access grid and a mount with priced weapon options.
+The shared House list is a gang-type built-in. Model and gang reads must keep
+query counts fixed as the roster grows.
 """
 
 import pytest
@@ -133,12 +120,10 @@ def subtypes(db):
 
 @pytest.fixture
 def weapons(taxonomy, default_pack):
-    """A slice of the list, plus the mount's own guns.
+    """Create catalogue weapons and exclusive mount weapons.
 
-    The mount's guns are priced "–" with TP "E": never bought separately.
-    They stay out of the equipment list simply by not being entries in it
-    — which is why a curated list is the right shape for a house list and
-    sweeps are the trading post's.
+    Mount weapons are omitted from collection entries so they cannot be bought
+    separately through the House list.
     """
     arc = create_trait("Arc", "Centreline")
     twin = create_trait("Twin-linked")
@@ -176,11 +161,10 @@ def weapons(taxonomy, default_pack):
 
 @pytest.fixture
 def cutter(weapons, taxonomy, subtypes, fighter_type):
-    """The mount: comes with a weapon, offers two priced swaps.
+    """Create a mount with a default weapon option and two priced alternatives.
 
-    Note what is *not* here: no ``built_ins``. "Comes with X, may replace
-    X with Y" is a one-of group whose head is X — a built-in would be
-    granted as well as the swap, because nothing is ever replaced.
+    Use one choice group: a separate built-in would remain alongside the selected
+    replacement weapon.
     """
     mount = create_wargear("Escher Cutter", price=150, category=taxonomy["mounts"])
     movement = fighter_type.statline_type.stats.get(stat__short_name="M").stat
@@ -421,8 +405,7 @@ class TestFoundingTheGang:
         assert access.source == str(escher)
 
     def test_the_budget_comes_from_content(self, escher):
-        # Unset everywhere, founding is unlimited: buy what you own, the
-        # gang's number is its rating.
+        # Without a starting-credit value, founding uses an unlimited budget.
         gang = found_gang("Blank Cheque", escher, owner=User.objects.create_user("p"))
         assert gang.starting_credits is None
 
@@ -463,8 +446,7 @@ class TestTheGangRules:
     def test_the_offer_lists_that_fighter_s_own_primary_sets(
         self, gang, profiles, catalogue
     ):
-        """One rule on the gang; a different list per fighter, because
-        the grid gives each entry different Primary sets."""
+        """Use each profile's own Primary sets for the shared starting-skill offer."""
         queen = hire_with_option(gang, profiles["Escher Gang Queen"], "Yolanda")
         matriarch = hire_with_option(gang, profiles["Escher Gang Matriarch"], "Mags")
 
@@ -482,7 +464,7 @@ class TestTheGangRules:
         card, computed = computed_for(queen)
         drawn = build_model_card(queen, card=card, computed=computed)
 
-        # The gang type rides the card but is not the fighter's kit.
+        # Broadcast gang-type effects do not add model equipment or rating.
         assert "House Escher" not in [e.name for e in drawn.equipment]
         assert drawn.rating == 135
 
@@ -492,11 +474,7 @@ class TestTheGangRules:
 
 class TestTheEquipmentList:
     def test_it_sections_by_the_printed_taxonomy(self, gang, house_list):
-        """Every section here was left at position 0, which is what an
-        unauthored one is, so their names order them. Where the book's
-        own order is wanted it is ``Section.position`` that says so —
-        a fact about the content and not about this code.
-        """
+        """Sections with equal positions sort by name; explicit positions control authored order."""
         view = browse(house_list)
         assert [s.name for s in view.sections] == [
             "Close Combat Weapons",
@@ -521,8 +499,7 @@ class TestTheEquipmentList:
         assert "Escher Cutter" in names
 
     def test_an_entry_only_line_is_noted_not_hidden(self, gang, profiles, house_list):
-        """ "Wyld bow (Wyld Runner only)" — listed for everyone,
-        marked for those who may not take it. We inform, never police."""
+        """Keep restricted equipment visible and explain which profile may use it."""
         restrict_use(
             house_list.entries.get(weapon__name="Wyld bow").assignable,
             profiles["Escher Wyld Runner"],
