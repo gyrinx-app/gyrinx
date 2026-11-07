@@ -4,23 +4,19 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
-from gyrinx.analytics.models import EventVerb, log_event
-from gyrinx.analytics.nouns import PlatformNoun
 from gyrinx.http import safe_redirect
+from gyrinx.security_events import record_security_event
 
 
 @csrf_exempt
 def csrf_failure(request, reason=""):
     """Return a JSON 403 for commands; redirect native forms with a message."""
-    if hasattr(request, "user") and request.user.is_authenticated:
-        log_event(
-            user=request.user,
-            noun=PlatformNoun.USER,
-            verb=EventVerb.VIEW,
-            request=request,
-            page="csrf_failure",
-            csrf_reason=reason,
-        )
+    # Django's reason can include attacker-controlled details; log a fixed code.
+    request._security_rejection_action = "csrf"
+    status = 403 if request.headers.get("Accept") == "application/json" else 302
+    record_security_event(
+        request, "csrf", "token_or_origin_rejected", response_status=status
+    )
 
     if request.headers.get("Accept") == "application/json":
         return JsonResponse(

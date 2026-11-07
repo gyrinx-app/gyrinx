@@ -49,6 +49,11 @@ SECURE_HSTS_PRELOAD = False
 
 BASE_URL = "https://gyrinx.app"
 
+# The load balancer appends client and forwarding-rule addresses. Earlier
+# X-Forwarded-For entries may be supplied by the caller.
+TRUSTED_X_FORWARDED_FOR_HOPS = 2
+ALLAUTH_TRUSTED_PROXY_COUNT = 2
+
 # Use a bounded per-process pool instead of per-thread persistent connections.
 # Keep CONN_MAX_AGE at zero and CONN_HEALTH_CHECKS enabled so checkout
 # replaces dropped connections. Pool limits multiply by worker processes and

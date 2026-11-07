@@ -1,0 +1,20 @@
+{
+  "displayName": "Gyrinx database pool timeout",
+  "combiner": "OR",
+  "enabled": true,
+  "alertStrategy": {
+    "notificationRateLimit": { "period": "300s" }
+  },
+  "documentation": {
+    "content": "A request could not obtain a database connection. See docs/operations/security-observability.md for the incident queries and pool checks.",
+    "mimeType": "text/markdown"
+  },
+  "conditions": [
+    {
+      "displayName": "PoolTimeout in a Cloud Run revision",
+      "conditionMatchedLog": {
+        "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"gyrinx\" AND (jsonPayload.event=\"db_pool_timeout\" OR \"psycopg_pool.PoolTimeout\")"
+      }
+    }
+  ]
+}

@@ -3,11 +3,13 @@ from unittest.mock import Mock, patch
 import pytest
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
+from django.test import override_settings
 
 from gyrinx.analytics.models import (
     Event,
     EventField,
     EventVerb,
+    fingerprint_session,
     get_client_ip,
     log_event,
 )
@@ -26,7 +28,7 @@ def test_event_model_creation():
         noun=EventNoun.LIST,
         verb=EventVerb.CREATE,
         ip_address="192.168.1.1",
-        session_id="test-session-123",
+        session_fingerprint="a" * 64,
         context={"list_name": "Test List"},
     )
 
@@ -34,7 +36,7 @@ def test_event_model_creation():
     assert event.noun == EventNoun.LIST
     assert event.verb == EventVerb.CREATE
     assert event.ip_address == "192.168.1.1"
-    assert event.session_id == "test-session-123"
+    assert event.session_fingerprint == "a" * 64
     assert event.context == {"list_name": "Test List"}
     assert str(event).startswith("testuser create list at")
 
@@ -127,7 +129,8 @@ def test_log_event_with_request_and_session():
     assert event.owner == user
     assert event.noun == EventNoun.LIST
     assert event.verb == EventVerb.CREATE
-    assert event.session_id == "test-session-456"
+    assert event.session_fingerprint == fingerprint_session("test-session-456")
+    assert event.session_fingerprint != "test-session-456"
     assert event.ip_address == "192.168.1.2"
 
 
@@ -149,7 +152,7 @@ def test_log_event_with_request_no_session():
     )
 
     assert event.owner == user
-    assert event.session_id is None
+    assert event.session_fingerprint is None
     assert event.ip_address == "192.168.1.3"
 
 
@@ -164,7 +167,7 @@ def test_event_logging_to_stream(mock_track):
         noun=EventNoun.LIST,
         verb=EventVerb.CREATE,
         ip_address="192.168.1.1",
-        session_id="test-session-789",
+        session_fingerprint="b" * 64,
         context={"list_name": "Test List"},
     )
 
@@ -183,9 +186,46 @@ def test_event_logging_to_stream(mock_track):
     assert event_data["noun"] == EventNoun.LIST
     assert event_data["verb"] == EventVerb.CREATE
     assert event_data["ip_address"] == "192.168.1.1"
-    assert event_data["session_id"] == "test-session-789"
+    assert event_data["session_fingerprint"] == "b" * 64
+    assert "session_id" not in event_data
     assert event_data["field"] is None
     assert event_data["context"] == {"list_name": "Test List"}
+
+
+@pytest.mark.django_db
+@patch("gyrinx.analytics.models.track")
+def test_event_redacts_secret_context_before_storage_and_streaming(mock_track):
+    user = User.objects.create_user(username="testuser")
+    event = Event.objects.create(
+        owner=user,
+        noun=PlatformNoun.USER,
+        verb=EventVerb.LOGIN,
+        context={
+            "login_method": "email",
+            "session_key": "bearer-value",
+            "password1": "first-password",
+            "new_password2": "second-password",
+            "oldpassword": "old-password",
+            "csrfmiddlewaretoken": "csrf-secret",
+            "apiKey": "api-secret",
+            "nested": [{"auth_token": "another-bearer-value"}],
+            "nested_tuple": ({"auth_token": "tuple-bearer-value"},),
+        },
+    )
+
+    expected = {
+        "login_method": "email",
+        "session_key": "[redacted]",
+        "password1": "[redacted]",
+        "new_password2": "[redacted]",
+        "oldpassword": "[redacted]",
+        "csrfmiddlewaretoken": "[redacted]",
+        "apiKey": "[redacted]",
+        "nested": [{"auth_token": "[redacted]"}],
+        "nested_tuple": [{"auth_token": "[redacted]"}],
+    }
+    assert Event.objects.get(pk=event.pk).context == expected
+    assert mock_track.call_args.kwargs["context"] == expected
 
 
 @pytest.mark.django_db
@@ -283,17 +323,18 @@ def test_create_list_view_logs_event(client, user, content_house):
     assert event.edition == "n23"
 
     # Check that session ID was captured
-    assert event.session_id is not None
+    assert event.session_fingerprint is not None
 
 
 @pytest.mark.django_db
 @patch("gyrinx.analytics.models.Event.objects.create")
-def test_log_event_error_handling(mock_create):
+@patch("gyrinx.analytics.models.logger")
+def test_log_event_error_handling(mock_logger, mock_create):
     """Test that log_event handles errors gracefully."""
     user = User.objects.create_user(username="testuser")
 
     # Make Event.objects.create raise an exception
-    mock_create.side_effect = Exception("Database error")
+    mock_create.side_effect = Exception("Database error password=secret")
 
     # This should not raise an exception
     result = log_event(
@@ -301,6 +342,7 @@ def test_log_event_error_handling(mock_create):
         noun=PlatformNoun.USER,
         verb=EventVerb.UPDATE,
         field=EventField.PASSWORD,
+        password="secret",
     )
 
     # Should return None when error occurs
@@ -308,6 +350,7 @@ def test_log_event_error_handling(mock_create):
 
     # Verify create was attempted
     assert mock_create.called
+    assert "secret" not in str(mock_logger.error.call_args)
 
 
 @pytest.mark.django_db
@@ -331,10 +374,13 @@ def test_event_save_logging_error_handling(mock_logger, mock_track):
     assert event.id is not None
     assert Event.objects.count() == 1
 
-    # Should have logged the exception
-    mock_logger.exception.assert_called_once_with("Failed to log event to stream")
+    # Streaming exceptions may echo payload values, so only their type is logged.
+    mock_logger.error.assert_called_once_with(
+        "Failed to log event to stream", extra={"error_type": "Exception"}
+    )
 
 
+@override_settings(TRUSTED_X_FORWARDED_FOR_HOPS=2)
 def test_get_client_ip_with_x_forwarded_for():
     """Test get_client_ip with X-Forwarded-For header."""
     mock_request = Mock()
@@ -344,9 +390,10 @@ def test_get_client_ip_with_x_forwarded_for():
     }
 
     ip = get_client_ip(mock_request)
-    assert ip == "192.168.1.100"
+    assert ip == "10.0.0.1"
 
 
+@override_settings(TRUSTED_X_FORWARDED_FOR_HOPS=2)
 def test_get_client_ip_with_single_x_forwarded_for():
     """Test get_client_ip with single IP in X-Forwarded-For."""
     mock_request = Mock()
@@ -356,7 +403,7 @@ def test_get_client_ip_with_single_x_forwarded_for():
     }
 
     ip = get_client_ip(mock_request)
-    assert ip == "192.168.1.100"
+    assert ip == "10.0.0.1"
 
 
 def test_get_client_ip_with_x_real_ip():
@@ -365,7 +412,7 @@ def test_get_client_ip_with_x_real_ip():
     mock_request.META = {"HTTP_X_REAL_IP": "192.168.1.200", "REMOTE_ADDR": "10.0.0.1"}
 
     ip = get_client_ip(mock_request)
-    assert ip == "192.168.1.200"
+    assert ip == "10.0.0.1"
 
 
 def test_get_client_ip_fallback_to_remote_addr():
@@ -383,6 +430,7 @@ def test_get_client_ip_with_no_request():
     assert ip is None
 
 
+@override_settings(TRUSTED_X_FORWARDED_FOR_HOPS=2)
 def test_get_client_ip_with_spaces_in_header():
     """Test get_client_ip handles spaces in X-Forwarded-For."""
     mock_request = Mock()
@@ -396,6 +444,7 @@ def test_get_client_ip_with_spaces_in_header():
 
 
 @pytest.mark.django_db
+@override_settings(TRUSTED_X_FORWARDED_FOR_HOPS=2)
 def test_log_event_with_x_forwarded_for():
     """Test log_event extracts IP from X-Forwarded-For header."""
     user = User.objects.create_user(username="testuser")
@@ -403,7 +452,7 @@ def test_log_event_with_x_forwarded_for():
     mock_request = Mock()
     mock_request.session.session_key = "test-session"
     mock_request.META = {
-        "HTTP_X_FORWARDED_FOR": "192.168.1.100, 10.0.0.1",
+        "HTTP_X_FORWARDED_FOR": "203.0.113.8, 192.168.1.100, 10.0.0.1",
         "REMOTE_ADDR": "10.0.0.1",
     }
 
@@ -415,6 +464,16 @@ def test_log_event_with_x_forwarded_for():
     )
 
     assert event.ip_address == "192.168.1.100"
+
+
+@override_settings(TRUSTED_X_FORWARDED_FOR_HOPS=2)
+def test_get_client_ip_rejects_malformed_trusted_entry():
+    mock_request = Mock()
+    mock_request.META = {
+        "HTTP_X_FORWARDED_FOR": "203.0.113.8, forged, 10.0.0.1",
+        "REMOTE_ADDR": "192.0.2.4",
+    }
+    assert get_client_ip(mock_request) == "192.0.2.4"
 
 
 @pytest.mark.django_db
@@ -437,6 +496,21 @@ def test_log_event_skips_crawler_user_agents(user_agent):
     )
     assert result is None
     assert Event.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_bot_user_agent_cannot_suppress_login_audit(user):
+    from django.test import RequestFactory
+
+    request = RequestFactory().post(
+        "/accounts/login/", HTTP_USER_AGENT="Mozilla/5.0 SQLSpider/1.5"
+    )
+    event = log_event(
+        user=user, noun=PlatformNoun.USER, verb=EventVerb.LOGIN, request=request
+    )
+
+    assert event is not None
+    assert Event.objects.filter(pk=event.pk).exists()
 
 
 @pytest.mark.django_db

@@ -91,6 +91,10 @@ steps:
       - >-
         --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID,gcb-trigger-id=$_TRIGGER_ID
       - "--region=$_DEPLOY_REGION"
+      # Keep public traffic on the load balancer so edge controls and the
+      # trusted X-Forwarded-For hop count describe the same ingress path.
+      # Cloud Run still accepts internal Pub/Sub push requests at run.app.
+      - "--ingress=internal-and-cloud-load-balancing"
       # The DB connection pool in gyrinx/settings_prod.py and the gunicorn
       # worker/thread counts in docker/entrypoint.sh are sized against these
       # four values — revisit them together.

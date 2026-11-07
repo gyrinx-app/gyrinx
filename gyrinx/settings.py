@@ -178,6 +178,7 @@ MIDDLEWARE = [
     "gyrinx.middleware.ClearLoggingRequestMiddleware",
     # Google Cloud Logging - must be early to capture request for trace correlation
     "google.cloud.logging_v2.handlers.middleware.RequestMiddleware",
+    "gyrinx.middleware.SecurityTelemetryMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     # Catch RequestDataTooBig early and return 400 instead of 500
@@ -407,6 +408,9 @@ LOGGING = {
         "null": {
             "class": "logging.NullHandler",
         },
+        "disallowed_host_audit": {
+            "class": "gyrinx.security_events.InvalidHostAuditHandler",
+        },
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
@@ -414,7 +418,7 @@ LOGGING = {
     },
     "loggers": {
         "django.security.DisallowedHost": {
-            "handlers": ["null"],
+            "handlers": ["disallowed_host_audit"],
             "propagate": False,
         },
         "django.utils.autoreload": {

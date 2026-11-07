@@ -295,8 +295,9 @@ def log_session_client_changed(sender, request, from_session, to_session, **kwar
         verb=EventVerb.UPDATE,
         request=request,
         field=EventField.SESSION,
-        from_session=from_session,
-        to_session=to_session,
+        previous_ip=from_session.ip,
+        new_ip=to_session.ip,
+        user_agent_changed=from_session.user_agent != to_session.user_agent,
     )
 
 

@@ -51,6 +51,8 @@ class TaskRoute:
     Use schedule and schedule_timezone for periodic delivery. A paused_consumer
     or exclusive_write requires write_scope. Exclusive delivery drains that
     scope and holds admission across the task's transactions.
+    Set confirm_publish for replay-safe chains that require Pub/Sub to accept
+    their next delivery before the current one is acknowledged.
     """
 
     func: Callable
@@ -62,6 +64,7 @@ class TaskRoute:
     write_scope: str | None = None
     paused_consumer: PausedTaskConsumer | None = None
     exclusive_write: bool = False
+    confirm_publish: bool = False
 
     def __post_init__(self):
         """Validate schedules and require a scope for write-admission options."""

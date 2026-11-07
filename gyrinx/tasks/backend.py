@@ -23,11 +23,11 @@ logger = logging.getLogger(__name__)
 
 
 class PubSubBackend(BaseTaskBackend):
-    """Publish tasks to per-task topics without waiting for Pub/Sub confirmation.
+    """Publish tasks to per-task topics with optional confirmation.
 
     Each route has independent retry and acknowledgement settings. A callback
-    records publish results; enqueue returns a READY TaskResult before that
-    confirmation, so later publish failure can leave an undelivered task.
+    records publish results. Most routes return a READY TaskResult before
+    confirmation; confirm_publish routes wait before returning.
     Configure project_id in backend OPTIONS or GCP_PROJECT_ID.
     """
 
@@ -54,11 +54,11 @@ class PubSubBackend(BaseTaskBackend):
         return self._publisher
 
     def enqueue(self, task, args, kwargs):
-        """Publish task arguments and return a READY result before confirmation.
+        """Publish task arguments and return a READY result.
 
         Create TaskExecution through task_enqueued before publishing. Track the
-        publish result in a callback. Raise ValueError for unregistered tasks or
-        arguments that cannot be encoded as JSON.
+        publish result in a callback. Confirmed routes wait for publication.
+        Raise ValueError for unregistered tasks or non-JSON arguments.
         """
         task_id = str(uuid.uuid4())
         task_name = task.func.__name__
@@ -137,6 +137,12 @@ class PubSubBackend(BaseTaskBackend):
                 )
 
         future.add_done_callback(on_publish_complete)
+
+        # A failed continuation must leave the current task unacknowledged.
+        # Confirmation can time out after a publish succeeds, so these routes
+        # must also tolerate duplicate deliveries.
+        if route.confirm_publish:
+            future.result(timeout=10)
 
         return task_result
 

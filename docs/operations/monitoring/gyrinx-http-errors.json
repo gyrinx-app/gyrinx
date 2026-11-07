@@ -1,0 +1,45 @@
+{
+  "displayName": "Gyrinx sustained HTTP errors",
+  "combiner": "OR",
+  "enabled": true,
+  "documentation": {
+    "content": "Sustained 5xx or 429 responses can indicate overload or abuse. See docs/operations/security-observability.md.",
+    "mimeType": "text/markdown"
+  },
+  "conditions": [
+    {
+      "displayName": "More than 20 5xx responses per minute for 2 minutes",
+      "conditionThreshold": {
+        "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"gyrinx\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "60s",
+            "perSeriesAligner": "ALIGN_RATE",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0.333333,
+        "duration": "120s",
+        "trigger": { "count": 1 }
+      }
+    },
+    {
+      "displayName": "More than 10 429 responses per minute for 2 minutes",
+      "conditionThreshold": {
+        "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"gyrinx\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code=\"429\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "60s",
+            "perSeriesAligner": "ALIGN_RATE",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0.166667,
+        "duration": "120s",
+        "trigger": { "count": 1 }
+      }
+    }
+  ]
+}

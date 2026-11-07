@@ -1,0 +1,12 @@
+{% extends "admin/base_site.html" %}
+{% block title %}{{ title }} | {{ site_title|default:_("Django site admin") }}{% endblock title %}
+{% block content %}
+    <p><a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a></p>
+    <h1>{{ title }}</h1>
+    <p>{{ remaining }} Event record{{ remaining|pluralize }} still contain a legacy session key.</p>
+    <p>The cleanup runs in small batches and records its progress. New keys are already blocked by the database migration.</p>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="button default">Start cleanup</button>
+    </form>
+{% endblock content %}
