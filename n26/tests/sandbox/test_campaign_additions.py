@@ -1,20 +1,13 @@
-"""Handing an asset between gangs, and what the arbitrator adds to a
-campaign.
+"""Campaign additions and holding transfers remain local to one campaign.
 
-A transfer is one asset's holder changing under the campaign's line, then a
-journal-only event on each gang inside it — LOST on the one it left, GAINED
-on the one it went to — so both histories say what happened, and the
-campaign's log reads the pair as one act.
+A transfer writes LOST and GAINED journal events for the two gangs with one
+batch identifier. The campaign history groups them into a single transfer.
 
-What the arbitrator adds is library content written into the campaign's
-own pack and onto its own campaign type: an asset type, an asset under one
-of the campaign's asset types, a counter every gang tracks, a label every
-gang picks. Nothing here touches the shared type, and nothing reaches
-another campaign. A counter or a label built in reaches gangs already
-playing through the same propagation pass a gang type's built-ins take,
-marked as caught up. The campaign page shows each where it lands — an
-asset type as a table, a counter or a label as a column — and never as a
-list of its own. See design/campaign-assets.md.
+Arbitrator-created asset types, assets, counters and labels belong to the
+campaign's pack and additions type. Built-in propagation delivers new counters,
+labels and possessions to existing member gangs. New members receive them
+on joining. Display additions in the campaign's asset tables and gang columns.
+See design/campaign-assets.md.
 """
 
 import json
@@ -124,7 +117,7 @@ def campaign_asset(campaign, old_ruins, gang):
 
 @pytest.fixture
 def propagating(db):
-    """The running side of built-in propagation sits behind a flag."""
+    """Enable delivery of built-in propagation tasks."""
     return FeatureFlag.objects.create(
         slug=BUILT_IN_PROPAGATION,
         name="Built-in propagation",
@@ -145,13 +138,12 @@ def holding_events(gang):
 
 
 def readings(gang):
-    """The campaign counters on the gang's sheet, by name."""
+    """Read the gang sheet's campaign counters by name."""
     return {line.name: line.value for line in render_gang(gang).campaign.counters}
 
 
 class TestTransfer:
-    """One asset's holder changing, two records: the loser's says it lost the
-    asset, the receiver's says it gained it."""
+    """Change a campaign asset's holder and journal the loss and gain on the two gangs."""
 
     def test_the_holder_changes(self, campaign_asset, gang, rival):
         moved = transfer_asset(campaign_asset, rival)
@@ -168,7 +160,7 @@ class TestTransfer:
         )
         (received,) = holding_events(rival)
         assert received.kind == LedgerEvent.Kind.GAINED
-        # One act across two gangs, so the two records share a mark.
+        # Use the same batch identifier for both sides of the transfer.
         assert lost.batch == received.batch
         for event in (lost, received):
             assert event.campaign == campaign
@@ -181,9 +173,7 @@ class TestTransfer:
     def test_both_histories_and_the_log_read_plainly(
         self, campaign_asset, gang, rival, campaign
     ):
-        """Each gang's history says what it lost or gained; the campaign's
-        log tells the hand-over once, naming both gangs, and counts it
-        once."""
+        """Record each gang's loss or gain and count their paired events once in the campaign history."""
         from n26.core.history import campaign_history_size
 
         before = campaign_history_size(campaign)
@@ -237,11 +227,11 @@ class TestTransfer:
 
 
 class TestActingForAHolderThatChanged:
-    """The holding gang's owner reads the page, and the arbitrator moves the
-    asset before they post. Their act was allowed for the gang they read as
-    the holder, so it is refused in words rather than done to whoever holds
-    the asset now; the arbitrator, who may move any held asset, is not
-    held to the holder they read."""
+    """Reject holder-owner commands if the asset changed hands after the page loaded.
+
+    Arbitrator commands can operate on the current holder without the former
+    holder check. An owner who no longer holds the asset cannot open its command page.
+    """
 
     def test_the_owners_hand_over_is_refused(self, campaign_asset, gang, rival):
         from n26.core.campaigns import campaign_operation
@@ -277,15 +267,14 @@ class TestActingForAHolderThatChanged:
         )
         assert client.get(address).status_code == 200
         transfer_asset(campaign_asset, rival)
-        # The page is gone for them — another gang holds the asset now.
+        # The former holder's owner no longer has access to the command page.
         assert client.post(address, follow=True).status_code == 404
         campaign_asset.refresh_from_db()
         assert campaign_asset.holder.gang == rival
 
 
 class TestTransferOnThePage:
-    """The arbitrator transfers; the holding gang's owner hands over;
-    nobody else is offered either."""
+    """Offer Transfer to the arbitrator and Hand over to the holding gang's owner."""
 
     def address(self, campaign_asset):
         return reverse(
@@ -449,9 +438,7 @@ class TestAnAsset:
     def test_another_campaign_on_the_same_type_never_sees_it(
         self, client, campaign, core
     ):
-        """An asset written under the shared Territory type belongs to the
-        campaign whose pack it is in. A second campaign founded on the same
-        type is not offered it, and cannot add it by hand."""
+        """Exclude another campaign's owned asset from both the add form and direct add operations."""
         territory = core.asset_types.get(label_singular="Territory")
         private = create_campaign_asset(campaign, territory, "Sump Hole")
         other_arbitrator = User.objects.create_user("other")
@@ -486,8 +473,7 @@ class TestAnAsset:
 
 
 class TestSystemContentNeverPointsAtAnArbitratorsAsset:
-    """Pack content may reference system content; the reverse is refused
-    by the authoring forms. An arbitrator's asset is pack content."""
+    """Reject form references from system content to campaign-owned assets; permit references within the campaign pack."""
 
     def test_the_rule_refuses_it(self, campaign, core, default_pack):
         territory = core.asset_types.get(label_singular="Territory")
@@ -498,10 +484,10 @@ class TestSystemContentNeverPointsAtAnArbitratorsAsset:
     def test_the_system_types_page_offers_no_asset_as_a_built_in(
         self, client, campaign, core
     ):
-        """An asset is never picked into a type's built-ins by hand — a
-        possession is built in by being created — so the one way an
-        arbitrator's asset could reach the shared type is not a choice
-        the page offers, and a post naming it is refused as no choice."""
+        """Exclude assets from manual built-in selection and reject a direct asset submission.
+
+        Creating a possession asset manages its built-in membership automatically.
+        """
         territory = core.asset_types.get(label_singular="Territory")
         made = create_campaign_asset(campaign, territory, "Sump Hole")
         staff = User.objects.create_user("staff", is_staff=True)
@@ -524,10 +510,10 @@ class TestSystemContentNeverPointsAtAnArbitratorsAsset:
 
 
 class TestAPossession:
-    """An asset of a Possession asset type is every gang's own: the campaign's
-    additions type gives it the moment it is made, so the arbitrator adds
-    nothing else. Gangs joining afterwards receive it as they join; gangs
-    already playing receive it by the propagation pass."""
+    """Build campaign possessions into the additions type automatically.
+
+    Joining gangs receive them directly; existing gangs receive them through propagation.
+    """
 
     def test_it_is_built_into_the_campaigns_own_type(self, campaign, core):
         hideout = add_campaign_asset_type(
@@ -544,9 +530,7 @@ class TestAPossession:
     def test_one_under_the_shared_settlement_type_is_this_campaigns_alone(
         self, campaign, core, gang_type
     ):
-        """An arbitrator's asset under the shared Settlement type lands on
-        the additions, never on the shared type: another campaign on the
-        same type never gives it."""
+        """Build campaign-owned assets under a shared Possession type into this campaign's additions only."""
         settlement = core.asset_types.get(label_singular="Settlement")
         made = create_campaign_asset(campaign, settlement, "Sump Home")
 
@@ -623,9 +607,7 @@ class TestAPossession:
 
 
 class TestACounter:
-    """A counter every gang tracks: created in the pack, built into the
-    campaign's own type at its opening value, and delivered to gangs already playing
-    by the propagation pass."""
+    """Create a campaign-owned counter with its opening value as an additions built-in and propagate it to existing gangs."""
 
     def test_it_is_built_into_the_campaigns_own_type_at_its_opening_value(
         self, campaign
@@ -688,18 +670,14 @@ class TestACounter:
         assert Counter.objects.filter(pack=campaign.pack).count() == 1
 
     def test_a_counter_the_shared_type_already_gives_is_refused(self, campaign):
-        """Reputation is the system pack's and every gang already has it;
-        a second one in the campaign's pack would read the same and share
-        its column on the gangs table."""
+        """Reject a counter name already supplied by the shared campaign type to avoid ambiguous gang-table columns."""
         with pytest.raises(Refusal, match="already has a counter called"):
             add_campaign_counter(campaign, "reputation")
         assert not Counter.objects.filter(pack=campaign.pack).exists()
 
 
 class TestALabel:
-    """A question every gang picks one option for: a slot type, its
-    pickables, a picklist and a gang-hosted slot, all in the campaign's
-    pack and built into the additions."""
+    """Build a campaign-owned label from a slot type, options, picklist and gang-hosted slot."""
 
     @pytest.fixture
     def gang_faction(self, gang_type):
@@ -923,8 +901,7 @@ class TestALabel:
 
 
 class TestTheArbitratorsControlsOnThePage:
-    """Four small pages, the arbitrator's alone, each landing back on the
-    part of the campaign page where what it added shows."""
+    """Restrict additions forms to the arbitrator and return commands to the relevant campaign section."""
 
     def test_the_arbitrator_sees_the_controls_and_a_player_does_not(
         self, client, campaign, gang
@@ -1088,8 +1065,7 @@ class TestTheArbitratorsControlsOnThePage:
             {"name": "Alignment", "options": "Law Abiding\n\n Outlaw \n"},
         )
         assert response.status_code == 302
-        # The pages wrote onto their own copy of the campaign's own type;
-        # this one still believes it has no built-ins set.
+        # Refresh the caller's instance after the pages created the additions built-in set.
         campaign.refresh_from_db()
         members = campaign.additions.built_in_members.order_by("position")
         assert [str(m.assignable) for m in members] == ["Meat", "Alignment"]
@@ -1110,9 +1086,7 @@ class TestTheArbitratorsControlsOnThePage:
 
 
 class TestTheCampaignsOwnTypeIsInvisible:
-    """The campaign type that holds what the arbitrator adds wears the
-    campaign's name and is nobody's to found on or author against, so no
-    staff listing names it and the founding form never offers it."""
+    """Exclude the campaign's additions type from authoring listings, sibling links and campaign founding choices."""
 
     def test_the_authoring_listing_and_menu_leave_it_out(self, client, campaign, core):
         staff = User.objects.create_user("staff", is_staff=True)
@@ -1141,7 +1115,7 @@ class TestTheCampaignsOwnTypeIsInvisible:
 
 
 class TestCampaignContentIsOutsideAuthoring:
-    """A campaign's pack stays with its campaign, outside staff authoring."""
+    """Exclude campaign-pack content from staff listings and staging tools while permitting direct detail access."""
 
     def test_a_labels_four_kinds_are_absent_from_their_listings(
         self, admin_client, campaign
@@ -1323,8 +1297,7 @@ class TestCampaignContentIsOutsideAuthoring:
 
 
 class TestTheArbitratorTallies:
-    """The one act on a gang that is not its owner's: the arbitrator moving
-    a campaign counter on any gang at the table, from the campaign page."""
+    """Allow the arbitrator to adjust campaign counters on member gangs without permitting edits to their other counters."""
 
     def reputation_of(self, gang):
         (line,) = [

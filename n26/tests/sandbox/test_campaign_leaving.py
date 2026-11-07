@@ -1,12 +1,8 @@
-"""Leaving a campaign, and archiving one, give back everything the campaign
-gave.
+"""Leaving a campaign removes its membership grants and unassigns held assets.
 
-A gang that joins is given the campaign's two types and what they bring —
-a Settlement, the campaign's counters, its labels — and may come to hold
-the campaign's assets. Leaving gives all of it back in one act: every held
-asset goes back unheld, both carriers are removed with everything they
-caused, and the membership closes. The gang's history keeps saying what
-happened. Archiving a campaign does the same for every gang still in it.
+Close the membership and remove both type carriers with their dependent
+assignments in one operation. Preserve the gang history. Archiving the campaign
+applies the same removal to every remaining member gang.
 See design/campaign-assets.md.
 """
 
@@ -104,8 +100,7 @@ def reputation_counter(gang):
 
 
 def played(gang, alignment, old_ruins):
-    """The gang as the issue describes it: a territory held, a Settlement,
-    Reputation 4 and an Alignment picked."""
+    """Give the gang a held territory, a Reputation adjustment and an Alignment pick."""
     assign_asset(old_ruins, gang)
     tally(reputation_counter(gang), 4)
     asked = live(gang).get(slot=alignment)
@@ -168,7 +163,7 @@ class TestLeaving:
         assert lost.campaign == campaign
         left = LedgerEvent.objects.get(gang=gang, kind=LedgerEvent.Kind.LEFT_CAMPAIGN)
         assert left.campaign == campaign
-        # One act: every record of the leaving shares its mark.
+        # Group all leave events under the same operation batch.
         assert {
             event.batch
             for event in LedgerEvent.objects.filter(
@@ -180,9 +175,7 @@ class TestLeaving:
         played(gang, alignment, old_ruins)
         remove_from_campaign(gang, campaign)
 
-        # What went folds under the leaving, as what came folds under the
-        # joining; the asset the gang held has its own line, as gaining it
-        # did.
+        # Group removed grants under the leave act and list the returned asset separately.
         for acts in (build(gang), campaign_history(campaign)):
             *_, lost, left = acts
             assert sentences([left]) == ["took the gang out of Dust Falls"]
@@ -300,7 +293,7 @@ class TestTheConfirmationPage:
 
 
 def seat(campaign, user):
-    """An accepted player, as answering an invitation leaves one."""
+    """Invite a player and accept their invitation."""
     with campaign_operation(campaign, actor=campaign.owner) as act:
         act.invite(user)
     with campaign_operation(campaign, actor=user) as act:
@@ -313,7 +306,7 @@ def leave(campaign, user):
 
 
 def fight(campaign, *gangs):
-    """A battle with no result recorded yet."""
+    """Record an unfinished battle for the supplied gangs."""
     with campaign_operation(campaign, actor=campaign.owner) as act:
         return act.record_battle(date(2026, 10, 1), gangs, scenario="Ambush")
 
@@ -327,8 +320,7 @@ def second(gang, gang_type, campaign):
 
 
 class TestAPlayerLeaving:
-    """A player who leaves takes every gang of theirs out, each as removing
-    it would, and stops being a player. Nobody else's gang is touched."""
+    """Leaving removes all of that player's gangs and their participation without changing rival gangs."""
 
     def test_every_gang_of_theirs_gives_back_what_the_campaign_gave(
         self, gang, second, rival, campaign, alignment, old_ruins
@@ -449,9 +441,7 @@ class TestTheArbitratorRemovingAPlayer:
 
 
 class TestTheLeavePage:
-    """The question at its own address. It names every gang the player has
-    in the campaign and what each loses, and leaving happens only on the
-    POST."""
+    """GET previews every departing gang and its losses; only POST changes membership."""
 
     @pytest.fixture
     def player(
