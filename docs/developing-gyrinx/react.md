@@ -6,6 +6,9 @@ including its reads, commands, confirmations and failure paths. Cotton continues
 to render the surrounding shell. React regions are client-rendered, not hydrated
 or server-rendered.
 
+For a code walkthrough of the Django boundary, command endpoints, shared form
+lifecycle and design adapters, read [How React workflows fit into N26](react-workflow-anatomy.md).
+
 The next migration unit is a complete workflow with explicit display data and
 command endpoints. Start with Manage credits, then Hire and Equip. Keep small
 islands for interactions that already have an independent owner. Build each
