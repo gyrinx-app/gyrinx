@@ -1,16 +1,8 @@
-"""Repairing the books where one refund was written twice.
+"""Repair duplicate refund and related removal events on archived assignments. Delete
+surplus events, recompute pinned balances and verify reconciliation before committing.
 
-A refund whose click reached the server twice was written twice: the
-line was archived once, but a second ``refunded`` leg went into the
-books, so the entry's pins say zero while its events fold to minus what
-the thing cost, and the gang holds credits it was never owed. The repair
-drops every leg after the first of its kind on a line — and the removal
-legs written in the same act — then writes the gang's pinned numbers
-again, and proves the books whole before it commits.
-
-The fault is planted directly here rather than by racing two clicks:
-the operations refuse to write it, and what the repair has to undo is
-the shape in the books, not the path that led there.
+Create malformed ledger data directly because normal operations reject duplicate
+refunds.
 """
 
 from uuid import uuid4
@@ -57,7 +49,7 @@ def vex(gang, make_profile, make_statline):
 
 
 def _written_again(event):
-    """The same leg, written a second time in an act of its own."""
+    """Duplicate a ledger event in a distinct operation batch."""
     return LedgerEvent.objects.create(
         assignment=event.assignment,
         gang=event.gang,
@@ -72,10 +64,9 @@ def _written_again(event):
 
 @pytest.fixture
 def doubled(gang, vex, default_pack):
-    """A refunded gun whose refund leg stands twice, and a removed knife
-    whose removal leg was written again in the same second act. The
-    gang's credits carry the second refund, as they did when the books
-    were written this way."""
+    """An archived gun with duplicate refund events and a knife with a duplicate removal in
+    the same batch. Recompute credits to include the erroneous extra refund.
+    """
     gun = give_weapon(vex, create_weapon("Autogun", price=GUN_PRICE), paid=GUN_PRICE)
     knife = give_weapon(vex, create_weapon("Knife", price=0), paid=0)
     refund(gun)
@@ -93,13 +84,13 @@ def doubled(gang, vex, default_pack):
 
 
 class TestFindingTheSurplus:
-    """The plan names each gang, how many legs go, and what its credits
-    lose — and nothing at all when no line carries a second leg."""
+    """Plan surplus events and credit adjustments without selecting valid first events."""
 
     @pytest.fixture
     def played(self, gang, vex, default_pack):
-        """A gang with a real history: one refund, one sale and one plain
-        removal, each on its own line and each written once."""
+        """A reconciled gang with one refund, one sale and one removal on separate
+        assignments.
+        """
         refund(give_weapon(vex, create_weapon("Autogun", price=30), paid=30))
         sell(give_weapon(vex, create_weapon("Shotgun", price=40), paid=40))
         remove(give_weapon(vex, create_weapon("Knife", price=0), paid=0))
@@ -139,9 +130,9 @@ class TestFindingTheSurplus:
         assert first_removal.pk not in surplus
 
     def test_a_doubled_leg_on_a_live_line_refuses(self, doubled):
-        """Not the shape this repairs: a line still on the roster with a
-        refund on it is a different fault, and refusing keeps this one
-        honest about what it does."""
+        """Reject refunded assignments still active on the roster; that corruption requires
+        a different repair.
+        """
         line = LedgerEvent.objects.filter(
             gang=doubled, kind=LedgerEvent.Kind.REFUNDED
         ).earliest("created")
@@ -183,9 +174,9 @@ class TestDroppingTheSurplus:
         assert find().nothing_here
 
     def test_one_gang_visited_on_its_own_drops_what_it_holds_now(self, doubled):
-        """A run that visits gangs across deliveries reads each gang
-        afresh rather than carrying the preview's plan; a gang with
-        nothing left says so rather than refusing."""
+        """Recompute the plan per gang at delivery time and return a no-op when surplus
+        events are already removed.
+        """
         assert apply_one(doubled.pk).startswith(f"gang {doubled.pk}: dropped 2 events")
         doubled.refresh_from_db()
         assert_reconciled(doubled)
@@ -194,10 +185,9 @@ class TestDroppingTheSurplus:
     def test_a_gang_whose_line_came_back_onto_the_roster_is_skipped_when_visited(
         self, doubled
     ):
-        """Between the preview and the visit a player may unarchive the
-        line; a refund leg on a line still on the roster is a different
-        fault, and the visit leaves the gang alone rather than deleting
-        it."""
+        """Revalidate assignment state during delivery and leave the gang unchanged if the
+        assignment is active again.
+        """
         line = LedgerEvent.objects.filter(
             gang=doubled, kind=LedgerEvent.Kind.REFUNDED
         ).earliest("created")
@@ -222,8 +212,9 @@ BIG_PRICE = 960
 
 @pytest.fixture
 def spent(doubled, vex, default_pack):
-    """The doubled gang has since spent the credits it was never owed:
-    a purchase that leaves fewer credits than the surplus handed back."""
+    """Spend enough erroneous refund credits that removing them would make the balance
+    negative.
+    """
     give_weapon(vex, create_weapon("Cannon", price=BIG_PRICE), paid=BIG_PRICE)
     doubled.refresh_from_db()
     assert doubled.credits < GUN_PRICE
@@ -231,9 +222,9 @@ def spent(doubled, vex, default_pack):
 
 
 class TestAGangThatSpentWhatItWasNeverOwed:
-    """Dropping its surplus legs would push its credits below zero, and
-    the books never allow that — so the repair leaves the gang exactly
-    as it stands and says why, which is a decision for a person."""
+    """Skip repairs that would produce negative credits, preserving all events and
+    reporting the reason for manual review.
+    """
 
     def test_the_plan_says_it_would_be_skipped(self, spent):
         plan = find()
