@@ -39,7 +39,7 @@ class _Error:
 def _run_concurrently(target, *, n=2, timeout=15):
     """Release n delivery threads together and return their raised exceptions.
 
-    The barrier increases overlap so serial execution cannot hide missing locks.
+    The barrier increases the chance that delivery handlers overlap.
     """
     errors = []
     start = threading.Barrier(n, timeout=timeout)
