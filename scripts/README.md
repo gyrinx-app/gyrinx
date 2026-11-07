@@ -89,6 +89,10 @@ the generated image out of git and check it for private data before uploading.
   `.codex/run.sh`, cleanup scripts, and pre-commit wrappers.
 - `test.sh`: Thin wrapper over `pytest`. All args are passed through. Parallel execution
   (`-n auto`) is already enabled via `pyproject.toml` addopts; use `-n 0` to force serial.
+- `update_package_lock.sh`: Rewrites `package-lock.json` with npm 11 after a
+  `package.json` `overrides` change. npm 10 can leave the nested dependency in
+  place. `--check` runs `npm ls --package-lock-only` and does not rewrite the
+  file. CI runs the check.
 - `check_migrations.sh`: Runs `makemigrations --check`. The pre-commit hook
   passes `--pre-commit`, which hides untracked migration files for the check
   and restores them afterwards. A manual run still sees those files.

@@ -64,7 +64,11 @@ artifacts when the IDE Canvas surface is unavailable.
   excludes that manifest tree, `n26/frontend/generated`, `node_modules`,
   `staticfiles`, and `logs`, so `uv sync` does not record them on the
   editable install. Do not run
-  `npm audit fix` unless the task is the audit itself. `scripts/dev.sh` and
+  `npm audit fix` unless the task is the audit itself. npm 10 can leave a
+  nested dependency in place after a `package.json` `overrides` change.
+  Regenerate the lockfile with `./scripts/update_package_lock.sh` (npm 11,
+  `--package-lock-only`) and review the diff. CI runs the same script with
+  `--check`. `scripts/dev.sh` and
   `scripts/fmt.sh` activate the worktree environment themselves. Pre-commit
   hook scripts find `.venv/bin/python` themselves, so a plain `git commit`
   works when PATH has no interpreter.
