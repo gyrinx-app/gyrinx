@@ -1,14 +1,8 @@
-"""The site changelog, one list for every edition.
+"""Show public release notes shared by every edition.
 
-A ``tag`` query narrows the list. The n26 dashboard links here with
-``tag=N26``, so arriving from that home starts on this edition. The
-footer link carries no tag, so it shows every live entry.
-
-Tag names match without regard to case. An entry tagged both ``N26``
-and ``n26`` is still one entry: the tag join can hit it twice.
-
-Both pages are public. Release notes hold no player data, and an entry
-means the same thing for every reader.
+The tag query filters case-insensitively. N26 dashboard links supply tag=N26;
+untagged links show all live entries. Deduplicate entries because one entry
+can have multiple case variants of a tag.
 """
 
 from urllib.parse import urlencode
@@ -16,11 +10,10 @@ from urllib.parse import urlencode
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
-#: The dashboard, and the link from the n26 home, ask for this tag.
+#: Tag supplied by N26 dashboard and home links.
 CHANGELOG_TAG = "N26"
 
-#: ``ChangelogEntryTag.name`` cannot be longer than this. A longer query
-#: is not a tag, and must not be cut down to one that is.
+#: Queries exceeding the tag field limit must remain intact rather than match a truncated prefix.
 TAG_NAME_MAX = 100
 
 
@@ -50,7 +43,7 @@ def changelog_entries():
 
 
 def changelog(request):
-    """Every live changelog entry, or just those wearing the requested tag."""
+    """List live changelog entries under the optional tag filter."""
     tag = _requested_tag(request)
     entries = list(_page_entries(tag))
     _attach_badges(entries)
@@ -91,12 +84,12 @@ def changelog_entry(request, pk):
 
 
 def n26_changelog(request):
-    """The old address of this edition's changelog."""
+    """Permanently redirect to the shared changelog filtered by the N26 tag."""
     return redirect(changelog_href(CHANGELOG_TAG), permanent=True)
 
 
 def n26_changelog_entry(request, pk):
-    """The old address of one N26 entry. Anything else is a 404."""
+    """Permanently redirect an N26-tagged entry; return 404 for other entries."""
     get_object_or_404(changelog_entries(), pk=pk)
     return redirect(changelog_href(CHANGELOG_TAG, pk), permanent=True)
 
@@ -129,13 +122,10 @@ def _matching_entries(tag):
 
 
 def _requested_tag(request):
-    """The tag query, or None when the page should show every entry.
+    """Read the requested tag, preferring a matching stored spelling.
 
-    Prefer the stored spelling when a tag of that name exists, so the
-    chips, the lead and the links all agree on one writing of it.
-
-    A query longer than a tag name is returned whole. Cutting it to the
-    field length would select a real tag that happens to be that prefix.
+    Preserve overlong queries intact. Truncation could accidentally select a real
+    tag sharing that prefix.
     """
     raw = request.GET.get("tag", "").strip()
     if not raw:
@@ -154,10 +144,9 @@ def _requested_tag(request):
 
 
 def _filter_tags(active):
-    """One chip per tag that a live entry actually wears.
+    """Build case-insensitive filter chips from tags used by live entries.
 
-    ``N26`` and ``n26`` are one filter, because matching ignores case.
-    The chip keeps the spelling that sorts first within that case.
+    Keep the alphabetically first stored spelling among case variants.
     """
     from gyrinx.site.models import ChangelogEntryTag
 
@@ -182,7 +171,7 @@ def _filter_tags(active):
 
 
 def _attach_badges(entries):
-    """A colour per tag, computed once. Cotton cannot look a colour up itself."""
+    """Resolve tag badge colours and links before rendering."""
     for entry in entries:
         entry.tag_badges = [
             {
