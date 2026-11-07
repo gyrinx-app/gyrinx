@@ -27,8 +27,8 @@ export type GalleryNavProps = {
 const link = "rounded-control px-3 py-1.5 hover:bg-ink-500/10";
 
 /**
- * The design gallery's sidebar: a filter over its component links.
- * designsystem/base.html draws the same classes as the fallback; change both.
+ * Filter the gallery's component links. Keep fallback classes in
+ * designsystem/base.html consistent.
  */
 export function GalleryNav(props: GalleryNavProps) {
     const [query, setQuery] = useState(props.query ?? "");

@@ -32,10 +32,6 @@ updates:
         update-types:
           - "major"
     ignore:
-      # setuptools 82 removed pkg_resources, which Google Cloud packages still use.
-      # Re-enable once google-cloud-* packages drop their pkg_resources dependency.
-      - dependency-name: "setuptools"
-        versions: [">=82.0.0"]
       # Updated by the cross-ecosystem formatter entry below.
       - dependency-name: "djlint"
       - dependency-name: "ruff"

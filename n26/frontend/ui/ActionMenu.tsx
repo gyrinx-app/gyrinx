@@ -14,14 +14,14 @@ export type ActionMenuItem = {
     label: string;
     href: string;
     tone: "default" | "danger";
-    /** Draw a separator above this item. The server decides it per caller. */
+    /** Show a separator above this entry when requested by the server. */
     separatorBefore: boolean;
 };
 
 export type ActionMenuProps = {
     /** The trigger's accessible name and its tooltip. */
     label: string;
-    /** In the order they are drawn. The menu never reorders them. */
+    /** Entries in display order. */
     items: ActionMenuItem[];
     trigger?: "ellipsis" | "chevron";
     variant?: "default" | "ghost";
@@ -33,9 +33,9 @@ export type ActionMenuProps = {
 type Edge = "first" | "last";
 
 /**
- * Whether assistive technology sent this click, as React Aria's
- * `isVirtualClick` decides: Firefox's trusted `mozInputSource` 0, TalkBack's
- * `buttons` 1 on Android only, or else `detail` 0 with no `pointerType`.
+ * Detect assistive-technology clicks using React Aria's isVirtualClick
+ * conditions: Firefox mozInputSource, Android buttons, or detail 0 without a
+ * pointerType.
  */
 export function isVirtualClick(event: MouseEvent) {
     const { pointerType } = event as PointerEvent;
@@ -91,14 +91,14 @@ export function ActionMenu({
     function focusEdge(edge: Edge) {
         const list = shown();
         const target = edge === "first" ? list[0] : list.at(-1);
-        // Scroll the panel, not the page: a menu taller than its height cap
-        // would otherwise open at the last link with that link out of view.
+        // Scroll the panel to reveal the focused link without moving the
+        // page.
         target?.focus({ preventScroll: true });
         target?.scrollIntoView?.({ block: "nearest" });
     }
 
-    // A keyboard opening focuses its first or last link once the panel is
-    // in the page. A mouse opening leaves focus on the button.
+    // Keyboard opening focuses the first or last link after mount; pointer
+    // opening retains trigger focus.
     useEffect(() => {
         if (open && pendingFocus.current) focusEdge(pendingFocus.current);
         pendingFocus.current = null;
@@ -158,8 +158,8 @@ export function ActionMenu({
                 }
                 break;
             case "Tab":
-                // Focus the button before the panel goes, so the browser's
-                // Tab moves on from it rather than from the page's start.
+                // Restore trigger focus before unmounting so Tab continues
+                // from the trigger in document order.
                 button.current?.focus();
                 setOpen(false);
                 break;
@@ -182,25 +182,24 @@ export function ActionMenu({
                 aria-controls={open ? panelId : undefined}
                 onClick={(event) => {
                     if (open) {
-                        // Closing takes the focused link away. Keep focus
-                        // on the button, not the page.
+                        // Restore trigger focus before removing the focused
+                        // link.
                         if (panel.current?.contains(document.activeElement))
                             button.current?.focus();
                         setOpen(false);
                         return;
                     }
-                    // A virtual click opens at the first link, as the
-                    // keyboard does; a pointer click leaves focus here. Enter
-                    // and Space never get here: their keydown (and Space's
-                    // keyup) prevent the click.
+                    // Assistive-technology activation focuses the first
+                    // link. Keyboard handlers prevent their native click,
+                    // while pointer clicks retain trigger focus.
                     if (isVirtualClick(event.nativeEvent))
                         pendingFocus.current = "first";
                     setOpen(true);
                 }}
                 onKeyDown={onTriggerKeyDown}
                 onKeyUp={(event) => {
-                    // Firefox clicks a button on Space's keyup; the keydown
-                    // already opened the menu.
+                    // Prevent Firefox's Space keyup click from closing a
+                    // menu already opened on keydown.
                     if (event.key === " ") event.preventDefault();
                 }}
             >

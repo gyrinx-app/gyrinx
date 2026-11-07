@@ -5,10 +5,7 @@ from n26.core.widgets import RichText
 
 from . import sampledata
 
-#: The gang types offered on the create form. The real one reads
-#: ``n26.library.GangType``; a gallery has to render on an empty database, so this
-#: is the same list the dashboard's filter uses, kept here rather than imported
-#: from sampledata so the form is a form and not a fixture.
+#: Static gang types let the gallery render without library records.
 GANG_TYPES = [
     ("ash-waste-nomads", "Ash Wastes Nomads (BotO)"),
     ("delaque", "Delaque (HoS)"),
@@ -20,14 +17,10 @@ GANG_TYPES = [
     ("venators", "Venators (AN)"),
 ]
 
-#: Which of them carry artwork, and one deliberately does not — a grid where
-#: every card has a badge cannot show whether an empty one collapses or leaves a
-#: hole. The drawing is the one gang icon this repository owns.
+#: Include cards with and without artwork to exercise both layouts.
 GANG_TYPE_ICONS = {"goliath": sampledata.SAMPLE_GANG_ICON}
 
-#: What each founds with, for the line under the card's name. Two of them state
-#: nothing, because a blank budget is a real answer and the card has to be able
-#: to say nothing rather than claim a number.
+#: Omit two budgets to exercise cards with no budget description.
 GANG_TYPE_BUDGETS = {
     "ash-waste-nomads": 1000,
     "delaque": 1000,
@@ -39,11 +32,8 @@ GANG_TYPE_BUDGETS = {
 
 
 def gang_type_cards(chosen=""):
-    """The create form's type cards, in the shape the real form builds.
-
-    The gallery renders on an empty database, so these are literals — but the
-    keys and the ordering are the real ones, because a demo that took a
-    different shape from the view's own context would let the two drift.
+    """Build gallery type cards without querying the library, using the production context
+    structure.
     """
     return [
         {
@@ -62,14 +52,8 @@ def gang_type_cards(chosen=""):
 
 
 class CreateGangForm(forms.Form):
-    """Founding a gang: what it is called, what it is, and two optional things.
-
-    Four fields, and the interesting one is ``starting_credits``. Blank does not
-    mean zero and does not mean "use a default" — it means no limit, which is how
-    people play a first game before anyone has agreed a budget. So it is
-    ``required=False`` with no ``initial``: a default of 1000 would quietly pick
-    a house rule for the reader, and ``min_value=0`` still lets someone say a
-    deliberate nothing.
+    """Gallery founding form. Blank starting credits means no spending limit; zero remains
+    a valid explicit limit.
     """
 
     name = forms.CharField(
@@ -98,16 +82,13 @@ class CreateGangForm(forms.Form):
 
 
 def create_gang_form():
-    """Unbound, for the gallery. The page is a blank form, so it shows one."""
+    """Return an unbound gallery founding form."""
     return CreateGangForm()
 
 
 def failed_create_gang_form():
-    """The same form with the mistakes people actually make.
-
-    A name left empty and credits typed as a negative — both real validation,
-    read off ``form.errors`` by c-ui.field, so the demo cannot claim an error
-    state the components do not really produce.
+    """Bind invalid name and credit values so field components display Django's validation
+    errors.
     """
     form = CreateGangForm(
         data={"name": "", "gang_type": "escher", "starting_credits": "-50"}
@@ -117,16 +98,8 @@ def failed_create_gang_form():
 
 
 class HireFighterForm(forms.Form):
-    """Naming a fighter on the way in. One field, and it is optional.
-
-    Blocking a hire on a name would slow the common case, which is buying three
-    Gangers and naming them once they have done something worth naming. So
-    ``required=False`` — and the label says so, because a reader cannot tell an
-    optional field from one they have not reached yet.
-
-    The profile is not a field here. It arrives as the name and value of
-    whichever Hire button was clicked, which is why this form has no submit of
-    its own; see <c-n26.view.fighter-hire>.
+    """Optional fighter name for gallery hire forms. The selected profile comes from the
+    clicked Hire button in c-n26.view.fighter-hire.
     """
 
     name = forms.CharField(
@@ -138,36 +111,26 @@ class HireFighterForm(forms.Form):
 
 
 def hire_fighter_form():
-    """Unbound, for the gallery."""
+    """Return an unbound gallery hire form."""
     return HireFighterForm()
 
 
 def create_gang_context():
-    """Everything the create-gang demos need, in one place.
-
-    Two views render them — the component page and the bare view preview — and
-    a form built in one and forgotten in the other is a page that renders an
-    empty select and looks like a bug in the component.
+    """Share form and type-card context between the component gallery and standalone
+    preview.
     """
     return {
         "create_gang_form": create_gang_form(),
         "failed_create_gang_form": failed_create_gang_form(),
         "gang_types": gang_type_cards(),
-        # The redisplay demo has to come back with the reader's pick still made,
-        # which is the whole reason `checked` is a field on a card rather than a
-        # comparison the template does.
+        # Preserve the selected type in the validation-error demo.
         "failed_gang_types": gang_type_cards(chosen="escher"),
         "hire_fighter_form": hire_fighter_form(),
     }
 
 
 class SignupForm(forms.Form):
-    """A deliberately-failing form, so the error demos show real Django errors.
-
-    c-ui.error and c-ui.field read straight off a form instance, and a
-    hand-written string wouldn't exercise that path — including the ``__all__``
-    lookup for non-field errors.
-    """
+    """Produce field and non-field Django errors for c-ui.error and c-ui.field demos."""
 
     email = forms.EmailField()
     password = forms.CharField(min_length=12, widget=forms.PasswordInput)
@@ -185,12 +148,7 @@ def bound_signup_form():
 
 
 class RichTextForm(forms.Form):
-    """The editor demos' form.
-
-    Unbound and never submitted — the gallery only needs a widget to render. Its
-    ``media`` is what carries TinyMCE onto the page, which is why the view hands
-    the whole form to the template rather than just the field.
-    """
+    """Provide unbound editor widgets and TinyMCE media for gallery previews."""
 
     body = forms.CharField(
         widget=RichText(),
@@ -205,9 +163,8 @@ class RichTextForm(forms.Form):
         ),
     )
 
-    # One field per demo on purpose. A bound field carries its own id, so
-    # rendering the same one twice puts two textareas with the same id on the
-    # page — and TinyMCE keys editors by id, so the second silently loses.
+    # Use a distinct field per demo because TinyMCE identifies editors by their textarea
+    # IDs.
     preview = forms.CharField(
         widget=RichText(),
         required=False,
@@ -218,15 +175,13 @@ class RichTextForm(forms.Form):
         ),
     )
 
-    # The model's page draws these two side by side, so each is a field of
-    # its own. Notes wears the cap the real form wears; lore does not.
+    # Match the model page's separate notes and lore editors, including the notes height
+    # limit.
     notes = forms.CharField(widget=RichText(height=NOTES_EDITOR_HEIGHT), required=False)
     lore = forms.CharField(widget=RichText(), required=False)
 
 
-# What a hostile editor payload looks like on the way out. Rendered through
-# safe_rich_text in the demo, beside the raw source, so the difference is the
-# point rather than a claim.
+# Display this payload beside its safe_rich_text output to demonstrate sanitisation.
 UNSAFE_HTML = (
     "<h3>Perfectly ordinary heading</h3>"
     '<p>Body text with a <a href="https://example.com">real link</a>.</p>'

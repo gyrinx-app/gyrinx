@@ -13,7 +13,7 @@ import {
 } from "react";
 import cotton from "../generated/cotton.json";
 
-/** A native modal, styled from Cotton; React owns its lifetime and dismissal. */
+/** A native modal using Cotton styles and React lifecycle handling. */
 export function Dialog({
     title,
     lead,
@@ -208,7 +208,7 @@ function useFieldControl(id?: string, describedBy?: string) {
     };
 }
 
-/** Errors in the danger colour, as `<c-ui.error>` draws them. */
+/** Validation errors styled with the c-ui.error recipe. */
 export function FieldErrors({ id, errors }: { id?: string; errors: string[] }) {
     return (
         <div id={id}>
@@ -353,7 +353,7 @@ export function Switch({
     accent?: boolean;
     size?: keyof typeof cotton.switch.sizes;
     className?: string;
-    /** Posts through a real checkbox and keeps the cotton switch's two events. */
+    /** Submit a native checkbox and dispatch the Cotton switch events. */
     embedded?: boolean;
 }) {
     const field = useFieldControl(embedded ? undefined : id);
@@ -377,8 +377,7 @@ export function Switch({
 
     function accessibleLabelText(element: HTMLElement | null | undefined) {
         if (!element) return "";
-        // The island's props script sits inside a wrapping label. textContent
-        // would announce that JSON as the switch's name.
+        // Exclude the island's JSON props script from the accessible label.
         const copy = element.cloneNode(true) as HTMLElement;
         copy.querySelectorAll("script, style").forEach((node) => node.remove());
         return (copy.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -389,9 +388,9 @@ export function Switch({
         const next = !checked;
         const input = inputRef.current;
         if (embedded && input) {
-            // checkedChange reaches a parent before the box shows the new
-            // value. change then reports that value. A label click only
-            // fires change, via the handler below.
+            // Preserve Cotton event order: checkedChange precedes the value
+            // update, then change reports it. Native label activation uses
+            // the input's change handler.
             input.dispatchEvent(
                 new CustomEvent("checkedChange", { bubbles: true }),
             );
@@ -461,7 +460,7 @@ export function Switch({
     );
 }
 
-/** A switch with words beside it that toggle it too, as `<c-n26.toggle>`. */
+/** A switch with a clickable label, equivalent to c-n26.toggle. */
 export function Toggle({
     label,
     checked,
@@ -516,7 +515,7 @@ export function CheckboxCard({
     checkboxDescribedBy?: string;
     notice?: ReactNode;
     errors?: ReactNode;
-    /** Posts the checkbox with its form, as the Cotton card's input does. */
+    /** Submit the checkbox as part of its containing form. */
     name?: string;
     value?: string;
 }) {
@@ -581,7 +580,7 @@ export function CheckboxCard({
     );
 }
 
-/** One nested tick inside a CheckboxCard body, as the Cotton card draws it. */
+/** A nested checkbox option inside a CheckboxCard body. */
 export function CheckboxCardItem({
     name,
     value,
@@ -629,7 +628,7 @@ export function CheckboxCardItem({
     );
 }
 
-/** A figure beside a CheckboxCard's label, as text. */
+/** Text beside a CheckboxCard's label. */
 export function CheckboxCardMeta({ children }: { children: ReactNode }) {
     return <span className={cotton.checkboxCard.meta}>{children}</span>;
 }
@@ -945,7 +944,8 @@ export type SvgNode = {
 /** A badge beside a name: its accessible name and its artwork. */
 export type BadgeMark = { label: string; svg: SvgNode };
 
-// The platform's SVG allowlist, checked again here so data never becomes markup.
+// Validate tags and attributes against the exported platform SVG allowlist
+// before creating elements.
 const SVG_TAGS = new Set(cotton.svgTags);
 const SVG_PROPS = new Set(cotton.svgProps);
 
@@ -964,7 +964,8 @@ function svgProps(props: Record<string, string>) {
 function SvgArt({ node }: { node: SvgNode }): ReactNode {
     if (!SVG_TAGS.has(node.tag)) return null;
     const props: Record<string, string> = svgProps(node.props);
-    // The wrapper names the badge, so the drawing itself stays silent.
+    // The wrapper supplies the badge's accessible name; hide its SVG from
+    // assistive technology.
     if (node.tag === "svg") {
         props["aria-hidden"] = "true";
         props.focusable = "false";
@@ -1001,9 +1002,8 @@ export function ColorSwatch({ color }: { color: string }) {
 }
 
 /**
- * A person's name in the surrounding colour, with their badge after it, as
- * `<c-n26.user-link tone="current">` draws it. Without an href the name is
- * plain text, as on a button that already does something else.
+ * Render a name and optional badge using the current text colour. Omit href to
+ * use plain text inside other controls.
  */
 export function UserLink({
     name,
@@ -1040,10 +1040,10 @@ export function UserLink({
     );
 }
 
-/** The class of the site bar's account button, as `<c-n26.site.nav>` draws it. */
+/** Classes for the site navigation account button. */
 export const siteNavAccountButton = cotton.siteNavTrigger.button;
 
-/** The inside of the site bar's account button: the name, the icons and the unread pill. */
+/** Account button content: name, icons and unread count. */
 export function SiteNavAccount({
     name,
     unread,
@@ -1073,8 +1073,8 @@ export function SiteNavAccount({
 }
 
 /**
- * A red count pill, as `<c-n26.count-badge>` draws it: nothing at zero, the
- * face capped at `max`, and the real count spoken with `label`.
+ * Cap displayed counts at max. With label, announce the uncapped count followed
+ * by label as a suffix.
  */
 export function CountBadge({
     count,
@@ -1181,8 +1181,8 @@ export type PickOption = {
 };
 
 /**
- * One tickable option. A grant or a priced hold is drawn fixed and disabled,
- * so it posts nothing an owner could take back.
+ * A checkbox option. Granted and priced assignments are disabled so the form
+ * cannot remove them.
  */
 export function PickBox({
     option,
@@ -1254,7 +1254,7 @@ export function PickLegend({
     );
 }
 
-/** The c-n26.tick-list layout: named groups of plain ticked rows. */
+/** Named groups of checkbox options using the c-n26.tick-list layout. */
 export function TickList({ children }: { children: ReactNode }) {
     return <div className={cotton.tickList.root}>{children}</div>;
 }
