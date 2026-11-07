@@ -1,5 +1,9 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation react %}
+{% comment %}
+Once the asset type has assets or a table, display its ownership as fixed rather than
+editable.
+{% endcomment %}
 {% block head_title %}{{ heading }} in {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
