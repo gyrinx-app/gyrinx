@@ -1,9 +1,4 @@
-"""
-Google Cloud Storage configuration for media files.
-
-This module contains the common GCS configuration used by both
-development (when USE_GCS_IN_DEV=True) and production environments.
-"""
+"""Shared Google Cloud Storage settings for production and optional development use."""
 
 import os
 
@@ -13,16 +8,11 @@ load_dotenv()
 
 
 def configure_gcs_storage(storages_dict):
-    """
-    Configure Google Cloud Storage settings for media files.
+    """Set the default backend in storages_dict and return media configuration.
 
-    Args:
-        storages_dict: The STORAGES dictionary to update
-
-    Returns:
-        dict: Configuration values including MEDIA_URL
+    Use CDN_DOMAIN for public media URLs when configured, otherwise the
+    bucket's storage.googleapis.com URL.
     """
-    # Use CDN domain if available, otherwise fall back to direct GCS access
     cdn_domain = os.environ.get("CDN_DOMAIN", None)
 
     config = {
@@ -41,16 +31,13 @@ def configure_gcs_storage(storages_dict):
         "CDN_DOMAIN": cdn_domain,
     }
 
-    # Media URL configuration
     if cdn_domain:
         config["MEDIA_URL"] = f"https://{cdn_domain}/"
     else:
-        # Fall back to direct GCS access
         config["MEDIA_URL"] = (
             f"https://storage.googleapis.com/{config['GS_BUCKET_NAME']}/"
         )
 
-    # Update STORAGES to use GCS as default
     storages_dict["default"] = {
         "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
         "OPTIONS": {
