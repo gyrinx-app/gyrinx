@@ -6,6 +6,8 @@ equivalence test below is the point of the whole design: it is what stops
 the "what you'd get" screen and the gang sheet from drifting apart.
 """
 
+import json
+from dataclasses import replace
 from urllib.parse import urlencode
 
 import pytest
@@ -15,6 +17,7 @@ from django.urls import reverse
 from n26.core.card import build_card_from_profile, build_modifier_index
 from n26.core.effects import compute
 from n26.core.hire import build_hire_entry, build_hire_list, section_hire_list
+from n26.core.model_preview import model_preview_props
 from n26.core.render import build_model_card, card_to_model_card
 from n26.core.render_text import render_model_card
 from n26.core.taxonomy import UNCATEGORISED
@@ -47,6 +50,39 @@ from n26.tests.sandbox.actions import (
 )
 
 pytestmark = [pytest.mark.django_db, pytest.mark.core]
+
+
+class TestThePreviewWireContract:
+    @pytest.mark.parametrize("option_index", [0, 1, 2])
+    def test_projecting_a_real_preview_adds_no_queries(
+        self, khimerix, django_assert_num_queries, option_index
+    ):
+        entry = build_hire_entry(khimerix)
+        card = entry.options[option_index].card
+        with django_assert_num_queries(0):
+            props = model_preview_props(card)
+            assert json.loads(json.dumps(props)) == props
+        assert props["rating"] == entry.options[option_index].total_price
+        assert [weapon["name"] for weapon in props["weapons"]] == [
+            weapon.name + weapon.slot_mark + weapon.tier_mark + weapon.brought_mark
+            for weapon in card.weapons
+        ]
+
+    @pytest.mark.parametrize("option_index", [0, 1, 2])
+    def test_a_delivered_hire_has_the_same_display_facts(
+        self, gang, khimerix, option_index
+    ):
+        entry = build_hire_entry(khimerix)
+        offered = entry.options[option_index]
+        hired = hire_with_option(gang, khimerix, "Growler", option=offered.default_set)
+        delivered = build_model_card(hired)
+        delivered = replace(
+            delivered,
+            id="",
+            name=offered.card.name,
+            profile_name=offered.card.profile_name,
+        )
+        assert model_preview_props(delivered) == model_preview_props(offered.card)
 
 
 @pytest.fixture

@@ -1,0 +1,30 @@
+{% extends "designsystem/base.html" %}
+{% load react %}
+{% block title %}React model previews{% endblock %}
+{% block mobile_title %}React model previews{% endblock %}
+{% block content %}
+    <div class="mx-auto max-w-6xl space-y-8">
+        <header>
+            <h1 class="text-3xl font-semibold">React model previews</h1>
+            <p class="mt-3 max-w-2xl text-lg text-muted">
+                The same prepared model cards rendered by Cotton and React. Compare their
+                facts and layout, then open the explanations with a keyboard or touch.
+            </p>
+        </header>
+        {% for example in examples %}
+            <section class="space-y-3" aria-labelledby="preview-{{ forloop.counter }}">
+                <h2 id="preview-{{ forloop.counter }}" class="text-xl font-semibold">{{ example.card.name }}</h2>
+                <div class="grid min-w-0 gap-5 xl:grid-cols-2">
+                    <div class="min-w-0 space-y-2" data-preview-reference>
+                        <h3 class="font-semibold">Cotton</h3>
+                        <c-n26.model-card :card="example.card" />
+                    </div>
+                    <div class="min-w-0 space-y-2" data-preview-react>
+                        <h3 class="font-semibold">React</h3>
+                        {% react_island "model-preview" example.props %}
+                    </div>
+                </div>
+            </section>
+        {% endfor %}
+    </div>
+{% endblock %}

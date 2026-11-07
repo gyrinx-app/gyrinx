@@ -201,3 +201,19 @@ Signed snapshots can outlive a deployment. Validate their shape as well as their
 signature and return a form error for unsupported input. Keep retry formats
 compatible with retained commands; a validation refusal cannot resolve an
 earlier uncertain write.
+
+## Catalogue preview preparation
+
+For Hire and Equip, follow `docs/developing-gyrinx/react-hire-equip-plan.md`.
+`core/model_preview.py` projects already built, unstored hire cards without
+queries or domain calculations. `ui/ModelPreview` draws those facts with recipes
+from the existing Cotton card. Import that component within the workflow root;
+the `model-preview` island entry is for independent gallery use, not a nested
+root inside Hire.
+
+Preserve composed detail parts, choice prompts, provenance, stat explanations
+and weapon profile grouping. Keep names in their inline text container: making
+each name a separate flex child changes wrapping. A hire card has no stored
+model ID, so its Cotton preview has no Lore/Notes tabs; do not add a rich-text
+editor as a prerequisite for that consumer. Compare the real preview with its
+delivered hire as well as checking gallery examples.

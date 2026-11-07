@@ -9,8 +9,11 @@ or server-rendered.
 For a code walkthrough of the Django boundary, command endpoints, shared form
 lifecycle and design adapters, read [How React workflows fit into N26](react-workflow-anatomy.md).
 
-The next migration unit is a complete workflow with explicit display data and
-command endpoints. Start with Manage credits, then Hire and Equip. Keep small
+Manage credits, Edit holding and Edit asset type establish the form pattern.
+The next delivery sequence is the [Hire and Equip migration plan](react-hire-equip-plan.md).
+
+The migration unit is a complete workflow with explicit display data and
+command endpoints. Continue with Hire and Equip using the delivery sequence above. Keep small
 islands for interactions that already have an independent owner. Build each
 workflow's endpoints with its React consumer; do not start a separate API rewrite.
 
@@ -252,7 +255,7 @@ The migration's hard part is shared ownership, not installing React:
 | Minimise bootstrap cost? | One shared cached React chunk, small per-component entries, modulepreload, embedded initial props. | No initial data-fetch waterfall, duplicate runtime or framework/router dependency. |
 | Pass initial state? | A plain JSON-safe view model through `react_island` and Django `json_script`. | Safe escaping, no executable inline state, no ORM objects or hidden permission assumptions. |
 | Reuse the design system? | Generate presentation recipes from real rendered Cotton primitives at build time; implement their behaviour in typed React adapters. | The actual Cotton classes and app tokens stay authoritative. Only supported variants cross the bridge. |
-| What migrates next? | Manage credits, then Hire and Equip as complete workflows. | Prove shared behaviour and endpoint conventions on a small task before connected catalogues. Existing independent islands remain valid. |
+| What migrates next? | Hire, then gang-stash Equip and fighter Equip as complete workflows. | Reuse the proven form lifecycle and prepare catalogue display and command contracts with their consumers. Existing independent islands remain valid. |
 
 ### DOM and state ownership
 

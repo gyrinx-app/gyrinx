@@ -204,6 +204,24 @@ def react_demo(request):
 
 
 @staff_member_required
+def react_model_preview(request):
+    """Compare the two preview renderers using the same database-free cards."""
+    from n26.core.model_preview import model_preview_props
+
+    cards = sampledata.model_preview_cards()
+    return render(
+        request,
+        "designsystem/react_model_preview.html",
+        _base_context()
+        | {
+            "examples": [
+                {"card": card, "props": model_preview_props(card)} for card in cards
+            ],
+        },
+    )
+
+
+@staff_member_required
 def print_lab(request):
     """Show print controls, computed geometry and a sheet preview."""
     options = printlab.Options.from_request(request)
