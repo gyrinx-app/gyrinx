@@ -13,7 +13,6 @@ echo "Bucket: $BUCKET_NAME"
 echo "CDN Domain: $CDN_DOMAIN"
 echo ""
 
-# Check if gcloud is configured correctly
 echo "Checking gcloud configuration..."
 CURRENT_PROJECT=$(gcloud config get-value project)
 if [ "$CURRENT_PROJECT" != "$PROJECT_ID" ]; then
@@ -21,7 +20,6 @@ if [ "$CURRENT_PROJECT" != "$PROJECT_ID" ]; then
     gcloud config set project $PROJECT_ID
 fi
 
-# 1. Create backend bucket
 echo "Creating backend bucket..."
 if gcloud compute backend-buckets describe gyrinx-uploads-backend --quiet 2>/dev/null; then
     echo "Backend bucket already exists, skipping..."
@@ -35,7 +33,6 @@ else
         --negative-caching
 fi
 
-# 2. Create URL map
 echo "Creating URL map..."
 if gcloud compute url-maps describe gyrinx-cdn --quiet 2>/dev/null; then
     echo "URL map already exists, skipping..."
@@ -44,7 +41,6 @@ else
         --default-backend-bucket=gyrinx-uploads-backend
 fi
 
-# 3. Create SSL certificate
 echo "Creating SSL certificate for $CDN_DOMAIN..."
 if gcloud compute ssl-certificates describe gyrinx-cdn-cert --quiet 2>/dev/null; then
     echo "SSL certificate already exists, skipping..."
@@ -54,7 +50,6 @@ else
         --global
 fi
 
-# 4. Create HTTPS proxy
 echo "Creating HTTPS proxy..."
 if gcloud compute target-https-proxies describe gyrinx-cdn-proxy --quiet 2>/dev/null; then
     echo "HTTPS proxy already exists, skipping..."
@@ -65,7 +60,6 @@ else
         --global
 fi
 
-# 5. Create forwarding rule
 echo "Creating forwarding rule..."
 if gcloud compute forwarding-rules describe gyrinx-cdn-https --global --quiet 2>/dev/null; then
     echo "Forwarding rule already exists, skipping..."
@@ -76,7 +70,6 @@ else
         --global
 fi
 
-# 6. Get IP address
 echo ""
 echo "Getting CDN IP address..."
 CDN_IP=$(gcloud compute forwarding-rules describe gyrinx-cdn-https --global --format="value(IPAddress)")
