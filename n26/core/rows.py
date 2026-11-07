@@ -179,15 +179,22 @@ def campaign_rows(campaign):
 
 def campaign_owned_rows(campaign):
     # An asset's choices belong to that held or owned copy, not the campaign.
-    return compose_rows(
-        Contribution(
-            ("asset", choice.asset_key or id(choice)),
-            f"{choice.asset_name or choice.holding_name} — {choice.kind_label}",
-            RowPart(PartKind.CHOICE, choice),
+    contributions = []
+    for choice in campaign.choices:
+        if not (choice.asset_key or choice.holding_name):
+            continue
+        if not choice.asset_key:
+            raise ValueError(
+                "Campaign asset choices require an asset_key for their owner."
+            )
+        contributions.append(
+            Contribution(
+                ("asset", choice.asset_key),
+                f"{choice.asset_name or choice.holding_name} — {choice.kind_label}",
+                RowPart(PartKind.CHOICE, choice),
+            )
         )
-        for choice in campaign.choices
-        if choice.asset_key or choice.holding_name
-    )
+    return compose_rows(contributions)
 
 
 def part_text(part, *, prompts=False):

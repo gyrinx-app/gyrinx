@@ -368,6 +368,17 @@ class TestOwnersAndSurfaces:
             "Blue",
         ]
 
+    def test_an_asset_choice_without_its_owner_fails_instead_of_splitting_by_source(
+        self,
+    ):
+        campaign = CampaignBlock(
+            "Campaign",
+            "campaign",
+            choices=[ChoiceLine("Legacy", "Red", holding_name="Old Ruins")],
+        )
+        with pytest.raises(ValueError, match="asset_key"):
+            _ = campaign.owned_choice_rows
+
     @pytest.mark.parametrize("kind", list(PartKind))
     def test_every_part_kind_has_html_print_and_text_support(self, kind):
         if kind in (PartKind.ASSET, PartKind.ASSET_GROUP):
