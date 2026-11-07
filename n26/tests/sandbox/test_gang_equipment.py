@@ -1,25 +1,8 @@
-"""Gang Equipment: the Trazior Pattern Sentry Gun spawns a vehicle.
-
-The wargear is bought into the Stash, and its weapon options don't sit
-on the wargear — they decide **which vehicle-shaped card is generated**
-(design/gang-equipment.md). The grenade launcher and the heavy stubber
-are option groups on the wargear purchase, and different picks result
-in different vehicle cards.
-
-Nothing here is new machinery — it composes three shipped pieces:
-
-* an **option group** on the wargear (the Escher Cutter shape), whose
-  priced option sets each hold a Hidden;
-* that Hidden's ``OpAddsMiniature`` names a
-  different **vehicle profile** (the pets pattern — stored effects run
-  when the option's set materialises);
-* each profile's own built-ins bring **its** weapon, and its statline
-  is an ordinary profile statline — Toughness 4, 2 Wounds, 5+ Save
-  need no special home.
-
-Removing the wargear from the Stash takes the platform with it, the
-same cascade that sells a pet with its collar. Battle rules (heat,
-deployment) are names on the card, text never stored.
+"""Verify stash equipment whose selected option creates a vehicle model. Each Trazior
+armament option grants a Hidden with an op_adds_model effect; the generated profile
+supplies its own weapon, traits and statline. Record the full price on the purchased
+wargear and archive the generated model when that wargear is removed; see
+n26/design/gang-equipment.md.
 """
 
 import pytest
@@ -68,8 +51,9 @@ def vehicle_type(make_stat, default_pack):
 
 @pytest.fixture
 def trazior(vehicle_type, gang_type):
-    """The whole page: two vehicle profiles, one wargear with a one-of
-    weapon choice whose options spawn them."""
+    """Wargear with two exclusive armament options, each generating a different vehicle
+    profile.
+    """
     traits = {
         pair: create_trait(*pair)
         for pair in [
@@ -175,8 +159,8 @@ class TestBuyingIntoTheStash:
         assert bought.ledger_entry.paid == 30 + 80
         platform = the_platform(gang)
         assert platform.name == "Trazior Pattern Sentry Gun (heavy stubber)"
-        # The platform is worth nothing on its own line — the wargear
-        # purchase carried the whole price (the pets pattern).
+        # Record the full price on the purchased wargear so the generated model adds no
+        # duplicate rating.
         assert platform.membership.rating == 0
 
     def test_the_option_decides_which_card_is_generated(

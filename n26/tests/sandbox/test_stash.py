@@ -1,11 +1,6 @@
-"""The stash: the gang's store of surplus equipment.
-
-Rules facts this pins (core rules): the stash holds weapons and
-wargear; gear moves freely between it and any number of models; Wealth
-counts models, cash, and the stash. And the modelling decisions: the
-stash is a **fourth assignment host** — acts like a model, needs no
-profile, is never a card — and founding is unlimited spend: no budget
-unless somebody sets one, the gang's number is its rating.
+"""Verify gang stash ownership, movement, ratings and ledger history. Stashed equipment has
+no model card or broadcast effects. Gang wealth includes the stash, while gang rating
+excludes it; unlimited-credit gangs still record purchases.
 """
 
 import pytest
@@ -62,17 +57,14 @@ class TestTheStore:
         assert gang.stash.rating == 0
 
     def test_founding_is_unlimited_spend(self, gang, yolanda):
-        """No budget unless somebody sets one: the hire wrote an honest
-        ledger line, nothing counted down, and the number is the rating."""
+        """Without a starting budget, record purchase prices without reducing credits."""
         assert gang.starting_credits is None
         gang.refresh_from_db()
         assert gang.credits == 0
         assert gang.rating == 135
 
     def test_buying_into_it_at_the_house_price(self, gang, house_list):
-        """A forward-looking case, already expressible: the stash
-        uses the gang's own list — a line is a complete purchase
-        whoever the holder is."""
+        """Use the browsed collection price and provenance when buying into the stash."""
         bought = buy(gang.stash, lasgun_line(house_list))
 
         assert bought.stash == gang.stash
@@ -83,11 +75,12 @@ class TestTheStore:
 
     def test_a_stashed_weapon_keeps_its_profiles(self, gang, house_list):
         bought = buy(gang.stash, lasgun_line(house_list))
-        assert bought.children.count() == 1  # the free profile rides along
+        assert bought.children.count() == 1  # Include the weapon's free profile.
 
     def test_stashed_gear_is_on_nobody_s_card(self, gang, yolanda, house_list):
-        """The sharp edge: the stash shares the gang root with the
-        broadcast rows, and must never ride onto a member's card."""
+        """Exclude stash assignments from model cards even though they share a gang root
+        with broadcast assignments.
+        """
         buy(gang.stash, lasgun_line(house_list))
 
         card = build_card(yolanda, with_statlines=True)
@@ -103,11 +96,10 @@ class TestMoving:
 
         drawn = build_model_card(yolanda)
         assert [w.name for w in drawn.weapons] == ["Lasgun"]
-        assert drawn.weapons[0].profiles  # the subtree moved whole
+        assert drawn.weapons[0].profiles  # Move the weapon subtree together.
 
     def test_the_rating_moves_pinned(self, gang, yolanda, house_list):
-        """A move never re-prices: the 15 the stash counted is the 15
-        the model counts."""
+        """Moving equipment transfers its recorded rating without repricing it."""
         bought = buy(gang.stash, lasgun_line(house_list))
         move(bought, to=yolanda)
 
@@ -172,10 +164,8 @@ class TestTheNumbers:
 
         profile = make_profile("Ganger", price=50)
         hire_with_option(gang, profile, "One")
-        # The first lasgun goes in before the first measurement: a
-        # hydration pass only fires for kinds the rows name, so a fair
-        # comparison grows what the stash already holds rather than
-        # putting a weapon in it for the first time.
+        # Include a weapon before the first measurement so the compared cards hydrate
+        # the same relation kinds.
         buy(gang.stash, lasgun_line(house_list))
 
         def measure():
@@ -190,8 +180,7 @@ class TestTheNumbers:
         assert measure() == few
 
     def test_a_ceiling_still_bites_when_set(self, gang_type, make_profile):
-        """The budget did not vanish — it became opt-in. Set one, and
-        overspend gets the same refusal as before."""
+        """An explicit starting budget still rejects overspending."""
         from n26.core.operations import NotEnoughCredits
 
         gang = found_gang(
@@ -203,8 +192,9 @@ class TestTheNumbers:
 
 class TestNoDoubleCounting:
     def test_stash_rows_are_not_broadcast(self, gang, yolanda, house_list):
-        """A stashed weapon must not become a carrier on every card —
-        its modifiers belong to nobody until it is given to somebody."""
+        """Stashed equipment must not supply effects to every model through the shared gang
+        root.
+        """
         buy(gang.stash, lasgun_line(house_list))
         card = build_card(yolanda)
         assert [node.name for node in card.all_nodes() if node.broadcast] == [

@@ -1,10 +1,7 @@
-"""The stash lines' menus and the campaign gangs' menus, drawn by React.
-
-Each menu is an action-menu host whose props carry the links. The view sets
-the order and the separators; n26/core/test_stash_menu.py pins that rule. A
-campaign gang offers Remove from campaign alone, and only where the reader may
-take that gang out. Both menus sit in regions that htmx redraws, and a redrawn
-region carries its hosts again.
+"""Verify stash action-menu props and campaign-gang removal controls. The server supplies
+stash action order and separators; see n26/core/test_stash_menu.py. Campaign removal
+permissions are carried in the campaign-gangs island data. htmx sheet redraws must
+include fresh stash menu hosts.
 """
 
 import json
@@ -29,7 +26,7 @@ pytestmark = pytest.mark.django_db
 
 
 def menus(html, within=None):
-    """Each action-menu host's props, by its label."""
+    """Return action-menu props keyed by the control label."""
     soup = BeautifulSoup(html, "html.parser")
     root = soup.find(id=within) if within else soup
     found = {}
@@ -40,7 +37,7 @@ def menus(html, within=None):
 
 
 def stash_menus(html):
-    """The stash lines' menus, leaving out the sheet header's More actions."""
+    """Return stash action menus, excluding the sheet header's More actions control."""
     return {
         label: props
         for label, props in menus(html).items()
@@ -49,7 +46,7 @@ def stash_menus(html):
 
 
 def drawn(props):
-    """Each item as its label, with a rule written where a separator falls."""
+    """Return item labels with a separator marker before each divided group."""
     rows = []
     for item in props["items"]:
         if item["separatorBefore"]:
@@ -74,7 +71,7 @@ def stashed(gang, default_pack):
 
 
 class TestTheGangSheetStash:
-    """The owner gets one menu per stash line; nobody else gets one."""
+    """Only the gang owner receives stash menus."""
 
     def test_the_owner_gets_one_host_per_line_with_the_menu_in_order(
         self, client, gang, stashed
@@ -103,8 +100,8 @@ class TestTheGangSheetStash:
             "danger",
             "danger",
         ]
-        # The fallback button names the line once; the props never carry
-        # the attribute.
+        # The fallback button supplies the accessible label before the React island
+        # mounts.
         assert body.count('aria-label="Actions for Respirator"') == 1
 
     def test_a_reader_who_does_not_own_the_gang_gets_no_stash_menu(
@@ -160,7 +157,7 @@ def rivals(campaign, gang_type, arbitrator):
 
 
 class TestTheGangSheetRedraw:
-    """A sheet redrawn over htmx carries its stash menus again."""
+    """htmx sheet redraws must include the stash menu hosts."""
 
     def test_saving_a_campaign_label_redraws_the_sheet_with_its_stash_hosts(
         self, client, campaign, gang, stashed
@@ -190,7 +187,7 @@ class TestTheGangSheetRedraw:
 
 
 class TestTheCampaignGangs:
-    """Each gang the reader may take out gets a Remove from campaign menu."""
+    """Provide removal targets only for gangs the current reader may remove."""
 
     def test_the_arbitrator_gets_a_remove_menu_on_every_gang(
         self, client, campaign, gang, rivals, arbitrator
