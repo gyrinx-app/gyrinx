@@ -499,7 +499,7 @@ def edit_cycle(
     now: datetime | None = None,
     new_id: NewId = _id,
 ) -> ScheduleChange:
-    preview_cycle_edit(schedule, target, details)
+    _phase(schedule, details.phase_id)
     change, selected = _ensure_saved(schedule, target, new_id=new_id)
     if selected.details == details:
         return change

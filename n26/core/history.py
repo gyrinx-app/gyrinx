@@ -1565,6 +1565,10 @@ def _tell_campaign(e, catalogue=None):
         case kinds.STATUS_CHANGED:
             _, _, now = e.note.rpartition(" → ")
             return (Span(f"set the campaign status to {now}"),), "campaign"
+        case kinds.SCHEDULE_EDITED:
+            return (Span("edited the campaign schedule"),), "campaign"
+        case kinds.CYCLE_TRANSITION:
+            return (Span(f"changed the current cycle: {e.note}"),), "campaign"
         case kinds.STARTING_MODE_SET:
             return (
                 Span(f"changed starting territories: {e.note.lower()}"),

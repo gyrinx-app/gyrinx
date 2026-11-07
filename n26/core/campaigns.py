@@ -124,6 +124,10 @@ class CampaignOperation:
         campaign = self.campaign
         if campaign.status == status:
             return campaign
+        from n26.core.cycles import status_changed
+
+        if status_changed(self, status):
+            return campaign
         was = campaign.get_status_display()
         campaign.status = status
         campaign.save(update_fields=["status", "modified"])
