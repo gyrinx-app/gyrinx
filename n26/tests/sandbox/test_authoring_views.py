@@ -5830,18 +5830,18 @@ class TestAuthoringPagesDoNotScaleQueriesWithContent:
 
 
 class TestRemovingABuiltIn:
-    """A carrier's built-ins can be taken back off, one line at a time.
+    """Remove built-in memberships while preserving content and equipment already
+    granted to hired models.
 
-    What goes is the membership. The thing named stays in the library,
-    the carrier's other lines stay, and models hired before the removal
-    keep what they were hired with — built-ins are materialised at the
-    moment of hiring and nothing retracts them, so a removal reaches
-    future hires only.
+    Removing a weapon also removes memberships for its ammunition; future hires
+    use the revised set.
     """
 
     @pytest.fixture
     def ganger(self, author, default_pack, person_type, gang_type):
-        """A fighter entry coming with a list, a gun and the gun's ammo."""
+        """A profile with an equipment list, a weapon and its ammunition as built-
+        ins.
+        """
         from n26.library.authoring import (
             add_built_in,
             create_collection,
@@ -5865,7 +5865,6 @@ class TestRemovingABuiltIn:
         body = client.get(f"/n26/authoring/profile/{ganger.pk}/").content.decode()
 
         assert self.address(member) in body
-        # And the section says which of the two acts that control is.
         assert "the thing itself stays in the library" in body
 
     def test_asking_changes_nothing(self, ganger, client):
@@ -5887,15 +5886,13 @@ class TestRemovingABuiltIn:
         assert response.status_code == 302
         assert response["Location"] == f"/n26/authoring/profile/{ganger.pk}/"
         assert not ganger.built_in_members.filter(collection__isnull=False).exists()
-        # The gun and its ammo are untouched, and so is the list itself:
-        # it is content of its own, and only the line naming it went.
         assert ganger.built_in_members.count() == 2
         assert Collection.objects.filter(name="House Escher Equipment List").exists()
 
     def test_ammo_goes_with_its_gun(self, ganger, client):
-        """A weapon profile in the set arrives stacked on the weapon
-        coming in the same hire. Left behind it would name a gun nothing
-        brings, which refuses at the moment of hiring."""
+        """Remove ammunition memberships with their weapon so future hires cannot
+        receive ammunition without its weapon.
+        """
         from n26.library.models import WeaponProfile
 
         member = ganger.built_in_members.get(weapon__isnull=False)
@@ -5904,7 +5901,6 @@ class TestRemovingABuiltIn:
         assert [str(row.assignable) for row in ganger.built_in_members] == [
             "House Escher Equipment List"
         ]
-        # Both of the weapon's lines are still in the library.
         assert WeaponProfile.objects.filter(weapon__name="Autogun").count() == 2
 
     def test_the_page_names_what_goes_with_the_gun(self, ganger, client):
@@ -5917,8 +5913,9 @@ class TestRemovingABuiltIn:
     def test_a_set_two_things_come_with_names_them_both(
         self, ganger, client, person_type, gang_type
     ):
-        """Nothing makes a set of defaults belong to one carrier, so the
-        page asks who holds it rather than assuming."""
+        """A built-in set can be shared, so list every carrier affected by removing a
+        membership.
+        """
         from n26.library.authoring import create_profile
 
         juve = create_profile("Juve", person_type, gang_type)
@@ -5931,7 +5928,7 @@ class TestRemovingABuiltIn:
         assert "Juve" in body
 
         response = client.post(self.address(member))
-        # No one page to return to when several things hold the set.
+        # Return to the index because the shared set has several carriers.
         assert response["Location"] == "/n26/authoring/"
         assert not juve.built_in_members.filter(collection__isnull=False).exists()
 
@@ -5980,13 +5977,8 @@ class TestRemovingABuiltIn:
 
 
 class TestAnythingCanComeWithSomething:
-    """Coming with something is not a fighter entry's privilege.
-
-    ``built_ins`` is a column on the assignable mixin, so a piece of
-    wargear that always arrives with a weapon — a beast and its claws —
-    is as ordinary as a fighter and their equipment list. The pages have
-    to offer it wherever the model allows it, or a rule that works
-    perfectly well cannot be written down.
+    """Eligible assignables can grant built-ins through their authoring pages,
+    including wargear and weapons.
     """
 
     @pytest.fixture
@@ -6037,8 +6029,9 @@ class TestAnythingCanComeWithSomething:
         assert "None yet" in body
 
     def test_the_words_do_not_name_the_one_carrier_they_started_on(self, beast, client):
-        """A fighter entry is hired and a piece of wargear is bought, so
-        the section cannot describe itself as something a hire gets."""
+        """Use acquisition wording that applies to both hired profiles and bought
+        wargear.
+        """
         body = client.get(self.address(beast)).content.decode()
 
         assert "the moment it is acquired" in body
@@ -6052,25 +6045,20 @@ class TestAnythingCanComeWithSomething:
 
         asked = client.get(f"/n26/authoring/built-ins/{member.pk}/remove/")
         assert asked.status_code == 200
-        # The page names the thing holding the set, which is not a
-        # profile and must still be found and linked.
         assert "Dustback Helamite" in asked.content.decode()
 
         removed = client.post(f"/n26/authoring/built-ins/{member.pk}/remove/")
         assert removed.status_code == 302
         assert removed["Location"] == self.address(beast)
         assert not beast.built_in_members.exists()
-        # Only the membership went.
         claws.refresh_from_db()
 
     def test_a_beast_that_is_also_a_model_still_gets_its_own_set(
         self, beast, claws, client, person_type, gang_type
     ):
-        """An exotic beast is two rows: the wargear a gang buys, and the
-        model that arrives when it does. Both are called the same thing,
-        and a set of built-ins may be named only once in a pack — so the
-        second one to be given anything has to be named around the
-        first, rather than refusing the click."""
+        """Same-named wargear and profiles need distinct pack-level names for their
+        built-in sets.
+        """
         from n26.library.authoring import add_built_in, create_profile, create_subtype
 
         twin = create_profile("Dustback Helamite", person_type, gang_type, price=45)
@@ -6086,14 +6074,10 @@ class TestAnythingCanComeWithSomething:
         assert [str(row.assignable) for row in beast.built_in_members] == [
             "Helamite claws"
         ]
-        # Two sets, each named for the thing that holds it.
         assert beast.built_ins.name == "Dustback Helamite (wargear) built-ins"
         assert twin.built_ins.name == "Dustback Helamite built-ins"
 
     def test_a_weapon_keeps_its_profiles_and_gains_the_section(self, claws, client):
-        """The first page to carry two sections of parts. A weapon's
-        profiles are its own; coming with something is everyone's,
-        and the two must not stand in for each other."""
         body = client.get(f"/n26/authoring/weapon/{claws.pk}/").content.decode()
 
         assert "Weapon profiles" in body
@@ -6101,10 +6085,9 @@ class TestAnythingCanComeWithSomething:
         assert 'value="built_in"' in body
 
     def test_the_built_ins_form_says_which_it_is(self, claws, client):
-        """Several forms post to a weapon's address, so each has to say
-        which it is. A post naming nothing is nobody's form: the lines a
-        weapon fires are added at an address of their own, and nothing
-        else here answers to silence."""
+        """Require an explicit action when several forms submit to the weapon detail
+        page.
+        """
         from n26.library.authoring import create_wargear
 
         pouch = create_wargear("Ammo pouch", price=10)
@@ -6126,25 +6109,17 @@ class TestAnythingCanComeWithSomething:
             {"name": "Warp round", "price": "10"},
         )
 
-        assert nobody.status_code == 200  # redrawn, nothing added
+        assert nobody.status_code == 200
         assert not claws.profiles.filter(name="Warp round").exists()
         assert claws.built_in_members.count() == 1
 
 
 class TestEveryCarrierIsOfferedTheSection:
-    """Discovering guard: which pages offer built-ins is read off the
-    model, never listed, so a new assignable kind gets the section
-    without anyone remembering to add it.
+    """Discover eligible built-in carriers from model capabilities and require their
+    shared authoring section.
 
-    A carrier is a kind that can come with things *and* says a set on it
-    would ever be handed over (``takes_built_ins``): the kinds that only
-    arrive by being chosen say no, and offering them the section would
-    author items nothing ever grants.
-
-    The one gap among the carriers is a kind whose page is a shape of its
-    own, which draws none of the shared sections. That gap is named here
-    so a second bespoke page is a decision somebody makes rather than a
-    section that quietly stops being offered.
+    Record the collection page as the explicit exception among bespoke detail
+    pages.
     """
 
     @staticmethod
@@ -6162,8 +6137,6 @@ class TestEveryCarrierIsOfferedTheSection:
         assert len(self.carriers()) > 10
 
     def test_the_foundation_shapes_are_not_among_them(self):
-        """A characteristic and a section are not things a fighter is
-        given, so nothing about them comes with anything."""
         assert not self.carriers() & {"stat", "statline-type", "section", "category"}
 
     def test_every_carrier_is_offered_it(self):
@@ -6182,9 +6155,9 @@ class TestEveryCarrierIsOfferedTheSection:
         )
 
     def test_the_only_carrier_with_a_page_of_its_own_shape_is_the_collection(self):
-        """A bespoke page draws none of the shared sections, so it is
-        the one way a carrier can be offered the section in principle
-        and never see it."""
+        """Pin the bespoke collection exception so another custom detail page cannot
+        silently omit built-ins.
+        """
         from n26.library.views import DETAIL_VIEWS
 
         bespoke = sorted(self.carriers() & set(DETAIL_VIEWS))
@@ -6197,18 +6170,13 @@ class TestEveryCarrierIsOfferedTheSection:
 
 
 class TestAGangTypeThatCannotBeFounded:
-    """The switch that keeps a gang type off the create-a-gang screen.
-
-    An author needs to see it and change it on the type's own page — a flag
-    only the database knows about is not something anyone can configure.
+    """Authoring forms expose and persist the flag controlling whether a gang type
+    can be founded.
     """
 
     def test_the_create_page_draws_the_switch_already_on(
         self, author, client, default_pack
     ):
-        """A new type is foundable unless someone says otherwise, so the
-        control has to open on. A switch drawn off would make every type
-        authored here unpickable while looking like it had said nothing."""
         body = client.get("/n26/authoring/gang-type/new/").content.decode()
 
         assert 'name="foundable"' in body
@@ -6233,8 +6201,9 @@ class TestAGangTypeThatCannotBeFounded:
     def test_the_page_opens_the_switch_on_the_value_it_has(
         self, author, client, default_pack
     ):
-        """Counted as a difference between two pages, because a detail page
-        carries switches of its own and only this one changes between them."""
+        """Compare otherwise equivalent pages because the detail page contains other
+        switches too.
+        """
         from n26.library.authoring import create_gang_type
 
         on = create_gang_type("Escher")
@@ -6272,13 +6241,8 @@ class TestAGangTypeThatCannotBeFounded:
 
 
 class TestComposingOnAPageOfItsOwn:
-    """Choosing the two kinds on a carrier's page leads to the composer's
-    own address rather than redrawing the carrier.
-
-    A carrier's page is long. Redrawing it on every choice of kind puts
-    the reader back at its top, to scroll down and find the form again —
-    and the kinds get chosen more than once while an author works out
-    what they want.
+    """Composition launched from a carrier retains its identity in the URL, naming
+    controls and save destination.
     """
 
     NO_CONDITIONS = {
@@ -6295,7 +6259,7 @@ class TestComposingOnAPageOfItsOwn:
         return create_rule("Berserker")
 
     def composed(self, rule, **extra):
-        """A full compose submission naming this rule as the carrier."""
+        """Build a compose payload identifying the rule as its carrier."""
         return {
             "act": "compose",
             "for_kind": "rule",
@@ -6310,8 +6274,6 @@ class TestComposingOnAPageOfItsOwn:
     def test_continue_leads_away_from_the_carriers_page(
         self, rule, client, default_pack
     ):
-        """The step-one form points at the composer and names the carrier
-        in inputs the browser turns into a query string."""
         body = client.get(f"/n26/authoring/rule/{rule.pk}/").content.decode()
 
         assert 'action="/n26/authoring/modifiers/new/"' in body
@@ -6321,8 +6283,6 @@ class TestComposingOnAPageOfItsOwn:
     def test_the_composer_page_opens_on_the_carrier_and_the_kinds(
         self, rule, client, default_pack
     ):
-        """A real address: everything the page needs is in it, so it
-        survives a refresh and can be linked to."""
         body = client.get(
             "/n26/authoring/modifiers/new/"
             f"?for_kind=rule&for={rule.pk}"
@@ -6335,7 +6295,6 @@ class TestComposingOnAPageOfItsOwn:
     def test_what_is_composed_there_hangs_on_the_carrier(
         self, rule, client, default_pack
     ):
-        """The trip must not lose which thing this is being made for."""
         from n26.library.authoring import create_subtype
 
         mounted = create_subtype("Mounted")
@@ -6352,9 +6311,7 @@ class TestComposingOnAPageOfItsOwn:
     def test_it_is_named_for_the_carrier_unless_told_otherwise(
         self, rule, client, default_pack
     ):
-        """attach_to decides the written name, and it has to survive the
-        trip or everything composed this way comes out named as though it
-        were reusable."""
+        """Retain the carrier when deriving the modifier's default name."""
         from n26.library.authoring import create_subtype
 
         mounted = create_subtype("Mounted")
@@ -6369,8 +6326,6 @@ class TestComposingOnAPageOfItsOwn:
     def test_the_reusable_switch_is_offered_once_there_is_a_carrier(
         self, rule, client, default_pack
     ):
-        """With something to name the modifier after, the choice between
-        that name and a generic one is a real one."""
         with_carrier = client.get(
             "/n26/authoring/modifiers/new/"
             f"?for_kind=rule&for={rule.pk}"
@@ -6440,12 +6395,9 @@ class TestComposingOnAPageOfItsOwn:
         )
 
         (made,) = rule.modifiers.all()
-        # Named for what it does and nothing else — but still hanging on
-        # the carrier the author was standing on.
         assert made.name == "the model: adds Mounted"
 
     def test_the_way_out_leads_back_to_the_carrier(self, rule, client, default_pack):
-        """A reader who came from a rule wants to land back on that rule."""
         body = client.get(
             "/n26/authoring/modifiers/new/"
             f"?for_kind=rule&for={rule.pk}"
@@ -6455,9 +6407,9 @@ class TestComposingOnAPageOfItsOwn:
         assert f'href="/n26/authoring/rule/{rule.pk}/"' in body
 
     def test_adding_a_condition_keeps_the_carrier(self, rule, client, default_pack):
-        """The link bumps a count in the URL, and the URL is also where
-        the carrier lives — a link rebuilt from the kinds alone would
-        quietly turn this back into the standalone page."""
+        """Preserve the carrier parameters when rebuilding the URL to add a
+        condition.
+        """
         body = client.get(
             "/n26/authoring/modifiers/new/"
             f"?for_kind=rule&for={rule.pk}"
@@ -6492,7 +6444,6 @@ class TestComposingOnAPageOfItsOwn:
         assert response.url == f"/n26/authoring/modifiers/{made.pk}/"
 
     def test_a_kind_that_carries_nothing_is_ignored(self, author, client, default_pack):
-        """A made-up kind is not a way to reach an arbitrary row."""
         body = client.get(
             "/n26/authoring/modifiers/new/?for_kind=nonsense&for=1"
         ).content.decode()
@@ -6502,18 +6453,10 @@ class TestComposingOnAPageOfItsOwn:
 
 
 class TestRemovingAConditionRemovesIt:
-    """The Remove button under a condition takes that chip off the form
-    there and then, and off the address the page is at.
+    """Removing a condition updates the unsaved form and its URL while preserving
+    other entered values.
 
-    A tickbox that only takes effect on the next save reads as a control
-    that does nothing. What the click must not do is lose the rest: an
-    author part-way through two conditions and both panes clicks it, and
-    everything except that chip has to come back.
-
-    The chip count is read off the address, so a click that only redrew
-    the page would leave the address claiming a chip the page no longer
-    shows — and a reload would put it back. Every one of these follows
-    the redirect and reads the page the address gives.
+    Redirect when the form fits in the URL; otherwise redraw it without saving.
     """
 
     @pytest.fixture
@@ -6546,8 +6489,7 @@ class TestRemovingAConditionRemovesIt:
     def test_the_chip_goes_and_everything_else_keeps_what_was_typed(
         self, rule, client, default_pack
     ):
-        """The point of a submit rather than a link: a bare GET arrives
-        carrying none of this."""
+        """Submit unsaved values with removal so other fields survive the redirect."""
         from n26.library.authoring import create_subtype
 
         champion = create_subtype("Champion")
@@ -6580,17 +6522,12 @@ class TestRemovingAConditionRemovesIt:
         assert body.count('name="drop_condition"') == 1
         assert drawn_picked(body, champion.pk)
         assert not drawn_picked(body, leader.pk)
-        # The panes and the name box are not chips, and must survive too.
         assert drawn_picked(body, mounted.pk)
         assert island_props(body, "modifier-naming")["name"]["value"] == "Half typed"
 
     def test_the_removed_chip_stays_gone_when_the_page_is_reloaded(
         self, rule, client, default_pack
     ):
-        """The whole point of the address doing the carrying. Asking for
-        the same address twice must give the same page both times — the
-        removed chip gone, the surviving one still holding what was
-        typed into it."""
         from n26.library.authoring import create_subtype
 
         champion = create_subtype("Champion")
@@ -6617,10 +6554,7 @@ class TestRemovingAConditionRemovesIt:
         )
 
         assert removed.status_code == 302
-        # The count the page draws from says one chip, not the two the
-        # click arrived with.
         assert "conditions-TOTAL_FORMS=1" in removed.url
-        # Reloading is asking for that same address a second time.
         for _ in range(2):
             body = client.get(removed.url).content.decode()
             assert body.count('name="drop_condition"') == 1
@@ -6628,9 +6562,6 @@ class TestRemovingAConditionRemovesIt:
             assert not drawn_picked(body, leader.pk)
 
     def test_the_carrier_survives_the_click(self, rule, client, default_pack):
-        """The address says which thing is being composed for, and the
-        click rewrites that address — a rewrite that dropped the carrier
-        would quietly turn this into the standalone page."""
         from n26.library.authoring import create_subtype
 
         champion = create_subtype("Champion")
@@ -6656,9 +6587,6 @@ class TestRemovingAConditionRemovesIt:
     def test_adding_a_condition_after_a_removal_keeps_what_was_typed(
         self, rule, client, default_pack
     ):
-        """Add is a link built from the address, and after a removal the
-        address is where the form lives. A link that named a chip count
-        of its own would send the author back to an empty form."""
         from n26.library.authoring import create_subtype
 
         champion = create_subtype("Champion")
@@ -6693,9 +6621,9 @@ class TestRemovingAConditionRemovesIt:
     def test_removing_the_first_renumbers_rather_than_leaving_a_gap(
         self, rule, client, default_pack
     ):
-        """A formset addresses its forms by position. Left as a gap, the
-        missing position reads as an emptied chip and the last one is
-        read twice."""
+        """Renumber remaining condition forms contiguously so formset positions match
+        their submitted values.
+        """
         from n26.library.authoring import create_subtype
 
         champion = create_subtype("Champion")
@@ -6755,9 +6683,9 @@ class TestRemovingAConditionRemovesIt:
         assert rule.modifiers.count() == 0
 
     def test_a_half_filled_form_is_not_refused_yet(self, rule, client, default_pack):
-        """Taking a condition off is an edit to the form. A pane the
-        author has not reached is not a refusal, and lighting the whole
-        form up red for clicking Remove would read as one."""
+        """Removing a condition edits the draft and must not validate incomplete
+        effect fields.
+        """
         from n26.library.authoring import create_subtype
 
         champion = create_subtype("Champion")
@@ -6769,7 +6697,8 @@ class TestRemovingAConditionRemovesIt:
                 "for": str(rule.pk),
                 "scope_kind": "targets_model",
                 "effect_kind": "ef_adds",
-                # what-thing is deliberately left unanswered.
+                # Leave the effect incomplete to test removal without validating the
+                # draft.
                 **self.chips(1),
                 "conditions-0-kind": "has_subtypes",
                 "conditions-0-subtypes": [str(champion.pk)],
@@ -6784,10 +6713,9 @@ class TestRemovingAConditionRemovesIt:
     def test_a_form_too_long_to_write_into_an_address_is_redrawn_instead(
         self, rule, client, default_pack, monkeypatch
     ):
-        """A condition may name any number of weapons, and enough of
-        them make an address longer than a server will accept. The chip
-        still goes and nothing typed is lost — only the address stays
-        where it was, so this one page comes back on a reload."""
+        """Redraw without redirecting when the remaining draft exceeds the configured
+        URL length limit.
+        """
         from n26.library import views
         from n26.library.authoring import create_subtype
 
@@ -6823,7 +6751,6 @@ class TestRemovingAConditionRemovesIt:
     def test_a_position_naming_no_chip_leaves_the_form_alone(
         self, rule, client, default_pack
     ):
-        """The number comes off the page, so it is not to be trusted."""
         from n26.library.authoring import create_subtype
 
         champion = create_subtype("Champion")
@@ -6848,15 +6775,8 @@ class TestRemovingAConditionRemovesIt:
 
 
 class TestThePickersStillPostWhatTheySay:
-    """A picker is drawn inside <c-n26.filter-select>, which puts a filter
-    box over a long list. What the browser sends must not move: the same
-    control name, and the row's own primary key rather than the words on
-    the option.
-
-    Worth its own suite because the failure it guards against is quiet. A
-    picker that posted its label would raise nothing and save nothing —
-    the form would come back saying the field was required, or worse find
-    a different row that happens to print the same name.
+    """Filtered pickers preserve field names, primary-key values, union attributes
+    and multiple selections.
     """
 
     NO_CONDITIONS = {
@@ -6875,7 +6795,6 @@ class TestThePickersStillPostWhatTheySay:
     def test_the_composer_offers_a_real_select_carrying_primary_keys(
         self, rule, client, default_pack
     ):
-        """What an author picks is the row's id, not the words beside it."""
         from n26.library.authoring import create_skill
 
         nerves = create_skill("Nerves of Steel")
@@ -6889,9 +6808,9 @@ class TestThePickersStillPostWhatTheySay:
         assert "Nerves of Steel" in body
 
     def test_the_union_markers_survive_the_wrapper(self, rule, client, default_pack):
-        """The page's own script finds the member controls by these
-        attributes and hides all but the chosen kind's. A wrapper that
-        swallowed them would leave every picker on the screen at once."""
+        """Keep union attributes available to the script that selects the visible
+        member picker.
+        """
         body = client.get(
             f"/n26/authoring/rule/{rule.pk}/"
             "?scope_kind=targets_model&effect_kind=ef_adds"
@@ -6924,8 +6843,6 @@ class TestThePickersStillPostWhatTheySay:
     def test_picking_through_the_composer_writes_that_row(
         self, rule, client, default_pack
     ):
-        """The contract end to end: post the name and the value the page
-        offered, and the modifier names the row that was picked."""
         from n26.library.authoring import create_skill
 
         create_skill("Nerves of Steel")
@@ -6950,9 +6867,9 @@ class TestThePickersStillPostWhatTheySay:
     def test_two_rows_printing_the_same_name_stay_apart(
         self, rule, client, default_pack
     ):
-        """Two houses' beasts carry jaws of the same name. The picker
-        labels them apart and posts an id, so choosing the second cannot
-        land on the first."""
+        """Submit primary keys so same-named content cannot resolve to the wrong
+        object.
+        """
         from n26.library.authoring import create_skill
 
         first = create_skill("Ferocious jaws", qualifier="Delaque")
@@ -6992,8 +6909,6 @@ class TestThePickersStillPostWhatTheySay:
     def test_a_many_picker_still_posts_every_value_chosen(
         self, author, client, default_pack, weapon_statline_type
     ):
-        """The multi-select is wrapped too, and a browser posts one value
-        per chosen option however the list was narrowed to find them."""
         from n26.library.authoring import create_trait
         from n26.library.models import WeaponProfile
 
@@ -7024,8 +6939,9 @@ class TestThePickersStillPostWhatTheySay:
     def test_the_many_picker_is_still_a_native_multiple_select(
         self, author, client, default_pack, weapon_statline_type
     ):
-        """Whatever the filter box draws over it, underneath is the control
-        a browser knows how to submit with no script at all."""
+        """Retain a native multiple select so the browser can submit selections
+        without the filtering enhancement.
+        """
         from n26.library.authoring import create_trait
 
         autogun = self.make_autogun(client, weapon_statline_type)
@@ -7042,9 +6958,9 @@ class TestThePickersStillPostWhatTheySay:
 
 
 class TestAShortManyPickerShowsWhatIsChosen:
-    """Profile types is two options. Below min_options the filter box
-    leaves the native select in view, so the chosen row has to look
-    chosen."""
+    """Short multiple pickers retain native control attributes and profile-type
+    options.
+    """
 
     def test_the_profile_types_list_marks_the_chosen_row(
         self, author, client, default_pack, fighter_type, vehicle_type
@@ -7069,8 +6985,9 @@ class TestAShortManyPickerShowsWhatIsChosen:
 
 
 class TestTheDocumentation:
-    """The documentation section: the markdown files beside the views,
-    rendered for authors, staff-only."""
+    """Staff can read rendered authoring documentation with linked headings and a
+    nested contents list.
+    """
 
     def test_the_index_names_both_pages_and_says_what_each_holds(
         self, author, client, default_pack
@@ -7090,8 +7007,6 @@ class TestTheDocumentation:
     def test_an_author_reads_the_rendered_collections_page(
         self, author, client, default_pack
     ):
-        """The one page that explains the kind end to end, so it has to
-        reach every use a collection is put to."""
         body = client.get("/n26/authoring/docs/collections/").content.decode()
         for heading in [
             "Creating an equipment list",
@@ -7114,21 +7029,20 @@ class TestTheDocumentation:
     def test_an_author_reads_the_rendered_cookbook(self, author, client, default_pack):
         body = client.get("/n26/authoring/docs/recipes/").content.decode()
         assert "Corrupted gangs" in body
-        # Rendered, not served raw: the markdown heading became a tag.
         assert "## Corrupted gangs" not in body
 
     def test_an_author_reads_the_rendered_concepts(self, author, client, default_pack):
         body = client.get("/n26/authoring/docs/concepts/").content.decode()
         assert "Hiring" in body
         assert "## Hiring" not in body
-        # The page names itself, whatever the file calls its own title.
         assert re.search(r"<h1[^>]*>\s*Core Concepts", body)
 
     def test_the_file_title_yields_to_the_page_header(
         self, author, client, default_pack
     ):
-        """A file opens with its own title so it reads whole as markdown;
-        the page supplies that heading itself, so exactly one is drawn."""
+        """The page header replaces the Markdown title so the rendered document has
+        one Recipes heading.
+        """
         body = client.get("/n26/authoring/docs/recipes/").content.decode()
         headings = [
             heading.get_text(" ", strip=True)
@@ -7150,8 +7064,6 @@ class TestTheDocumentation:
     def test_the_contents_list_the_sections_of_the_page_being_read(
         self, author, client, default_pack
     ):
-        """The sidebar is built from the same walk as the anchors, so a
-        section named on it is a section the page can be scrolled to."""
         body = client.get("/n26/authoring/docs/concepts/").content.decode()
         assert 'href="#assignable-types"' in body
 
@@ -7164,14 +7076,14 @@ class TestTheDocumentation:
         _, contents = _recipe_page(source)
         assert [entry["title"] for entry in contents] == ["First", "Second"]
         assert [child["title"] for child in contents[0]["children"]] == ["Inside"]
-        # Two sections sharing a name get their own addresses.
         assert contents[1]["children"][0]["slug"] == "inside-2"
 
     def test_the_cookbooks_own_address_still_leads_to_it(
         self, author, client, default_pack
     ):
-        """Links to the cookbook are out in the world, so its address
-        moves the reader on rather than dropping them."""
+        """Preserve published cookbook links with a permanent redirect to the
+        documentation route.
+        """
         response = client.get("/n26/authoring/recipes/")
         assert response.status_code == 301
         assert response["Location"] == "/n26/authoring/docs/recipes/"
@@ -7188,8 +7100,9 @@ class TestTheDocumentation:
 
 
 class TestTheAboutColumn:
-    """Every detail page explains its thing in sentences: what it does,
-    how anyone comes to have it, and how much is assigned to it."""
+    """Detail pages describe effects, link related modifiers and report gang
+    assignments.
+    """
 
     def test_the_column_says_what_a_rule_does_and_links_the_modifier(
         self, author, client, default_pack
@@ -7209,7 +7122,6 @@ class TestTheAboutColumn:
         body = client.get(f"/n26/authoring/rule/{rule.pk}/").content.decode()
         assert "What it does" in body
         assert "gain the Juggernaut skill" in body
-        # The sentence is a link to the modifier it describes.
         made = Modifier.objects.get(name="Grants Juggernaut")
         assert f"/n26/authoring/modifiers/{made.pk}/" in body
 
@@ -7223,10 +7135,9 @@ class TestTheAboutColumn:
 
 
 class TestAttachingAModifierToSeveral:
-    """The listing of a kind that can carry modifiers lets an author tick
-    rows and hang one modifier on all of them from a page of its own.
-    The ticked rows travel in the address, so the page reloads and Back
-    works; a thing that already carries the modifier is left as it is."""
+    """Bulk attachment retains selected content in the URL and leaves existing
+    attachments unchanged.
+    """
 
     @pytest.fixture
     def gang_types(self, default_pack):
@@ -7364,9 +7275,9 @@ class TestAttachingAModifierToSeveral:
 
 
 class TestTheInterstitialsOwnPage:
-    """An interstitial is made from the menu, attached to slots from its
-    own page, and detached at its own address; a slot's page names the
-    interstitials it carries."""
+    """Interstitials support creation, editing and slot attachment; archived content
+    is excluded from active attachment counts.
+    """
 
     def slot(self):
         from n26.library.models import Slot
@@ -7375,7 +7286,7 @@ class TestTheInterstitialsOwnPage:
 
     def test_it_is_offered_under_slots_and_pickables(self, author, client, legacy):
         body = client.get("/n26/authoring/").content.decode()
-        # From the table down: the bar above it names every kind too.
+        # Restrict ordering checks to the table because navigation repeats kind links.
         table = body[body.index('scope="colgroup"') :]
 
         assert "/n26/authoring/interstitial/" in table
@@ -7478,7 +7389,6 @@ class TestTheInterstitialsOwnPage:
 
         assert response.status_code == 302
         assert not InterstitialSlot.objects.exists()
-        # Only the attachment went: the slot and the interstitial stand.
         assert Slot.objects.filter(name="House legacy").exists()
         assert Interstitial.objects.filter(pk=shown.pk).exists()
 
@@ -7516,8 +7426,6 @@ class TestTheInterstitialsOwnPage:
     def test_the_listing_does_not_count_an_archived_attachment(
         self, author, client, legacy
     ):
-        """The slot's page and the listing agree: an archived attachment
-        shows the screen nowhere."""
         from n26.library.authoring import create_interstitial, revise
         from n26.library.models import InterstitialSlot
 
@@ -7531,10 +7439,9 @@ class TestTheInterstitialsOwnPage:
     def test_a_slot_attached_from_a_packs_own_interstitial_joins_that_pack(
         self, author, client, legacy, homebrew
     ):
-        """The attachment is a part of the interstitial, so it lands in
-        the interstitial's pack — the form judges what it may reference
-        by that pack, and an attachment made in a pack of its own is
-        not turned away as crossing into the default one."""
+        """Create the attachment in the interstitial's pack so reference validation
+        uses the same ownership boundary.
+        """
         from n26.library.authoring import create_interstitial
         from n26.library.models import InterstitialSlot
 
@@ -7568,9 +7475,9 @@ class TestTheInterstitialsOwnPage:
     def test_the_listing_says_an_archived_interstitial_is_shown_nowhere(
         self, author, client, legacy, homebrew
     ):
-        """The listing draws archived rows too, and an archived screen —
-        or one in an archived pack — is shown nowhere whatever it is
-        attached to."""
+        """Archived interstitials and interstitials in archived packs have no active
+        display locations.
+        """
         from n26.library.authoring import create_interstitial, revise
 
         shown = create_interstitial("Outcast archetype", slots=[self.slot()])
@@ -7586,8 +7493,9 @@ class TestTheInterstitialsOwnPage:
     def test_the_staged_page_reads_flat_as_staged_interstitials_grow(
         self, author, client, legacy
     ):
-        """The staged-content page describes each staged interstitial the
-        listing's way, so it loads the attachments the listing's way."""
+        """Load attachment descriptions without adding a query per staged
+        interstitial.
+        """
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -7629,8 +7537,6 @@ class TestTheInterstitialsOwnPage:
         assert len(more) <= len(few)
 
     def test_it_can_be_held_back_from_players(self, author, client, legacy):
-        """A screen is put in front of a player by the slot it is attached
-        to, so its page offers the same hold-back switch a pickable's does."""
         from n26.library.authoring import create_interstitial
         from n26.library.models import Interstitial
 
