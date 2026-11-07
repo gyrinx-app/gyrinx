@@ -36,9 +36,8 @@ def check_core_suite_bounds(
 ) -> BoundsResult:
     """Return whether COUNT is inside [MIN, MAX], and any annotations.
 
-    A count inside the range but at least as large as MAX - HEADROOM is
-    still ok: the job must not fail until the cap is actually crossed.
-    It does warn, because the next core-marked test would cross it.
+    Counts within HEADROOM of MAX warn without failing. Only counts outside
+    the inclusive bounds fail.
     """
     if headroom < 0:
         raise ValueError("headroom must be >= 0")
