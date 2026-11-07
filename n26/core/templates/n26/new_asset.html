@@ -1,11 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Writing a new asset into the campaign's own pack, under one of the asset types
-the campaign deals in — the shared type's or the arbitrator's own. What the
-asset does is not asked here beyond its income: a name, its words and that
-figure are the whole of it. Native radios for the asset type, so the form posts
-with no script and a redisplay keeps the pick.
+Create an asset in the campaign's pack using an available asset type. The form captures
+its name, annotation and income.
 {% endcomment %}
 {% block head_title %}{% if unified %}Create custom {{ custom_label }}{% else %}New asset{% endif %} in {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}

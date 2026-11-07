@@ -1,6 +1,4 @@
-"""
-Tests for the Pub/Sub push handler view.
-"""
+"""Pub/Sub request validation, task execution and lifecycle bookkeeping."""
 
 import base64
 import json
@@ -52,14 +50,9 @@ def bypass_oidc():
         yield
 
 
-# =============================================================================
-# Basic Request Handling Tests (with OIDC bypassed)
-# =============================================================================
-
-
 @pytest.mark.django_db
 def test_pubsub_handler_rejects_get(client, bypass_oidc):
-    """GET requests should return 405."""
+
     url = reverse("tasks:pubsub")
     response = client.get(url)
     assert response.status_code == 405
@@ -67,7 +60,7 @@ def test_pubsub_handler_rejects_get(client, bypass_oidc):
 
 @pytest.mark.django_db
 def test_pubsub_handler_rejects_invalid_json(client, bypass_oidc):
-    """Invalid JSON should return 400."""
+
     url = reverse("tasks:pubsub")
     response = client.post(url, data="not json", content_type="application/json")
     assert response.status_code == 400
@@ -75,7 +68,7 @@ def test_pubsub_handler_rejects_invalid_json(client, bypass_oidc):
 
 @pytest.mark.django_db
 def test_pubsub_handler_rejects_missing_data(client, bypass_oidc):
-    """Missing data field should return 400."""
+
     url = reverse("tasks:pubsub")
     response = client.post(
         url,
@@ -97,7 +90,7 @@ def test_pubsub_handler_rejects_missing_data(client, bypass_oidc):
 def test_pubsub_handler_returns_429_when_db_at_capacity(
     client, bypass_oidc, error_message
 ):
-    """Postgres exhaustion and psycopg_pool checkout timeouts both nack with 429."""
+
     from django.db import OperationalError
 
     url = reverse("tasks:pubsub")
@@ -115,7 +108,7 @@ def test_pubsub_handler_returns_429_when_db_at_capacity(
 
 @pytest.mark.django_db
 def test_pubsub_handler_rejects_unknown_task(client, bypass_oidc):
-    """Unknown task name should return 400."""
+
     url = reverse("tasks:pubsub")
     envelope = make_pubsub_message("nonexistent_task")
     response = client.post(
@@ -124,13 +117,13 @@ def test_pubsub_handler_rejects_unknown_task(client, bypass_oidc):
         content_type="application/json",
     )
     assert response.status_code == 400
-    # Error message should not include task name (security: prevent enumeration)
+    # Keep unknown task names out of public errors.
     assert response.content == b"Unknown task"
 
 
 @pytest.mark.django_db
 def test_pubsub_handler_rejects_missing_task_name(client, bypass_oidc):
-    """Missing task_name should return 400."""
+
     url = reverse("tasks:pubsub")
     data = {
         "task_id": "test-123",
@@ -155,7 +148,7 @@ def test_pubsub_handler_rejects_missing_task_name(client, bypass_oidc):
 
 @pytest.mark.django_db
 def test_pubsub_handler_executes_registered_task(client, bypass_oidc):
-    """Registered tasks should execute and return 200."""
+
     url = reverse("tasks:pubsub")
     routes = [TaskRoute(_test_task)]
 
@@ -201,7 +194,6 @@ def test_pubsub_handler_defers_a_scoped_task_while_writes_are_paused(
 
 @pytest.mark.django_db
 def test_pubsub_handler_returns_500_on_task_error(client, bypass_oidc):
-    """Task exceptions should return 500 for retry."""
 
     def failing_task():
         raise ValueError("Task failed!")
@@ -223,7 +215,7 @@ def test_pubsub_handler_returns_500_on_task_error(client, bypass_oidc):
 
 @pytest.mark.django_db
 def test_pubsub_handler_passes_args_and_kwargs(client, bypass_oidc):
-    """Task should receive args and kwargs from message."""
+
     received = {}
 
     def capture_task(*args, **kwargs):
@@ -250,14 +242,9 @@ def test_pubsub_handler_passes_args_and_kwargs(client, bypass_oidc):
     assert received["kwargs"] == {"key1": "value1", "key2": 42}
 
 
-# =============================================================================
-# OIDC Token Verification Tests
-# =============================================================================
-
-
 @pytest.mark.django_db
 def test_pubsub_handler_rejects_when_oidc_fails(client):
-    """Requests are rejected when OIDC verification fails."""
+
     url = reverse("tasks:pubsub")
     envelope = make_pubsub_message("_test_task")
 
@@ -274,7 +261,7 @@ def test_pubsub_handler_rejects_when_oidc_fails(client):
 
 @pytest.mark.django_db
 def test_pubsub_handler_allows_when_oidc_succeeds(client):
-    """Requests are allowed when OIDC verification succeeds."""
+
     url = reverse("tasks:pubsub")
     routes = [TaskRoute(_test_task)]
 
@@ -290,11 +277,6 @@ def test_pubsub_handler_allows_when_oidc_succeeds(client):
         )
 
     assert response.status_code == 200
-
-
-# =============================================================================
-# Task Execution Status Update Tests
-# =============================================================================
 
 
 @pytest.fixture
@@ -313,7 +295,6 @@ def task_execution():
 
 @pytest.mark.django_db
 def test_handler_transitions_to_running_on_start(client, bypass_oidc, task_execution):
-    """Handler should transition TaskExecution to RUNNING when starting."""
 
     url = reverse("tasks:pubsub")
     routes = [TaskRoute(_test_task)]
@@ -331,15 +312,13 @@ def test_handler_transitions_to_running_on_start(client, bypass_oidc, task_execu
 
     assert response.status_code == 200
 
-    # Refresh and check status
     task_execution.refresh_from_db()
-    # Should be SUCCESSFUL since task completed
     assert task_execution.status == "SUCCESSFUL"
 
 
 @pytest.mark.django_db
 def test_handler_sets_started_at_on_start(client, bypass_oidc, task_execution):
-    """Handler should set started_at when task starts."""
+
     url = reverse("tasks:pubsub")
     routes = [TaskRoute(_test_task)]
 
@@ -362,7 +341,6 @@ def test_handler_sets_started_at_on_start(client, bypass_oidc, task_execution):
 def test_handler_transitions_to_successful_on_success(
     client, bypass_oidc, task_execution
 ):
-    """Handler should transition TaskExecution to SUCCESSFUL on completion."""
 
     url = reverse("tasks:pubsub")
     routes = [TaskRoute(_test_task)]
@@ -386,7 +364,7 @@ def test_handler_transitions_to_successful_on_success(
 
 @pytest.mark.django_db
 def test_handler_sets_finished_at_on_success(client, bypass_oidc, task_execution):
-    """Handler should set finished_at when task completes."""
+
     url = reverse("tasks:pubsub")
     routes = [TaskRoute(_test_task)]
 
@@ -407,7 +385,7 @@ def test_handler_sets_finished_at_on_success(client, bypass_oidc, task_execution
 
 @pytest.mark.django_db
 def test_handler_stores_return_value_on_success(client, bypass_oidc, task_execution):
-    """Handler should store return_value when task completes successfully."""
+
     url = reverse("tasks:pubsub")
     routes = [TaskRoute(_test_task)]
 
@@ -429,12 +407,10 @@ def test_handler_stores_return_value_on_success(client, bypass_oidc, task_execut
 
 @pytest.mark.django_db
 def test_handler_transitions_to_failed_on_error(client, bypass_oidc, task_execution):
-    """Handler should transition TaskExecution to FAILED on error."""
 
     def failing_task():
         raise ValueError("Task failed!")
 
-    # Update task_execution task_name to match
     task_execution.task_name = "failing_task"
     task_execution.save()
 
@@ -460,7 +436,6 @@ def test_handler_transitions_to_failed_on_error(client, bypass_oidc, task_execut
 
 @pytest.mark.django_db
 def test_handler_stores_error_message_on_failure(client, bypass_oidc, task_execution):
-    """Handler should store error_message when task fails."""
 
     def failing_task():
         raise ValueError("Something went wrong!")
@@ -488,7 +463,6 @@ def test_handler_stores_error_message_on_failure(client, bypass_oidc, task_execu
 
 @pytest.mark.django_db
 def test_handler_stores_error_traceback_on_failure(client, bypass_oidc, task_execution):
-    """Handler should store error_traceback when task fails."""
 
     def failing_task():
         raise ValueError("Traceback test!")
@@ -516,12 +490,11 @@ def test_handler_stores_error_traceback_on_failure(client, bypass_oidc, task_exe
 
 @pytest.mark.django_db
 def test_handler_missing_task_execution_continues(client, bypass_oidc):
-    """Handler should continue execution if TaskExecution not found."""
+
     url = reverse("tasks:pubsub")
     routes = [TaskRoute(_test_task)]
 
     with patch("gyrinx.tasks.registry._tasks", routes):
-        # Use a task_id that doesn't exist in the database
         envelope = make_pubsub_message(
             "_test_task",
             task_id="00000000-0000-0000-0000-000000000000",
@@ -532,13 +505,12 @@ def test_handler_missing_task_execution_continues(client, bypass_oidc):
             content_type="application/json",
         )
 
-    # Task should still execute successfully
     assert response.status_code == 200
 
 
 @pytest.mark.django_db
 def test_handler_creates_transition_records(client, bypass_oidc, task_execution):
-    """Handler should create StateTransition records."""
+
     url = reverse("tasks:pubsub")
     routes = [TaskRoute(_test_task)]
 
@@ -553,18 +525,16 @@ def test_handler_creates_transition_records(client, bypass_oidc, task_execution)
             content_type="application/json",
         )
 
-    # Should have 2 transitions: READY -> RUNNING -> SUCCESSFUL
     transitions = list(task_execution.states.history)
     assert len(transitions) == 2
 
 
 @pytest.mark.django_db
 def test_full_task_lifecycle_success(client, bypass_oidc, task_execution):
-    """Full successful task lifecycle should be tracked."""
+
     url = reverse("tasks:pubsub")
     routes = [TaskRoute(_test_task)]
 
-    # Initial state
     assert task_execution.status == "READY"
     assert task_execution.started_at is None
     assert task_execution.finished_at is None
@@ -582,7 +552,6 @@ def test_full_task_lifecycle_success(client, bypass_oidc, task_execution):
 
     assert response.status_code == 200
 
-    # Final state
     task_execution.refresh_from_db()
     assert task_execution.status == "SUCCESSFUL"
     assert task_execution.started_at is not None
@@ -593,7 +562,6 @@ def test_full_task_lifecycle_success(client, bypass_oidc, task_execution):
 
 @pytest.mark.django_db
 def test_full_task_lifecycle_failure(client, bypass_oidc, task_execution):
-    """Full failed task lifecycle should be tracked."""
 
     def failing_task():
         raise RuntimeError("Epic failure!")

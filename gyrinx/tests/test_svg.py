@@ -1,8 +1,4 @@
-"""Tests for the platform's inline-SVG sanitiser.
-
-Both editions draw stored artwork inline, so what this rejects is the whole of
-what stops a piece of authored artwork from running script in a reader's page.
-"""
+"""Inline SVG sanitisation for shared artwork."""
 
 from gyrinx.svg import sanitize_inline_svg
 
@@ -33,8 +29,7 @@ def test_simple_svg_is_normalised():
 
 
 def test_no_class_attribute_when_none_asked_for():
-    # A caller that styles the artwork from its container should not be handed
-    # an empty class it has to work around.
+    # Omit an unspecified root class so container styling needs no empty-class workaround.
     out = sanitize_inline_svg(SIMPLE_SVG)
     assert "class=" not in out.split(">", 1)[0]
 
@@ -132,8 +127,7 @@ def test_fragment_use_href_preserved():
 
 
 def test_solid_fills_recoloured_to_currentcolor():
-    # Child elements with baked-in colours must be recoloured so the icon
-    # matches the surrounding text (the feature's core requirement).
+    # Recolour child fills and strokes to match surrounding text by default.
     svg = (
         '<svg viewBox="0 0 4 4"><rect x="0" y="0" width="1" height="1" '
         'fill="#000000"/><path d="M0 0" stroke="#ff0000"/></svg>'
@@ -179,8 +173,7 @@ def test_gradient_camelcase_attributes_preserved():
 
 
 def test_root_tag_attributes_cannot_be_overridden_by_the_source():
-    # The root start tag is rebuilt rather than patched, so artwork claiming its
-    # own class, role or fill does not get to keep them.
+    # Rebuild root attributes so source artwork cannot override class, role or fill.
     svg = (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2" '
         'class="pwned" role="button" onload="evil()" fill="#123456">'
@@ -220,8 +213,7 @@ def test_anchor_elements_are_dropped():
 
 
 def test_unclosed_script_tag_still_loses_the_script_element():
-    # The regex that drops script wholesale needs a closing tag; bleach is the
-    # boundary that catches what it misses.
+    # Bleach removes unclosed script tags that the complete-element regex misses.
     svg = '<svg viewBox="0 0 2 2"><script>alert(1)</svg>'
     out = sanitize_inline_svg(svg)
     assert "<script" not in out.lower()
@@ -255,9 +247,7 @@ def test_preserve_colour_keeps_the_palette():
 
 
 def test_shape_rendering_survives_the_root_tag_rebuild():
-    # The root tag is rebuilt from a curated list, so an attribute being in the
-    # allowlist is not enough on its own — pixel art keeps its hard edges only
-    # if this is carried across explicitly.
+    # Carry shape-rendering explicitly into the rebuilt root tag to preserve crisp edges.
     assert 'shape-rendering="crispEdges"' in sanitize_inline_svg(COLOURED_SVG)
     assert 'shape-rendering="crispEdges"' in sanitize_inline_svg(
         COLOURED_SVG, preserve_colour=True

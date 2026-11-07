@@ -7,20 +7,10 @@ logger = logging.getLogger("gyrinx.tracker")
 
 
 def track(event: str, n: int = 1, value: float | None = None, **labels: Any) -> None:
-    """
-    Emit a structured log event.
+    """Emit a JSON log event with an optional count, value and labels.
 
-    In production, StructuredLogHandler formats this as JSON for Cloud Logging.
-    In development, logs as JSON string to console.
-
-    Args:
-        event: Event name (e.g. 'list_action_apply_succeeded')
-        n: Count increment (default=1)
-        value: Optional numeric value (e.g. for distributions)
-        **labels: Arbitrary key=value metadata
-
-    Example:
-        track("list_action_apply_succeeded", action_type="advancement", list_id=str(pk))
+    Keep JSON-serialisable labels. Convert object IDs and UUID labels to
+    strings; omit other unsupported values and log their types at debug level.
     """
     payload = {
         "event": event,
@@ -29,26 +19,22 @@ def track(event: str, n: int = 1, value: float | None = None, **labels: Any) -> 
     if value is not None:
         payload["value"] = value
 
-    # Filter labels to only JSON-serializable values
     if labels:
         filtered_labels = {}
         for key, val in labels.items():
             try:
-                # Side-effect test for JSON serializability
                 json.dumps(val)
                 filtered_labels[key] = val
             except TypeError, ValueError:
-                # Not JSON serializable, try to extract ID
                 if hasattr(val, "id"):
                     filtered_labels[key] = str(val.id)
                 elif isinstance(val, UUID):
                     filtered_labels[key] = str(val)
                 else:
-                    # Log that we're dropping this label
                     logger.debug(
                         f"Dropping non-serializable label '{key}' with type {type(val).__name__} for event '{event}'"
                     )
         payload["labels"] = filtered_labels
 
-    # Always use Python logging - handler determines format
+    # The configured logging handler determines the destination and outer format.
     logger.info(json.dumps(payload))

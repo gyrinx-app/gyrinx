@@ -1,12 +1,4 @@
-"""Redirects: an old URL keeps working after a page moves.
-
-Worth testing rather than trusting, because the pieces only work together by
-convention. `RedirectFallbackMiddleware` acts on a 404 response, our flatpage
-route is a catch-all regex that swallows every path ending in a slash, and the
-middleware has to sit last in MIDDLEWARE to see the 404 before anything else
-does. Any one of those changing breaks redirects silently — an old link starts
-404ing and nothing fails.
-"""
+"""Redirect fallback after a flatpage lookup returns 404."""
 
 import pytest
 from django.contrib.flatpages.models import FlatPage
@@ -47,24 +39,20 @@ def test_the_new_url_serves_the_page(client: Client, moved_help_page):
 
 @pytest.mark.django_db
 def test_redirect_survives_the_flatpage_catch_all(client: Client, moved_help_page):
-    """The catch-all route matches /help/vehicles/ before the middleware sees it.
-
-    It has to 404 for the middleware to do anything, so this asserts the
-    interaction rather than the middleware in isolation.
-    """
+    """Exercise redirect middleware after the catch-all flatpage route returns 404."""
     assert not FlatPage.objects.filter(url="/help/vehicles/").exists()
     assert client.get("/help/vehicles/").status_code == 301
 
 
 @pytest.mark.django_db
 def test_unknown_url_still_404s(client: Client):
-    """No redirect row means the 404 is left alone."""
+
     assert client.get("/help/does-not-exist/").status_code == 404
 
 
 @pytest.mark.django_db
 def test_empty_new_path_returns_gone(client: Client):
-    """A blank new_path retires a URL properly instead of leaving a bare 404."""
+
     site = Site.objects.get_current()
     Redirect.objects.create(site=site, old_path="/help/retired/", new_path="")
     assert client.get("/help/retired/").status_code == 410
@@ -74,10 +62,8 @@ def test_empty_new_path_returns_gone(client: Client):
 def test_redirect_does_not_match_when_a_query_string_is_present(
     client: Client, moved_help_page
 ):
-    """Documents a real edge: matching uses the full path, query string included.
+    """Match the full request path, including its query string.
 
-    So a bookmarked `/help/vehicles/?from=nav` does NOT hit the redirect. Pinned
-    here so the behaviour is a known limitation rather than a surprise — if this
-    ever needs fixing it wants a custom middleware subclass, not a config change.
+    A redirect stored for the bare URL does not match that URL with a query.
     """
     assert client.get("/help/vehicles/?from=nav").status_code == 404

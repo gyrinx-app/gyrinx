@@ -1,19 +1,4 @@
-"""
-URL configuration for gyrinx project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.1/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
+"""Platform routes, edition mounts and the flatpage fallback."""
 
 from debug_toolbar.toolbar import debug_toolbar_urls
 from django.conf import settings
@@ -30,11 +15,8 @@ from gyrinx.pages import views
 
 admin.site.site_header = "Gyrinx Admin"
 
-# Platform debug URLs — always registered; the views themselves check DEBUG and
-# 404 when it is off, so routing stays identical in parallel test workers where
-# DEBUG may be False at import time but True via @override_settings.
-# The edition's debug routes (balance sheet, list actions, print lab) live under
-# /n23/_debug/ with the rest of the edition.
+# Register debug routes regardless of import-time DEBUG. Their views return
+# 404 when disabled, including in tests that change settings after import.
 _debug_urls = [
     path(
         "_debug/login/",
@@ -80,10 +62,8 @@ urlpatterns = (
         path("api/", include("gyrinx.api.urls")),
         path("tasks/", include("gyrinx.tasks.urls")),
         path("accounts/", include("allauth.urls")),
-        # admindocs decorates its views with staff_member_required, which knows
-        # nothing about the admin's 2FA gate — route it through the same check.
-        # A bare list keeps admindocs' URL names unnamespaced, as base_site.html
-        # expects.
+        # Apply the admin MFA gate because admindocs checks only staff membership.
+        # Keep its names unnamespaced for admin template links.
         path("admin/doc/", include(admin_gated_patterns(admindocs_urls.urlpatterns))),
         path("400/", views.error_400, name="error_400"),
         path("403/", views.error_403, name="error_403"),
@@ -91,8 +71,7 @@ urlpatterns = (
         path("500/", views.error_500, name="error_500"),
         path("admin/", admin.site.urls),
         path("tinymce/", include("tinymce.urls")),
-        # Ahead of the flatpage catch-all, which would otherwise serve the
-        # old static page at this address. The footer link is that address.
+        # Resolve changelog routes before the flatpage catch-all.
         path("changelog/", include("n26.core.changelog_urls")),
     ]
     + _debug_urls

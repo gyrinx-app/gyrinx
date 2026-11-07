@@ -1,13 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-The page a n26.core.confirm.Confirmation draws: an act that will go ahead once
-the reader says they meant it.
-
-A page rather than a scripted prompt, as the deletion page is: Back is a real
-answer and it works with scripting off. The form carries every field of the
-submission that led here, so the second post is the first with a yes attached;
-the view re-derives the click from the listing and trusts none of it.
+Resubmit the pending action with explicit confirmation. Preserve its input fields; the
+view revalidates the action against current catalogue data.
 {% endcomment %}
 {% block head_title %}{{ confirmation.title }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -36,9 +31,8 @@ the view re-derives the click from the listing and trusts none of it.
         </c-slot>
         {% csrf_token %}
         {% comment %}
-        Repeated names stay repeated: a row's ticked parts arrive as several
-        values under one name, and collapsing them would buy something other
-        than what this page describes.
+        Keep repeated field names so selected equipment parts retain every submitted
+        value.
         {% endcomment %}
         {% for name, value in confirmation.carry %}
             <input type="hidden" name="{{ name }}" value="{{ value }}">
@@ -47,9 +41,8 @@ the view re-derives the click from the listing and trusts none of it.
                name="{{ confirmation.confirm_field }}"
                value="{{ confirmation.confirm_value }}">
         {% comment %}
-        Never an error: the act is allowed, and this asks whether it was meant
-        or which way to record it. The body is the position and the aside is the permission —
-        two lines, because they answer different questions.
+        Use the view’s confirmation variant: rating choices are informational and Trade
+        Point overspend confirmations are warnings.
         {% endcomment %}
         <c-ui.alert variant="{{ confirmation.variant }}"
                     title="{{ confirmation.heading }}">
@@ -62,7 +55,6 @@ the view re-derives the click from the listing and trusts none of it.
             {% endif %}
         </c-ui.alert>
         {% if confirmation.facts %}
-            {# The same tally the Visit Trading Post card draws. #}
             <c-n26.tally :facts="confirmation.facts" class="max-w-sm" />
         {% endif %}
         {% if confirmation.checkbox %}

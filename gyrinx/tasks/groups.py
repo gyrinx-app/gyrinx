@@ -1,21 +1,7 @@
-"""Group-aware task enqueueing and status.
+"""Group task executions for progress reporting.
 
-A single logical operation often fans out into many background task runs — e.g. starting a
-campaign spawns one clone task per gang (#1222). Tag those runs with a shared ``group_key``
-so the generic ``/tasks/status`` endpoint (see :mod:`gyrinx.tasks.views`) can report the
-group's overall progress, and a UI can poll it.
-
-Usage::
-
-    from gyrinx.tasks.groups import enqueue_in_group
-
-    for gang in gangs:
-        enqueue_in_group(
-            clone_gang,
-            group_key=f"campaign-start:{campaign_id}",
-            label=gang.name,
-            gang_id=str(gang.id),
-        )
+Pass a shared group_key to enqueue_in_group and poll /tasks/status.
+Use an unguessable key because the status endpoint is public.
 """
 
 import logging
@@ -24,20 +10,14 @@ from gyrinx.tasks.models import TaskExecution
 
 logger = logging.getLogger(__name__)
 
-# Statuses that mean a task run has finished (successfully or not).
 TERMINAL_STATUSES = ("SUCCESSFUL", "FAILED")
 
 
 def enqueue_in_group(task, *, group_key, label="", **kwargs):
-    """Enqueue ``task`` and tag its :class:`TaskExecution` with ``group_key``/``label``.
+    """Enqueue a task, tag its execution with group_key and label, and return its result.
 
-    The task framework creates the ``TaskExecution`` row synchronously (via the
-    ``task_enqueued`` signal) during ``enqueue``, so by the time this returns the row exists
-    and we can stamp it. Returns whatever ``task.enqueue`` returned (a ``TaskResult``), or
-    ``None`` if enqueue produced no result.
-
-    Tagging failures are swallowed: a group tag is for observability, and must never break
-    the enqueue itself.
+    The task_enqueued signal creates the execution synchronously. Log tagging
+    failures without interrupting delivery; untagged tasks do not appear in progress.
     """
     result = task.enqueue(**kwargs)
     task_id = getattr(result, "id", None)
@@ -47,8 +27,7 @@ def enqueue_in_group(task, *, group_key, label="", **kwargs):
                 group_key=group_key, label=label
             )
             if not updated:
-                # The task_enqueued signal should have created the row synchronously; if it
-                # didn't, the task still runs but won't appear in the group's status rollup.
+                # A missing execution cannot be tagged, but its task is still enqueued.
                 logger.warning(
                     "No TaskExecution row for task %s to tag with group_key=%s "
                     "(it won't show in group status)",
@@ -63,19 +42,11 @@ def enqueue_in_group(task, *, group_key, label="", **kwargs):
 
 
 def group_status(group_key):
-    """Return a JSON-serialisable status summary for all task runs in ``group_key``.
+    """Return group identity, counts, completion and per-task status.
 
-    Shape::
-
-        {
-          "group": "...",
-          "complete": bool,   # at least one unit, and every unit is terminal
-          "counts": {"total", "successful", "failed", "running", "ready", "pending"},
-          "units": [{"task_id", "label", "status"}, ...],
-        }
-
-    Only non-sensitive fields are exposed (no args/kwargs/tracebacks) since the status
-    endpoint is readable by anyone who knows the (unguessable) group key.
+    A group is complete only when it has executions and all are successful or
+    failed. Expose IDs, labels and states, excluding arguments and tracebacks
+    because knowledge of the group key grants access.
     """
     units = list(
         TaskExecution.objects.filter(group_key=group_key)

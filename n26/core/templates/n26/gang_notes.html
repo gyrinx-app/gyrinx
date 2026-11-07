@@ -2,15 +2,7 @@
 {% load navigation %}
 {% load richtext %}
 {% comment %}
-The gang's notes — its working words and picture, then every model's.
-The working half of a roster, readable by anyone holding the address:
-notes are written for the table. Owning the gang adds Edit links and
-nothing else.
-
-The header is the sheet's, so the two pages read as one place: the
-colour swatch in the name, the owner's flair in the trail, the type as
-the lead, the gang's figures in the corner. Pictures float beside their
-prose; a section with no picture is just its words.
+Display gang and model notes to all sheet readers, with Edit links for the owner.
 {% endcomment %}
 {% block head_title %}Notes of {{ gang.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -52,8 +44,7 @@ prose; a section with no picture is just its words.
             </c-slot>
         </c-n26.page-header>
         {% comment %}
-        flow-root contains each section's float, so a tall picture never
-        leaks under the next model's heading.
+        flow-root contains each floated picture within its section.
         {% endcomment %}
         <div class="flow-root">
             {% if gang_image_url %}
@@ -63,8 +54,8 @@ prose; a section with no picture is just its words.
             {% endif %}
             {% if gang_prose %}
                 {% comment %}
-                measure off: the floated picture already narrows the text
-                beside it, and a measure cap on top leaves a sliver.
+                Disable the text measure cap because the floated picture already reduces
+                available line width.
                 {% endcomment %}
                 <c-n26.prose :measure="False">
                     {{ gang_prose|safe_rich_text }}

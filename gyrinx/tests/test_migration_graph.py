@@ -1,10 +1,6 @@
-"""The migration graph may fork; the tools around it hold the line.
+"""Migration graph forks, generated dependencies and order-sensitive overlap checks.
 
-Three things are pinned here. Django's refusal to work on a forked graph is
-switched off, and a generated migration joins every leaf. Django still routes
-that refusal through the one method the switch replaces, so an upgrade that
-moves it fails here rather than silently bringing the refusal back. And the
-overlap reading tells an order-sensitive pair from a harmless one.
+Check that Django still consults the conflict detector replaced by the project.
 """
 
 import inspect
@@ -51,10 +47,8 @@ def test_a_forked_graph_is_not_a_conflict():
 
 
 def test_django_still_asks_the_loader_before_refusing():
-    # Both commands consult detect_conflicts() and nothing else; if a Django
-    # release moves the refusal, this fails and the switch needs following.
-    # The modules are read, not the classes: pytest-django swaps the migrate
-    # command for a subclass and the handle methods are wrapped by decorators.
+    # Read command modules because pytest-django replaces the migrate command
+    # and decorators wrap their handle methods.
     assert inspect.getsource(migrate).count("detect_conflicts()") == 1
     assert inspect.getsource(makemigrations).count("detect_conflicts()") == 1
 
@@ -222,7 +216,7 @@ def test_a_data_migration_on_another_app_is_left_alone():
             )
         ]
     )
-    # The function fetches orchard.Item, so the app it lives in does not matter.
+    # The function fetches orchard.Item regardless of the migration's app.
     assert len(overlaps(base, branch)) == 1
     unrelated = dict([_migration("other", "0002_c", migrations.RunSQL("select 1"))])
     assert overlaps(base, unrelated) == []

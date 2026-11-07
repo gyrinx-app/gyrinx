@@ -5,9 +5,8 @@
             <div class="alert alert-{{ banner.colour }} hstack gap-2 border-0 mb-0 py-2 px-0 alert-dismissible fade show align-middle align-items-center"
                  role="alert">
                 {% comment %}
-                banner.icon is a meaning ("news"), not a class — bootstrap_icon
-                resolves it. Guard on the resolved class, not on banner.icon: a
-                key with no drawing must render nothing, not an empty <i>.
+                Resolve the semantic icon key before rendering. Unknown keys must
+                produce no icon element.
                 {% endcomment %}
                 {% if banner.bootstrap_icon %}<i class="{{ banner.bootstrap_icon }}"></i>{% endif %}
                 <div class="flex-grow-1 hstack gap-2 flex-wrap">

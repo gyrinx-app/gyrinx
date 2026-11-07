@@ -1,10 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% comment %}
-Founding a gang, for real. The gallery's shell twin
-(designsystem/shell/new_gang.html) renders this form unbound against
-sample types; this one binds it, posts it, and a valid submit founds
-the gang — the row, its founding assignment, and whatever the type's
-built-ins bring.
+Bind the gang founding form and create the gang, its founding assignment and built-in
+grants after validation. The gallery uses designsystem/shell/new_gang.html with sample
+types.
 {% endcomment %}
 {% block head_title %}Create a gang{% endblock head_title %}
 {% block nav_heading %}Create a gang{% endblock nav_heading %}

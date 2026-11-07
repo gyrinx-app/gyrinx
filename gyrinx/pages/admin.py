@@ -13,12 +13,7 @@ class FlatPageVisibilityInline(admin.TabularInline):
 
 
 def rich_text_widget(*, rows, height):
-    """
-    The editor used for both the page content and the page introduction.
-
-    One definition for both so the menus, the link list and the Markdown-style
-    shortcuts stay identical; only the box's size differs.
-    """
+    """Use one editor configuration for page content and introductions, varying only size."""
     return TinyMCEWithUpload(
         attrs={"cols": 120, "rows": rows},
         mce_attrs={
@@ -70,17 +65,14 @@ def rich_text_widget(*, rows, height):
 class FlatPageOptionsInline(admin.StackedInline):
     model = FlatPageOptions
     exclude = ("show_contents",)
-    # One-to-one: show the single form straight away rather than behind an
-    # "Add another" link. An untouched form is not saved, so a page without
-    # options set gets no row.
+    # Show the one-to-one options form immediately. Leaving it unchanged creates no record.
     extra = 1
     max_num = 1
     can_delete = False
 
     def formfield_for_dbfield(self, db_field, **kwargs):
         if db_field.name == "introduction":
-            # Same editor as the page content, in a shorter box: an
-            # introduction is a paragraph or two, not a page.
+            # Use the shared content editor at the introduction's smaller size.
             return db_field.formfield(
                 widget=rich_text_widget(rows=8, height="20vh"), required=False
             )

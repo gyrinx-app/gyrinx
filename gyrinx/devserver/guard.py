@@ -1,23 +1,11 @@
-"""
-Keeps a development server from outliving its use or eating the machine.
+"""Stop abandoned development servers and restart servers over their memory limit.
 
-Agents start dev servers in their own worktrees and seldom stop them. A server
-whose agent session has ended keeps its memory, and a server that grows keeps
-growing until the machine runs short. In the process that serves requests, a
-background thread checks three things every few seconds:
+Check memory after the first request. Allow in-flight requests to drain
+for up to DRAIN_SECONDS before restarting. Agent-owned servers also stop
+when their owner exits or their configured idle timeout expires.
 
-- Memory. Past ``DEV_SERVER_MEMORY_LIMIT_MB`` the process exits with the code
-  runserver's autoreloader reads as "restart", so a fresh process takes over on
-  the same port. It lets requests in flight finish first, for up to a minute.
-- The agent session that started it. A server started from Claude Code (which
-  exports ``CLAUDE_PID``) or from Codex (found among the process's ancestors)
-  stops when that session's process has gone.
-- Requests. A server started from an agent session stops after
-  ``DEV_SERVER_IDLE_MINUTES`` without one.
-
-Stopping means the serving process exits with status 0. The autoreloader's
-parent process then exits too, and ``scripts/dev.sh`` stops its CSS watcher on
-the way out.
+Use runserver's restart exit code only under its autoreloader; otherwise
+stop. scripts/dev.sh cleans up its watchers when the server exits.
 """
 
 import ctypes
@@ -34,8 +22,7 @@ from django.core.signals import request_finished, request_started
 
 logger = logging.getLogger(__name__)
 
-#: runserver's autoreloader starts a new server process when the old one exits
-#: with this code, as it does after a code change.
+#: Exit code that asks runserver's autoreloader to restart the serving process.
 RESTART = 3
 STOP = 0
 #: How long a server over its memory limit waits for requests in flight.
@@ -113,11 +100,7 @@ def process_alive(pid):
 
 
 def agent_name(command):
-    """The agent a process's command belongs to, if it is one.
-
-    ``ps`` reports either an executable's path or a title the process gave
-    itself, such as ``claude bg-spare``.
-    """
+    """Identify an agent from its executable path or process title."""
     for candidate in (command, command.split(" ", 1)[0]):
         name = AGENT_COMMANDS.get(os.path.basename(candidate))
         if name:
@@ -126,12 +109,10 @@ def agent_name(command):
 
 
 def find_owner(environ=os.environ, parent_pid=None, alive=process_alive):
-    """The agent session process that started this server, or None.
+    """Find a live CLAUDE_PID or an agent process among the server's ancestors.
 
-    ``CLAUDE_PID`` survives ``nohup`` and ``&``, which cut the process off from
-    its ancestors. It also reaches anything else started from that session's
-    shell, such as a tmux server or an editor, so it counts only while that
-    process is still running.
+    The explicit environment PID supports detached launches whose ancestry
+    no longer includes the originating agent.
     """
     claude_pid = environ.get("CLAUDE_PID", "")
     if claude_pid.isdigit() and alive(int(claude_pid)):
@@ -198,7 +179,7 @@ class Guard:
             self.last_request = self.clock()
 
     def check(self):
-        """The exit code and the reason, if the server should exit now."""
+        """Return an exit code and reason when a stop or restart condition is met."""
         now = self.clock()
         with self.lock:
             in_flight = self.in_flight
@@ -211,8 +192,7 @@ class Guard:
                 f"(pid {self.owner.pid}) has ended"
             )
 
-        # A process that has had no request yet is as small as a restart would
-        # make it, so restarting it again cannot help.
+        # Restart only after a request; an unused process would restart at the same size.
         limited = self.memory_limit_mb > 0 and requested
         used = self.memory() if limited else None
         if used is not None and used > self.memory_limit_mb:
@@ -254,8 +234,7 @@ class Guard:
         return rules
 
     def watch(self, interval=5.0):
-        # Finding the owner runs ps several times. Doing it here rather than
-        # in start() keeps it off the path of every autoreload.
+        # Find the owner in the background thread so process lookups do not delay autoreload.
         self.owner = find_owner()
         if rules := self.rules():
             logger.info("Dev server guard: %s.", "; ".join(rules))
@@ -267,11 +246,7 @@ class Guard:
 
 
 def exit_plan(code, reason, under_autoreloader):
-    """The exit code and the line to log for a server leaving for ``reason``.
-
-    Only runserver's autoreloader can start a new process. With ``--noreload``
-    there is none, so a server over its memory limit stops instead.
-    """
+    """Choose the exit code and message, restarting only when an autoreloader is present."""
     if code == RESTART and under_autoreloader:
         return RESTART, f"Restarting the dev server: {reason}."
     if code == RESTART:
@@ -288,9 +263,8 @@ def exit_server(code, reason):
     code, message = exit_plan(code, reason, os.environ.get("RUN_MAIN") == "true")
     logger.warning(message)
     logging.shutdown()
-    # Exit from this thread without waiting for the server's threads, which
-    # never finish on their own. With the autoreloader, a RESTART brings up a
-    # new server process; a STOP ends the autoreloader too.
+    # Exit without waiting for server threads. The autoreloader restarts on RESTART
+    # and exits on STOP.
     os._exit(code)
 
 

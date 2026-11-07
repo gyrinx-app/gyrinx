@@ -1,18 +1,22 @@
 """The scenario tables and side job sets: six entries each, keyed for links."""
 
+import pytest
 from django.contrib.staticfiles import finders
 
 from n26.library.scenario_tables import (
     SIDE_JOB_KEYS,
-    SIDE_JOB_SETS,
-    TABLES,
     ScenarioEntry,
+    load_catalogue,
     side_job_set,
     table,
 )
 
+pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("scenario_content")]
+
 
 def test_every_table_has_one_entry_for_each_face_of_a_d6():
+    TABLES = load_catalogue().tables
+    SIDE_JOB_SETS = load_catalogue().side_job_sets
     assert [found.key for found in TABLES] == ["deployment", "objective", "crew"]
     for found in TABLES + SIDE_JOB_SETS:
         assert [entry.roll for entry in found.entries] == [1, 2, 3, 4, 5, 6]
@@ -36,6 +40,7 @@ def test_a_label_leaves_off_a_heading_colon_and_spaces():
 
 
 def test_side_job_sets_are_listed_general_first_and_found_by_key():
+    SIDE_JOB_SETS = load_catalogue().side_job_sets
     assert [found.key for found in SIDE_JOB_SETS] == [
         "general",
         "escher",
@@ -57,5 +62,5 @@ def test_text_between_asterisks_is_bold():
         (" one.", False),
     ]
     assert entry.plain == "Use only a Melee one."
-    for found in SIDE_JOB_SETS:
+    for found in load_catalogue().side_job_sets:
         assert all(entry.text.count("*") % 2 == 0 for entry in found.entries)

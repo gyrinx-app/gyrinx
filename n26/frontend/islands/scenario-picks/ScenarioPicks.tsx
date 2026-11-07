@@ -7,6 +7,7 @@ export type ScenarioPicksProps = {
     sideJobKeys: string[];
     sideJobLimit: number;
     sideJobSets: SideJobSet[];
+    referencedSideJobSets?: SideJobSet[];
     sidePicks: string[];
     errors: Record<string, string[]>;
 };
@@ -52,6 +53,7 @@ export function ScenarioPicks(props: ScenarioPicksProps) {
                 prefix="generator"
                 picks={sidePicks}
                 sets={props.sideJobSets}
+                referencedSets={props.referencedSideJobSets}
                 keys={props.sideJobKeys}
                 limit={props.sideJobLimit}
                 onChange={setSidePicks}

@@ -25,25 +25,18 @@ logger = logging.getLogger(__name__)
 DEBUG = True
 WHITENOISE_AUTOREFRESH = True
 
-# Cotton component call sites fail loudly in dev AND under pytest. pytest-django
-# forces DEBUG = False, so keying this off DEBUG alone would silently disable
-# every component guard in exactly the place they are supposed to catch things.
+# Keep Cotton component guards enabled under pytest, which forces DEBUG=False.
 COTTON_STRICT_COMPONENTS = True
 
-# Cotton's autoconfig substitutes its own template loader chain, wrapped in
-# Django's cached.Loader. Swapping in this subclass lets the autoconfig do its
-# work and then adjusts the caching, per CACHE_TEMPLATES and
-# WATCH_TEMPLATE_DIRECTORIES below. The rewrite has to happen from an app config
-# because the autoconfig runs after settings and overwrites anything declared
-# here. See gyrinx/cotton_dev.py.
+# Adjust loaders after Cotton's AppConfig installs them; settings-level changes
+# would be overwritten. See gyrinx/cotton_dev.py.
 if "django_cotton" not in INSTALLED_APPS:
     raise ImproperlyConfigured(
         "Expected 'django_cotton' in INSTALLED_APPS so development could swap in "
         "gyrinx.cotton_dev.DevCottonConfig; it isn't there."
     )
-# Same trick for the debug toolbar: its own app config, plus memoised per-query
-# bookkeeping that would otherwise cost more CPU than rendering the page. See
-# gyrinx/toolbar_dev.py.
+# Install the development toolbar cache wrappers through its AppConfig.
+# See gyrinx/toolbar_dev.py.
 if "debug_toolbar" not in INSTALLED_APPS:
     raise ImproperlyConfigured(
         "Expected 'debug_toolbar' in INSTALLED_APPS so development could swap in "
@@ -56,14 +49,7 @@ _DEV_APP_CONFIGS = {
 INSTALLED_APPS = [_DEV_APP_CONFIGS.get(app, app) for app in INSTALLED_APPS]
 INSTALLED_APPS += ["gyrinx.devserver.apps.DevServerConfig"]
 
-# pytest is always imported before Django settings load when any pytest launcher
-# is driving the process (plain pytest, pytest-xdist workers, ptw, IDE runners,
-# CI shells), and never under runserver/management commands. The previous
-# environment-based detection (PYTEST_CURRENT_TEST, or "pytest" in $_) silently
-# missed under launchers that don't set $_ to the pytest binary —
-# PYTEST_CURRENT_TEST isn't set yet at settings-import time — which flipped
-# pytest-only settings (like the admin MFA gate below) to their production
-# values for the whole suite.
+# Detect pytest before settings load; PYTEST_CURRENT_TEST is not set this early.
 _UNDER_PYTEST = "pytest" in sys.modules
 
 # Disposable test rows need constraints and transactions, but no crash
@@ -73,28 +59,16 @@ _UNDER_PYTEST = "pytest" in sys.modules
 if _UNDER_PYTEST and os.getenv("GYRINX_TEST_UNLOGGED_TABLES") != "False":
     DATABASES["default"]["ENGINE"] = "gyrinx.pytest_postgresql"
 
-# Keep compiled templates between requests. Under runserver, editing a template
-# still shows on the next request without a restart: Django's template autoreload
-# (django/template/autoreload.py) watches every template directory, including
-# cotton's, and resets the loaders when a template file changes. Reading templates
-# fresh instead costs the dev server about a fifth of its CPU on a template-heavy
-# page, and the template-heavy suites about a quarter of theirs.
-#
-# Set GYRINX_CACHE_TEMPLATES=False to read every template from disk on every
-# request, for a process with no autoreloader that must see template edits.
+# Keep compiled templates cached; runserver autoreload clears them after edits.
+# Set GYRINX_CACHE_TEMPLATES=False when a process without autoreload needs
+# to read template changes directly.
 CACHE_TEMPLATES = _UNDER_PYTEST or os.getenv("GYRINX_CACHE_TEMPLATES") != "False"
 
-# The autoreloader ignores a template file that did not exist when the server
-# started, so the dev server also resets the loaders when a file appears in, or
-# leaves, a template directory: a new component, or a new override of a template
-# that already loaded from elsewhere, shows on the next request. The suite never
-# creates templates mid-run.
+# Watch template directories for additions and removals that autoreload
+# does not track. Tests keep the ordinary cached loader.
 WATCH_TEMPLATE_DIRECTORIES = not _UNDER_PYTEST
 
-# Start the debug toolbar hidden. The toolbar remembers open/closed in the
-# browser's localStorage, so a fresh browser profile (every agent-driven session
-# and every new worktree port) otherwise opens with the panel expanded over the
-# page. The "DjDT" tab still sits in the corner to open it.
+# Start collapsed when localStorage has no toolbar preference.
 DEBUG_TOOLBAR_CONFIG = {
     "SHOW_COLLAPSED": True,
     # Encode each panel's data for the History panel when it is first read, not
@@ -123,13 +97,8 @@ DEBUG_TOOLBAR_PANELS = [
 if _UNDER_PYTEST:
     DEBUG_TOOLBAR_CONFIG["SHOW_TOOLBAR_CALLBACK"] = lambda request: False
 
-# Background tasks: run genuinely asynchronously (in-process durable queue +
-# worker threads) when the dev server is up, so enqueued work leaves the request
-# thread just like it does in prod — but with no Pub/Sub dependency and no extra
-# process. Everything else (pytest, migrate, shell, other management commands)
-# keeps the inherited "eager" backend, which runs tasks inline on enqueue.
-# Fault-injection knobs are read from the environment (TASKS_FAULT_*), off by
-# default — see gyrinx/tasks/faults.py.
+# Use the durable worker queue under runserver. Other commands retain
+# the inherited eager mode. TASKS_FAULT_* configures optional delivery faults.
 if "runserver" in sys.argv and not _UNDER_PYTEST:
     TASKS = {  # noqa: F405
         "default": {
@@ -141,10 +110,8 @@ if "runserver" in sys.argv and not _UNDER_PYTEST:
         }
     }
 
-# The dev server restarts itself when it grows past DEV_SERVER_MEMORY_LIMIT_MB.
-# Started from an agent session, it stops when that session ends, or after
-# DEV_SERVER_IDLE_MINUTES without a request. Setting either to 0 turns that
-# check off. See gyrinx/devserver/guard.py.
+# Restart after the memory limit; agent-owned servers also stop on owner exit
+# or idle timeout. Zero disables the corresponding numeric limit.
 DEV_SERVER_GUARD = "runserver" in sys.argv and not _UNDER_PYTEST
 DEV_SERVER_MEMORY_LIMIT_MB = int(os.getenv("GYRINX_DEV_MEMORY_LIMIT_MB", "2048"))
 DEV_SERVER_IDLE_MINUTES = int(os.getenv("GYRINX_DEV_IDLE_MINUTES", "120"))
@@ -152,10 +119,8 @@ DEV_SERVER_IDLE_MINUTES = int(os.getenv("GYRINX_DEV_IDLE_MINUTES", "120"))
 # Disable secure cookies for local development
 CSRF_COOKIE_SECURE = False
 
-# The admin's 2FA gate follows DEBUG when ADMIN_REQUIRE_MFA is unset, which
-# leaves it off for the dev server. pytest-django forces DEBUG = False, though,
-# so without this the whole suite would run with the gate on. Tests that cover it
-# use override_settings.
+# Disable the admin MFA gate by default under pytest, which forces DEBUG=False.
+# Tests of the gate override this setting explicitly.
 if _UNDER_PYTEST and os.getenv("ADMIN_REQUIRE_MFA") is None:
     ADMIN_REQUIRE_MFA = False
 
@@ -169,12 +134,8 @@ CSRF_TRUSTED_ORIGINS = [
     f"http://127.0.0.1:{_dev_port}",
 ]
 
-# Per-worktree cookie isolation. Cookies are scoped by domain, not port, so every
-# worktree at localhost:<port> shares one cookie jar. With the default cookie names
-# (sessionid / csrftoken) each worktree's login overwrites the others' — and because
-# each worktree has its own database, the overwritten cookie resolves to a session
-# row that doesn't exist there, logging you out. Suffixing with the port gives each
-# worktree independent cookies so you can stay logged into all of them at once.
+# Cookies share a domain across localhost ports. Include the worktree port
+# in cookie names so separate databases retain independent login sessions.
 SESSION_COOKIE_NAME = f"gyrinx_sessionid_{_dev_port}"
 CSRF_COOKIE_NAME = f"gyrinx_csrftoken_{_dev_port}"
 
@@ -222,11 +183,10 @@ class SlowQueryFilter(logging.Filter):
 
 # --- Custom handler: write slow queries + EXPLAIN plan to file ---
 class ExplainFileHandler(RotatingFileHandler):
-    """
-    Writes slow SQL records and appends an EXPLAIN plan.
-    - Only runs for SELECT statements (to avoid accidental mutations).
-    - Uses the configured DB alias (default 'default').
-    - By default uses plain EXPLAIN; set SQL_EXPLAIN_ANALYZE=True to include ANALYZE (executes the query!).
+    """Append EXPLAIN output for logged statements starting with SELECT.
+
+    Use SQL_EXPLAIN_DB_ALIAS to select the connection. SQL_EXPLAIN_ANALYZE=True
+    executes the statement while collecting the plan.
     """
 
     def emit(self, record):
@@ -241,13 +201,11 @@ class ExplainFileHandler(RotatingFileHandler):
             elif isinstance(sql, str) and sql.strip().upper().startswith("SELECT"):
                 alias = os.getenv("SQL_EXPLAIN_DB_ALIAS", "default")
                 analyze = os.getenv("SQL_EXPLAIN_ANALYZE", "False") == "True"
-                # USE ANALYZE WITH CARE: it will execute the SELECT.
+                # EXPLAIN ANALYZE executes the SELECT.
                 prefix = "EXPLAIN ANALYZE " if analyze else "EXPLAIN "
                 try:
                     with connections[alias].cursor() as cur:
-                        # Django's logging already substitutes params into the SQL string
-                        # The SQL we receive has literal values, not %s placeholders
-                        # So we can directly execute EXPLAIN + sql
+                        # The logged SQL already contains substituted parameters.
                         cur.execute(prefix + sql)
                         rows = cur.fetchall()
                         # Postgres returns one text column per line; MySQL returns tabular rows
@@ -305,8 +263,7 @@ LOGGING = {
             "level": "DEBUG" if os.getenv("SQL_DEBUG") == "True" else "INFO",
             "propagate": False,  # don't bubble into root
         },
-        # Mirrors the base config: one entry per first-party package root, or
-        # the edition's DEBUG output never reaches the console (see settings.py).
+        # Configure every first-party package root so edition debug logs reach the console.
         **{
             _root: {
                 "handlers": ["console"],
@@ -323,13 +280,11 @@ LOGGING = {
 USE_GCS_IN_DEV = os.getenv("USE_GCS_IN_DEV", "False") == "True"
 
 if USE_GCS_IN_DEV:
-    # Use production GCS bucket for testing
+    # Use the configured GCS bucket when testing storage integration.
     from .storage_settings import configure_gcs_storage
 
-    # Apply GCS configuration (identical to production)
     gcs_config = configure_gcs_storage(STORAGES)
 
-    # Extract settings to module namespace
     DEFAULT_FILE_STORAGE = gcs_config["DEFAULT_FILE_STORAGE"]
     GS_BUCKET_NAME = gcs_config["GS_BUCKET_NAME"]
     GS_PROJECT_ID = gcs_config["GS_PROJECT_ID"]

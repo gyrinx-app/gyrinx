@@ -1,5 +1,9 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation react %}
+{% comment %}
+Allow the gang owner or campaign arbitrator to adjust credits. The view supplies return
+targets for both entry points.
+{% endcomment %}
 {% block head_title %}Manage credits — {{ gang.name }}{% endblock head_title %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}

@@ -1,19 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-What an act just brought, and the choices it asks for.
-
-Shown straight after founding a gang, hiring a model or making a pick, when
-something that arrived carries a screen an author attached to it. The whole
-state is in the address — every question asked, and where Continue leads — so
-the page survives a reload, can be linked to, and works with scripting off.
-The act's own confirmation draws at the top, where the layout puts messages.
-
-The whole screen is one form. Continue submits it and writes every choice the
-reader made together; a question left blank stays open. Continue is withheld
-until every compulsory question is settled — it holds every pick it asks for,
-asks for none, or has nothing to offer. Where no question is compulsory, Skip
-sits beside Continue and goes on without writing anything.
+Display URL-selected follow-up choices after an operation. The shared arrival_blocks
+include handles submission, compulsory choices and optional skipping.
 {% endcomment %}
 {% block head_title %}Choices for {{ gang.name }}{% endblock head_title %}
 {% block nav_switcher %}

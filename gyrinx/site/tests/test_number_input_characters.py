@@ -1,10 +1,4 @@
-"""A number field must not take "e", "E" or "+".
-
-The browser lets a number input take scientific notation. The guard
-listens on the document, so a shell that forgets the script leaves every
-number field on that shell taking them. Authoring extends the n26 app
-shell and inherits it from there.
-"""
+"""Load the number-input character guard in every page shell."""
 
 from pathlib import Path
 

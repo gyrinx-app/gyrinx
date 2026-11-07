@@ -17,14 +17,9 @@ PATREON_STATUS_MAP = {
 
 
 def _extract_tier_title(payload):
-    """Extract the badge-eligible tier title from the webhook payload.
+    """Resolve entitled tier IDs to the highest-ranked badge-eligible title.
 
-    Joins ``currently_entitled_tiers`` IDs to the ``included`` tier objects and
-    returns the highest-ranked tier title. The free $0 tier (and any unrecognised
-    title) ranks 0, so a member entitled only to the free tier yields ``""`` —
-    Patreon sends the free tier even to former patrons, so it must never be
-    treated as a supporter badge. When a member is entitled to several tiers the
-    highest-ranked one wins (deterministic).
+    Free and unrecognised titles have rank zero and produce no badge title.
     """
     tiers_data = (
         payload.get("data", {})
@@ -61,12 +56,10 @@ def _extract_tier_title(payload):
 
 
 def _find_user_by_email(email):
-    """Match an email to a Django user via a verified allauth EmailAddress.
+    """Find the account through a verified allauth email address.
 
-    Only a verified ``EmailAddress`` counts: a match means the user has proven
-    ownership of that address. We deliberately do not fall back to the raw
-    ``User.email`` column, which can be set without verification and would let a
-    Patreon-supplied email attach supporter status to an unproven account.
+    Do not fall back to User.email because an unverified address must not
+    receive supporter status.
     """
     email_obj = EmailAddress.objects.filter(email__iexact=email, verified=True).first()
     if email_obj:
@@ -101,11 +94,7 @@ def process_patreon_webhook(payload, event):
     else:
         status = PATREON_STATUS_MAP.get(patreon_status_raw, "")
 
-    # Only active supporters hold a tier. A member can transition to
-    # former/declined via a plain ``members:update`` (not a delete event) while
-    # still carrying an entitled tier in the payload, so clear the stored tier
-    # whenever the resolved status isn't active. This keeps the stored data
-    # honest; badge rendering also gates on active status as a backstop.
+    # Clear stale tier data on any inactive status, including ordinary membership updates.
     if status != PatreonStatus.ACTIVE:
         tier_title = ""
 

@@ -1,17 +1,9 @@
-"""
-WSGI config for gyrinx project.
-
-It exposes the WSGI callable as a module-level variable named ``application``.
-
-For more information on this file, see
-https://docs.djangoproject.com/en/5.1/howto/deployment/wsgi/
-"""
+"""Django WSGI application with a database-free readiness endpoint."""
 
 import os
 import warnings
 
-# Filter deprecation warning from Google namespace packages using pkg_resources.
-# This is a third-party issue that we can't fix directly.
+# Suppress the Google namespace package's pkg_resources deprecation warning.
 warnings.filterwarnings(
     "ignore",
     message="pkg_resources is deprecated as an API",
@@ -22,8 +14,7 @@ from django.core.wsgi import get_wsgi_application  # noqa: E402
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "gyrinx.settings")
 
-# Initialize OpenTelemetry tracing before Django loads
-# This ensures trace context propagation is configured for all requests
+# Initialise trace propagation before loading Django.
 import gyrinx.tracing  # noqa: F401, E402
 
 # The readiness path Cloud Run's startup probe hits. Keep it in sync with the
@@ -47,23 +38,11 @@ def _healthz(start_response):
 
 
 def make_application(django_application):
-    """
-    Wrap the Django WSGI app with the readiness endpoint.
+    """Wrap Django with a readiness endpoint outside its routing and middleware.
 
-    The probe is answered *before* Django's routing and middleware, for two
-    reasons. It cannot 400 on ALLOWED_HOSTS — Cloud Run probes the container by
-    its instance IP, which is not a name we can list — and it does no database
-    work, so a probe can never be held up behind a slow query or a saturated
-    connection pool.
-
-    Readiness is carried by the fact that this callable exists at all. Gunicorn
-    imports this module in each worker, and that import is what runs
-    `get_wsgi_application()` (app registry, model loading, checks). So nothing
-    answers on this path until a worker has fully booted and can serve real
-    requests too — which is exactly the signal the startup probe needs. The old
-    TCP probe went green when the gunicorn *master* bound the socket, ~47s
-    before any worker could respond, and Cloud Run routed live traffic into the
-    gap.
+    The probe skips host validation and database work. Module initialisation
+    finishes get_wsgi_application before exposing the wrapper, so the probe
+    can respond only after a worker finishes Django startup.
     """
 
     def app(environ, start_response):

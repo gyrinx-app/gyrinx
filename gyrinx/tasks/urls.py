@@ -1,9 +1,4 @@
-"""
-URL configuration for tasks app.
-
-The single endpoint receives all Pub/Sub push messages. Routing to specific
-task handlers is done by the view based on the task_name in the payload.
-"""
+"""Routes for Pub/Sub push delivery and public task-group progress."""
 
 from django.urls import path
 

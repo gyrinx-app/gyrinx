@@ -1,30 +1,9 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Making one choice.
-
-One page for every kind of choice. The view has already flattened whatever the
-offer lists into groups of options (n26.render.ChoiceOffer), so nothing
-here knows whether it is drawing skills, pickables or affiliations — a page that
-did would be three pages wearing one filename.
-
-Radios in a form, no script: one of many is the browser's rule, the click posts,
-and the server writes what was chosen. A reader who leaves without clicking Save has
-changed nothing, which is the whole point of an open slot — so the footer offers
-the leaving, to the same place a save lands on. A page reached by clicking an
-open slot needs a way back to the sheet that is not the browser's chrome.
-
-A choice that holds several picks is not one of many, so it is not radios: each
-option carries its own act, a click settles or unsettles that one, and the page
-comes back. There is nothing to save at the end, so there is no Save — the view
-says which shape this is.
-
-A choice whose list is a roll table can be rolled for here. The Roll control
-posts, the server rolls and writes the roll to the gang's history, and the page
-comes back at ?roll=<event> showing where it landed, with those rows lifted to
-the top. Every pick posted from that page carries the roll, so the record says
-what was rolled beside what was picked. The URL holds the roll, so the result
-survives a reload and can be linked to; nothing is rolled by drawing.
+Render a ChoiceOffer as single-choice radios or per-option actions for multiple picks.
+Roll results are recorded by POST and selected through the roll URL parameter; rendering
+this page never rolls.
 {% endcomment %}
 {% block head_title %}{{ offer.label }} — {{ gang.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -41,21 +20,11 @@ survives a reload and can be linked to; nothing is rolled by drawing.
                      submit_label="{{ submit_label }}"
                      cancel_url="{{ back }}">
         {% comment %}
-        A fighter's question gets the gang's other fighters beside it, the
-        same control the equip and skills screens carry: choosing for one
-        and then moving to the next is how a roster is worked through.
-
-        Only when a fighter was asked. The gang's own questions — an
-        affiliation, a territory — belong to nobody in particular, and a
-        list of fighters beside one of those would offer a switch to
-        somewhere the question does not exist.
-
-        Every row lands on that fighter's equip screen. A slot's address
-        names one card's carrier and one offer, so there is no such page for
-        anybody else; the kit screen is the fighter page they all have.
+        For a model-specific choice, switch to other models' Equip pages. Choice URLs
+        identify one model and offer, so they cannot be reused for another model.
         {% endcomment %}
         {% if returning %}
-            {# The screen this page was opened from, carried through the post so the reader lands back on it. #}
+            {# Preserve the validated return target across submission. #}
             <input type="hidden" name="return" value="{{ returning }}">
         {% endif %}
         {% if miniature %}
@@ -80,9 +49,8 @@ survives a reload and can be linked to; nothing is rolled by drawing.
         {% csrf_token %}
         {% if roll %}
             {% comment %}
-            The roll the page was opened on. Its key rides every pick posted
-            from here, so the pick names its roll — until the roll is spent,
-            when no pick may name it again and the input is left out.
+            Include the roll ID with picks until the roll is spent, so history records
+            their source.
             {% endcomment %}
             {% if not roll.is_spent %}<input type="hidden" name="roll" value="{{ roll.key }}">{% endif %}
             <c-n26.roll-result :roll="roll" />
@@ -95,24 +63,18 @@ survives a reload and can be linked to; nothing is rolled by drawing.
         {% endif %}
         {% if roll or roll_table %}
             {% comment %}
-            The divider is the hint: what follows is the whole table, and
-            adding from it by hand is the alternative to rolling, not a step
-            after it.
+            Separate manual selection from the roll action.
             {% endcomment %}
             <c-n26.divider label="or add a result by hand" class="py-6" />
         {% endif %}
         {% comment %}
-        Nothing to pick from is a thing to say, not a page to hide. It happens
-        when the offer narrows to a tier the fighter has nothing placed in yet —
-        an Outcast's Primary skills before the Leader has chosen a legacy —
-        and the fix is elsewhere on the sheet, so the page says so and leaves.
+        An empty tier can require a content choice elsewhere, such as the Leader's
+        legacy. Keep the page accessible and explain why nothing is available.
         {% endcomment %}
         {% if offer.takes_several %}
             {% comment %}
-            No empty wording of its own. A choice that holds several draws from a
-            list somebody wrote out, so an empty one is an empty list — not the
-            tier a fighter has nothing placed in yet, which is what the sentence
-            below is about.
+            Multiple-choice offers use an explicit list, so their empty state differs
+            from an unassigned skill tier.
             {% endcomment %}
             <c-n26.choice-picks :offer="offer" />
         {% else %}

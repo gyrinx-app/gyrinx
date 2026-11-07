@@ -61,10 +61,8 @@
         <pre class="mt-error">{{ backfill.error }}</pre>
     {% endif %}
     {% comment %}
-    Always show what the run recorded — including the partial detail a failed
-    run captured before it stopped. How a summary reads is the operation's own
-    business, so the operation supplies that fragment; operations registering
-    none (and records whose operation is no longer registered) get a plain dump.
+    Display recorded summaries even when a run fails partway through.
+    Use the registered operation's fragment, falling back to raw summary fields.
     {% endcomment %}
     {% if detail_template %}
         {% include detail_template %}

@@ -2,10 +2,8 @@
 
 import hashlib
 
-# The five largest modules on shard one move together to shard zero. Whole-file
-# placement preserves module fixtures. Calibrated against main runs on 2026-10-24:
-# https://github.com/gyrinx-app/gyrinx/actions/runs/40081834137
-# The other two samples were 40081697973 and 40081308747.
+# Balance these measured heavy modules explicitly when using two shards.
+# Keep whole modules together so their fixtures remain shared.
 _TWO_SHARD_MOVES = frozenset(
     {
         "n23/core/tests/test_crew.py",

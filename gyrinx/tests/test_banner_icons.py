@@ -1,13 +1,7 @@
-"""The site banner's icon keys, and the way out of the old free-text field.
+"""Banner icon keys, edition mappings and legacy migration coverage.
 
-Banner.icon used to hold a Bootstrap Icons class typed into a text box. That
-worked while Bootstrap was the only thing reading it and broke the moment a
-second edition rendered the same row — n26's icon registry raises on a name it
-does not have, so a banner set to bi-blockquote-left 500'd every page of that
-edition. The column now holds a meaning, and each edition draws it.
-
-The n26 half of the table is checked in n26/tests/test_platform_integration.py,
-which may import an edition package; this module may not.
+N26 rendering is tested in n26/tests/test_platform_integration.py because
+platform tests must not import edition code.
 """
 
 from importlib import import_module
@@ -26,8 +20,7 @@ class TestTheTable:
         assert len(keys) == len(set(keys))
 
     def test_every_key_names_a_bootstrap_class(self):
-        """The platform's own templates interpolate this straight into a
-        class attribute, so it has to look like one."""
+        """Platform templates place this value directly in a class attribute."""
         wrong = [
             entry.key
             for entry in banner_icons.BANNER_ICONS
@@ -41,14 +34,12 @@ class TestTheTable:
         ]
 
     def test_there_is_no_blank_choice(self):
-        """The field is blank=True, so Django supplies the empty option
-        itself; a second one would show two ways to say no icon."""
+        """Django adds the empty option for blank=True fields."""
         assert "" not in dict(banner_icons.CHOICES)
 
     @pytest.mark.parametrize("key", ["nonsense", "", None, "bi-info-circle"])
     def test_the_lookups_are_total(self, key):
-        """Including a leftover Bootstrap class, which is exactly what a
-        row written before this change holds."""
+        """Unknown keys and legacy Bootstrap classes resolve to no icon."""
         assert banner_icons.bootstrap_class(key) == ""
         assert banner_icons.n26_name(key) == ""
 
@@ -66,27 +57,22 @@ class TestTheModel:
         assert banner.bootstrap_icon == "bi-gear"
 
     def test_a_banner_with_no_icon_has_no_class(self):
-        """The platform template guards on this, so "" has to mean "draw
-        nothing" rather than "draw an empty <i>"."""
+        """A blank icon must suppress the template's icon element."""
         banner = Banner.objects.create(text="Quietly.", icon="")
         assert banner.bootstrap_icon == ""
 
     def test_the_admin_gets_a_select_box(self):
-        """The whole point of the change: choices on the field is what
-        makes the default widget a select rather than a text input."""
+        """Field choices provide the admin select widget."""
         field = Banner._meta.get_field("icon")
         assert field.choices
         assert field.formfield().widget.__class__.__name__ == "Select"
 
 
 class TestTheLegacyMigration:
-    """The data migration's maps, tested directly. Tests run
-    --nomigrations, so the migration itself never executes here."""
+    """Test migration maps directly because the suite runs with --nomigrations."""
 
     def test_the_value_prod_was_running_becomes_news(self):
-        """bi-blockquote-left: a "we have news" banner wearing a
-        quotation mark, because the free-text field offered nothing
-        better. This is the row that took n26 down."""
+        """Map the legacy quotation icon to the news key."""
         assert MIGRATION.LEGACY_KEYS["bi-blockquote-left"] == "news"
 
     def test_every_legacy_value_maps_to_a_real_key(self):
@@ -99,8 +85,7 @@ class TestTheLegacyMigration:
         assert not unknown
 
     def test_the_reverse_map_covers_every_key(self):
-        """Otherwise reversing the migration silently blanks whichever
-        key it forgot."""
+        """Every current key needs a reverse mapping to avoid silently clearing it."""
         keys = {entry.key for entry in banner_icons.BANNER_ICONS}
         assert set(MIGRATION.BOOTSTRAP_BY_KEY) == keys
 
@@ -109,8 +94,7 @@ class TestTheLegacyMigration:
             assert MIGRATION.BOOTSTRAP_BY_KEY[entry.key] == entry.bootstrap
 
     def test_going_back_and_forward_returns_the_same_key(self):
-        """Not every old class survives the round trip — several
-        collapsed onto one key — but every *key* must."""
+        """Preserve semantic keys across reversal and reapplication, even when legacy classes merge."""
         for entry in banner_icons.BANNER_ICONS:
             back = MIGRATION.BOOTSTRAP_BY_KEY[entry.key]
             assert MIGRATION.LEGACY_KEYS[back] == entry.key

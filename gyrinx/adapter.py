@@ -12,24 +12,15 @@ logger = logging.getLogger(__name__)
 
 class CustomAccountAdapter(DefaultAccountAdapter):
     def is_open_for_signup(self, request):
-        """
-        Whether to allow sign ups.
-        """
+        """Use ACCOUNT_ALLOW_SIGNUPS when configured, otherwise retain allauth's decision."""
         allow_signups = super().is_open_for_signup(request)
-        # Override with setting, otherwise default to super.
         return getattr(settings, "ACCOUNT_ALLOW_SIGNUPS", allow_signups)
 
     def get_reauthentication_methods(self, user):
-        """Drop "use your password" when the destination is the Django admin.
+        """Prefer second-factor methods when an admin-bound session requires another challenge.
 
-        allauth's reauthentication normally accepts a password as proof of
-        identity, which is the right trade-off for ordinary account changes. It
-        is the wrong one here: the admin asks for reauthentication precisely
-        because the session has not passed a second-factor challenge, so a
-        password gets the user nowhere — allauth would record the wrong method
-        and the admin would bounce them straight back to this page.
-
-        See gyrinx/admin_site.py for the gate itself.
+        A password alone cannot satisfy the admin gate in gyrinx/admin_site.py.
+        Retain the original methods if filtering would leave none available.
         """
         from allauth.core import context
 
@@ -44,22 +35,17 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         if not admin_second_factor_required(user):
             return methods
 
-        # Never return an empty list: that would deny reauthentication outright
-        # rather than steer it.
+        # Keep available methods when filtering would otherwise block all reauthentication.
         return [m for m in methods if m.get("id") != "reauthenticate"] or methods
 
     def send_mail(self, template_prefix, email, context):
-        """
-        Override send_mail to add custom headers from EMAIL_EXTRA_HEADERS setting.
-        """
+        """Send allauth mail with headers from EMAIL_EXTRA_HEADERS and required template context."""
 
-        # Parse extra headers from settings
         headers = {}
         try:
             extra_headers_str = getattr(settings, "EMAIL_EXTRA_HEADERS", "{}")
             extra_headers = json.loads(extra_headers_str)
 
-            # Add extra headers
             for key, value in extra_headers.items():
                 headers[key] = value
 
@@ -81,12 +67,7 @@ class CustomAccountAdapter(DefaultAccountAdapter):
 
 class CustomMFAAdapter(DefaultMFAAdapter):
     def build_totp_svg(self, url: str) -> str:
-        """Draw the authenticator QR on a white plate.
-
-        The stock image is a transparent SVG with black modules. On a dark page
-        those modules sit on the page colour, and a dark color-scheme paints the
-        SVG canvas black, so the code cannot be scanned.
-        """
+        """Render the authenticator QR with a white background so dark pages preserve contrast."""
         import qrcode
         from qrcode.image.svg import SvgPathFillImage
 
