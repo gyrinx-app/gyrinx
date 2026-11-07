@@ -8,14 +8,8 @@
 {% endblock nav_items %}
 {% block content %}
     {% comment %}
-    Two pages in one, told apart by whether a carrier was named in the
-    address. Composing for a carrier says so in the heading and leads
-    back to it; composing for nothing is the standalone page, reached
-    from the modifiers listing.
-
-    One template rather than two, because the thing being filled in is
-    the same form either way and the only differences are the words
-    around it. Two would be two places to change the composer's chrome.
+Use the same composer for standalone and carrier-specific creation.
+The optional carrier determines the heading, attachment and return destination.
     {% endcomment %}
     {% if carrier %}
         <c-n26.page-header title="New modifier for {{ carrier }}"
@@ -43,11 +37,6 @@
                 </c-ui.breadcrumbs>
             </c-slot>
         </c-n26.page-header>
-        {% comment %}
-        Composed here with nothing named, a modifier attaches to nothing —
-        so the page says where it goes, rather than leaving an author to
-        wonder why the thing they just made changed nothing.
-        {% endcomment %}
         <c-n26.prose class="mt-3 max-w-2xl">
             <p>
                 What this makes is reusable: it does nothing until you attach it
@@ -57,11 +46,6 @@
             </p>
         </c-n26.prose>
     {% endif %}
-    {% comment %}
-    Where the way out leads is the view's to say: back to the carrier that
-    sent you, or to the listing when nothing did — which is also where a
-    successful create lands in each case.
-    {% endcomment %}
     <div class="mt-6">
         {% include "authoring/_composer.html" with composer_carrier_kind=carrier_kind composer_carrier_pk=carrier.pk composer_title="" composer_description="" composer_class="" %}
     </div>

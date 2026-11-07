@@ -1,12 +1,5 @@
 {% extends "authoring/base.html" %}
-{% comment %}
-One more thing inside an option, at an address of its own. An option
-that hands over two items — "a claw and a baton" — is one option
-bringing both, and this is where the second item joins it. A page
-rather than a control in the option's row because the picker is a
-whole form: a kind, the row of that kind, and whatever attaching it
-asks for.
-{% endcomment %}
+{# Add content to this option's default set, preserving it as one acquisition choice. #}
 {% block head_title %}Add to {{ label }}{% endblock head_title %}
 {% block content %}
     <c-n26.form-page action="{% url 'authoring-option-add' thing.pk %}"
@@ -41,11 +34,7 @@ asks for.
             </c-ui.description>
         {% endif %}
         {% include "authoring/_form.html" with form=form %}
-        {% comment %}
-        A weapon profile is not in the picker above — a line means
-        nothing apart from its gun — so the way to add one is a page
-        that asks for the weapon first.
-        {% endcomment %}
+        {# Weapon profiles require the separate attachment page to select their gun. #}
         <div>
             <c-n26.link href="{{ profiles_url }}" class="text-sm">
                 Add a weapon profile…
