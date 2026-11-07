@@ -1,22 +1,10 @@
-"""The gang scope may name a pick: "gangs that have picked Goliath".
+"""Gang scopes can match stored or computed gang picks.
 
-The Gang supertype (design/house-and-territory-tables.md): every Clan
-House gang type builds a hidden slot in with its House already picked,
-and an Outcast gang's Clan House pick gives the same slot with the House
-picked. A journal's "Goliath Controlled" territory boon is then a
-modifier that targets the gang alone, narrowed by ``GangHasPickable`` —
-the gang-scope twin of ``HasPickable`` — and reaches a Goliath gang and
-a Clan House Goliath Outcast gang alike, whether the pick was written at
-founding or dealt by a grant.
-
-What this file holds still: founding a Clan House gang writes the slot
-and the pick with no open choice, no line and no rating; the gang
-condition and the model condition read the same fact; taking the pick
-back makes both false; a gang of another House, and a Clanless Outcast,
-never match; ``negate`` inverts; a condition-less gang scope is exactly
-what it was; a held asset's conditional Income reaches the holder the
-condition names and prints as a boon with its scope wording; and the
-authoring pages say the condition in the same words the plan does.
+Clan House founding assigns a hidden supertype choice with a default House.
+An Outcast Clan House pick can grant the same choice with that House selected.
+Gang and model selectors must recognise either source. Conditional asset
+income follows the holder's matching pick; authoring and plans describe the
+same condition. See design/house-and-territory-tables.md.
 """
 
 import re
@@ -119,7 +107,7 @@ def supertype_slot(supertype, supertypes):
 
 @pytest.fixture
 def goliath_type(default_pack, supertype_slot, goliath):
-    """A Clan House gang type: the slot built in, already settled."""
+    """Build in the hidden supertype slot with Goliath selected."""
     made = create_gang_type("Goliath")
     add_built_in(made, supertype_slot, default_pickable=goliath)
     return made
@@ -134,14 +122,13 @@ def escher_type(default_pack, supertype_slot, houses):
 
 @pytest.fixture
 def outcast_type(default_pack):
-    """Builds no supertype in: the Clan House pick gives the slot."""
+    """Create an Outcast type without a built-in supertype choice."""
     return create_gang_type("Outcasts")
 
 
 @pytest.fixture
 def clan_house(default_pack, supertype_slot, goliath):
-    """The Outcast choice: its own slot type, its own pickables. Picking
-    Goliath gives the gang's supertype slot with Goliath already picked."""
+    """Create an Outcast Clan House choice whose Goliath pick grants the selected supertype slot."""
     slot_type = create_slot_type("Clan House")
     clan_goliath = create_pickable("Clan House: Goliath", slot_type)
     modifier(
@@ -174,9 +161,7 @@ def make_ganger(person_type):
 
 @pytest.fixture
 def journal_boons(default_pack, goliath):
-    """A journal's two "Goliath Controlled" shapes on one hidden carrier a
-    gang is given: a rule for the gang alone, conditioned on the gang,
-    and a rule for every fighter, conditioned on the model."""
+    """Grant separate gang and model rules conditioned on the same Goliath pick."""
     return create_hidden(
         "Goliath Controlled",
         effects=[
@@ -217,7 +202,7 @@ def fighter_rules(miniature):
 
 
 def outcomes(gang, effect_word):
-    """What the gang's plan did with the steps whose effect says this."""
+    """Return plan outcomes for effects containing the supplied text."""
     return [
         step.outcome
         for step in gang_computed(gang).plan
@@ -235,8 +220,7 @@ def pick_clan_house(boss, clan_house):
 
 
 class TestFoundingAClanHouseGang:
-    """The slot arrives settled: the gang has picked its House before
-    anyone is asked anything, and both conditions read the pick."""
+    """Founding stores the default House pick without exposing an open choice."""
 
     @pytest.fixture
     def gang(self, owner, goliath_type):
@@ -292,9 +276,7 @@ class TestFoundingAClanHouseGang:
 
 
 class TestAClanHouseOutcastGang:
-    """Nothing built in: the Clan House pick gives the supertype slot
-    with Goliath picked, and from then on both conditions read the
-    gang as a Goliath gang — until the pick is taken back."""
+    """Selecting a Clan House grants the default supertype pick used by both selectors."""
 
     @pytest.fixture
     def gang(self, owner, outcast_type):
@@ -407,8 +389,7 @@ class TestWhoIsNotAGoliathGang:
         assert isinstance(scope.as_selector(), select.Anything)
         assert select.specificity(scope.as_selector()) == 0
         assert gang_rules(escher) == ["For all"]
-        # Silent everywhere, not only in the selector: the words must not
-        # claim a narrowing the reach does not have.
+        # Empty conditions must not add conditional wording to the scope.
         assert str(scope) == "the gang alone"
         assert not scope.is_conditional
         (row,) = anyone.modifiers.all()
@@ -419,12 +400,7 @@ class TestWhoIsNotAGoliathGang:
 
 
 class TestAConditionalTerritoryBoon:
-    """A journal territory's "Goliath Controlled: +10 Income" is a
-    contribution on the asset, scoped to the gang alone and narrowed to
-    gangs that have picked Goliath. It reaches the holder's Income only
-    while a Goliath gang holds it, moves with the asset, and prints on
-    the campaign page as a boon in its scope's words — apart from the
-    plain figure every holder gets."""
+    """Apply conditional asset income only to matching holders while keeping base income separate."""
 
     @pytest.fixture
     def core(self, default_pack):
@@ -509,8 +485,7 @@ class TestAConditionLessGangScopeIsUnchanged:
     def test_the_sheet_reads_flat_however_many_members(
         self, owner, goliath_type, make_ganger, journal_boons
     ):
-        """The condition rows ride the modifier index's prefetch, so a
-        conditioned gang scope costs nothing per member."""
+        """Prefetch scope conditions so adding gang members does not increase query counts."""
         gang = found_gang("Irontooth", goliath_type, owner=owner, budget=1000)
         ganger = make_ganger(goliath_type)
         assign(journal_boons, gang=gang)
@@ -541,7 +516,7 @@ class TestWhatTheAuthoringPagesSay:
         assert str(targets_gang(has_gang_pickable(goliath, houses["Escher"]))) == (
             "Escher or Goliath gangs"
         )
-        # Nobody picks a supertype, so the words never say so.
+        # Describe the matching House without exposing the hidden supertype choice.
         assert "picked" not in str(targets_gang(has_gang_pickable(goliath)))
 
     def test_the_sentence_leads_with_the_condition(self, goliath, default_pack):
@@ -595,7 +570,6 @@ class TestWhatTheAuthoringPagesSay:
         assert [str(p) for p in made.scope.has_gang_pickable.get().pickables.all()] == [
             "Goliath"
         ]
-        # Opened again, the page finds the condition it already carries.
         body = client.get(response["Location"]).content.decode()
         assert 'name="conditions-0-kind"' in body
         # The option is written across several lines.
@@ -619,8 +593,7 @@ class TestAConditionBelongsToItsScope:
             targets_gang(has_pickable(goliath))
 
     def test_a_refusal_writes_no_scope(self, goliath):
-        """The conditions are judged before the scope row exists, so a
-        refused call outside a transaction leaves nothing behind."""
+        """Validate condition compatibility before creating a scope row, including outside a transaction."""
         from n26.library.models import TargetsGang, TargetsMiniature
 
         with pytest.raises(ValueError):
