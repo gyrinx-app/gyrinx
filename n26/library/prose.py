@@ -1018,9 +1018,9 @@ def _sweeps_catching(thing):
 
 
 def _sets_holding(references):
-    """Find live default memberships by content identity.
+    """Return default sets containing referenced content through unarchived members.
 
-    Archived members do not materialise and must not appear as current built-ins.
+    Deduplicate sets by ID.
     """
     from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
 
