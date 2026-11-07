@@ -1,10 +1,6 @@
-"""The fullest gang the stack can currently express, rendered end to end.
-
-A living demo more than a test: two fighters with real statlines, weapons
-with their own statlines and traits, subtypes, skills, wargear, XP — the
-gang sheet and the ledger printed side by side. Run it to look at it:
-
-    uv run pytest tests/sandbox/test_full_gang_demo.py -s
+"""Render a gang and ledger with two fighters, characteristic profiles, weapon traits,
+equipment and computed modifiers. Inspect the printed output with .codex/run.sh pytest
+n26/tests/sandbox/test_full_gang_demo.py -n 0 -s.
 """
 
 import pytest
@@ -52,8 +48,7 @@ def library(default_pack, gang_type):
             is_first_of_group=first,
             is_highlighted=highlighted,
         )
-    # Stat definitions are shared across statline types by design — the
-    # weapon shape reuses the fighter's Strength rather than redefining it.
+    # Reuse characteristic definitions shared by fighter and weapon statlines.
     weapon_shape = StatlineType.objects.create(name="Weapon")
     for position, (short, full, flags) in enumerate(WEAPON_STATS):
         stat = stats.get(full) or create_stat(short, full, **flags)
@@ -151,8 +146,6 @@ def library(default_pack, gang_type):
         lethality=1,
     )
 
-    # Modifiers: a mount granting a subtype that itself grants a skill; an
-    # injury worsening a characteristic; a skill arming Melee weapons.
     mounted = create_subtype("Mounted")
     modifier(
         "Mounted grants Hit & Run",
@@ -204,9 +197,10 @@ def test_the_full_gang_renders(library, gang_type):
     shotgun = give_weapon(adina, library["shotgun"], paid=35)
     buy_weapon_profile(shotgun, library["shotgun"].profiles.get(price=30))
     assign(library["mesh"], miniature=adina, paid=15)
-    assign(library["eye_injury"], miniature=adina)  # worsens BS, computed
+    assign(library["eye_injury"], miniature=adina)
     adina.xp, adina.xp_target = 7, 9
-    adina.save(update_fields=["xp", "xp_target"])  # not rating — ops own that pin
+    adina.save(update_fields=["xp", "xp_target"])  # Update XP directly while leaving
+    # rating to domain operations.
 
     yolanda = hire(gang, library["sister"], "Yolanda", paid=55)
     assign(library["ganger"], miniature=yolanda)
@@ -225,8 +219,8 @@ def test_the_full_gang_renders(library, gang_type):
     assert gang.rating == 125 + 35 + 30 + 15 + 55 + 20 + 75
     assert gang.credits == 1000 - 355
 
-    # Computed, not stored: Mounted, Hit & Run and Backstab appear on cards
-    # but never as assignments.
+    # These traits and skills are computed from modifiers rather than stored as
+    # assignments.
     assert "Mounted" in sheet
     assert "Hit & Run" in sheet
     assert "Backstab†" in sheet
