@@ -70,26 +70,12 @@ DRAWS_NO_LINE = (Hidden, Slot, Pickable, AssetTable, Action, RankTable)
 
 
 def _speaks_for_itself(node, asked_here):
-    """A pick whose question this card never asks, which must draw its
-    own line rather than appear nowhere at all.
+    """Whether a pick needs its own line because its choice originates elsewhere.
 
-    A pick is normally drawn as its choice's answer, so it draws no line
-    of its own — but that assumes the question is asked *here*. It need
-    not be: a question asked of one holder may be answered onto another
-    (the Leader is asked the gang's legacy, and the gang holds it),
-    and then the card holding the answer has no choice row to hang it
-    under.
-
-    The test is the question's own line, not whether a choice row was
-    drawn: a hidden choice asks nothing and still speaks for its answer,
-    which is the whole of what hidden means. So a pick is left to the
-    ordinary rule wherever the assignment it answers stands on this
-    card, drawn or silent, and draws its own line only where that
-    assignment is somewhere else entirely.
-
-    A pick with no choice behind it at all is a third case and keeps
-    drawing nothing: nobody was offered it, so it says nothing about its
-    holder (``effects.is_orphan_pick``).
+    Picks normally appear in their source choice's line. A pick held on
+    a different card needs an independent line. Test source presence rather
+    than visible choice rows: hidden choices still account for their picks.
+    Orphan picks have no valid source and remain hidden.
     """
     return isinstance(node.assignable, Pickable) and (
         (node.chosen_for_key is not None and node.chosen_for_key not in asked_here)
@@ -866,14 +852,10 @@ class RollResult:
 
 
 def lift_landing(offer, landed, threshold=False):
-    """The same offer with the rows a roll landed on lifted to the top.
+    """Move rolled option keys to a leading group, retaining every other result.
 
-    ``landed`` is the set of option keys the roll reached. Those rows come
-    first under a heading of their own and the rest of the table follows
-    under another, so a reader finds the result without scanning and
-    still sees every row — the rules substitute results, and the list
-    informs rather than polices. An offer nothing landed on is returned
-    as it was.
+    Keep alternatives available because rules may substitute results. Return
+    the original offer when no option matches the roll.
     """
     first, rest = [], []
     for group in offer.groups:
@@ -1988,20 +1970,14 @@ class CampaignSheet:
 
 
 def apply_changes(stat, raw, changes):
-    """Fold stat changes onto a printed value, using the stat's own rules.
+    """Apply sets, then shifts in carrier acquisition order, respecting stat limits.
 
-    Sets land first. Shifts then fold one at a time, in the order their
-    carriers were acquired, each stopping at the stat's limits
-    (``Stat.shift``): a characteristic is never worsened past its
-    minimum or improved past its maximum, and the part of a change that
-    would take it there is disregarded rather than carried over — so a
-    fighter with three Spinal Injuries stands at Strength 1, and a bionic
-    fitted afterwards lifts them to 2. Values that are not plain numbers
-    — ``S`` for the wielder's Strength, ``E`` for engaged-only range — are
-    immune: there is nothing sensible to add to them.
+    Clamp each shift separately through ``Stat.shift``. A later improvement
+    can therefore apply after earlier penalties reached the floor. Non-numeric
+    values such as S and E remain unchanged.
 
-    Returns the value, where it came from, and which limit it was held at
-    (``"minimum"``, ``"maximum"`` or ``""``).
+    Return the resulting value, sources and limiting bound: minimum, maximum
+    or empty.
     """
     if not changes:
         return raw, [], ""
@@ -2049,17 +2025,10 @@ def apply_changes(stat, raw, changes):
 
 
 def _none_of_it(stat, raw):
-    """Zero, where a dash on this stat means none of the quantity — else None.
+    """Interpret a dash as zero only for quantities that can meaningfully be absent.
 
-    A weapon's Armour Piercing of "-" is no armour piercing, which is
-    zero, so a rule that improves it by one gives -1. Counting the dash
-    is the whole of what makes such a rule reach the guns it is written
-    for: the book prints "-" on exactly the plain weapons a house's
-    improvement is worth having on.
-
-    A distance and a roll target are not quantities that can be zero. A
-    melee weapon's Long Range and a fighter's absent Save are the thing
-    not happening at all, and no shift brings either into existence.
+    Armour Piercing uses zero, so a shift can improve a printed dash to -1.
+    Absent distances and roll targets remain None; a shift cannot create them.
     """
     countable = not (stat.is_inches or stat.is_target or stat.is_modifier)
     if countable and str(raw).strip() in ("", EMPTY_VALUE):
@@ -2074,25 +2043,11 @@ SET_BY_THE_OWNER = Provenance(source="the owner")
 
 
 def build_statline(owner, changes_for=None, stat_overrides=None):
-    """The characteristics of a fighter profile or a weapon profile.
+    """Format characteristic cells in the statline type's full display order.
 
-    Values are formatted by each stat's own rules — 4 becomes 4" for a
-    distance, 3 becomes 3+ for a roll target — and anything that isn't a
-    plain number passes through, which is what lets a weapon's range read
-    ``E`` or ``T`` and its Strength read ``S+3``.
-
-    The shape comes from the statline *type*, not from the values stored
-    against it: a statline holding four of its five stats is a full row
-    with one dash in it, and never four cells that slide the numbers
-    under the wrong headings. Nothing stops content arriving that way —
-    the completeness check lives in ``clean()``, which importers and the
-    authoring verbs do not call.
-
-    ``stat_overrides`` are the values one model's owner set by hand,
-    keyed by the cell each stands in. Each replaces the printed value as
-    the base a cell is drawn from, so a rule that improves the
-    characteristic improves what was set rather than what the entry
-    prints, and the cell says the owner is among the reasons it differs.
+    Pad missing values with dashes so remaining cells stay under their headings.
+    Use each stat's formatter, preserving non-numeric values such as E or S+3.
+    ``stat_overrides`` replaces printed bases by cell before modifiers apply.
     """
     statline = getattr(owner, "statline", None) if owner is not None else None
     stat_overrides = stat_overrides or {}
@@ -2129,11 +2084,9 @@ def build_statline(owner, changes_for=None, stat_overrides=None):
 
 
 def _shape_of(owner, statline):
-    """The stats a statline is supposed to carry, in display order.
+    """Return the statline type's characteristics in display order.
 
-    A weapon may have no statline type at all, in which case there is no
-    shape to hold the values to and the stored ones are all there is —
-    and where there are none of those either, there is no row to draw.
+    Without a type, use stored values; without either, return no cells.
     """
     statline_type = owner.statline_type
     if statline_type is None:
@@ -2152,13 +2105,7 @@ def _computed_provenance(contribution):
 
 
 def slot_key(slot, host):
-    """What addresses one computed slot, or empty when nothing does.
-
-    A slot hangs off an assignment, so a card built from a profile's
-    default equipment has no row to choose against — the offer is real,
-    the address is not, and an empty key is how a line says there is
-    nowhere to send a reader.
-    """
+    """Return the address of a stored choice, or empty for an unaddressable preview."""
     if slot.holding is not None and slot.identity is not None and host:
         from n26.core.models.dismissed_offer import holding_slot_key
 
@@ -2209,24 +2156,11 @@ def _drawn_line(drawn):
 
 
 def question_row(slot):
-    """Which of the card's named rows draws this question — or None for
-    a row of its own.
+    """Choose the named card row for a choice, or None for a separate row.
 
-    The label decides, and the rule is what an author would guess:
-    a question labelled "Skills" or "Powers" sits in that row, beside
-    what the fighter already has; a question labelled anything else —
-    "Bonecrusher Wyrd Powers", "Favoured affiliation" — is its own row,
-    headed by exactly what was written. Unlabelled, the kind stands in:
-    its declared ``card_row``, so a skill question sits with the skills
-    and a power question with the powers with nothing said here.
-
-    Only the rows in ``ModelCard.QUESTION_BUCKETS`` qualify — a row has
-    to draw questions to take one, and a subtype's row is a type line
-    with nowhere to put a button, so a subtype question stays a row of
-    its own however its kind files its lines.
-
-    Casefolded, because the row headings are prose and a label is typed
-    by hand — "powers" and "Powers" are the same intent.
+    Match explicit labels case-insensitively to ``ModelCard.QUESTION_BUCKETS``.
+    Unlabelled choices use their kind's ``card_row``. Other labels retain
+    their own heading, and rows outside QUESTION_BUCKETS cannot host controls.
     """
     if slot.offer is None:
         return None
@@ -2244,15 +2178,10 @@ def id_of(slot):
 
 
 def weapon_home(slot, weapons_by_key):
-    """The weapon line a question is drawn under, or None for a row of the
-    card's own.
+    """Find the weapon display line containing this choice, or None.
 
-    A slot built into a weapon is materialised beside the model and
-    caused by the weapon's assignment, so the slot node's cause is the
-    weapon's key; an offer a weapon's own modifier makes anchors on the
-    weapon itself. Either way the question belongs to that weapon, and a
-    card draws it there — the tier beside the launchers it is on — rather
-    than as a row about the model.
+    Built-in slots name the weapon as their cause; modifier offers anchor
+    directly on it. Both belong beneath that weapon's line.
     """
     anchor = slot.anchor
     if anchor is None:
@@ -2275,12 +2204,10 @@ def is_lasting_effect(slot):
 
 
 def hide_open_lasting_effects(holder):
-    """Take the lasting-effect choices with nothing chosen off a card.
+    """Omit unresolved lasting-effect choices from roster and print displays.
 
-    Most models carry one, so on a roster an empty one is a row on
-    nearly every card saying nothing. A choice holding a result stays: that is
-    an injury the model has. The model's own screens draw the open
-    choice, which is where one is recorded.
+    Retain recorded injuries. Model editing screens keep the open choice
+    so owners can record new results.
     """
     for lines in holder.question_lists():
         lines[:] = [
@@ -2303,12 +2230,10 @@ def gear_home(slot, gear_by_key):
 
 
 def choice_lines(computed, host=""):
-    """A computed card's choice slots as lines a renderer draws.
+    """Build display lines for computed choices under an explicit host.
 
-    ``host`` is what the slots are addressed under — a model's id, or
-    ``GANG_SLOT_HOST`` for the gang's own. Passed rather than derived
-    because the same slot may sit on a member's card and on the gang's,
-    and which one a reader clicked decides whose choice it is.
+    ``host`` is a model ID or ``GANG_SLOT_HOST``. Callers choose it because
+    a source can appear on both a member card and the gang card.
     """
     if not computed:
         return []
@@ -2320,26 +2245,14 @@ def choice_lines(computed, host=""):
 
 
 def hide_dismissed(keys, holder, *, reveal=False, removed=None):
-    """Take the offers the owner has dismissed off a card or a sheet, and
-    say how many there were.
+    """Hide eligible dismissed choices in every choice list on a card or sheet.
 
-    ``keys`` is what the gang has dismissed (``DismissedOffer.keys_for``);
-    ``holder`` is a ModelCard or a GangSheet, changed in place. Every
-    list the holder files a question in is read, so a dismissed offer
-    goes whether it sits among the choices, in the Skills row or under a
-    weapon. Only an open line goes: an offer holding a pick draws that
-    pick whatever a stale row says, since what was chosen is a fact about
-    the gang and a dismissal is not — and one full with nothing chosen
-    (authored to take no picks) stays too, because no screen offers to
-    dismiss or restore such a line, so a row for it — written before the
-    content changed — would hide it for good.
+    ``keys`` contains the gang's dismissed addresses. Modify ``holder`` in
+    place and return the count. Only open choices requiring a selection can
+    be hidden; preserve current picks and choices configured to take none.
 
-    ``reveal`` keeps the lines and marks them dismissed instead, which is
-    the screen where the owner is shown what they put away and offered
-    it back. The count is the same either way, so a control can say how
-    many there are to show before any are drawn.
-
-    ``removed`` collects the hidden lines for separate Restore controls.
+    ``reveal`` retains eligible lines marked dismissed for restoration controls.
+    ``removed`` optionally collects hidden lines for separate Restore controls.
     """
     return sum(
         hide_dismissed_choices(keys, lines, reveal=reveal, removed=removed)
@@ -2402,28 +2315,15 @@ def build_choice_offers(slots, computed, *, include_staged=False):
 
 
 def build_choice_offer(slot, computed, *, include_staged=False, _catalogues=None):
-    """What may be chosen for one slot, in the one shape a picker draws.
+    """Flatten a choice's available options into the common picker structure.
 
-    The offer decides the list; this only flattens it. A slot narrowed to
-    a tier draws the browsable view the fighter already buys from, so
-    its categories become the headings and the fighter's own placements
-    have already shaped it. An unnarrowed slot has no collection and
-    draws the whole kind, which is one heading-less group. Neither
-    branch knows what kind of thing is being picked — that is what lets a
-    skill, a pick and an affiliation share a screen.
+    A tier-narrowed offer preserves collection categories and fighter placements;
+    an unrestricted offer uses one unheaded group. Mark forbidden repeats
+    without withholding them.
 
-    Where the slot type takes one pickable once, the ones this holder
-    has already spent elsewhere are marked. Marked, not withheld: the
-    list informs, the click still works, and the card says so
-    afterwards.
-
-    A choice holding more than one pick is settled a pick at a time:
-    everything it holds is drawn chosen and carries the control that
-    takes that one back, and everything else carries the control that
-    adds it — until the choice is full, when the rest stop being offered.
-    Swapping the earliest for whatever was clicked is the behaviour of a
-    choice that holds exactly one, and only of that. A choice that holds
-    none offers nothing at all.
+    Multi-pick choices retain each chosen option's remove control and offer
+    additions until full. Single-pick choices replace their existing pick.
+    A choice configured to take no picks offers no additions.
     """
     from n26.core.browse import CollectionView, Listed, offered_by
 
@@ -2443,10 +2343,8 @@ def build_choice_offer(slot, computed, *, include_staged=False, _catalogues=None
         )
 
     several = slot.max_picks > 1
-    # Where the slot type allows repeats, a held pick is still on offer:
-    # a second Eye Injury is a second Eye Injury, so a held row carries
-    # both controls until the choice is full, when only the way back is
-    # left. Elsewhere a held pick offers only its way back.
+    # Repeatable held options retain Add and Remove until full. Other held
+    # options offer only Remove.
     repeats = slot.slot is not None and slot.slot.slot_type.allows_repeats
     held = {option_key(pick.assignable) for pick in slot.picks}
     taken = _taken_elsewhere(slot, computed)
@@ -2456,8 +2354,7 @@ def build_choice_offer(slot, computed, *, include_staged=False, _catalogues=None
         name = item.name if isinstance(item, Listed) else None
         key = option_key(thing)
         if several and key not in held and slot.is_full:
-            # Full: the way to something else is to take one back, not to
-            # push one out unasked.
+            # A full multi-pick choice requires an explicit removal before adding.
             continue
         if not several:
             control = ""
@@ -2522,27 +2419,15 @@ def build_choice_offer(slot, computed, *, include_staged=False, _catalogues=None
 
 
 def offer_from_view(view, *, label, chosen=None, current=None, held=(), granted=None):
-    """A browsed collection, flattened into the shape a picker draws.
+    """Flatten a browsed collection into picker option groups.
 
-    The half of a pick screen that has nothing to do with slots: a
-    ``CollectionView`` goes in and groups of options come out, so
-    choosing within one tier and browsing everything a fighter may select
-    are two callers of one structure rather than two screens that look
-    alike.
-
-    ``current`` marks the thing already chosen, where something is; a
-    listing nobody asked a question about has none.
-
-    ``held`` names by key what the model already has, so a surface that
-    ticks rather than picks opens on the truth rather than on nothing.
-    ``granted`` maps a key to what grants it, for the ones no stored
-    assignment is behind: they are held too, and a surface must not offer
-    to take away something that would come straight back.
+    ``current`` identifies a choice's selected option. ``held`` identifies
+    existing model possessions for checkbox lists. ``granted`` maps computed
+    possessions to their source, preventing controls from removing a fact
+    that would be granted again on the next read.
     """
-    # Which tier a set sits in is worth saying only where the list spans
-    # several: a question narrowed to one has named it in the page's own
-    # heading, and captioning every group would print that word down the
-    # whole page.
+    # Show tier captions only when the list spans several tiers; a narrowed
+    # list already names its tier in the heading.
     tiered = len(view.sections) > 1
     groups = [
         # The category is the useful heading — the skill set, the power
@@ -2571,14 +2456,10 @@ def offer_from_view(view, *, label, chosen=None, current=None, held=(), granted=
 
 
 def _taken_elsewhere(slot, computed):
-    """What this holder has already picked for another choice of the same
-    slot type, keyed the way the picker keys its options.
+    """Map picks held for other choices of this slot type to option keys.
 
-    Only where the slot type takes one pickable once: where it allows
-    repeats, picking the same thing twice is the content working as
-    written and there is nothing to say. The choice being made is left
-    out of its own answer — what is already picked *here* is marked as
-    the current pick, which is a different fact.
+    Only slot types forbidding repeats need this map. Exclude the current
+    choice, whose selected state is represented separately.
     """
     if slot.slot is None or slot.slot.slot_type.allows_repeats:
         return {}
@@ -2601,12 +2482,9 @@ NONE_KEY = "none"
 
 
 def option_key(thing):
-    """How a picker names one option in a form.
+    """Identify a submitted option by model label and primary key.
 
-    The model's label and its primary key, the same pair the equipment
-    listing keys its Buy buttons on: a bare key is ambiguous across the
-    assignable tables. Public because whoever reads a click back has to
-    key what is held the same way the page keyed what it drew.
+    Primary keys alone can collide across assignable tables.
     """
     return f"{thing._meta.label_lower}:{thing.pk}"
 
@@ -2649,17 +2527,10 @@ STACKED_ROWS = ("skills", "rules", "powers")
 
 
 def identity(line):
-    """What makes two lines the same line, for :func:`collapse`.
+    """Return the content, provenance and rating used to group identical lines.
 
-    The content, where it came from and what it is pinned at. Provenance
-    is in it because one bought and one granted are two different
-    facts, and a line saying "from Mounted" of both would lie about the
-    bought one; the rating because a stash line says what one of them
-    is worth, and two bought at different prices are not worth one
-    figure. The name of what the kit brought is in it too: two collars
-    each with a named pet on the roster are two lines, "Phyrr Cat
-    (Fang)" and "Phyrr Cat (Claw)", never "Phyrr Cat (x2)". None for a
-    line with no content key: it stands alone.
+    Pet names also distinguish lines. Return None when no content key exists,
+    leaving that line separate.
     """
     if not line.key or getattr(line, "choices", None):
         return None
@@ -2667,16 +2538,12 @@ def identity(line):
 
 
 def collapse(lines, key=identity):
-    """Draw identical lines once, with a count.
+    """Combine identical lines at their first position and record their count.
 
-    ``key`` says what identical means, and returns None for a line that
-    stands on its own whatever else is alike. The first of each keeps
-    its place in the order given, and carries the count; every later
-    match is folded into it. A line standing for more than one names
-    no assignment (``id``), since a control acting on one of three
-    could not say which — so it is only ever done where lines carry no
-    acts: the gang sheet, print, the text card, a hire preview. The
-    model's own page keeps one line per assignment.
+    Keep lines separate when ``key(line)`` returns None. Clear assignment IDs
+    on combined lines because controls cannot address an individual copy.
+    Use only for displays without per-assignment actions; model editing
+    retains separate lines.
     """
     kept = []
     at = {}
