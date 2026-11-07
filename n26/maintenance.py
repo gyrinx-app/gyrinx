@@ -1,46 +1,14 @@
-"""The repairs this edition offers the maintenance console, and the one
-door it offers them through.
+"""Register N26 repairs with the shared maintenance console and task framework. This module
+owns the edition boundary for maintenance records, pages and delivery routes; repairs
+run after deployment against the migrated schema.
 
-The console is the site's: a superuser-gated index, one audit record per
-run, a detail page, a cancel button. What there is to repair is edition
-knowledge, so an edition registers its own operations rather than the
-console knowing about either of them. This module is the whole of n26's
-dependency on it — the registry, the audit record, the page furniture and
-the background-task route are imported here and nowhere else in ``n26/``,
-so the seam can be read and moved in one place.
+Use _run_recorded for atomic work that fits one delivery. Use run_batched for idempotent
+work with independent row transactions, or run_per_gang for repairs that reconcile each
+gang before committing. Advisory locks prevent concurrent execution of one operation;
+recorded progress resets the attempt limit.
 
-A repair here does not travel as a migration. A migration that runs
-live code inherits a dependency on every column that code will ever
-read, and the pin needed to express that contradicts the recorded
-history of any database that already ran it — so a repair runs after a
-deploy instead, on a schema that is fully migrated by construction.
-
-Runs come in three shapes, and each states its own promise. A small
-repair (``_run_recorded``) is one transaction, deliberately
-all-or-nothing: interrupted, it rolls back whole and can simply be run
-again. It is for library-only work and for the conversions, which hold
-every gang they touch inside that one transaction; it must finish
-inside one delivery, and a run that uses most of that time is flagged
-on its record. Work too large for one transaction (``run_batched``)
-commits row by row instead, writes how far it got onto the record, and
-continues from there after any interruption — which trades the clean
-rollback for a requirement that each row's work be idempotent. A repair
-that walks players' gangs one at a time, proving each gang's books
-before and after its own commit, is the third shape (``run_per_gang``):
-the batched runner with the gangs of a plan as its work-list. Every
-gang-by-gang repair goes through it, whatever its size looks like on
-the day it is written — a gang's proof is many queries, and a plan of a
-few hundred gangs is already longer than one delivery may take.
-Delivery is at-least-once, so two guards stand between any of these
-promises and a second copy running alongside the first: a lock only one
-run can hold, and a cap on how many attempts may start without
-recording any progress before the record gives up and says so. A
-batched run resets that count with every batch it records, so a long
-run's many deliveries are never mistaken for a stuck one.
-
-A repair that has been run and cannot recur keeps its slug registered
-with no view. It leaves the menu, and the record of the run still reads
-as a name rather than a bare slug.
+Keep completed, non-recurring operations registered without a view so historical records
+retain their labels.
 """
 
 import json
@@ -110,37 +78,19 @@ __all__ = [
     "task_routes",
 ]
 
-#: How many times a run may start without recording any progress before
-#: the record gives up. A one-transaction run that dies leaves nothing
-#: behind and is redelivered; a batched run resets the count every time
-#: it records a batch. Either way, without the cap a run that always
-#: dies would repeat for ever, each attempt paying its cost again.
+#: Limit attempts without recorded progress; successful batched progress resets the
+#: count.
 MAX_ATTEMPTS = 2
 
-#: How long one delivery may run before the queue redelivers it and the
-#: request serving it is cut off. Every one-transaction route below
-#: declares this as its acknowledgement deadline, and the tests hold the
-#: two together; a batched route may declare less, since it hands back
-#: long before. A
-#: one-transaction run that takes more than half of it is written up on
-#: its record: the next run of the same size, on a slower day, is lost.
+#: Single-transaction routes use this delivery deadline. Warn when a run exceeds half the
+#: limit so it can be moved to a batched runner before a slower run times out.
 ONE_ATTEMPT_DEADLINE = timedelta(seconds=600)
-
-#: The locks a run holds for as long as it is working — one per
-#: operation, declared beside their operations below. A lock fences the
-#: redeliveries of one operation's own run; shared between operations it
-#: would do worse than fence: the view's running-guard only sees its own
-#: operation's records, so one repair could enqueue while another held
-#: the lock, stand down there without writing, acknowledge its
-#: message, and leave a record saying RUNNING for ever. Postgres
-#: releases an advisory lock when the connection goes, so a killed run
-#: frees it without anyone intervening.
 
 
 class Operation(models.TextChoices):
-    """The repairs this edition offers, by the slug written into each
-    audit record. A slug is permanent: changing one orphans every
-    historical record that carries it."""
+    """Permanent operation slugs stored in maintenance audit records. Keep retired slugs
+    registered so existing records still resolve.
+    """
 
     CONVERT_SPECIALISATION = (
         "n26_convert_specialisation",
@@ -292,7 +242,9 @@ class Operation(models.TextChoices):
     )
 
 
-#: See the note on locks above: one per operation, never shared.
+#: Use a distinct advisory lock per operation. Running guards only inspect their own
+#: operation, so a shared lock could acknowledge another repair's delivery while leaving
+#: its record RUNNING.
 LOCK_KEYS = {
     Operation.DELETE_NAMELESS_GANG_TYPE: 826_020_606,
     Operation.AUDIT_RECONCILE: 826_020_607,
@@ -325,17 +277,9 @@ LOCK_KEYS = {
 
 
 def _write(backfill_id, *, status=None, summary_patch=None, error=""):
-    """Record what happened, under the row's own lock.
-
-    A record that has reached an ending keeps it. Only one copy of a run
-    ever works — the lock sees to that — so whatever wrote the ending was
-    the run itself, and anything arriving afterwards is a redelivery with
-    nothing new to say. A long run finishes close to the moment its
-    delivery is retried, so the copy that finds the work already done is
-    the likely case, not the exotic one: were it allowed to write, it
-    would file a successful run as a failure.
-
-    An operator's stop counts as an ending too, and outranks the rest.
+    """Update progress under a row lock, returning False if the record is missing or
+    terminal. Preserve DONE, FAILED and CANCELLED statuses so late deliveries cannot
+    overwrite a completed or cancelled run.
     """
     ENDINGS = (Backfill.Status.DONE, Backfill.Status.FAILED, Backfill.Status.CANCELLED)
     with transaction.atomic():
@@ -364,10 +308,8 @@ def _write(backfill_id, *, status=None, summary_patch=None, error=""):
 
 @contextmanager
 def _single_flight(lock_key):
-    """Hold one operation's lock for the length of a run, or yield False.
-
-    Postgres frees an advisory lock when the connection goes, so a run
-    killed mid-flight leaves nothing to clean up by hand.
+    """Try to hold the operation advisory lock until the caller exits, yielding whether it
+    was acquired. PostgreSQL releases the lock if the connection closes.
     """
     with connection.cursor() as cursor:
         cursor.execute("SELECT pg_try_advisory_lock(%s)", [lock_key])
@@ -381,11 +323,9 @@ def _single_flight(lock_key):
 
 
 def _claim(backfill_id):
-    """Count this attempt and say whether it may start.
-
-    Written outside the run's own transaction, so the count
-    survives a run that rolls back — which is how a run too large to
-    finish is noticed rather than repeated for ever.
+    """Increment the attempt count independently of the repair transaction, refusing
+    non-running records and attempts beyond MAX_ATTEMPTS. Batched progress resets the
+    count so only attempts without progress exhaust the limit.
     """
     with transaction.atomic():
         try:
@@ -408,21 +348,13 @@ def _claim(backfill_id):
 
 
 def _run_recorded(backfill_id, operation, what, work, refusals):
-    """Run one operation's work, once, under the full runner discipline.
+    """Run work under the operation lock and record its result. The work must provide its
+    own atomic transaction and finish within one delivery.
 
-    The discipline is the part that must never regress, so it is held
-    here once for everything the console runs: take the operation's own
-    lock and stand down silently if another copy holds it; count the
-    attempt on the record and give up past the cap; record a refusal in
-    its own words, an unexpected failure with its traceback, and a
-    finished report — and never raise, because a task that fails is
-    redelivered and there is nowhere for a raised error to go but round
-    again.
-
-    The whole run must fit inside one delivery. How long it took is
-    written on the record, and a run that used more than half of
-    ``ONE_ATTEMPT_DEADLINE`` gets a warning there too: the work belongs
-    on ``run_per_gang`` or ``run_batched`` before it is run again.
+    Record expected refusals as messages and unexpected exceptions with tracebacks.
+    WritesPaused propagates for retry; other work failures end the record without
+    triggering redelivery. Warn when execution exceeds half ONE_ATTEMPT_DEADLINE,
+    because slower runs may exceed the delivery limit.
     """
     with _single_flight(LOCK_KEYS[operation]) as mine:
         if not mine:
@@ -443,8 +375,7 @@ def _run_recorded(backfill_id, operation, what, work, refusals):
         try:
             report = work()
         except refusals as refused:
-            # A refusal is the discipline working: nothing was written,
-            # and the reason is already in words.
+            # Record expected refusal messages without a traceback.
             _write(backfill_id, status=Backfill.Status.FAILED, error=str(refused))
             return
         except WritesPaused:
@@ -472,17 +403,13 @@ def _run_recorded(backfill_id, operation, what, work, refusals):
         _write(backfill_id, status=Backfill.Status.DONE, summary_patch=summary_patch)
 
 
-#: How long one batched attempt may work before handing the rest back
-#: to the queue. The invariant a consumer's route must satisfy: this
-#: budget plus the time one batch takes must fit inside the route's
-#: acknowledgement deadline, or the queue redelivers an attempt that is
-#: still working. The default fits the framework's default deadline
-#: with a minute to spare for the batch in flight.
+#: The budget plus one batch must fit within the route acknowledgement deadline, because
+#: the budget is checked between batches. The default leaves one minute for the final
+#: batch.
 BATCH_BUDGET = timedelta(minutes=4)
 
-#: How many rows a batched run settles between progress writes. Small
-#: enough that a crash replays little; large enough that the record is
-#: not written per row.
+#: Record progress every 50 rows to limit crash replay without writing progress after
+#: each row.
 BATCH_SIZE = 50
 
 
@@ -499,50 +426,25 @@ def run_batched(
     refusals=(),
     stand_down=None,
 ):
-    """Work through ``items`` one at a time, each on its own commit,
-    remembering how far it got.
+    """Process a stable queryset in primary-key order, saving progress after each batch.
+    do_one(pk) must commit its own atomic writes and be idempotent: a crash can replay
+    the last unrecorded batch, and a new run visits all rows again. Returned strings are
+    appended to the report.
 
-    ``_run_recorded`` is for work that fits inside one delivery and one
-    transaction; this is the shape for everything else. ``items`` is a
-    queryset with a unique primary key — ordered here, because the
-    cursor is only sound over a total order — and it must be stable: a
-    queryset that stops matching rows as they are settled moves the
-    finish line while the cursor chases it. It may instead be a callable
-    that reads the work-list under the run's lock, once per delivery;
-    one that raises a ``refusals`` exception ends the record FAILED in
-    the refusal's own words, and one that returns ``None`` has written
-    the ending itself and there is nothing to walk — a record it left
-    RUNNING is ended FAILED rather than left waiting. ``do_one(pk)``
-    settles one row completely, committing its own writes and leaving
-    nothing behind when it fails. It must be idempotent: a crashed
-    attempt replays at most one batch, and a rerun is a fresh record
-    that walks every row again, settling only what the earlier run
-    missed. A string it returns is a line of the record's report.
+    items may be a callable evaluated under the operation lock on each delivery. A
+    refusals exception fails the run; returning None must leave a terminal record or the
+    runner marks it failed. Keep the queryset membership stable while processing so
+    totals and the cursor remain meaningful.
 
-    Progress lands on the record after every batch — how many rows are
-    settled, of how many, the failures so far, the report so far, and
-    the cursor the next attempt continues from. That write doubles as
-    the cancel check: an
-    operator's CANCELLED is an ending, endings are final, so the
-    refused write is the signal to stop, and the rows already settled
-    stay settled. It also starts the attempt count over, which is what
-    lets ``_claim`` serve both run shapes: only an attempt that dies
-    before recording any progress counts towards giving up.
+    Record row failures and continue; any recorded failures make the final status
+    FAILED. Progress writes reset the attempt count and stop processing if cancellation
+    or another terminal status prevents the write. Check cancellation before each batch
+    too.
 
-    A failing row is written down and stepped past; one that settles on
-    a later walk is struck off. The ending is DONE only when nothing
-    failed. Past ``budget`` the attempt records the cursor and hands
-    the rest to a fresh delivery — enqueued only after the lock is
-    released, so the delivery it summons can never find the lock still
-    held, stand down, and leave the record RUNNING with no delivery
-    left to finish it.
-
-    The work never raises, for ``_run_recorded``'s reason: a raised
-    error is only redelivered, and there is nowhere for it to go but
-    round again. The hand-back is the one deliberate exception: an
-    enqueue that fails is allowed to raise, because the failed delivery
-    is then redelivered and the retry re-summons the continuation —
-    swallowing it would leave no delivery to finish the run.
+    After budget expires, enqueue the continuation only after releasing the lock. Work
+    exceptions are recorded except WritesPaused, which propagates for retry.
+    Continuation and stand_down exceptions also propagate so failed delivery can be
+    retried.
     """
     continued = False
     contended = False
@@ -596,15 +498,17 @@ def run_batched(
 
 
 def _work_through(backfill_id, what, items, do_one, batch_size, budget):
-    """One attempt's walk. True means a fresh delivery must continue."""
+    """Process one delivery, returning True when another delivery must continue from the
+    recorded cursor.
+    """
     started = timezone.now()
     backfill = Backfill.objects.get(pk=backfill_id)
     cursor = backfill.summary.get("cursor", "")
     settled = int(backfill.summary.get("done", 0))
     failures = dict(backfill.summary.get("failures", {}))
     report = list(backfill.summary.get("report", []))
-    # Counted once, on the first attempt: the finish line must not move
-    # while the cursor chases it.
+    # Keep the original total across deliveries so progress does not change as the
+    # queryset is processed.
     total = backfill.summary.get("total")
     if total is None:
         total = items.count()
@@ -612,8 +516,7 @@ def _work_through(backfill_id, what, items, do_one, batch_size, budget):
     items = items.order_by("pk")
 
     def record(position):
-        # Resetting the attempt count is what marks this attempt as
-        # having got somewhere — see the docstring above.
+        # Recorded progress resets the consecutive-attempt limit.
         return _write(
             backfill_id,
             summary_patch={
@@ -643,9 +546,8 @@ def _work_through(backfill_id, what, items, do_one, batch_size, budget):
             )
 
     while True:
-        # Checked before the batch as well as written after it, so a
-        # cancel landing between batches stops the very next one rather
-        # than one batch later. One cheap read per batch.
+        # Check cancellation before starting a batch, including cancellation received
+        # after the previous progress write.
         still_running = Backfill.objects.filter(
             pk=backfill_id, status=Backfill.Status.RUNNING
         ).exists()
@@ -673,9 +575,7 @@ def _work_through(backfill_id, what, items, do_one, batch_size, budget):
         if not record(cursor):
             stopped()
             return False
-        # Hand back only while something remains — a spent budget on
-        # the final batch ends the run rather than summoning a
-        # delivery with nothing to do.
+        # Enqueue another delivery only if rows remain after the budget expires.
         if timezone.now() - started > budget and items.filter(pk__gt=cursor).exists():
             return True
 
@@ -695,14 +595,11 @@ def _work_through(backfill_id, what, items, do_one, batch_size, budget):
 
 
 class PlanRefused(Exception):
-    """A gang-by-gang plan read under the lock names problems."""
+    """The per-gang plan contains problems that prevent the repair from starting."""
 
 
-#: How many gangs a per-gang run settles between progress writes. A
-#: gang's proof is many queries and the budget is only consulted after
-#: a whole batch, so the batch is kept small: progress lands often, a
-#: crash replays little, and a batch cannot on its own outlast the
-#: delivery.
+#: Use smaller batches for per-gang reconciliation: the time budget is checked only
+#: between batches, and each gang requires multiple queries.
 PER_GANG_BATCH_SIZE = 10
 
 
@@ -719,32 +616,17 @@ def run_per_gang(
     refusals=(),
     stand_down=None,
 ):
-    """Run a repair that works through players' gangs one at a time.
+    """Run a repair through run_batched using a recorded list of gang IDs. On the first
+    delivery, find() returns a plan with gangs, problems and nothing_here; problems
+    refuse the run, while nothing_here completes it with the preview report.
 
-    The shape every such repair shares: ``find()`` reads a plan whose
-    ``gangs`` name each gang to visit, whose ``problems`` refuse the
-    whole run, and whose ``nothing_here`` says there is no work;
-    ``apply_one(gang_id)`` reads that one gang's part of the plan again,
-    settles the gang inside its own transaction, and returns the line
-    the report carries for it. Proving one gang's books is many
-    queries, so a plan of a few hundred gangs already outlasts one
-    delivery: the gangs go through ``run_batched``, which commits gang
-    by gang, records how far it got, and hands the rest to a fresh
-    delivery when its budget is spent.
+    Record the initial IDs so later deliveries cannot miss newly discovered gangs behind
+    the cursor. apply_one(gang_id) must recheck current state, repair and reconcile the
+    gang in its own transaction, and return its report line. Leave the approved preview
+    in summary["preview"].
 
-    The plan is read once, under the lock, on the first delivery. Its
-    gang ids land on the record, and every later delivery walks the
-    same list — a plan re-read mid-run could add gangs behind the cursor
-    and never visit them. What each gang holds is read again when it is
-    visited, because deliveries may be minutes apart: ``apply_one``
-    settles what the gang holds now, and a gang that no longer passes
-    the plan's checks is left alone and named in the report. The
-    preview stays in ``summary["preview"]``, where the view put it, so
-    the record's report holds only what was done.
-
-    ``refusals`` are the exceptions a caller's ``find`` may raise to
-    refuse the run in its own words; a plan naming ``problems`` refuses
-    without raising.
+    Pass find() exceptions that should fail the record in refusals; PlanRefused is
+    always included.
     """
     from n26.core.models import Gang
 
@@ -791,12 +673,8 @@ def _plan(system):
 
 
 def _run_conversion(backfill_id, operation, system, **said_by_whoever_enqueued_it):
-    """Run one conversion, once, and write down the outcome.
-
-    Takes whatever else it is handed and ignores it. Delivery outlives a
-    deploy, so a message can arrive naming arguments the version that
-    enqueued it had and this one does not — and a task that refuses its
-    own message is retried for ever, there being nowhere for it to go.
+    """Run a conversion and record its outcome. Ignore extra message arguments because
+    queued deliveries can outlive the code version that enqueued them.
     """
     from n26.library.conversion import ConversionRefused, apply
 
@@ -811,7 +689,7 @@ def _run_conversion(backfill_id, operation, system, **said_by_whoever_enqueued_i
 
 @task
 def convert_outcast_affiliation(backfill_id, **said_by_whoever_enqueued_it):
-    """The Outcast Affiliation conversion, as a task."""
+
     _run_conversion(
         backfill_id,
         Operation.CONVERT_OUTCAST_AFFILIATION,
@@ -822,7 +700,7 @@ def convert_outcast_affiliation(backfill_id, **said_by_whoever_enqueued_it):
 
 @task
 def convert_chaos_god(backfill_id, **said_by_whoever_enqueued_it):
-    """The Chaos God conversion, as a task."""
+
     _run_conversion(
         backfill_id,
         Operation.CONVERT_CHAOS_GOD,
@@ -833,7 +711,7 @@ def convert_chaos_god(backfill_id, **said_by_whoever_enqueued_it):
 
 @task
 def convert_variant(backfill_id, **said_by_whoever_enqueued_it):
-    """The Variant conversion, as a task."""
+
     _run_conversion(
         backfill_id,
         Operation.CONVERT_VARIANT,
@@ -843,8 +721,8 @@ def convert_variant(backfill_id, **said_by_whoever_enqueued_it):
 
 
 def _proof_words(plan):
-    """What a conversion's page says about its own proof."""
-    # Same fallback as Plan.preview — a plan may omit `reaches`.
+
+    # Match Plan.preview when reaches is omitted.
     reaches = plan.reaches or len(plan.holder_ids) or len(plan.gang_ids)
     holders = len(plan.holder_ids) or reaches
     return {
@@ -942,12 +820,8 @@ def convert_variant_view(request):
 
 
 def _who_asked(backfill_id):
-    """The operator a run acts as, for the history it writes.
-
-    A repair that hands a gang something writes that down, and an act
-    filed against nobody reads as the gang having done it to itself.
-    The gang's own acts keep their own actor: what a repair may not do
-    is put its name on those.
+    """Return the requesting operator for new repair history entries, or None if the record
+    is missing. Preserve actors on existing player history.
     """
     backfill = Backfill.objects.filter(pk=backfill_id).first()
     return backfill.triggered_by if backfill else None
@@ -955,12 +829,8 @@ def _who_asked(backfill_id):
 
 @task
 def delete_nameless_gang_type(backfill_id, **said_by_whoever_enqueued_it):
-    """Retire the nameless gang type and settle what stood on it, once.
-
-    The runner discipline is the lock, the claim, and every ending
-    recorded, around work that deletes and rewrites a player's gang —
-    which is why the module it calls reads every gang before it touches
-    one.
+    """Retire the nameless gang type through an atomic repair that checks every affected
+    gang before writing.
     """
     from n26.library.nameless_gang_type import Refused, apply, find
 
@@ -973,9 +843,7 @@ def delete_nameless_gang_type(backfill_id, **said_by_whoever_enqueued_it):
     )
 
 
-#: The words one deletion page says for itself. Everything else about
-#: the page — the plan, the refusals, the apply button, the recent runs —
-#: is the same for every deletion, so only these differ.
+#: Operation-specific copy for the shared deletion page.
 NAMELESS_WORDS = {
     "noun": "retirement",
     "intro": (
@@ -1001,12 +869,8 @@ NAMELESS_WORDS = {
 
 
 def _deletion_view(request, operation, find_fn, task_fn, words):
-    """Preview a deletion (GET), or record a run and enqueue it.
-
-    Shared by every operation that deletes. The discipline is the
-    a running guard, nothing recorded for a run with nothing to do, and
-    a refusal shown to whoever asked for it rather than filed as a
-    failure. Only ``words`` differs between pages.
+    """Preview a plan on GET; on POST, reject running, empty or invalid plans before
+    recording and enqueuing work. words supplies the operation-specific page copy.
     """
     address = reverse(f"admin:maintenance_{operation.value}")
     if request.method == "POST":
@@ -1026,9 +890,8 @@ def _deletion_view(request, operation, find_fn, task_fn, words):
                 f"The {words['noun']} cannot run: " + "; ".join(plan.problems) + ".",
             )
             return HttpResponseRedirect(address)
-        # A plan that keeps more than its lines — the rows it named, so
-        # the run can hold its own reading against what was approved —
-        # writes that onto the record beside the preview.
+        # Retain plan-specific row IDs or other approved state alongside the preview for
+        # execution-time checks.
         recorded = getattr(plan, "recorded", dict)()
         backfill = Backfill.objects.create(
             operation=operation,
@@ -1058,7 +921,7 @@ def _deletion_view(request, operation, find_fn, task_fn, words):
 
 
 def delete_nameless_gang_type_view(request):
-    """Preview the deletion (GET), or record a run and enqueue it."""
+
     from n26.library.nameless_gang_type import find
 
     return _deletion_view(
@@ -1072,11 +935,8 @@ def delete_nameless_gang_type_view(request):
 
 @task
 def repair_doubled_refunds(backfill_id, **said_by_whoever_enqueued_it):
-    """Drop the surplus refund, sale and removal legs a doubled click
-    wrote, and prove every affected gang's books whole, once.
-
-    One gang's worth of events in one transaction: a gang that still
-    fails to reconcile unwinds its own repair and the rest go on.
+    """Remove surplus refund, sale and removal events, reconciling each gang within its own
+    transaction. A failed gang rolls back without blocking the others.
     """
     from n26.core.doubled_refunds import apply_one, find
 
@@ -1115,7 +975,7 @@ DOUBLED_WORDS = {
 
 
 def repair_doubled_refunds_view(request):
-    """Preview the repair (GET), or record a run and enqueue it."""
+
     from n26.core.doubled_refunds import find
 
     return _deletion_view(
@@ -1129,12 +989,8 @@ def repair_doubled_refunds_view(request):
 
 @task
 def rehost_gang_picks(backfill_id, **said_by_whoever_enqueued_it):
-    """Move every live pick a gang holds off the model it was written
-    on and onto the gang, and prove every affected gang's books whole,
-    once.
-
-    A gang's worth of picks in one transaction: a gang that fails to
-    reconcile unwinds its own move and the rest go on.
+    """Move live gang-hosted picks from models onto their gangs. Reconcile and commit each
+    gang separately.
     """
     from n26.core.rehost_picks import apply_one, find
 
@@ -1150,11 +1006,8 @@ def rehost_gang_picks(backfill_id, **said_by_whoever_enqueued_it):
 
 @task
 def delete_empty_affiliations(backfill_id, **said_by_whoever_enqueued_it):
-    """Delete emptied Affiliation library rows, and record it.
-
-    The runner discipline of a conversion around work that deletes
-    library rows only. Nothing a player holds is touched, which is why
-    what it proves is that no page moves at all.
+    """Delete unused affiliation library rows without changing player data. The repair
+    checks that the inspected gang pages remain unchanged.
     """
     from n26.library.empty_affiliations import Refused, apply, find
 
@@ -1169,7 +1022,9 @@ def delete_empty_affiliations(backfill_id, **said_by_whoever_enqueued_it):
 
 @task
 def delete_legacy_affiliation_assignments(backfill_id, **said_by_whoever_enqueued_it):
-    """Delete the two measured player-data leftovers of the conversions."""
+    """Delete archived None assignments and obsolete live affiliation assignments, one gang
+    at a time.
+    """
     from n26.core.legacy_affiliation_assignments import apply_one, find
 
     run_per_gang(
@@ -1209,7 +1064,7 @@ LEGACY_AFFILIATION_ASSIGNMENT_WORDS = {
 
 
 def delete_legacy_affiliation_assignments_view(request):
-    """Preview the player-data deletion (GET), or record and enqueue it."""
+
     from n26.core.legacy_affiliation_assignments import find
 
     return _deletion_view(
@@ -1296,7 +1151,7 @@ REHOST_WORDS = {
 
 
 def rehost_gang_picks_view(request):
-    """Preview the move (GET), or record a run and enqueue it."""
+
     from n26.core.rehost_picks import find
 
     return _deletion_view(
@@ -1333,7 +1188,7 @@ EMPTY_AFFILIATION_WORDS = {
 
 
 def delete_empty_affiliations_view(request):
-    """Preview the deletion (GET), or record a run and enqueue it."""
+
     from n26.library.empty_affiliations import find
 
     return _deletion_view(
@@ -1347,11 +1202,8 @@ def delete_empty_affiliations_view(request):
 
 @task
 def repoint_champion_picks(backfill_id, **said_by_whoever_enqueued_it):
-    """Point every live pick at the pickable of its own name on its
-    slot's picklist, and prove every affected gang's books whole, once.
-
-    A gang's worth of picks in one transaction: a gang that fails to
-    reconcile unwinds its own move and the rest go on.
+    """Repoint live picks to same-named pickables in their current slot picklists.
+    Reconcile and commit each gang separately.
     """
     from n26.core.repoint_champion_picks import apply_one, find
 
@@ -1400,7 +1252,7 @@ REPOINT_WORDS = {
 
 
 def repoint_champion_picks_view(request):
-    """Preview the move (GET), or record a run and enqueue it."""
+
     from n26.core.repoint_champion_picks import find
 
     return _deletion_view(
@@ -1414,12 +1266,8 @@ def repoint_champion_picks_view(request):
 
 @task
 def audit_reconcile(backfill_id, **said_by_whoever_enqueued_it):
-    """Check every unarchived gang's books against its ledger.
-
-    Reads everything, writes nothing to any gang: a gang whose pinned
-    totals or entries disagree with its ledger lands in the record's
-    failures with the discrepancy in words. Batched, because the whole
-    estate is walked and each gang stands alone.
+    """Check every unarchived gang against its ledger without changing player data. Record
+    discrepancies per gang and continue the batched audit.
     """
     from n26.core.models import Gang
     from n26.core.reconcile import assert_reconciled
@@ -1435,7 +1283,7 @@ def audit_reconcile(backfill_id, **said_by_whoever_enqueued_it):
 
 
 def audit_reconcile_view(request):
-    """Say what would be checked (GET), or record a run and enqueue it."""
+
     from n26.core.models import Gang
 
     operation = Operation.AUDIT_RECONCILE
@@ -1472,18 +1320,9 @@ def audit_reconcile_view(request):
 
 @task
 def backfill_built_ins(backfill_id, **said_by_whoever_enqueued_it):
-    """Tag every legacy built-in grant with its provenance and catch
-    every live carrier up with its sets, one gang at a time.
-
-    Archived gangs are walked too. An archived gang is one its owner
-    may bring back, and one left untagged comes back holding grants
-    nothing can account for — while the live propagation pass, which
-    only ever visits gangs in play, would never reach it.
-
-    Batched, because the whole estate is walked and each gang is its
-    own operation, committing on its own. What each gang came to is
-    added to the record's totals as it lands, so a run read part-way
-    still says what it has done so far.
+    """Tag legacy built-in grants with provenance and catch up live carriers, committing
+    each gang separately. Include archived gangs because they may be restored and are
+    excluded from normal propagation; record running totals after each gang.
     """
     from n26.core.backfill_built_ins import catch_up
     from n26.core.models import Gang
@@ -1513,12 +1352,8 @@ def backfill_built_ins(backfill_id, **said_by_whoever_enqueued_it):
 
 
 def backfill_built_ins_view(request):
-    """Say what would be walked (GET), or record a run and enqueue it.
-
-    The preview is deliberately cheap — one count of the grants still
-    without provenance, by kind, and the number of gangs — because the
-    exact grant count is only known by walking every carrier, which is
-    the run's job, not the page's.
+    """Preview legacy grants by kind and count gangs without walking every carrier. Exact
+    catch-up totals are calculated by the background run.
     """
     from n26.core.backfill_built_ins import TAGGABLE_KINDS, legacy_grants_by_kind
     from n26.core.models import Gang
@@ -1592,20 +1427,14 @@ register_operation(
 
 @task
 def drop_duplicate_grants(backfill_id, **said_by_whoever_enqueued_it):
-    """Drop every duplicate a catch-up pass granted, one gang at a time.
-
-    Batched, because the whole estate is walked and each gang is its own
-    transaction, proved to reconcile before it commits.
-    """
+    """Remove duplicate catch-up grants, reconciling and committing each gang separately."""
     from n26.core.duplicate_grants import de_duplicate
     from n26.core.models import Gang
 
     record = Backfill.objects.get(pk=backfill_id)
     totals = dict(record.summary.get("totals", {}))
     kept_a_tally = list(record.summary.get("kept_a_tally", []))
-    # A run may be confined to one model, which is how the repair is
-    # tried and read back before the whole estate is walked. Its gang is
-    # recorded beside it so the walk is one row long.
+    # A targeted repair records the model and its gang so only that gang is visited.
     only_model = record.summary.get("only_model")
     only_gang = record.summary.get("only_gang")
 
@@ -1630,7 +1459,7 @@ def drop_duplicate_grants(backfill_id, **said_by_whoever_enqueued_it):
 
 
 def drop_duplicate_grants_view(request):
-    """Say what would be dropped (GET), or record a run and enqueue it."""
+
     from n26.core.duplicate_grants import (
         duplicate_grants_by_kind,
         what_one_model_carries,
@@ -1639,20 +1468,17 @@ def drop_duplicate_grants_view(request):
 
     operation = Operation.DROP_DUPLICATE_GRANTS
     address = reverse(f"admin:maintenance_{operation.value}")
-    # One model may be named, by id, to try the repair on before the
-    # estate is walked. A GET reads what would happen to it; the POST
-    # from the same page runs that model alone.
+    # Use the same optional model ID for both preview and execution.
     asked = (request.POST.get("model") or request.GET.get("model") or "").strip()
     one = None
     if asked:
         try:
             one = Miniature.objects.filter(pk=asked).first()
         except ValidationError, ValueError, TypeError:
-            # Anything that is not an id at all: the field refuses it
-            # while the query is being built, before any row is read.
+            # Invalid IDs can raise while the queryset is built.
             one = None
         if one is not None and one.membership_id is None:
-            # Nothing to walk: a model with no membership sits in no gang.
+            # Exclude models without a gang membership.
             one = None
         if one is None:
             messages.warning(request, "No model in a gang has that id.")
@@ -1703,12 +1529,8 @@ def drop_duplicate_grants_view(request):
 
 
 def gangs_without_a_founding_action():
-    """The unarchived gangs that have never had a founding action.
-
-    Never, rather than not at this moment: an owner who has completed
-    the act is done with it, and opening a second would put them back
-    where they started. So a completed one counts as much as an open
-    one.
+    """Return unarchived gangs with no founding action, including completed actions in the
+    exclusion. Completing an action must not make the gang eligible for another.
     """
     from n26.core.models import Activity, Gang
 
@@ -1719,28 +1541,12 @@ def gangs_without_a_founding_action():
 
 @task
 def open_founding_actions(backfill_id, **said_by_whoever_enqueued_it):
-    """Open a Spend founding TP action on every unarchived gang that
-    has never had one, a gang at a time.
+    """Open missing founding actions through the domain operation, with no actor so
+    automated backfill does not attribute gang history to a staff account.
 
-    A gang founded before the action existed has none, so nothing on
-    its page says the act is still to be completed and its owner would
-    have to start one by hand. Each is opened through the operation a
-    founding uses, so the same event is written and the gang's history
-    reads as it would have.
-
-    Nobody is named as having done it, as the built-ins backfill does
-    the same way: the act is the estate catching up, not a person, and
-    filing it against whoever clicked in the admin would put a staff
-    username in a stranger's gang history.
-
-    The walk is every unarchived gang rather than only the ones that
-    qualify: ``run_batched`` needs a set that does not shrink as it is
-    worked through, and a gang that already has one is stepped past
-    where it stands. It is also why a rerun does nothing but walk.
-
-    Batched, because the whole estate is walked and each gang commits on
-    its own. What the run has come to is added to the record as each
-    gang lands, so a record read part-way says how far it has got.
+    Walk all unarchived gangs to keep the batched queryset stable as actions are opened.
+    Skip gangs that already have an open or completed founding action, making reruns
+    idempotent.
     """
     from n26.core.models import Activity, Gang
     from n26.core.operations import Refusal, operation
@@ -1755,8 +1561,7 @@ def open_founding_actions(backfill_id, **said_by_whoever_enqueued_it):
     def do_one(pk):
         gang = Gang.objects.filter(pk=pk, archived=False).first()
         if gang is None:
-            # Archived, or gone, since the walk was counted. Either way
-            # it is not one of the gangs this run is for.
+            # Skip gangs archived or deleted since the queryset was counted.
             return
         if Activity.objects.filter(gang=gang, kind=Activity.Kind.FOUNDING).exists():
             add_to_totals("already_had_one")
@@ -1765,10 +1570,8 @@ def open_founding_actions(backfill_id, **said_by_whoever_enqueued_it):
             with operation(gang, actor=None) as op:
                 op.open_activity(Activity.Kind.FOUNDING)
         except Refusal:
-            # The check above runs before the gang's line is held, so an
-            # owner can start the act in between and hold it by the time
-            # this gets the line. Refusing is that guard working: the
-            # gang has what this run came to give it.
+            # The owner may open the action between this check and the operation lock.
+            # Treat that refusal as an existing action.
             add_to_totals("already_had_one")
             return
         add_to_totals("opened")
@@ -1784,12 +1587,8 @@ def open_founding_actions(backfill_id, **said_by_whoever_enqueued_it):
 
 
 def _preview_words(eligible, walked):
-    """What the run set out to do, in sentences the record keeps.
-
-    The second says what the run's own total counts, because the two
-    figures differ: every unarchived gang is walked and only some of
-    them get anything, so a run reporting more done than there were
-    gangs to change would otherwise read as a mistake.
+    """Report both eligible gangs and gangs visited, because batched progress counts the
+    full queryset rather than only changed gangs.
     """
     return [
         f"{eligible} of {walked} unarchived gang"
@@ -1802,8 +1601,7 @@ def _preview_words(eligible, walked):
 
 
 def open_founding_actions_view(request):
-    """Say how many gangs would get one (GET), or record a run and
-    enqueue it."""
+
     from n26.core.models import Gang
 
     operation = Operation.OPEN_FOUNDING_ACTIONS
@@ -1985,15 +1783,13 @@ def initialise_action_allowances(backfill_id, **said_by_whoever_enqueued_it):
     operation = Operation.INITIALISE_ACTION_ALLOWANCES
 
     def retry_after_lock_holder():
-        # Raising hands this delivery back to Pub/Sub, whose route applies
-        # retry backoff. Enqueuing here would create an immediate delivery
-        # loop for as long as the first worker holds the operation lock.
+        # Raise so Pub/Sub applies retry backoff. Enqueuing immediately would loop while
+        # another worker holds the operation lock.
         raise RuntimeError("Action allowance initialisation is already running.")
 
     def find_once():
-        # run_per_gang calls this only after taking the operation's
-        # single-flight lock, so two queued records cannot both pass the
-        # permanent one-off decision.
+        # Check the one-off completion record under the operation lock so concurrent
+        # queued runs cannot both pass.
         if (
             Backfill.objects.filter(operation=operation, status=Backfill.Status.DONE)
             .exclude(pk=backfill_id)
@@ -2385,14 +2181,9 @@ register_operation(
 
 @task
 def clear_item_restrictions(backfill_id, **said_by_whoever_enqueued_it):
-    """Strip the item-level restriction to fighter entries from every
-    item the record's plan names, and record it.
-
-    Library-only work in one transaction under the runner discipline:
-    the equipment-lists upload wrote each list's "<Fighter> only" onto
-    the item every list shares. The plan is the one the page previewed
-    and wrote onto the record, so nothing that appeared after the
-    preview is swept up. Nothing a player holds is touched.
+    """Clear item-level fighter-entry restrictions using the approved plan stored on the
+    record. Apply the library-only repair atomically so items added after the preview
+    are excluded.
     """
     from n26.library.item_restrictions import Refused, apply
 
@@ -2407,12 +2198,8 @@ def clear_item_restrictions(backfill_id, **said_by_whoever_enqueued_it):
 
 @task
 def order_collections(backfill_id, **said_by_whoever_enqueued_it):
-    """Give the lists variant picks add a position after the gang's own,
-    and record it.
-
-    The runner discipline around work that writes one column of library
-    rows and nothing else. No gang is touched, so there is nothing to
-    prove beyond the numbers written.
+    """Order variant equipment lists after the gang list through an atomic library-only
+    repair.
     """
     from n26.library.collection_positions import Refused, apply, find
 
@@ -2426,8 +2213,7 @@ def order_collections(backfill_id, **said_by_whoever_enqueued_it):
 
 
 def _approved_plan(backfill_id):
-    """The plan written onto a record when its run was asked for, or
-    ``None`` for a record that holds none."""
+    """Return the recorded approved plan, or None if the record or plan is missing."""
     record = Backfill.objects.filter(pk=backfill_id).first()
     return None if record is None else record.summary.get("plan")
 
@@ -2488,7 +2274,7 @@ ORDER_COLLECTIONS_WORDS = {
 
 
 def clear_item_restrictions_view(request):
-    """Preview the removal (GET), or record a run and enqueue it."""
+
     from n26.library.item_restrictions import find
 
     return _deletion_view(
@@ -2501,7 +2287,7 @@ def clear_item_restrictions_view(request):
 
 
 def order_collections_view(request):
-    """Preview the positions (GET), or record a run and enqueue it."""
+
     from n26.library.collection_positions import VARIANT_POSITION, find
 
     operation = Operation.ORDER_COLLECTIONS
@@ -2583,14 +2369,9 @@ register_operation(
 
 @task
 def seed_journal_content(backfill_id, **said_by_whoever_enqueued_it):
-    """Create missing Gang supertype and journal content, remove seeded
-    Controlled boons, and record every change and skipped item.
-
-    Library-only work in one transaction under the runner discipline:
-    missing content is matched on its name and pack. Known seeded boon
-    modifiers and unused placeholder rules are removed. The built-in members
-    it adds file the propagation pass that gives gangs already founded
-    their supertype pick.
+    """Create missing gang-supertype and journal content, removing unchanged seeded boon
+    placeholders. Match library rows by name and pack; added built-in members record
+    propagation work for existing gangs.
     """
     from n26.library.journal_content import seed_all
 
@@ -2604,11 +2385,8 @@ def seed_journal_content(backfill_id, **said_by_whoever_enqueued_it):
 
 
 def seed_journal_content_view(request):
-    """Preview journal content changes (GET), or record and enqueue a run.
-
-    The preview is the seed itself, run and rolled back, so it lists
-    exactly the content a run would create, remove or skip. A run with nothing to
-    do records no run.
+    """Preview the seed inside a rolled-back transaction, then record and enqueue non-empty
+    work. Report invalid library structures on the page.
     """
     from n26.library.journal_content import NOTHING_TO_DO, preview
 
@@ -2624,8 +2402,7 @@ def seed_journal_content_view(request):
         try:
             lines = preview()
         except (ObjectDoesNotExist, MultipleObjectsReturned, ValidationError) as broke:
-            # The same library shape the GET shows in words: a POST made by
-            # hand against it gets the message, not an error page.
+            # Handle invalid library state on POST as well as GET.
             messages.error(request, f"The seed cannot run: {broke}")
             return HttpResponseRedirect(address)
         if lines[0] == NOTHING_TO_DO:
@@ -2649,9 +2426,8 @@ def seed_journal_content_view(request):
     try:
         lines = preview()
     except (ObjectDoesNotExist, MultipleObjectsReturned, ValidationError) as broke:
-        # A library shape the seed does not expect — two Territory asset
-        # types, say — is shown on the page in words rather than as an
-        # error page, so the operation stays reachable.
+        # Show invalid library state, such as duplicate asset types, without making the
+        # maintenance page inaccessible.
         lines, problem = [], str(broke)
     context = page_context(
         request,
@@ -2695,7 +2471,7 @@ register_control_operation(
 
 @task
 def seed_territory_boons(backfill_id, **said_by_whoever_enqueued_it):
-    """Record the separate baseline Income and standing territory content pass."""
+    """Seed baseline Income and standing territory boons in a recorded run."""
     from n26.library.territory_boons import seed_all
 
     _run_recorded(
@@ -2891,7 +2667,7 @@ register_control_operation(
 
 @task
 def remove_published_journal_boons(backfill_id, **said_by_whoever_enqueued_it):
-    """Remove unchanged published journal placeholders in a separate run."""
+    """Remove unchanged published journal placeholders in a recorded run."""
     from n26.library.published_journal_boons import remove_published_journal_boons
 
     _run_recorded(
@@ -2983,13 +2759,9 @@ register_control_operation(
 
 @task
 def delete_test_content(backfill_id, **said_by_whoever_enqueued_it):
-    """Delete content and the test gangs holding it, exactly as the
-    authoring page showed it.
-
-    Asked for from the authoring pages rather than the console: an
-    author deleting a staged gang type is deleting their own test gang
-    with it, and that is player data, so it runs here — recorded, locked,
-    and read again under the lock before anything goes.
+    """Delete content with the staff test gangs holding it, using the plan approved on the
+    authoring page. The repair rechecks the plan under its locks before deleting player
+    data.
     """
     from n26.library.deletion import DeletionPlan, Refused, apply
 
@@ -3006,13 +2778,8 @@ def delete_test_content(backfill_id, **said_by_whoever_enqueued_it):
 
 @task
 def delete_firing_line(backfill_id, **said_by_whoever_enqueued_it):
-    """Remove a free firing line from every fighter that has it, gang by
-    gang, and delete the row with the last of them.
-
-    Gang by gang because each gang is proved to reconcile around its
-    own commit, and a line a whole book of fighters carries is many
-    gangs; the walk records how far it got and hands the rest to a
-    fresh delivery.
+    """Remove free firing lines and delete the library row when the last affected gang is
+    processed. Reconcile and commit each gang separately.
     """
     from n26.library.deletion import (
         DeletionPlan,
@@ -3036,8 +2803,9 @@ def delete_firing_line(backfill_id, **said_by_whoever_enqueued_it):
 
 @task
 def merge_into(backfill_id, **said_by_whoever_enqueued_it):
-    """Point everything naming a duplicate at the row it duplicates,
-    gang by gang, and delete the duplicate with the last gang."""
+    """Repoint references from a duplicate library row to its survivor, one gang at a time,
+    then delete the duplicate.
+    """
     from n26.library.merging import MergePlan, Refused, merge_gang, merge_run
 
     record = Backfill.objects.get(pk=backfill_id)
@@ -3053,9 +2821,8 @@ def merge_into(backfill_id, **said_by_whoever_enqueued_it):
     )
 
 
-#: The operations the authoring pages ask for, and the task each runs
-#: on. A plan that removes a line from fighters or merges a row walks
-#: gangs; one that deletes gangs holds everything in one transaction.
+#: Authoring tasks that remove firing lines or merge rows process gangs separately;
+#: deleting test gangs uses one atomic repair.
 AUTHORING_DELETIONS = {
     Operation.DELETE_TEST_CONTENT: delete_test_content,
     Operation.DELETE_FIRING_LINE: delete_firing_line,
@@ -3064,19 +2831,15 @@ AUTHORING_DELETIONS = {
 
 
 class AnotherRunning(Exception):
-    """A run of this operation is still going, so a second cannot start:
-    the runner's lock would make it stand down without writing an
-    ending, and its record would say running for ever."""
+    """An operation already has a running record. Reject another run because lock
+    contention could acknowledge its delivery without completing its record.
+    """
 
 
 def start_authoring_deletion(plan, user):
-    """Record a deletion the authoring page asked for, and enqueue it.
-
-    The record holds the plan as the page showed it, so the run can
-    refuse if what stands has changed, and so the page that shows the
-    outcome can say what was asked. Returns the record. Raises
-    :class:`AnotherRunning` while an earlier run of the same kind is
-    still going.
+    """Record the approved authoring deletion plan and enqueue the matching task, returning
+    the record. Raise AnotherRunning if this operation already has a running record;
+    execution rechecks the stored plan.
     """
     if getattr(plan, "survivor", None):
         operation = Operation.MERGE_INTO
@@ -3097,8 +2860,7 @@ def start_authoring_deletion(plan, user):
 
 
 def authoring_deletion(pk):
-    """One deletion's record, for the page that shows its outcome — or
-    None where no such record exists."""
+    """Return an authoring deletion record by ID, or None if no matching record exists."""
     return Backfill.objects.filter(
         pk=pk, operation__in=[op.value for op in AUTHORING_DELETIONS]
     ).first()
@@ -3154,7 +2916,9 @@ def N26TaskRoute(task_function, **kwargs):
 
 
 def N26PausedTaskRoute(task_function, **kwargs):
-    """Declare the one exact maintenance consumer allowed during a pause."""
+    """Declare a maintenance task admitted only for the run and pause generation recorded
+    in its delivery.
+    """
     return N26TaskRoute(
         task_function,
         paused_consumer=PausedTaskConsumer(
@@ -3417,21 +3181,10 @@ register_control_operation(
 )
 
 
-#: Declared for the task registry, which reads this from ``n26/core/tasks.py``.
-#: The deadline is the longest Pub/Sub allows, because a repair holds one
-#: transaction for as long as proving what it touched takes. It is also
-#: the request timeout the service is deployed with, and the two belong
-#: together: a run outliving its deadline is delivered again while the first
-#: copy is still working, and the second — standing down at the lock — answers
-#: successfully and acknowledges the message out from under it. Change one and
-#: change the other (``--timeout`` in ``cloudbuild.yaml``).
-#:
-#: The propagation tasks live with the rest of that machinery in
-#: ``n26.core.propagation``; their routes are declared here because this
-#: module is the edition's one door onto the task framework. The sweep
-#: is scheduled work: the framework provisions a Cloud Scheduler job
-#: from the declaration, and only there — the local backend fires no
-#: schedules, so dev and tests invoke the sweep function directly.
+#: The task registry imports these routes through n26/core/tasks.py. Keep long-running
+#: acknowledgement deadlines aligned with the deployed request timeout (--timeout in
+#: cloudbuild.yaml) to avoid redelivery while work still holds its lock. Cloud Scheduler
+#: provisions the propagation sweep; the local backend does not run schedules.
 task_routes = [
     N26TaskRoute(repair_campaign_reputation, ack_deadline=600),
     N26TaskRoute(reset_spyrer_built_ins, ack_deadline=600),
@@ -3489,9 +3242,8 @@ task_routes = [
 ]
 
 
-# Run, and what each repaired cannot recur. Registered with no view: they
-# leave the menu, and the record of a run still reads as a name rather
-# than a bare slug.
+# Keep completed, non-recurring operations registered without a view so historical
+# records retain their labels.
 register_operation(
     MaintenanceOperation(
         operation=Operation.CONVERT_SPECIALISATION.value,
