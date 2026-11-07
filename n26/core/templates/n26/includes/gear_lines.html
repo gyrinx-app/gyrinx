@@ -25,17 +25,9 @@ empty tiers.
                                          layout="menu"
                                          label="{{ line.name }}{{ line.tier_mark }}{{ line.brought_mark }}" />
                 </div>
-                {% for choice in line.other_choices %}
+                {% for row in line.other_choice_rows %}
                     <span class="block pl-2 text-sm">
-                        {{ choice.kind_label }}: {{ choice.chosen|default:"—" }}
-                        <span class="inline-flex items-center gap-0">
-                            <c-n26.model-card.mode when="edit">
-                                {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.is_resolved %}Change{% else %}Choose{% endif %}</c-ui.button>{% endif %}
-                            </c-n26.model-card.mode>
-                            <c-n26.model-card.mode when="gang edit">
-                                <c-n26.choice-dismiss :choice="choice" />
-                            </c-n26.model-card.mode>
-                        </span>
+                        {{ row.label }}: {% include "n26/includes/item_choice_values.html" with can_change=True %}
                     </span>
                 {% endfor %}
             </li>
@@ -44,12 +36,9 @@ empty tiers.
 {% else %}
     <c-n26.assignable-lines :lines="lines" :ratings="False" />
     {% for line in lines %}
-        {% for choice in line.other_choices %}
+        {% for row in line.other_choice_rows %}
             <span class="block pl-2 text-sm">
-                {{ line.name }} — {{ choice.kind_label }}: {{ choice.chosen|default:"—" }}
-                <c-n26.model-card.mode when="gang">
-                    <c-n26.choice-dismiss :choice="choice" />
-                </c-n26.model-card.mode>
+                {{ line.name }} — {{ row.label }}: {% include "n26/includes/item_choice_values.html" with can_change=False %}
             </span>
         {% endfor %}
     {% endfor %}

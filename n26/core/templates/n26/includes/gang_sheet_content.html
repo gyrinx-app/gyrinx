@@ -81,19 +81,10 @@
         {% if sheet.rules or sheet.choices or sheet.counters %}
             <c-slot name="details">
                 <c-n26.detail-list>
-                    {% comment %}
-                    Group inherited gang rules as a read-only choice.
-                    {% endcomment %}
-                    {% if sheet.rules %}
-                        <c-n26.detail-list.row label="Rules" :editable="False">
-                            {% for rule in sheet.rules %}{{ rule.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                    {% for row in sheet.detail_rows %}
+                        <c-n26.detail-list.row label="{{ row.label }}" :editable="False">
+                            {% include "n26/includes/row_parts.html" with parts=row.parts campaign_style=False slot_style=True %}
                         </c-n26.detail-list.row>
-                    {% endif %}
-                    <c-n26.choice-slots :choices="sheet.choices" />
-                    {% for counter in sheet.counters %}
-                        <c-n26.detail-list.row label="{{ counter.name }}"
-                                               value="{{ counter.value }}"
-                                               :editable="False" />
                     {% endfor %}
                     {% comment %}
                     Keep campaign-granted assets and counters under the campaign name to
