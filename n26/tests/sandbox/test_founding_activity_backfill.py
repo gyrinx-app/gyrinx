@@ -1,17 +1,6 @@
-"""The founding-action backfill: every existing gang gets the act it
-was founded without.
-
-Founding a gang once opened a Spend founding TP action, but gangs founded
-before that existed have none — nothing on their page says the act is
-still to be completed. The backfill walks the estate on the batched
-runner and opens one for each, through the same operation a founding
-uses, so the gang's history reads as it would have.
-
-Proven here: which gangs qualify, that each gets exactly one action and
-one event, that a gang already holding one — open or completed — is
-stepped past, that archived gangs are untouched, that the outcome lands
-on the record, and that a rerun and a redelivered message both change
-nothing.
+"""Backfill one founding activity for each unarchived gang with no founding-activity
+history. Reuse the domain operation and batched maintenance runner; completed
+activities, repeated runs and redelivery must not create another.
 """
 
 import pytest
@@ -49,8 +38,7 @@ def record(db):
 
 @pytest.fixture
 def old_gang(gang_type, player, person_type, default_pack):
-    """A gang as one founded before the action existed: no action row,
-    and no event saying one was ever started."""
+    """Construct a gang with no founding activity or activity events."""
 
     def _found(name="Before The Activity", **kwargs):
         gang = found_gang(name, gang_type, owner=player, budget=1000, **kwargs)
@@ -77,8 +65,9 @@ def opened_events(gang):
 
 
 class TestWhichGangsQualify:
-    """Never had one, rather than has not got one now: an owner who has
-    completed the act is done with it."""
+    """Qualify gangs with no founding-activity history, excluding completed and archived
+    gangs.
+    """
 
     def test_a_gang_founded_before_the_action_qualifies(self, old_gang):
         gang = old_gang()
@@ -110,8 +99,7 @@ class TestWhichGangsQualify:
 
 
 class TestOpeningTheAction:
-    """One action per qualifying gang, opened the way a founding opens
-    it — so the event is there and the history reads the same."""
+    """Create one activity and opening event through the standard operation."""
 
     def test_each_qualifying_gang_gets_one_action_and_one_event(self, old_gang, record):
         first = old_gang("First")
@@ -129,9 +117,9 @@ class TestOpeningTheAction:
             assert_reconciled(gang)
 
     def test_nobody_is_named_as_having_started_it(self, old_gang, record):
-        """The estate catching up is not a person, and the owner of a
-        gang has never met whoever clicked in the admin — so their name
-        does not go in a stranger's history."""
+        """System-created activity events have no actor; the admin triggering the repair
+        must not appear as the gang's player.
+        """
         boss = User.objects.create_superuser("chief", "chief@example.com", "password")
         record.triggered_by = boss
         record.save()
@@ -152,8 +140,7 @@ class TestOpeningTheAction:
         assert "started the spend founding tp action" in told
 
     def test_the_history_line_carries_no_subject(self, old_gang, record):
-        """With no actor the page draws the sentence alone, as it does
-        for everything else the estate did to itself."""
+        """Display system-created history without an actor label."""
         from n26.core.history import build
 
         gang = old_gang()
@@ -183,8 +170,7 @@ class TestOpeningTheAction:
         assert opened_events(gang) == 1
 
     def test_a_completed_founding_is_not_opened_again(self, old_gang, player, record):
-        """Completing the act is the owner saying they are done. A
-        backfill that reopened it would put them back at the start."""
+        """Preserve completed founding rather than opening another activity."""
         gang = old_gang()
         with operation(gang, actor=player) as op:
             op.open_activity(FOUNDING)
@@ -199,11 +185,9 @@ class TestOpeningTheAction:
     def test_a_gang_that_gained_one_at_the_last_moment_is_counted(
         self, old_gang, record, monkeypatch
     ):
-        """The check for one already there runs before the gang's line
-        is held, so an owner can start the act in between and hold it by
-        the time the run gets the line. The refusal that follows is the
-        guard working: the gang has what the run came to give it, so it
-        is counted rather than filed as a failure."""
+        """Treat the open-activity refusal as an already-completed repair if another
+        transaction opened it before the gang lock was acquired.
+        """
         from n26.core.operations import Operation as GangOperation
         from n26.core.operations import Refusal
 
@@ -240,7 +224,7 @@ class TestOpeningTheAction:
 
 
 class TestTheRecord:
-    """Every ending is written onto the record rather than raised."""
+    """Persist final status and operation counts on the backfill record."""
 
     def test_a_finished_run_says_what_it_opened(self, old_gang, record):
         old_gang("First")
@@ -276,8 +260,7 @@ class TestTheRecord:
 
 
 class TestRunningItTwice:
-    """Delivery is at-least-once and an operator may run a repair again;
-    neither may open a second action."""
+    """Keep both explicit reruns and duplicate delivery idempotent."""
 
     def test_a_rerun_changes_nothing(self, old_gang, record):
         gang = old_gang()
@@ -299,10 +282,9 @@ class TestRunningItTwice:
     def test_a_redelivered_message_opens_nothing_more(
         self, old_gang, record, task_queue
     ):
-        """The run holds its own lock, so a copy arriving while it works
-        stands down. A copy arriving after it has finished gets no
-        further: the record has reached an ending, endings are final,
-        and the claim refuses to start a second walk over it."""
+        """An active run uses a single-flight lock, and a terminal backfill rejects another
+        claim. Neither delivery path may open a second activity.
+        """
         gang = old_gang()
 
         with task_queue.capture():
@@ -317,9 +299,9 @@ class TestRunningItTwice:
 
 
 class TestTheEstate:
-    """The walk is every unarchived gang, so the set it steps through
-    does not shrink as it works — the cursor a batched run keeps is only
-    sound over a set that stays put."""
+    """Walk every unarchived gang rather than a shrinking eligible subset so the batch
+    cursor remains stable.
+    """
 
     def test_the_walk_counts_every_unarchived_gang(
         self, old_gang, gang_type, player, default_pack, record
