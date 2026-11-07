@@ -48,8 +48,8 @@ _SPECIMEN_KEYS = {key for key, _ in SPECIMENS}
 
 @dataclass(frozen=True)
 class Options:
-    """Parse and clamp sheet options from the query string. Invalid values use defaults so
-    manually edited preview URLs remain usable.
+    """Parse sheet options from the query string. Use defaults for unrecognised choices,
+    failed numeric conversion and NaN; clamp numeric values to their bounds.
     """
 
     specimen: str = "cards"
