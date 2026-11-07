@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 """
-Automated UI screenshot utility using Playwright.
+Capture Django pages with Playwright and a local agent session.
 
-This script automatically captures screenshots of Django views using a headless browser.
-It handles authentication, multiple viewports, and before/after comparisons.
+Choose viewports and optional before/after labels for comparison files.
 
 Usage:
     python scripts/screenshot.py <url_name> [options]
@@ -29,13 +28,11 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import django
 from django.conf import settings
 
-# Setup Django
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "gyrinx.settings_dev")
 django.setup()
 
@@ -57,7 +54,6 @@ except ImportError:
     sys.exit(1)
 
 
-# Viewport presets
 VIEWPORTS = {
     "desktop": {"width": 1200, "height": 800},
     "tablet": {"width": 768, "height": 1024},
@@ -135,7 +131,6 @@ def ensure_browser_installed():
             browser.close()
         return True
     except Exception:
-        # Chromium not installed, install it
         print("Chromium browser not found. Installing...")
         try:
             subprocess.run(
@@ -167,7 +162,7 @@ class ScreenshotCapture:
         self.client = Client()
 
     async def authenticate(self, username=None):
-        """Mint a local staff session and return its cookie."""
+        """Create a local staff session and return its cookie."""
         username = username or self.username
 
         @sync_to_async
@@ -203,11 +198,9 @@ class ScreenshotCapture:
     ):
         """Capture a screenshot of a Django view."""
 
-        # Ensure output directory exists
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
 
-        # Build URL
         @sync_to_async
         def get_url_path():
             try:
@@ -228,7 +221,6 @@ class ScreenshotCapture:
 
         full_url = f"{self.server_url}{url_path}"
 
-        # Generate filenames
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         url_safe_name = url_name.replace(":", "_")
         viewport_suffix = f"_{viewport}" if viewport != "desktop" else ""
@@ -251,19 +243,16 @@ class ScreenshotCapture:
             except Error:
                 browser = await p.chromium.launch(headless=True)
 
-            # Create context with viewport
             viewport_config = VIEWPORTS.get(viewport, VIEWPORTS["desktop"])
             context = await browser.new_context(
                 viewport=viewport_config,
                 color_scheme=theme,
             )
 
-            # Add authentication cookie if available
             session_cookie = await self.authenticate()
             if session_cookie:
                 await context.add_cookies([session_cookie])
 
-            # Create page and navigate
             page = await context.new_page()
 
             print(f"Navigating to {full_url}...")
@@ -279,8 +268,7 @@ class ScreenshotCapture:
                 else:
                     raise
 
-            # Hide Django Debug Toolbar by injecting CSS
-            # This ensures the toolbar is hidden regardless of its state
+            # Exclude developer controls from UI evidence.
             await page.add_style_tag(
                 content="""
                 #djDebugRoot, #djDebug, #djDebugToolbar, .djdt-hidden {
@@ -296,14 +284,12 @@ class ScreenshotCapture:
             # Wait for any animations to complete
             await page.wait_for_timeout(1000)
 
-            # Take screenshot
             screenshot_options = {
                 "path": str(filepath),
                 "full_page": full_page if not selector else False,
             }
 
             if selector:
-                # Screenshot specific element
                 element = await page.query_selector(selector)
                 if element:
                     await element.screenshot(path=str(filepath))
@@ -313,20 +299,16 @@ class ScreenshotCapture:
                     await browser.close()
                     return False
             else:
-                # Screenshot full page or viewport
                 await page.screenshot(**screenshot_options)
                 print(f"✓ Screenshot saved to: {filepath}")
 
-            # Close browser
             await browser.close()
 
-        # Copy to latest
         import shutil
 
         shutil.copy2(filepath, latest_filepath)
         print(f"✓ Latest screenshot saved to: {latest_filepath}")
 
-        # Update comparison markdown
         self._update_comparison_markdown(
             output_path, url_name, label, latest_filename, viewport
         )
@@ -375,7 +357,6 @@ async def capture_screenshots(
     """Capture screenshots for specified viewports."""
     capture = ScreenshotCapture(username=username)
 
-    # Default to desktop if no viewports specified
     if not viewports:
         viewports = ["desktop"]
 
@@ -461,7 +442,6 @@ def main():
 
     args = parser.parse_args()
 
-    # Check installation
     if args.check:
         try:
             import playwright  # noqa: F401
@@ -480,7 +460,6 @@ def main():
             print("  uv sync --locked")
             return
 
-    # Require url_name if not checking
     if not args.url_name:
         parser.error("url_name is required unless using --check")
 
@@ -489,24 +468,20 @@ def main():
     except ValueError as error:
         parser.error(str(error))
 
-    # Determine label
     label = args.label
     if args.before:
         label = "before"
     elif args.after:
         label = "after"
 
-    # Parse viewports
     viewports = [v.strip() for v in args.viewports.split(",")]
 
-    # Validate viewports
     for viewport in viewports:
         if viewport not in VIEWPORTS:
             print(f"Error: Invalid viewport '{viewport}'")
             print(f"Valid viewports: {', '.join(VIEWPORTS.keys())}")
             sys.exit(1)
 
-    # Check if server is running
     if not check_server_running():
         print("\n✗ Error: Django development server is not running")
         print("Please start the server with:")
@@ -514,13 +489,11 @@ def main():
         print("\nThen run this command again.")
         sys.exit(1)
 
-    # Ensure browser is installed before attempting to capture
     if not ensure_browser_installed():
         print("\nError: Could not install Chromium browser.")
         print("Please try installing manually with: playwright install chromium")
         sys.exit(1)
 
-    # Run async capture
     try:
         success = asyncio.run(
             capture_screenshots(
