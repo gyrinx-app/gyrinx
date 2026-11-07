@@ -472,8 +472,9 @@ def hydrate_rows(rows, with_statlines=False, with_options=False):
     lists together so they share these passes.
 
     ``with_statlines`` loads characteristic values needed for rendering.
-    ``with_options`` loads the selected sets and offers needed by screens
-    that describe purchase options. Printed sheets can omit those queries.
+    ``with_options`` loads selection records, their set IDs and option offers.
+    It does not preload the selected set objects. Printed sheets can omit
+    these queries.
     """
     from django.apps import apps
     from django.db.models import Prefetch, prefetch_related_objects
@@ -764,10 +765,11 @@ def build_card(
 
 
 def build_cards_for_gang(gang, with_statlines=True):
-    """Build member cards keyed by miniature ID from one assignment fetch.
+    """Build member cards keyed by miniature ID from two assignment fetches.
 
-    Gang-hosted assignments share ``gang_root`` and become broadcast nodes
-    on every member card without another assignment query.
+    Fetch roster and gang-hosted assignments together, then stash assignments.
+    Hydrate the combined rows once. Gang-hosted rows become broadcast nodes
+    on every member card.
     """
     return build_gang_card(gang, with_statlines=with_statlines).members
 
