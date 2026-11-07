@@ -1,9 +1,7 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-The question asked before a battle is taken off a campaign, at an address of
-its own. Following the link that leads here changes nothing; the POST is the
-act.
+Confirm removal of a campaign battle; only POST writes.
 {% endcomment %}
 {% block head_title %}Archive {{ battle.title }}{% endblock head_title %}
 {% block nav_switcher %}
