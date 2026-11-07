@@ -1,8 +1,6 @@
 {% comment %}
-The campaign's recent acts, oldest first, in the host a roll's update
-replaces. Expects `acts` from the view; `redrawn` marks the copy an update
-delivers. Cut to the most recent acts by the view, with the count of what
-is not drawn on the section's heading.
+Display the view-limited recent acts in their supplied order. redrawn replaces the
+stable log host independently of its heading count.
 {% endcomment %}
 <div id="n26-campaign-log" {% if redrawn %}hx-swap-oob="true"{% endif %}>
     {% if acts %}

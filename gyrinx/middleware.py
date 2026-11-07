@@ -111,21 +111,12 @@ class RequestSizeExceptionMiddleware:
 
 
 class EditionMiddleware:
-    """Remember which edition a reader is in, and answer for them where the
-    address cannot.
+    """Set the current edition and remember it for signed-in users.
 
-    Runs after ``AuthenticationMiddleware``: only signed-in readers are
-    remembered, because the edition pill is theirs and a visitor should not
-    collect a cookie they have no use for.
-
-    Two things come out of it. ``request.edition`` is the edition to show as
-    current — the address's own, or the remembered one on a page both editions
-    share. And the site root, which belongs to neither edition, redirects a
-    reader last seen in n26 to the n26 dashboard, so a trip out to the inbox or
-    the account pages and back does not quietly land them in the classic app.
-
-    Leaving n26 is a link to the root, which is the very address that redirects
-    back into it, so ``?edition=n23`` on that link says the reader means it.
+    Run after AuthenticationMiddleware. Edition pages update the preference
+    cookie; shared pages use it without updating it. GET and HEAD requests to
+    the site root redirect to N26 when that is the remembered edition. An
+    explicit edition parameter overrides the preference.
     """
 
     def __init__(self, get_response):
@@ -141,10 +132,7 @@ class EditionMiddleware:
         request.path_edition = path_edition
         request.edition = chosen or path_edition or remembered or N23
 
-        # The choice is an instruction, not part of the address: take it, then
-        # send the reader on to the address they were really asking for. Left
-        # in, it rides into the address bar, into bookmarks and into anything
-        # shared from there, pinning the next reader to somebody else's choice.
+        # Remove the override so shared links do not change another user's preference.
         if chosen is not None and request.method in ("GET", "HEAD"):
             response = HttpResponseRedirect(self._address_itself(request))
             self._remember(request, response, chosen, remembered, signed_in)
@@ -157,8 +145,7 @@ class EditionMiddleware:
             and request.method in ("GET", "HEAD")
         ):
             response = HttpResponseRedirect(reverse("n26-dashboard"))
-            # The root answers differently depending on the cookie, so anything
-            # caching it has to be told to key on one.
+            # Cache the redirect separately for each cookie value.
             patch_vary_headers(response, ("Cookie",))
             return response
 
@@ -168,12 +155,7 @@ class EditionMiddleware:
 
     @staticmethod
     def _address_itself(request):
-        """The address asked for, with the choice taken back out of it.
-
-        Every value of the parameter goes, not just the one that was read, so
-        a hand-written address naming two editions cannot redirect to itself
-        for ever.
-        """
+        """Remove all edition parameters to prevent redirect loops."""
         params = request.GET.copy()
         params.pop(PARAM, None)
         query = params.urlencode()
@@ -181,13 +163,9 @@ class EditionMiddleware:
 
     @staticmethod
     def _remember(request, response, edition, remembered, signed_in):
-        """Move the memory to ``edition``, if there is anywhere to move it to.
+        """Update the preference only for a signed-in user with a changed edition.
 
-        Only an address or an explicit choice gets this far. A page both
-        editions share must never move it: that would pin a reader to whichever
-        edition they happened to be in the first time they opened their account
-        settings. Nor is it rewritten when it already says so — a Set-Cookie on
-        every page of an edition is noise on the wire.
+        Shared pages supply no edition and must leave the cookie unchanged.
         """
         if not signed_in or edition is None or edition == remembered:
             return

@@ -1,39 +1,12 @@
 {% comment %}
-The questions asked about a thing with alternatives: a mount's grenade
-launchers or, for a surcharge, its plasma guns. Expects `choices` — a tuple of
-n26.core.listing.PickGroup.
-
-Drawn both where the thing is for sale and where one already held is being
-changed. Which control starts picked is the structure's answer either way
-(`option.checked`, `group.nothing_taken`), so the two readings are made in one
-place and this draws whichever it is handed.
-
-Controls rather than a second row on the list, because that is what they are: a
-mount's guns are not a thing you buy from this screen, they are a way the mount
-you are buying is built. So there is one Buy on the row and everything under it
-configures that one purchase, exactly as a fighter's options work on the hire
-page — same three modes, drawn the same way, read back the same way as indices
-into the row the server re-derives.
-
-Which control is not a style choice: the set's `choose` says whether exactly one
-is taken (radios), any number (tick boxes), or at most one (radios with a None
-row). Nothing here decides it again.
-
-A set is never named. The label the content carries is the author's word for
-their own page, and a player is here to pick — so a set is shown as grouping,
-with a line saying how many to take, and never as a heading naming it.
-
-The surcharge is relative to the standard option included in the base price.
-Every control posts its own value; the server calculates the payment.
-React replaces this fallback with the same controls and a live price preview.
+Render PickGroup options for purchases and reconfiguration using option.checked and
+group.nothing_taken. Selection limits choose radios, checkboxes or radios with None; the
+server derives surcharges from submitted option indices.
 {% endcomment %}
 {% for group in choices %}
     {% comment %}
-    Every set after the first says how many to take, and its options step in
-    from that label — the two together are how a reader is told where one set's
-    options stop. The first set needs neither: the listing it belongs to is
-    directly above it, saying what is being configured, and controls that are
-    plainly one group say so themselves.
+    Separate later groups with their selection instructions; author-facing group names
+    are not player headings.
     {% endcomment %}
     {% if not forloop.first %}
         <div class="mt-1 flex min-h-8 items-center gap-2 pt-1">
@@ -49,10 +22,6 @@ React replaces this fallback with the same controls and a live price preview.
         </div>
     {% endif %}
     {% for option in group.options %}
-        {% comment %}
-        The whole line is the label, so the hit target is the row rather than a
-        control the width of a fingertip — this list is read on a phone.
-        {% endcomment %}
         <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5 {% if not forloop.parentloop.first %}n26-cp-substep{% endif %}">
             <input type="{% if group.choose == 'any' %}checkbox{% else %}radio{% endif %}"
                    name="{{ group.field }}"
@@ -66,11 +35,8 @@ React replaces this fallback with the same controls and a live price preview.
         </label>
     {% endfor %}
     {% comment %}
-    Radios cannot be unclicked once clicked, so "None" is the option that makes
-    taking nothing clickable, and it adds nothing. Whether it is where the set
-    starts is the group's answer: a row for sale takes nothing from such a set,
-    and one already held starts on whatever it holds. Its empty value is what
-    the answer skips.
+    Provide None for optional radio groups because a selected radio cannot be cleared
+    directly. Its empty value is excluded from selected options.
     {% endcomment %}
     {% if group.choose == "one-or-none" %}
         <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5 {% if not forloop.first %}n26-cp-substep{% endif %}">

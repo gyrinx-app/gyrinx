@@ -1,13 +1,7 @@
 {% comment %}
-The count button an owned row opens and closes on. Expects `row`,
-`owned_toggle_href` and optionally `held_label` from the including template,
-and renders inside the row's Alpine scope, where `expanded` lives.
-
-Opening costs nothing but a class, so the click toggles in the hand and the
-address follows. The address is amended rather than replaced: the section on
-screen is written there by the picker and is nowhere else, so an address
-built when the page was drawn would quietly drop it. The link is still a
-link — without JavaScript the server renders the row open.
+Toggle expanded in the containing Alpine scope and update the URL while preserving
+current section parameters. Without JavaScript, owned_toggle_href lets the server render
+the entry open.
 {% endcomment %}
 <c-ui.button href="{{ owned_toggle_href }}"
              size="sm"

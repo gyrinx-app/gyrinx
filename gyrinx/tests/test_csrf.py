@@ -104,3 +104,19 @@ def test_csrf_failure_view_setting():
 
     assert hasattr(settings, "CSRF_FAILURE_VIEW")
     assert settings.CSRF_FAILURE_VIEW == "gyrinx.views_csrf.csrf_failure"
+
+
+@pytest.mark.django_db
+def test_json_csrf_failure_rejects_without_redirecting_or_queuing_a_message(client):
+    from django.test import RequestFactory
+
+    from gyrinx.views_csrf import csrf_failure
+
+    request = RequestFactory().post("/save/", HTTP_ACCEPT="application/json")
+    request.session = client.session
+    request._messages = FallbackStorage(request)
+    response = csrf_failure(request, reason="CSRF token missing")
+    assert response.status_code == 403
+    assert response.headers["Content-Type"] == "application/json"
+    assert b"Reload the page before saving." in response.content
+    assert list(get_messages(request)) == []

@@ -1,30 +1,9 @@
-"""Extension point: the nouns an event may be recorded against, and the
-edition each noun belongs to.
+"""Register analytics nouns and derive the edition for each event.
 
-The platform owns the event log, but it does not own the words. "List" and
-"fighter" mean something in one edition; "gang" and "model" mean something in
-another; "user" and "banner" belong to neither, because an account and a
-site-wide announcement are the same thing whichever edition you are reading.
-So each edition declares its own nouns here and the platform stores what it is
-told.
-
-Two rules make the arrangement work:
-
-- **A noun value belongs to exactly one edition.** Registering a value a
-  different edition already claimed raises at import, so the app refuses to
-  boot rather than filing one edition's rows under another's word. This is
-  what lets the edition be *derived* from the noun instead of passed in: there
-  is no edition argument to thread through several hundred call sites, and so
-  none to forget.
-- **A noun nobody registered is recorded as** :attr:`Edition.UNKNOWN`, with an
-  error in the log. The row still lands — tracking must not break the thing it
-  observes — but it lands in a bucket of its own rather than being guessed into
-  a real edition, so a missing registration shows up as a visible slice on the
-  dashboard instead of a quietly wrong graph.
-
-Editions register from a module their app config imports, so registration is
-complete before any request is served — ``n23.core.events`` and
-``n26.analytics``.
+A noun value belongs to one edition; conflicting registrations raise
+ImproperlyConfigured during startup. Unknown nouns are logged and recorded
+under UNKNOWN so event collection can continue without misclassifying them.
+Editions register through modules imported by their app configs.
 """
 
 import logging
@@ -46,13 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class Edition(models.TextChoices):
-    """Which product an event came from.
-
-    ``PLATFORM`` is a real answer, not a fallback: signing in, changing an
-    email address and dismissing a site banner happen on the way to both
-    editions and belong to neither. ``UNKNOWN`` is the fallback, and seeing it
-    in the data means a noun was recorded that no edition claimed.
-    """
+    """The event source: an edition, shared platform activity, or an unknown noun."""
 
     PLATFORM = "platform", "Platform"
     N23 = "n23", "N23"
@@ -65,14 +38,11 @@ _nouns: dict[str, tuple[str, str]] = {}
 
 
 def register_nouns(edition, nouns) -> None:
-    """Claim a set of noun values for ``edition``.
+    """Register noun values and labels for one edition.
 
-    ``nouns`` is anything with ``.choices`` (a ``TextChoices`` class) or an
-    iterable of ``(value, label)`` pairs.
-
-    Re-registering the same value for the same edition is allowed and does
-    nothing; claiming one another edition already holds is a configuration
-    error, because the stored noun is what says which edition a row came from.
+    Accept TextChoices or an iterable of value-label pairs. Re-registration
+    within the same edition updates labels; cross-edition reuse raises
+    ImproperlyConfigured.
     """
     edition = Edition(edition).value
     pairs = getattr(nouns, "choices", nouns)
@@ -111,12 +81,10 @@ def edition_for_noun(noun) -> str:
 
 
 def noun_choices():
-    """The ``choices`` for ``Event.noun``, grouped by edition.
+    """Return Event.noun choices grouped by edition.
 
-    A callable rather than a list because editions register during startup,
-    after this module is imported, and because the set of nouns is then not a
-    database concern — the migration records the callable, so adding a noun
-    never writes one.
+    Resolve registrations after app startup. Migrations store this callable,
+    so adding a noun does not require a new migration.
     """
     grouped: dict[str, list[tuple[str, str]]] = defaultdict(list)
     for value, (edition, label) in _nouns.items():

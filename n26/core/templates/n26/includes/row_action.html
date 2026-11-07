@@ -1,25 +1,14 @@
 {% load listing %}
 {% comment %}
-One of a catalogue row's actions, as a button. Expects `action` — an
-n26.core.listing.Action — and optionally `name`, the form field a submit
-carries its target under.
-
-    {% include "n26/includes/row_action.html" with action=row.buy name="thing" %}
-
-The row says whether the click is a submit within the catalogue's own form or a
-navigation to a confirmation the server draws, so nothing here has to know that
-Sell opens a dialog and Buy does not. Adding a fifth act is a change to the
-structure and to nothing on this page.
-
-Colour comes from the tone through one map — see n26/core/templatetags/listing.py
-for why the affirmative tone is green rather than the kit's `primary`.
+Render a listing Action as its declared submit or link kind. name optionally identifies
+the submitted target, and the tone map in n26/core/templatetags/listing.py supplies
+button styling.
 {% endcomment %}
 {% with variant=action.tone|tone_variant %}
     {% if action.kind == "submit" %}
         {% comment %}
-        The type="submit"-through-attrs trick profile-picker.row documents: the
-        kit button renders {{ attrs }} before its own type="button", and HTML
-        keeps the first of a duplicate pair.
+        Pass submit type through attrs so it precedes the kit's type=button attribute;
+        HTML uses the first duplicate attribute.
         {% endcomment %}
         <c-ui.button size="sm"
                      variant="{{ variant }}"
@@ -30,16 +19,9 @@ for why the affirmative tone is green rather than the kit's `primary`.
         </c-ui.button>
     {% else %}
         {% comment %}
-        Every act that is a link here opens a confirmation the server renders.
-        On a screen that has opted into partial updates (`htmx` in context —
-        see n26/includes/equip_hosts.html), the click fetches that panel
-        alone; the response replaces the dialog host by id, which is why
-        nothing is targeted from here. Elsewhere, and without JavaScript, it
-        is a plain link and the server serves the page with the panel open.
-
-        Two whole buttons rather than one with the attributes switched: a
-        template tag inside a component's attribute list is not parsed and
-        lands in the page as text.
+        Render separate component calls for partial and full-page links because template
+        tags inside Cotton attributes are not parsed. Partial responses replace the
+        dialog host by ID.
         {% endcomment %}
         {% if htmx %}
             <c-ui.button size="sm"
