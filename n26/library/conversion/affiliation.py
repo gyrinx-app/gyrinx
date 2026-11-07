@@ -1,26 +1,12 @@
-"""The Outcast Affiliation conversion — Affiliation and Clan House.
+"""Convert Outcast Affiliation and Clan House choices into slots and pickables.
 
-Today: the Outcast gang type builds in a Hidden that offers a choice of
-the affiliation kind, narrowed to the Affiliations menu; one of those
-affiliations (Clan House) itself offers a second choice of the six
-Houses. Both answers land on the gang.
+Identify the affiliation-labelled offer on one Hidden carrier, its menu
+entries and the Clan House entry's nested House offer. Move existing
+modifiers to corresponding pickables and replace offers with slot grants.
+Rewrite live and archived choices on their existing anchors.
 
-After: an "Affiliation" slot type and a "Clan House" slot type; the
-menu's affiliations and houses as pickables carrying those same
-modifiers, moved not copied; the Hidden grants the Affiliation slot;
-the Clan House pickable grants the house slot; every stored choice —
-live and archived — is re-said as a pick on its same anchor.
-
-Nothing is deleted. Emptied affiliation rows, the menus, and any
-detached fossil offer stay where they are.
-
-The system is found by structure, not by production names: a live
-affiliation-labelled offer carried by one Hidden, whose menu's live
-entries become the top pickables, and among those the one that itself
-offers affiliation labelled "clan house" is the house chain.
-
-Production converts from the maintenance console, once, after the code
-deploys — see :mod:`n26.maintenance`.
+Keep source affiliations, menus and detached offers. Discover by structure
+and labels rather than production identifiers. Run through n26.maintenance.
 """
 
 from n26.library.conversion.base import (
@@ -68,7 +54,7 @@ def _affiliations_on(section):
 
 
 def _offers_of_kind(carrier, kind, label):
-    """The carrier's choice offers of one kind wearing this label."""
+    """Find offers matching both content kind and case-insensitive label."""
     wanted = label.casefold()
     return [
         m
@@ -80,11 +66,10 @@ def _offers_of_kind(carrier, kind, label):
 
 
 def _qualifier_for(name, slot_type_name, pack, taken_pairs, problems):
-    """Empty unless this name is already spoken for; then the slot type.
+    """Choose an unused name-and-qualifier pair in the pack.
 
-    A name is unique per pack and qualifier. When the empty qualifier is
-    taken, this conversion qualifies as the slot type — author-facing
-    only. If that pair is taken too, refuse rather than crash.
+    Prefer an empty qualifier, then the slot type's name. Report a conflict if
+    both pairs are taken; qualifiers are author-facing only.
     """
     from django.db.models.functions import Lower
 
@@ -119,10 +104,8 @@ def plan_outcast_affiliation():
 
     problems = []
 
-    # Live affiliation-labelled offers carried by something. A detached
-    # one is a fossil: carried by nothing, it does nothing on any page,
-    # and it is left where it lies. Offers wearing another label
-    # (Variant, Chaos God, Corruption) are other systems.
+    # Select live offers with this system's label and at least one carrier.
+    # Leave detached offers and differently labelled systems unchanged.
     carried = []
     for modifier in Modifier.objects.filter(
         offers_choice__isnull=False,
@@ -272,9 +255,8 @@ def plan_outcast_affiliation():
         if pick.caused_by_id is None:
             problems.append(f"pick {pick.pk} has no caused_by to settle against")
 
-    # A live pick of an affiliation the menus do not offer, hanging from
-    # the Hidden or from a top-menu pick, would keep its line and lose
-    # its question when the offer is swapped. Refuse rather than strand it.
+    # Reject active choices absent from the source menu; replacing their offer
+    # would otherwise leave an assignment without its original choice.
     hidden_anchors = set(
         Assignment.objects.filter(hidden=hidden, archived=False)
         .exclude(removes=True)
@@ -316,12 +298,8 @@ def plan_outcast_affiliation():
             for row in rows
         ]
 
-    # What the card calls each question today, taken from the offer that
-    # asks it rather than guessed. A slot's ``choice_label`` lands where
-    # an offer's ``kind_label`` did, so carrying the offer's own wording
-    # across is the only way it survives whatever the authors typed: a
-    # label is stored as written apart from its first letter, and to the
-    # proof "Clan House" and "Clan house" are different words.
+    # Preserve the offer's displayed choice label when constructing the slot.
+    # Capture comparison is case-sensitive after the initial-letter formatting.
     top_label = offer.offers_choice.kind_label
     house_label = house_offer.offers_choice.kind_label
 
@@ -437,8 +415,7 @@ def plan_outcast_affiliation():
         system=SYSTEM,
         steps=tuple(steps),
         gang_ids=tuple(proven),
-        # Live gangs only: archived ones still have their picks rewritten,
-        # but a stale archived gang must not lock or refuse the write.
+        # Rewrite archived picks but exclude archived gangs from locking and reconciliation.
         holder_ids=tuple(sorted(live_holders, key=str)),
         reaches=len(live_holders),
         left_alone=len(spares),

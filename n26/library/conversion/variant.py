@@ -1,31 +1,12 @@
-"""The Variant conversion — one shared offer, optional slot, no None.
+"""Convert a shared Variant offer into an optional slot.
 
-Today: one affiliation-labelled offer, label casefold "variant", menu
-Variants: Chaos Corrupted, Genestealer Cult Corrupted, Malstrain
-Corrupted, and "None". The offer is shared across the house gang types
-(and a vestigial Hidden that nothing holds). Chaos Corrupted already
-grants the Chaos God slot.
+Move corruption modifiers from affiliation records to pickables and grant
+one shared slot through the offer's existing carriers. Rewrite stored
+corruption choices and archive stored "None" choices; do not create a None
+pickable. Preserve the source content and unrelated offers.
 
-After: a "Variant" slot type; the three corruptions as pickables
-carrying those same modifiers, moved not copied; one picklist; one
-slot, granted by exactly the offer's carriers as one shared grant;
-every stored corruption pick — live and archived — is re-said as a
-pick; every stored "None" pick is archived. No None pickable. The
-question never nagged, so the slot does not either.
-
-Nothing is deleted. Emptied affiliation rows, the menu, and the
-vestigial Hidden stay where they are. The Hidden is a carrier of the
-one swap, not a second door. Other affiliation-labelled offers
-(Outcast, already slots; Chaos God, already slots; fossils) are other
-systems and are left standing.
-
-The system is found by structure, not by production names: a live
-affiliation-labelled offer whose label casefolds to "variant", carried
-by gang types. A second distinct Variant-labelled offer that is not
-this shared one is a refusal.
-
-Production converts from the maintenance console, once, after the code
-deploys — see :mod:`n26.maintenance`.
+Identify the system by its case-insensitive variant label and gang-type
+carriers. Reject a second distinct matching offer. Run through n26.maintenance.
 """
 
 from n26.library.conversion.affiliation import (
@@ -59,7 +40,7 @@ PROVEN = 15
 
 
 def _said_carriers(held):
-    """The carriers in preview words, gang types then hiddens."""
+    """Format preview carrier names with gang types before hidden carriers."""
     types = sorted(
         (row for kind, row in held if kind == "GangType"),
         key=lambda row: row.name.lower(),
@@ -89,10 +70,8 @@ def plan_variant():
 
     problems = []
 
-    # Live Variant-labelled offers carried by something. A detached one
-    # is a fossil: carried by nothing, it does nothing on any page, and
-    # it is left where it lies. Offers wearing another label
-    # (Affiliation, Chaos God, Corruption) are other systems.
+    # Select live offers with this system's label and at least one carrier.
+    # Leave detached offers and differently labelled systems unchanged.
     carried = []
     for modifier in Modifier.objects.filter(
         offers_choice__isnull=False,
@@ -236,9 +215,8 @@ def plan_variant():
         if pick.caused_by_id is None:
             problems.append(f"pick {pick.pk} has no caused_by to settle against")
 
-    # A live pick of an affiliation the menu does not offer, hanging from
-    # a carrier, would keep its line and lose its question when the
-    # offer is swapped. Refuse rather than strand it.
+    # Reject active choices absent from the source menu; replacing their offer
+    # would otherwise leave an assignment without its original choice.
     strays = (
         Assignment.objects.filter(
             affiliation__isnull=False,
@@ -405,9 +383,7 @@ def plan_variant():
         system=SYSTEM,
         steps=tuple(steps),
         gang_ids=tuple(proven),
-        # Live gangs only: archived ones still have their picks rewritten
-        # and Nones archived, but a stale archived gang must not lock or
-        # refuse the write.
+        # Rewrite archived picks but exclude archived gangs from locking and reconciliation.
         holder_ids=tuple(sorted(live_holders, key=str)),
         reaches=len(live_holders),
         left_alone=len(spares),

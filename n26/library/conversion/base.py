@@ -1,51 +1,22 @@
-"""The conversion discipline: plan, check, apply — the preview is the contract.
+"""Convert stored choice systems to slots and picks with transactional checks.
 
-A conversion moves one hand-built choice system (an offer, its menu
-collection, its chosen-kind rows) onto slots and picks without changing
-what any page says. Three stages, the ingest discipline:
+Planners read content and return frozen steps, affected gangs and problems.
+``apply`` executes those steps in one transaction. It compares captured pages
+for the plan's sample and reconciles every touched gang before committing.
+An absent system is a no-op.
 
-* ``plan()`` — each system's module reads the database and returns a
-  frozen :class:`Plan`: typed steps, the gangs the system touches, and
-  any problems. It never writes. ``plan.preview()`` says everything the
-  apply would do, one line per step.
-* ``apply(plan)`` — performs exactly the plan's steps in one
-  transaction. Before writing it captures what every affected gang's
-  pages say (``n26.core.capture``); after writing it captures again and
-  **refuses** — unwinding the whole transaction — on any difference, and
-  on any touched gang that no longer reconciles. A conversion that would
-  change what a reader is told never lands — except a printed “None”
-  that an optional slot already says with nothing chosen. That exception
-  is named on the plan (``unanswered_as``) so the proof treats the two
-  as equal; apply then checks every planned :class:`ArchivePick` landed
-  by identity, because that proof can no longer see them.
-* A plan whose system is absent (``plan.nothing_here``) applies as a
-  no-op, so the migration that ships a conversion is safe on databases
-  that never held the system — a fresh environment, a pack without it.
+Conversions may rewrite free assignments outside ``operation()``. They create
+no purchase and change no recorded prices or ledger entries. History text
+still needs separate verification because it resolves the assignment's
+current content kind. See n26/core/AGENTS.md.
 
-Pick rewrites touch ``Assignment`` rows outside ``operation()`` — the
-one sanctioned place: a conversion moves no money. Nothing is created or
-priced, columns change on existing free rows, the ledger is untouched,
-and the reconcile assertion proves it gang by gang.
+``unanswered_as`` allows a stored "None" choice to compare as an unanswered
+optional slot. Check the planned archives separately by assignment identity
+because page comparison cannot distinguish a successful archive from a no-op.
 
-What the ledger *says*, though, is not untouched, and the captures do
-not see it. The gang's history describes an old event by looking up what
-its assignment names now, so moving an assignment from one kind to
-another rewrites the wording of things that already happened. Every
-conversion must check the history page against a converted assignment
-and keep those words the same — see the note in ``n26/core/AGENTS.md``.
-
-An apply's duration depends on the gangs it reaches, not on the
-assignments it writes. The write is a few hundred updates and is quick.
-The reconcile walk is the slow part: the apply reconciles every reached
-gang inside the transaction, and each gang needs several queries. In
-production every query crosses the network to the database. A thousand
-gangs take tens of minutes, and all of them stay locked for that time.
-
-Time an apply on a fork of the content mirror before it runs in
-production, and count the gangs the plan reaches. A local time is a
-floor, not a forecast: a local database answers over a socket, and
-production answers over the network. If the apply is not short, stop and
-look again.
+Reconciliation queries run for every affected gang while locks remain held.
+Count gangs and time the complete apply on a realistic database before a
+production run. Local timings omit production database network latency.
 """
 
 import logging
@@ -58,8 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 def carriers_of(modifier):
-    """Everything carrying this modifier, across every library kind — a
-    plan that detaches or deletes one must know it is not shared."""
+    """Find all library carriers of a modifier before detaching or deleting it."""
     from django.apps import apps as django_apps
 
     found = []
@@ -72,7 +42,7 @@ def carriers_of(modifier):
 
 
 def offers_of(carrier, kind):
-    """The carrier's choice offers of one kind, by the kind's model name."""
+    """Find a carrier's offers for the named model kind."""
     return [
         m
         for m in carrier.modifiers.all()
@@ -82,7 +52,7 @@ def offers_of(carrier, kind):
 
 
 def the_offer(carrier, kind, kind_word, said, problems):
-    """The carrier's one offer of the kind, or a stated problem."""
+    """Return a unique matching offer or append a planning problem."""
     offers = offers_of(carrier, kind)
     if len(offers) != 1:
         problems.append(
@@ -93,10 +63,7 @@ def the_offer(carrier, kind, kind_word, said, problems):
 
 
 def solely_carried(offer, carrier, problems):
-    """Deleting an offer's modifier detaches it from every carrier at
-    once, so the plan must know no third thing shares it — a sharer's
-    gangs are outside the proven set and would lose their question
-    unnoticed."""
+    """Reject an offer shared with carriers outside this conversion's checked set."""
     others = [
         f"{kind} “{row}”"
         for kind, row in carriers_of(offer)
@@ -109,24 +76,15 @@ def solely_carried(offer, carrier, problems):
 
 
 def duplicate_names(rows):
-    """Names two or more of the rows share. A pick is matched to its
-    pickable by name, and a name is only unique within a pack and
-    qualifier — so two live rows called the same thing would quietly
-    become one pickable, and half the picks would land on the wrong
-    one."""
+    """Find duplicate names that make name-based pickable matching ambiguous."""
     names = [row.name for row in rows]
     return sorted({name for name in names if names.count(name) > 1})
 
 
 def refuse_if_granted(held, said, problems):
-    """A carrier that arrives by grant has no assignment to find it by,
-    so the gangs it reaches can be neither counted nor drawn into the
-    spread a plan proves. The apply page would understate the change,
-    and pages nothing checked would move — refuse instead, and whoever
-    makes such a grant decides what a conversion ought to do.
+    """Reject granted carriers whose affected gangs cannot be found through assignments.
 
-    A kind that cannot be granted is skipped: asking the grant table
-    about it is a FieldError, and there is nothing to find.
+    Skip ungrantable kinds rather than querying a nonexistent grant field.
     """
     from n26.library.models import AddsAssignable, Modifier
     from n26.library.models.modifier import GRANTABLE_FIELDS
@@ -148,12 +106,9 @@ def refuse_if_granted(held, said, problems):
 
 
 def one_answer_per_question(picks):
-    """One pick per question, and the spares left behind.
+    """Partition picks into the first per miniature and cause, and the remaining duplicates.
 
-    The same question answered twice — a click that landed twice — shows
-    on the page as the answer plus a spare line. Moving the answer keeps
-    the page: the pick becomes a pick, and the spare goes on being the
-    ordinary assignment it already is.
+    Convert only the first; retain duplicate assignments to preserve existing display.
     """
     answers, spares, seen = [], [], set()
     for pick in picks:
@@ -167,13 +122,10 @@ def one_answer_per_question(picks):
 
 
 def spread(gang_ids, kinds, limit):
-    """A sample wide enough to hold every shape, in a stable order.
+    """Choose a stable sample round-robin across gang groups up to ``limit``.
 
-    One from each kind, round and round, so no kind crowds the others
-    out — a plentiful ordinary kind must not fill the sample before a
-    later kind's only gang is seen. The odd shapes lead each round, and
-    whatever room is left goes back around the kinds that still have
-    gangs to give.
+    Earlier groups receive priority within each round without filling the whole
+    sample before later groups are considered.
     """
     chosen, used = [], set()
     remaining = [list(wanted) for wanted in kinds]
@@ -192,9 +144,7 @@ def spread(gang_ids, kinds, limit):
 
 
 class ConversionRefused(Exception):
-    """The apply found the world changed by its own hand — or not shaped
-    the way the plan promised — and unwound. The message says exactly
-    what differed."""
+    """A conversion failed validation and rolled back; the message identifies the difference."""
 
 
 @dataclass(frozen=True)
@@ -228,11 +178,8 @@ class CreatePickable:
     #: whose whole payload is the link itself: a chosen-mode placement
     #: reads the chosen thing's ``category`` and nothing else.
     linked: tuple = ()
-    #: What tells this one apart from another pickable of the same name
-    #: — author-facing only, and never drawn for a player. A name is
-    #: unique per pack and qualifier, so a system whose names are
-    #: already spoken for by another slot type's pickables converts by
-    #: qualifying its own.
+    #: An author-only qualifier distinguishes same-named pickables across slot types.
+    #: Names and qualifiers are unique together within a pack.
     qualifier: str = ""
 
     def say(self):
@@ -294,9 +241,7 @@ class CreateSlot:
     assigned_to: str = "bearer"
     min_picks: int = 1
     max_picks: int = 1
-    #: Author-facing only. Two slots of one type that share a printed
-    #: name (two doors, one question) need distinct qualifiers so the
-    #: unique constraint holds.
+    #: Author-only qualifier distinguishing same-named slots of one type.
     qualifier: str = ""
     #: How later steps name this slot in ``made.slots``. Empty uses
     #: ``name``. Two same-named slots need distinct keys.
@@ -325,11 +270,7 @@ class CreateSlot:
 
 
 def _grant_scope(reach):
-    """The scope a swapped grant reaches with.
-
-    ``gang`` is ``targets_gang()`` (the gang and its models); ``gang_alone``
-    keeps the grant on the gang's card; anything else is the bearer.
-    """
+    """Resolve gang, gang-alone or bearer scope for the replacement grant."""
     from n26.library.authoring import targets_gang, targets_gang_alone, targets_model
 
     if reach == "gang":
@@ -349,10 +290,8 @@ class SwapCarrier:
     drop_modifier_name: str
     grant_name: str
     slot: str
-    #: The scope the grant reaches with — "gang" for a question the gang
-    #: asks (and whose payload may reach its models), "gang_alone" for a
-    #: question that stays on the gang's card, "model" for one each
-    #: bearer's card asks.
+    #: Replacement scope: gang broadcasts to members; gang_alone stays on the gang;
+    #: model affects the carrier's model.
     reach: str = "gang_alone"
     #: When the offer was moved onto a pickable earlier in this plan,
     #: perform looks the pickable up here rather than the plan-time
@@ -382,10 +321,8 @@ class SwapCarrier:
             )
             expected = {(model_name, self.carrier[1])}
         dropped = Modifier.objects.get(pk=self.drop_modifier_id)
-        # The plan proved this modifier solely carried, but the plan was
-        # read outside this transaction: a carrier attached since would
-        # be detached silently by the delete below. Prove it again here,
-        # where the snapshot holds.
+        # Recheck exclusive carriage inside the snapshot before deleting the offer;
+        # the plan was built outside this transaction.
         holders = {(kind, row.pk) for kind, row in carriers_of(dropped)}
         if holders != expected:
             raise ConversionRefused(
@@ -407,13 +344,10 @@ class SwapCarrier:
 
 @dataclass(frozen=True)
 class SwapSharedCarrier:
-    """One offer shared by many carriers becomes one shared grant.
+    """Replace one shared offer with one shared grant for the same carriers.
 
-    The offer modifier is a single row every carrier holds, so dropping
-    it detaches all of them at once — which is why the plan proves the
-    carriers are exactly the ones named here before this step exists.
-    The grant is one shared modifier too, so the factoring the authors
-    chose is preserved: one question's wiring, held in one place.
+    Validate the exact carrier set before deleting the offer, preserving shared
+    modifier structure.
     """
 
     carriers: tuple  # ((model label, pk), ...) — every carrier, proven
@@ -443,10 +377,7 @@ class SwapSharedCarrier:
             for label, pk in self.carriers
         ]
         dropped = Modifier.objects.get(pk=self.drop_modifier_id)
-        # The plan proved exactly these carriers, but the plan was read
-        # outside this transaction: a carrier attached since would be
-        # detached silently by the delete below. Prove it again here,
-        # where the snapshot holds.
+        # Recheck the complete shared carrier set inside the snapshot before deletion.
         holders = {(kind, row.pk) for kind, row in carriers_of(dropped)}
         named = {(label.split(".")[1], pk) for label, pk in self.carriers}
         if holders != named:
@@ -472,10 +403,11 @@ class SwapSharedCarrier:
 
 @dataclass(frozen=True)
 class ArchivePick:
-    """A stored pick archived in place — the declared ledger change for
-    a printed “None” that an optional slot already says with nothing
-    chosen. Already-archived picks stay archived; this does not revive
-    them. No money, no event: the conversion exception."""
+    """Archive a stored "None" choice without a ledger entry or event.
+
+    Existing archives remain archived. The plan declares this optional-choice
+    normalisation so page comparison can treat it as unanswered.
+    """
 
     assignment_id: object
     gang: str
@@ -494,9 +426,10 @@ class ArchivePick:
 
 @dataclass(frozen=True)
 class RewritePick:
-    """One stored choice, re-said as a pick: the old kind's column moves
-    to ``pickable``, the anchor it already hangs from (``caused_by``)
-    becomes the choice it settles, and the slot is named."""
+    """Replace a stored choice's content kind with a pickable and slot.
+
+    Use the existing ``caused_by`` anchor as the choice being answered.
+    """
 
     assignment_id: object
     old_column: str
@@ -514,8 +447,7 @@ class RewritePick:
         pick.pickable = made.pickables[self.pickable]
         pick.chosen_for_id = pick.caused_by_id
         pick.chosen_for_slot = made.slots[self.slot]
-        # The question it used to answer is not the one it answers now,
-        # and a pick naming both a slot and an offer says two things.
+        # Clear the old offer reference so the pick identifies only its new slot.
         pick.chosen_for_offer = None
         setattr(pick, self.old_column, None)
         pick.save()
@@ -523,7 +455,7 @@ class RewritePick:
 
 @dataclass(frozen=True)
 class Retire:
-    """An old row the system no longer needs, deleted by identity."""
+    """Delete an obsolete conversion source by model label and primary key."""
 
     model: str  # app_label.ModelName
     pk: object
@@ -541,7 +473,7 @@ class Retire:
 
 @dataclass
 class _Made:
-    """What the apply has created so far, by the plan's own names."""
+    """Library records created so far, keyed by the names used in plan steps."""
 
     slot_types: dict = field(default_factory=dict)
     picklists: dict = field(default_factory=dict)
@@ -553,10 +485,7 @@ class _Made:
 class Plan:
     system: str
     steps: tuple = ()
-    #: The gangs the apply proves unchanged before committing — a spread
-    #: chosen by the system's own plan to hold every shape it comes in,
-    #: not every gang it reaches. Capturing a gang's pages is slow, so
-    #: the proof reads a sample.
+    #: Sample gang identifiers whose captured pages are compared before commit.
     gang_ids: tuple = ()
     problems: tuple = ()
     #: How many gangs the change reaches in all, proven or not.
@@ -606,12 +535,10 @@ class Plan:
 
 
 def apply(plan):
-    """Perform exactly the plan, prove the pages unchanged, or refuse.
+    """Perform the plan, verify captured pages and reconciliation, then return report lines.
 
-    Returns the report lines. Raises :class:`ConversionRefused` — after
-    unwinding everything — if the plan carries problems, any affected
-    gang's pages change, any planned archive did not land, or any
-    touched gang stops reconciling.
+    Raise ``ConversionRefused`` after rollback for plan problems, changed sampled
+    pages, unapplied archives or an unreconciled touched gang.
     """
     if plan.problems:
         raise ConversionRefused(
@@ -626,10 +553,8 @@ def apply(plan):
     return report
 
 
-#: What Postgres may call an isolation level. The restore has to be
-#: written into the statement rather than passed as a value, so what
-#: goes in is checked against this rather than trusted — an answer
-#: nobody expected should stop the run, not travel into SQL.
+#: Allowlisted PostgreSQL isolation names for restoring the session setting.
+#: SQL cannot bind an isolation level as a value.
 ISOLATION_LEVELS = frozenset(
     {"read uncommitted", "read committed", "repeatable read", "serializable"}
 )
@@ -637,36 +562,22 @@ ISOLATION_LEVELS = frozenset(
 
 @contextmanager
 def _one_snapshot():
-    """Ask for the whole run to read one unchanging view of the database.
+    """Use one database snapshot for before-and-after conversion checks.
 
-    The proof compares what the pages said before with what they say
-    after, and takes any difference to be this conversion's doing. On a
-    live database that only holds if both readings are of the same world.
-    Proving hundreds of gangs takes minutes and players go on playing
-    throughout, so reading whatever is committed at the time — the
-    ordinary way — puts their purchases in the second reading, and the
-    conversion is blamed for a hazard suit somebody bought while it
-    worked, refusing for a reason nobody can act on.
+    Read-committed isolation could include concurrent purchases only in the
+    second capture and falsely attribute them to the conversion. A concurrent
+    change to an assignment this conversion also writes must fail the transaction.
 
-    Reading from one snapshot instead, what differs is what the run did.
-    Somebody changing an assignment it also writes ends it in a refusal
-    rather than a guess, which is the right ending for work that cannot
-    be half done. Set on the session, because a transaction's isolation can only
-    be chosen before it has read anything, and put back afterwards so a
-    pooled connection is handed on as it was found.
+    Set isolation on the session before opening a transaction and restore it
+    afterwards so pooled connections retain their previous setting.
     """
     from django.db import connection
 
     outermost = not connection.in_atomic_block
     if not (outermost and connection.vendor == "postgresql"):
-        # Nested inside a transaction somebody else opened — a test, a
-        # shell. Isolation can only be chosen before a transaction reads
-        # anything, so it is theirs to set and too late to ask here. That
-        # is not the same as being safe: at the ordinary level each
-        # statement reads afresh, so a caller nesting this while players
-        # are writing would not get the one snapshot promised above.
-        # Nothing does that today — a conversion from the console or the
-        # command opens the transaction itself.
+        # A caller-owned transaction must set isolation before its first read.
+        # This helper cannot change it; read-committed nesting would not provide the
+        # snapshot required for concurrent production use.
         yield
         return
     with connection.cursor() as cursor:
@@ -689,22 +600,17 @@ def _one_snapshot():
                     f"SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL {was}"
                 )
         except Exception:
-            # Putting the setting back is courtesy to the next borrower of
-            # this connection, and must never be the thing the caller hears
-            # about. A run that ended badly can leave the connection unable
-            # to answer at all — and one that cannot answer is also one
-            # nobody will be handed again.
+            # Restore the connection setting without masking the original failure.
+            # A broken connection cannot be reused by the pool.
             logger.warning(
                 "could not put the isolation level back to %s", was, exc_info=True
             )
 
 
 def _assert_archives_landed(plan):
-    """Every planned ArchivePick must now be an archived row.
+    """Verify every planned archive by assignment identity.
 
-    The page proof treats a printed None as unanswered, so it cannot
-    tell a landed archive from a no-op. Check the planned rows by
-    identity instead.
+    Optional-choice normalisation makes page comparison insufficient for this check.
     """
     from n26.core.models import Assignment
 
@@ -728,10 +634,7 @@ def _assert_archives_landed(plan):
 
 
 def _canonicalize_unanswered(state, pairs):
-    """Rewrite captured choices so listed ``(kind, chosen)`` pairs read
-    as unanswered. A conversion that archives a printed None in favour
-    of an optional slot uses this rather than weakening ``differences``
-    for every caller."""
+    """Normalise only the plan's declared ``(kind, chosen)`` pairs to unanswered choices."""
     if not pairs:
         return state
     equivalent = set(pairs)
@@ -768,9 +671,7 @@ def _perform(plan, report):
             try:
                 step.perform(made)
             except Exception as failed:
-                # A step that cannot be performed is a refusal too: the
-                # command and the migration both promise words, never a
-                # traceback, and the transaction unwinds either way.
+                # Wrap step failures as ConversionRefused after the transaction rolls back.
                 raise ConversionRefused(
                     f"[{plan.system}] failed at “{step.say()}”: {failed}"
                 ) from failed
