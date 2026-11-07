@@ -1,8 +1,4 @@
-"""Asking somebody into a campaign, and their answer.
-
-Here rather than beside the code because telling somebody reaches across to
-the platform's inbox, and only these tests may.
-"""
+"""Verify campaign invitation state, history and shared-inbox delivery."""
 
 import pytest
 from django.contrib.auth.models import User
@@ -31,7 +27,7 @@ def campaign(arbitrator, campaign_type):
     return found_campaign("Ashfall", campaign_type, owner=arbitrator, budget=1000)
 
 
-#: The log's first line, which founding writes before any test here acts.
+#: Founding creates the initial campaign history entry.
 FOUNDED = "set the campaign up on Territory campaign"
 
 
@@ -56,11 +52,8 @@ class TestAsking:
     def test_the_invitation_survives_the_telling(
         self, campaign, arbitrator, player, django_capture_on_commit_callbacks
     ):
-        """The record is the point; the notification is how somebody hears.
-
-        Telling happens after the commit because a failure inside the
-        transaction poisons it: the block rolls back on the way out and takes
-        the invitation with it, with nothing on screen to say so.
+        """Deliver notifications after commit so an inbox database error cannot invalidate
+        the invitation transaction.
         """
         with django_capture_on_commit_callbacks(execute=True):
             with campaign_operation(campaign, actor=arbitrator) as act:
@@ -141,7 +134,7 @@ class TestAnswering:
     def test_an_answer_already_given_is_not_given_twice(
         self, campaign, arbitrator, player
     ):
-        """A second click on a stale page settles nothing again."""
+        """Ignore answers submitted after the invitation has already been accepted."""
         with campaign_operation(campaign, actor=arbitrator) as act:
             act.invite(player)
         with campaign_operation(campaign, actor=player) as act:
@@ -175,13 +168,8 @@ class TestRemoving:
 
 
 class TestTheInboxRowLinksSomewhere:
-    """A notification about an invitation is a link to where it is answered.
-
-    The platform stores that link keyed by a uuid column, and this edition's
-    rows are keyed by ULID — the same 128 bits under a different alphabet. The
-    key is coerced when the notification is written, so the link survives; if
-    that stops happening the notification is not merely unlinked, it is lost,
-    because the failed statement poisons the transaction that wrote the act.
+    """Convert invitation ULIDs to UUIDs for the platform notification relation. Preserve
+    the notification and resolve its link to the campaign.
     """
 
     def test_the_notification_names_the_invitation(
@@ -198,7 +186,7 @@ class TestTheInboxRowLinksSomewhere:
     def test_the_row_leads_to_the_campaign(
         self, campaign, arbitrator, player, django_capture_on_commit_callbacks
     ):
-        """The campaign is what somebody asked into one wants to look at."""
+        """Open the invited campaign from its notification."""
         with django_capture_on_commit_callbacks(execute=True):
             with campaign_operation(campaign, actor=arbitrator) as act:
                 act.invite(player)

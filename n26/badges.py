@@ -1,10 +1,6 @@
-"""The badge beside a person's name, as data a React island can draw.
-
-The platform decides which badge a person shows and holds its artwork, whether
-committed with the app or uploaded. Templates draw that artwork inline with
-``{% badge_svg %}``. An island cannot take markup, so this seam turns the
-artwork into an element tree limited to the platform's SVG allowlist, and React
-draws it as elements.
+"""Convert platform badge artwork into an allowlisted element tree for React islands. The
+platform selects the account's badge; this module exports its SVG as data rather than
+inserting markup.
 """
 
 import re
@@ -12,7 +8,7 @@ from html.parser import HTMLParser
 
 from gyrinx.svg import SVG_ALLOWED_ATTRS, SVG_ALLOWED_TAGS
 
-# HTMLParser lower-cases names, so map each back to the allowlist's spelling.
+# Restore allowlist casing after HTMLParser lowercases tag and attribute names.
 _TAGS = {tag.lower(): tag for tag in SVG_ALLOWED_TAGS}
 _ATTRS = {
     name.lower(): name
@@ -20,9 +16,9 @@ _ATTRS = {
     if not callable(names)
     for name in names
 } | {"href": "href"}
-# The tags an island may draw, for the browser's second check.
+# Export tags for the browser's additional validation.
 SVG_TAGS = sorted(SVG_ALLOWED_TAGS)
-# Only these carry text worth keeping: an accessible name or a description.
+# Retain text only in SVG title and description elements.
 _TEXT_TAGS = {"title", "desc"}
 
 
@@ -40,8 +36,7 @@ def _allowed(tag, name, value):
 
 
 def _prop(name):
-    """React's name for an SVG attribute: class becomes className, and
-    stroke-width becomes strokeWidth."""
+    """Convert SVG attribute names to React props, including className and strokeWidth."""
     if name == "class":
         return "className"
     return re.sub(r"-([a-z])", lambda match: match[1].upper(), name)
@@ -67,7 +62,8 @@ class _Tree(HTMLParser):
                 and _local(value)
                 and _allowed(name, attr, value)
             ):
-                # The allowlist judges a reference after trimming it; so does the island.
+                # Match reference validation by trimming href before passing it to
+                # React.
                 props[_prop(attr)] = value.strip() if attr == "href" else value
         return {"tag": name, "props": props, "children": []}
 
@@ -96,13 +92,14 @@ class _Tree(HTMLParser):
                 self.stack[-1]["children"].append(data)
 
 
-# The attributes an island may draw, under React's names.
+# Export allowed attributes using React prop names.
 SVG_PROPS = sorted({_prop(name) for name in _ATTRS.values()})
 
 
 def svg_tree(markup):
-    """The first ``<svg>`` in some markup as ``{tag, props, children}`` nodes,
-    keeping only allowlisted tags and attributes; ``None`` if there is none."""
+    """Return the first root SVG as tag, props and children data, filtering tags and
+    attributes through the platform allowlist. Return None when no root SVG survives.
+    """
     parser = _Tree()
     parser.feed(markup)
     parser.close()
@@ -123,8 +120,9 @@ def shown_badge(user):
 
 
 def badge_mark(badge):
-    """A badge as ``{"label", "svg"}``: its accessible name and its artwork
-    as a tree. ``None`` when its artwork has no ``<svg>``."""
+    """Return a badge's accessible label and SVG tree, or None if its artwork has no root
+    SVG.
+    """
     tree = svg_tree(badge.inline_svg())
     if tree is None:
         return None
