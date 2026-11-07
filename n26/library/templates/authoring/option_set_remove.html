@@ -1,16 +1,5 @@
 {% extends "authoring/base.html" %}
-{% comment %}
-The question asked before a set of options is taken off, at an address
-of its own. A page rather than a prompt: it survives a reload, Back is a
-real answer, and it works with scripting switched off. Nothing here
-changes anything — the form's POST is the act.
-
-The page exists for one fact the heading cannot show: the options go
-with their set. Loose in the main pick they would compete with the
-standard loadout rather than with each other, which is a different
-offer from the one the author wrote — so they are listed here, by name,
-before anything happens.
-{% endcomment %}
+{# Delete options with their group; moving them into the main set would change which alternatives compete. #}
 {% block head_title %}Remove {{ label }}{% endblock head_title %}
 {% block content %}
     <c-n26.form-page action="{% url 'authoring-option-set-remove' thing.pk %}"
