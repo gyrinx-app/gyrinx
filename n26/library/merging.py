@@ -382,7 +382,7 @@ class MergeRun:
 def merge_run(plan):
     """Rebuild the plan under the runner lock and reject changes since confirmation.
 
-    Finish library-only plans immediately when they affect no gang.
+    Return a ``MergeRun`` for the refreshed plan.
     """
     now = plan_again(plan)
     if not now.same_as(plan):
@@ -446,7 +446,7 @@ def merge_gang(gang_id, plan):
             )
 
         moved = 0
-        # Update both assignable columns together to preserve the exactly-one constraint.
+        # Replace the duplicate in its existing assignable column.
         # Bulk updates are safe because assignment hosts and roots do not change.
         Assignment.objects.filter(pk__in=[a.pk for a in held]).update(
             **{column: survivor}

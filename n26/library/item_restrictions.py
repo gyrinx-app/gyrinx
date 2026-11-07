@@ -200,9 +200,10 @@ def _by_model(approved):
 
 
 def _lock(approved):
-    """Lock approved items against changes to use restrictions for this transaction.
+    """Lock the approved item rows for this transaction.
 
     New many-to-many links require conflicting foreign-key key-share locks.
+    These item locks do not block deletion of existing many-to-many links.
     """
     from django.apps import apps
 

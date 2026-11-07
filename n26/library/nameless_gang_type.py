@@ -186,8 +186,8 @@ def find():
             gang_root=gang
         )
         strays = theirs.exclude(pk=gang.founding_id).distinct().count()
-        # Miniature.membership uses SET_NULL, so explicitly reject gangs with models
-        # to avoid leaving unowned models after deletion.
+        # Preserve gangs with miniatures: deleting their membership assignments
+        # would cascade to the miniatures.
         models_in = Miniature.objects.filter(membership__gang=gang).count()
 
         if not strays and not models_in:
