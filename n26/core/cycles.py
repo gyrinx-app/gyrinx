@@ -9,6 +9,7 @@ a cycle inside their existing campaign transaction without advancing it.
 from dataclasses import asdict, dataclass, replace
 from uuid import UUID
 
+from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from ulid import ULID
@@ -27,6 +28,7 @@ from n26.core.cycle_data import (
 )
 from n26.core.fields import to_ulid
 from n26.core.models import (
+    Campaign,
     CampaignCycle,
     CampaignCycleCommand,
     CampaignCycleTransition,
@@ -87,7 +89,14 @@ def _access(act, *, manage=True):
 
 
 def load(campaign):
-    """Read an engine snapshot in a fixed number of queries."""
+    """Read one consistent snapshot, serialised with campaign writers."""
+    with transaction.atomic():
+        fresh = Campaign.objects.select_for_update(no_key=True).get(pk=campaign.pk)
+        return _load_locked(fresh)
+
+
+def _load_locked(campaign):
+    """Read a bounded-query snapshot while the caller holds the campaign lock."""
     header = (
         CampaignSchedule.objects.filter(campaign=campaign)
         .select_related("active_plan")
@@ -313,7 +322,7 @@ def _command(campaign, actor, *, kind, inputs, request_key, expected_revision, a
         previous = _previous(act, kind, inputs, key)
         if previous is not None:
             return previous
-        before = load(act.campaign)
+        before = _load_locked(act.campaign)
         actual_revision = before.revision if before is not None else None
         if (
             type(expected_revision) is not type(actual_revision)
@@ -456,15 +465,18 @@ def delete_phase(campaign, *, actor, phase_id, expected_revision, request_key):
 
 
 def replace_plan(campaign, *, actor, steps, mode, expected_revision, request_key):
+    raw_steps = [asdict(step) for step in steps]
     return _command(
         campaign,
         actor,
         kind="replace_plan",
-        inputs={"steps": [asdict(step) for step in steps], "mode": mode},
+        inputs={"steps": raw_steps, "mode": mode},
         request_key=request_key,
         expected_revision=expected_revision,
         apply=lambda act, before: (
-            s.replace_plan(before, steps=steps, mode=mode, new_id=_new_id),
+            s.replace_plan(
+                before, steps=steps_from_data(raw_steps), mode=mode, new_id=_new_id
+            ),
             None,
         ),
     )
@@ -536,7 +548,7 @@ def finish(campaign, *, actor, expected_current, expected_revision, request_key)
 def resolve_selection(act, target):
     """Resolve within the caller's campaign operation and atomic domain write."""
     _access(act, manage=False)
-    before = load(act.campaign)
+    before = _load_locked(act.campaign)
     if before is None:
         raise Refusal("Set up campaign cycles before selecting one.")
     _bounded_target(before, target)
@@ -552,7 +564,7 @@ def status_changed(act, status):
     """Keep an opted-in schedule consistent with existing campaign status actions."""
     if not flags.enabled(flags.CYCLE_TRACKING, act.actor):
         return False
-    before = load(act.campaign)
+    before = _load_locked(act.campaign)
     if before is None:
         return False
     _access(act)

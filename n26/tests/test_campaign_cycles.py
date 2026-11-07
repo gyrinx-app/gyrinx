@@ -4,7 +4,7 @@ import importlib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import date
-from threading import Barrier
+from threading import Barrier, Event, local
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -234,6 +234,22 @@ class TestSetupAndAccess:
 
 
 class TestMaterialisation:
+    @pytest.mark.parametrize("identity", ["", "x" * 27])
+    def test_invalid_step_identities_cannot_be_committed_as_a_replacement_plan(
+        self, campaign, owner, configured, identity
+    ):
+        with pytest.raises(Refusal):
+            cycles.replace_plan(
+                campaign,
+                actor=owner,
+                steps=(s.PlanStep(identity, configured.current_phase.id, 1),),
+                mode="fixed",
+                expected_revision=configured.revision,
+                request_key=uuid4(),
+            )
+        assert cycles.load(campaign) == configured
+        assert CampaignPlan.objects.count() == 1
+
     def test_editing_cycle_six_saves_the_prefix_without_starting(
         self, campaign, owner, configured
     ):
@@ -456,6 +472,51 @@ class TestTransitionDelivery:
 
 @pytest.mark.django_db(transaction=True)
 class TestConcurrentWriters:
+    def test_a_snapshot_cannot_mix_its_header_with_a_concurrent_saved_prefix(
+        self, campaign, owner, configured
+    ):
+        locked, writing = Event(), Event()
+        marker = local()
+        original = cycles._load_locked
+        target = s.project(configured, limit=3)[-1].ref
+
+        def read_locked(fresh):
+            if getattr(marker, "reader", False):
+                locked.set()
+                assert writing.wait(timeout=10)
+            return original(fresh)
+
+        def read():
+            close_old_connections()
+            marker.reader = True
+            try:
+                return cycles.load(Campaign.objects.get(pk=campaign.pk))
+            finally:
+                connections.close_all()
+
+        def write():
+            close_old_connections()
+            try:
+                assert locked.wait(timeout=10)
+                writing.set()
+                with campaign_operation(
+                    Campaign.objects.get(pk=campaign.pk),
+                    actor=User.objects.get(pk=owner.pk),
+                ) as act:
+                    cycles.resolve_selection(act, target)
+            finally:
+                connections.close_all()
+
+        with patch("n26.core.cycles._load_locked", side_effect=read_locked):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                reader = pool.submit(read)
+                writer = pool.submit(write)
+                before = reader.result(timeout=20)
+                writer.result(timeout=20)
+        assert len(before.cycles) == before.next_position == 1
+        after = cycles.load(campaign)
+        assert len(after.cycles) == after.next_position == 4
+
     def test_two_selections_materialise_the_same_prefix_once(
         self, campaign, owner, configured
     ):
