@@ -1,10 +1,4 @@
-"""Background tasks for the platform's outward integrations.
-
-``trigger_discord_issue_action`` bridges Discord to GitHub: it turns a message in
-the project's Discord into a GitHub issue on this repository. That is project
-tooling, not game content, which is why it lives beside the API views that
-receive the Discord interaction rather than in an edition package.
-"""
+"""Platform integration tasks for Discord and GitHub."""
 
 import logging
 
@@ -28,16 +22,11 @@ def trigger_discord_issue_action(
     message_author: str,
     requesting_user: str,
 ):
-    """
-    Trigger a GitHub Action to create an issue from a Discord message.
+    """React to a Discord message and dispatch its details to the issue-creation workflow.
 
-    Adds a 👀 reaction to the original message, then sends a repository_dispatch
-    event to gyrinx-app/gyrinx. The GitHub Action fetches the full thread/reply
-    chain, calls Claude to summarise, creates the issue, posts a visible reply
-    with the link, and deletes the ephemeral "thinking" message (or updates it
-    on failure).
+    Report missing configuration, network errors or a refused dispatch through
+    the deferred Discord response. The GitHub workflow owns issue creation.
     """
-    # React with 👀 to signal the message is being processed
     _add_discord_reaction(channel_id, message_id)
 
     token = settings.GITHUB_DISPATCH_TOKEN
@@ -99,7 +88,7 @@ def trigger_discord_issue_action(
 
 
 def _add_discord_reaction(channel_id: str, message_id: str):
-    """Add a 👀 reaction to a Discord message to signal processing."""
+    """Add the processing reaction, logging failures without raising."""
     bot_token = settings.DISCORD_BOT_TOKEN
     if not bot_token:
         logger.warning("No DISCORD_BOT_TOKEN configured, skipping reaction")
@@ -131,7 +120,6 @@ def _update_discord_message(application_id: str, interaction_token: str, content
         logger.error(f"Failed to update Discord message: {e}")
 
 
-# Declared for the platform to discover (see gyrinx/tasks/discovery.py).
 task_routes = [
     TaskRoute(trigger_discord_issue_action),
 ]
