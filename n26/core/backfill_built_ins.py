@@ -1,48 +1,18 @@
-"""Fighters catch up with the built-ins they were hired without.
+"""Repair built-in provenance and reconcile missing grants, one gang per operation.
 
-Two things went unrecorded before provenance existed. A grant a set
-materialised carried no note of which member it came from or which
-carrier it came for — only the shape it was written in: reason
-``DEFAULT``, caused by the carrier. And a member added to a set after
-a hire never reached the models already hired from it. This module
-settles both, one gang at a time, inside one ``operation(gang)``:
+First, match untagged DEFAULT assignments caused by a carrier to its set
+members. Claim option sets newest selection first, then built-ins. Pair
+newest copies to matching members one at a time, subtracting already tagged
+copies. Exclude free weapon profiles, which are not set members. Report
+unmatched or ambiguous copies without tagging them.
 
-1. **Tag.** Every grant in the gang written in the legacy shape is
-   matched to the member it must have come from — a member of one of
-   its carrier's sets (``sets_for``: the carrier's built-ins and the
-   option sets it took) naming the same assignable — and the pair is
-   written onto it. A weapon's own free profiles are not set
-   members and are left alone. Sets claim copies one at a time, never
-   pooled — the option sets first, last recorded first, then the
-   built-ins — so that where two sets name the same thing each gets
-   the copies it wrote (``_tag_legacy_grants``). Within a set, where
-   it names the same assignable more than once (twin guns), the
-   carrier's untagged copies are paired to the members newest copy
-   first, one per member, as many as the set has members and
-   provenance does not already account for; a copy left over stays
-   untagged and is counted as ambiguous. A copy whose member is gone
-   stays untagged and is counted.
+Tagging changes only provenance. Then reconcile live carriers, skipping a
+carrier's own missing member when its host already holds that content from
+another source. Nested grants created during catch-up use ordinary provenance
+rules rather than this backfill-only duplicate avoidance.
 
-   Tagging writes provenance and nothing else — no ledger entry, no
-   event, no repin. It changes how a grant is recorded, not what the
-   owner has: it moves no money, and the gang is proved to reconcile
-   after.
-
-2. **Catch up.** Every live carrier in the gang is reconciled against
-   its sets, so a member added after the hire arrives now, recorded as
-   caught up. Where the carrier's model — or the gang, for a
-   gang-hosted carrier — already holds a live copy of the member's
-   thing that arrived some other way (bought, rewarded, edited in,
-   granted by a modifier), the member is skipped and the carrier named
-   in the outcome: for the carrier's own set members, the backfill
-   never creates a duplicate. That is a backfill-only reading; live
-   propagation judges by provenance alone (``n26.core.builtins``), and
-   so does the reconcile of anything the catch-up itself creates.
-
-Both steps are idempotent, so a gang may be walked again: a second
-pass tags nothing and grants nothing. Archived grants are tagged like
-live ones, because a grant the owner sold or removed is settled and
-must never be granted again — the tag is what says so.
+Tag archived grants too so removed equipment remains satisfied. Each gang
+must reconcile before commit; repeating the backfill creates no new grants.
 """
 
 from dataclasses import dataclass, field
@@ -54,9 +24,8 @@ from n26.core.models import Assignment, Gang, LedgerEvent, Reason
 from n26.core.operations import operation
 from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
 
-#: The kinds a legacy grant may be: what a set can name, less a
-#: weapon's profiles, which are its own and free rather than members
-#: of any set.
+#: Set member kinds eligible for provenance repair, excluding included
+#: weapon profiles.
 TAGGABLE_KINDS = tuple(
     kind for kind in DEFAULT_ASSIGNABLE_FIELDS if kind != "weapon_profile"
 )
@@ -111,10 +80,8 @@ def catch_up(gang_id):
     outcome = GangOutcome(gang_id=str(gang_id))
     with operation(gang, actor=None) as op:
         _tag_legacy_grants(gang, outcome)
-        # A grant with no cause recorded has no carrier whose sets could
-        # claim it. Counted with the unmatched, so the report explains
-        # every row the preview shows and a rerun's residue reads as
-        # settled rather than silently lingering.
+        # Uncaused grants have no carrier to match. Count them as unmatched so
+        # the report accounts for every untagged assignment.
         outcome.unmatched += (
             Assignment.objects.filter(
                 gang_root=gang, caused_by__isnull=True, **LEGACY_SHAPE
@@ -130,20 +97,11 @@ def catch_up(gang_id):
 
 
 def _tag_legacy_grants(gang, outcome):
-    """Give every legacy grant in the gang its provenance.
+    """Match untagged grants by carrier and content, claiming copies set by set.
 
-    Grants are grouped by carrier and by the thing they name, then
-    each of the carrier's sets claims copies one set at a time — never
-    pooled — because the built-ins and a chosen option set may name
-    the same thing, and pooling their members would pair the copies
-    backwards. The invariant: the pairing written here is the one
-    ``_granted_rows(carrier, set)`` reads for every set. That read
-    takes a set's copies newest first, on the rule that where the
-    built-ins and an option set grant the same thing, the option's copy
-    is the newer one — the built-ins materialise first, then the option
-    sets in the order they were recorded. So the option sets claim
-    first, the one recorded last claiming first from the newest copies,
-    and the built-ins set claims last, from what remains.
+    Claim selected options newest selection first, then built-ins, matching their
+    reverse materialisation order. Within each set use newest copies first so
+    later option removal finds the copies that option originally supplied.
     """
     legacy = (
         Assignment.objects.filter(
@@ -169,9 +127,8 @@ def _tag_legacy_grants(gang, outcome):
         named = False
         accounted = 0
         for default_set in sets_by_carrier[carrier_id]:
-            # Live members first: a copy bound to an archived member
-            # leaves its live twin unsatisfied, and catch-up would then
-            # grant the duplicate this pairing exists to prevent.
+            # Match live members first so archived twins do not consume the copies
+            # needed to prevent duplicate catch-up grants.
             members = list(
                 default_set.members.filter(**{f"{kind}_id": assignable_id}).order_by(
                     "archived", "pk"
@@ -206,10 +163,7 @@ def _tag_legacy_grants(gang, outcome):
 
 
 def _sets_in_claiming_order(carrier):
-    """The carrier's sets, in the order they claim legacy copies: the
-    chosen option sets, last recorded first, then the built-ins. The
-    reverse of the order they materialised in, so that newest-first
-    claiming hands each set the copies it wrote."""
+    """Return options in reverse recorded order, then built-ins, for newest-first pairing."""
     chosen = carrier.chosen_options.select_related("default_set").order_by("-pk")
     ordered = [taken.default_set for taken in chosen]
     built = getattr(carrier.assignable, "built_ins", None)
@@ -261,9 +215,7 @@ def _catch_up_carriers(op, gang, outcome):
 
 
 def _carriers_in(gang):
-    """The gang's live carriers: every assignment whose thing has
-    built-ins, and every one that took an option set. A removal is
-    machinery, not a use; an archived carrier is settled history."""
+    """Find live, non-removal assignments with built-ins or recorded selected sets."""
     holds = Q(chosen_options__isnull=False)
     for kind in Assignment.ASSIGNABLE_FIELDS:
         holds |= Q(**{f"{kind}__built_ins__isnull": False})
@@ -276,19 +228,12 @@ def _carriers_in(gang):
 
 
 def _held_another_way(member, carrier, host_gang):
-    """A sentence saying how the carrier's model — or the gang, for a
-    gang-hosted carrier — already holds the member's thing without a
-    set having materialised it, or None where it does not.
+    """Describe existing content that should suppress a backfill grant, or return None.
 
-    For most kinds that is a live copy with no provenance and a reason
-    other than ``DEFAULT``: bought, rewarded, edited in, or granted by
-    a modifier. Ammo is read differently: a profile stacked on a gun
-    with no provenance is held whatever its reason, because a weapon's
-    own free profiles and a legacy ammo grant are written in the same
-    shape, and a second profile under the same gun is the duplicate this
-    check exists to prevent. The gun is the one the member would
-    land under — its named gun member's live copy for this carrier, or
-    any live gun of that weapon on the host where it names none.
+    For ordinary kinds, accept untagged non-DEFAULT assignments and computed grants.
+    For ammunition, any untagged matching profile counts because included profiles
+    and untagged set grants share a representation. Match the intended weapon:
+    its named member copy, or a matching live host weapon when unanchored.
     """
     from n26.core.builtins import copies_of
     from n26.library.models import WeaponProfile
@@ -345,13 +290,7 @@ def _name_of(carrier, host_gang):
 
 
 def legacy_grants_by_kind():
-    """How many grants still carry no provenance, by what they name.
-    One query.
-
-    Archived gangs are counted with the rest: an archived gang is one
-    its owner may bring back, and a gang whose grants were never tagged
-    comes back holding kit nothing can account for.
-    """
+    """Count untagged grants by assignable kind in one query, including archived gangs."""
     counted = Assignment.objects.filter(**LEGACY_SHAPE).aggregate(
         **{
             kind: Count("pk", filter=Q(**{f"{kind}__isnull": False}))
