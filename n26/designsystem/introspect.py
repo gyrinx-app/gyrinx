@@ -1,15 +1,5 @@
-"""Read the component API straight out of the installed django-cotton-ui templates.
-
-A Cotton component declares its public props in a ``<c-vars/>`` block at the top
-of its template, and most of the kit's components follow it with a
-``{% comment %}`` block explaining themselves. Both are better documentation than
-anything kept by hand in this app, because they ship with the version actually
-installed — upgrade the package and the reference page follows.
-
-So nothing here is transcribed. The gallery's prop tables and descriptions are
-parsed, at runtime, from::
-
-    .venv/.../django_cotton_ui/templates/cotton/ui/**/*.html
+"""Read component props, documentation and slots from the templates selected by Django.
+Public props come from c-vars; the first comment block supplies displayed documentation.
 """
 
 from __future__ import annotations
@@ -27,25 +17,11 @@ KIT_TEMPLATES = (
 )
 UI_ROOT = KIT_TEMPLATES / "ui"
 
-# This project's own Cotton components, which are documented exactly the same way:
-# they declare <c-vars> and explain themselves in a {% comment %}, so the gallery
-# reads them rather than being told about them. They live in the core app's
-# template tree — the edition mounts inside a larger repository, so BASE_DIR is
-# that repository's root, not the edition's.
+# BASE_DIR is the repository root; edition components live under the core template tree.
 LOCAL_ROOT = Path(settings.BASE_DIR) / "n26" / "core" / "templates" / "cotton"
 
-# Our overrides of *kit* components. A kit component is asked for by a bare name
-# ("button.html") because UI_ROOT already ends in ui/, so this is the same name
-# under our own ui/ — and it has to be searched first, because that is the order
-# Django resolves them in and therefore which file actually renders.
-#
-# This root did not exist before, on the reasoning that the namespaces (ui/… and
-# n26/…) could not collide. They can and they do: templates/cotton/ui/ holds four
-# overrides now, and colliding is the entire point of one. Without this the
-# gallery read the kit's copy of a template it does not render — c-ui.button's
-# prop table listed six variants while seven worked, and error, label and
-# description have been documented from the wrong file since the day they were
-# overridden.
+# Search local kit overrides before installed templates to match Django's template
+# resolution order.
 LOCAL_UI_ROOT = LOCAL_ROOT / "ui"
 
 ROOTS = (LOCAL_UI_ROOT, LOCAL_ROOT, UI_ROOT)
@@ -54,9 +30,8 @@ _CVARS = re.compile(r"<c-vars\b(.*?)/>", re.DOTALL)
 _COMMENT = re.compile(r"\{%\s*comment\s*%\}(.*?)\{%\s*endcomment\s*%\}", re.DOTALL)
 _PLACEHOLDER = re.compile(r"\{\{\s*([a-z_][a-z0-9_]*)\s*\}\}", re.IGNORECASE)
 
-# A slot is read as a bare {{ name }}, but so is any name the template binds
-# itself — {% with row_class="…" %} and {% for pos, classes in … %}. Those look
-# identical from the outside and are not part of the component's API.
+# Exclude with and for bindings from slot detection: they use the same placeholder
+# syntax as public slots.
 _WITH = re.compile(r"\{%\s*with\s+([^%]*?)%\}")
 _WITH_NAME = re.compile(r"([a-z_][a-z0-9_]*)\s*=", re.IGNORECASE)
 _FOR = re.compile(r"\{%\s*for\s+(.+?)\s+in\s", re.DOTALL)
@@ -80,16 +55,12 @@ class Prop:
 
     @property
     def choices(self) -> tuple[str, ...]:
-        """Top-level keys of a dict-valued default, which is how the kit spells an enum.
-
-        ``:variants="{'default': ..., 'primary': ...}"`` on a component with a
-        ``variant`` prop means variant accepts exactly those keys. Only depth-1 keys
-        count: alert's ``:styles`` nests appearance over variant
-        (``{'soft': {'info': ...}}``) and the two levels are different props.
+        """Top-level keys of a dictionary default. Nested dictionaries describe separate
+        dimensions and do not add choices here.
         """
         if not (self.dynamic and self.default.startswith("{")):
             return ()
-        # Walk the literal so nesting depth is tracked alongside the keys.
+        # Track nesting depth so only top-level dictionary keys become choices.
         keys: list[str] = []
         depth = 0
         for match in re.finditer(r"['\"]([\w-]+)['\"]\s*(:)|([{}\[\]])", self.default):
@@ -114,21 +85,14 @@ class ComponentApi:
 
     @property
     def source_label(self) -> str:
-        """Where the props on this page were read from, as shown to the reader."""
+        """Template path displayed as the source of the component API."""
         root = LOCAL_ROOT if self.is_local else UI_ROOT
         return str(self.path.relative_to(root))
 
     @property
     def enums(self) -> dict[str, tuple[str, ...]]:
-        """Prop name -> allowed values, recovered from the kit's lookup-dict idiom.
-
-        The kit spells an enum as a plain prop holding the chosen key
-        (``variant="primary"``) plus a dict prop mapping every key to classes
-        (``:variants="{'primary': ...}"``). The reliable link between the two is the
-        *value*, not the name: whichever prop's default appears among a dict's
-        top-level keys is the prop that dict enumerates. That handles the naming
-        variations (``variants`` / ``size_classes`` / ``icon_paths``) and alert's
-        two-level ``:styles`` without special-casing any of them.
+        """Infer selector choices from dictionary defaults. Match each selector's default
+        value to a dictionary's top-level keys, independently of property naming.
         """
         selectors = [
             p
@@ -148,11 +112,8 @@ class ComponentApi:
 
 
 def _split_attributes(text: str) -> list[tuple[str, str]]:
-    """Tokenise a ``<c-vars>`` body into (name, raw_value) pairs.
-
-    Values are quoted but routinely contain commas, braces, newlines and the other
-    quote character (``:variants="{'a': 'b'}"``), so this walks the string rather
-    than trying to be a regex.
+    """Parse a c-vars body into name and raw-value pairs. Scan quoted values so nested
+    punctuation and the other quote character remain intact.
     """
     pairs: list[tuple[str, str]] = []
     i, n = 0, len(text)
@@ -189,7 +150,7 @@ def _split_attributes(text: str) -> list[tuple[str, str]]:
 
 
 def _normalise(value: str) -> str:
-    """Collapse a multi-line dict/list default onto one line for display."""
+    """Collapse whitespace in a default value for display."""
     return re.sub(r"\s+", " ", value).strip()
 
 
@@ -204,14 +165,8 @@ def _read(relative: str) -> ComponentApi | None:
 
     props: list[Prop] = []
     if match := _CVARS.search(raw):
-        # A {% comment %} inside the <c-vars> block is prose about the props
-        # around it, and a perfectly ordinary thing to write. Left in, every
-        # word of it is tokenised as a prop: one component published forty-three
-        # of them, including "and", "from" and "endcomment". Worse than the
-        # noise, a phantom silently eats the real slot of the same name — the
-        # word "empty" in a sentence is why that component's `empty` slot went
-        # undocumented — because a name counted as declared is a name the slot
-        # scan below then skips.
+        # Strip comments before parsing c-vars; prose would create false props and hide
+        # slots with matching names.
         for name, value in _split_attributes(_COMMENT.sub("", match.group(1))):
             dynamic = name.startswith(":")
             props.append(
@@ -240,7 +195,9 @@ def _read(relative: str) -> ComponentApi | None:
 
 
 def api_for(relative: str) -> ComponentApi | None:
-    """``api_for("button.html")``, ``api_for("accordion/index.html")``."""
+    """Read the API for a relative template path, such as button.html or
+    accordion/index.html.
+    """
     if settings.DEBUG:
         _read.cache_clear()
     return _read(relative)
@@ -266,11 +223,8 @@ def _mounts_react(relative: str) -> bool:
     source = path.read_text()
     if _REACT_TAG.search(source):
         return True
-    # A component's island can sit in one of its own sub-templates, such as
-    # switch/index.html drawing <c-ui.switch.impl>. Follow those, and only
-    # those, so the walk stays inside this component's folder.
-    # n26/ holds every n26 component side by side, so it is not one
-    # component's folder.
+    # Follow subcomponents only within this component's folder. The shared n26 directory
+    # contains unrelated components.
     parent = relative.rsplit("/", 1)[0] if "/" in relative else ""
     if parent in ("", "n26"):
         return False

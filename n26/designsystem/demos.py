@@ -1,19 +1,8 @@
-"""Demo discovery.
+"""Discover gallery demos from designsystem/templates/designsystem/demos/<component-slug>/.
+Render and display source from the same file.
 
-Every example in the gallery is a real template file under
-``designsystem/templates/designsystem/demos/<component-slug>/``. The page renders
-that file *and* prints its source, so the code you read is by construction the
-code that produced the preview above it — there is no second copy to drift.
-
-Files are ordered by a numeric filename prefix (``10-variants.html``) and carry
-their own metadata in leading comments::
-
-    {# title: Variants #}
-    {# note: Six fills, plus an outlined flavour of each. #}
-    <c-ui.button variant="primary">Save</c-ui.button>
-
-``note`` is optional. A file with no ``title`` falls back to a title derived
-from its filename.
+Numeric filename prefixes set display order. Leading title, note and layout comments
+supply metadata; missing titles use the filename and notes are optional.
 """
 
 from __future__ import annotations
@@ -33,7 +22,7 @@ _ORDER = re.compile(r"^(\d+)[-_]")
 
 @dataclass(frozen=True)
 class Demo:
-    """One example: where to render it from, and the source to display."""
+    """A demo's template location, display metadata and source."""
 
     slug: str
     """Stable id, unique within the component (the filename minus order prefix)."""
@@ -57,8 +46,8 @@ def _parse(path: Path, component_slug: str) -> Demo:
     meta: dict[str, str] = {}
     lines = raw.splitlines()
 
-    # Metadata is a contiguous run of comment lines at the very top; stop at the
-    # first line that is not one, so a comment inside the markup stays in the source.
+    # Only leading metadata comments are removed; comments within markup remain in the
+    # displayed source.
     body_start = 0
     for i, line in enumerate(lines):
         if not line.strip():
@@ -93,8 +82,7 @@ def _discover(component_slug: str) -> tuple[Demo, ...]:
 
 
 def demos_for(component_slug: str) -> tuple[Demo, ...]:
-    # Under DEBUG the source is re-read every request, so editing a demo file and
-    # hitting refresh shows both the new preview and the new listing.
+    # Reload demo source under DEBUG so previews and source update together.
     if settings.DEBUG:
         _discover.cache_clear()
     return _discover(component_slug)
