@@ -14,8 +14,8 @@ def _whole(value, fallback):
         return fallback
 
 
-def price_box_props(field, quoted, label="", price_cap="", element_id="", initial=None):
-    """The quote, retained input and bounds the server will accept."""
+def price_box_props(field, quoted, label="", price_cap="", element_id=""):
+    """The quote and bounds the server will accept."""
     amount = _whole(quoted, 0)
     cap = _whole(price_cap, PRICE_CEILING)
     return {
@@ -25,11 +25,20 @@ def price_box_props(field, quoted, label="", price_cap="", element_id="", initia
         "min": min(0, amount),
         "max": cap,
         "id": "" if element_id is None else str(element_id),
-        "initial": str(amount) if initial is None else str(initial),
     }
 
 
-register.simple_tag(price_box_props, name="hire_price_props")
+@register.simple_tag
+def hire_price_props(
+    field, quoted, label="", price_cap="", element_id="", initial=None
+):
+    """Keep the typed payment when a hire's name needs correction."""
+    props = price_box_props(field, quoted, label, price_cap, element_id)
+    return props | {
+        "initial": str(props["quoted"]) if initial is None else str(initial)
+    }
+
+
 register.simple_tag(price_box_props, name="equip_price_props")
 
 
