@@ -1,10 +1,4 @@
-"""
-Tests for the local durable task backend (DatabaseBackend) and its testing layer.
-
-These exercise the eager and manual modes end-to-end and, crucially, the
-Pub/Sub-like adverse conditions the manual driver can script: duplicate delivery,
-transient failure + retry, message drop, and self-re-enqueueing chains.
-"""
+"""Local task delivery in eager and manual modes, including failures and redelivery."""
 
 import pytest
 from django.tasks import task
@@ -16,8 +10,7 @@ from gyrinx.tasks.worker import Outcome, compute_backoff, deliver
 
 pytestmark = pytest.mark.core
 
-# --- Test tasks. Registered lazily below so the registry lookup used by the
-# worker/manual driver resolves them. ---
+# Register test tasks through the fixture so local delivery can resolve them.
 
 _side_effects: list = []
 
@@ -47,7 +40,7 @@ def _flaky_task():
 
 @task
 def _chain_task(n: int):
-    """Self-re-enqueueing task — models the maintenance chains (backfill/reconcile)."""
+    """Enqueue a follow-up task until n reaches zero."""
     _side_effects.append(n)
     if n > 0:
         _chain_task.enqueue(n=n - 1)
@@ -72,20 +65,14 @@ def _register_test_tasks(monkeypatch):
     yield
 
 
-# =============================================================================
-# Eager mode — drop-in for ImmediateBackend
-# =============================================================================
-
-
 @pytest.mark.django_db
 def test_eager_runs_inline_on_enqueue():
-    """Default eager mode runs the task synchronously inside enqueue()."""
+
     result = _record_task.enqueue("hello")
 
     assert _side_effects == ["hello"]
     execution = TaskExecution.objects.get(task_id=result.id)
     assert execution.status == "SUCCESSFUL"
-    # Eager never persists a queue row.
     assert QueuedTask.objects.count() == 0
 
 
@@ -122,7 +109,7 @@ def test_eager_retains_a_scoped_task_while_writes_are_paused(
 
 @pytest.mark.django_db
 def test_eager_records_failure_without_raising():
-    """A failing task in eager mode is recorded FAILED, not propagated."""
+
     result = _boom_task.enqueue()
 
     execution = TaskExecution.objects.get(task_id=result.id)
@@ -132,11 +119,7 @@ def test_eager_records_failure_without_raising():
 
 @pytest.mark.django_db
 def test_redelivery_of_completed_task_does_not_raise():
-    """Post-completion redelivery: task_started re-fires for an already-terminal
-    execution (the Pub/Sub at-least-once case). handle_task_started must skip the
-    illegal SUCCESSFUL->RUNNING transition rather than raise — a raise here
-    propagates out of run_task and, via the prod push handler, 500s into a
-    redelivery storm."""
+    """Rerun business logic while preserving the successful execution and its finish time."""
     from gyrinx.tasks.executor import run_task
 
     result = _record_task.enqueue("once")  # eager: runs inline, records SUCCESSFUL
@@ -144,7 +127,6 @@ def test_redelivery_of_completed_task_does_not_raise():
     assert execution.status == "SUCCESSFUL"
     finished_at = execution.finished_at
 
-    # Redeliver the same completed message straight through the shared executor.
     ok, _rv, err = run_task(
         _record_task.func,
         task_name="_record_task",
@@ -162,10 +144,7 @@ def test_redelivery_of_completed_task_does_not_raise():
 
 @pytest.mark.django_db
 def test_retry_after_failure_records_eventual_success():
-    """A Pub/Sub-style retry redelivers a task whose execution is FAILED. The fresh
-    attempt must be allowed to record its own outcome (SUCCESSFUL) rather than
-    staying stuck at the prior failure — handle_task_started treats FAILED as
-    retryable and resets the record before marking it RUNNING."""
+    """Reset a failed execution for retry so the new attempt can record success."""
     from django.utils import timezone
 
     from gyrinx.tasks.executor import run_task
@@ -181,7 +160,6 @@ def test_retry_after_failure_records_eventual_success():
     execution.mark_failed(error_message="transient boom")
     assert execution.status == "FAILED"
 
-    # Redeliver the same message; this time the underlying function succeeds.
     ok, _rv, err = run_task(
         _record_task.func,
         task_name="_record_task",
@@ -197,14 +175,9 @@ def test_retry_after_failure_records_eventual_success():
     assert execution.error_message == ""  # prior failure cleared
 
 
-# =============================================================================
-# Manual mode — the testing layer
-# =============================================================================
-
-
 @pytest.mark.django_db
 def test_manual_defers_until_delivered(task_queue):
-    """In manual mode enqueue only queues; nothing runs until deliver."""
+
     _record_task.enqueue("x")
 
     assert _side_effects == []
@@ -268,29 +241,27 @@ def test_manual_duplicate_redelivery_obeys_pause(task_queue, monkeypatch):
 
 @pytest.mark.django_db
 def test_manual_redelivery_reruns_function(task_queue):
-    """At-least-once duplicate: the function runs twice, the record stays SUCCESSFUL."""
+
     result = _record_task.enqueue("dup")
     task_queue.deliver_all()
     assert _side_effects == ["dup"]
 
     task_queue.redeliver_last()
 
-    # Business logic ran again (idempotency is the caller's job to prove)...
     assert _side_effects == ["dup", "dup"]
-    # ...but the canonical outcome record is untouched (still one SUCCESSFUL row).
     execution = TaskExecution.objects.get(task_id=result.id)
     assert execution.status == "SUCCESSFUL"
 
 
 @pytest.mark.django_db
 def test_manual_transient_failure_then_retry_succeeds(task_queue):
-    """fail_next() nacks the first delivery; the retry runs and succeeds."""
+
     result = _flaky_task.enqueue()
 
     task_queue.fail_next(1)  # first *delivery* fails (injected, task not run)
     task_queue.deliver_all()
 
-    # The injected failure means the real function only ran on the retry.
+    # The injected failure consumes a delivery without calling the task function.
     assert _side_effects == ["flaky-ok-1"]
     execution = TaskExecution.objects.get(task_id=result.id)
     assert execution.status == "SUCCESSFUL"
@@ -299,8 +270,7 @@ def test_manual_transient_failure_then_retry_succeeds(task_queue):
 
 @pytest.mark.django_db
 def test_manual_real_exception_then_recovers(task_queue):
-    """A task that raises on its first attempt but succeeds later ends SUCCESSFUL
-    (the retry resets the observability record so the transition is valid)."""
+
     result = _flaky_task.enqueue()
     _flaky_state["fail_until_attempt"] = 2  # raise on attempt 1, succeed on attempt 2
 
@@ -313,12 +283,11 @@ def test_manual_real_exception_then_recovers(task_queue):
 
 @pytest.mark.django_db
 def test_manual_gives_up_after_max_attempts(task_queue):
-    """A permanently failing task is retried up to max_attempts, then given up."""
+
     result = _boom_task.enqueue()
 
     task_queue.deliver_all()
 
-    # Row is gone (given up), execution is FAILED.
     assert QueuedTask.objects.count() == 0
     execution = TaskExecution.objects.get(task_id=result.id)
     assert execution.status == "FAILED"
@@ -326,7 +295,7 @@ def test_manual_gives_up_after_max_attempts(task_queue):
 
 @pytest.mark.django_db
 def test_manual_drop_loses_delivery(task_queue):
-    """drop_next() simulates a lost message: the task never runs and the row is gone."""
+
     _record_task.enqueue("gone")
 
     task_queue.drop_next(1)
@@ -339,18 +308,13 @@ def test_manual_drop_loses_delivery(task_queue):
 
 @pytest.mark.django_db
 def test_manual_self_re_enqueue_chain(task_queue):
-    """A task that enqueues a follow-up (like the maintenance chains) drains fully."""
+
     _chain_task.enqueue(n=3)
     delivered = task_queue.deliver_all()
 
     assert _side_effects == [3, 2, 1, 0]
     assert delivered == 4
     assert task_queue.pending() == 0
-
-
-# =============================================================================
-# Backoff + configuration
-# =============================================================================
 
 
 def test_compute_backoff_is_exponential_and_capped():
@@ -360,7 +324,6 @@ def test_compute_backoff_is_exponential_and_capped():
     assert compute_backoff(r, 1).total_seconds() == 10
     assert compute_backoff(r, 2).total_seconds() == 20
     assert compute_backoff(r, 3).total_seconds() == 40
-    # Capped at max_retry_delay.
     assert compute_backoff(r, 10).total_seconds() == 100
 
 
@@ -370,9 +333,7 @@ def test_backend_rejects_invalid_mode():
 
 
 def test_worker_pool_stop_leaves_instance_restartable():
-    """stop() must clear the _stop/_wake events, otherwise a later
-    ensure_started() would spin up threads whose _loop sees _stop already set and
-    exits immediately — a pool that looks started but never does work."""
+    """Clear stop and wake events so restarted threads can process work."""
     from gyrinx.tasks.worker import TaskWorkerPool
 
     pool = TaskWorkerPool(num_workers=1)
@@ -385,7 +346,7 @@ def test_worker_pool_stop_leaves_instance_restartable():
 
 @pytest.mark.django_db
 def test_mode_override_flips_backend(task_queue):
-    """The fixture's manual override is what defers execution."""
+
     assert local_backend.get_mode_override() == "manual"
     _record_task.enqueue("y")
     assert task_queue.pending() == 1
@@ -393,9 +354,7 @@ def test_mode_override_flips_backend(task_queue):
 
 @pytest.mark.django_db
 def test_deliver_unknown_task_is_discarded():
-    """A queue row for a task missing from the registry is dropped (not retried
-    forever), and its enqueue-time observability record is marked FAILED rather
-    than left pending forever."""
+
     from django.utils import timezone
 
     TaskExecution.objects.create(
@@ -424,10 +383,7 @@ def test_deliver_unknown_task_is_discarded():
 
 @pytest.mark.django_db
 def test_reclaim_does_not_clobber_completed_execution():
-    """Crash-after-success reclaim: a worker died after run_task succeeded but
-    before deleting the queue row, so the lease lapsed and the row is reclaimed
-    (attempts > 1). The SUCCESSFUL execution must survive — not be reset to READY
-    and re-terminalised as a fresh execution."""
+    """Preserve success when reclaiming a queue record left behind after task completion."""
     from django.utils import timezone
 
     execution = TaskExecution.objects.create(
