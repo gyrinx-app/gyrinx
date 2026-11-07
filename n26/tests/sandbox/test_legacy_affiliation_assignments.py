@@ -1,4 +1,6 @@
-"""The player-data repair that frees the retired Affiliation rows."""
+"""Verify safe deletion of obsolete Affiliation assignments and their zero-value ledger
+records.
+"""
 
 import pytest
 
@@ -161,10 +163,9 @@ def test_it_deletes_the_legacy_rows_and_their_empty_books_without_changing_pages
 
 
 def test_one_gang_visited_on_its_own_deletes_what_it_holds_now(legacy_world):
-    """A run that visits gangs across deliveries reads each gang afresh
-    rather than carrying the preview's plan; a gang with nothing left
-    says so rather than refusing, and one whose assignments no longer
-    pass the safety checks is skipped in the checks' own words."""
+    """Recheck each gang at delivery time. Repeated visits report no remaining work;
+    changed assignments that fail safety checks are skipped with a reason.
+    """
     none_gang, none, spare_gang, mutant, *_ = legacy_world
 
     assert (
