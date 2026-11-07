@@ -55,11 +55,8 @@ class TestULIDFieldConversion:
 
 
 class TestMonotonicity:
-    """python-ulid 4.x defaults to StrictMonotonicPolicy under a lock.
-
-    This matters: it means ``ORDER BY id`` is exact creation order within a
-    process, not merely millisecond-resolution. If a future release changes
-    the default policy, this test is the tripwire.
+    """ULIDs and their UUID byte representations retain generation order within this
+    process.
     """
 
     def test_strictly_increasing_within_a_single_millisecond(self):
@@ -76,7 +73,7 @@ class TestMonotonicity:
         assert rendered == sorted(rendered)
 
     def test_uuid_conversion_preserves_sort_order(self):
-        """Postgres compares `uuid` bytewise — this is what orders the index."""
+        """UUID byte order must preserve the ordering used by ULID values."""
         batch = [ULID() for _ in range(1000)]
         assert [str(u) for u in batch] == sorted(str(u) for u in batch)
         assert [u.to_uuid().bytes for u in batch] == sorted(

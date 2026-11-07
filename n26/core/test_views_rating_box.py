@@ -1,11 +1,7 @@
-"""Buying below the full price: which figure the gang's rating takes.
+"""Discounted purchases retain reference rating unless the owner chooses otherwise.
 
-A list may price something below what it is — a profile that may take it
-for free — and a player may type a lower price. Either way the thing
-keeps its full rating unless the reader ticks the rating box, which the
-click asks before anything is written. Where a Trade Point overspend is
-also being asked, the box rides that question rather than opening a
-second one.
+The rating choice shares any Trade Point overspend confirmation so one
+purchase needs one confirmation.
 """
 
 import pytest
@@ -351,7 +347,7 @@ class TestBuyingIntoTheStash:
 
 
 class TestWithAnOverspend:
-    """One click, one question: the box rides the overspend panel."""
+    """Include the rating choice in the existing overspend confirmation."""
 
     @pytest.fixture
     def post(self):
