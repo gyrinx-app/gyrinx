@@ -30,4 +30,5 @@ For deployment and operational information:
 
 - [Deployment](deployment.md) - How the application is deployed and managed
 - [Operational Overview](operations/operational-overview.md) - Infrastructure and monitoring
+- [Threat Model](security/index.md) - Security boundaries and assessed risks
 - [Runbook](runbook.md) - Live operational procedures (team access only)

@@ -215,6 +215,34 @@ def test_existing_subscription_is_updated_not_reported_as_an_error():
     subscriber.update_subscription.assert_called_once()
 
 
+@pytest.mark.parametrize(
+    ("configured", "expected"),
+    [
+        (None, "pubsub-invoker@project-a.iam.gserviceaccount.com"),
+        ("custom@example.test", "custom@example.test"),
+    ],
+)
+def test_provisioning_uses_expected_push_sender(
+    settings, monkeypatch, configured, expected
+):
+    settings.GCP_PROJECT_ID = "project-a"
+    if configured is None:
+        monkeypatch.delenv("TASKS_SERVICE_ACCOUNT", raising=False)
+    else:
+        monkeypatch.setenv("TASKS_SERVICE_ACCOUNT", configured)
+
+    with (
+        patch.object(provisioning, "get_all_tasks", return_value=[_route()]),
+        patch.object(provisioning, "_provision_task") as provision,
+        patch.object(provisioning, "_provision_scheduled_tasks"),
+        patch.object(provisioning.pubsub_v1, "PublisherClient"),
+        patch.object(provisioning.pubsub_v1, "SubscriberClient"),
+    ):
+        provisioning.provision_task_infrastructure()
+
+    assert provision.call_args.kwargs["service_account"] == expected
+
+
 def test_one_failing_task_does_not_stop_the_others(settings, caplog):
     """
     The pool must drain even when a task blows up.
