@@ -1,44 +1,15 @@
-"""The fighter-entry restrictions an upload wrote onto listed items, and
-clearing them.
+"""Plan and clear item-level fighter-profile restrictions on listed equipment.
 
-A restriction can live in two places. On an item, ``usable_by_*`` means
-"true wherever this item appears" (``UsableBy`` in
-``n26/library/models/assignable.py``). On a collection entry, the same
-three lists mean "only on this list's line" — the "(Forge-born only)"
-one gang's book prints beside a saw that every other gang lists
-plainly.
+Item ``usable_by_*`` restrictions apply everywhere; collection-entry
+restrictions apply only to that catalogue listing. This repair removes
+fighter-profile links from items listed by at least one collection, allowing
+re-import to restore the listing-specific restrictions.
 
-The equipment-lists upload read the sheet's Restrictions column as a
-fact about the item rather than about the line, so every "<Fighter>
-only" it met was written onto the item, and an item one gang's list
-narrowed was narrowed for every gang. The upload is add-only, so every
-re-upload wrote the same links again, and the collection page — where
-an author working a list looks — showed only the entry's own narrowing,
-so the restriction seemed to come from nowhere.
-
-This is the repair: strip the item-level restriction to fighter entries
-from every item that appears in at least one collection entry. The
-upload now writes the column onto the entry, so uploading the lists
-again afterwards restores each list's own brackets where the sheet
-prints them.
-
-What it leaves alone, and why:
-
-* An item's restriction to types or subtypes. The upload only ever
-  resolved profiles, so those were written by hand and are meant.
-* An item no collection lists. Nothing wrote that link on the way past
-  a list, so it was authored on purpose.
-* Every entry's own lists. Those are the right place, and the upload's
-  fixed reading writes there.
-
-It is one transaction, and it strips exactly what the preview showed.
-The plan is written onto the record when the run is asked for; the run
-locks the items it names and the listings that make them eligible,
-reads them again, and refuses if what stands differs from what was
-approved. One difference is not a refusal: every
-approved item carrying nothing at all is the plan carried out — the
-clearing committed but its ending was never written, or an author took
-the same links off by hand — and that run ends done, writing nothing.
+Preserve type and subtype restrictions, unlisted items and every entry's own
+restrictions. Lock approved items and their qualifying listings, rebuild the
+plan and reject unapproved changes before clearing in one transaction.
+If all approved restrictions are already absent, record completion without
+writing them again.
 """
 
 from dataclasses import dataclass
@@ -48,7 +19,7 @@ from django.db import transaction
 
 
 class Refused(Exception):
-    """The world is not the one the reading found."""
+    """The confirmed restriction-clearing plan differs from the current database."""
 
 
 @dataclass(frozen=True)
@@ -109,9 +80,7 @@ class Restrictions:
         return lines
 
     def recorded(self):
-        """What the record keeps beyond the preview's lines: the plan
-        itself, so the run can hold its own reading against what was
-        approved rather than against a second live scan."""
+        """Serialise the approved plan so execution can reject changes since preview."""
         return {"plan": [item.recorded() for item in self.items]}
 
 
@@ -124,9 +93,7 @@ def _line(item):
 
 
 def listable_kinds():
-    """The kinds a collection entry can name that carry the use lists,
-    as ``(entry column, model)`` pairs. Read off the entry's own columns
-    rather than listed, so a kind that gains the mixin is covered."""
+    """Discover collection-entry kinds with use restrictions as ``(field, model)`` pairs."""
     from n26.library.models import CollectionEntry
     from n26.library.models.assignable import UsableBy
     from n26.library.models.collection import ENTRY_ASSIGNABLE_FIELDS
@@ -162,10 +129,7 @@ def _pack_words(slug, name):
 
 
 def _collection_words(name, qualifier, pack_slug, pack_name):
-    """How a collection reads in the plan. A collection is unique by
-    pack, name and qualifier together, so two lists printing one name
-    are told apart the way the authoring pages tell them apart: by the
-    qualifier, and by the pack where it is not the default."""
+    """Format a collection with its qualifier and non-default pack to distinguish names."""
     said = f"{name} — {qualifier}" if qualifier else name
     pack = _pack_words(pack_slug, pack_name)
     return f"{said} [{pack}]" if pack else said
@@ -236,12 +200,10 @@ def _by_model(approved):
 
 
 def _lock(approved):
-    """Every item the approved plan names, locked for the rest of the
-    transaction.
+    """Lock the approved item rows for this transaction.
 
-    An insert into an item's use list checks its key against the item,
-    which the row lock blocks, so nothing can be added to a locked
-    item's lists between the reading and the clearing.
+    New many-to-many links require conflicting foreign-key key-share locks.
+    These item locks do not block deletion of existing many-to-many links.
     """
     from django.apps import apps
 
@@ -260,12 +222,10 @@ def _lock(approved):
 
 
 def _lock_entries(approved):
-    """The listings that make each approved item eligible, locked for
-    the rest of the transaction — one query per kind.
+    """Lock qualifying collection entries, one query per item kind.
 
-    A listing taken off between the reading and the clearing would
-    have the run strip an item no list carries any more. Held, the
-    removal waits for the run to end, and the reading holds.
+    Prevent their removal from making an item ineligible between validation and
+    restriction clearing.
     """
     from n26.library.models import CollectionEntry
 
@@ -279,9 +239,7 @@ def _lock_entries(approved):
 
 
 def _any_still_restricted(approved):
-    """Whether any item the plan names still carries a restriction to
-    fighter entries — one query per kind, asked after the rows are
-    locked so the answer holds for the rest of the transaction."""
+    """Check locked approved items for remaining fighter-profile restrictions."""
     from django.apps import apps
 
     return any(
@@ -310,14 +268,10 @@ def _nothing_left(approved):
 
 
 def apply(approved):
-    """Strip exactly what was approved, or refuse and strip nothing.
+    """Clear exactly the approved restriction plan or refuse without changes.
 
-    ``approved`` is the plan the record holds — what the preview showed
-    when the run was asked for. The reading the run makes for itself is
-    held against that, not against another live scan: a restriction
-    added, or an item newly listed, after the preview was read was never
-    approved, and a run that met one would sweep it up without anybody
-    having seen it.
+    Compare the locked current state with the recorded preview. A fresh live
+    scan alone could include restrictions or listings the author never approved.
     """
     if approved is None:
         raise Refused(
@@ -332,10 +286,8 @@ def apply(approved):
     with transaction.atomic():
         locked = _lock(approved)
         _lock_entries(approved)
-        # The clearing commits, then the record is written. A worker cut
-        # off between the two leaves the record running, and the queue
-        # delivers the task again to a world where the approved items
-        # carry nothing — the plan carried out, not the plan changed.
+        # If a worker stops after clearing but before recording completion, retrying
+        # finds the approved items already empty and can finish the record.
         if len(locked) == len(planned) and not _any_still_restricted(approved):
             return _nothing_left(approved)
         standing = find()
