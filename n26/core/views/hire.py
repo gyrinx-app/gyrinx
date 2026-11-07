@@ -1,26 +1,12 @@
-"""Hiring a fighter — the web face of :mod:`n26.core.hire`.
+"""List hireable profiles and submit named acquisitions through operations.
 
-Three submissions land on one URL, and each is a step of the same click:
+A listing POST identifies one offer and redirects to ``?hire=`` with that
+row's selected options. GET opens its naming and price dialog. The dialog's
+POST supplies ``profile``, validates the selection and performs the hire.
 
-``POST hire=<profile>``
-    A Hire button in the list. It answers *which profile*, not "do it": the
-    reply is a redirect to this page with ``?hire=<profile>`` and the row's
-    ticked options in the query string.
-``GET ?hire=<profile>``
-    That page — the list, with the name dialog open over it. The dialog is
-    a server state, so it survives a reload, it is a link, and a click
-    works with scripting switched off.
-``POST profile=<profile>``
-    The dialog's own submit: the name, and the options it carried through
-    as hidden fields. This is the one that hires, and it lands back on the
-    list with a confirmation, because the next thing a player does after
-    hiring a Ganger is hire another one — by way of the screen for what
-    the hire brought, where any of it asks for one.
-
-The two-step exists so that the dialog's URL holds one profile's answer.
-A form that reached it by GET would put every row's inputs and every filter
-control into the address bar, and the filters would be a claim the page
-does not honour when it loads.
+Preserve scope and section in every destination. The intermediate redirect
+keeps unrelated listing controls out of the URL. After hiring, show any
+introduced interstitials before returning to the list.
 """
 
 from dataclasses import dataclass
@@ -44,17 +30,14 @@ from n26.library.staged import sees_staged
 
 @dataclass(frozen=True)
 class _Pick:
-    """One option ticked on a row: the input that carried it, and what it is."""
+    """A selected option with its submitted field name and value."""
 
     field: str
     value: str
     option: object
 
 
-#: The hire screen's scopes: whose profiles are on offer. URL state
-#: (``?list=``), so each is linkable and only the chosen one is built —
-#: the all-profiles scope prices every card in the library, and paying
-#: that on every visit to the gang list would be paying it for nothing.
+#: Build only the URL-selected scope; All profiles is substantially larger than the gang list.
 HIRE_SCOPES = {
     "gang": "Gang list",
     "supplementary": "Supplementary",
@@ -63,25 +46,22 @@ HIRE_SCOPES = {
 
 
 def _scope(request):
-    """Which scope the request names — from the POST when a click carries
-    it through, the URL otherwise. Anything unknown is the gang list."""
+    """Resolve a supported scope from POST or GET, defaulting to the gang list."""
     named = request.POST.get("list", request.GET.get("list", ""))
     return named if named in HIRE_SCOPES else "gang"
 
 
 def _section(request):
-    """Which of the picker's section tabs the reader was on, if the
-    request says. Client state the picker posts along and reads back
-    from the URL — echoed, never trusted further than that: an unknown
-    name just leaves the picker on its first tab."""
+    """Carry a bounded section identifier through the form and URL.
+
+    The picker ignores unknown names and starts on its first tab.
+    """
     named = request.POST.get("section", request.GET.get("section", ""))
     return named[:100]
 
 
 def _here(request, scope, section):
-    """This page's own address, state included — where every click lands:
-    the redirect after a hire, the dialog's cancel, and the form's action,
-    so no hop of the flow snaps the reader back to the default tabs."""
+    """Build this hire page's URL while preserving scope and section."""
     params = [
         *([("list", scope)] if scope != "gang" else []),
         *([("section", section)] if section else []),
@@ -101,18 +81,10 @@ def _scope_tabs(request, scope):
 
 
 def _hireable(gang, pk, *, include_staged=False):
-    """The profile that ``pk`` names, if it can be hired at all.
+    """Find an unarchived, hireable profile visible under the caller's staging access.
 
-    Any gang may hire any hireable profile — every one of them is
-    legitimately on the all-profiles scope — so the check is
-    hireability, not whose list it is: a pet still arrives behind its
-    collar, never off this screen. A staged profile is hireable only by
-    a reader the screen offered it to: a hidden row is still an id
-    somebody can type.
-
-    A pk that is not a ULID at all raises out of the field's ``to_python``.
-    The genuine buttons never send one, so it names nothing and the list is
-    redisplayed — the same answer as a profile that does not exist.
+    Any gang can hire eligible profiles at reference price. Return ``None`` for
+    missing or malformed identifiers.
     """
     from n26.library.models import Profile
 
@@ -126,21 +98,11 @@ def _hireable(gang, pk, *, include_staged=False):
 
 
 def _offered(gang, raw, offers, *, include_staged=False):
-    """What a click names: the profile, and the offer it was made under.
+    """Resolve a profile and optional collection entry from the submitted offer key.
 
-    A row's identity is ``<profile>`` on the gang's own list and
-    ``<profile>-<entry>`` where a collection the gang carries offered it
-    (``HireEntry.key``). The entry is the price, so it is *checked* rather
-    than trusted: it must exist, name this profile, and belong to a
-    collection this gang really carries. Anything else is a 404.
-
-    That is not policing the hire. Any gang may hire anything hireable at
-    its reference price — the all-profiles scope says so — but a price tag
-    from a list the gang was never offered is forged, exactly like an
-    option index the profile does not have.
-
-    ``offers`` answers what the gang's collections offer, asked only when
-    a click names an entry: the answer costs a gang card.
+    A key is the profile identifier, optionally followed by the entry identifier.
+    Validate that the gang's current collection offers include that profile-entry
+    pair before using its price. Query collection offers only when an entry is named.
     """
     profile_pk, _, entry_pk = (raw or "").partition("-")
     profile = _hireable(gang, profile_pk, include_staged=include_staged)
@@ -162,38 +124,21 @@ def _offered(gang, raw, offers, *, include_staged=False):
 
 
 def _picks(data, profile, entry, key=None):
-    """The options a submission names, resolved against the drawn rows.
+    """Resolve option indices through the same derived groups used by the listing.
 
-    Each option group's inputs are scoped ``{profile_pk}:{group_index}``
-    with option indices as values. The indices are mapped back through
-    ``build_hire_entry`` — the same derivation the rows were drawn from —
-    because the entry *synthesises* a default group when the profile has
-    only named ones, so raw ``grouped_options()`` would be off by one
-    exactly there.
-
-    The scope is slugified, which lowercases the pk, because that is what
-    the row template renders (``value|slugify``). Read the raw pk back and
-    every option ticked in a real browser is silently ignored and the
-    fighter buys as default — while a test posting the raw pk passes.
-
-    ``key`` is the row's whole identity where that is more than the
-    profile — a collection's offer of it — because the row scopes its
-    inputs by whatever it submits as, and the same fighter can be on this
-    screen twice at two prices.
+    Use the slugified complete row key, including a collection entry when present.
+    This matches rendered field names and accounts for synthesised default groups.
+    Reject negative and out-of-range indices.
     """
     scope = slugify(key or str(profile.pk))
     picks = []
     for group_index, group in enumerate(entry.groups):
         field = f"{scope}:{group_index}"
         for value in data.getlist(field):
-            # A one-or-none group's "None" radio submits an empty value:
-            # the player chose to take nothing, which is not a pick.
+            # An empty radio value explicitly selects no optional member.
             if value == "":
                 continue
-            # isdigit before int: a negative index is a real index from
-            # the far end, so "-1" would quietly resolve to another
-            # option in the group rather than being refused like every
-            # other index the group does not have.
+            # Reject negative indices before indexing; Python would otherwise accept them from the end.
             try:
                 if not value.isdigit():
                     raise ValueError(value)
@@ -205,18 +150,12 @@ def _picks(data, profile, entry, key=None):
 
 
 def _chosen(picks):
-    """The sets those picks stand for. The synthesised standard option
-    stands for nothing — it is what a profile with no alternatives has."""
+    """Extract actual default sets, excluding the synthesised no-alternative option."""
     return [pick.option.default_set for pick in picks if pick.option.default_set]
 
 
 def _base(entry):
-    """The price an offering entry puts in place of the fighter's own.
-
-    Blank on the entry means "at the usual price", which is the same
-    answer as no entry at all — so both come back as ``None`` and the
-    profile prices itself.
-    """
+    """Read a collection's credit override, or use the profile reference price."""
     return entry.price_override if entry is not None else None
 
 
@@ -230,22 +169,13 @@ def _dialog(
     key=None,
     rate_at_paid=True,
 ):
-    """What the name dialog draws: who is being hired, at what price, and
-    the hidden fields that carry the listing's picks to the next request.
+    """Build a hire confirmation using shared option pricing and preserved hidden fields.
 
-    ``rate_at_paid`` is the rating box, ticked to begin with: a price typed
-    over the quote is usually a statement about what the fighter is worth,
-    and the reading where the gang merely got a bargain is the one worth an
-    extra click. A redraw passes back what was answered — the price box
-    keeps what was typed because the browser reposts it, and a box drawn
-    ticked again would quietly undo an untick while the reader was fixing
-    something else.
+    ``rate_at_paid`` defaults on for the initial dialog. Reuse the submitted value
+    after validation errors so an unchecked rating option stays unchecked.
     """
     try:
-        # The operation's own pricing, asked in advance, so the dialog
-        # quotes the number the hire will charge rather than a second
-        # arithmetic that could disagree with it. It also refuses a
-        # tampered selection here rather than one screen later.
+        # Use the profile's shared pricing and option validation for the dialog quote.
         price = profile.price_with(_chosen(picks), base=_base(entry))
     except ValueError:
         raise Http404("No such option") from None
@@ -266,24 +196,11 @@ def _dialog(
 
 
 def _link_cards(gang, hire_list):
-    """Point every row and every option at the address a card is served from.
+    """Add preview URLs for each hire offer and its individual options.
 
-    URLs are the view's business, so the structure is decorated here the
-    way the gang sheet's choice slots are pointed at their pickers — the
-    build stays free of routing, and a surface with no card endpoint (the
-    gallery's sample rows) simply leaves ``card_url`` empty and carries
-    its cards inline.
-
-    Two addresses, because a row is read two ways. The entry's own is the
-    offer with nothing named, which a surface that follows every control
-    adds the ticked options to. Each option's is that option alone — the
-    card the option would produce against an otherwise-default selection,
-    which is the card a row without scripting is left holding.
-
-    A row a collection offered names its entry in both, so the card behind
-    it is drawn at the price the row quotes. A card saying one number
-    under a row saying another is the thing the row's own live total
-    exists to avoid, one disclosure down.
+    Preserve entry identifiers so preview cards use the same collection price.
+    The row URL accepts its whole selection; option URLs preview that option
+    with otherwise default groups.
     """
     from django.urls import reverse
 
@@ -309,20 +226,12 @@ def _link_cards(gang, hire_list):
 
 @login_required
 def hire_card(request, pk, profile):
-    """The preview card for a whole selection, served alone.
+    """Render a privately cached preview for an authorised gang owner.
 
-    The hire list prices every option but draws no cards; a card is
-    fetched from here the first time a reader opens a row, and again
-    whenever they change what the row is set to. ``?option=`` names a set
-    the card is taken with and may be repeated — every ticked option
-    composes, so the card shows the fighter as configured rather than one
-    group's pick. Without any, the card is the default hire.
-    ``?entry=`` names the collection row that offered this fighter, whose
-    price the card is drawn at — the row's own quote, so the two agree.
-
-    The response is a fragment for the page to place, and it is cacheable
-    — the card is derived from library content alone, the same for every
-    gang, so returning to a selection costs no second build.
+    Validate profile visibility and selected option sets. An optional entry must
+    name this profile, but ownership of its collection is checked only when
+    performing the hire. Repeated option parameters compose the preview.
+    Cache for five minutes because previews derive only from library content.
     """
     from django.shortcuts import get_object_or_404
     from django.utils.cache import patch_cache_control
@@ -331,9 +240,7 @@ def hire_card(request, pk, profile):
     from n26.library.models import CollectionEntry, Profile
 
     _own_gang_or_404(request, pk)
-    # A card is drawn for the profiles the hire screen offers this reader
-    # and nobody else — the same readers, decided the same way: never an
-    # archived one, and a staged one only for a reader who may see it.
+    # Apply the same archive and staged-content visibility as the hiring list.
     profiles = Profile.objects.unarchived()
     if not sees_staged(request.user):
         profiles = profiles.live()
@@ -349,8 +256,7 @@ def hire_card(request, pk, profile):
         try:
             option = [offered_sets[each] for each in named]
         except KeyError:
-            # Not one of this profile's own offers — a stale or tampered
-            # address, answered like any other broken link.
+            # Reject option sets absent from this profile's offer.
             raise Http404("No such option") from None
 
     entry = None
@@ -361,18 +267,14 @@ def hire_card(request, pk, profile):
         except ValidationError:
             entry = None
         if entry is None:
-            # No list offers this fighter through that row, so there is no
-            # such card. Which gang carries the list is not asked here:
-            # this draws a price and charges nothing, and the hire itself
-            # checks that the offer was really made (``_offered``).
+            # Validate the entry-profile pair here. Actual hiring separately checks
+            # that the gang carries its collection before accepting the entry price.
             raise Http404("No such offer")
 
     try:
         card = preview_model_card(found, option=option, base=_base(entry))
     except ValueError:
-        # Two sets named out of a group that offers one, or a set this
-        # fighter does not offer at all — a selection no row can produce,
-        # refused here exactly as the hire itself refuses it.
+        # Reject invalid combinations through the same option resolution used by hiring.
         raise Http404("No such option") from None
 
     response = render(request, "n26/hire_card.html", {"card": card})
@@ -382,17 +284,11 @@ def hire_card(request, pk, profile):
 
 @login_required
 def hire_fighter(request, pk):
-    """The gang list, and the dialog that turns a click into a fighter.
+    """Build the selected hiring scope and execute confirmed hires through operations.
 
-    A gang can be offered fighters its own list never had: a collection it
-    carries — a corruption's, an alliance's — lists profiles at its own
-    prices, and each such collection is a section of its own after the
-    house's. Those rows hire through this same flow, at the collection's
-    price, and a click carries which entry offered it.
-
-    A refusal comes from the operation itself — an overspend unwinds the
-    transaction — and lands back here as a message: nothing half-written,
-    nothing lost but a click.
+    Gang-held collections can offer additional profiles at entry-specific prices.
+    Validate the offer, options and typed payment server-side, then redirect
+    through any arrival screens. Operation refusals roll back the acquisition.
     """
     from functools import cache
 
@@ -414,38 +310,23 @@ def hire_fighter(request, pk):
     from n26.core.render import roster, summarise_roster
 
     gang = _own_gang_or_404(request, pk)
-    # Whether this reader is offered staged fighters — asked once, and
-    # carried into every list this screen builds and every click it
-    # checks, so what was offered and what is accepted agree.
+    # Reuse staged-content access for every displayed and submitted profile.
     shown = sees_staged(request.user)
     scope = _scope(request)
     section = _section(request)
-    # Where every step of the click lands: the list being browsed and the
-    # section tab in it, so a hire made from the supplementary scope
-    # confirms onto it rather than snapping back to the gang list.
+    # Preserve scope and section through confirmation, cancellation and successful hiring.
     back = _here(request, scope, section)
     form = HireFighterForm()
     dialog = None
 
     @cache
     def carried():
-        """The collections this gang carries, worked out once.
-
-        Read twice — for what they offer, and for whether any of them is
-        the gang's own list — and it costs a gang card, so the two never
-        build it twice.
-        """
+        """Cache the gang's held collections for offer validation and section building."""
         return [access.collection for access in gang_collections(gang)]
 
     @cache
     def offers():
-        """What the collections this gang carries offer, worked out once.
-
-        Both the sections and the check on a clicked offer read this, and
-        it costs a gang card, so the two never build it twice — and a
-        scope that draws no collection sections and a click naming no
-        entry never build it at all.
-        """
+        """Lazily cache current collection offers within this request."""
         return collection_offers(carried(), include_staged=shown)
 
     if request.method == "POST" and "profile" in request.POST:
@@ -455,21 +336,11 @@ def hire_fighter(request, pk):
         if profile is not None:
             picks = _picks(request.POST, profile, build_hire_entry(profile), key=key)
             if form.is_valid():
-                # The same typed-over price an equip page's listing takes, read the
-                # same way: the box's figure is what leaves the bank,
-                # while the quote stays the list price and the rating —
-                # a haggled fighter is not a lesser fighter. Priced
-                # before anything is written, so one bad box hires
-                # nobody at a figure nobody offered.
+                # Parse typed payment with the same bounded price helper used by equipment purchases.
                 from n26.core.views.equip import BadPrice, price_typed
 
                 try:
-                    # An offering collection's price stands in for the
-                    # fighter's own and for nothing else, so options still
-                    # add on top — and that quote is the list price and the
-                    # rating alike: a list's price is not a discount, it IS
-                    # the price. A discount is only ever what the box below
-                    # types against it.
+                    # The entry replaces only the base profile price; selected options still add to it.
                     quoted = profile.price_with(_chosen(picks), base=_base(offer))
                 except ValueError:
                     raise Http404("No such option") from None
@@ -478,17 +349,8 @@ def hire_fighter(request, pk):
                 except BadPrice as refusal:
                     messages.error(request, str(refusal))
                     return redirect(back)
-                # Which of the two figures the hire is worth. Ticked — the
-                # dialog's default — the gang takes them on at what it paid
-                # and the quote is forgotten; unticked, the quote stands and
-                # the gap is a discount. Only hiring asks: a fighter is the
-                # one purchase where a lower price may mean a bargain or may
-                # mean a lesser fighter, and nobody but the table knows
-                # which.
-                #
-                # Absent means unticked, because that is all an unticked box
-                # posts. The default lives in the dialog, which is the only
-                # thing that can draw a box already ticked.
+                # rate=paid pins rating to actual payment; otherwise retain the quote and record the difference as a discount.
+                # An absent checkbox means unchecked; only the initial dialog supplies its default.
                 rate_at_paid = request.POST.get("rate") == "paid"
                 try:
                     with operation(gang, actor=request.user) as op:
@@ -499,37 +361,19 @@ def hire_fighter(request, pk):
                             paid=paid,
                             list_price=paid if rate_at_paid else quoted,
                             discount=0 if rate_at_paid else quoted - paid,
-                            # Where the money came from, as an equip-page
-                            # purchase records it: the listing that
-                            # priced this hire, or nothing where the
-                            # catalogue did.
+                            # Record the collection entry that priced this hire, when present.
                             bought_from=offer,
                         )
                 except Refusal as refusal:
                     messages.error(request, str(refusal))
                     return redirect(back)
                 except ValueError:
-                    # Two picks in a choose-one group, or a set the profile
-                    # does not offer — resolve_selection refuses tampering
-                    # the option indices cannot express. Same answer as a
-                    # bad index: this is a broken link, not a rule to
-                    # explain.
+                    # Reject invalid option-set combinations that passed the individual index parser.
                     raise Http404("No such option") from None
-                # The confirmation quotes the ledger rather than the page's
-                # own arithmetic: what a player was charged is whatever the
-                # operation wrote down.
-                #
-                # Both hops are guarded, and the price is dropped rather
-                # than guessed at when either is missing. membership is
-                # nullable and ledger_entry is a reverse one-to-one that
-                # raises rather than answering None, so reading them bare
-                # turns a hire that did commit into a 500 on the way to
-                # saying so — the fighter would exist with nothing on
-                # screen to say they had been hired.
+                # Use recorded payment for confirmation. Nullable membership and a missing
+                # reverse ledger relation must not turn a committed hire into a response error.
                 entry = getattr(miniature.membership, "ledger_entry", None)
-                # What the hire cost is read off the ledger for the same
-                # reason the message is: the page's arithmetic is a guess,
-                # the entry is what happened. Missing means unpriced, not free.
+                # Use the ledger payment for analytics; a missing entry is unpriced, not zero.
                 record(
                     request,
                     N26Noun.MODEL,
@@ -553,12 +397,9 @@ def hire_fighter(request, pk):
                         if miniature.name == profile.name
                         else f"Hired {miniature.name} — {profile.name}, {entry.paid}¢.",
                     )
-                # Back to the list — by way of the screen for what the
-                # hire brought, where any of it asks for one.
+                # Show introduced interstitials before returning to the hiring list.
                 return redirect(onward(request, gang, op, back))
-            # A name the field will not take. The dialog comes back holding
-            # what was typed, with the error under it — the selection is in
-            # the hidden fields, so nothing else has to be picked again.
+            # Preserve typed name, selected options and rating mode after validation errors.
             dialog = _dialog(
                 request,
                 profile,
@@ -570,18 +411,12 @@ def hire_fighter(request, pk):
                 rate_at_paid=request.POST.get("rate") == "paid",
             )
     elif request.method == "POST":
-        # A Hire button in the list. Which profile is now a URL, so the
-        # dialog has an address of its own and the click survives a reload.
-        # The row's whole identity travels, the offer included: a
-        # collection's row and the gang list's row for the same fighter are
-        # two different clicks.
+        # Redirect the selected offer and its options into the dialog URL.
         key = request.POST.get("hire", "")
         profile, offer = _offered(gang, key, offers, include_staged=shown)
         if profile is not None:
             picks = _picks(request.POST, profile, build_hire_entry(profile), key=key)
-            # The colon stays a colon: a query key is allowed one, and the
-            # URL is worth reading — the row's own input names are what is
-            # written there.
+            # Preserve colons in option field names when encoding the query string.
             query = urlencode(
                 [
                     *([("list", scope)] if scope != "gang" else []),
@@ -606,15 +441,7 @@ def hire_fighter(request, pk):
                 key=key,
             )
 
-    # The whole screen, as one structure: every profile this gang could
-    # hire, under the headings its content files them under. The page
-    # draws what the structure says rather than assembling headings of
-    # its own, so what a tab is called and what a heading is called are
-    # one answer.
-    # Priced, but with no cards drawn: a card is most of a row's weight
-    # and almost nobody opens most of them, so each is fetched from
-    # ``hire_card`` the first time its disclosure opens instead of every
-    # one being built into and shipped with the page.
+    # Build priced sections without preview cards; fetch cards lazily through hire_card.
     if scope == "supplementary":
         hire_list = section_hire_list(
             build_entries(
@@ -628,11 +455,7 @@ def hire_fighter(request, pk):
             )
         )
     else:
-        # The gang's own list, then a section for each collection it
-        # carries that offers fighters besides. After the house's own
-        # sections because that is the order they were come by: the list a
-        # gang founds with is what it is, and a corruption's roster is
-        # something it took on.
+        # Order the gang list before additional held collections offering profiles.
         hire_list = gang_scope_sections(
             offers(),
             gang.gang_type,
@@ -651,42 +474,22 @@ def hire_fighter(request, pk):
             "gang": gang,
             "form": form,
             "dialog": dialog,
-            # The dialog's price box is the equip page's control, and the cap
-            # is the same ceiling every typed price is read against.
+            # Use the same typed-price ceiling as equipment purchases.
             "price_cap": PRICE_CEILING,
-            # Both forms post here rather than to the bare route: an
-            # action that dropped the query would lose which tab the
-            # reader was on at the first click.
+            # Keep the query string in form actions to preserve the selected tab.
             "back": back,
             "hire_list": hire_list,
             "scope_tabs": _scope_tabs(request, scope),
             "scope": scope,
             "scope_label": HIRE_SCOPES[scope],
-            # What the gang already fields, for the figures strip beside
-            # the wealth: hiring is decided against who is already on the
-            # roster as much as against the credits, and the count opens
-            # onto the ranks it is made of.
+            # Include the current roster summary beside the gang's figures.
             "summary": summarise_roster(roster(gang)),
             "trade_points_href": trade_points_href(gang, request.user),
             "credits_href": credits_href(gang, request.user),
-            # The tab strip, one tab per section. This list is also the
-            # picker's whole navigation once tabs are on: a section whose
-            # name is missing here can never be the active tab, and its
-            # rows would be served in the HTML with no way to reach them.
-            #
-            # Taken as they come: the grouping draws a section once, so a
-            # name cannot repeat, and deduplicating here would hide one
-            # if that ever stopped being true.
+            # Include every section exactly once in navigation so none becomes unreachable.
             "sections": [section.name for section in hire_list],
-            # The picker's all-on category state. These are *registration*
-            # names — an item in an unnamed category registers under its
-            # section's name, and a list that omits that name silently
-            # hides every such row: categoryOn(name) is the filter.
-            #
-            # Deduplicated, and not because of the sections: a category
-            # name is only unique within its section, so two sections'
-            # categories can register under one name. The filter keys on
-            # the string and a repeated key draws neither.
+            # Match category registration keys, falling back to the section for unnamed categories.
+            # Deduplicate keys because the same category name can occur under several sections.
             "categories": list(
                 dict.fromkeys(
                     category.name or section.name
