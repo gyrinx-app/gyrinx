@@ -144,6 +144,15 @@ class PlannedPosition:
 
 
 @dataclass(frozen=True)
+class PlanContinuation:
+    plan: Plan
+    next_position: int
+
+    def __post_init__(self):
+        _nonnegative(self.next_position, "Next plan position")
+
+
+@dataclass(frozen=True)
 class CycleSource:
     position: PlannedPosition
     step_id: str
@@ -371,7 +380,9 @@ def _at(plan, index):
     raise AssertionError("A non-empty plan must resolve every position.")
 
 
-def project(schedule: Schedule, *, limit: int = 12) -> tuple[ProjectedCycle, ...]:
+def project(
+    schedule: Schedule | PlanContinuation, *, limit: int = 12
+) -> tuple[ProjectedCycle, ...]:
     """Read a bounded continuation without allocating saved identities."""
     _positive(limit, "Projection size")
     end = schedule.next_position + limit
@@ -578,12 +589,29 @@ def delete_phase(schedule: Schedule, phase_id: str) -> ScheduleChange:
 def replace_plan(
     schedule: Schedule, *, steps: tuple[PlanStep, ...], mode: Mode, new_id: NewId = _id
 ) -> ScheduleChange:
+    if mode == schedule.plan.mode and tuple(steps) == editable_steps(schedule):
+        return ScheduleChange(schedule)
     plan = Plan(new_id(), mode, tuple(steps), len(schedule.cycles))
     if plan.id == schedule.plan.id:
         raise ScheduleError("A replacement plan must have a new identity.")
     return ScheduleChange(
         replace(schedule, plan=plan, next_position=0, revision=schedule.revision + 1)
     )
+
+
+def editable_steps(schedule: Schedule | PlanContinuation) -> tuple[PlanStep, ...]:
+    """A repeating pattern, or only the unsaved remainder of a fixed plan."""
+    if schedule.plan.mode == "repeating":
+        return schedule.plan.steps
+    consumed = schedule.next_position
+    remaining = []
+    for step in schedule.plan.steps:
+        if consumed >= step.count:
+            consumed -= step.count
+        else:
+            remaining.append(replace(step, count=step.count - consumed))
+            consumed = 0
+    return tuple(remaining)
 
 
 def apply_template(

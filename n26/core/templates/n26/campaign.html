@@ -25,6 +25,30 @@ checked action URLs. The gallery preview uses designsystem/shell/campaign.html.
         <c-slot name="log_count">
             {% include "n26/includes/campaign_log_count.html" %}
         </c-slot>
+        {% if cycle_summary %}
+            <c-slot name="cycle_summary">
+                <c-ui.card>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        {% if cycle_summary.cycle_href %}
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-sm text-muted">Current cycle</span>
+                                <c-n26.link href="{{ cycle_summary.cycle_href }}">
+                                    {{ cycle_summary.name }}
+                                </c-n26.link>
+                                <span class="text-sm">{{ cycle_summary.phase }}</span>
+                            </div>
+                            <c-n26.link href="{{ cycle_summary.schedule_href }}">
+                                Schedule and rules
+                            </c-n26.link>
+                        {% else %}
+                            <c-ui.button href="{{ cycle_summary.setup_href }}" variant="primary" size="sm">
+                                Set up cycles
+                            </c-ui.button>
+                        {% endif %}
+                    </div>
+                </c-ui.card>
+            </c-slot>
+        {% endif %}
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>

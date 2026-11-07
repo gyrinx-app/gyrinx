@@ -138,7 +138,7 @@ class CampaignCycle(Base):
         return self.name
 
     def get_absolute_url(self):
-        return reverse("n26-campaign", args=[self.campaign_id]) + f"?cycle={self.pk}"
+        return reverse("n26-campaign-cycle", args=[self.campaign_id, self.pk])
 
     def clean(self):
         super().clean()

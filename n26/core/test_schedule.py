@@ -202,6 +202,36 @@ class TestProjectionAndSaving:
 
 
 class TestRepeatingAndReplacement:
+    @pytest.mark.parametrize("current,counts", [(0, [2, 1, 3]), (3, [3]), (6, [])])
+    def test_a_fixed_plan_editor_contains_only_the_unsaved_remainder(
+        self, ids, current, counts
+    ):
+        schedule = configured(ids, current=current)
+        steps = s.editable_steps(schedule)
+        assert [step.count for step in steps] == counts
+        assert [step.phase_id for step in steps] == [
+            cycle.phase_id
+            for cycle in s.project(schedule)
+            if cycle.source.offset == 0
+            or cycle.source.position.index == schedule.next_position
+        ]
+        unchanged = s.replace_plan(schedule, steps=steps, mode="fixed", new_id=ids)
+        assert unchanged.schedule is schedule
+        assert unchanged.schedule.next_position == current + 1
+
+    def test_a_repeating_editor_keeps_the_complete_pattern_at_any_position(self, ids):
+        schedule = configured(ids, current=9, mode="repeating")
+        assert s.editable_steps(schedule) == schedule.plan.steps
+        assert s.project(
+            s.PlanContinuation(schedule.plan, schedule.next_position)
+        ) == s.project(schedule)
+        assert (
+            s.replace_plan(
+                schedule, steps=s.editable_steps(schedule), mode="repeating", new_id=ids
+            ).schedule
+            is schedule
+        )
+
     def test_separate_downtime_steps_keep_their_positions_across_repetitions(self, ids):
         schedule = configured(ids)
         occupation, downtime, takeover = [p.id for p in schedule.phases]

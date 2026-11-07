@@ -49,6 +49,10 @@ class CycleConflict(Refusal):
     """The submitted baseline no longer describes the campaign schedule."""
 
 
+class CycleKeyConflict(CycleConflict):
+    """A command key belongs to different input, rather than a stale baseline."""
+
+
 @dataclass(frozen=True)
 class CommandResult:
     revision: int
@@ -308,7 +312,7 @@ def _previous(act, kind, inputs, request_key):
         or previous.kind != kind
         or previous.inputs != inputs
     ):
-        raise CycleConflict(
+        raise CycleKeyConflict(
             "A different change was saved from this form. Reload the page."
         )
     return CommandResult(**previous.result, replayed=True)
@@ -525,6 +529,24 @@ def advance(campaign, *, actor, expected_current, expected_revision, request_key
     )
 
 
+def start(campaign, *, actor, expected_current, expected_revision, request_key):
+    def apply(act, before):
+        if before.current_cycle_id != str(expected_current):
+            raise CycleConflict("The current cycle changed. Review it before starting.")
+        change = s.start(before, now=timezone.now())
+        return change, change.schedule.current_cycle_id
+
+    return _command(
+        campaign,
+        actor,
+        kind="start",
+        inputs={"current": str(expected_current)},
+        request_key=request_key,
+        expected_revision=expected_revision,
+        apply=apply,
+    )
+
+
 def finish(campaign, *, actor, expected_current, expected_revision, request_key):
     def apply(act, before):
         if before.current_cycle_id != str(expected_current):
@@ -603,4 +625,26 @@ def create_template(*, actor, name, definition):
         raise Refusal(str(exc)) from exc
     return CampaignScheduleTemplate.objects.create(
         owner=actor, name=template.name, definition=template_data(template)
+    )
+
+
+def save_template(campaign, *, actor, name, expected_revision, request_key):
+    def apply(act, before):
+        used = {step.phase_id for step in before.plan.steps}
+        template = s.ScheduleTemplate(
+            name,
+            tuple(phase for phase in before.phases if phase.id in used),
+            before.plan.steps,
+        )
+        create_template(actor=actor, name=name, definition=template_data(template))
+        return s.ScheduleChange(before), None
+
+    return _command(
+        campaign,
+        actor,
+        kind="save_template",
+        inputs={"name": name},
+        request_key=request_key,
+        expected_revision=expected_revision,
+        apply=apply,
     )

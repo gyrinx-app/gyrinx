@@ -11,6 +11,7 @@ Gangs span the grid. Battles and assets share a wide-screen row; activity and pl
 An empty edit_href draws the budget without an edit control. A None budget prints None set, which is distinct from zero.
 Extra gang controls go in gangs_actions. Counter and label management lives on Edit campaign.
 Figures, gangs, and assets live in n26/includes/campaign_*.html hosts. Only a page that holds every host may set htmx on its dialogs.
+The cycle_summary slot holds the optional current cycle and schedule links.
 Keep the header actions slot filled. Left empty, Cotton would draw this page's own actions beside the title.
 log_count may be markup: the campaign page passes a host that a roll update redraws.
 
@@ -30,6 +31,7 @@ log_count may be markup: the campaign page passes a host that a roll update redr
     share=""
     invitation=""
     actions=""
+    cycle_summary=""
     gangs_actions=""
     assets_actions=""
     players_actions=""
@@ -59,6 +61,7 @@ log_count may be markup: the campaign page passes a host that a roll update redr
             <div class="flex flex-wrap items-center justify-end gap-2">{{ players_actions }}{{ actions }}</div>
         {% endif %}
         {% if invitation.strip %}{{ invitation }}{% endif %}
+        {% if cycle_summary.strip %}{{ cycle_summary }}{% endif %}
     </div>
 
     <div class="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2" id="campaign-overview">
