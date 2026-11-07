@@ -1,41 +1,20 @@
-"""Telling somebody something happened, through the site's own inbox.
-
-The single-file seam onto the platform's notifications, and the only file in
-this edition that imports them. It works the way ``n26/analytics.py`` does,
-and for the same reason: an inbox is the site's, not an edition's. A person
-has one inbox and reads it in one place, whichever game the thing that filled
-it came from, and a second store here would give them two.
-
-What crosses is one call. The words are ours — an edition knows what happened
-and how to say it — and the delivery is the platform's.
-
-Failure is not this caller's business: the platform's ``notify`` logs and
-returns ``None`` rather than raising, so an invitation is still written when
-the inbox is having a bad day. A notification is how somebody hears about an
-act, never the record that it happened; that is the campaign's log.
+"""Send N26 campaign notifications through the shared platform inbox. The campaign log
+records the operation independently of notification delivery.
 """
 
 from gyrinx.site.models import NotificationType, notify
 
-#: What a subject line may run to before the column refuses it. A campaign
-#: name and a username together can exceed it, and a refused insert costs the
-#: recipient the whole notification.
+#: Truncate combined campaign and account names to the notification subject column's
+#: limit.
 SUBJECT_LENGTH = 255
 
 
 def tell(recipient, subject, content="", sender=None, about=None):
-    """Put one notification in somebody's inbox, about a campaign.
+    """Send a campaign notification, truncating its subject to the platform limit. about
+    supplies the related object and its get_absolute_url link.
 
-    ``about`` is what the notification concerns, and makes the inbox row a
-    link: the platform asks the object where it lives, so anything given here
-    answers ``get_absolute_url``. Where that address leads is the object's
-    business, and who may open it is the business of the views behind it.
-
-    **Call this after the transaction that recorded the act, never inside
-    it.** ``notify`` catches its own errors, but a database error inside an
-    atomic block has already poisoned it: the block rolls back on the way out
-    and takes the act with it, while the caller sees nothing wrong.
-    ``deliver`` does the waiting.
+    Call only after the domain transaction commits: a caught database error can still
+    invalidate an enclosing transaction. Use deliver to schedule that ordering.
     """
     return notify(
         recipient=recipient,
@@ -48,10 +27,8 @@ def tell(recipient, subject, content="", sender=None, about=None):
 
 
 def deliver(recipient, subject, content="", sender=None, about=None):
-    """Tell somebody once the act that prompted it is safely written.
-
-    Telling is not the record — the campaign's log is — so it waits for the
-    commit and never stands between the act and the database.
+    """Schedule tell with transaction.on_commit so inbox failures cannot roll back the
+    domain operation.
     """
     from django.db import transaction
 
