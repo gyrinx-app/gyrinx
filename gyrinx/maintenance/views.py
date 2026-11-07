@@ -204,7 +204,7 @@ def _runs_by_operation():
 
 def backfill_detail_view(request, pk):
     backfill = get_object_or_404(Backfill, pk=pk)
-    # Use the operation's summary template, or JSON when none is registered.
+    # Use the operation's summary template, or render its summary as key/value pairs.
     operation = resolve_operation(backfill.operation)
     ctx = page_context(
         request,
