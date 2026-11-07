@@ -1,7 +1,7 @@
 """Accept staff-only POST preview state and return card data as JSON.
 
 n26.core.preview validates and derives the result inside a rolled-back
-transaction. Invalid JSON or preview state returns structured 400 errors.
+transaction. Return structured 400 errors for JSONDecodeError or PreviewError.
 See design/authoring.md.
 """
 

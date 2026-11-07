@@ -302,7 +302,7 @@ def owned_dialog(request, host: EquipHost):
     asks_figures = kind == "refund" or (kind == "remove" and gang.credits_unlimited)
     refunding, paid = refund_of(assignment) if asks_figures else ((), 0)
     points = trade_points_in(refunding)
-    # Unlimited-credit purchases with no refundable founding points use removal.
+    # Unlimited-credit purchases with no refundable Trade Points use removal.
     if kind == "refund" and gang.credits_unlimited and not points:
         kind = "remove"
 
@@ -1018,10 +1018,11 @@ def remove_assignment(request, pk):
 @login_required
 @require_POST
 def refund_assignment(request, pk):
-    """Archive a purchase and return its recorded credits and founding trade points.
+    """Archive a purchase and refund its recorded credits and Trade Points.
 
-    Calculate payments before the operation zeroes ledger entries. Unlimited-credit
-    gangs with no refundable founding points use removal instead.
+    Calculate payments before the operation zeroes ledger entries. Trade Points
+    return to the original allowance. Unlimited-credit gangs with no refundable
+    Trade Points use removal instead.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation, refund_of, trade_points_in
@@ -1033,9 +1034,8 @@ def refund_assignment(request, pk):
         return refused
     refunding, paid = refund_of(assignment)
     points = trade_points_in(refunding)
-    # A gang with no budget pays no credits, so unless a founding
-    # allowance paid for this there is nothing to give back: the act
-    # behind this address is the removal the dialog promised.
+    # An unlimited-credit gang paid no credits; without recorded Trade Points,
+    # refunding follows the removal path shown by the dialog.
     if gang.credits_unlimited and not points:
         return remove_assignment(request, pk)
     miniature = assignment.miniature_root

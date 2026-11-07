@@ -64,7 +64,7 @@ def _question(request, gang, key, found, *, here, include_staged, under=""):
 def gang_next(request, pk):
     """Render current arrival screens or settle submitted choices through shared picker functions.
 
-    Discard vanished slots and submissions for questions absent from the screen.
+    Omit vanished URL slots. Reject the whole POST if it names an absent question.
     GET writes nothing.
     """
     from n26.core.render import ArrivalBlock, ArrivalScreen, is_tier_ladder
