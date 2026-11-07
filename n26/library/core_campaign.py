@@ -1,29 +1,11 @@
-"""The Territory campaign type — the one campaign type every install has.
+"""Seed the Territory campaign type and its standard content.
 
-The core rulebook's campaign is a fight over Territory: every gang keeps
-a Settlement, one Territory is drawn for it at the start, each Territory
-held gives its holder a Boon, and the campaign runs Occupation, Downtime
-and Takeover before Triumphs are awarded. Reputation is a counter every
-campaign type in the books tracks, so it ships in the system pack. The
-Territory campaign type declares the two asset types that campaign deals
-in — a Settlement every gang has its own of, and Territories one gang
-holds at a time — with one Settlement asset under the Settlement type, and
-gives every member gang Reputation at 1, Income at 0 and that Settlement
-through its built-ins. The two counters are built in here; the Settlement
-is built in by the rule every possession follows
-(``n26/library/possessions.py``), applied to the type once the asset
-exists. Income is the counter an asset's income figure contributes to
-(``n26/library/income.py``): built in at 0, it gives every gang in the
-campaign a reading to add to. See design/campaign-assets.md.
+The type defines inherent Settlements and transferable Territories.
+Its built-ins give joining gangs Reputation at one, Income at zero and a
+Settlement. Asset modifiers contribute to Income; see design/campaign-assets.md.
 
-Everything is matched on its natural key and left alone if it is
-already there, so this can run against a database that has some of it,
-and running it twice changes nothing the second time. Names are matched
-without regard to case, because that is how the library's own
-uniqueness is stated. Written against whatever model classes it is
-handed, so a migration can run it on historical ones — including the
-classes from before the asset type model and its fields took their
-present names, which is why those are looked up rather than assumed.
+Match natural keys case-insensitively and preserve existing records.
+Accept historical classes and resolve renamed fields dynamically.
 """
 
 from django.conf import settings
@@ -33,8 +15,7 @@ from n26.library.possessions import build_in_missing
 
 REPUTATION = "Reputation"
 CAMPAIGN_TYPE = "Territory campaign"
-#: What the type was called before it took the rulebook's own subject as
-#: its name. ``rename_core_campaign`` moves a row under this name across.
+#: The historical name matched by rename_core_campaign.
 FORMER_NAME = "N26 core"
 #: ``(label, plural, ownership, position)`` for each asset type the core
 #: type has. The ownership is the stored value, which is the same
@@ -49,8 +30,7 @@ SETTLEMENT = "Settlement"
 BUILT_INS = f"{CAMPAIGN_TYPE} built-ins"
 FORMER_BUILT_INS = f"{FORMER_NAME} built-ins"
 
-#: What the arbitrator setting a campaign up reads. Our own words about
-#: the core rulebook's campaign, never the book's.
+#: Original introductory copy shown during campaign setup.
 DESCRIPTION = (
     "The core rulebook's campaign: gangs fight for control of Territory. "
     "Every gang keeps a Settlement it cannot lose and starts with one "
@@ -184,11 +164,9 @@ def seed_core_campaign(apps):
             )
             lines.append(f"built {counter_name} into {CAMPAIGN_TYPE}")
 
-    # Reputation, then the type's possessions, then Income: the order the
-    # type's page lists them in. The Settlement is not built in by name —
-    # the possession rule finds every asset of a Possession asset type
-    # and builds in whichever is missing, which on a fresh database is
-    # the one Settlement.
+    # Keep Reputation, possessions and Income in display order.
+    # The possession pass adds all missing possession assets, including the
+    # Settlement on a fresh database.
     build_in_counter(REPUTATION, 0)
     for member in build_in_missing(apps, campaign_type):
         lines.append(f"built the {member.asset.name} into {CAMPAIGN_TYPE}")
@@ -199,17 +177,10 @@ def seed_core_campaign(apps):
 
 
 def rename_core_campaign(apps):
-    """Move a system-pack type standing under the former name to the
-    current one, with its built-ins set, and give the type its words where
-    it has none. Returns one line per change, so a caller can say what
-    happened.
+    """Rename a system campaign type and its default set when the target name is free.
 
-    Nothing is renamed while a row already holds the current name: two
-    types cannot share it, and which of the two is the real one is a
-    question for a person. A type already renamed, or created under the
-    current name, only gains whichever of its two texts is still blank —
-    so this runs as often as it likes and never overwrites an author's
-    own words.
+    Populate only blank description and author-help fields, preserving authored
+    text. Return report lines for each change.
     """
     lines = []
     ContentPack = apps.get_model("library", "ContentPack")
@@ -231,9 +202,7 @@ def rename_core_campaign(apps):
 
     if current is None:
         return lines
-    # The set follows the type, whichever run renamed the type: a set
-    # still under the former name is renamed as long as the new name is
-    # free, so the authoring pages read it as the type's own.
+    # Rename the built-in set to match its campaign type when that name is free.
     built_ins = DefaultAssignmentSet.objects.filter(
         pack=pack, name__iexact=FORMER_BUILT_INS
     ).first()
@@ -256,9 +225,7 @@ def rename_core_campaign(apps):
 
 
 def _words_for(CampaignType):
-    """The type's two texts, keyed by field — only the fields this model
-    class has, so the seed can run on a historical class from before the
-    description existed."""
+    """Return description fields supported by the supplied historical model class."""
     names = {field.name for field in CampaignType._meta.get_fields()}
     words = {
         "description": DESCRIPTION,

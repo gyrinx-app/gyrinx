@@ -1,9 +1,7 @@
-"""Backfill the n26 foundations from the command line.
+"""Create missing Foundations content from the command line.
 
-The Foundations page offers the same seeds as buttons; this is the ops
-path — run after migrating a fresh environment, or any time, because
-every seed is idempotent: rows are matched on their natural keys and
-topped up, never duplicated.
+Run each idempotent seed in its own transaction and report its final status.
+The Foundations page exposes the same definition sets.
 """
 
 from django.core.management.base import BaseCommand

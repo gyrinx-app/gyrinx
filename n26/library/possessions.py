@@ -1,24 +1,13 @@
-"""Give inherent assets to every gang when their distribution flag is enabled.
+"""Give enabled inherent assets through campaign-type built-in sets.
 
-An inherent asset with Give to every gang enabled joins its campaign
-type’s built-in set. Joining and catch-up propagation give each gang
-its own stored assignment. Disabling distribution, deleting or archiving
-the asset stops future defaults; existing assignments remain.
+Joining and catch-up propagation create each gang's assignment. Disabling
+distribution, deleting or archiving an asset stops future defaults while
+preserving existing assignments.
 
-Which campaign type gives an asset is decided by the asset's pack. An
-asset in its asset type's own pack is given by that asset type's
-campaign type: the system Settlement by the Territory campaign type, an
-arbitrator's own asset type's asset by that campaign's additions type.
-An asset written into a campaign's own pack under a *shared* asset type
-is given by that campaign's additions type instead — building it into
-the shared type would hand one campaign's asset to every campaign
-founded on it.
-
-``authoring.create_asset`` applies the rule to live models and files
-the propagation pass. ``give_back`` puts an unarchived asset back.
-``build_in_missing`` applies the rule to whatever is already there,
-written against the model classes it is handed so the seed and a data
-migration can run it on historical ones.
+Assets in the asset type's pack use its campaign type as giver. Assets in
+a campaign's own pack use that campaign's additions type, even when their
+asset type is shared. This prevents campaign-specific content reaching other
+campaigns. ``build_in_missing`` accepts historical model classes.
 """
 
 from itertools import chain, count
@@ -34,15 +23,11 @@ POSSESSION = "held-one-each"
 
 
 def giver_of(asset, apps):
-    """The campaign type whose built-ins give this asset, or None where
-    nothing does.
+    """Resolve the campaign type giving an asset, or return ``None``.
 
-    The asset type's own campaign type when the asset is in that type's
-    pack; otherwise the additions type of the campaign whose pack the
-    asset is in. An asset in a pack no campaign owns and no campaign
-    type shares is nobody's to give. ``apps`` is asked for the campaign
-    model only on that second path, so the seed can run on a historical
-    state from before campaigns had a pack.
+    Use the asset type's campaign type when packs match. Otherwise look for the
+    additions type of the campaign owning the asset's pack. Query the campaign
+    model only on that path to support older historical states.
     """
     campaign_type = asset.asset_type.campaign_type
     if campaign_type.pack_id == asset.pack_id:
@@ -61,19 +46,11 @@ def giver_of(asset, apps):
 
 @transaction.atomic
 def give_back(asset):
-    """Give an unarchived possession again, the mirror of the archive
-    that stopped it: gangs joining from here on are given one, and the
-    gangs that joined while it was archived catch up.
+    """Restore automatic distribution of an eligible unarchived inherent asset.
 
-    The archived membership is revived rather than replaced. Every copy
-    already in a gang names that membership as its provenance, so a
-    fresh one would be a second provenance and the catch-up pass would
-    hand those gangs a second copy. Where the membership was deleted
-    instead — nothing had come from it — a new one is added through the
-    authoring verb, which files the pass itself.
-
-    Does nothing for a transferable or archived asset, one with automatic
-    distribution disabled, or one already given.
+    Revive an archived membership to preserve provenance and prevent duplicate
+    catch-up grants. Create a new membership only if no archived one remains.
+    Skip assets already distributed, archived, transferable or disabled.
     """
     from n26.core.propagation import file_propagation_task
     from n26.library.authoring import add_built_in
@@ -100,25 +77,17 @@ def give_back(asset):
 
 
 def _field(model, *names):
-    """The first of ``names`` that is a field on ``model`` — the asset
-    type and its ownership took their present names in a later
-    migration than the one that first runs the seed."""
+    """Resolve the first available field name across supported historical model states."""
     have = {field.name for field in model._meta.get_fields()}
     return next(name for name in names if name in have)
 
 
 def build_in_missing(apps, campaign_type=None):
-    """Build every possession asset into its giver's built-ins where no
-    live member names it, and return the members made.
+    """Create missing live built-in memberships for eligible inherent assets.
 
-    Idempotent: an asset already given is left alone, so this can run
-    over a database that has some of it. Archived assets are skipped —
-    an archived asset is one taken out on purpose. ``campaign_type``
-    narrows to the assets of one type's asset types, for the seed.
-
-    Members are written directly rather than through the authoring
-    verb, because the classes handed in may be historical ones; the
-    caller files whatever propagation the sets that changed are owed.
+    Return created members so the caller can schedule propagation. Skip archived
+    assets and existing live memberships. ``campaign_type`` optionally limits
+    the pass. Write directly to support historical model classes.
     """
     Asset = apps.get_model("library", "Asset")
     DefaultAssignment = apps.get_model("library", "DefaultAssignment")
@@ -137,13 +106,11 @@ def build_in_missing(apps, campaign_type=None):
         assets = assets.filter(given_to_every_gang=True)
 
     made = []
-    # One instance per giver for the whole pass. Each asset row arrives
-    # with its own copy of the campaign type, and a copy read before the
-    # first asset founded the type's set would found a second one.
+    # Reuse one campaign type instance per giver so its newly created built-in
+    # set is visible when processing subsequent assets.
     givers = {}
     for asset in assets.order_by("name"):
-        # Read through one name whichever the class uses, so the rest of
-        # the pass need not know which migration it is running in.
+        # Normalise historical field names for the remainder of the pass.
         if asset_type_field != "asset_type":
             asset.asset_type = getattr(asset, asset_type_field)
         giver = giver_of(asset, apps)
@@ -166,9 +133,7 @@ def build_in_missing(apps, campaign_type=None):
 
 
 def _built_ins_of(campaign_type, DefaultAssignmentSet):
-    """The type's built-in set, founded in the type's pack where it has
-    none yet — named as the authoring verb names one, so it reads like
-    every other type's on the authoring pages."""
+    """Find or create the campaign type's named built-in set in its own pack."""
     if campaign_type.built_ins_id is not None:
         return campaign_type.built_ins
     taken = DefaultAssignmentSet.objects.filter(pack_id=campaign_type.pack_id)

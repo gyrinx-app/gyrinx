@@ -1,18 +1,12 @@
-"""Income — the system counter a campaign's assets contribute to.
+"""Read asset Income from ordinary gang-scoped counter contributions.
 
-An asset's income is a modifier carried directly or by its Income option:
-a ``TargetsGang`` scope with a
-``ContributesToCounter`` effect aimed at the system pack's **Income**
-counter. A gang's Income reading includes its assets and other standing
-contributions, such as income per Reputation point. It is drawn wherever
-counters are drawn. Credit collection is manual.
+A direct modifier or declared Income option contributes to the system Income
+counter. Gang readings include these and other applicable modifiers.
+Credit collection remains manual.
 
-The authoring forms keep a plain Income box. ``authoring.set_income``
-writes the modifier behind it; the readers here take the figure back
-off the modifiers, so a page prints the same number the author typed.
-The Income counter is known by its natural key — a counter called
-Income, however cased, with no qualifier — which is how the library
-states a counter's identity and how the seed finds one already there.
+Authoring's Income field uses ``set_income``; these readers recover the amount
+from the same modifiers. Resolve the counter by case-insensitive name and an
+empty qualifier in the system pack.
 """
 
 from django.conf import settings
@@ -41,12 +35,7 @@ def income_counter():
 
 
 def ensure_income_counter():
-    """The Income counter, created in the system pack where it is missing.
-
-    A test database built from the models has no seed rows, and an author
-    writing an asset's income there still needs the counter to aim at.
-    Matched without regard to case, as the library's own uniqueness is.
-    """
+    """Create the system Income counter if missing, matching its name case-insensitively."""
     from n26.library.models import Counter
     from n26.library.models.pack import get_default_pack
 
@@ -57,15 +46,12 @@ def ensure_income_counter():
 
 
 def is_income_contribution(modifier):
-    """Whether a modifier is an asset's income: gang-scoped, unconditional,
-    and adding to the Income counter. Reads the effect and its counter off
-    the row, so a caller loading many should ``select_related`` both, and
-    the scope's condition rows, which ``with_income`` prefetches.
+    """Identify an unconditional gang-scoped contribution to an Income counter.
 
-    A contribution that applies only to some gangs — "gangs that have
-    picked Goliath: 10 more Income" — is separate from the base figure.
-    It applies to the gangs it names
-    through the effects engine, like any other modifier.
+    Match its name case-insensitively with an empty qualifier, regardless of pack.
+    Load the effect, counter and scope conditions together for bulk reads;
+    ``with_income`` supplies those relations. Conditional contributions apply
+    through the effects engine but do not count as the asset's base income.
     """
     if modifier.targets_gang_id is None or modifier.contributes_to_counter_id is None:
         return False
@@ -88,13 +74,9 @@ def income_modifiers(asset, modifiers=None):
 
 
 def income_of(asset, modifiers=None):
-    """What the asset brings its holder each cycle: the sum of its Income
-    contributions, 0 where it carries none.
+    """Sum an asset's Income contributions, defaulting to zero.
 
-    ``modifiers`` are the asset's modifiers where the caller already holds
-    them — the modifier index a card was computed against. Otherwise they
-    are read off the asset, which is a query unless prefetched
-    (``with_income``).
+    Pass preloaded ``modifiers`` or use ``with_income`` to avoid an extra query.
     """
     return sum(
         row.contributes_to_counter.amount for row in income_modifiers(asset, modifiers)
@@ -131,12 +113,9 @@ def with_income(assets):
 
 
 def income_modifier_name(asset, Modifier, pack_id):
-    """A name for the asset's Income modifier that nothing else in the
-    pack has taken: the asset's name and the word, the qualifier where
-    the name alone is spoken for, and a number after that.
+    """Choose an unused modifier name from the asset name, qualifier and numeric suffix.
 
-    Takes the model class rather than importing it, so a migration can
-    hand it the historical one.
+    Accept the model class to support historical migration registries.
     """
     from itertools import chain, count
 

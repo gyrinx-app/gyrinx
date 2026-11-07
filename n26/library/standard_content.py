@@ -1,27 +1,11 @@
-"""Standard content — the rows we know must exist, created on demand.
+"""Create and check standard library content through repeatable Foundations actions.
 
-Some rows aren't anybody's authoring decision: the thirteen model
-characteristics, the shape a weapon profile prints in, the Subtypes the
-core rules name. Every pack needs them, they are the same every time,
-and nothing else can be built until they are there — a weapon has no
-stats to fill in until a weapon statline type exists.
+Definitions include characteristics, statline types, subtypes and other fixed
+names and values needed by authored content. Match natural keys and retain
+existing records so creation can resume from a partially populated library.
 
-So each is a named set of rows that can say whether it is already
-there and can create what is missing. Buttons rather than a data
-migration, deliberately — a migration runs once, invisibly, in an
-order nobody remembers, whereas this shows its status on the page and
-can be run again after a reset or a half-finished import.
-
-Two rules hold:
-
-* **Idempotent.** Running twice does nothing the second time. Every
-  row is matched on its natural key and left alone if it is already
-  there, so this can run against a database that has some of it.
-* **Names and numbers only.** These carry what the rulebook *fixes* —
-  a characteristic's short name and how it displays, a Subtype's name —
-  and never rules text (n26/AGENTS.md).
-
-Adding one is a definition list and one entry in ``STANDARD_CONTENT``.
+Register each definition set in ``STANDARD_CONTENT`` with its creation and
+completeness functions.
 """
 
 from collections.abc import Callable
@@ -38,15 +22,9 @@ def _limits(minimum, maximum):
 
 _TARGET = {"is_target": True, "is_inverted": True}
 
-#: The 2026 model characteristics profile (core rules): nine battle
-#: stats, then the four psychology stats — plain numbers, higher better,
-#: never a plus. One shape serves Fighters and Vehicles alike; the Type
-#: line tells them apart. ``(short, full, stat flags, display flags)``.
-#:
-#: Each carries the rulebook's minimum and maximum (core rules:
-#: characteristics and profiles), the values a change stops at. A roll
-#: target's are written as its number — a Save runs from 6 (6+) to 3
-#: (3+). Wounds alone may fall to 0; the psychology stats stop at 4.
+#: Characteristic definitions and display flags for models and vehicles.
+#: Each tuple is (short name, full name, stat flags, display flags).
+#: Limits use stored numeric values, including inverted targets such as Save.
 MODEL_CHARACTERISTICS = [
     (
         "M",
@@ -73,13 +51,8 @@ MODEL_CHARACTERISTICS = [
     ("Int", "Intelligence", _limits(4, 10), {"is_highlighted": True}),
 ]
 
-#: The shape every weapon table prints (core rules). Strength is the
-#: *same definition* as a fighter's — stat rows are shared across
-#: statline types by design, so this seed reuses one if it is there.
-#:
-#: Armour Piercing is inverted: it is written as a negative number and
-#: improving it means a lower one, so a house rule that improves AP by
-#: one takes -1 to -2 rather than to zero.
+#: Weapon characteristic definitions reuse shared stats, including Strength.
+#: Armour Piercing is inverted: improving -1 yields -2.
 WEAPON_CHARACTERISTICS = [
     ("SR", "Short Range", {"is_inches": True}),
     ("LR", "Long Range", {"is_inches": True}),
@@ -125,18 +98,12 @@ VEHICLE_SUBTYPES = [
 PROGRESSION_COUNTERS = ["XP"]
 XP_COUNTER = "XP"
 
-#: The counter a Visit Trading Post action reads to work out what each
-#: model adds. Undrawn: no card shows it, and nothing offers to tally it
-#: — the visit screen is the only reader. What raises it is a modifier on
-#: each rank, so a fighter promoted into a rank adds what the rank adds
-#: and one who has lost it adds nothing.
+#: Undisplayed counter used by Trading Post visits.
+#: Rank modifiers supply each model's contribution.
 VISIT_CONTRIBUTION_COUNTER = "Trading Post visit contribution"
 
-#: What each rank adds to a Trading Post visit (core rules), as
-#: ``(subtype, amount)``, biggest first. A model holding both ranks adds
-#: the better figure and not the sum: the same fighter cannot perform the
-#: action twice. Each rank after the first is therefore scoped away from
-#: models holding any rank above it.
+#: Rank contributions, largest first. Exclude higher ranks from later modifiers
+#: so a model with multiple ranks receives only its largest contribution.
 VISIT_CONTRIBUTIONS = [("Leader", 2), ("Champion", 1)]
 
 #: What each rank's contribution modifier is filed under. Named here so
@@ -152,26 +119,14 @@ VISIT_CONTRIBUTION_MODIFIERS = [
 #: under a heading of its own, which is what tells the two apart.
 GANG_LIST_SECTION = "Gang List"
 
-#: The counter a fighter's founding budget is read off. Undrawn, like the
-#: visit's: no card shows it, and the equip screen is the only reader.
-#: What raises it is a modifier on the gang type, so a model hired into
-#: a Venator gang gets the Venator figure and one hired into any other
-#: gang gets none.
+#: Undisplayed counter supplying founding equipment allowances.
+#: Gang-type modifiers contribute only to eligible models.
 FOUNDING_BUDGET_COUNTER = "Founding TP budget"
 
-#: What each rank on a gang's own list may spend at founding, by gang
-#: type, biggest first (Venators and Outcast gang books).
-#:
-#: The rank is the subtype a gang's entries come with, and it is used to
-#: find those entries rather than to reach models: a rank's subtype is
-#: carried right across the library, and an ally or a hired gun ranked
-#: Champion is nobody's Champion but their own. So each modifier names
-#: the gang's own Gang List entries at that rank outright. A gang's
-#: entry that carries two of these ranks is named by the better one and
-#: left out of the rest, which is what keeps 5 and 4 from coming to 9.
-#:
-#: In a Venator gang the Hunter rank is the Specialist subtype: every
-#: Hunter entry carries it.
+#: Founding allowances by gang type and rank, largest first.
+#: Resolve the gang's own Gang List profiles rather than allied or hired profiles
+#: of the same rank. Assign multi-ranked profiles only to their highest allowance.
+#: Venator Hunters use the Specialist subtype.
 FOUNDING_BUDGETS = [
     ("Venators", [("Leader", 5), ("Champion", 4), ("Specialist", 3)]),
     ("Outcast", [("Leader", 4), ("Champion", 3)]),
@@ -191,8 +146,7 @@ AFFILIATION_SLOT_TYPE = "Affiliation"
 
 
 def _budget_modifier_name(carrier, ranks, amount, more=False):
-    """What a founding-budget modifier is filed under on the authoring
-    pages."""
+    """Return the authoring name for a founding-budget modifier."""
     points = "Trade Point" if amount == 1 else "Trade Points"
     return (
         f"{carrier} {' or '.join(ranks)} may spend "
@@ -270,9 +224,7 @@ INHERENT_SET = "Inherent"
 SKILLS_COLLECTION = "Skills & Powers"
 SKILL_TIERS = [("Primary", False), ("Secondary", False), ("Other", True)]
 
-#: The Trading Post: membership is having a trade point price, so it is
-#: two sweeps and no hand-kept list — author a weapon with a TP and it
-#: is simply there.
+#: Trading Post membership is supplied by content-kind sweeps using trade-point prices.
 TRADING_POST_COLLECTION = "Trading Post"
 
 #: The taxonomy section whose profiles every gang may hire, whichever
@@ -308,7 +260,7 @@ GANG_TYPES = [
 
 @dataclass(frozen=True)
 class StandardContent:
-    """One known-necessary set of rows: what it is, and how it stands."""
+    """A standard content definition with creation and completeness functions."""
 
     key: str
     name: str
@@ -329,12 +281,7 @@ class StandardContent:
 
 
 def _stat(short, full, flags):
-    """One characteristic definition, matched on its name.
-
-    A definition already there keeps everything it says, except that a
-    limit it leaves blank is filled in: a Strength made by the weapon
-    shape, or by hand, still stops where the book says.
-    """
+    """Match a characteristic by name, filling only missing limits on existing records."""
     from n26.library.models import Stat
     from n26.library.models.pack import get_default_pack
 
@@ -355,10 +302,10 @@ def _stat(short, full, flags):
 
 
 def _heading(stat, short):
-    """How this shape heads the column, where the shared definition
-    abbreviates it differently. Strength is one definition, printed S on
-    a model and Str on a weapon, and whichever shape is seeded second
-    finds the other's abbreviation already on the row."""
+    """Return an abbreviation override when a statline differs from the shared stat.
+
+    Strength uses S on models and Str on weapons; either statline can be seeded first.
+    """
     return {} if stat.short_name == short else {"short_name_override": short}
 
 
@@ -458,18 +405,10 @@ def _check_progression_counters():
 
 
 def visit_contribution_counter():
-    """The standard visit-contribution counter, or None where the library
-    has none.
+    """Resolve the standard visit counter by case-insensitive name in the default pack.
 
-    Pinned to the default pack, as the Trading Post is: names are unique
-    per pack, so a homebrew pack's counter of the same name must not
-    stand in for the standard one. The seed, its own completeness check
-    and every reader ask this one question, because two statements of
-    what counts as the row drift in silence.
-
-    The pack is named by its slug rather than fetched first, so a page
-    asking this pays one query and not two. A library with no default
-    pack has no counter in it either, which is the same None.
+    Query by pack slug in the same lookup. Return ``None`` if the pack or counter
+    is missing; same-named counters in other packs cannot substitute.
     """
     from django.conf import settings
 
@@ -482,19 +421,11 @@ def visit_contribution_counter():
 
 
 def _create_visit_contribution():
-    """The visit counter, and one modifier per rank that raises it.
+    """Create the visit counter and rank contributions without duplicating existing effects.
 
-    The subtypes are matched, not duplicated: the core subtypes seed
-    creates the same two rows, and either seed may be run first.
-
-    Ranks are read biggest first, and each modifier after the first is
-    narrowed to models holding none of the ranks above it. That is what
-    makes a Leader who is also a Champion add 2 rather than 3.
-
-    A rank's contribution is matched by what it does — a modifier this
-    rank carries that raises this counter — rather than by its name. A
-    rank carrying two of them would add twice what it should, and a name
-    is the one part of a modifier that may be reworded later.
+    Process higher ranks first and exclude them from lower-rank modifiers so a
+    model with multiple ranks receives only its highest contribution.
+    Match modifiers by effect because their names are editable.
     """
     from n26.library.authoring import (
         ef_contributes_to_counter,
@@ -559,9 +490,7 @@ def _raises_visit_counter(subtype, counter):
 
 
 def _check_visit_contribution():
-    """Asked exactly as the create asks it — the same counter lookup, the
-    same rank lookup, the same behaviour predicate — so a half-built
-    library reports what a second run would leave alone."""
+    """Check completeness using the same counter, rank and effect lookups as creation."""
     from n26.library.models import Subtype
 
     counter = visit_contribution_counter()
@@ -576,18 +505,10 @@ def _check_visit_contribution():
 
 
 def founding_budget_counter():
-    """The standard founding-budget counter, or None where the library
-    has none.
+    """Resolve the standard founding-budget counter in the default pack, or return ``None``.
 
-    Pinned to the default pack, as the visit's is: names are unique per
-    pack, so a homebrew pack's counter of the same name must not stand in
-    for the standard one. The seed, its own completeness check and every
-    reader ask this one question, because two statements of what counts
-    as the row drift in silence.
-
-    The pack is named by its slug rather than fetched first, so a page
-    asking this pays one query and not two. A library with no default
-    pack has no counter in it either, which is the same None.
+    Use the shared lookup for creation, completeness checks and runtime reads to
+    exclude same-named counters in custom packs.
     """
     from django.conf import settings
 
@@ -600,14 +521,7 @@ def founding_budget_counter():
 
 
 def _by_name(model, name, **extra):
-    """A row of this kind called this in the default pack, or None.
-
-    Pinned to the pack for the same reason the counter is: names are
-    unique per pack, so a homebrew pack's gang type or subtype of the
-    same name is a different thing and must not stand in for the
-    standard one. Extra filters narrow further — a pickable of this
-    name under a different slot type is a different thing.
-    """
+    """Find default-pack content by name and additional identity filters."""
     from django.conf import settings
 
     return model.objects.filter(
@@ -616,12 +530,9 @@ def _by_name(model, name, **extra):
 
 
 def _affiliation_carrier(name):
-    """The row a gang holds when it chooses this affiliation.
+    """Find an affiliation's live pickable, falling back to an existing Affiliation record.
 
-    The live choice is a pickable of the Affiliation slot type where
-    that slot type exists. A library that still stores the choice as
-    an Affiliation row is found the same way. A pickable of this name
-    under a different slot type is a different thing.
+    A same-named pickable of another slot type is not a match.
     """
     from n26.library.models import Affiliation, Pickable, SlotType
 
@@ -634,17 +545,10 @@ def _affiliation_carrier(name):
 
 
 def _gang_list_profiles(gang_type, subtype):
-    """The gang's own entries at this rank, biggest name last.
+    """Find profiles of a rank on the gang's own list, ordered by name.
 
-    Its own list, and not everything ranked that way: a rank's subtype is
-    carried right across the library — fourteen allied entries and three
-    Dramatis Personae are ranked Champion — and none of them is on this
-    gang's list or given its founding allowance. What tells them apart is
-    the heading each is filed under.
-
-    Read from the library rather than listed, so an entry authored later
-    is named the next time the seed runs, and the completeness check
-    says so until it has been.
+    Exclude allied and Dramatis Personae profiles ranked the same way.
+    Read current content so later authored profiles are included on the next run.
     """
     from django.conf import settings
 
@@ -663,14 +567,7 @@ def _gang_list_profiles(gang_type, subtype):
 
 
 def _raises_founding_budget(carrier, counter, amount):
-    """The modifiers this carrier holds that raise this counter by this
-    much.
-
-    Each rank a carrier grants an allowance to grants a different figure,
-    so the figure is what tells one rank's modifier from another's. A
-    name is the one part of a modifier that may be reworded later, and
-    the entries it reaches are the part the seed keeps up to date.
-    """
+    """Match carrier modifiers by counter and amount, independent of their editable names."""
     return carrier.modifiers.filter(
         contributes_to_counter__counter=counter,
         contributes_to_counter__amount=amount,
@@ -678,11 +575,7 @@ def _raises_founding_budget(carrier, counter, amount):
 
 
 def _naming_rows(modifier):
-    """The rows naming the entries a founding-budget modifier reaches.
-
-    The positive ones only: a negated row says who it misses, which is
-    not a set the seed keeps.
-    """
+    """Find positive profile conditions on a founding-budget modifier."""
     scope = modifier.targets_miniature
     return [] if scope is None else list(scope.is_profile.filter(negate=False))
 
@@ -697,16 +590,10 @@ def _named_profiles(modifier):
 
 
 def _budget_ranks(gang_type):
-    """Each rank this gang type grants an allowance to, with the figure
-    and the entries it reaches — biggest figure first, and no entry named
-    twice.
+    """Assign each profile to its highest founding allowance, largest amount first.
 
-    An entry carrying two of these ranks belongs to the better one, which
-    is what keeps 5 and 4 from coming to 9 for a model that is both. It
-    is also why the set is worked out whole every time rather than added
-    to: giving a Champion entry the Leader rank moves it between two
-    figures, and an entry left named by the one it has left would raise
-    the counter twice.
+    Rebuild the complete groups so profiles changing rank leave their previous
+    modifier and cannot receive two contributions.
     """
     from n26.library.models import Subtype
 
@@ -722,12 +609,7 @@ def _budget_ranks(gang_type):
 
 
 def _drop_modifier(row):
-    """Take a modifier away, parts and all.
-
-    A modifier's columns cascade *from* its scope and its effect, so the
-    parts are what a delete has to reach; left behind, they would keep
-    nothing alive but themselves.
-    """
+    """Delete a modifier's scope and effect to cascade the modifier without orphaned parts."""
     scope, effect = row.scope, row.effect
     row.delete()
     for part in (scope, effect):
@@ -736,12 +618,9 @@ def _drop_modifier(row):
 
 
 def _take_affiliation_budget(name, carrier, counter, amount):
-    """Move this founding figure onto the live carrier, if an Affiliation
-    row of the same name still holds it.
+    """Move an existing affiliation contribution onto its live pickable carrier.
 
-    Modifier names are unique per pack, so creating a second row of the
-    same name would be refused; the contribution is one contribution,
-    and the pickable is who now holds it.
+    Reuse the modifier because its pack-scoped name cannot be duplicated.
     """
     from n26.library.models import Affiliation
 
@@ -756,18 +635,11 @@ def _take_affiliation_budget(name, carrier, counter, amount):
 
 
 def _settle_budget(carrier, counter, name, amount, subtypes, wanted):
-    """Make this contribution say what it should, whatever it said before.
+    """Maintain one contribution per amount and carrier with the exact profile set.
 
-    One modifier per figure per carrier, and its set of entries is
-    rewritten rather than added to: an entry that has moved to another
-    rank must stop being named here, or it would raise the counter twice.
-    With no entry left to reach, the modifier goes — a rank nothing is
-    filed under is not a rank this library grants anything to.
-
-    The scope names the rank as well as the entries. The two narrow
-    together, so while the set is intact it says exactly what the entries
-    say — and if something outside the seed empties the set, what is left
-    reaches that rank rather than the whole roster.
+    Delete contributions with no matching profiles. Retain the rank condition
+    alongside profile conditions so an externally emptied set cannot broaden the
+    modifier to the whole roster.
     """
     from n26.library.authoring import (
         ef_contributes_to_counter,
@@ -798,9 +670,7 @@ def _settle_budget(carrier, counter, name, amount, subtypes, wanted):
         return
     scope = standing.targets_miniature
     if scope is None:
-        # It reaches something other than the models — an author's own
-        # doing. Nothing here rewrites that; the completeness check says
-        # the rank is not done until somebody looks.
+        # Preserve an authored scope outside model targeting and report the seed incomplete.
         return
     rows = _naming_rows(standing) or [IsProfile.objects.create(scope=scope)]
     for row in rows:
@@ -819,13 +689,10 @@ def _profiles_by_id(ids):
 
 
 def _empty_budget_modifiers(counter):
-    """Every founding-budget modifier left naming no entry at all.
+    """Find contributions with positive profile conditions naming no profiles.
 
-    Deleting a fighter entry takes it out of the sets naming it, and a
-    modifier that named nothing else is then a contribution with nothing
-    to reach. It is rebuilt below where the library still has entries for
-    it, and stays gone where it does not. A bearer grant without a profile
-    condition is authored content, not an emptied seed modifier.
+    Search all modifiers contributing to ``counter``, including authored ones.
+    Exclude bearer grants that have no profile condition.
     """
     from n26.library.models import Modifier
 
@@ -861,22 +728,11 @@ def _create_outcast_champion_budget(counter):
 
 
 def _create_founding_budgets():
-    """The founding-budget counter, and one modifier per rank that raises
-    it for the gang's own entries at that rank.
+    """Create standard budget contributions and refresh their complete profile sets.
 
-    Gang types and subtypes are matched, not duplicated: their own seeds
-    create the same rows, and any of them may be run first. An
-    affiliation is authored content and is never created here — a library
-    without one has no gang holding it either. Where the live choice is
-    a pickable, the figure hangs there; an Affiliation row of the same
-    name is not what a gang holds.
-
-    A rank's contribution is matched by what it does — a modifier this
-    carrier holds that raises this counter by this figure — rather than
-    by its name, so rewording one does not hang a second contribution on
-    the carrier. What it *reaches* is worked out whole on every run, so
-    an entry authored since the last one is named and an entry that has
-    moved to another rank stops being.
+    Resolve existing gang types, ranks and affiliation carriers without creating
+    missing authored affiliations. Match contributions by behaviour and amount,
+    not their editable names.
     """
     from n26.library.models import Counter, GangType, Pickable, Subtype
 
@@ -936,19 +792,10 @@ def _affiliation_profiles(gang_type, ranks):
 
 
 def _check_founding_budgets():
-    """Asked exactly as the create asks it — the same counter lookup, the
-    same entry lookup, the same behaviour predicate — so a half-built
-    library reports what a second run would leave alone.
+    """Check exact profile membership using the same predicates as creation.
 
-    A rank counts as done only where its modifier names exactly the
-    entries it should. An entry authored since the last run, one that has
-    moved to another rank, and one deleted altogether each show the seed
-    incomplete rather than being quietly left with the wrong figure.
-
-    An affiliation that is not in the library is not counted, because the
-    seed does not create one: it is authored content, and a library
-    without it has no gang holding it. The carrier is the pickable a
-    gang holds, where that exists.
+    Added, reranked or deleted profiles make the seed incomplete until refreshed.
+    Missing authored affiliations are excluded from completeness requirements.
     """
     from n26.library.models import GangType
 
@@ -983,8 +830,7 @@ def _check_founding_budgets():
         nonlocal wanted, present
         done = settled(carrier, amount, entries)
         if not entries and done:
-            # Nothing to reach and nothing standing: this rank is not
-            # something the library has, so it is nobody's business.
+            # No profiles or modifier exist for this rank, so no seed work is required.
             return
         wanted += 1
         present += 1 if done else 0
@@ -1007,23 +853,17 @@ def _check_founding_budgets():
 
 
 def skills_collection_sweeps():
-    """Every kind this collection lists: what a model selects rather than
-    carries. A power is not a skill, and both are here because a grid
-    places both into the same tiers — a kind missing from here is one no
-    fighter can be shown."""
+    """Return content kinds offered through the shared skill and power collection."""
     from n26.library.models import Power, Skill
 
     return (Skill, Power)
 
 
 def _create_skills_collection():
-    """The collection, its tiers, and a sweep per kind it lists.
+    """Create missing skill collection tiers and content-kind sweeps.
 
-    Swept rather than listed by hand: membership is being that kind of
-    thing, so authoring a skill puts it in front of every fighter whose
-    grid names its set, with nothing to remember. Tops up an existing
-    collection for the same reason the post does — a kind added later
-    would otherwise be invisible.
+    Sweeps include future authored content automatically. Add missing kinds to
+    an existing collection as well as a newly created one.
     """
     from django.contrib.contenttypes.models import ContentType
 
@@ -1084,11 +924,9 @@ def _check_skills_collection():
 
 
 def _skill_rows():
-    """``(set, skill, D6 number)`` for every skill the core rules name.
+    """Yield standard skill categories, names and D6 results.
 
-    The numbered sets first, in print order, then the inherent ones —
-    which are granted rather than rolled, so they carry no number and
-    fall back to sorting by name.
+    Numbered categories precede inherent unnumbered skills, which sort by name.
     """
     for set_name, skills in SKILL_SETS.items():
         for number, skill in enumerate(skills, start=1):
@@ -1134,21 +972,14 @@ def _check_skills():
 
 
 def trading_post_sweeps():
-    """Every kind the post offers: whatever a fighter can buy with Trade
-    Points. An accessory is bought there as readily as the gun it bolts
-    onto, so a kind missing from here is one nobody can buy."""
+    """Return content kinds available to buy with trade points."""
     from n26.library.models import Wargear, Weapon, WeaponAccessory
 
     return (Weapon, Wargear, WeaponAccessory)
 
 
 def _create_trading_post():
-    """The post, and one sweep per kind it offers.
-
-    Tops up rather than skipping: a post built before a kind existed is
-    the ordinary state of a library that has been running a while, and
-    leaving it short would quietly keep those items out of the post.
-    """
+    """Create the Trading Post and add missing sweeps to existing content."""
     from django.contrib.contenttypes.models import ContentType
 
     from n26.library.authoring import create_trading_post
@@ -1224,12 +1055,9 @@ def _check_subtypes():
     return _count(Subtype, name__in=names), len(names)
 
 
-#: The lasting-effect tables (core rules: the Lasting Injury and Lasting
-#: Damage tables; the Spyre Hunters list's Hunting Rig Glitches; the
-#: alliance rules' delegation injuries), as ``(band low, band high,
-#: result)``. Names and bands only — what a result *does* is a modifier,
-#: which seeds never write, so the results that change a characteristic
-#: or move a counter are finished by hand.
+#: Standard lasting-effect result names and roll bands.
+#: Seeded status modifiers cover the configured status changes; characteristic
+#: and counter effects require their own authored modifiers.
 LASTING_INJURY_TABLE = [
     (11, 11, "Lesson Learnt"),
     (12, 12, "Eternal Enmity"),
@@ -1299,11 +1127,8 @@ DELEGATION_INJURY_TABLE = [
     (6, 6, "Critical Injury"),
 ]
 
-#: What each result does to the model's standing when its pick lands, by
-#: result name — the same on every table that lists the name. The seed
-#: attaches these as modifiers, because a table whose results change
-#: nothing is not the table the book prints. Results not named here
-#: (Out Cold, the enmities, the scars) leave the status alone.
+#: Status applied by each named result. Results absent from this mapping
+#: preserve status; captured results can offer the Escape choice.
 LASTING_EFFECT_STATUSES = {
     "Grievous Wound": "recovery",
     "Eye Injury": "recovery",
@@ -1379,12 +1204,9 @@ def lasting_effect_status_modifiers():
     )
 
 
-#: ``(slot type, plural — the card's heading, rows, die, qualifier)``.
-#: A pack holds one pickable per name and qualifier, and several results
-#: sit on more than one table at the same rolls. A table's qualifier
-#: goes on each of its results that an earlier table already names, so
-#: the first table's rows stay plain and every later twin is told apart
-#: — author-facing only, never a player's word.
+#: Table definitions: slot type, plural card heading, results, die and qualifier.
+#: Qualify same-named results on later tables to satisfy pack-wide uniqueness;
+#: qualifiers remain author-facing.
 LASTING_EFFECT_TABLES = [
     ("Lasting Injury", "Lasting Injuries", LASTING_INJURY_TABLE, "d66", ""),
     ("Lasting Damage", "Lasting Damage", LASTING_DAMAGE_TABLE, "d66", "vehicle"),
@@ -1424,15 +1246,10 @@ SHARED_LASTING_RESULTS = {
 
 
 def _table_row(model, name, qualifier, slot_type, defaults):
-    """One pickable or slot for a table, matched three ways in turn.
+    """Resolve a table's pickable or slot by slot type and name, then create if absent.
 
-    Its own slot type's row of that name is the one, whatever qualifier
-    it was created with — a table seeded before a later table shared the
-    name must not gain a second copy. Failing that, a row of that name
-    and qualifier under another slot type is a name already claimed,
-    refused in words rather than tripping the per-pack unique constraint
-    (lowercased name and qualifier, not slot type) as a bare error.
-    Otherwise the row is created.
+    Preserve an existing row's qualifier. Reject a conflicting name and qualifier
+    under another slot type before the pack-scoped unique constraint fails.
     """
     from django.conf import settings
 
@@ -1650,14 +1467,10 @@ POWER_BOOST_TABLE = [
 
 
 def _power_boost_result(slot_type, name, annotation, rating):
-    """One result, matched by name and qualifier under its own slot type
-    in the default pack; a name another slot type there already claims
-    is refused in words, as the lasting tables do. The annotation doubles
-    as the qualifier so two results of one name are two rows under the
-    per-pack constraint, and the qualifier is what a re-run matches on:
-    an author may reword the annotation without the seed losing its row.
-    Pinned to the pack because names are unique per pack, so a homebrew
-    pack's result of the same name is a different thing.
+    """Resolve a default-pack Power Boost result by slot type, name and qualifier.
+
+    Reject names claimed by another slot type. The qualifier initially matches
+    the annotation but remains a stable lookup key if the annotation is edited.
     """
     from django.conf import settings
 
@@ -1748,12 +1561,10 @@ def _check_power_boost_table():
 
 
 def _status_modifier(pickable, status):
-    """Attach "marks the model <status>" to a result, once.
+    """Reuse a named status modifier and attach it to the pickable.
 
-    Found by name, so running the seed again attaches nothing twice and
-    an author who has detached one is left alone: the name is the
-    seed's, and a modifier of that name already on the result is the
-    seed's own work.
+    An existing attachment is unchanged. A detached modifier is reattached; create
+    the modifier only when no matching name exists.
     """
     from n26.core.status import Status
     from n26.library.authoring import modifier, op_sets_status, targets_model

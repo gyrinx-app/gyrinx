@@ -1,32 +1,12 @@
-"""Splitting the Outcast archetypes in two, one set for each choice.
+"""Split Outcast archetype pickables into gang and Champion-specific sets.
 
-An Outcast gang's Archetype is picked by the Leader and held by the
-gang, so it reaches every member. A Champion picks an Archetype too, and
-that one belongs to the Champion alone. Both choices drew from a single
-picklist, so each of the five archetypes carried the two readings at
-once: the gang's, which places skill sets for every model, and the
-Champion's, which places them for the one model carrying the pick. No
-modifier can be scoped for both. Scoped to the model carrying it, it
-does nothing at all on a pick the gang holds; scoped to every model, it
-reaches the whole gang from a pick a Champion made.
+Gang picks apply across members; Champion picks apply to their bearer.
+Create qualified Champion copies and move bearer-scoped modifiers to them.
+Handle the Wyrd subtype, power offer and power-placement modifiers explicitly
+because their existing scopes do not follow that split.
 
-So the two are split. The Champion's slot gets a picklist of its own,
-holding five pickables of its own — the same names a card prints, told
-apart for authors by their qualifier — and each takes the modifiers that
-were only ever the Champion's. Which ones those are follows from the
-same argument: a modifier reaching the model carrying it can do nothing
-from a pick the gang holds, so it was written for the Champion's pick.
-
-Three of Wyrd's modifiers are not sorted by that rule, and each is named
-here: one that adds the Wyrd subtype to every Champion in the gang, one
-that offers a power to Champions and Leaders alike, and one that puts
-Wyrd Powers under Primary for everybody. The first belongs to the
-Champion's pick and becomes a modifier about the one model; the other
-two say something for each of the two picks, so each ends up with a
-modifier of its own.
-
-Everything here is found by id, and finding nothing is a normal outcome:
-a database with no Outcast content is left exactly as it stands.
+Resolve known source content by identifier. Missing Outcast content is a
+no-op; accept historical model registries for migration use.
 """
 
 #: The Champion's own Archetype choice — the slot a Champion entry is
