@@ -13,13 +13,10 @@ from gyrinx.pages.models import FlatPageOptions
 
 register = template.Library()
 
-# Note: this is largely a copy of the get_flatpages tag from Django's flatpages app
-
 
 class FlatpageNode(template.Node):
     depth = 0
-    # When set, only pages exactly one path segment below ``starts_with`` are
-    # returned: the page's direct children, not every descendant.
+    # Limit prefixed results to one additional path segment.
     children_only = False
 
     def __init__(self, context_name, starts_with=None, user=None):
@@ -46,7 +43,6 @@ class FlatpageNode(template.Node):
             include_registration_required=bool(user and user.is_authenticated),
         )
 
-        # If a prefix was specified, add a filter
         starts_with = None
         if self.starts_with:
             starts_with = self.starts_with.resolve(context)
@@ -56,7 +52,7 @@ class FlatpageNode(template.Node):
                 flatpages = flatpages.filter(url__regex=rf"^{prefix}[^/]+/?$")
 
         if self.depth:
-            # Optimized regex for depth=1 case
+            # Use a single-segment pattern for root pages.
             if self.depth == 1:
                 flatpages = flatpages.filter(url__regex=r"^/[^/]+/?$")
             else:
@@ -70,50 +66,27 @@ class FlatpageNode(template.Node):
 
 @register.tag
 def get_pages(parser, token):
-    """
-    Retrieve all flatpage objects available for the current site and
-    visible to the specific user (or visible to all users if no user is
-    specified). Populate the template context with them in a variable
-    whose name is defined by the ``as`` clause.
+    """Assign accessible flatpages on the current site to a template variable.
 
-    An optional ``for`` clause controls the user whose permissions are used in
-    determining which flatpages are visible.
-
-    An optional argument, ``starts_with``, limits the returned flatpages to
-    those beginning with a particular base URL. This argument can be a variable
-    or a string, as it resolves from the template context.
-
-    Syntax::
-
-        {% get_pages ['url_starts_with'] [for user] as context_name %}
-
-    Example usage::
-
-        {% get_pages as flatpages %}
-        {% get_pages for someuser as flatpages %}
-        {% get_pages '/about/' as about_pages %}
-        {% get_pages prefix as about_pages %}
-        {% get_pages '/about/' for someuser as about_pages %}
+    Syntax: get_pages [url_prefix] [for user] as context_name. Resolve the
+    optional prefix and user from the template context; without a user,
+    include only publicly discoverable pages.
     """
     bits = token.split_contents()
     syntax_message = (
         "{tag_name} expects a syntax of {tag_name} "
         "['url_starts_with'] [for user] as context_name"
     ).format(tag_name=bits[0])
-    # Must have at 3-6 bits in the tag
     if 3 <= len(bits) <= 6:
-        # If there's an even number of bits, there's no prefix
         if len(bits) % 2 == 0:
             prefix = bits[1]
         else:
             prefix = None
 
-        # The very last bit must be the context name
         if bits[-2] != "as":
             raise template.TemplateSyntaxError(syntax_message)
         context_name = bits[-1]
 
-        # If there are 5 or 6 bits, there is a user defined
         if len(bits) >= 5:
             if bits[-4] != "for":
                 raise template.TemplateSyntaxError(syntax_message)
@@ -135,13 +108,9 @@ def get_root_pages(parser, token):
 
 @register.tag
 def get_child_pages(parser, token):
-    """
-    Like ``get_pages`` with a prefix, but returns only the pages directly
-    below it — one path segment deeper — rather than every descendant.
+    """Assign accessible direct children of a URL prefix to a template variable.
 
-    Syntax::
-
-        {% get_child_pages parent_url [for user] as context_name %}
+    Syntax: get_child_pages parent_url [for user] as context_name.
     """
     node = get_pages(parser, token)
     if node.starts_with is None:
@@ -255,7 +224,6 @@ def _is_flatpage_active(context, url):
     if not request:
         return False
 
-    # Normalize both paths to ensure consistent comparison
     normalized_url = _normalize_path(url)
     normalized_path = _normalize_path(request.path)
 
@@ -303,18 +271,11 @@ class ParsedContent:
 
 
 def parse_headings(html):
-    """
-    The one parse of a flat page's content that everything else reads from.
+    """Add unique heading IDs, fragment links and icons to trusted article HTML.
 
-    Every heading (h1-h6) is given an id — a slug of its text, with ``-2``,
-    ``-3``... appended when the same slug has already been used on the page —
-    and wrapped in an anchor to that id, with a link icon inside. The same
-    headings are returned as a flat list, in document order, so a contents
-    block built from them links to the ids the HTML actually carries.
-
-    Example:
-      Input:  <h1>Foo Bar Baz!</h1>
-      Output: <a href="#foo-bar-baz"><h1 id="foo-bar-baz">Foo Bar Baz!<i ...></i></h1></a>
+    Avoid IDs already present anywhere in the document by appending numeric
+    suffixes. Return marked-safe HTML and a flat heading list in document order.
+    This function does not sanitise the input.
     """
     soup = BeautifulSoup(html or "", "html.parser")
     headings = []
@@ -352,12 +313,9 @@ def parse_headings(html):
 
 
 def nest_headings(headings):
-    """
-    Turn a flat, document-ordered list of headings into a tree by level.
+    """Nest headings under the nearest earlier heading with a lower level number.
 
-    A heading becomes a child of the nearest preceding heading with a smaller
-    level. Skipped levels (an h4 straight after an h2) still nest under the
-    h2; the tree follows the document, not the numbers.
+    Skipped levels still nest under that preceding parent.
     """
     roots = []
     stack = []
@@ -375,22 +333,13 @@ def nest_headings(headings):
 
 @register.filter
 def add_heading_links(html):
-    """
-    Template filter: the HTML half of ``parse_headings`` — every heading gets
-    an id and is wrapped in an anchor to it.
-    """
+    """Add heading links to trusted HTML without sanitising it."""
     return parse_headings(html).html
 
 
 @register.simple_tag
 def page_contents(page):
-    """
-    Render a nested list of the page's headings, linking to each one, when the
-    page's options have "Show contents" ticked. Renders nothing otherwise.
-
-    Usage:
-        {% page_contents flatpage %}
-    """
+    """Render nested heading links when Show contents is enabled and headings exist."""
     if not FlatPageOptions.objects.filter(page=page, show_contents=True).exists():
         return ""
     headings = nest_headings(parse_headings(page.content).headings)
@@ -401,17 +350,10 @@ def page_contents(page):
 
 @register.simple_tag
 def page_introduction(page):
-    """
-    Render the page's introduction, when its options carry one. Renders
-    nothing otherwise.
+    """Render the separately authored introduction when nonblank.
 
-    The introduction is authored in the same editor as the page content, so it
-    is HTML and is rendered as such. It sits above the contents block, which is
-    why it is a separate field rather than the first paragraphs of the content:
-    anything inside ``content`` is below the contents by construction.
-
-    Usage:
-        {% page_introduction flatpage %}
+    The default layout places it above the contents block; article content
+    appears below that block.
     """
     introduction = (
         FlatPageOptions.objects.filter(page=page)
