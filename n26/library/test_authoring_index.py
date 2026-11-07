@@ -1,9 +1,4 @@
-"""The content library's menu, and the kinds it lists out in full.
-
-Most kinds are a row that leads to a listing. A slot type is a place
-other content is filed under, so what an author wants is one particular
-one — and the menu names them rather than making that two hops.
-"""
+"""Verify the content menu links to kind listings and individual slot types."""
 
 import pytest
 
@@ -76,8 +71,7 @@ class TestThePageItself:
     def test_they_are_indented_so_they_read_as_of_that_kind(
         self, admin_client, two_slot_types
     ):
-        """The ! is load-bearing: the kit's own [&_td] padding rule
-        out-specifies a plain utility on the cell."""
+        """Important padding overrides the table component's higher-specificity cell rule."""
         body = admin_client.get("/n26/authoring/").content.decode()
 
         assert "pl-8!" in body
