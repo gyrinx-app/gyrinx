@@ -35,10 +35,10 @@ from n26.flags import BUILT_IN_PROPAGATION, switched_on
 
 logger = logging.getLogger(__name__)
 
-#: Republish interval for pending tasks whose delivery may have been lost.
+#: Minimum age of a PENDING task before the sweep republishes it.
 REPUBLISH_AFTER = timedelta(minutes=2)
 
-#: Timeout beyond delivery deadlines before treating a running worker as lost.
+#: Minimum time since a RUNNING task's last update before declaring it lost.
 GIVE_UP_RUNNING_AFTER = timedelta(minutes=15)
 
 #: Consecutive failure limit for automatic retries. A later authoring edit
