@@ -15,7 +15,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from django.apps import apps
+from django.template import Context, Template
 from django.template.loader import render_to_string
+from django_cotton.compiler_regex import CottonCompiler
 
 import n26.core
 from n26.core.effects import ComputedCard
@@ -52,6 +54,13 @@ class TestTheCardRows:
                 f"wire it into card_to_model_card's line_rows mapping, or "
                 f"the kind's lines have nowhere to land."
             )
+            definition = next(f for f in dataclasses.fields(ModelCard) if f.name == row)
+            assert definition.metadata.get("row_label") or definition.metadata.get(
+                "row_elsewhere"
+            ), (
+                f"ModelCard.{row} needs row_label metadata for the shared row composer, "
+                "or a row_elsewhere reason naming its other presentation."
+            )
             assert row in on_computed, (
                 f"A kind declares card_row={row!r} but ComputedCard has no "
                 f"{row!r} bucket (n26/core/effects.py). A modifier granting "
@@ -59,7 +68,6 @@ class TestTheCardRows:
             )
 
     def test_every_question_row_is_real_and_drawn(self):
-        template = "".join(t.read_text() for t in CARD_TEMPLATES)
         rows = declared_rows()
         on_card = {f.name for f in dataclasses.fields(ModelCard)}
         for row, bucket in ModelCard.QUESTION_BUCKETS.items():
@@ -72,10 +80,36 @@ class TestTheCardRows:
                 f"QUESTION_BUCKETS routes {row!r} questions into "
                 f"ModelCard.{bucket}, which does not exist."
             )
-            assert f"card.{bucket}" in template, (
-                f"The card template never draws card.{bucket} — a question "
-                f"routed to the {row!r} row would silently vanish from the "
-                f"card. Give the row the Choose treatment the Skills row has."
+            definition = next(f for f in dataclasses.fields(ModelCard) if f.name == row)
+            assert definition.metadata.get("row_label"), (
+                f"ModelCard.{row} needs row_label metadata so its facts and questions "
+                "reach the shared composer and all card renderers."
+            )
+            from n26.core.printing import detail_groups
+            from n26.core.render import ChoiceLine, Statline
+            from n26.core.render_text import render_model_card
+
+            choice = ChoiceLine(row, None, href=f"/choose/{row}/")
+            card = ModelCard("Nobody", 0, Statline(), **{bucket: [choice]})
+            assert any(
+                part.value is choice
+                for detail in card.detail_rows
+                for part in detail.parts
+            )
+            html = Template(
+                CottonCompiler().process(
+                    '<c-n26.model-card.body :card="card" mode="edit" />'
+                )
+            ).render(Context({"card": card}))
+            assert choice.href in html, f"The {row} question has no visible picker."
+            label = definition.metadata["row_label"]
+            assert any(
+                group.label == label and "—" in group.text
+                for group in detail_groups(card)
+            )
+            assert any(
+                f"{label}: {row}: — (not chosen)" in line
+                for line in render_model_card(card)
             )
 
     def test_a_question_a_weapon_carries_is_linked_and_drawn(self):
@@ -106,7 +140,7 @@ class TestTheCardRows:
         name_template = (
             Path(n26.core.__file__).parent / "templates/n26/includes/weapon_name.html"
         ).read_text()
-        assert "weapon.other_choices" in template
+        assert "weapon.other_choice_rows" in template
         assert "weapon.choices" in name_template
 
     def test_a_non_tier_gear_choice_stays_visible_on_the_roster(self):

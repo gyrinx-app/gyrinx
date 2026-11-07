@@ -1,0 +1,34 @@
+{% comment %}
+Typed members of a composed row. Grouping happens in Python; every source keeps
+its own name, provenance and controls. slot_style retains the gang detail-list
+choice presentation. Card mode and htmx are supplied by the surrounding card.
+Keep each separator with its source so it cannot wrap onto a line on its own.
+{% endcomment %}
+{% for part in parts %}
+    {% if part.kind == "gear" %}
+        <div class="inline-block max-w-full align-baseline">
+            {% include "n26/includes/gear_lines.html" with lines=part.value has_actions=part.has_actions %}
+            {% if not forloop.last %}<span class="me-2">,</span>{% endif %}
+        </div>
+    {% else %}
+        <span class="inline-flex max-w-full items-baseline gap-0">
+            {% if part.kind == "names" %}
+                <span class="min-w-0">
+                    <c-n26.assignable-lines :lines="part.value" :ratings="False" />
+                </span>
+            {% elif part.kind == "counter" %}
+                <span class="tabular-nums">{{ part.value.value }}</span>
+                {% if part.value.href %}
+                    <c-n26.counter-controls :counter="part.value" :htmx="htmx" />
+                {% endif %}
+            {% elif part.kind == "choice" %}
+                {% if slot_style %}
+                    {% include "n26/includes/slot_value.html" with choice=part.value %}
+                {% else %}
+                    {% include "n26/includes/row_choice.html" with choice=part.value named_prompt=part.named_prompt %}
+                {% endif %}
+            {% endif %}
+            {% if not forloop.last %}<span class="me-2 shrink-0">,</span>{% endif %}
+        </span>
+    {% endif %}
+{% endfor %}

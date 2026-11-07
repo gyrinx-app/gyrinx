@@ -1,0 +1,12 @@
+{% comment %}One gang slot's value and its own control, within a composed row.{% endcomment %}
+{% if choice.dismissed %}
+    Dismissed
+    <c-n26.choice-dismiss :choice="choice" />
+{% elif choice.href %}
+    <c-ui.button href="{{ choice.href }}"
+                 variant="{{ variant|default:'ghost' }}"
+                 size="{{ size|default:'xs' }}">{% if choice.is_resolved %}{{ choice.chosen }}{% elif choice.follows_status %}Resolve →{% else %}{{ choose_label|default:'Choose' }}{% endif %}</c-ui.button>
+    <c-n26.choice-dismiss :choice="choice" />
+{% else %}
+    {% if choice.is_resolved %}{{ choice.chosen }}{% else %}—{% endif %}
+{% endif %}

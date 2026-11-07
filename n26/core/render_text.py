@@ -5,6 +5,7 @@ Layout is deliberately crude — this is a debugging tool, not a design.
 """
 
 from n26.core.render import build_ledger, render_gang
+from n26.core.rows import choice_rows, row_text
 
 
 def render_statline(statline, indent="  "):
@@ -38,13 +39,6 @@ def render_model_card(card, indent=""):
         *render_statline(card.statline, indent=indent + "  "),
         f"{indent}  XP: {card.xp_display}",
     ]
-    # XP has its own line above, with the target on it. Skipped by name
-    # rather than left to counter_lines, which keeps XP for a card whose
-    # lines can be moved — nothing here can be, whatever the card was
-    # built for.
-    for counter in card.counter_lines:
-        if not counter.is_xp:
-            lines.append(f"{indent}  {counter.name}: {counter.value}")
     if card.weapons:
         lines.append(f"{indent}  Weapons:")
         for weapon in card.weapons:
@@ -81,35 +75,15 @@ def render_model_card(card, indent=""):
                     f"{indent}      - {profile.name}{profile.brought_mark}"
                     f"{_profile_suffix(profile)}"
                 )
-            for choice in weapon.choices:
-                chosen = choice.chosen if choice.is_resolved else "— (not chosen)"
-                lines.append(f"{indent}      {choice.kind_label}: {chosen}")
-    # A line standing for several of one thing is written once with its
-    # count, as every other card writes it; one that brought a pet
-    # names it before the count. Every named row is an assignable, and
-    # any assignable may bring a model.
-    for heading, row in (
-        ("Skills", card.skills),
-        ("Rules", card.rules),
-        ("Powers", card.powers),
-    ):
-        if row:
-            names = ", ".join(_line_words(line) for line in row)
-            lines.append(f"{indent}  {heading}: {names}")
-    for choice in card.row_questions:
-        # Drawn like any other assignable's row; a real UI hangs the picker
-        # link here. The provenance is deliberately not shown.
-        chosen = choice.chosen if choice.is_resolved else "— (not chosen)"
-        if choice.is_resolved and not choice.is_full:
-            chosen = f"{chosen} (add)"
-        lines.append(f"{indent}  {choice.kind_label}: {chosen}")
-    if card.equipment:
-        names = ", ".join(_line_words(line) for line in card.equipment)
-        lines.append(f"{indent}  Equipment: {names}")
-        lines.extend(_item_choice_lines(card.equipment, indent))
+            for row in choice_rows(weapon.choices, owner=("weapon", weapon.id)):
+                lines.append(
+                    f"{indent}      {row.label}: {row_text(row, prompts=True)}"
+                )
+    for row in card.detail_rows:
+        if text := row_text(row, prompts=True):
+            lines.append(f"{indent}  {row.label}: {text}")
+    lines.extend(_item_choice_lines(card.equipment, indent))
     for group in card.gear_groups:
-        names = ", ".join(_line_words(line) for line in group.lines)
-        lines.append(f"{indent}  {group.name}: {names}")
         lines.extend(_item_choice_lines(group.lines, indent))
     if card.collections:
         names = ", ".join(line.name for line in card.collections)
@@ -122,19 +96,12 @@ def render_model_card(card, indent=""):
     return lines
 
 
-def _line_words(line):
-    """One assignable in a comma-separated run, with its marks in the
-    order every card writes them: the name, the pets it brought, then
-    how many it stands for."""
-    return line.name + line.brought_mark + line.count_mark
-
-
 def _item_choice_lines(items, indent):
     """Write a carried item's questions with the item that carries them."""
     return [
-        f"{indent}    {item.name} — {choice.kind_label}: {choice.chosen or '—'}"
+        f"{indent}    {item.name} — {row.label}: {row_text(row)}"
         for item in items
-        for choice in item.choices
+        for row in choice_rows(item.choices, owner=("item", item.id))
     ]
 
 
@@ -166,16 +133,9 @@ def render_gang_sheet(sheet):
     if sheet.rows:
         names = ", ".join(line.name for line in sheet.rows)
         lines.append(f"Gang: {names}")
-    if sheet.rules:
-        names = ", ".join(line.name for line in sheet.rules)
-        lines.append(f"Rules: {names}")
-    for counter in sheet.counters:
-        lines.append(f"{counter.name}: {counter.value}")
-    for choice in sheet.choices:
-        chosen = choice.chosen if choice.is_resolved else "— (not chosen)"
-        if choice.is_resolved and not choice.is_full:
-            chosen = f"{chosen} (add)"
-        lines.append(f"{choice.kind_label}: {chosen}")
+    for row in sheet.detail_rows:
+        if text := row_text(row, prompts=True, skip_xp=False):
+            lines.append(f"{row.label}: {text}")
     if sheet.campaign:
         campaign = sheet.campaign
         lines.append(f"Campaign: {campaign.name}")

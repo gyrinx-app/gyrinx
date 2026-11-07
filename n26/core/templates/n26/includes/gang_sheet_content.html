@@ -98,22 +98,10 @@
         {% if sheet.rules or sheet.choices or sheet.counters %}
             <c-slot name="details">
                 <c-n26.detail-list>
-                    {% comment %}
-                    The gang's rules are one answer to one question — which is
-                    why they share a row (see detail_list/row.html) — and a
-                    settled fact: they come from the gang type, so there is
-                    nothing here to click.
-                    {% endcomment %}
-                    {% if sheet.rules %}
-                        <c-n26.detail-list.row label="Rules" :editable="False">
-                            {% for rule in sheet.rules %}{{ rule.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                    {% for row in sheet.detail_rows %}
+                        <c-n26.detail-list.row label="{{ row.label }}" :editable="False">
+                            {% include "n26/includes/row_parts.html" with parts=row.parts slot_style=True %}
                         </c-n26.detail-list.row>
-                    {% endif %}
-                    <c-n26.choice-slots :choices="sheet.choices" />
-                    {% for counter in sheet.counters %}
-                        <c-n26.detail-list.row label="{{ counter.name }}"
-                                               value="{{ counter.value }}"
-                                               :editable="False" />
                     {% endfor %}
                     {% comment %}
                     What the campaign gave, under the campaign's name: a row

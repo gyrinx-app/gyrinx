@@ -6,7 +6,7 @@ readonly draws chosen values without the Add or Choose prompts. Pass cards witho
 Pass htmx through to counters and owned-actions. Without it those controls load a whole new page.
 Set htmx only on a page that holds the card host and the dialog host. Otherwise the change saves but the screen does not update.
 An empty href must not reach a kit button. The kit still draws a clickable button that goes nowhere.
-Skill and power questions are not in card.choices. They are drawn on those rows.
+All labelled facts and questions come from card.detail_rows, composed after linking and dismissal.
 The weapon header uses card.weapon_columns. Every weapon on this card must share that statline shape.
 A weapon's own line with no stats uses colspan 99 to span the table. That number is a stand-in, not a column count.
 Trait lines under a named weapon profile start with an empty cell so they sit under the stats, not under the name.
@@ -21,157 +21,10 @@ Trait lines under a named weapon profile start with an empty cell so they sit un
     {# items-baseline: grid items stretch, so a button would lift its label off the value line. #}
     <dl class="grid grid-cols-[minmax(7rem,min(35%,12rem))_minmax(0,1fr)] items-baseline gap-x-5 gap-y-2 border-t border-box-border px-4 py-3 text-sm">
 
-        {% for counter in card.counter_lines %}
-            <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ counter.name }}</dt>
-            <dd class="min-w-0 tabular-nums text-ink-900 dark:text-ink-100">
-                {{ counter.value }}
-                {% if counter.href %}
-                    <c-n26.counter-controls :counter="counter" :htmx="htmx" />
-                {% endif %}
-            </dd>
-        {% endfor %}
-
-        <dt class="font-semibold text-ink-900 dark:text-ink-100">
-            Skills
-            <c-n26.model-card.mode when="edit">
-                {% if card.skills_href %}
-                    <c-ui.tooltip size="sm">
-                        <c-ui.button variant="text"
-                                     size="xs"
-                                     class="ms-1 py-0!"
-                                     href="{{ card.skills_href }}"
-                                     aria-label="Edit skills &amp; powers">
-                            <span class="n26-icon-inline"><c-n26.icon name="pencil" /></span>
-                        </c-ui.button>
-                        <c-slot name="content">Edit skills &amp; powers</c-slot>
-                    </c-ui.tooltip>
-                {% endif %}
-            </c-n26.model-card.mode>
-        </dt>
-        <dd class="min-w-0 text-ink-900 dark:text-ink-100">
-            <c-n26.assignable-lines :lines="card.skills" :ratings="False" />
-
-            <c-n26.model-card.mode when="gang view">
-                {% if card.skill_choices %}
-                    <div class="mt-1 flex flex-wrap items-center gap-2">
-                        {% for choice in card.skill_choices %}
-                            <div class="inline-flex items-center gap-0">
-                                {% if choice.href %}
-                                    <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Choose {{ choice.kind_label|lower }}</c-ui.button>
-                                {% else %}
-                                    <span class="text-xs text-muted">Choose {{ choice.kind_label|lower }}</span>
-                                {% endif %}
-                                <c-n26.choice-dismiss :choice="choice" />
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            </c-n26.model-card.mode>
-
-            <c-n26.model-card.mode when="edit">
-                {% if card.skill_choices %}
-                    <div class="mt-1 flex flex-wrap items-center gap-1">
-                        {% for choice in card.skill_choices %}
-                            <div class="inline-flex items-center gap-0">
-                                {% if choice.href %}
-                                    <c-ui.button size="xs" variant="ghost" href="{{ choice.href }}">
-                                        Choose {{ choice.kind_label|lower }}
-                                    </c-ui.button>
-                                {% else %}
-                                    <span class="text-xs text-muted">Choose {{ choice.kind_label|lower }}</span>
-                                {% endif %}
-                                <c-n26.choice-dismiss :choice="choice" />
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            </c-n26.model-card.mode>
-        </dd>
-
-        {% if card.rules %}
-            <dt class="font-semibold text-ink-900 dark:text-ink-100">Rules</dt>
+        {% for row in card.detail_rows %}
+            <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ row.label }}{% if row.edit_href %}{% include "n26/includes/row_edit.html" %}{% endif %}</dt>
             <dd class="min-w-0 text-ink-900 dark:text-ink-100">
-                <c-n26.assignable-lines :lines="card.rules" :ratings="False" />
-            </dd>
-        {% endif %}
-
-        {% if card.powers or card.power_choices %}
-            <dt class="font-semibold text-ink-900 dark:text-ink-100">Powers</dt>
-            <dd class="min-w-0 text-ink-900 dark:text-ink-100">
-                <c-n26.assignable-lines :lines="card.powers" :ratings="False" />
-                <c-n26.model-card.mode when="gang view">
-                    {% if card.power_choices %}
-                        <div class="mt-1 flex flex-wrap items-center gap-2">
-                            {% for choice in card.power_choices %}
-                                <div class="inline-flex items-center gap-0">
-                                    {% if choice.href %}
-                                        <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Choose {{ choice.kind_label|lower }}</c-ui.button>
-                                    {% else %}
-                                        <span class="text-xs text-muted">Choose {{ choice.kind_label|lower }}</span>
-                                    {% endif %}
-                                    <c-n26.choice-dismiss :choice="choice" />
-                                </div>
-                            {% endfor %}
-                        </div>
-                    {% endif %}
-                </c-n26.model-card.mode>
-                <c-n26.model-card.mode when="edit">
-                    {% if card.power_choices %}
-                        <div class="mt-1 flex flex-wrap items-center gap-1">
-                            {% for choice in card.power_choices %}
-                                <div class="inline-flex items-center gap-0">
-                                    {% if choice.href %}
-                                        <c-ui.button size="xs" variant="ghost" href="{{ choice.href }}">
-                                            Choose {{ choice.kind_label|lower }}
-                                        </c-ui.button>
-                                    {% else %}
-                                        <span class="text-xs text-muted">Choose {{ choice.kind_label|lower }}</span>
-                                    {% endif %}
-                                    <c-n26.choice-dismiss :choice="choice" />
-                                </div>
-                            {% endfor %}
-                        </div>
-                    {% endif %}
-                </c-n26.model-card.mode>
-            </dd>
-        {% endif %}
-
-        <dt class="font-semibold text-ink-900 dark:text-ink-100">Gear</dt>
-        <dd class="min-w-0 text-ink-900 dark:text-ink-100">
-            {% include "n26/includes/gear_lines.html" with lines=card.equipment has_actions=card.equipment_has_actions %}
-        </dd>
-
-        {% for group in card.gear_groups %}
-            <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ group.name }}</dt>
-            <dd class="min-w-0 text-ink-900 dark:text-ink-100">
-                {% include "n26/includes/gear_lines.html" with lines=group.lines has_actions=group.has_actions %}
-            </dd>
-        {% endfor %}
-
-        {% for choice in card.choices %}
-            <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ choice.kind_label }}</dt>
-            <dd class="flex min-w-0 items-center gap-0 text-ink-900 dark:text-ink-100">
-                {% if mode == "readonly" %}
-                    {{ choice.chosen|default_if_none:"None" }}
-                {% else %}
-                    {% if choice.is_resolved %}
-                        {% if choice.href %}
-                            <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs" class="max-w-full whitespace-normal! text-left">{{ choice.chosen }}</c-ui.button>
-                        {% else %}
-                            {{ choice.chosen }}
-                        {% endif %}
-                    {% endif %}
-
-                    {% if not choice.is_full %}
-                        {% if choice.takes_several %}
-                            {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Add</c-ui.button>{% else %}<span class="text-xs text-muted">Add</span>{% endif %}
-                        {% elif not choice.is_resolved %}
-                            {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.follows_status %}<span class="inline-flex items-center gap-1">Resolve <c-n26.icon name="arrow-right" class="size-3.5 shrink-0" /></span>{% else %}Choose{% endif %}</c-ui.button>{% else %}<span class="text-xs text-muted">Choose</span>{% endif %}
-                        {% endif %}
-                    {% endif %}
-
-                    <c-n26.choice-dismiss :choice="choice" />
-                {% endif %}
+                {% include "n26/includes/row_parts.html" with parts=row.parts slot_style=False %}
             </dd>
         {% endfor %}
 
@@ -294,21 +147,10 @@ Trait lines under a named weapon profile start with an empty cell so they sit un
                             <tr>
                                 <td colspan="99" class="px-4 pb-2 text-ink-900 dark:text-ink-100">
                                     <ul class="flex flex-col gap-1 pl-2">
-                                        {% for choice in weapon.other_choices %}
-                                            <li class="flex items-center gap-2">
-                                                <span class="min-w-0">{{ choice.kind_label }}: {% if choice.is_resolved %}{{ choice.chosen }}{% else %}&mdash;{% endif %}</span>
-                                                <div class="inline-flex items-center gap-0">
-                                                    {# Dismiss on the gang sheet as well as the model page. Only edit mode can change the level. #}
-                                                    <c-n26.model-card.mode when="edit">
-                                                        {% if choice.href %}
-                                                            <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.is_tier_ladder %}Choose tier{% elif choice.is_resolved %}Change{% else %}Choose{% endif %}</c-ui.button>
-                                                        {% endif %}
-                                                    </c-n26.model-card.mode>
-
-                                                    <c-n26.model-card.mode when="gang edit">
-                                                        <c-n26.choice-dismiss :choice="choice" />
-                                                    </c-n26.model-card.mode>
-                                                </div>
+                                        {% for row in weapon.other_choice_rows %}
+                                            <li class="flex flex-wrap items-center gap-2">
+                                                <span class="min-w-0">{{ row.label }}:</span>
+                                                {% include "n26/includes/item_choice_values.html" with can_change=True %}
                                             </li>
                                         {% endfor %}
                                     </ul>
