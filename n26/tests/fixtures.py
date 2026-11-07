@@ -22,10 +22,8 @@ from n26.write_pause import write_guard
 
 
 def library_setup(builder):
-    """Build fixture content inside one admitted transaction.
-
-    Nested authoring verbs keep their savepoints, and reuse the admission
-    check while the fixture is built. The scope closes before the test runs.
+    """Build fixture content within one admitted transaction. Nested authoring verbs retain
+    savepoints and reuse admission; release the scope before the test runs.
     """
 
     @wraps(builder)
@@ -38,7 +36,7 @@ def library_setup(builder):
 
 @pytest.fixture
 def counter_tracking(db):
-    """An installation whose counter checkpoint has already finished."""
+    """Create an activated counter-tracking checkpoint."""
     from uuid import uuid4
 
     from django.utils import timezone
@@ -52,7 +50,7 @@ def counter_tracking(db):
 
 @pytest.fixture
 def owner(db):
-    """A player to own the gangs a test founds."""
+
     from django.contrib.auth.models import User
 
     return User.objects.create_user("player")
@@ -60,7 +58,7 @@ def owner(db):
 
 @pytest.fixture
 def default_pack(db):
-    """The N26 pack."""
+
     return get_default_pack()
 
 
@@ -86,9 +84,8 @@ def make_stat(default_pack):
 
 @pytest.fixture
 def person_statline_type(make_stat, default_pack):
-    """A small three-stat statline, exercising each display rule.
-
-    ``M`` is a distance, ``WS`` a roll target, ``T`` a plain number.
+    """Use three characteristics to cover distance, roll-target and plain-number display
+    rules.
     """
     statline_type = StatlineType.objects.create(name="Person", pack_id=default_pack.pk)
     definitions = [
@@ -108,11 +105,8 @@ def person_statline_type(make_stat, default_pack):
 
 @pytest.fixture
 def person_type(person_statline_type):
-    """A Fighter carrying the small three-stat shape.
-
-    The Type is Fighter because that is one of the only two there are;
-    what varies between this and ``fighter_type`` is the statline, not
-    the Type. A test wants one or the other, never both.
+    """Fighter profile type with the three-characteristic statline. Use either this fixture
+    or fighter_type in a test because both create a Fighter type.
     """
     return ProfileType.objects.create(
         name="Fighter",
@@ -128,27 +122,23 @@ def gang_type(default_pack):
 
 @pytest.fixture
 def campaign_type(default_pack):
-    """A bare campaign type in the system pack, for a campaign to be
-    founded on. Nothing built in: a suite that wants the Territory campaign shape —
-    Reputation at 1, a Settlement — seeds it with ``seed_core_campaign``."""
+    """Create a campaign type without built-ins. Tests needing the standard Territory
+    campaign grants must call seed_core_campaign.
+    """
     from n26.library.authoring import create_campaign_type
 
     return create_campaign_type("Territory campaign")
 
 
-#: The fixtures build exactly what the Foundations page creates — one
-#: definition, so a suite can never stand on a shape the app cannot
-#: produce.
+#: Share the Foundations characteristic definitions so fixtures match the content the app
+#: creates.
 FIGHTER_STAT_DEFINITIONS = MODEL_CHARACTERISTICS
 
 
 @pytest.fixture
 def fighter_stats(default_pack):
-    """The thirteen real characteristics, keyed by short name.
-
-    Stat definitions are shared across statline types by design — a
-    weapon's Strength is the fighter's Strength — so an existing
-    definition is reused rather than redefined.
+    """Reuse standard characteristic definitions by full name because multiple statline
+    types can share them, including fighter and weapon Strength.
     """
     existing = {}
     for stat in Stat.objects.filter(
@@ -204,8 +194,7 @@ def fighter_type(fighter_statline_type):
 
 @pytest.fixture
 def vehicle_type(fighter_statline_type):
-    """Vehicles use the same characteristics profile — only the Type
-    line differs (core rules)."""
+    """Use the standard model characteristics with a Vehicle profile-type label."""
     return ProfileType.objects.create(
         name="Vehicle",
         statline_type=fighter_statline_type,
@@ -215,7 +204,9 @@ def vehicle_type(fighter_statline_type):
 
 @pytest.fixture
 def make_profile(person_type, gang_type):
-    """Create a Profile, defaulting to the Person type, Escher, and N26."""
+    """Create a Profile, defaulting to the three-characteristic Fighter type, Escher gang
+    type and default N26 pack.
+    """
 
     def _make(name, **kwargs):
         kwargs.setdefault("profile_type", person_type)
@@ -256,13 +247,9 @@ def make_statline(default_pack):
 
 @pytest.fixture
 def own_storage(settings, tmp_path):
-    """Point the site's storage at a directory this test owns.
-
-    Uploads go to whatever storage is configured, which outside a test is a
-    bucket and inside one is a directory under the checkout. A test that
-    wrote there would leave files behind and see another test's. The address
-    they are published at is pinned too, so what a test asserts about one
-    does not depend on how the machine running it is configured.
+    """Isolate uploaded files in this test's temporary directory and fix their public base
+    URL. Tests must not leave uploads in checkout storage or depend on machine-specific
+    media settings.
     """
     settings.MEDIA_ROOT = tmp_path
     settings.MEDIA_URL = "/media/"
@@ -271,8 +258,7 @@ def own_storage(settings, tmp_path):
 
 @pytest.fixture
 def store_artwork(own_storage):
-    """Put a drawing in the site's storage and return its address —
-    the shape a gang type's ``icon_url`` holds."""
+    """Store SVG artwork and return the public URL accepted by GangType.icon_url."""
     from django.core.files.base import ContentFile
     from django.core.files.storage import default_storage
 
@@ -287,7 +273,6 @@ def store_artwork(own_storage):
 
 @pytest.fixture
 def names():
-    """Pull the ``name`` column off a queryset, for readable assertions."""
 
     def _names(queryset):
         return sorted(queryset.values_list("name", flat=True))
