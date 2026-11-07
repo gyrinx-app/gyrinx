@@ -1,16 +1,7 @@
 {% comment %}
-Campaign fields shared by the set-up and edit pages, so both ask for the same
-things.
-
-The budget is what a gang should be worth to join: its rating, its stash and
-its unspent credits. It does not block anyone. A gang worth more can still
-join, and shows an Over budget badge on the campaign page before the campaign
-starts.
-
-A blank budget means the campaign has no budget. It is not 0 and not the 1000
-default, and the placeholder says so. The 1000 default is set on the unbound
-form, so only set-up uses it; edit shows the stored value, including blank.
-The input uses default_if_none so a stored 0 still shows as 0.
+Share setup and edit fields. Blank budget means no limit, while zero is preserved with
+default_if_none; setup alone supplies an initial 1000-credit value. Joining above budget
+remains allowed; the badge marks over-budget gangs only during Pre-campaign.
 {% endcomment %}
 <c-n26.form-section title="General">
     <c-ui.field label="Campaign name *"

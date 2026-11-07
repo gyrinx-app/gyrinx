@@ -1,8 +1,6 @@
 {% comment %}
-A scenario in brief: each table and the entry it landed on, one per
-row. The save page and the battle form show it above the details.
-
-results is a list of n26.core.scenarios.ScenarioResult.
+Render a compact list of ScenarioResult table names and results for save and battle
+forms.
 {% endcomment %}
 <dl class="divide-y divide-box-border text-sm">
     {% for result in results %}

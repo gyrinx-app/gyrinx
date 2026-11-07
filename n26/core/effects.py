@@ -1,66 +1,27 @@
-"""Computing what modifiers do to a card.
+"""Compute card modifiers from content loaded by ``n26.core.card``.
 
-The whole layer is one pure function::
+``compute(card, index)`` issues no database queries. A member card includes
+gang-hosted broadcast assignments and grants from the computed gang card.
+These sources affect the member without adding equipment lines or rating,
+and their stored effects are reported on the gang card only.
 
-    load (fixed queries) -> Card -> compute(card, index) -> ComputedCard
+Evaluate modifiers in rounds determined by selector specificity. Each
+round reads the facts settled before it began. Additions run to a fixed
+point with cycle detection, then removals settle. Stat changes are recorded
+for the renderer, which applies sets before shifts.
 
-``compute`` issues **no queries**. Everything it needs — the assignments,
-their assignables, and the modifiers reachable from them — is loaded first
-by ``n26.card`` and handed in as a ``ModifierIndex``. That is what keeps
-per-card evaluation affordable: a card without the mount simply is not
-handed the mount's assignment, so nothing of the mount's is computed for
-it, and no amount of kit on a model changes the query count.
+Granted weapons add nodes to ``card.granted`` so weapon-scoped modifiers
+and renderers can use their profiles. Clear this output before each run
+to prevent duplicate nodes on recomputation. A weapon appears after its
+grant's round, so an unconditional scope in that round cannot target it;
+a later conditional scope can.
 
-A member's card is computed against the gang's holdings as well as its
-own. The gang-hosted assignments ride it as broadcast lines; what the gang
-holds **by grant** — a rule an alliance gave it, the hidden carrier a
-house's rules hang off — is dealt on beside them as the gang's *guests*.
-There is no difference between the two once effects are being applied, so
-a guest's modifiers reach the model exactly as an assignment's would; what
-a guest never does is draw a line, add a rating, or make its stored effects the
-fighter's news. The gang's card settles first, so a bundle something took
-away from the gang is a guest on nobody's card.
-
-Order of evaluation, fixed:
-
-1. **Additions run to a fixed point.** A granted thing can itself carry
-   modifiers — a mount grants Mounted, Mounted grants two skills — so the
-   loop repeats until nothing new appears, with a seen-set so a cycle in
-   content terminates instead of spinning.
-2. **Then removals**, so they beat additions whatever order sources load.
-3. **Then stat changes fold** — sets first, then shifts, which sum.
-
-Most of what a modifier grants is a fact — a subtype, a skill, a trait —
-and lands on the ``ComputedCard``. A granted **weapon** is not a fact but
-a thing with profiles, and those profiles have to be on the card for a
-weapon-scoped modifier to reach them and for a renderer to draw them. So
-``compute`` writes them onto ``card.granted``, clearing it first: the
-list is this function's output, and computing a card twice must not leave
-the bearer holding two of everything.
-
-The consequence for content: a granted weapon appears at the *end* of the
-round its grant ran in, so an unconditional weapon scope on the same
-carrier — asked during that round — does not see it. Naming the weapon
-makes the rule conditional and therefore later, which is what an author
-writing "these claws gain…" says anyway.
-
-**Taking something away** is the mirror of all that, and it reaches two
-kinds of presence. A *granted* thing is on the card only while something
-live gives it, so cancelling it means dropping every granting edge — and
-then everything the thing itself was doing goes with it, down the chain,
-because what it granted has lost its giver too. A thing two carriers give
-survives losing one of them and changes hands to the survivor, which is
-why every edge is logged and not just the entry it wrote. A *stored*
-assignment is on the card because somebody wrote it down; a removal
-**suppresses** it — hides it from every reader, leaving the assignment
-exactly where it is — but
-only where nothing was paid for it and nothing paid hangs beneath it. A
-purchase is never taken away by a read, and nothing paid for is ever
-stranded. Removals settle as their round does, so a later round sees a
-world without what an earlier one cancelled; the chain and the
-suppressions are then carried through in one pass at the end
-(``_retract``), which is also where a removal whose own carrier turned out
-to be gone is put back.
+Removals cancel computed grants and suppress unpaid stored assignments.
+Never suppress a purchase or an assignment with paid descendants. Track
+all granting edges so losing one source does not retract a grant still
+supplied by another. Direct removals can cancel the granted content.
+``_retract`` removes dependent effects and restores removals whose own
+source was cancelled, without changing stored assignments.
 """
 
 from __future__ import annotations
@@ -74,23 +35,19 @@ from n26.library.models.modifier import GANG, MODEL, WEAPON_PROFILE
 if TYPE_CHECKING:
     from n26.core.models import CampaignAsset
 
-#: A granted thing five levels deep is a content bug, not a use case.
+#: Limit grant and retraction depth for cyclic or excessively nested content.
 MAX_CHAIN_DEPTH = 5
 
-#: How a line the gang holds names its holder on a member's card. A
-#: member's card knows no name for the gang, and every surface says this.
+#: Shared holder label for gang-hosted content on member cards.
 THE_GANG = "the gang"
 
 
 def kind_of(thing):
-    """The plain name of what kind of thing this is: "skill", "wargear"…
+    """Return the public kind label, or empty for internal carrier kinds.
 
-    Empty for the kinds a card never draws a row for — a hidden carrier,
-    a choice and what was chosen for it. Their names are authored to be
-    read ("Strength rolled 6", "Gang Legacy", "Cawdor"), but their kinds
-    are the library's own plumbing, and a player's tooltip must never say
-    so. Every surface drawing a kind already draws nothing when there is
-    none.
+    Hidden carriers, slots, picks, tables and actions have useful display
+    names but no kind label on player-facing lines. Campaign assets use
+    their campaign type's authored asset label.
     """
     from n26.core.models import CampaignAsset
     from n26.library.models import Action, AssetTable, Hidden, Pickable, RankTable, Slot
@@ -105,12 +62,9 @@ def kind_of(thing):
 
 
 def is_orphan_pick(node):
-    """A pickable nobody was offered: a pick with no choice behind it.
+    """Whether a pick lacks both an assignment choice and a complete holding origin.
 
-    Its assignment or holding origin gives the pick its meaning, so
-    without one it shows nothing and does nothing — not a line, not a
-    modifier, not a fact another rule can match on. An owner may still
-    hand one over; it simply waits for a choice to answer.
+    Orphan picks add no line, modifier or matchable fact to the card.
     """
     from n26.library.models import Pickable
 
@@ -131,15 +85,11 @@ class Contribution:
     thing: object
     source: str
     source_kind: str = ""
-    #: Whether, granted to the gang, it also rides every member's card
-    #: as the gang's guest — the granting scope's own say. Meaningless
-    #: for a grant to a model, where there is nothing to echo.
+    #: Whether the granting scope makes this gang grant affect members.
+    #: Unused for grants directly to a model.
     echoes: bool = True
-    #: The written line the chain of grants that brought this thing
-    #: stands on, however many grants deep it arrived. A grant writes
-    #: nothing down, so a choice one gives has no assignment of its own
-    #: to be addressed on; this is the one it hangs from instead, and
-    #: taking that line away takes the whole chain with it.
+    #: Stored root of the grant chain. Computed grants have no assignment,
+    #: so their choices use this anchor and disappear when it is removed.
     root_key: object = None
     #: A computed chain rooted in a campaign holding has no assignment anchor.
     holding: CampaignAsset | None = None
@@ -167,13 +117,10 @@ class StatChange:
 
 @dataclass
 class CounterContribution:
-    """What a modifier adds to a counter, and what added it.
+    """A modifier's transient addition to a counter, with its source.
 
-    Nothing is written down: a reading is the stored value plus every
-    contribution standing at the moment it is read, so the sum falls
-    back the instant a carrier goes. A counter can be contributed to
-    with no assignment behind it at all, and then the sum is the whole
-    of its reading.
+    Readings combine stored values with active contributions. Without a
+    stored assignment, the contributions alone determine the reading.
     """
 
     counter: object
@@ -215,14 +162,7 @@ class ComputedWeapon:
 
 
 def count_mark(count):
-    """What follows a name that stands for more than one: ``" (x3)"``.
-
-    The book's own way of writing a repeat, so a card reads as the
-    book does. Nothing for one — a single line is the ordinary case
-    and reads bare. One rule for every surface that stacks repeats: a
-    slot's picks, a tooltip's sources, a card's gear and skills, the
-    stash.
-    """
+    """Return ``" (x3)"`` for repeated copies, or empty for a single copy."""
     return f" (x{count})" if count > 1 else ""
 
 
@@ -247,28 +187,20 @@ def stacked_name_items(names):
 
 
 def stacked_names(names):
-    """Collapse repeated names to ``Name (xn)``.
+    """Combine repeated names as ``Name (xn)`` in first-seen order.
 
-    A several-pick slot can hold the same result more than once. The
-    card lists each distinct name once, with a count when it lands
-    more than once, in the order the first of each appeared. The
-    picks themselves stay as they were written — this is only how
-    the line reads.
+    Only presentation changes; stored selections remain separate.
     """
     return ", ".join(item.text for item in stacked_name_items(names))
 
 
 @dataclass
 class ChoiceSlot:
-    """A choice on a card, resolved or not.
+    """A computed choice provided by a modifier or assigned slot.
 
-    Two things ask the player to choose: a modifier that offers a
-    choice of a specific kind, and a ``Slot`` assigned to the holder.
-    Either way the row is computed — shown while whatever offers the
-    choice is present — and only what was chosen is stored.
-
-    A slot-borne choice may hold several picks. Its answers name either
-    the choice-offering assignment or a campaign holding's ownership period.
+    The choice exists while its source remains present; selections are
+    stored separately. Slot choices may hold several picks, linked to an
+    assignment or campaign holding's ownership period.
     """
 
     kind_label: str
@@ -329,11 +261,7 @@ class ChoiceSlot:
 
     @property
     def identity(self):
-        """What tells this choice from the others one anchor asks.
-
-        The offer or the slot behind it — one row of content either way,
-        which is what an address can name and find again.
-        """
+        """The offer or slot identity that distinguishes choices on one anchor."""
         return self.slot if self.slot is not None else self.offer
 
 
@@ -349,14 +277,11 @@ class HiddenCategories:
 
 @dataclass(frozen=True)
 class CategoryPlacement:
-    """Where one category sits for this fighter, and who put it there.
+    """A modifier's placement of a category within a fighter's sections.
 
-    There is no access table — placements are folded from modifiers at
-    read time, so they appear and disappear with whatever carries them
-    (the profile's declared sets, the Wyrd subtype's powers reveal, a
-    wargear that grants Wyrd transitively). The category is fundamental;
-    the section is per-fighter; anything unplaced falls back to "Other"
-    at browse time.
+    Placements are recomputed with their sources. Browsing uses the collection's
+    authored default section for unplaced categories, or Other when none is
+    declared.
     """
 
     category: object
@@ -370,13 +295,10 @@ class CategoryPlacement:
 
 @dataclass(frozen=True)
 class DrawnPick:
-    """A pick the gang holds, drawn on this model's card.
+    """A gang-held selection displayed on a member's card by a modifier.
 
-    What the gang picks reaches every member and is listed on none of
-    them — unless the pickable carries a modifier saying otherwise, and
-    then every model that modifier reaches draws the line. A fact, never
-    a control: the choice belongs to whoever was asked, and their card
-    draws its own choice row rather than one of these.
+    Display it as a fact. The originating choice remains actionable only
+    on the card where the choice was offered.
     """
 
     #: The pick's line — the gang's assignment, riding this card.
@@ -395,13 +317,10 @@ class DrawnPick:
 
 @dataclass(frozen=True)
 class StoredEffect:
-    """Something a card's kit does beyond adding a line to this card.
+    """An acquisition effect described on a card without executing it.
 
-    Stored effects write assignments when the thing arrives — a pet wargear
-    brings a whole other model — so ``compute`` never runs them. It notes
-    them instead, because "this brings a Cyber-mastiff" is worth reading
-    both before you buy and after: on a preview it has not happened yet,
-    on a real card it did, at hire.
+    Operations execute these effects when an assignable arrives, including
+    those that create pets. Previews and stored cards both describe them.
     """
 
     description: str
@@ -412,13 +331,9 @@ class StoredEffect:
 
 @dataclass
 class PlannedStep:
-    """One modifier on one carrier: when it runs, what it says, what it did.
+    """A modifier's execution order, scope, effect and outcome.
 
-    ``compute`` is pure reading, so the plan and the trace are one
-    artifact: build a card's ComputedCard and read ``.plan`` — every step
-    in execution order, its round, its scope and effect as sentences, and
-    its outcome. This is the debugging surface: what the modifiers are
-    doing, in order, as data.
+    ``ComputedCard.plan`` records each step in execution order, including its round.
     """
 
     source: object
@@ -443,10 +358,8 @@ class PlannedStep:
     refused: tuple = ()
     #: True when the carrier arrived via a grant rather than the card.
     discovered: bool = False
-    #: True when the carrier is the gang's, dealt onto this card the way
-    #: the gang-hosted assignments are: the behaviour reaches this model,
-    #: but the thing itself is held by the gang, so nothing here draws it
-    #: and its stored effects are the gang's news, said once on the gang's card.
+    #: Gang-owned source affecting this member without a display line.
+    #: Report its stored effects once on the gang card.
     echoed: bool = False
     #: The card node carrying this modifier — None for discovered
     #: carriers. What "the weapon I am attached to" anchors on.
@@ -460,8 +373,7 @@ class PlannedStep:
 
     @property
     def scope(self):
-        """The scope as a sentence — derived on read, so building the
-        plan costs no string formatting unless somebody looks."""
+        """Format the scope description lazily when the plan is inspected."""
         return str(self.modifier.scope)
 
     @property
@@ -483,11 +395,9 @@ class PlannedStep:
 
 
 class _OwnersRemoval:
-    """Stands where a modifier would in an owner-removal's plan step.
+    """Describe an owner's removal in the same plan shape as a modifier.
 
-    The step never runs through a scope — its targets are fixed by
-    construction — so only the two sentences are ever read, and the plan
-    stays one shape whoever authored the line.
+    Targets are fixed, so this adapter supplies descriptions without a scope.
     """
 
     def __init__(self, thing):
@@ -504,11 +414,7 @@ class _OwnersRemoval:
 
 
 class _TheOwner:
-    """The source an owner's own step names.
-
-    Keyed like an assignable so every retraction pass can ask, and keyed
-    off all of them: the owner is never granted, so never cancelled.
-    """
+    """A source identity for owner-authored removals that cannot be retracted."""
 
     class _meta:
         label_lower = "owner"
@@ -523,14 +429,10 @@ THE_OWNER = _TheOwner()
 
 
 def _own_removals(card):
-    """The owner's removals, ready to settle with round 0.
+    """Prepare owner-authored removal assignments for round zero.
 
-    Each is an assignment with ``removes`` set, carried on the card as
-    machinery (``Card.removals``) rather than as a line. Settling with
-    round 0 gives them exactly an unconditional content removal's
-    reach: conditional scopes then ask their questions of a world where
-    the thing is already gone, and a later round's grant of it stays
-    cancelled all the same (``_retract`` keeps the dead dead).
+    Conditional scopes see their targets as removed. Later grants of the
+    same content remain cancelled during retraction.
     """
     from n26.library.models.modifier import MODEL, Target
 
@@ -557,12 +459,10 @@ def _own_removals(card):
 
 @dataclass
 class _Placed:
-    """One granting edge, as the retraction pass remembers it.
+    """A grant edge retained for retraction, including duplicate sources.
 
-    Every edge is logged, including one whose thing another carrier had
-    already put on the card (``payload`` is then None): a thing two
-    things give must survive losing one of them, and that cannot be told
-    from the single entry standing in the row.
+    ``payload=None`` when another source already supplied the content.
+    Keeping every edge allows the grant to survive removal of one source.
     """
 
     source_key: object
@@ -579,10 +479,9 @@ class _Placed:
 
 @dataclass
 class _Applied:
-    """One thing a modifier did that is not a grant, and whose doing it was.
+    """A non-grant effect and its source, retained for retraction.
 
-    Retraction drops the entry by identity from the list it was appended
-    to, so nothing else in that list is disturbed.
+    Remove its exact list entry by identity without disturbing equal entries.
     """
 
     source_key: object
@@ -593,13 +492,10 @@ class _Applied:
 
 @dataclass
 class _TakenAway:
-    """One removal that reached its target, and everything it did there.
+    """A removal and its effects, retained until source survival is known.
 
-    A removal settles with its round, before anything knows whether the
-    thing carrying it survives — so what it did is written down and
-    carried through at the end: onwards, if the removal stands, to
-    whatever the cancelled thing was itself doing; backwards, if the
-    carrier turns out to have been taken away too.
+    Retraction propagates a surviving removal through its target's dependants,
+    or restores its effects when the removal's source was cancelled.
     """
 
     source_key: object
@@ -624,11 +520,9 @@ class _TakenAway:
 
 @dataclass
 class _Offers:
-    """The choices a run collected, before their rows are filled in —
-    the offers a modifier made, and the slots one gave.
+    """Collect modifier offers and granted slots before resolving their selections.
 
-    A box rather than a bare list so a retracted one is dropped by the
-    same code that drops a retracted placement.
+    The wrapper lets retraction remove an offer through the ordinary effect path.
     """
 
     items: list = field(default_factory=list)
@@ -636,12 +530,7 @@ class _Offers:
 
 @dataclass
 class _Log:
-    """What one run of ``compute`` did, in the order it did it.
-
-    The trace ``computed.plan`` gives a person, in the form retraction
-    needs: every effect keyed by the thing that carried it, so cancelling
-    that thing can find its work again.
-    """
+    """Effects from one compute run, keyed by carrier for later retraction."""
 
     placed: list = field(default_factory=list)
     applied: list = field(default_factory=list)
@@ -719,10 +608,8 @@ class ComputedCard:
     #: drew anything. A gang's are dealt onto every member's card, where
     #: they arrive as ``echoed``.
     acquired: list[Contribution] = field(default_factory=list)
-    #: What the *gang* holds by grant, riding this card the way the gang's
-    #: own assignments do: its behaviour reaches this model, it draws no line
-    #: here, and it is worth nothing. Empty on a gang's own card, where
-    #: the same things are ``acquired``.
+    #: Settled gang grants affecting this member without adding lines or
+    #: rating. Empty on gang cards, which expose them through acquired.
     echoed: list[Contribution] = field(default_factory=list)
 
     def weapon(self, node):
@@ -737,10 +624,9 @@ class ComputedCard:
 
 
 class ModifierIndex:
-    """Modifiers by the thing that carries them, loaded up front.
+    """Prefetched modifiers keyed by carrier.
 
-    Built by ``n26.card``; ``compute`` only ever reads it, which is what
-    makes ``compute`` query-free.
+    Built by ``n26.core.card`` so ``compute`` needs no database access.
     """
 
     def __init__(self, by_key=None):
@@ -751,12 +637,10 @@ class ModifierIndex:
         return (thing._meta.label_lower, thing.pk)
 
     def add(self, thing, modifiers):
-        """Store each modifier with its round, computed once here.
+        """Store a modifier with its precomputed selector specificity.
 
-        Compiling the scope's selector and scoring it per ``compute``
-        call was the rounds engine's whole overhead; the index is built
-        once per render and shared across every card, so this is where
-        the work belongs.
+        The index is shared across cards, avoiding repeated selector compilation
+        and scoring during each compute call.
         """
         from n26.core import select
 
@@ -776,27 +660,15 @@ class ModifierIndex:
 
 
 def compute(card, index):
-    """Work out a card's computed subtypes, skills, traits and stat changes.
+    """Compute card facts in rounds ordered by selector specificity.
 
-    Evaluation runs in **rounds by specificity**: a modifier's round
-    is the specificity of its scope's
-    selector — 0 is unconditional, each condition adds one. Every scope
-    in a round asks against the facts **settled before the round began**,
-    so order within a round cannot matter; then the round's additions
-    apply, then its removals. A more specific round therefore sees what
-    less specific rounds granted — the Cutter's unconditional "grants
-    Mounted" lands in round 0, and a gang rule for Mounted models
-    (round 1) reaches the rider.
+    Unconditional selectors run in round zero; each condition adds specificity.
+    All scopes in a round read the same snapshot of earlier rounds' facts.
+    Apply that round's additions before its removals. A newly granted carrier
+    runs no earlier than its granting round, using that round's snapshot.
 
-    Deterministic by construction: round boundaries come from the
-    content's shape, never from iteration order. A carrier granted in
-    round r runs its own modifiers no earlier than r, against the same
-    snapshot its round sees. The whole run is recorded on
-    ``computed.plan``.
-
-    Removals settle with their round, and what they cancel is then
-    followed through the chain in one pass at the end — see ``_retract``
-    and the module docstring.
+    Record execution in ``computed.plan``. After all rounds, ``_retract``
+    propagates cancellations through dependent effects.
     """
     from n26.library.models import Asset, Pickable
     from n26.library.models.modifier import (
@@ -943,15 +815,9 @@ def compute(card, index):
             continue
         pending.extend(steps_for(node.assignable, False, 0, node=node))
 
-    # The campaign's assets the gang holds are the second kind of carrier.
-    # A holding is written nowhere on the card — the gang holds the asset
-    # and never owns it — so it stands on no line and is worth nothing,
-    # and what its asset's modifiers do is credited to the campaign asset
-    # itself, named as its campaign type names the asset type. On a
-    # member's card the holdings ride as the gang's guests, the way its assignments ride as
-    # broadcast: a scope aimed at every model reaches the fighter, one
-    # aimed at the bearer reaches nobody, and a stored effect is never
-    # said here.
+    # Holdings supply modifiers without assignment nodes or rating. Credit
+    # the campaign asset as the source. On member cards, model-wide scopes
+    # apply but bearer-only scopes and stored-effect reporting do not.
     guest = getattr(card, "host_kind", MODEL) != GANG
     for campaign_asset in getattr(card, "holdings", ()):
         seen.add(frontier_key(campaign_asset, campaign_asset))
@@ -975,13 +841,8 @@ def compute(card, index):
         if contribution.echoes
         and frontier_key(contribution.thing, contribution.holding) not in seen
     ]
-    # A pick the gang holds is a fact about every member, whichever way it
-    # arrived: a written gang pick already rides each card as a broadcast
-    # line and counts there, and a granted one must count the same. Read
-    # off the gang's whole grant list rather than the echoed part, because
-    # a grant kept the gang's alone still says what the gang *is* — a
-    # Clan House Goliath Outcast gang's fighters pass "has picked Goliath"
-    # exactly as a Goliath gang's do.
+    # Gang-held picks are facts about every member, including grants whose
+    # modifiers are not echoed. Match them alongside broadcast stored picks.
     guest_picks = tuple(
         contribution.thing
         for contribution in from_the_gang
@@ -989,9 +850,8 @@ def compute(card, index):
     )
     for contribution in echoed:
         seen.add(frontier_key(contribution.thing, contribution.holding))
-        # The gang's guest keeps the line it stands on: the gang wrote
-        # that one down, and it rides this card as a broadcast line, so a
-        # choice the guest gives has an address here after all.
+        # Computed gang grants retain their stored root as a choice anchor.
+        # That root is available on the member card as a broadcast node.
         pending.extend(
             steps_for(
                 contribution.thing,
@@ -1033,14 +893,9 @@ def compute(card, index):
                 scope, effect = step.modifier.scope, step.modifier.effect
                 source_key = ModifierIndex.key(step.source)
                 if getattr(effect, "is_stored", False):
-                    # Stored effects write assignments at arrival — running
-                    # one here would breed pets on every render. Noted,
-                    # never run — and noted **where the scope points**: a
-                    # pet collar's targets_model notes on its bearer's
-                    # card, a Justicar alliance's targets_gang notes once
-                    # on the gang. What the gang holds is never a member
-                    # card's news, whether it rides as an assignment or as
-                    # a guest.
+                    # Describe stored effects without executing them during reads. Report
+                    # model-scoped effects on the bearer and gang-scoped effects on the gang;
+                    # broadcast and echoed gang sources do not report them on member cards.
                     gang_held = step.echoed or (
                         step.node is not None and step.node.broadcast
                     )
@@ -1289,11 +1144,8 @@ def compute(card, index):
                             )
                         )
                     elif isinstance(effect, OffersChoice):
-                        # Addressed on the line the offerer stands on, as a
-                        # given slot is: an offer carried by something a
-                        # modifier granted — the hidden a profile hands its
-                        # own narrowed choice on — is answerable, where a
-                        # choice with no address could only ever be looked at.
+                        # Anchor computed offers to the stored root of their granting chain so
+                        # the picker can address them.
                         offer = (
                             effect,
                             label,
@@ -1409,17 +1261,11 @@ def compute(card, index):
 
 
 def _from_the_gang(card, index):
-    """What the card's gang holds by grant — this card's guests.
+    """Return settled gang grants, cached on ``GangCard.acquired``.
 
-    Worked out from the gang's own card, and only once: every member asks
-    the same question of the same assignments, so the answer is kept there
-    (``GangCard.acquired``). It is the **settled** answer, after the
-    gang's own removals have run, so a bundle a corruption cancelled
-    reaches nobody.
-
-    Query-free, like everything here: the gang's own assignments came back
-    with this card's, and its card was assembled from them. A gang's own card
-    has no gang above it and so no guests.
+    Every member shares this result, after the gang's removals. Existing
+    assignments and the shared index supply all inputs without queries.
+    A gang card has no parent gang and receives no such grants.
     """
     gang_card = getattr(card, "gang_card", None)
     if gang_card is None:
@@ -1430,14 +1276,10 @@ def _from_the_gang(card, index):
 
 
 def _acquisitions(log, dead):
-    """Every distinct thing a grant put on this card and nothing took back.
+    """Return surviving granted content from the recorded granting edges.
 
-    Read off the granting edges rather than the computed lines, because a
-    grant need not draw one: a hidden carrier shows nothing and does
-    everything, which is how a whole bundle of gang rules hangs off a
-    single thing. Ordinary grants share one library identity. A holding
-    retains its ownership origin so separate territories' computed chains
-    also reach the members independently.
+    Include hidden carriers even though they draw no lines. Ordinary grants
+    share a library identity; holding grants retain separate ownership origins.
     """
     held = {}
     for placed in log.placed:
@@ -1540,13 +1382,10 @@ def _settle_counter_origins(computed, log, dead):
 
 
 def _placed_category(effect, node, by_cause):
-    """The category a placement puts somewhere: its own, or — chosen
-    mode — the category of whatever was chosen for its carrier's choice.
+    """Resolve a category placement directly or through its carrier's selection.
 
-    What was chosen is an assignment caused by the carrier's, exactly as
-    a slot resolves; its assignable's ``category`` names the set — a
-    pickable's linked category is the chosen thing's whole payload.
-    Nothing chosen, no category.
+    A selected pickable supplies its linked category. No selection means
+    no category to place.
     """
     if not effect.the_chosen:
         return effect.category
@@ -1574,15 +1413,10 @@ class CounterReading:
 
 @dataclass
 class ComputedGang:
-    """What the gang's own card says once its modifiers have run.
+    """The gang card's choices, grants, counter readings and execution plan.
 
-    The gang-side sibling of ``ComputedCard``, deliberately slimmer: a
-    gang has no statline and no weapons to speak for, so the test
-    interface does not carry a fighter's empty buckets
-    (design/gang-sheet.md). Same engine underneath — ``compute_gang``
-    runs ``compute`` over the ``GangCard`` and keeps what a gang can
-    mean: its choice slots (a Venator's ranked trees), computed grants,
-    counter readings, and the plan.
+    ``compute_gang`` uses the same engine as fighter cards and omits fighter-only
+    statline and weapon output. See ``design/gang-sheet.md``.
     """
 
     card: object
@@ -1674,12 +1508,10 @@ def _scale_counter_contributions(computed):
 
 
 def counter_readings(card, computed=None):
-    """Every counter on a card, and where each one stands.
+    """Return stored counter values plus active modifier contributions.
 
-    A reading is the stored value plus every contribution standing on
-    the card. A counter contributed to with no assignment behind it
-    still has a reading — it comes back the way a granted rule does,
-    with the sum as its whole value and nothing to tally.
+    A counter without an assignment still has a computed reading, with
+    no stored value to tally.
     """
     from n26.library.models import Counter
 
@@ -1893,17 +1725,11 @@ def compute_gang(gang_card, index):
 
 
 def _held(nodes):
-    """How many of each countable thing these lines amount to.
+    """Count model profiles, ranks and equipment by content identity.
 
-    What composition rules count: a member's rank and entry, and the gear
-    the roster holds. Keyed by identity, so nothing compares names.
-
-    Two lines are passed over. The gang-hosted assignments ride every
-    member's card, and counting a broadcast one would make the gang's kit
-    read as one copy per member. A suppressed assignment has been taken
-    away — it stays
-    in the database and is no longer part of what the card holds, so a
-    rank a rule cancelled does not prop up a ratio or fill a quota.
+    Skip broadcast nodes to avoid counting gang equipment once per member.
+    Skip suppressed assignments because their facts do not satisfy composition
+    requirements while removed.
     """
     from n26.library.models import Profile, Subtype, Wargear
 
@@ -1914,8 +1740,7 @@ def _held(nodes):
         thing = node.assignable
         if not isinstance(thing, (Profile, Subtype, Wargear)):
             continue
-        # A Legacy profile rides a card alongside the entry the model was
-        # hired as; only the one the card is drawn from says what it is.
+        # Count only the primary profile in composition tallies.
         if isinstance(thing, Profile) and not node.is_primary_profile:
             continue
         key = ModifierIndex.key(thing)
@@ -1931,11 +1756,9 @@ def _roster_holdings(gang_card):
 
 
 def _companion_notes(gang_card, computed):
-    """Roster shortfalls against composition asks — said, never fixed.
+    """Describe roster composition shortfalls without removing models.
 
-    The book removes Champions when the scum run out; we say the roster
-    is short and leave it to the owner. Counting is of members'
-    *printed* hierarchy subtypes: a rank is a hire-time built-in fact.
+    Count each member's printed hierarchy subtypes, established at hire.
     """
     from n26.core.notes import WARNING, Note
 
@@ -1963,13 +1786,9 @@ def _companion_notes(gang_card, computed):
 
 
 def _limit_notes(gang_card, computed):
-    """Where the roster is over a ceiling a rule states — the census half
-    of ``AllowsAtMost``, said on the gang's sheet.
+    """Describe breaches of gang-level ``AllowsAtMost`` limits.
 
-    Only a breach draws a note: a gang inside its limits should not be
-    told what it is allowed, and a gang holding none of the thing is the
-    quietest case of all. Nothing is refused either way; the book turns
-    fighters away and we say the roster is over.
+    Within-limit holdings produce no note, and no holding is refused.
     """
     if not computed.limits:
         return []
@@ -1977,13 +1796,9 @@ def _limit_notes(gang_card, computed):
 
 
 def limit_notes(card, computed):
-    """Where one model is over a ceiling a rule states — the "each" half
-    of ``AllowsAtMost``: "Leaders and Champions may be equipped with up
-    to one Psychic Familiar each" is a limit on every model it reaches,
-    counted over that model's own assignments.
+    """Describe breaches of per-model ``AllowsAtMost`` limits.
 
-    Breach-only, like the gang's census. Query-free, like everything
-    downstream of ``compute``.
+    Count the model's own assignments without querying.
     """
     if not computed.limits:
         return []
@@ -2014,23 +1829,15 @@ def _over_the_limit(limits, tallies, holder):
 
 
 def choice_notes(computed):
-    """What a card has to say about its choices — said, never enforced.
-
-    Both halves belong on whichever card drew the choice row, so a
-    fighter asked for a legacy hears about it on their own card and the
-    gang hears about the gang's.
-    """
+    """Describe unresolved or repeated choices on the card offering them."""
     return [*_repeat_notes(computed), *_shortfall_notes(computed)]
 
 
 def _repeat_notes(computed):
-    """One thing picked for two choices, where the slot type says no
-    repeats.
+    """Report repeated selections when their slot type forbids repeats.
 
-    A modifier's offer says nothing about repeats, so any two of them
-    settling on one thing is worth mentioning. A slot's slot type
-    decides: where it allows repeats, picking the same pickable twice is
-    the content working as written.
+    Modifier offers have no repeat policy, so repeated selections across
+    them always produce a note.
     """
     from n26.core.notes import WARNING, Note
 
@@ -2059,12 +1866,9 @@ def _repeat_notes(computed):
 
 
 def _shortfall_notes(computed):
-    """Where a choice holds fewer picks than it asks for.
+    """Report slots with fewer selections than required, without blocking use.
 
-    A note, never a refusal: leaving a choice open costs nothing and
-    making it late costs nothing either. Only a slot states a number —
-    a modifier's offer asks for one and says nothing when it is open,
-    the row itself being the reminder.
+    Modifier offers omit this note; their unresolved choice already remains visible.
     """
     from n26.core.notes import WARNING, Note
 
@@ -2080,9 +1884,7 @@ def _shortfall_notes(computed):
 
 
 class _Facts:
-    """What a round's scopes ask against: printed facts plus everything
-    settled by earlier rounds. Built once per round, so every question in
-    the round sees the same world."""
+    """The stored facts and earlier rounds' results shared by one round's scopes."""
 
     def __init__(self, card, computed, guest_picks=()):
         from n26.core import select
@@ -2137,25 +1939,14 @@ class _Facts:
 
 
 def _fill_choice_slots(computed, offers, by_cause):
-    """Resolve each offered choice against what the anchor has caused.
+    """Resolve modifier offers from the selections linked to their anchor.
 
-    What is chosen is stored as an assignment caused by the carrier's, and
-    it names the question it answers — which is what keeps two choices of
-    one kind on one line apart, a primary role and a secondary one being
-    settled by the same sort of thing.
+    Resolve explicitly identified offers first, then assign each unmatched
+    selection to the first compatible offer. Consume a selection once so
+    one pick cannot resolve two choices.
 
-    An answer naming no question is read the only way left: the first
-    question whose kind it fits takes it. One answer settles one question
-    however it was written, so a line asking twice with a single such
-    answer has one question settled and one still open to be answered,
-    rather than two reading as answered from one click.
-
-    Questions holding their own answers are settled before that, because
-    an answer given to one question must not be taken by another that
-    merely could have had it. And an answer naming a question this card no
-    longer asks is read like an unnamed one rather than lost: composing a
-    modifier writes its question afresh, and nobody's card should empty
-    because an author reworded it.
+    Treat selections whose offer ID is absent from the current card as
+    unnamed. Recreating a modifier offer must not discard existing selections.
     """
     from n26.core import select
 
@@ -2201,27 +1992,14 @@ def _fill_choice_slots(computed, offers, by_cause):
 
 
 def _fill_slot_choices(computed, given, by_choice, by_holding_choice):
-    """A choice row for every slot the card holds, and what answers it.
+    """Resolve assigned and granted slots on their host card.
 
-    A slot asks on the card it is *hosted* on, so a gang's slot is asked
-    once on the gang's own card rather than again on every member's — the
-    same rule that keeps the gang's kit off their cards. A hidden slot
-    asks nothing at all: what is picked for it still applies, which is
-    how several things arrive together under one name.
+    Gang-hosted slots appear only on the gang card. Hidden slots retain
+    their effects without displaying a choice. Match selections by anchor
+    and slot identity, in acquisition order.
 
-    What answers it is read off ``chosen_for``: the picks naming this
-    choice's own assignment, narrowed to the ones naming this slot, in
-    the order they were written. The pair is what keeps two choices
-    apart wherever one assignment asks both — two slots a single thing
-    gave share an anchor, and only the slot tells their picks apart.
-
-    ``given`` holds the slots a modifier handed over, which have no
-    assignment of their own — the choice they open is anchored on the
-    written line the giver stands on, so un-writing that retracts this
-    one too. A slot given by something standing on no written line at
-    all has nowhere to be asked, unless its origin is a campaign holding.
-    A holding's choices belong to the gang and name that ownership period
-    instead of an assignment anchor.
+    ``given`` contains computed grants anchored to their stored source.
+    Campaign holdings instead anchor choices to their current ownership period.
     """
     from n26.library.models import Slot
 
@@ -2298,16 +2076,10 @@ def _fill_slot_choices(computed, given, by_choice, by_holding_choice):
 
 
 def _fill_drawn_picks(computed, drawn):
-    """The gang's picks this card draws, once its own questions are known.
+    """Add gang-held pick lines after resolving the card's own choices.
 
-    A pick is drawn here only where this card does not ask the question
-    it settles. The card that was asked draws a choice row holding the
-    same pick and leading to the picker, so a second line would say it
-    twice and offer nothing.
-
-    Read after the card has settled, so a carrier something took away
-    draws nothing (its step reads ``retracted`` by then), and two
-    modifiers saying to draw one pick draw one line.
+    Omit picks already shown in a choice on this card, deduplicate requested
+    lines, and exclude modifiers whose carrier was retracted.
     """
     from n26.library.models import Pickable
 
@@ -2364,13 +2136,12 @@ def _bucket(computed, target, thing):
 
 
 def _place(computed, target, contribution, carrier=None):
-    """Put a grant where its kind says it goes.
+    """Place a grant and return its destination, field name and appended entry.
 
-    Answers with the list it landed in — the holder and the attribute
-    name — and the entry appended, which is None where a same-named entry
-    already stood or where the kind draws nothing at all. Retraction
-    needs all three: the entry to take back out, and the destination to
-    hand the thing to another giver in.
+    Return ``(None, "", None)`` when no bucket accepts the grant. Traits,
+    equipment and assets use dedicated branches. Other buckets deduplicate
+    by contribution name and return no appended entry for a duplicate.
+    Retraction uses this result to remove or reattribute the grant.
     """
     holder, kind = _bucket(computed, target, contribution.thing)
     if holder is None:
@@ -2392,14 +2163,10 @@ def _place(computed, target, contribution, carrier=None):
 
 
 def _take_away(computed, target, contribution, source_key, step):
-    """Cancel one thing on one target, and say what that came to.
+    """Remove computed grants and suppress eligible stored assignments.
 
-    Three things can be standing in the way of a thing being gone, and
-    this reaches all of them: a computed entry in a card row, a granted
-    weapon and its lines, and a **stored assignment** — the fighter's
-    built-in kit, a rule that arrived with the gang type — which is hidden
-    rather than written to. What it did is returned as a record: the chain
-    from here is followed once, at the end, by ``_retract``.
+    Return the affected entries so ``_retract`` can propagate cancellations
+    or restore them if the removal's source is cancelled.
     """
     thing = contribution.thing
     record = _TakenAway(source_key=source_key, thing=thing, step=step, kind=target.kind)
@@ -2431,17 +2198,10 @@ def _take_away(computed, target, contribution, source_key, step):
 
 
 def _suppress(card, thing):
-    """Hide the stored assignments of a thing a removal cancelled.
+    """Hide unpaid stored assignments without changing the database.
 
-    Innate kit is an assignment nobody paid for — a fighter's built-in
-    gun, a rule the gang type brought — and a removal reaches it: the
-    assignment stays in the database and stops being drawn, so taking the
-    remover away brings it back on the next read.
-
-    Never a purchase, and never an assignment with a purchase hanging
-    beneath it:
-    an accessory somebody bought for a built-in gun would be stranded, so
-    the gun stays. Answers with what it hid and what it left alone.
+    Preserve paid assignments and any assignment with paid descendants, which
+    would otherwise be stranded. Return suppressed and preserved nodes separately.
     """
     hidden, refused = [], []
     for node in _stored_lines(card, thing):
@@ -2466,17 +2226,10 @@ def _stored_lines(card, thing):
 
 
 def stands_whatever_happens(card, thing):
-    """Whether taking this away would leave it on the card regardless.
+    """Whether a paid stored copy prevents this content from being removed.
 
-    The mirror of what :func:`_suppress` refuses: a written line nobody
-    paid for is hidden, and one with money behind it is left exactly
-    where it is. So a thing every line of which carries money cannot be
-    taken away at all, and a surface offering to do so has to ask this
-    first — otherwise it writes a removal that changes nothing and then
-    reports a loss the card denies.
-
-    Held twice, once paid for, counts as standing: the free line goes and
-    the thing is still there, doing everything it does.
+    Mirror ``_suppress`` eligibility, including payment in descendants.
+    One paid copy is enough even when other free copies can be suppressed.
     """
     lines = _stored_lines(card, thing)
     if not lines:
@@ -2485,28 +2238,18 @@ def stands_whatever_happens(card, thing):
 
 
 def _retract(computed, log):
-    """Follow every removal through to what it really cost the card.
+    """Propagate removals through grants and other dependent effects.
 
-    A removal cancels a thing; this pass works out the rest. What the
-    thing was doing stops — every grant it made, stat it shifted,
-    category it placed, question it asked — and a thing it granted is
-    itself gone unless something else still gives it, which carries on
-    down the chain. A thing two carriers gave survives losing one, and
-    changes hands: the entry keeps its place and names the survivor.
+    When a granting source is removed, retain content supplied by another
+    source. A direct removal of that content can still cancel it. Reattribute
+    surviving entries without changing their positions. Apply named removals
+    in settlement order so mutual removals do not depend on iteration order.
+    Restore effects of removals whose own source was cancelled, then settle
+    campaign-default exclusions.
 
-    Named removals are taken in the order they settled, so an earlier round's
-    removal is never undone by a later one, and two things cancelling
-    each other both go rather than the answer depending on which was
-    read first. A removal whose own carrier turns out to have been
-    cancelled never happened, and what it took is put back. Campaign-default
-    exclusions settle afterwards, once those source cancellations are known.
-
-    Nothing here queries, and nothing here is written down: the card
-    keeps every assignment it had, and a card computed again from the same
-    assignments comes out the same.
-
-    Answers with the things that turned out not to be on the card at all,
-    which is what a reader of what the card acquired must leave out.
+    Work entirely in memory, preserving stored assignments and repeatable
+    computation. Return content absent from the final card so acquisitions
+    can exclude it.
     """
     if not log.removals:
         return set()
@@ -2540,13 +2283,13 @@ def _retract(computed, log):
     dead = set()
 
     def gone(thing_key):
-        """Nothing gives this any more, and no assignment of it stands."""
+        """Whether neither a surviving grant nor stored assignment supplies this content."""
         if any(not node.suppressed for node in stored.get(thing_key, ())):
             return False
         return all(placed.source_key in dead for placed in edges.get(thing_key, ()))
 
     def cascade():
-        """Whatever the last cancellation starved, and so on down."""
+        """Recursively retract dependants that lost their final granting source."""
         for _ in range(MAX_CHAIN_DEPTH):
             starved = {
                 thing_key
@@ -2638,9 +2381,7 @@ def _stands(placed, dead):
 
 
 def _drop(holder, field, payload, instead=None):
-    """Take one entry out of a computed list by identity, optionally
-    putting another in its place — so the entry keeps its position when a
-    thing simply changes hands."""
+    """Remove an entry by identity, optionally replacing it in the same position."""
     standing = getattr(holder, field)
     kept = [entry for entry in standing if entry is not payload]
     if instead is not None and len(kept) < len(standing):

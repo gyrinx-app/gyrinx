@@ -1,6 +1,8 @@
 """Read one campaign holding and its recorded ownership and battles."""
 
+import json
 from dataclasses import replace
+from hashlib import sha256
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -10,6 +12,7 @@ from django.http import Http404, JsonResponse
 from django.middleware.csrf import get_token
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from n26.core.campaign_table import table_view_href
@@ -26,50 +29,117 @@ from n26.core.views.gangs import _pages
 from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_404
 
 
-@login_required
-@require_http_methods(["GET", "POST"])
-def edit_asset(request, pk, asset_pk):
-    """Only the campaign's arbitrator may edit an individual holding."""
-    from n26.core.campaigns import campaign_operation
-    from n26.core.forms import EditAssetForm
-    from n26.core.operations import Refusal
+def _edit_context(request, pk, asset_pk):
     from n26.core.views.campaigns import _asset_back
-    from n26.library.income import income_of
 
     campaign = _own_campaign_or_404(request, pk)
     holding = _campaign_asset_or_404(campaign, asset_pk)
-    form = EditAssetForm(
-        request.POST if request.method == "POST" else None,
-        initial={
-            "name": holding.name,
-            "income": holding.income_override.contributes_to_counter.amount
-            if holding.income_override_id
-            else None,
+    query = "?" + request.GET.urlencode() if request.GET else ""
+    return {
+        "campaign": campaign,
+        "holding": holding,
+        "detail_href": table_view_href(
+            request, reverse("n26-campaign-asset", args=[campaign.pk, holding.pk])
+        ),
+        "back": _asset_back(request, campaign, holding),
+        "action": reverse("n26-campaign-asset-edit", args=[campaign.pk, holding.pk])
+        + query,
+        "command_href": reverse(
+            "n26-campaign-asset-edit-command", args=[campaign.pk, holding.pk]
+        )
+        + query,
+    }
+
+
+def _edit_feedback(request, result):
+    payload = json.dumps(result.form.cleaned_data, sort_keys=True)
+    tag = "holding-" + sha256(payload.encode()).hexdigest()
+    storage = messages.get_messages(request)
+    queued = any(tag in (message.extra_tags or "").split() for message in storage)
+    storage.used = False
+    if not queued:
+        message = result.message
+        if not result.applied and message != "Nothing changed.":
+            message = "These asset details were already saved."
+        messages.success(request, message, extra_tags=tag)
+
+
+def _edit_props(request, context, form, result=None):
+    from n26.library.income import income_of
+
+    holding = context["holding"]
+    campaign = context["campaign"]
+    return {
+        "heading": f"Edit {holding}",
+        "holdingName": str(holding),
+        "campaignName": campaign.name,
+        "campaignHref": reverse("n26-campaign", args=[campaign.pk]),
+        "campaignsHref": reverse("n26-campaigns"),
+        "detailHref": context["detail_href"],
+        "back": context["back"],
+        "action": context["action"],
+        "commandHref": context["command_href"],
+        "csrfToken": get_token(request),
+        "recoveryKey": f"holding:{request.user.pk}:{holding.pk}",
+        "catalogueName": str(holding.asset),
+        "catalogueIncome": income_of(holding.asset),
+        "values": {
+            name: "" if form[name].value() is None else str(form[name].value())
+            for name in ("name", "income", "snapshot")
         },
+        "fields": {
+            name: {
+                "label": form.fields[name].label,
+                "help": form.fields[name].help_text,
+            }
+            for name in ("name", "income")
+        },
+        "errors": dict(form.errors),
+        "conflict": result.current if result and result.conflict else None,
+    }
+
+
+@login_required
+@never_cache
+@require_http_methods(["GET", "POST"])
+def edit_asset(request, pk, asset_pk):
+    from n26.core import asset_edit
+
+    context = _edit_context(request, pk, asset_pk)
+    campaign, holding = context["campaign"], context["holding"]
+    result = None
+    if request.method == "POST":
+        result = asset_edit.change(campaign, holding, request.user, request.POST)
+        form = result.form
+        if result.saved:
+            _edit_feedback(request, result)
+            return redirect(context["detail_href"])
+    else:
+        form = asset_edit.initial_form(holding, request.user)
+    context.update(form=form, edit_props=_edit_props(request, context, form, result))
+    return render(request, "n26/edit_asset.html", context)
+
+
+@require_POST
+def edit_asset_command(request, pk, asset_pk):
+    from n26.core import asset_edit
+
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Sign in again to save this change."}, status=401)
+    context = _edit_context(request, pk, asset_pk)
+    result = asset_edit.change(
+        context["campaign"], context["holding"], request.user, request.POST
     )
-    detail_href = table_view_href(
-        request, reverse("n26-campaign-asset", args=[campaign.pk, holding.pk])
-    )
-    if request.method == "POST" and form.is_valid():
-        try:
-            with campaign_operation(campaign, actor=request.user) as op:
-                edited = op.edit_asset(holding, **form.cleaned_data)
-        except Refusal as error:
-            form.add_error(None, error.public_message)
-        else:
-            messages.success(request, "Asset saved." if edited else "Nothing changed.")
-            return redirect(detail_href)
-    return render(
-        request,
-        "n26/edit_asset.html",
+    if result.saved:
+        _edit_feedback(request, result)
+        return JsonResponse({"nextUrl": context["detail_href"]})
+    return JsonResponse(
         {
-            "campaign": campaign,
-            "holding": holding,
-            "form": form,
-            "catalogue_income": income_of(holding.asset),
-            "detail_href": detail_href,
-            "back": _asset_back(request, campaign, holding),
+            "errors": dict(result.form.errors),
+            "code": "revision_conflict" if result.conflict else "invalid",
+            "current": result.current,
         },
+        status=409 if result.conflict else 422,
     )
 
 
