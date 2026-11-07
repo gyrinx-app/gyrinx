@@ -191,6 +191,24 @@ def test_enqueue_returns_task_result(pubsub_backend, mock_publisher):
     assert result.status == TaskResultStatus.READY
 
 
+@pytest.mark.django_db
+def test_confirmed_route_propagates_publish_failure(pubsub_backend, mock_publisher):
+    mock_task = MagicMock()
+    mock_task.func.__name__ = "_test_task"
+    future = MagicMock()
+    future.result.side_effect = RuntimeError("publish failed")
+    pubsub_backend.publisher.publish.return_value = future
+    pubsub_backend.publisher.topic_path.return_value = "projects/test/topics/test"
+
+    with patch(
+        "gyrinx.tasks.registry._tasks", [TaskRoute(_test_task, confirm_publish=True)]
+    ):
+        with pytest.raises(RuntimeError, match="publish failed"):
+            pubsub_backend.enqueue(mock_task, (), {})
+
+    future.result.assert_called_once_with(timeout=10)
+
+
 # =============================================================================
 # Get Result Tests
 # =============================================================================

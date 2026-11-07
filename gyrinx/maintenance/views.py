@@ -127,8 +127,17 @@ def scrub_event_sessions_view(request):
             summary={"total": remaining, "cleared": 0, "remaining": remaining},
         )
         if remaining:
-            scrub_event_sessions.enqueue(backfill_id=str(backfill.pk))
-            messages.success(request, "Session-key cleanup started.")
+            try:
+                scrub_event_sessions.enqueue(backfill_id=str(backfill.pk))
+            except Exception:
+                backfill.status = Backfill.Status.FAILED
+                backfill.error = "The cleanup task could not be queued."
+                backfill.save(update_fields=["status", "error", "modified"])
+                messages.error(
+                    request, "The cleanup task could not be queued. Try again."
+                )
+            else:
+                messages.success(request, "Session-key cleanup started.")
         else:
             messages.success(request, "No legacy session keys remain.")
         return HttpResponseRedirect(

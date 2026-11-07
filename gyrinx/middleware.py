@@ -68,7 +68,13 @@ class SecurityTelemetryMiddleware:
         response = self.get_response(request)
         status = response.status_code
         match = getattr(request, "resolver_match", None)
-        if request.method == "POST" and match and status in (200, 400, 401, 403, 429):
+        specific_rejection = getattr(request, "_security_rejection_action", None)
+        if (
+            not specific_rejection
+            and request.method == "POST"
+            and match
+            and status in (200, 400, 401, 403, 429)
+        ):
             action = self._ACCOUNT_ROUTES.get(match.url_name)
             if action:
                 record_security_event(
@@ -77,13 +83,17 @@ class SecurityTelemetryMiddleware:
                     "rate_limited" if status == 429 else "form_rejected",
                     response_status=status,
                 )
-        if status == 403:
+                specific_rejection = action
+        if status == 403 and not specific_rejection:
             record_security_event(
                 request, "permission", "forbidden", response_status=status
             )
-        elif status in (301, 302, 303, 307, 308) and urlsplit(
-            response.get("Location", "")
-        ).path in ("/accounts/login/", "/admin/login/"):
+        elif (
+            not specific_rejection
+            and status in (301, 302, 303, 307, 308)
+            and urlsplit(response.get("Location", "")).path
+            in ("/accounts/login/", "/admin/login/")
+        ):
             record_security_event(
                 request, "permission", "login_required", response_status=status
             )
@@ -133,18 +143,6 @@ class SecurityTelemetryMiddleware:
             stats = pool.get_stats()
             cls._last_pool_stats = now
         track("db_pool_stats", **stats)
-
-    def process_exception(self, request, exception):
-        from psycopg_pool import PoolTimeout
-
-        if isinstance(exception, PoolTimeout):
-            track(
-                "db_pool_timeout",
-                route=request_route(request),
-                request_id=request_id(request),
-                trace_id=trace_id(request),
-            )
-        return None
 
 
 class ClearLoggingRequestMiddleware:

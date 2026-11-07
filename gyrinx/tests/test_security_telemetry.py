@@ -7,12 +7,17 @@ from allauth.mfa.totp.internal import auth as totp_auth
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.storage.fallback import FallbackStorage
+from django.db import OperationalError
 from django.http import HttpResponseForbidden, HttpResponseRedirect
 from django.test import Client, RequestFactory, override_settings
 
 from gyrinx.adapter import CustomAccountAdapter
-from gyrinx.middleware import SecurityTelemetryMiddleware
-from gyrinx.security_events import login_target_fingerprint, record_security_event
+from gyrinx.middleware import EditionMiddleware, SecurityTelemetryMiddleware
+from gyrinx.security_events import (
+    has_pool_timeout,
+    login_target_fingerprint,
+    record_security_event,
+)
 from gyrinx.views_csrf import csrf_failure
 
 
@@ -152,17 +157,58 @@ def test_anonymous_csrf_redirect_is_audited():
     assert "secret" not in str(audit.call_args)
 
 
-def test_pool_timeout_has_explicit_event():
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("accept", "expected_status"),
+    [("text/html", 302), ("application/json", 403)],
+)
+def test_csrf_rejection_is_not_counted_as_auth_or_permission(accept, expected_status):
+    client = Client(enforce_csrf_checks=True, HTTP_ACCEPT=accept)
+    with patch("gyrinx.security_events.track") as telemetry:
+        response = client.post(
+            "/accounts/login/",
+            {"login": "target@example.com", "password": "secret"},
+            HTTP_REFERER="http://testserver/accounts/login/",
+        )
+
+    assert response.status_code == expected_status
+    security_calls = [
+        call for call in telemetry.call_args_list if call.args == ("security_request",)
+    ]
+    assert len(security_calls) == 1
+    assert security_calls[0].kwargs["action"] == "csrf"
+
+
+def test_wrapped_pool_timeout_is_recognised():
     from psycopg_pool import PoolTimeout
 
-    request = RequestFactory().get("/n23/lists/")
-    middleware = SecurityTelemetryMiddleware(lambda request: None)
+    wrapped = OperationalError("connection unavailable")
+    wrapped.__cause__ = PoolTimeout("pool exhausted")
 
-    with patch("gyrinx.middleware.track") as telemetry:
-        assert middleware.process_exception(request, PoolTimeout()) is None
+    assert has_pool_timeout(wrapped)
+    assert not has_pool_timeout(OperationalError("other database error"))
 
-    assert telemetry.call_args.args == ("db_pool_timeout",)
-    assert telemetry.call_args.kwargs["request_id"]
+
+@pytest.mark.django_db
+@override_settings(DEBUG=False)
+def test_pool_timeout_in_middleware_has_explicit_event():
+    from psycopg_pool import PoolTimeout
+
+    wrapped = OperationalError("connection unavailable")
+    wrapped.__cause__ = PoolTimeout("pool exhausted")
+
+    with (
+        patch.object(EditionMiddleware, "__call__", side_effect=wrapped),
+        patch("gyrinx.security_events.track") as telemetry,
+    ):
+        response = Client(raise_request_exception=False).get("/")
+
+    assert response.status_code == 500
+    timeout_calls = [
+        call for call in telemetry.call_args_list if call.args == ("db_pool_timeout",)
+    ]
+    assert len(timeout_calls) == 1
+    assert timeout_calls[0].kwargs["request_id"]
 
 
 def test_pool_stats_use_existing_pool_without_opening_connection(monkeypatch):

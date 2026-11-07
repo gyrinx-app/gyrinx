@@ -31,7 +31,7 @@ def redact_sensitive_context(value):
             else redact_sensitive_context(item)
             for key, item in value.items()
         }
-    if isinstance(value, list):
+    if isinstance(value, (list, tuple)):
         return [redact_sensitive_context(item) for item in value]
     return value
 
@@ -152,7 +152,6 @@ class Event(AppBase):
         max_length=64,
         null=True,
         blank=True,
-        db_index=True,
         help_text="One-way identifier used to link events from the same session.",
     )
 

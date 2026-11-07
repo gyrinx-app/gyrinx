@@ -77,6 +77,8 @@ class TaskRoute:
         schedule_timezone: Timezone for the schedule (default "UTC")
         exclusive_write: Drain write_scope before delivery and hold exclusive
             admission across the task's transactions (default False)
+        confirm_publish: Wait for Pub/Sub to confirm publication before
+            returning from enqueue (default False; use for durable chains)
 
     Example:
         # On-demand only
@@ -101,6 +103,7 @@ class TaskRoute:
     write_scope: str | None = None
     paused_consumer: PausedTaskConsumer | None = None
     exclusive_write: bool = False
+    confirm_publish: bool = False
 
     def __post_init__(self):
         """Validate configuration after initialization."""

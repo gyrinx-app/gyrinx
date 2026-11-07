@@ -12,6 +12,7 @@ from gyrinx.security_events import record_security_event
 def csrf_failure(request, reason=""):
     """Return a JSON 403 for commands; redirect native forms with a message."""
     # Django's reason can include attacker-controlled details; log a fixed code.
+    request._security_rejection_action = "csrf"
     status = 403 if request.headers.get("Accept") == "application/json" else 302
     record_security_event(
         request, "csrf", "token_or_origin_rejected", response_status=status

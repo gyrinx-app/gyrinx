@@ -97,4 +97,4 @@ def scrub_event_sessions(backfill_id: str, batch_size: int = SESSION_SCRUB_BATCH
         scrub_event_sessions.enqueue(backfill_id=backfill_id)
 
 
-task_routes = [TaskRoute(scrub_event_sessions, ack_deadline=300)]
+task_routes = [TaskRoute(scrub_event_sessions, ack_deadline=300, confirm_publish=True)]

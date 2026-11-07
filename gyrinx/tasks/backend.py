@@ -29,11 +29,10 @@ class PubSubBackend(BaseTaskBackend):
     Each registered task gets its own topic, allowing independent
     configuration of retry policies and ack deadlines.
 
-    IMPORTANT: This backend uses fire-and-forget publishing for low latency.
-    Messages are published without waiting for Pub/Sub confirmation. A callback
-    handles success/failure tracking via track(). This means message loss is
-    possible on network issues, but the tradeoff is that enqueue() returns
-    immediately without blocking the calling thread.
+    By default publishing is fire-and-forget for low latency. Routes marked
+    confirm_publish wait for Pub/Sub confirmation before enqueue returns; use
+    them for chains whose current delivery must not be acknowledged first.
+    A callback tracks success and failure for both modes.
 
     Configuration in settings.py:
         TASKS = {
@@ -77,10 +76,9 @@ class PubSubBackend(BaseTaskBackend):
         """
         Publish task to its dedicated Pub/Sub topic.
 
-        This method returns immediately after initiating the publish (fire-and-forget).
-        A callback tracks success/failure via track(). We don't wait for Pub/Sub
-        confirmation because blocking the request thread causes slow page loads
-        when multiple tasks are enqueued.
+        This method normally returns after initiating the publish. Routes with
+        confirm_publish wait for Pub/Sub confirmation. A callback tracks both
+        success and failure via track().
 
         Args:
             task: The Task instance to enqueue
@@ -176,7 +174,12 @@ class PubSubBackend(BaseTaskBackend):
 
         future.add_done_callback(on_publish_complete)
 
-        # Return immediately - publish happens async
+        # Durable chains need confirmation before their current delivery is
+        # acknowledged. A timeout can still produce a duplicate publication;
+        # callers using this option must be replay-safe.
+        if route.confirm_publish:
+            future.result(timeout=10)
+
         return task_result
 
     def get_result(self, result_id):

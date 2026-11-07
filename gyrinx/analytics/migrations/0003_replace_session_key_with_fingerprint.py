@@ -14,7 +14,6 @@ class Migration(migrations.Migration):
             name="session_fingerprint",
             field=models.CharField(
                 blank=True,
-                db_index=True,
                 help_text="One-way identifier used to link events from the same session.",
                 max_length=64,
                 null=True,

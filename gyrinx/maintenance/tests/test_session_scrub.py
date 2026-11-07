@@ -88,3 +88,47 @@ def test_admin_preview_and_trigger_record_the_job(legacy_events):
     assert record.status == Backfill.Status.RUNNING
     assert record.summary["total"] == 5
     enqueue.assert_called_once_with(backfill_id=str(record.pk))
+
+
+@pytest.mark.django_db(transaction=True)
+def test_failed_continuation_keeps_progress_for_pubsub_retry(legacy_events):
+    record = Backfill.objects.create(
+        operation=SESSION_SCRUB_OPERATION,
+        status=Backfill.Status.RUNNING,
+    )
+
+    with patch(
+        "django.tasks.base.Task.enqueue", side_effect=RuntimeError("publish failed")
+    ):
+        with pytest.raises(RuntimeError, match="publish failed"):
+            scrub_event_sessions.func(backfill_id=str(record.pk), batch_size=2)
+
+    record.refresh_from_db()
+    assert record.status == Backfill.Status.RUNNING
+    assert record.summary["cleared"] == 2
+    assert count_legacy_session_keys() == 3
+
+    with patch("django.tasks.base.Task.enqueue"):
+        scrub_event_sessions.func(backfill_id=str(record.pk), batch_size=2)
+    record.refresh_from_db()
+    assert record.summary["cleared"] == 4
+
+
+@pytest.mark.django_db(transaction=True)
+def test_failed_initial_publish_marks_job_failed(legacy_events):
+    user = legacy_events
+    user.is_staff = user.is_superuser = True
+    user.save()
+    client = Client()
+    client.force_login(user)
+
+    with patch(
+        "django.tasks.base.Task.enqueue", side_effect=RuntimeError("publish failed")
+    ):
+        response = client.post(reverse("admin:maintenance_scrub_event_sessions"))
+
+    record = Backfill.objects.get(operation=SESSION_SCRUB_OPERATION)
+    assert response.status_code == 302
+    assert record.status == Backfill.Status.FAILED
+    assert record.error == "The cleanup task could not be queued."
+    assert count_legacy_session_keys() == 5

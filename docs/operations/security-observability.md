@@ -99,6 +99,7 @@ receives a test notification. The auth metric starts counting when created;
 it does not backfill earlier logs. Review thresholds after a week of normal
 traffic. A request spike shorter than a Cloud Monitoring alignment interval
 can still be visible in logs without firing a rate alert.
+The pool-timeout log alert limits notifications to one every five minutes.
 
 ## Clear historical database values after deployment
 
@@ -108,7 +109,8 @@ Cloud Run startup limit and hold locks during a deployment. Once the new
 revision is serving traffic, open **Admin → Maintenance → Clear legacy Event
 session keys**, check the preview count, and start the job. It clears at most
 5,000 rows per task delivery, records a cursor and counts on one Backfill
-record, and can be cancelled or safely retried. Check that the Backfill reaches
+record, and confirms continuation publication before acknowledging a batch.
+It can be cancelled or safely retried. Check that the Backfill reaches
 Done and the preview count becomes zero. If it fails, inspect the record and
 rerun after resolving the cause. Do not copy session values into the incident
 record. The database trigger blocks values from older revisions during the

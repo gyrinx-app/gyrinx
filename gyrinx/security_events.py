@@ -3,9 +3,13 @@
 import hashlib
 import hmac
 import re
+import sys
 from uuid import uuid4
 
 from django.conf import settings
+from django.core import signals
+from django.dispatch import receiver
+from psycopg_pool import PoolTimeout
 
 from gyrinx.client_ip import get_client_ip
 from gyrinx.tracker import track
@@ -69,3 +73,26 @@ def record_security_event(
         request_id=request_id(request),
         trace_id=trace_id(request),
     )
+
+
+def has_pool_timeout(exception):
+    """Find a pool timeout behind Django's database exception wrapper."""
+    seen = set()
+    while exception is not None and id(exception) not in seen:
+        if isinstance(exception, PoolTimeout):
+            return True
+        seen.add(id(exception))
+        exception = exception.__cause__ or exception.__context__
+    return False
+
+
+@receiver(signals.got_request_exception)
+def record_pool_timeout(sender, request, **kwargs):
+    """Catch unhandled view and middleware timeouts at Django's 500 boundary."""
+    if has_pool_timeout(sys.exc_info()[1]):
+        track(
+            "db_pool_timeout",
+            route=request_route(request),
+            request_id=request_id(request),
+            trace_id=trace_id(request),
+        )

@@ -204,6 +204,7 @@ def test_event_redacts_secret_context_before_storage_and_streaming(mock_track):
             "login_method": "email",
             "session_key": "bearer-value",
             "nested": [{"auth_token": "another-bearer-value"}],
+            "nested_tuple": ({"auth_token": "tuple-bearer-value"},),
         },
     )
 
@@ -211,6 +212,7 @@ def test_event_redacts_secret_context_before_storage_and_streaming(mock_track):
         "login_method": "email",
         "session_key": "[redacted]",
         "nested": [{"auth_token": "[redacted]"}],
+        "nested_tuple": [{"auth_token": "[redacted]"}],
     }
     assert Event.objects.get(pk=event.pk).context == expected
     assert mock_track.call_args.kwargs["context"] == expected

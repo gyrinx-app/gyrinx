@@ -2,6 +2,9 @@
   "displayName": "Gyrinx database pool timeout",
   "combiner": "OR",
   "enabled": true,
+  "alertStrategy": {
+    "notificationRateLimit": { "period": "300s" }
+  },
   "documentation": {
     "content": "A request could not obtain a database connection. See docs/operations/security-observability.md for the incident queries and pool checks.",
     "mimeType": "text/markdown"
