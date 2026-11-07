@@ -665,19 +665,11 @@ def _acted(request, touched, gang, back, also=""):
 @login_required
 @require_POST
 def sell_assignment(request, pk):
-    """Sell something on: it archives, and half its rating comes back.
+    """Sell a possession through an operation, returning rating-based proceeds.
 
-    Half of its rating, not of what was paid — see
-    ``Operation.sell``. The confirmation names the figure because with
-    the arithmetic done by the server there is nothing on the page for a
-    reader to check it against.
-
-    A gun with an accessory bolted to it is two decisions, and the form
-    carries the second: ``accessories=sell`` sells the lot, anything else
-    unbolts them into the stash first so they can be fitted to another
-    gun later. Kept is the default because it is the recoverable answer
-    — a stashed sight can still be sold tomorrow, where a sold one is
-    gone.
+    Keep detachable accessories in the stash unless POST requests their sale
+    or the gang has no stash. Move them before sale so proceeds use the
+    remaining item; each move preserves its recorded price.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, detachable_children, operation
@@ -700,9 +692,7 @@ def sell_assignment(request, pk):
 
     try:
         with operation(gang, actor=request.user) as op:
-            # Unbolted before the sale, so what the buyer is paying for is
-            # what is left. Each move is its own event, and none of them
-            # re-prices anything.
+            # Move kept accessories before sale so they are excluded from sale proceeds.
             for child in keeping:
                 op.move(child, stash)
             proceeds = op.sell(assignment)
@@ -738,21 +728,11 @@ def sell_assignment(request, pk):
 @login_required
 @require_POST
 def reassign_assignment(request, pk):
-    """Hand something to another model, put it in the stash, or fit it to a gun.
+    """Move a possession without changing its recorded price or rating.
 
-    Nothing is charged and nothing is re-priced: the thing keeps the
-    rating it was pinned at, and only where it lives changes.
-
-    Four destinations, told apart by ``to``. ``stash`` and a named
-    ``miniature`` are the two a fighter's own listing row offers.
-    ``weapon`` names another assignment, which is how an accessory is
-    bolted onto a gun — the same act, one level down the chain. ``held``
-    takes a bolted accessory off its gun and leaves it with whoever
-    (or whatever stash) was holding that gun.
-
-    What may not be moved at all is ``Operation.move``'s answer rather
-    than this view's: a weapon's profile is part of its weapon, and
-    the operation says so in a sentence this shows.
+    ``to`` selects stash, miniature, weapon or held. Held detaches an accessory
+    onto its weapon's existing model or stash. Reject bundled accessories here;
+    operations enforce weapon-profile movement constraints.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.models import Assignment, Miniature
@@ -760,26 +740,19 @@ def reassign_assignment(request, pk):
 
     assignment = _possession_or_404(request, pk)
     gang = assignment.gang_root
-    # Read before the move, because afterwards it names the new home and
-    # the reader wants the screen they clicked on.
+    # Determine the source page before movement changes the assignment host.
     came_from = assignment.miniature_root
     off = str(assignment.parent.assignable) if assignment.parent_id else ""
     back = _back_to(request, assignment, gang)
     touched = _row_behind(assignment)
     name = str(assignment.assignable)
 
-    # Why a weapon profile or a sight the gun came with cannot leave the
-    # weapon. Said whichever destination the click named: the rule is
-    # about the part, not about where it was going.
+    # Movement restrictions apply to the part independently of its proposed destination.
     stays_on = (
         f"You cannot take {name} off {off}. Only a bought accessory can come off."
     )
-    # A sight the gun came with belongs to the package. Moving it
-    # anywhere — the stash, another model, another gun — would leave the
-    # gang holding something the sale of this gun is meant to take with
-    # it. The operation does not refuse this itself, so the view does,
-    # whichever destination was named. A weapon profile is left to the
-    # operation, which refuses it in its own words.
+    # Bundled accessories stay with their granting weapon.
+    # Enforce this here because the reassignment operation does not reject them.
     if (
         assignment.parent_id is not None
         and assignment.caused_by_id is not None
@@ -792,9 +765,7 @@ def reassign_assignment(request, pk):
     if wanted == "stash":
         destination = getattr(gang, "stash", None)
     elif wanted == "held":
-        # Same host, unfitted. A sight on a fighter's gun stays with
-        # that fighter; one on a stashed gun stays in the stash. Something
-        # already loose has nothing to come off; a weapon profile cannot.
+        # Detach to the weapon's current model or stash, preserving its top-level host.
         if assignment.parent_id is None:
             destination = None
         elif not can_unbolt(assignment):
@@ -813,12 +784,7 @@ def reassign_assignment(request, pk):
                     archived=False,
                 )
                 .exclude(weapon=None)
-                # Nothing hangs off itself. The operation says so too, but
-                # it says it by raising rather than refusing, so a
-                # hand-made click naming its own weapon is answered here
-                # with the same sentence as any other impossible
-                # destination. The gun it already hangs off is the same
-                # kind of nowhere: fitting it there would leave it put.
+                # Reject the assignment itself and its current parent as weapon destinations.
                 .exclude(pk=assignment.pk)
                 .exclude(pk=assignment.parent_id)
                 .first()
@@ -838,12 +804,7 @@ def reassign_assignment(request, pk):
         messages.error(request, f"There is nowhere to move {name} to.")
         return _unchanged(request, back)
 
-    # Fitting takes the thing out of a row of its own and draws it under
-    # the gun instead, so two rows on the screen change. Detaching does
-    # the reverse: the gun loses it and it becomes a row of its own.
-    # The other row counts only where the reader is looking at it: a
-    # stash fit reaches a gun on somebody's card, and that is not the
-    # screen this answers.
+    # Fit and Detach can change both the weapon and accessory rows on the same screen.
     if wanted == "held":
         also = thing_key(assignment.assignable)
     else:
@@ -882,11 +843,8 @@ def reassign_assignment(request, pk):
     else:
         messages.success(request, f"Moved {name} to {destination.name}.")
     if wanted == "held" and came_from is None and is_htmx(request):
-        # The stash's own tab draws only what is held, so the row the
-        # sight now has is new to the page: delivered as an out-of-band
-        # swap it would name a row that is not there, and htmx drops
-        # such an element without a word. A reload draws the screen as
-        # it now stands, and the message with it.
+        # Detaching in the stash creates a row absent from the current page.
+        # Reload because an out-of-band update cannot insert it by a missing identifier.
         response = HttpResponse(status=200)
         response["HX-Redirect"] = back
         return response
@@ -896,20 +854,11 @@ def reassign_assignment(request, pk):
 @login_required
 @require_POST
 def rechoose_assignment(request, pk):
-    """Take something already owned with different options.
+    """Replace acquisition options and settle their price difference on the owned item.
 
-    The alternatives were priced when it was bought and they are priced
-    the same way now, so changing them settles the difference either
-    way: a dearer set is charged, a cheaper one comes back, and the
-    figure lands on the thing's own line because an option is a way that
-    thing is built rather than a purchase beside it.
-
-    The picks arrive as places in the offer the server re-derives, read
-    back by the same parser a purchase uses, so a tampered form can name
-    nothing the content does not offer. A gang that cannot afford an
-    upgrade is refused and nothing changes — the whole swap unwinds
-    together, rather than leaving the old set gone and the new one
-    unpaid for.
+    Parse offered options from server-derived content. The operation rolls back
+    the whole replacement on refusal. Detect changed option sets independently
+    of payment, because two alternatives may have the same price.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.browse import offered_choices
@@ -920,8 +869,7 @@ def rechoose_assignment(request, pk):
     assignment = _possession_or_404(request, pk)
     thing = assignment.assignable
     if not isinstance(thing, Optioned) or not thing.offers_a_choice:
-        # No control draws this address for anything else, and there
-        # would be nothing on the panel behind it to pick.
+        # Only content with offered acquisition alternatives supports rechoosing.
         raise Http404("Nothing to choose")
     gang = assignment.gang_root
     miniature = assignment.miniature_root
@@ -953,10 +901,7 @@ def rechoose_assignment(request, pk):
         action="rechoose",
         delta=after - before,
     )
-    # What changed is read from what is recorded rather than from the
-    # money: two options at one price are a real swap that costs nothing,
-    # and calling that unchanged would tell a reader their click did not
-    # land.
+    # Compare recorded option sets because a real option change can have zero payment difference.
     now = {row.default_set_id for row in assignment.chosen_options.all()}
     if now == taken:
         messages.success(request, f"{thing}'s options are unchanged.")
@@ -976,22 +921,10 @@ def rechoose_assignment(request, pk):
 @login_required
 @require_POST
 def accessorise_assignment(request, pk):
-    """Bolt an accessory onto a weapon the gang already owns.
+    """Buy a selectable accessory at its library price under an owned weapon.
 
-    An ordinary purchase at the reference price, hosted on the weapon's
-    own assignment rather than on the fighter — the same shape a gun's paid
-    ammo is bought in, and for the same reason: an accessory belongs to
-    one particular weapon. Selling the gun therefore reaches it, and its
-    effects land on that gun's profiles rather than on every gun the
-    fighter carries.
-
-    The form submits the accessory's identity and never its price: the
-    server reads the price off the library, so a tampered figure buys
-    nothing at a figure nobody offered.
-
-    What fits is not checked. The dialog offered a shortened list, which
-    is the whole of what fitting does — an owner may bolt anything to
-    anything, and the card says where it came from either way.
+    Read identity and price server-side. Compatibility is a catalogue suggestion,
+    not an operation restriction.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation
@@ -999,8 +932,7 @@ def accessorise_assignment(request, pk):
 
     assignment = _possession_or_404(request, pk)
     if not isinstance(assignment.assignable, Weapon):
-        # Nothing else is somewhere to fit one, and no control draws this
-        # address for anything else.
+        # Accessory purchases must target an owned weapon.
         raise Http404("Not a weapon")
     gang = assignment.gang_root
     miniature = assignment.miniature_root
@@ -1012,8 +944,7 @@ def accessorise_assignment(request, pk):
             include_staged=sees_staged(request.user)
         ).get(pk=request.POST.get("accessory", ""))
     except WeaponAccessory.DoesNotExist, ValidationError, ValueError:
-        # A stale dialog or a hand-made click. The screen it came from is
-        # the answer, with the list on it as it now stands.
+        # Return stale or invalid selections to the source catalogue.
         messages.error(request, "That accessory does not fit this weapon.")
         return _unchanged(request, back)
 
@@ -1047,11 +978,7 @@ def accessorise_assignment(request, pk):
 @login_required
 @require_POST
 def remove_assignment(request, pk):
-    """Remove something from the gang without changing credits.
-
-    ``Operation.remove`` archives rather than deletes, so the ledger goes
-    on saying the gang once owned this — it simply stops counting.
-    """
+    """Archive a possession without returning credits, preserving its purchase history."""
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation
 
@@ -1091,12 +1018,10 @@ def remove_assignment(request, pk):
 @login_required
 @require_POST
 def refund_assignment(request, pk):
-    """Undo the purchase: it archives, and what was paid comes back.
+    """Archive a purchase and return its recorded credits and founding trade points.
 
-    Credits, and the Trade Points a founding allowance paid. What was
-    *paid*, not its rating — see ``Operation.refund``. The figures are
-    read before the write, because afterwards every entry in the subtree
-    has been settled to zero and there is nothing left to add up.
+    Calculate payments before the operation zeroes ledger entries. Unlimited-credit
+    gangs with no refundable founding points use removal instead.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation, refund_of, trade_points_in
@@ -1146,7 +1071,7 @@ def refund_assignment(request, pk):
 
 
 def _campaign_counter_update(request, assignment, gang, back, *, close=False):
-    """Refresh the campaign table, or the counter on its gang sheet."""
+    """Refresh a gang counter and, when displayed, its campaign table."""
     from urllib.parse import urlsplit
 
     from n26.core.card import build_gang_card, build_modifier_index, carriers
@@ -1208,12 +1133,7 @@ def _campaign_counter_update(request, assignment, gang, back, *, close=False):
 
 
 def _shown_counter_value(assignment, gang, miniature, recorded):
-    """The number a reader sees for this counter, contributions included.
-
-    The recorded half is what a tally moves. A rule can add the rest, and
-    the amount dialog previews the sum the card already shows. A card with
-    no line for this assignment falls back to the recorded value.
-    """
+    """Read the displayed total including computed contributions, falling back to storage."""
     if miniature is None:
         from n26.core.card import build_gang_card, build_modifier_index, carriers
         from n26.core.effects import compute_gang
@@ -1248,26 +1168,15 @@ def _shown_counter_value(assignment, gang, miniature, recorded):
 @login_required
 @require_http_methods(["GET", "POST"])
 def tally_counter(request, pk):
-    """Move one counter up or down.
+    """Adjust an authorised counter through an operation, respecting its minimum.
 
-    ``change`` is signed and the value floors at the counter's minimum,
-    as enforced by ``Operation.tally``.
+    Ordinary changes use a bounded signed amount. Income editing targets the
+    displayed total and derives its stored adjustment from contributions under
+    the gang lock; reset restores its minimum. Recheck archived assignments
+    inside the operation.
 
-    The same address serves a model's counter and the gang's own: what
-    is being changed is the assignment, and who is carrying it is its
-    business. Only counters, though — every other assignment has verbs
-    of its own, and none of them is a running number.
-
-    The Income form edits the total and derives its adjustment from current
-    contributions under the gang lock. Other forms accept a signed amount;
-    the existing POST controls still move one point. The rulebook's own acts move these by more — a
-    Spyrer spends four Kill Count on Suit Evolution — and ``change``
-    being signed and free is what lets one address serve both.
-
-    The gang's owner may move any of its counters; the arbitrator of the
-    campaign the gang is playing may move the campaign's — the one act on
-    a gang that is not its owner's, and the operation names the
-    arbitrator as the actor so the gang's history says who did it.
+    Gang owners can adjust their counters. Campaign arbitrators can also adjust
+    counters caused by the gang's active campaign membership.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.forms import CounterAdjustmentForm, IncomeValueForm
@@ -1302,8 +1211,7 @@ def tally_counter(request, pk):
         if setting_income:
             form = IncomeValueForm(request.POST if request.method == "POST" else None)
         else:
-            # A reset's full delta is read under the gang lock, beyond the
-            # ordinary change limit. Use a valid negative change to enter that path.
+            # Calculate reset under the gang lock; use a valid negative step to enter that branch.
             form = CounterAdjustmentForm(
                 {"change": -1}
                 if resetting
@@ -1367,17 +1275,12 @@ def tally_counter(request, pk):
         except ValueError:
             raise Http404("Not a change to make") from None
     if not setting_income and (not change or abs(change) > MOST_A_TALLY_MOVES):
-        # Zero moves nothing, and writing an event to say so fills a
-        # gang's history with rows that record nothing happening. The
-        # bound beside it is because a counter's value is a database
-        # integer: a number past what one holds would be a 500 rather
-        # than a refusal, and no control offers a step anywhere near it.
+        # Reject zero and oversized direct steps to avoid empty history events and integer overflow.
         raise Http404("Not a change to make")
 
     try:
         with operation(gang, actor=request.user) as op:
-            # Read again under the gang's line: an arbitrator archiving the
-            # counter can take it off the gang after this page found it.
+            # Recheck archive state under the operation lock in case an arbitrator removed the counter.
             if (
                 type(assignment)
                 .objects.filter(pk=assignment.pk, archived=True)
@@ -1421,8 +1324,7 @@ def tally_counter(request, pk):
             return adjustment_page()
         messages.error(request, str(refusal))
         if is_htmx(request):
-            # Nothing moved, so nothing on the page is redrawn; the
-            # refusal reaches the reader as a toast and that is all.
+            # Keep existing page state and deliver the refusal as a toast.
             return no_update(request)
         return _safe_redirect(request, back, here)
 
@@ -1438,10 +1340,7 @@ def tally_counter(request, pk):
         change=change,
     )
     if miniature is not None and is_htmx(request):
-        # A one-point step moves the number where the reader is looking,
-        # so it sends no toast. An amount from the dialog is one deliberate
-        # change: say what it became, close the dialog, and put the address
-        # back on the page the pencil was drawn on.
+        # Inline steps update without a toast; dialog adjustments announce the result and close the panel.
         landing = back or reverse("n26-edit-fighter", args=[miniature.pk])
         if adjusting:
             response = render_card_update(
