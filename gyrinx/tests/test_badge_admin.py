@@ -1,9 +1,4 @@
-"""The admin surfaces for creating badges and handing them out.
-
-Admin actions are easy to ship broken — nothing else exercises them, and a
-mistake only shows up when somebody clicks it. These drive the real ones
-through a request, including the intermediate confirmation page.
-"""
+"""Exercise badge creation, grant actions and their confirmation pages through admin requests."""
 
 import pytest
 from django.contrib.admin.sites import AdminSite
@@ -48,18 +43,14 @@ def _request(staff, method="get", data=None):
     factory = RequestFactory()
     request = getattr(factory, method)("/admin/", data or {})
     request.user = staff
-    # The action's confirmation page renders through the admin's own context.
+    # Provide the admin context required by the action's confirmation template.
     request.session = {}
     request._messages = _Messages()
     return request
 
 
 class _Messages:
-    """Collect messages instead of needing the middleware.
-
-    Iterable because the admin's base template loops over them when the
-    confirmation page renders.
-    """
+    """Capture messages and provide the iterator used when rendering admin confirmations."""
 
     def __init__(self):
         self.sent = []
@@ -132,7 +123,6 @@ def test_the_grant_action_confirms_before_it_grants(staff, badge, make_user):
 
     assert response.status_code == 200
     assert badge.title in response.content.decode()
-    # Nothing granted yet — the page is the confirmation step.
     assert not BadgeGrant.objects.exists()
 
 
@@ -219,7 +209,6 @@ def test_the_paste_page_is_linked_from_the_badge_list(client, staff):
 
 def test_the_changelist_draws_the_artwork(staff, badge):
     modeladmin = BadgeAdmin(Badge, AdminSite())
-    # No artwork stored, so there is nothing to draw and nothing pretending to.
     assert modeladmin.preview(badge) == "—"
 
 

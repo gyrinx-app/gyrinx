@@ -1,11 +1,4 @@
-"""Platform account forms.
-
-The allauth overrides named in ``settings.ACCOUNT_FORMS`` plus the
-username-change form. None of these touch edition models.
-
-``BadgeSelectionForm`` lives here too, now that ``UserProfile`` is a platform
-model.
-"""
+"""Platform account forms and allauth overrides configured by ACCOUNT_FORMS."""
 
 from allauth.account.forms import LoginForm, ResetPasswordForm, SignupForm
 from django import forms
@@ -47,14 +40,12 @@ class SignupForm(SignupForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Update username field help text and add validation
         if "username" in self.fields:
             self.fields["username"].help_text = (
                 "This is the name you'll use to log in to Gyrinx. "
                 "It can only contain letters, numbers, and underscores. "
                 "Please pick a username, not an email address."
             )
-            # Add validator to check for @ symbol
             from django.core import validators
 
             self.fields["username"].validators.insert(
@@ -72,14 +63,14 @@ class SignupForm(SignupForm):
                 "Please use a different address if you can."
             )
 
-        # Move tos_agreement to the end of the form
+        # Keep the terms agreement after the other signup fields.
         if "tos_agreement" in self.fields:
             tos_field = self.fields.pop("tos_agreement")
             self.fields["tos_agreement"] = tos_field
 
 
 class UsernameChangeForm(forms.Form):
-    """Form for users to change their username (only for users with @ in username)."""
+    """Validate and save a username while excluding reserved and already-used names."""
 
     new_username = forms.CharField(
         max_length=150,
@@ -111,7 +102,6 @@ class UsernameChangeForm(forms.Form):
         new_username = self.cleaned_data["new_username"]
         User = get_user_model()
 
-        # Check if username is already taken
         if (
             User.objects.filter(username__iexact=new_username)
             .exclude(pk=self.user.pk)
@@ -119,7 +109,6 @@ class UsernameChangeForm(forms.Form):
         ):
             raise forms.ValidationError("This username is already taken.")
 
-        # Check against blacklist (matching settings configuration)
         blacklist = ["admin", "superuser", "staff", "user", "gyrinx"]
         if new_username.lower() in blacklist:
             raise forms.ValidationError("This username is not allowed.")
@@ -135,13 +124,10 @@ class UsernameChangeForm(forms.Form):
 
 
 class BadgeSelectionForm(forms.Form):
-    """Let a user choose which badge to display.
+    """Choose from the user's eligible badges or explicitly hide the badge.
 
-    The available choices are every badge the user can display (see
-    ``UserProfile.available_badges`` — Patreon tiers plus staff) plus an explicit
-    "Hide badge" option. Eligible users show a badge by default, so the form
-    pre-selects whatever is actually displayed. ``clean_selected_badge`` re-checks
-    eligibility to reject tampered submissions.
+    Start with the resolved display selection, including eligible defaults.
+    Recheck eligibility during cleaning to reject tampered choices.
     """
 
     selected_badge = forms.ChoiceField(
@@ -157,8 +143,7 @@ class BadgeSelectionForm(forms.Form):
         self.fields["selected_badge"].choices = badge_choices(
             self.profile.available_badges
         )
-        # Pre-select whatever the profile actually displays: an explicit
-        # still-eligible pick, the opt-out, or the highest-ranked default.
+        # Use the resolved selection so the form matches the displayed badge.
         if self.profile.selected_badge == HIDE_BADGE:
             initial = HIDE_BADGE
         else:
