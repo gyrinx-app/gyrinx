@@ -1,27 +1,12 @@
-"""The Lasting Injury and Lasting Damage tables, built as they ship.
+"""Seed lasting-effect tables and apply their results to fighters and vehicles.
 
-The executable spec for the rulebook's two lasting-effect tables (core
-rules: resolving hits and injuries). The tables themselves — two slot
-types, a D66 roll table of results at their bands, a standing choice
-each — are a Foundations seed, created here exactly as the button
-creates them. Seeds write names and numbers only, so what the ten
-characteristic results *do* is attached afterwards as ordinary
-modifiers, the way an author finishes the tables by hand.
+The seed creates slot types, roll bands, choices and result names. Fixtures add
+characteristic modifiers separately. Shared names use distinct pickables for
+each slot type, with qualifiers where needed.
 
-Two slot types rather than one, so a fighter can never be handed
-vehicle damage — the choice's own type check refuses it. Five names
-appear on both tables at the same rolls; they are separate pickables,
-because a pickable belongs to one slot type — and the damage twins
-carry the qualifier "vehicle", because a pack holds one pickable per
-name and the qualifier is the author-facing way to tell twins apart.
-
-No profile carries either choice as a built-in. Each gang type carries
-a standing grant instead — a modifier reaching every model whose Type
-is Fighter and giving it the injury choice, and the vehicle twin — so
-every fighter in every gang of the type has its row the moment the
-modifier is attached, gangs founded long before included, and nothing
-is written per model. Detaching the grant takes the row off every
-card and leaves what was already picked where it is.
+Gang-type modifiers grant the matching choice without per-model assignments.
+Removing a grant hides its choice while preserving existing injury picks.
+A delegation can replace the ordinary injury choice with its own table.
 """
 
 import pytest
@@ -58,9 +43,8 @@ from n26.tests.sandbox.actions import (
 
 pytestmark = pytest.mark.django_db
 
-#: What the ten characteristic results worsen, by one. The seed cannot
-#: write these — a modifier is behaviour, not a name — so they are the
-#: hand-authored half of the tables.
+#: Characteristic results and the stats they worsen by one. Fixtures add these
+#: modifiers after the standard-content seed creates the named results.
 WORSENS = {
     "Eye Injury": "BS",
     "Hand Injury": "WS",
@@ -115,8 +99,7 @@ def gang(gang_type, db):
 
 @pytest.fixture
 def standing(gang_type, fighter_type, vehicle_type, tables):
-    """The two grants on the gang type: every fighter carries the
-    injury choice, every vehicle the damage choice."""
+    """Grant Lasting Injury to fighters and Lasting Damage to vehicles."""
     return {
         name: modifier(
             f"{kind.name}s carry {name}",
@@ -162,10 +145,7 @@ def choice_of(miniature, label):
 
 
 def pick(miniature, label, pickable):
-    """A pick on a granted slot, as the choose page makes it: the slot
-    is named, because the anchor is the gang's founding line rather
-    than a slot of its own, and the pick is hosted on the model whose
-    card it was made from rather than on the gang."""
+    """Choose for a model using the granted slot and its founding-assignment anchor."""
     slot = choice_of(miniature, label)
     return choose(slot.anchor.assignment, pickable, slot=slot.slot, miniature=miniature)
 
@@ -175,8 +155,7 @@ def result_named(table, name):
 
 
 class TestTheTablesAsSeeded:
-    """Both tables cover their die exactly, with nothing doubled and
-    nothing unrollable — pinned so a band changes deliberately."""
+    """Seeded tables cover every roll exactly once and remain unchanged on reseeding."""
 
     def test_the_complete_tables_keep_their_results_when_seeded_again(
         self, seeded_tables
@@ -223,9 +202,7 @@ class TestTheTablesAsSeeded:
         )
 
     def test_a_name_owned_by_another_slot_type_is_refused_in_words(self, default_pack):
-        """A pack holds one pickable per name and qualifier, whichever
-        slot type it belongs to — so a name already claimed elsewhere
-        stops the seed with an explanation, never a bare constraint."""
+        """Report a conflicting name and qualifier before a database constraint fails."""
         from n26.library.authoring import create_pickable, create_slot_type
 
         other = create_slot_type("Gang Legacy", plural_name="Gang Legacies")
@@ -323,9 +300,7 @@ class TestAFighterIsHurt:
     def test_the_row_is_there_before_anyone_wrote_it(
         self, gang, gang_type, yolanda, standing
     ):
-        """A gang founded before the grant existed has the row the
-        moment the modifier is attached: nothing is written per model,
-        so there is nothing to propagate to gangs that already exist."""
+        """Attaching a grant exposes its choice on existing models without writing assignments."""
         from n26.core.models import Assignment
 
         for grant in standing.values():
@@ -341,10 +316,7 @@ class TestAFighterIsHurt:
     def test_detaching_the_grant_takes_the_row_off_but_keeps_the_injuries(
         self, gang, gang_type, yolanda, tables, standing
     ):
-        """The row goes from every fighter's card at once; an injury
-        already picked stays, its effect with it, as a plain line the
-        player can remove — a grant detached by mistake must not eat
-        a gang's history."""
+        """Removing a choice grant preserves existing injury picks and their effects."""
         table = tables["Lasting Injury"]["table"]
         pick(yolanda, "Lasting Injuries", result_named(table, "Eye Injury"))
 
@@ -358,9 +330,7 @@ class TestAFighterIsHurt:
     def test_an_injury_is_the_hurt_fighters_alone(
         self, gang, gang_type, fighter_type, yolanda, tables
     ):
-        """The choice is the gang type's to give, but a pick is hosted
-        on the model whose card it was made from — never on the gang,
-        where it would ride every fighter's card."""
+        """Host injury picks on the selected model so they cannot affect other fighters."""
         profile = create_profile("Juve", fighter_type, gang_type, price=25)
         other = hire(gang, profile, "Wren", paid=25)
         pick(
@@ -379,10 +349,7 @@ class TestAFighterIsHurt:
 
 
 class TestADelegationIsHurt:
-    """An ally's delegation rolls a D6 of its own. The swap rides the
-    delegation entry as a hidden item that takes the gang type's injury
-    choice away and gives the delegation one, so no gang type's grant
-    has to know a delegation exists."""
+    """A built-in hidden marker replaces the ordinary injury choice with the delegation table."""
 
     @pytest.fixture
     def bailiff(self, gang, gang_type, fighter_type, tables, standing):
