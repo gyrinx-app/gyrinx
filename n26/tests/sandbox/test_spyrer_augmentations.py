@@ -1,35 +1,15 @@
-"""Spyrer suit augmentations: an item's level, built from a slot and picks.
+"""Spyrer equipment tiers are authored as single-pick augmentation choices.
 
-Every item a Spyrer carries prints its own augmentation tiers — a bolt
-launcher's Tier 1 raises its Lethality, Tier 2 its Armour Piercing, Tier 3
-swaps Rapid Fire (1) for Rapid Fire (2); a Jakara hunting rig's tiers
-raise the wearer's Strength and then Attacks. An item has one augmentation
-level, which Suit Evolution raises by one and a glitch can lower by one,
-and a higher level keeps what the lower ones brought online.
+Each item builds in a slot whose picklist contains its tiers. Each tier
+declares all effects of that level, including effects retained from lower
+levels. Modifiers target the named weapon or its wearer; trait swaps combine
+removal and addition. Replacing a pick replaces those computed effects.
 
-This file states that the ladder is content, not code. Per item: one
-picklist of an **Augmentation** slot type holding that item's tiers as
-pickables, and one slot of a single pick built into the item, so the
-choice appears on whoever carries it and goes when the item goes. The
-level is the pick; each tier carries the whole effect of being at that
-level, so Tier 2's modifiers restate Tier 1's — as the book's own
-wording of "additional functions online" wants, and as the earlier
-edition's content is written. Each modifier names the item outright
-(``targets_weapons(is_one_of(...))``) or reaches the wearer
-(``targets_model()``); a trait swap is a removal and an addition.
-
-Rungs are free. What raises the Spyrer's credit value is the Power Boost
-result that unlocked the tier, which is a pick of its own on the model.
-So climbing, stepping back and switching move no credits and no rating
-here, which is what lets a player change their mind: the app informs,
-it does not police.
-
-The choice draws under the weapon it belongs to, as the book prints the
-tier beside the item, and never as a row about the model.
-
-The Orrus carries two bolt launchers, printed as one line ("x2"), and the
-book's augmentation is of the pair. They are one weapon here for the same
-reason: a scope naming a weapon reaches every copy the model carries.
+Manual tier changes move no credits or rating in these fixtures. Paid action
+flows record their costs separately. Choices appear under their equipment,
+follow unaugmented equipment between hosts, and disappear with the item.
+Earned augmentations prevent reassignment even after choosing no tier.
+The paired bolt launchers are represented by one weapon definition.
 """
 
 import pytest
@@ -86,13 +66,9 @@ WEAPON_STATS = [
 ]
 
 
-# --- The content: an Orrus's bolt launchers and a Jakara's rig ----------------
-
-
 @pytest.fixture
 def weapon_statline_type(default_pack, fighter_stats):
-    """Strength is one definition shared with the fighter's statline, so
-    the weapon shape reuses it rather than defining a second."""
+    """Reuse the fighter statline's Strength definition in the weapon statline."""
     statline_type = StatlineType.objects.create(name="Weapon")
     for position, (short, full, flags) in enumerate(WEAPON_STATS):
         stat = Stat.objects.filter(full_name=full).first() or create_stat(
@@ -124,7 +100,7 @@ def gang(owner, gang_type):
 
 @pytest.fixture
 def augmentation(default_pack):
-    """The slot type. One level per item, so a choice of it takes one pick."""
+    """Create a non-repeating slot type for item augmentation tiers."""
     return create_slot_type(
         "Augmentation", plural_name="Augmentations", allows_repeats=False
     )
@@ -151,7 +127,7 @@ def traits(default_pack):
 
 @pytest.fixture
 def bolt_launchers(weapon_statline_type, traits):
-    """The Orrus's paired bolt launchers, as the book prints them."""
+    """Create the paired bolt launchers as one weapon with a shared profile."""
     weapon = create_weapon(
         "Bolt launchers", profiles=(("", 0),), statline_type=weapon_statline_type
     )
@@ -172,10 +148,11 @@ def bolt_launchers(weapon_statline_type, traits):
 def bolt_launcher_tiers(
     bolt_launchers, augmentation, lethality, armour_piercing, traits
 ):
-    """Three levels, each naming the launchers outright and each carrying
-    the whole of being at that level: Tier 2 restates Tier 1's change,
-    Tier 3 restates both and swaps the trait. A scope belongs to one
-    modifier, so each gets its own."""
+    """Declare cumulative tiers targeting the bolt launchers.
+
+    Tier 2 repeats Tier 1's change. Tier 3 repeats both stat changes and swaps
+    Rapid Fire (1) for Rapid Fire (2). Each modifier receives its own scope.
+    """
 
     def launchers():
         return targets_weapons(is_one_of(bolt_launchers))
@@ -283,7 +260,7 @@ def jakara_rig(augmentation, fighter_stats):
 
 @pytest.fixture
 def spyrer(fighter_type, gang_type):
-    """A Spyrer profile with the statline the rig's tiers move."""
+    """Create a Spyrer profile with characteristics modified by the hunting rig."""
     profile = create_profile("Spyrer", fighter_type, gang_type, price=200)
     set_statline(
         profile,
@@ -306,15 +283,10 @@ def spyrer(fighter_type, gang_type):
 
 @pytest.fixture
 def orrus(gang, spyrer, bolt_launchers, bolt_launcher_tiers):
-    """An Orrus hired and armed. The launchers bring their ladder: a
-    purchase materialises what the weapon has built in, and a slot is
-    one of those things."""
+    """Hire an Orrus and buy launchers, materialising their built-in tier slot."""
     model = hire(gang, spyrer, "Orrus", paid=200)
     buy(model, thing=bolt_launchers, paid=0)
     return model
-
-
-# --- Reading the card -----------------------------------------------------------
 
 
 def card_for(miniature):
@@ -397,8 +369,7 @@ def test_a_weapon_stat_names_its_tier_after_either_kind_of_augmentation(
 
 
 def choice_behind(miniature, item):
-    """The computed choice an item carries: the one whose anchor the
-    item's assignment caused."""
+    """Find the computed choice anchored to a slot caused by this item assignment."""
     _, computed = card_for(miniature)
     return next(
         line for line in computed.choices if line.anchor.caused_by_key == item.pk
@@ -413,9 +384,10 @@ def ladder_of(miniature, weapon_name):
 
 
 def set_level(ladder, tier):
-    """Take a tier on a one-pick choice, as the picker does: the pick
-    held is taken back and the new one written. The verb alone writes a
-    pick; replacing the standing one is the page's act."""
+    """Remove existing tier picks before choosing the replacement, as the picker does.
+
+    The choose operation alone adds a pick without replacing the old selection.
+    """
     for pick in ladder.picks:
         remove(pick.assignment)
     return choose(ladder.anchor.assignment, tier)
@@ -426,9 +398,7 @@ def climb(miniature, weapon_name, tier):
 
 
 class TestTheLadderArrivesWithTheItem:
-    """Carrying an augmentable item opens its augmentation choice on the
-    carrier's card, drawn under the item. Nothing is written for the
-    level: the line is computed, empty, and asks for nothing."""
+    """Show the built-in augmentation choice beneath its equipment without selecting a tier."""
 
     def test_the_launchers_bring_an_open_choice_under_the_weapon(self, orrus, gang):
         drawn, _ = card_for(orrus)
@@ -452,16 +422,13 @@ class TestTheLadderArrivesWithTheItem:
         assert_reconciled(gang)
 
     def test_an_empty_ladder_leaves_no_remark(self, orrus):
-        """A minimum of none: leaving it alone is not a shortfall."""
+        """An optional tier choice must not produce a missing-pick warning."""
         drawn, _ = card_for(orrus)
         assert drawn.remarks == []
 
 
 class TestClimbingTheLadder:
-    """The level is one pick. Picking the next tier replaces the one held,
-    and a tier carries everything below it, so the card at Tier 2 shows
-    both changes. Every tier's effect lands on the launchers and on
-    nothing else the Spyrer carries."""
+    """Replace the single tier pick and apply its cumulative effects only to the named weapon."""
 
     def test_tier_one_raises_lethality_and_nothing_else(
         self, gang, orrus, bolt_launcher_tiers
@@ -521,9 +488,7 @@ class TestClimbingTheLadder:
         assert_reconciled(gang)
 
     def test_rungs_are_free(self, gang, orrus, bolt_launcher_tiers):
-        """The credit value of an augmentation rides the Power Boost that
-        unlocked it, not the rung, so climbing moves neither credits nor
-        rating."""
+        """Manual changes between these zero-priced tiers move neither credits nor rating."""
         gang.refresh_from_db()
         credits_before, rating_before = gang.credits, gang.rating
 
@@ -536,9 +501,7 @@ class TestClimbingTheLadder:
 
 
 class TestTheLadderIsTheModelsOwn:
-    """A tier is a pick on one model, about that model's item. Another
-    Spyrer's launchers are untouched, the pick goes with the item, and a
-    step back is an ordinary change that owes nobody anything."""
+    """Keep tier effects local to the carrying model and remove picks with their equipment."""
 
     def test_another_spyrers_launchers_are_untouched(
         self, gang, spyrer, orrus, bolt_launchers, bolt_launcher_tiers
@@ -556,9 +519,7 @@ class TestTheLadderIsTheModelsOwn:
     def test_a_ladder_bought_into_the_stash_follows_the_item_to_its_carrier(
         self, gang, spyrer, bolt_launchers, bolt_launcher_tiers
     ):
-        """Kit may be bought unassigned. Its augmentation choice waits in
-        the stash beside it, where nobody can climb it, and comes along
-        when a model takes the item up."""
+        """Move the built-in tier choice from stashed equipment onto its new carrier's card."""
         model = hire(gang, spyrer, "Orrus", paid=200)
         stashed = buy(gang.stash, thing=bolt_launchers, paid=0)
         drawn, _ = card_for(model)
@@ -574,9 +535,7 @@ class TestTheLadderIsTheModelsOwn:
     def test_a_ladder_on_a_bolted_on_part_follows_it_between_guns(
         self, gang, spyrer, orrus, bolt_launchers, augmentation, lethality
     ):
-        """A part bolted onto a gun has no host of its own — it hangs off
-        the gun — so what it brings is hosted on the gun's model. Moving
-        the part to another model's gun takes its ladder to that model."""
+        """Host an accessory's choice on its weapon's model and move it with the accessory."""
         sight = create_weapon_accessory("Targeting rig", price=0)
         tier = create_pickable(
             "Tier 1",
@@ -618,8 +577,7 @@ class TestTheLadderIsTheModelsOwn:
         set_level(choice_behind(other, bolted), tier)
         assert stat_of(gun_of(other, "Bolt launchers"), "L") == "3"
         assert stat_of(gun_of(orrus, "Bolt launchers"), "L") == "1"
-        # The part hangs off the gun, so its choice draws under the gun
-        # beside the gun's own — and nowhere else on the card.
+        # Display the accessory's tier choice under its weapon alongside the weapon's own choice.
         drawn, _ = card_for(other)
         gun = next(w for w in drawn.weapons if w.name == "Bolt launchers")
         assert sorted(c.chosen or "" for c in gun.choices) == ["", "Tier 1"]
@@ -660,9 +618,7 @@ class TestTheLadderIsTheModelsOwn:
     def test_stepping_back_a_level_is_a_change_that_refunds_nothing(
         self, gang, orrus, bolt_launcher_tiers
     ):
-        """A glitch can lower an item's level. The player picks the tier
-        below, which replaces the one held; nothing was paid for either,
-        so nothing comes back."""
+        """Replace the current tier with a lower tier without refunding credits."""
         climb(orrus, "Bolt launchers", bolt_launcher_tiers["Tier 2"])
         gang.refresh_from_db()
         credits_before = gang.credits
@@ -679,12 +635,11 @@ class TestTheLadderIsTheModelsOwn:
 
 
 class TestALaterTierWinsOverAnEarlierOne:
-    """The mirror shield's tiers: a 6+ field save at Tier 1, a longer range
-    at Tier 2, a 5+ field save at Tier 3. Tier 3 changes what Tier 1
-    changed. Because an item holds one level and each tier carries the
-    whole of being at that level, Tier 3's author writes the 5+ save
-    and the range and nothing about the 6+; when Tier 3 replaces the
-    earlier level there is nothing left to arbitrate."""
+    """Each mirror shield tier declares its complete save and range effects.
+
+    Replacing Tier 1 with Tier 3 removes the earlier 6+ save and applies the
+    5+ save and longer range. No earlier tier remains selected.
+    """
 
     @pytest.fixture
     def mirror_shield(self, weapon_statline_type, augmentation, fighter_stats):

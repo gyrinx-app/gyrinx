@@ -1,21 +1,9 @@
-"""Suit Evolution: a Spyrer spends Kill Count and rolls on the Power Boost
-table.
+"""Power Boost picks spend Kill Count and add rating without a credit payment.
 
-The table is standard content, seeded the way the lasting-effect tables
-are: a slot type of its own, a D6 band table, a standing choice. Each
-result carries what it adds to the model's rating — the figure the book
-prints beside it — and the pick carries that rating without anything
-being paid.
-
-What an author finishes by hand, this file does with the verbs, as the
-cookbook says to: the four characteristic results get a modifier that
-improves the characteristic; every result gets one that moves the Kill
-Count down by four when the pick lands; and the Spyre Hunters gang type
-gives every Spyrer the choice. The choice is never narrowed by the count.
-A pick whose choice has gone is discarded as an orphan, so a choice that
-came and went with the Kill Count would take every boost already taken
-with it the moment the count fell below four. Inform, never police: the
-line is always there, and the count is the player's to read.
+The standard-content seed supplies roll bands, choices and result ratings.
+Fixtures add characteristic changes and the four-point Kill Count spend.
+The gang type grants the choice by Spyrer subtype. It stays available below
+four Kill Count so reducing the counter does not remove existing boosts.
 """
 
 import re
@@ -89,8 +77,7 @@ def result_named(table, name, annotation=""):
 
 @pytest.fixture
 def finished_results(boost, kill_count, fighter_stats):
-    """What an author attaches by hand: what each result does, and the
-    spend every result carries."""
+    """Add characteristic effects and the four-point Kill Count spend to seeded results."""
     table = boost["table"]
     raises = {
         ("Combat Neuroware", "WS"): "WS",
@@ -120,8 +107,7 @@ def finished_results(boost, kill_count, fighter_stats):
 
 @pytest.fixture
 def gang(gang_type, owner, boost, spyrer_subtype, finished_results):
-    """The gang type gives every Spyrer the choice, narrowed by the
-    subtype and never by the Kill Count."""
+    """Grant Power Boost to models with the Spyrer subtype, independent of Kill Count."""
     modifier(
         "Spyrers carry Power Boost",
         targets_every_model(has_subtypes(spyrer_subtype)),
@@ -157,7 +143,7 @@ def spyrer(fighter_type, gang_type, spyrer_subtype, kill_count):
 
 @pytest.fixture
 def orrus(gang, spyrer):
-    """Hired, and six kills in."""
+    """Hire a Spyrer and add six Kill Count."""
     model = hire(gang, spyrer, "Orrus", paid=300)
     tally(kill_row(model), +6)
     return model
@@ -189,7 +175,7 @@ def choice_of(miniature, label="Power Boost"):
 
 
 def roll_for(miniature, rolled):
-    """A roll made at the table and entered — the number is the test's."""
+    """Record the supplied roll for the model's Power Boost choice."""
     choice = choice_of(miniature)
     gang = miniature.membership.gang
     with operation(gang, actor=gang.owner) as op:
@@ -210,9 +196,7 @@ def take(miniature, result, roll=None):
 
 
 class TestTheTableIsStandardContent:
-    """One click on Foundations, and the table stands as the book prints
-    it: six results, two of them on the first band, each carrying what it
-    adds to the model's rating."""
+    """The seeded table contains six results, with two alternatives on roll 1."""
 
     def test_the_results_and_their_ratings_are_pinned(self, boost):
         """Pinned as literals, so the seed changes deliberately."""
@@ -237,9 +221,7 @@ class TestTheTableIsStandardContent:
         assert len(rows) == len(POWER_BOOST_TABLE)
 
     def test_a_reworded_annotation_keeps_its_row_on_a_second_click(self, boost):
-        """An author may reword what a result prints. The seed matches its
-        rows by qualifier, so a second click adopts the reworded row
-        rather than refusing or creating a twin."""
+        """Reseeding matches results by qualifier and preserves an edited annotation."""
         from n26.library.models import Pickable
 
         ws = Pickable.objects.get(name="Combat Neuroware", qualifier="WS")
@@ -255,9 +237,7 @@ class TestTheTableIsStandardContent:
     def test_a_homebrew_result_of_the_same_name_is_not_in_the_way(
         self, boost, homebrew
     ):
-        """Names are unique per pack. A homebrew pack's own Thickened
-        Armour is a different thing, and the Foundations click must not
-        refuse over it."""
+        """Same-named results in another pack do not prevent seeding."""
         from n26.library.models import Pickable, SlotType
 
         Pickable.objects.create(
@@ -287,9 +267,7 @@ class TestTheTableIsStandardContent:
 
 
 class TestSpendingKillCount:
-    """A result picked is four Kill Count gone, a characteristic raised
-    where the result says, and the model worth more by the printed figure
-    — with nothing paid, so nothing to refund."""
+    """Picks spend Kill Count, apply their effects and add rating without a credit payment."""
 
     def test_the_spyrer_carries_the_choice_and_a_ganger_does_not(
         self, gang, orrus, fighter_type, gang_type
@@ -357,9 +335,7 @@ class TestSpendingKillCount:
         assert_reconciled(gang)
 
     def test_a_capped_result_is_substituted_by_the_player(self, gang, orrus, boost):
-        """The rules read a characteristic already at its best as Hunting
-        Rig Augmentation. The roll does not decide the pick, so the player
-        takes that result against a roll of one."""
+        """The entered roll does not force a pick; the player can select the substitute result."""
         roll = roll_for(orrus, 1)
         pick = take(
             orrus, result_named(boost["table"], "Hunting Rig Augmentation"), roll=roll
@@ -374,11 +350,7 @@ class TestSpendingKillCount:
     def test_a_characteristic_at_its_best_stays_there(
         self, gang, spyrer, boost, fighter_stats
     ):
-        """Weapon Skill stops at 2+. A Spyrer already there who takes
-        Combat Neuroware anyway is not refused — the app informs — and
-        the characteristic reads 2+ still; the rules say such a result
-        counts as Hunting Rig Augmentation, which is the player's to pick
-        instead, and either way the rating rises by twenty."""
+        """A pick at the characteristic limit remains allowed and adds rating without improving the stat."""
         set_statline(spyrer, weapon_skill=2)
         ace = hire(gang, spyrer, "Ace", paid=300)
         tally(kill_row(ace), +4)
@@ -395,8 +367,7 @@ class TestSpendingKillCount:
         assert_reconciled(gang)
 
     def test_the_choice_stays_when_the_count_falls_below_four(self, gang, orrus, boost):
-        """Nothing gates the line on the count. Below four it is still
-        there, and so is everything already picked for it."""
+        """The choice and existing picks remain available below four Kill Count."""
         take(orrus, result_named(boost["table"], "Thickened Armour"))
         assert kills_of(orrus) == 2
 
@@ -414,9 +385,7 @@ class TestSpendingKillCount:
     def test_taking_a_result_back_drops_its_rating_and_keeps_the_spend(
         self, gang, orrus, boost
     ):
-        """The four Kill Count were spent when the pick landed; taking the
-        result back is a removal, and a removal moves no counter and no
-        credits. The rating stops counting because the pick is archived."""
+        """Removing a boost removes its rating and effects but does not refund Kill Count or credits."""
         pick = take(orrus, result_named(boost["table"], "Thickened Armour"))
         gang.refresh_from_db()
         credits_before = gang.credits
@@ -433,9 +402,7 @@ class TestSpendingKillCount:
 
 
 class TestThePickScreen:
-    """The page the player rolls on: a one lifts both Combat Neuroware
-    rows and offers each, so the choice of Weapon Skill or Ballistic
-    Skill needs no machinery of its own."""
+    """Roll 1 highlights both Combat Neuroware alternatives for the player to choose."""
 
     @pytest.fixture
     def address(self, gang, orrus):
