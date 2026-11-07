@@ -1,15 +1,7 @@
-"""A budget given to a gang that had none opens from what the gang holds.
-
-A gang founded without a budget buys freely, and every purchase is still an
-honest ledger line. Deleting a model never refunds it, so the ledger goes on
-counting money spent on models no longer in the gang. When the gang later
-takes a budget — its own, or its campaign's — its credits are the budget
-less what it is worth now, not the budget less everything it ever spent.
-
-A gang that already had a budget keeps counting its whole spending history:
-for it, deleting is not a refund.
-
-Everything here moves money, so every test ends reconciled.
+"""Verify adopting a budget after unlimited spending. Initial credits subtract current
+holdings, including stashed equipment, rather than all historical purchases. Retain
+ledger history for deleted models. Once a gang already has a budget, deleting equipment
+or models does not refund their spending.
 """
 
 import pytest
@@ -41,13 +33,13 @@ def owner(db):
 
 @pytest.fixture
 def gang(gang_type, owner):
-    """Founded without a budget."""
+
     return found_gang("The Ashen Choir", gang_type, owner=owner)
 
 
 @pytest.fixture
 def vex(gang, make_profile, make_statline, default_pack):
-    """A 100¢ fighter carrying a 30¢ gun: 130¢ spent."""
+    """Fighter and weapon whose recorded prices total 130 credits."""
     profile = make_profile("Ganger", price=HIRE_PRICE)
     make_statline(profile)
     vex = hire(gang, profile, "Vex", paid=HIRE_PRICE)
@@ -57,7 +49,7 @@ def vex(gang, make_profile, make_statline, default_pack):
 
 @pytest.fixture
 def deleted(client, owner, gang, vex):
-    """Vex deleted, kit and all, while the gang had no budget."""
+    """Delete the fighter and all equipment while the gang has unlimited credits."""
     client.force_login(owner)
     response = client.post(reverse("n26-delete-fighter", args=[vex.pk]))
     assert response.status_code == 302
@@ -96,7 +88,7 @@ class TestDeletedModelsStopCounting:
         assert_reconciled(deleted)
 
     def test_what_was_spent_stays_in_the_ledger(self, client, deleted):
-        """The purchases are still true statements of what was paid."""
+        """Adopting a budget must preserve historical purchase events."""
         spent = list(
             LedgerEvent.objects.filter(
                 gang=deleted, kind=LedgerEvent.Kind.PURCHASED
@@ -177,7 +169,9 @@ class TestTheCampaignBudget:
 
 class TestTheRecord:
     def test_the_history_states_the_budget_without_a_figure(self, client, deleted):
-        """The correction is bookkeeping, not money the gang received."""
+        """The opening correction is bookkeeping, so the history sentence has no
+        received-credit delta.
+        """
         set_budget(client, deleted, 0)
         act = told(deleted)["set the budget to 0¢"]
         assert act.note == "unlimited → 0¢"
@@ -216,8 +210,7 @@ class TestAGangThatAlreadyHadABudget:
     def test_deleting_is_still_not_a_refund(
         self, client, owner, gang_type, make_profile, make_statline
     ):
-        """Changing one budget for another keeps the whole spending
-        history: what was spent on a deleted model stays spent."""
+        """Changing an existing budget preserves spending on deleted models."""
         gang = found_gang("The Bad Girls", gang_type, owner=owner, budget=1000)
         profile = make_profile("Ganger", price=HIRE_PRICE)
         make_statline(profile)
