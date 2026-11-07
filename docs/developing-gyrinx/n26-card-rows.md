@@ -43,7 +43,8 @@ stable key and a non-empty reason on its `Contribution`. This is a code-level
 exception, not a routine authoring option. Keep a regression test for the reason
 that the headings must remain separate.
 
-`test_card_rows.py` discovers declared assignable rows and checks their projection
+`test_card_rows.py` discovers declared assignable rows and every choice-bearing
+render structure, and checks their projection
 and picker wiring. `test_rows.py` discovers the supported part kinds and checks
 HTML, print and text support. A new part kind must have all three presentations;
 there is no unknown-kind fallback.

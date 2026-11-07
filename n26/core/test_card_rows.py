@@ -20,6 +20,7 @@ from django.template.loader import render_to_string
 from django_cotton.compiler_regex import CottonCompiler
 
 import n26.core
+from n26.core import render as render_module
 from n26.core.effects import ComputedCard
 from n26.core.render import ModelCard
 from n26.library.models.assignable import Assignable
@@ -203,3 +204,57 @@ class TestTheCardRows:
                 f"the holder for every question it has — ModelCard.questions "
                 f"— rather than name one list at a time."
             )
+
+
+def choice_holders():
+    return [
+        cls
+        for cls in vars(render_module).values()
+        if isinstance(cls, type)
+        and dataclasses.is_dataclass(cls)
+        and cls.__module__ == render_module.__name__
+        and any("ChoiceLine" in str(field.type) for field in dataclasses.fields(cls))
+    ]
+
+
+class TestEveryChoiceProducer:
+    def test_there_are_choice_bearing_structures_to_check(self):
+        assert ModelCard in choice_holders()
+
+    def test_every_choice_field_is_projected_or_has_an_explicit_hidden_reason(self):
+        from n26.core.render import ChoiceLine
+
+        for cls in choice_holders():
+            for source in dataclasses.fields(cls):
+                if "ChoiceLine" not in str(source.type):
+                    continue
+                if source.metadata.get("row_hidden"):
+                    continue
+                # Render structures are plain data; initialise their defaults so
+                # each source is checked alone, including frozen item structures.
+                holder = object.__new__(cls)
+                for field in dataclasses.fields(cls):
+                    if field.default_factory is not dataclasses.MISSING:
+                        value = field.default_factory()
+                    elif field.default is not dataclasses.MISSING:
+                        value = field.default
+                    else:
+                        value = "owner" if field.type is str else None
+                    object.__setattr__(holder, field.name, value)
+                choice = ChoiceLine("Guard heading", None, key="guard")
+                object.__setattr__(holder, source.name, [choice])
+                rows = [
+                    row
+                    for name in (
+                        "detail_rows",
+                        "other_choice_rows",
+                        "owned_choice_rows",
+                    )
+                    for row in getattr(holder, name, ())
+                ]
+                assert any(
+                    part.value is choice for row in rows for part in row.parts
+                ), (
+                    f"{cls.__name__}.{source.name} bypasses the row composer. "
+                    "Project this source, or declare a row_hidden reason if it is not a visible fact."
+                )

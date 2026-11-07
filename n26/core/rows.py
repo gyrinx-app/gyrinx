@@ -225,6 +225,23 @@ def part_text(part, *, prompts=False):
     raise ValueError(f"Unsupported row part: {part.kind!r}")
 
 
+def visible_parts(parts, *, mode=""):
+    """Filter presentation-only prompts before adding separators or placeholders."""
+    visible = [
+        part
+        for part in parts
+        if not (
+            mode == "readonly" and part.kind == PartKind.CHOICE and part.named_prompt
+        )
+    ]
+    populated = [
+        part
+        for part in visible
+        if part.kind not in (PartKind.NAMES, PartKind.GEAR) or part.value
+    ]
+    return populated or visible[:1] or [RowPart(PartKind.NAMES, ())]
+
+
 def readable_parts(row, *, skip_xp=True):
     return [
         part

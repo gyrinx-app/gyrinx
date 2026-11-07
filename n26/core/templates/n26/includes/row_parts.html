@@ -1,10 +1,12 @@
+{% load n26_rows %}
 {% comment %}
 Typed members of a composed row. Grouping happens in Python; every source keeps
 its own name, provenance and controls. slot_style retains the gang detail-list
 choice presentation. Card mode and htmx are supplied by the surrounding card.
 Keep each separator with its source so it cannot wrap onto a line on its own.
 {% endcomment %}
-{% for part in parts %}
+{% visible_row_parts parts mode as displayed_parts %}
+{% for part in displayed_parts %}
     {% if part.kind == "gear" %}
         <div class="inline-block max-w-full align-baseline">
             {% include "n26/includes/gear_lines.html" with lines=part.value has_actions=part.has_actions %}

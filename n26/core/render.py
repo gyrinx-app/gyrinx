@@ -1223,7 +1223,12 @@ class ModelCard:
     rank_summaries: tuple[RankSummary, ...] = ()
     #: Kept outside question_lists so only the Edit page can restore them;
     #: they never draw among the card's choices, including on print.
-    dismissed_choices: list[ChoiceLine] = field(default_factory=list)
+    dismissed_choices: list[ChoiceLine] = field(
+        default_factory=list,
+        metadata={
+            "row_hidden": "Dismissed offers have separate restore controls outside the visible card rows."
+        },
+    )
     #: The collections this model's grid places a category into, by id.
     #: Standing access, computed rather than assigned: it is what a
     #: screen for selecting is built on, and asking which of these hold
@@ -1598,6 +1603,10 @@ class AssetBoonLine:
     name: str
     effects: tuple[AssetBoonEffect, ...] = ()
     choices: tuple[ChoiceLine, ...] = ()
+
+    @property
+    def detail_rows(self):
+        return choice_rows(self.choices, owner=("asset", self.key))
 
 
 def _asset_origin_key(origin):

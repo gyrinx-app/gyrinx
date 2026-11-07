@@ -1,5 +1,7 @@
 """Heading composition preserves independent values, addresses and display owners."""
 
+import dataclasses
+
 import pytest
 from bs4 import BeautifulSoup
 from django.template import Context, Template
@@ -7,6 +9,8 @@ from django_cotton.compiler_regex import CottonCompiler
 
 from n26.core.printing import detail_groups
 from n26.core.render import (
+    AssetBoonEffect,
+    AssetBoonLine,
     AssignableLine,
     CampaignAssetLine,
     CampaignBlock,
@@ -259,6 +263,78 @@ class TestOwnersAndSurfaces:
         assert len(html.select("dt")) == 1
         assert html.find("a", href="/ash/")
         assert html.find("form", action="/restore/")
+
+    @pytest.mark.parametrize("row,bucket", list(ModelCard.QUESTION_BUCKETS.items()))
+    def test_readonly_named_rows_hide_prompts_before_separators_and_keep_empty_placeholders(
+        self, row, bucket
+    ):
+        questions = [
+            ChoiceLine("Primary choice", None),
+            ChoiceLine("Other choice", None),
+        ]
+        card = card_with(**{row: [AssignableLine("Known ability")], bucket: questions})
+        label = next(
+            field.metadata["row_label"]
+            for field in dataclasses.fields(ModelCard)
+            if field.name == row
+        )
+        html = card_html(card, "readonly")
+        heading = next(
+            dt for dt in html.select("dt") if dt.get_text(strip=True) == label
+        )
+        assert (
+            heading.find_next_sibling("dd").get_text(" ", strip=True) == "Known ability"
+        )
+        setattr(card, row, [])
+        html = card_html(card, "readonly")
+        heading = next(
+            dt for dt in html.select("dt") if dt.get_text(strip=True) == label
+        )
+        assert heading.find_next_sibling("dd").get_text(" ", strip=True) == "—"
+        assert not html.select("a, form, button")
+        assert getattr(card, bucket) == questions
+
+    @pytest.mark.parametrize("prominent", [False, True])
+    def test_boon_choices_group_within_each_copy_and_keep_each_control_and_effect(
+        self, prominent
+    ):
+        choices = [
+            ChoiceLine(
+                "Legacy",
+                name,
+                href=f"/choose/{key}/{index}/",
+                asset_key=key,
+                asset_name="Depot",
+            )
+            for key in ("holding:1", "holding:2")
+            for index, name in enumerate(("Red", "Blue"))
+        ]
+        campaign = CampaignBlock(
+            "Campaign",
+            "campaign",
+            choices=choices,
+            boon_assets=[
+                AssetBoonLine(key, "Depot", effects=(AssetBoonEffect("Reputation", 3),))
+                for key in ("holding:1", "holding:2")
+            ],
+        )
+        boons = campaign.boons
+        assert all(
+            len(boon.detail_rows) == 1 and len(boon.detail_rows[0].parts) == 2
+            for boon in boons
+        )
+        assert boons[0].detail_rows[0].owner != boons[1].detail_rows[0].owner
+        html = BeautifulSoup(
+            Template('{% include "n26/includes/asset_boons.html" %}').render(
+                Context({"boons": boons, "prominent_choices": prominent})
+            ),
+            "html.parser",
+        )
+        assert len(html.select("dt")) == 2
+        assert html.get_text().count("Reputation") == 2
+        assert all(html.find("a", href=choice.href) for choice in choices)
+        assert len(campaign.owned_choice_rows) == 2
+        assert all(group.text == "Red, Blue" for group in detail_groups(campaign))
 
     def test_readonly_has_one_heading_and_no_choice_or_dismissal_controls(self):
         card = card_with(
