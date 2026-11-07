@@ -36,8 +36,8 @@ which records the price adjustment against the hire.
                                 credits_href="{{ credits_href }}" />
         </c-slot>
         {% comment %}
-        Card actions navigate to the model's Edit page because this page has no partial-
-        update hosts.
+        Card action links target Edit, which has hosts for partial updates. Offer dismissal
+        returns to this Options page.
         {% endcomment %}
         <c-slot name="card">
             {% include "n26/includes/model_card_host.html" with htmx=False %}
