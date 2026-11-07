@@ -1026,12 +1026,10 @@ def rename_dialog_props(request, miniature, form=None):
 
 @login_required
 def create_gang(request):
-    """Found a gang: the design system's create form, wired to write.
+    """Create a gang and its founding assignment in one transaction.
 
-    POST founds for real — the Gang itself, then its founding assignment
-    and whatever the type's built-ins bring, in one operation — and
-    lands on the new gang's own sheet, or first on the screen for what
-    the founding brought, where any of it asks for one.
+    Validate gang-type staging access and the starting budget. After founding,
+    show only gang-hosted arrival questions before opening the new sheet.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.arrivals import onward
@@ -1041,9 +1039,7 @@ def create_gang(request):
     from n26.core.render import GANG_SLOT_HOST
     from n26.library.staged import sees_staged
 
-    # Staged gang types are on the cards for whoever may see staged content
-    # — an author checking a type before players meet it — and for nobody
-    # else.
+    # Use the same staged-type access in initial choices and submitted form validation.
     shown = sees_staged(request.user)
     if request.method == "POST":
         form = CreateGangForm(request.POST, include_staged=shown)
@@ -1067,8 +1063,7 @@ def create_gang(request):
                 )
                 with operation(gang, actor=request.user) as op:
                     op.found(gang_type)
-            # Recorded after the founding has committed: an event written
-            # inside the operation would vanish with it if it unwound.
+            # Record analytics after the founding transaction succeeds.
             record(
                 request,
                 N26Noun.GANG,
@@ -1078,16 +1073,8 @@ def create_gang(request):
                 starting_credits=budget,
             )
             messages.success(request, f"Founded {gang.name}.")
-            # To the new gang's own sheet: hiring is the next thing a
-            # founder does, and the dashboard is a detour past every
-            # gang they already have. By way of the screen for what the
-            # founding brought, where any of it asks for one.
-            #
-            # Only the gang's own questions: founding is where somebody
-            # says what the gang is, and a model's question belongs to
-            # the hire that brings the model. A gang type whose built-ins
-            # bring a model would otherwise put that model's questions on
-            # this screen; they stand unresolved on its card instead.
+            # Route founding through gang-hosted interstitials only.
+            # Model questions belong to the acquisition that introduces each model.
             return redirect(
                 onward(
                     request,
@@ -1108,11 +1095,9 @@ def create_gang(request):
 
 
 def _written_page(request, pk, *, field, template):
-    """The gang's writing in ``field``, then every model's.
+    """Render shared gang and model writing with owner-only editing links.
 
-    Anyone may read it, as anyone may read the sheet. Owning the gang
-    adds the Edit links and nothing else. Models with nothing written
-    and no picture are left off rather than listed as empty headings.
+    Omit models without writing or an image.
     """
     from n26.core.render import roster, summarise_roster
 
@@ -1122,9 +1107,6 @@ def _written_page(request, pk, *, field, template):
     entries = [
         {
             "name": model.name,
-            # The library entry beside the owner's name, as the card
-            # header says it — and skipped the same way when nobody has
-            # renamed the model, so it is not named twice.
             "profile": (
                 str(model.membership.profile)
                 if model.membership
@@ -1156,25 +1138,12 @@ def _written_page(request, pk, *, field, template):
 
 
 def gang_lore(request, pk):
-    """The gang's story, then every model's — the written half of a roster.
-
-    Anyone may read it, as anyone may read the sheet: lore is what a
-    player shows people. Owning the gang adds the Edit links and nothing
-    else. Models with nothing written and no picture are left off rather
-    than listed as empty headings.
-    """
+    """Render public gang and model lore using the shared writing-page builder."""
     return _written_page(request, pk, field="lore", template="n26/gang_lore.html")
 
 
 def gang_notes(request, pk):
-    """The gang's notes, then every model's — the working half of a roster.
-
-    Anyone may read it, as anyone may read the sheet: notes are written
-    for the table and shown to whoever holds the address. Owning the
-    gang adds the Edit links and nothing else. Models with nothing
-    written and no picture are left off rather than listed as empty
-    headings.
-    """
+    """Render public gang and model notes using the shared writing-page builder."""
     return _written_page(request, pk, field="notes", template="n26/gang_notes.html")
 
 
@@ -1193,7 +1162,7 @@ def use_campaign_budget(request, pk):
     if not gang.credits_unlimited:
         return redirect("n26-gang", pk=gang.pk)
     try:
-        # Campaign writers take the campaign lock before the gang lock.
+        # Acquire campaign locks before the gang lock.
         with campaign_operation(membership.campaign, actor=request.user):
             with operation(gang, actor=request.user) as op:
                 current = _active_campaign_membership(gang)
@@ -1203,8 +1172,7 @@ def use_campaign_budget(request, pk):
                     or current.campaign.budget is None
                 ):
                     raise Http404("No campaign budget")
-                # The operation refreshes the budget under the gang's lock, so
-                # a repeated submission cannot reset credits that now exist.
+                # Recheck unlimited status and campaign budget under lock to avoid resetting established credits.
                 if not gang.credits_unlimited:
                     return redirect("n26-gang", pk=gang.pk)
                 op.set_budget(current.campaign.budget)
@@ -1238,21 +1206,11 @@ def dismiss_campaign_budget(request, pk):
 
 @login_required
 def edit_gang(request, pk):
-    """Edit a standing gang: name, colour, and the credits budget.
+    """Edit an owned gang's name, presentation, budget, writing and image.
 
-    The create form's shape without the one answer that cannot change —
-    the type fixed who could be hired and what the founding brought, so
-    it is shown as the fact it is.
-
-    The budget edit is the interesting part. Its floor is the gang's
-    wealth (see ``EditGangForm``), and the write happens inside an
-    operation so ``settle`` recomputes the credits from the ledger —
-    the budget less everything actually spent — and refuses a budget
-    the spending history cannot fit, unwinding the whole change.
-
-    Notes and lore each have their own form and save. htmx leaves the
-    page as drawn so typing in one box survives saving the other; a
-    full submit lands back on this tab.
+    The type remains fixed. Record name, budget and writing through operations;
+    colour uses a plain save. Reconcile budget changes and refresh the instance
+    after rollback. Notes and lore save separately without replacing live editors.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.forms import EditGangForm, GangLoreForm, GangNotesForm, PictureForm
@@ -1293,9 +1251,6 @@ def edit_gang(request, pk):
             else:
                 messages.success(request, "Nothing changed.")
         else:
-            # The one field that can refuse — a file that is not an
-            # image. The reason travels as a message to the page this
-            # redirects back to.
             for wrong in form.errors.get("image", []):
                 messages.error(request, wrong)
         return redirect(f"{at}?tab=notes")
@@ -1320,24 +1275,15 @@ def edit_gang(request, pk):
         if form.is_valid():
             try:
                 with operation(gang, actor=request.user) as op:
-                    # The name and the budget are the gang's story and
-                    # go through their own verbs, which record them. The
-                    # colour is how a reader draws it and is nobody's
-                    # history, so it is a plain save.
+                    # Name and budget changes record history through operations; colour is a presentation save.
                     op.rename_gang(form.cleaned_data["name"])
                     op.set_budget(form.cleaned_data["starting_credits"])
                     gang.colour = form.cleaned_data["colour"]
                     gang.save(update_fields=["colour", "modified"])
                     op.settle()
             except NotEnoughCredits as refusal:
-                # The ledger's own floor: a budget the spending history
-                # cannot fit. The wealth floor usually refuses first, but
-                # the two figures part company where money was spent on
-                # things worth less than was paid.
-                #
-                # The database rolled back, so this instance is holding
-                # figures nothing ever took — a heading and a wealth line
-                # drawn from it would state a change that did not happen.
+                # Reject budgets incompatible with recorded spending.
+                # Refresh the rolled-back instance before rendering so unsaved figures do not appear.
                 gang.refresh_from_db()
                 form.add_error("starting_credits", str(refusal))
             else:
@@ -1362,9 +1308,7 @@ def edit_gang(request, pk):
             },
         )
 
-    # A failed save re-renders on the tab its form lives on, whatever
-    # the address said. Notes and lore each redirect (or stay, under
-    # htmx) and never reach here.
+    # Display failed general saves on their own tab; writing forms return separately.
     if request.method == "POST":
         tab = "general"
 
@@ -1378,9 +1322,7 @@ def edit_gang(request, pk):
             "lore_form": GangLoreForm(initial={"lore": gang.lore}),
             "wealth": gang.wealth,
             "tab": tab,
-            # The crop spec the picture box stamps onto the browser's
-            # dialog — handed from the same constants the server crops
-            # with, so the two cannot disagree.
+            # Share crop constants between server processing and browser controls.
             "picture_shape": LANDSCAPE,
             "picture_max": MAX_PX,
             "picture_url": gang.image.url if gang.image else "",
@@ -1392,20 +1334,14 @@ def edit_gang(request, pk):
     )
 
 
-#: The most a visit may be worth. No table in the book comes near it;
-#: the figure is typed by hand, so a slip on the keyboard is refused
-#: rather than stored.
+#: Bound manually entered visit points before storage.
 TRADE_POINT_CEILING = 999
 
 
 def _brought(data, ticked):
-    """What the visit is worth: the ticks, or a figure typed over them.
+    """Use an explicit bounded trade-point amount when supplied, otherwise the selected-model total.
 
-    The box opens empty. Left empty, the ticks decide. A figure typed
-    there is the amount, even nought — nought is a number somebody
-    meant, not an empty box.
-
-    Raises ValueError on a figure that is not a whole number in range.
+    Zero is explicit. Raise ValueError for non-digits or values above the ceiling.
     """
     typed = (data.get("brought") or "").strip()
     if not typed:
@@ -1416,10 +1352,7 @@ def _brought(data, ticked):
 
 
 def _trade_points_form(offered, offer, amount_label, empty_message):
-    """The tick list and amount box, as JSON the start form's island reads.
-
-    Points ride on each option. The running total is their sum.
-    """
+    """Build visit-selection props with each model's contribution and an optional total override."""
     points = {visitor.key: visitor.trade_points for visitor in offered}
     return {
         "amountLabel": amount_label,
@@ -1445,19 +1378,14 @@ def _trade_points_form(offered, offer, amount_label, empty_message):
 
 
 def _start_help(offered):
-    """What the start form says to do, for the state the gang is in."""
+    """Describe the available model-selection or amount-only visit form."""
     if offered:
         return "Select models to add their Trade Points, or enter the total yourself."
     return "Enter the Trade Points available for this visit."
 
 
 def _the_trading_post():
-    """The standard Trading Post, or None where the library has none.
-
-    Pinned to the default pack, as the equipping screens pin it: names
-    are unique per pack, so a homebrew pack's own "Trading Post" must
-    not shadow the standard one.
-    """
+    """Resolve the standard Trading Post in the default pack, excluding same-named custom posts."""
     from n26.library.models import Collection, get_default_pack
     from n26.library.standard_content import TRADING_POST_COLLECTION
 
@@ -1489,14 +1417,7 @@ def _dismissed_gang_choices(gang):
 
 
 def _edit_tabs(gang, current):
-    """The strip every screen that edits a gang's own facts carries.
-
-    Trade Points sit here rather than on a page of their own because a
-    reader looking for what a gang *has* looks in one place. It keeps its
-    own address all the same: it is a different act with its own two
-    forms, and a strip is a set of links, not a claim that one view
-    answers them all.
-    """
+    """Build gang edit navigation, showing Trade Points only when relevant or already open."""
     at = reverse("n26-edit-gang", args=[gang.pk])
     tabs = [
         {"label": "General", "href": at, "current": current == "general"},
@@ -1545,30 +1466,13 @@ def gang_other_actions(request, pk):
 
 @login_required
 def gang_trade_points(request, pk):
-    """The Visit Trading Post action: the one open, and starting another.
+    """Start or finish the gang's Visit Trading Post activity through operations.
 
-    One act per post. Starting names the fighters who perform it and
-    takes what they add between them; finishing shuts the post and
-    loses whatever is left, which is the book's own rule rather than
-    this screen's idea. Both go through an operation, and the event each
-    writes is what the spending is measured against.
+    Starting uses selected models' points or an explicit bounded amount, including
+    zero. Reject an empty unconfigured visit and a second open visit. Completing
+    discards unspent points. Purchases separately confirm permitted overspending.
 
-    The figures are not a form. A visit adds what its fighters add, and
-    the box beneath the ticks is for an owner who would rather say the
-    figure outright. Empty, the ticks decide; a number there is the
-    amount. The screen stays two plain posts and no query string.
-
-    Two things are refused, and both are refusals a reader cannot reach
-    from the page as drawn. An empty visit: with neither a ticked
-    fighter nor a typed amount there is nothing to start. And a second
-    visit while one is open: the form is shut then, so a start arriving
-    anyway is a stale page rather than an intention. The operation
-    refuses that one too, under the gang's own line, because two clicks
-    on one button arrive together often enough for a state read before
-    the line was taken to be stale by the time the second writes.
-
-    Spending past what a visit added is not among them — the purchase
-    asks whether that was meant, and then does it.
+    Reuse roster and contribution reads for the picker and any existing receipt.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.activities import founding_card, visit_card
@@ -1605,18 +1509,14 @@ def gang_trade_points(request, pk):
         return redirect(at)
 
     if request.method == "POST":
-        # One action at a time. The form is shut while one is open, so a
-        # start arriving here is a stale page — and silently discarding
-        # the open action's remaining Trade Points is not what whoever
-        # sent it meant.
+        # Do not replace an open visit or silently discard its remaining points.
         if gang.visiting_trading_post:
             messages.error(
                 request,
                 "Complete the open Visit Trading Post action before starting another.",
             )
             return redirect(at)
-        # Ticked boxes name models; anything else names nothing on this
-        # roster, so a tampered form simply sends nobody.
+        # Resolve visiting model keys only against this gang's current roster.
         going = visitors(gang, set(request.POST.getlist("visiting")))
         performing = [visitor for visitor in going if visitor.visiting]
         typed = (request.POST.get("brought") or "").strip()
@@ -1655,9 +1555,7 @@ def gang_trade_points(request, pk):
         )
         return redirect(at)
 
-    # The roster is read once and handed to both readers of it: the page
-    # draws every fighter, and the offer is the few of them who add
-    # something.
+    # Reuse one roster read for the displayed models and contribution offer.
     members = roster(gang)
     completed = gang.founding_completed_at()
     founding_at = ""
@@ -1687,13 +1585,7 @@ def gang_trade_points(request, pk):
             "visit_excluded": visit_excluded,
             "gang": gang,
             "action": at,
-            # Each fighter on the receipt gets a way to their own equip
-            # screen, opened on the post itself: having sent them there,
-            # spending what they added is the next thing an owner
-            # wants. Empty where the library has no post, which leaves
-            # the buttons off rather than sending anybody nowhere.
             "post": _the_trading_post(),
-            # The current visit replaces the start form until completed.
             "visit_card": visit_card(receipt, at) if receipt else None,
             "founding_card": founding_card(gang, founding_at) if founding_at else None,
             "start_founding": founding_at
@@ -1705,8 +1597,6 @@ def gang_trade_points(request, pk):
             else None,
             "visitors": offered,
             "start_help": _start_help(offered),
-            # The box is an alternative to the ticks only where there are
-            # ticks. On its own it is simply the amount.
             "amount_label": amount_label,
             "trade_points_form": _trade_points_form(
                 offered,
@@ -1714,9 +1604,7 @@ def gang_trade_points(request, pk):
                 amount_label,
                 f"No model in {gang.name} adds Trade Points.",
             ),
-            # Every fighter, not only those who performed the action:
-            # what a visit added is the gang's, and it is spent on
-            # whoever it was for. Who went is the ranks on the receipt.
+            # Visit points belong to the gang and can be spent on models beyond its performers.
             "roster": members,
             "offer": offer,
             "edit_tabs": _edit_tabs(gang, "trade-points"),
@@ -1726,29 +1614,12 @@ def gang_trade_points(request, pk):
 
 @login_required
 def gang_founding_action(request, pk):
-    """Start or complete the Spend founding TP action.
+    """Start, reopen or complete founding trade-point activity under the gang lock.
 
-    The card lives on the gang page; this is only the act behind it, so
-    a GET here is somebody following a link and lands back on the page
-    having changed nothing. ``act`` says which of the two was clicked,
-    and both go through an operation, which is what writes the event the
-    history reads.
-
-    Which action is open is read inside the operation, under the gang's
-    own line: two clicks on one button arrive together often enough, and
-    a state read before the line is taken can already be stale by the
-    time the second click writes. Starting a second while one is open is
-    refused there too
-    (``n26.core.operations.Operation.open_activity``). The card offers the
-    one control the state allows, so a post that lands the wrong way
-    round is a stale page rather than an intention.
-
-    Both clicks catch a refusal, not just the one with a rule of its own.
-    Every operation ends by rewriting the gang's credits, and that is
-    where a gang spending past a budget is refused — so a gang whose
-    budget was lowered under what it had already spent refuses even an
-    act that moves no money. The reader gets the sentence and the page
-    back rather than a server error.
+    Validate expected activity identifiers for completion and reopening.
+    Reopening requires completed founding with original grants still available.
+    Repeated starts of an already open activity change nothing. GET only redirects.
+    Report operation refusals, including budget reconciliation, on the source page.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.models import Activity
@@ -1828,30 +1699,11 @@ def gang_founding_action(request, pk):
 
 @login_required
 def delete_gang(request, pk):
-    """Deleting a gang: the question at its own address, then the act.
+    """Confirm and archive an owned gang while preserving assignments and ledger history.
 
-    GET asks and changes nothing; the POST from that page archives. Two
-    steps rather than one because the click is not reversible by the
-    player who made it, and because a link that deleted what it pointed
-    at would be deleted by anything that follows links.
-
-    Archiving is the whole of it — the gang stops being listed, stops
-    being searched, stops being drawn in the drawer, and its own pages
-    stop opening, because every one of those readers already asks for
-    live gangs only. Nothing underneath is touched: an assignment's
-    rating and a ledger entry's paid credits are true statements about
-    what happened, and they stay true whether or not the roster they
-    describe is still on show.
-
-    The confirmation counts the roster because the name alone is a weak
-    thing to check a decision against, and a reader with two gangs of
-    similar names deserves a second fact.
-
-    A gang still playing a campaign is taken out of it first, in the same
-    transaction, as the campaign's own Remove from campaign does: the
-    assets it holds go back to the campaign and what the campaign gave it
-    goes, so nothing in the campaign points at a gang nobody can open. The
-    page names the campaign so the owner knows before they click.
+    POST removes active campaign membership and returns campaign assets within
+    the archive transaction. GET shows the live roster count and active campaign
+    before confirmation.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.campaigns import archive_gang
@@ -1865,8 +1717,6 @@ def delete_gang(request, pk):
     )
     if request.method == "POST":
         archive_gang(gang, actor=request.user)
-        # Recorded as a deletion, which is what the player did. That the gang
-        # survives is how the ledger stays true, not something they asked for.
         record(request, N26Noun.GANG, EventVerb.DELETE, gang)
         messages.success(request, f"Deleted {gang.name}.")
         return redirect("n26-gangs")
@@ -1877,8 +1727,7 @@ def delete_gang(request, pk):
         {
             "gang": gang,
             "campaign": playing.campaign if playing else None,
-            # Live memberships only: a fighter already off the roster is
-            # not one of the things this click takes away.
+            # Count only live memberships in the archive confirmation.
             "roster": Miniature.objects.filter(
                 membership__gang=gang, membership__archived=False
             ).count(),
