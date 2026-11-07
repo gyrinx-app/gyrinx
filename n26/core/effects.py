@@ -18,7 +18,8 @@ a later conditional scope can.
 
 Removals cancel computed grants and suppress unpaid stored assignments.
 Never suppress a purchase or an assignment with paid descendants. Track
-all granting edges so a grant survives while any source remains.
+all granting edges so losing one source does not retract a grant still
+supplied by another. Direct removals can cancel the granted content.
 ``_retract`` removes dependent effects and restores removals whose own
 source was cancelled, without changing stored assignments.
 """
@@ -278,8 +279,9 @@ class HiddenCategories:
 class CategoryPlacement:
     """A modifier's placement of a category within a fighter's sections.
 
-    Placements are recomputed with their sources. Unplaced categories use
-    the Other section when browsed.
+    Placements are recomputed with their sources. Browsing uses the collection's
+    authored default section for unplaced categories, or Other when none is
+    declared.
     """
 
     category: object
@@ -2134,10 +2136,12 @@ def _bucket(computed, target, thing):
 
 
 def _place(computed, target, contribution, carrier=None):
-    """Place a grant and return its destination and appended entry.
+    """Place a grant and return its destination, field name and appended entry.
 
-    The entry is None for duplicate content or kinds without a display line.
-    Retraction uses the destination to remove or reattribute the grant.
+    Return ``(None, "", None)`` when no bucket accepts the grant. Traits,
+    equipment and assets use dedicated branches. Other buckets deduplicate
+    by contribution name and return no appended entry for a duplicate.
+    Retraction uses this result to remove or reattribute the grant.
     """
     holder, kind = _bucket(computed, target, contribution.thing)
     if holder is None:
@@ -2236,11 +2240,12 @@ def stands_whatever_happens(card, thing):
 def _retract(computed, log):
     """Propagate removals through grants and other dependent effects.
 
-    Content survives while any granting source remains. Reattribute surviving
-    entries without changing their positions. Apply named removals in settlement
-    order so mutual removals do not depend on iteration order. Restore effects
-    of removals whose own source was cancelled, then settle campaign-default
-    exclusions.
+    When a granting source is removed, retain content supplied by another
+    source. A direct removal of that content can still cancel it. Reattribute
+    surviving entries without changing their positions. Apply named removals
+    in settlement order so mutual removals do not depend on iteration order.
+    Restore effects of removals whose own source was cancelled, then settle
+    campaign-default exclusions.
 
     Work entirely in memory, preserving stored assignments and repeatable
     computation. Return content absent from the final card so acquisitions

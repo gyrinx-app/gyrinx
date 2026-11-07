@@ -144,8 +144,9 @@ def latest(gang, limit=5, viewer=None):
     one operation may contain many events. Take entries from its recent end
     to avoid incomplete older groups. Omit model links to avoid a roster lookup.
 
-    Load events and their referenced assignments, with an additional query
-    only when propagated grants need their current source names.
+    Load events and their referenced assignments. Additional conditional reads
+    resolve propagated grant sources, roll slots and referenced rolls outside
+    the event window.
     """
     acts = _acts_from(_events(gang, window=SNAPSHOT_WINDOW), viewer, alive=frozenset())
     return list(reversed(acts))[:limit]
@@ -321,8 +322,9 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
 
     Build source entries before attaching grants and cascading removals,
     refunds or sales. A dependent event remains separate if its source has
-    no entry. Unbatched grants may attach to an earlier source entry by cause;
-    batched grants cannot attach outside their batch.
+    no entry. Unbatched grants may attach by cause to an earlier source entry;
+    batched cause-based grants stay within their batch. A pick may instead
+    attach to a loaded roll entry from another batch on the same day.
     """
     # Each clone writes its openings before its standalone event. Group by
     # that boundary so companions stay included and later moves of copied
