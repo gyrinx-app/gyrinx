@@ -2050,8 +2050,8 @@ class Operation:
         Update the existing founding assignment so its ledger entry and events
         survive. A gang without a founding uses ordinary founding.
 
-        Refuse when the founding has already granted equipment: removing those
-        assignments requires ledgered refunds, which this operation does not perform.
+        Refuse if the founding has any caused assignments or recorded option
+        selections. This operation does not remove or refund them.
         """
         from n26.core.models import Stash
 
@@ -2201,8 +2201,9 @@ class Operation:
         preventing automatic replacement of equipment the owner removed. Satisfied
         members never call ``assign`` or repeat stored effects.
 
-        Grants are caused by their carrier and normally share its host. Pass
-        ``gang`` for gang-hosted carriers. Process ammunition after weapons:
+        Non-ammunition grants are caused by their carrier and hosted on its model
+        or stash root. Pass ``gang`` for gang-hosted carriers without a model,
+        such as a founding. Process ammunition after weapons:
         ``gun_member`` identifies an exact weapon copy, while unanchored ammunition
         uses the newest live matching weapon on the host. Missing weapons raise
         content errors during acquisition (``strict``) and become skips during repair.
