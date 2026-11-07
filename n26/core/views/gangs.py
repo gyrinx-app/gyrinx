@@ -1,4 +1,4 @@
-"""Where a player lands, what they own, and founding one more."""
+"""Read gang dashboards and shared sheets, and manage owner-authorised gang actions."""
 
 import json
 from dataclasses import dataclass
@@ -31,23 +31,16 @@ from n26.core.views.permissions import (
     trade_points_href,
 )
 
-#: How many gangs a page of the list holds. A row carries a name, a
-#: type, a strip of money and its controls, so this is about a screen
-#: and a half of scrolling — enough to read down, few enough that the
-#: page is not the whole table.
 GANGS_PER_PAGE = 25
 
 
-#: Drawn beside the Campaigns tab's label when something is waiting there.
-#: Safe because it is ours: no part of it comes from anybody's input, and the
-#: tab strip takes markup as a string because it is built in the browser.
+#: Static application markup for the invitation indicator; it contains no user input.
 CAMPAIGNS_WAITING = mark_safe(  # nosec B703 B308 - literal, no user input
     '<span aria-hidden="true" class="inline-block size-2 rounded-full'
     ' bg-accent align-middle"></span>'
 )
 
-#: Query names the home page's tab strip will honour. Anything else falls
-#: back to Gangs so an unknown ?tab= cannot hide every panel.
+#: Allowlisted dashboard tabs; unknown values fall back to Gangs.
 DASHBOARD_TABS = ("Gangs", "Campaigns", "Content Packs")
 
 
@@ -74,7 +67,7 @@ def _active_campaign_membership(gang):
 
 
 def _budget_notice_signature(gang, membership):
-    # A new membership or either changed budget needs a fresh decision.
+    # Invalidate the dismissed notice when membership or either budget changes.
     return [str(membership.pk), membership.campaign.budget, gang.starting_credits]
 
 
@@ -114,18 +107,9 @@ def _campaign_budget_notice(request, gang):
 
 @login_required
 def dashboard(request):
-    """The edition's front page: your gangs, and what changed lately.
+    """Show the signed-in user's gangs, campaigns, invitations and N26 release notes.
 
-    Assembled entirely from the design system's components — the view
-    supplies rows and the components draw them, so this page and the
-    gallery's shell can only drift by someone editing the library. The
-    type filter is the gang-table's own — the rows just register their
-    facets — and its search box lands on the gangs page, so a query
-    typed here and submitted is answered by the same view that answers
-    ``/n26/gangs/?q=``.
-
-    The changelog is the site's, narrowed to the entries tagged for this
-    edition.
+    Use the shared gang-table context; submitted search goes to the gangs page.
     """
     from n26.core.models import Campaign
     from n26.core.views.campaigns import campaign_rows, invitations_for
@@ -137,10 +121,6 @@ def dashboard(request):
         .prefetch_related("owner__badge_grants")
         .order_by("name", "pk"),
     )
-    # An invitation waiting is the one thing on this page worth interrupting
-    # for, so the tab wears a mark and the rows sit above the reader's own.
-    # The mark is markup rather than a flag because the tab strip is built in
-    # the browser from a registered string, and a string is what it can take.
     invitations = list(invitations_for(request.user))
     tab = request.GET.get("tab", "Gangs")
 
@@ -162,19 +142,7 @@ def dashboard(request):
 
 @login_required
 def gangs(request):
-    """Every gang you own, on a page of its own — or everybody's.
-
-    The dashboard's gangs tab shows the same rows in two thirds of a
-    column beside the changelog; this is where the bar's Gangs link
-    lands, so the list gets the whole width and nothing else competes
-    with it. Same context, same component — the two cannot disagree
-    about what a gang row looks like.
-
-    ``?everyone=1`` widens it to every gang on the site, which is the
-    way to somebody else's roster: a sheet is readable by whoever holds
-    its address, and this is where an address is found. Your own is the
-    default, because that is what the link in the bar is for.
-    """
+    """List the viewer's gangs, or all live gangs when everyone is requested."""
     return render(
         request,
         "n26/gangs.html",
@@ -187,23 +155,11 @@ def gangs(request):
 
 
 def _record_table_context(request, everyone=False, per_page=None):
-    """The rows and facets <c-n26.record-table> needs: gangs — the
-    viewer's own, or everybody's — narrowed by ``?q=`` when there is
-    one, and the types present among what survives.
+    """Build gang-table rows, facets and optional pagination under URL search state.
 
-    Name and gang type are searched because they are the two things a row
-    shows, and the two the table's own in-page filter reads — a query that
-    works in the box works after clicking Search.
-
-    The matching is the platform's ``search_queryset``: full-text plus a
-    substring fallback on every field, so "scav" finds "Scavvies". It
-    knows nothing about either edition, and writing a second one here is
-    how the two come to disagree about what a search means.
-
-    ``per_page`` cuts the answer into pages. Without it the caller gets
-    the whole list, which is what a reader's own gangs on the dashboard
-    are; the gangs page passes one, because every gang on the site is
-    not a page anybody should be sent.
+    Search name and type through the platform search_queryset helper. Annotate
+    live roster counts and expose campaign links only for campaigns involving
+    the viewer. Without per_page, return the complete matching list.
     """
     from gyrinx.querysets import search_queryset
     from n26.core.models import Campaign, CampaignMembership, Gang, Miniature
@@ -212,9 +168,8 @@ def _record_table_context(request, everyone=False, per_page=None):
     listed = Gang.objects.filter(archived=False)
     if not everyone:
         listed = listed.filter(owner=request.user)
-    # The gang page's roster count: models still in the gang and not
-    # dead, pets and vehicles included. A subquery rather than a join, so
-    # it runs per listed row and never aggregates over every gang.
+    # Count active, non-dead members, including pets and vehicles, through a correlated
+    # subquery rather than aggregating all gangs in a join.
     living = (
         Miniature.objects.filter(
             membership__gang=OuterRef("pk"), membership__archived=False
@@ -239,8 +194,7 @@ def _record_table_context(request, everyone=False, per_page=None):
         pages = _pages(request, page) if page.paginator.num_pages > 1 else None
         found = page.object_list
     found = list(found)
-    # An index may list everybody's public gangs. Only expose campaigns
-    # this reader runs or has accepted, and fetch all displayed links once.
+    # Expose campaign links only for campaigns the viewer runs or has joined.
     campaigns = {}
     if found:
         campaigns = {
@@ -262,22 +216,12 @@ def _record_table_context(request, everyone=False, per_page=None):
     return {
         "gangs": found,
         "query": query,
-        # How many rows this page carries, for a reader with no script:
-        # the live count is Alpine's, and without it the number beside
-        # the noun would be blank.
         "listed": len(found),
-        # What the whole answer holds, where this is one page of it, so
-        # the count can say "8 of 143" rather than leaving a reader to
-        # wonder what the pager is for.
         "total": total,
         "pages": pages,
-        # A row says whose it is only where that can differ; a page of
-        # your own would print your name down the side of it.
         "show_owners": everyone,
         "everyone": everyone,
         "mine_only": not everyone,
-        # Deduplicated in order rather than sorted: the filter reads
-        # better in the order the reader saw the types down the list.
         "gang_type_options": [
             {"value": name, "label": name}
             for name in dict.fromkeys(str(gang.gang_type) for gang in found)
@@ -286,17 +230,7 @@ def _record_table_context(request, everyone=False, per_page=None):
 
 
 def _pages(request, page):
-    """The numbered links under a paged list, addresses and all.
-
-    Built here rather than by the kit's own automatic mode, which writes
-    ``?page=2`` and nothing else: a reader who has searched, or asked
-    for everybody's gangs, would lose the question they asked by turning
-    the page. Every other parameter rides along.
-
-    Django picks which numbers to draw and elides the middle of a long
-    run, handing back a string where the gap goes; a gap is marked
-    rather than linked, because there is no one page it leads to.
-    """
+    """Build elided pagination links while preserving every other query parameter."""
 
     def address(number):
         asked = request.GET.copy()
@@ -326,32 +260,14 @@ def _pages(request, page):
 
 
 def gang_sheet(request, pk):
-    """One gang, whole: what it is worth, what it owns, who is in it.
+    """Render a public live-gang sheet with management controls for its owner.
 
-    The design system's gang sheet over real rows. ``render_gang``
-    already does the derivation — the gang's own lines, its choices and
-    counters, the stash, a card per member — in a fixed number of
-    queries however big the roster, so this view is the lookup and
-    nothing else, and the page draws the same component the gallery's
-    shell does.
+    Derive the gang and link displayed facts to permitted actions. Hide dismissed
+    offers for every reader. Signed-in non-owners retain read, print and clone
+    navigation but receive no owner equipment or status controls.
 
-    Anyone may read a roster, signed in or not — the address one player
-    sends another shows the same gang to whoever opens it. Owning it is
-    what adds the controls: the reader who does not gets the sheet with
-    every button, dialog and picker left off, and choices nobody has
-    made read as words rather than as something to click. An
-    archived gang is nobody's to read.
-
-    Every choice slot on the sheet — the gang's own and every member's —
-    is pointed at its picker here, in one pass over what has already been
-    derived. No queries, so a roster of sixteen costs what a roster of one
-    does.
-
-    The way into a fighter's skills is pointed the same way, and costs
-    one query for the whole roster: which collections hold what a model
-    selects is asked once, and each card already carries the collections
-    its own grid reaches. A fighter with no grid gets no control, which
-    is a content gap showing rather than a screen being withheld.
+    URL parameters select one confirmation; owner htmx status requests can return
+    only that panel. Common card and stash links use already-derived identities.
     """
     from django.template.response import TemplateResponse
 
@@ -367,17 +283,10 @@ def gang_sheet(request, pk):
     gang = _any_gang_or_404(request, pk)
     yours = gang.owner_id == getattr(request.user, "id", None)
     at = reverse("n26-gang", args=[gang.pk])
-    # The act lands where it was asked from: the model's own page when
-    # the address says so, this sheet otherwise. A named place, never a
-    # URL, so there is nothing for an open redirect to ride.
+    # Use the fixed back=edit destination rather than accepting a submitted status URL.
     status_back = "edit" if request.GET.get("back") == "edit" else ""
     may_mark = may_mark_status(gang, request.user)
     if may_mark and request.method == "GET" and is_htmx(request):
-        # A badge or menu asking for a status question over htmx gets the
-        # panel alone, in its host, and the page underneath stays as it
-        # is. The address is corrected to the one that draws the panel on
-        # a plain visit, so a reload shows it again — unless the ask came
-        # from the model's own page, whose address this is not.
         marking = _marking(request, gang)
         ransoming = None if marking else _ransoming(request, gang)
         if marking or ransoming:
@@ -399,15 +308,10 @@ def gang_sheet(request, pk):
                 response["HX-Replace-Url"] = request.get_full_path()
             return response
     card = build_gang_card(gang)
-    # Signed in as well as the owner: ``yours`` alone is true for a visitor
-    # reading a gang that has no owner.
+    # Require authentication as well as matching ownership, including ownerless gangs.
     signed_in_owner = may_see_founding(gang, request.user)
-    # for_owner puts the founding figures on the cards — what a model has
-    # left of its founding Trade Points — for the owner, and is what keeps
-    # everyone else's read from paying for figures they are not shown.
-    # The owner's stash lines each carry a menu naming one assignment,
-    # so theirs stay one to an assignment; everyone else reads repeats
-    # stacked as one line with a count.
+    # Compute founding details only for an authenticated owner.
+    # Keep owner copies separate for assignment-specific menus; other viewers can collapse repeats.
     sheet = render_gang(
         gang, card=card, for_owner=signed_in_owner, collapse_repeats=not yours
     )
@@ -420,9 +324,7 @@ def gang_sheet(request, pk):
         else None
     )
     link_owners(sheet)
-    # The offers the owner has dismissed come off every card and the
-    # gang's own strip, whoever is reading: one query. Restore controls
-    # belong on the gang's or model's Edit page.
+    # Hide dismissed choices with one shared read; restoration controls belong on Edit pages.
     settle_dismissed(
         gang,
         hide_only=(sheet, *sheet.models, *sheet.dead),
@@ -459,16 +361,11 @@ def gang_sheet(request, pk):
             sheet, at, refunds=not gang.credits_unlimited, bound_items=host.bound_items
         )
         if sheet.campaign:
-            # The campaign's counters only. A model's counter is moved on
-            # the model's own page; a campaign counter is drawn here and
-            # nowhere else, so here is the only place its controls can be
-            # offered. The gang's own counters stay settled facts.
             link_counters(sheet.campaign, back=at, adjust=True)
             for choice in sheet.campaign.choices:
                 if choice.href and not choice.holding_name:
                     choice.href = with_query(choice.href, dialog="campaign")
-    # One question at a time: a URL naming two dialogs draws the leaving
-    # one, because two open modals is not a state the page can mean.
+    # Give departure confirmation priority so only one modal opens.
     leaving = _leaving(request, gang) if yours else None
     renaming = None if leaving or not yours else _renaming(request, gang)
     marking = None if leaving or renaming or not may_mark else _marking(request, gang)
@@ -495,11 +392,7 @@ def gang_sheet(request, pk):
             "yours": yours,
             "trade_points_href": trade_points_href(gang, request.user),
             "credits_href": credits_href(gang, request.user),
-            # Whether the stash card's way into a visit is shut for now.
-            # Free where the square below was drawn: that read which
-            # actions the gang has open, and the gang holds the reading.
             "founding_blocks_visit": founding_blocks_visit(gang, signed_in_owner),
-            # The square is the owner's: everything in it acts on the gang.
             "activities_square": (
                 activities_square(
                     gang,
@@ -510,8 +403,6 @@ def gang_sheet(request, pk):
                     clean_house_at=reverse("n26-clean-house", args=[gang.pk])
                     if may_mark
                     else "",
-                    # Every model held for ransom, by name: an unpaid one
-                    # dies, so it is the first thing the square asks for.
                     ransoms=tuple(
                         (model.name, f"{at}?ransom={model.id}")
                         for model in sheet.models
@@ -522,24 +413,15 @@ def gang_sheet(request, pk):
                 if signed_in_owner
                 else None
             ),
-            # Printing follows reading rather than owning, so a reader
-            # who does not own the gang is still offered it — but a
-            # visitor who has not signed in is not.
             "may_print": request.user.is_authenticated,
             "more_actions": more_actions(
                 gang, yours=yours, signed_in=request.user.is_authenticated
             ),
-            # A reader who does not own this gang reads it and nothing
-            # more: the cards drop every control, and a choice still to
-            # be made is the words alone.
             "card_mode": "gang" if yours else "view",
             "renaming": renaming,
             "leaving": leaving,
             "marking": marking,
             "ransoming": ransoming,
-            # Whether the cards offer a model's status at all: the badge
-            # leads to the dialog, and an Active model gets a quiet way in
-            # of its own. Shut, every status is drawn as words.
             "may_mark": may_mark,
             "status_back": status_back,
             "status_cancel_url": _status_cancel_url(
@@ -552,13 +434,10 @@ def gang_sheet(request, pk):
 
 
 def more_actions(gang, *, yours, signed_in):
-    """The links in the gang sheet header's More actions menu.
+    """Build whole-gang navigation for the viewer's access level.
 
-    The owner gets every whole-gang detour, Delete gang last. A signed-in
-    reader who does not own the gang gets only the pages that change
-    nothing of the owner's: Notes, Lore and Clone gang. A visitor who has
-    not signed in gets no menu; the sheet draws Notes and Lore as buttons.
-    No separators, in either menu.
+    Owners receive management and read links, with Delete last. Signed-in readers
+    receive Notes, Lore and Clone; anonymous readers receive no menu.
     """
 
     def link(label, route, tone=SECONDARY):
@@ -571,9 +450,6 @@ def more_actions(gang, *, yours, signed_in):
             link("Notes", "n26-gang-notes"),
             link("Lore", "n26-gang-lore"),
             link("Clone gang", "n26-clone-gang"),
-            # A page that asks, not the act: following this link deletes
-            # nothing. The POST it leads to does, behind a second click,
-            # because it cannot be undone.
             link("Delete gang", "n26-delete-gang", DANGER),
         ]
     if signed_in:
@@ -587,27 +463,18 @@ def more_actions(gang, *, yours, signed_in):
 
 @dataclass(frozen=True)
 class Marking:
-    """The status question ``?status=`` opened: whose, what they are now,
-    and what a death would do with their kit."""
+    """A model status confirmation with choices and kit-disposal defaults."""
 
     miniature: object
     current: str
-    #: ``(value, label, what it means, checked)`` per status — checked
-    #: worked out here because a cotton ``:checked`` takes a variable and
-    #: not a comparison.
     choices: tuple
-    #: True when the model carries kit money was paid for, so a death
-    #: has a stash to offer.
     stashable: bool
-    #: Whether the kit is lost rather than stashed by default — a
-    #: Vehicle's, a Brute's, a Hanger-on's — and its opposite, for the
-    #: two radios.
     kit_lost_by_default: bool
     kit_stashed: bool
 
 
 def _marking(request, gang):
-    """The model ``?status=`` says is being marked, if it is on this roster."""
+    """Build status choices for a named live gang member, including vehicle labels."""
     from n26.core.operations import refund_of
     from n26.core.status import label_for
 
@@ -637,23 +504,19 @@ def _marking(request, gang):
 
 @dataclass(frozen=True)
 class Ransoming:
-    """The ransom question ``?ransom=`` opened: whose, who could be paid,
-    and what the gang has to pay with."""
+    """Ransom confirmation data with eligible payees, available credits and allowed amounts."""
 
     miniature: object
-    #: ``(pk, name)`` for each other gang in the campaign; empty for a
-    #: gang playing none, who can still pay somebody not on Gyrinx.
     payees: tuple
-    #: What the gang has left, or None where it spends freely.
     credits: object
-    #: The D6 × 10 figures, for the radio.
     amounts: tuple = tuple(range(10, 70, 10))
 
 
 def _payees(gang):
-    """``(pk, name)`` for each other gang in this gang's campaign — the
-    only gangs a ransom may be paid to. A gang playing no campaign has
-    none, and pays somebody not on Gyrinx."""
+    """List other active gangs in the same campaign as eligible in-app ransom recipients.
+
+    An empty list still permits payment to a recipient outside the app.
+    """
     from n26.core.models import CampaignMembership
 
     membership = (
@@ -675,8 +538,7 @@ def _payees(gang):
 
 
 def _ransoming(request, gang):
-    """The model ``?ransom=`` says is being paid for, if it is on this
-    roster and held for ransom."""
+    """Build a ransom dialog only for a named live member currently held for ransom."""
     from n26.core.status import Status
 
     miniature = _fighter_named(request, gang, "ransom")
@@ -690,16 +552,14 @@ def _ransoming(request, gang):
 
 
 def _status_cancel_url(gang, asking, back):
-    """Where dismissing a status question goes: the model's own page when
-    the question was asked from there, the sheet otherwise."""
+    """Return a status dialog to Edit when requested, otherwise to the gang sheet."""
     if back == "edit" and asking is not None:
         return reverse("n26-edit-fighter", args=[asking.miniature.pk])
     return reverse("n26-gang", args=[gang.pk])
 
 
 def _kit_is_lost_on_death(profile):
-    """Whether the rules delete this model's kit with it: a Brute's or a
-    Hanger-on's gear is deleted where a fighter's goes to the stash."""
+    """Read Brute and Hanger-on built-ins to determine the default kit-loss choice."""
     from n26.library.models import Subtype
 
     if profile.built_ins_id is None:
@@ -712,30 +572,17 @@ def _kit_is_lost_on_death(profile):
 
 
 def _renaming(request, gang):
-    """The model ``?rename=`` says is being renamed, if it is on this roster.
-
-    Open is a server state: the sheet draws the rename dialog only when
-    the URL names one of the gang's own live members. Anything else — a
-    stale link, somebody else's fighter, a pk that is not a ULID — is a
-    page without a dialog rather than an error worth a screen.
-    """
+    """Resolve the named live gang member for a rename dialog, or return None."""
     return _fighter_named(request, gang, "rename")
 
 
-#: What a model's card anchor opens with — ``<c-n26.model-card>`` puts
-#: ``id="model-<pk>"`` on a stored card's header band.
 MODEL_ANCHOR = "#model-"
 
 
 def link_owners(sheet):
-    """Point each pet's owner line at the owner's card, where the sheet
-    draws one.
+    """Link pet-owner labels only when the referenced card appears on this sheet.
 
-    A pet can outlive its owner's place on the roster — the collar stays
-    live when its bearer leaves — and the pet's card still names them.
-    Only an owner the sheet draws, alive or dead, gets a link; anyone
-    else is named in words, since a link to a card that is not on the
-    page lands nowhere.
+    Preserve names without anchors when the owner's card is absent.
     """
     cards = [*sheet.models, *sheet.dead]
     drawn = {card.id for card in cards}
@@ -745,11 +592,7 @@ def link_owners(sheet):
 
 
 def _fighter_named(request, gang, param):
-    """The live member ``param`` names in this gang, or None.
-
-    The same shrug as ``_renaming``'s: a stale link, somebody else's
-    fighter, or a pk that is not a ULID is a page without a dialog.
-    """
+    """Resolve a query-named live member, returning None for malformed, missing or unrelated IDs."""
     from django.core.exceptions import ValidationError
 
     from n26.core.models import Miniature
@@ -766,8 +609,7 @@ def _fighter_named(request, gang, param):
 
 
 def _kit_roots(miniature):
-    """The live root assignments the model carries — its own kit, not
-    the parts hanging off it."""
+    """Load live top-level equipment assignments carried by this model."""
     from n26.core.models import Assignment
 
     return list(
@@ -778,19 +620,10 @@ def _kit_roots(miniature):
 
 
 def _leaving(request, gang):
-    """The delete or refund question ``?delete=``/``?refund=`` says is open.
+    """Build delete or refund confirmation from the shared departure calculation.
 
-    The dialog quotes its own arithmetic, so everything it says is
-    computed here from the same functions the act will use: what a full
-    refund returns, what the fighter alone returns, and how many kit
-    lines a stash disposal would move — only lines money was paid for,
-    because a built-in knife moved to the stash is clutter the next hire
-    re-arms for free.
-
-    Trade Points are counted beside the credits because a refund gives
-    both back. A gang founded without a budget returns nothing else, so
-    the points are also what decides whether the question is a refund at
-    all.
+    Show complete and stash-first returns, including founding trade points.
+    Unlimited-credit gangs with no refundable points use deletion wording.
     """
     from n26.core.departure import departure_for
     from n26.core.operations import Refusal
@@ -810,10 +643,7 @@ def _leaving(request, gang):
         return None
     full_paid, full_points = departure.refund
     fighter_paid, fighter_points = departure.stash_refund
-    # A gang founded without a budget pays no credits, so unless a
-    # founding allowance paid for something this model carries there is
-    # nothing to give back: a refund asked of it is a deletion, and the
-    # dialog says so rather than offering 0¢.
+    # Use deletion wording when an unlimited-credit departure returns no founding points.
     if kind == "refund" and gang.starting_credits is None and not full_points:
         kind = "delete"
 
@@ -826,27 +656,15 @@ def _leaving(request, gang):
             else ""
         ),
         "models": ", ".join(model.name for model in departure.models),
-        # What the whole departure hands back, credits and Trade Points
-        # together: a figure naming only the credits would promise
-        # nothing to a gang that counts none.
+        # Read refunds before archiving because archived assignments are excluded from refund totals.
         "full_returned": refund_words(gang, full_paid, full_points),
-        # And what the model alone hands back, for the button that
-        # stashes the kit first.
         "stash_label": _stash_label(gang, kind, fighter_paid, fighter_points),
         "stashable": bool(departure.stashable),
     }
 
 
 def _stash_label(gang, kind, paid, trade_points):
-    """The second button on a leaving dialog: put the kit in the stash
-    first, then do the thing.
-
-    It names what the model alone hands back, where that is something.
-    Where it is nothing — a hire that was free, or a gang whose credits
-    count for nothing and whose allowance paid only for the kit being
-    stashed — a figure would promise a zero, so the button says what it
-    does and leaves the arithmetic out.
-    """
+    """Name the stash-first departure option and any remaining refundable payment."""
     from n26.core.views.owned import refund_words, refunded_credits
 
     if kind != "refund":
@@ -858,31 +676,22 @@ def _stash_label(gang, kind, paid, trade_points):
 
 @login_required
 def delete_fighter(request, pk):
-    """Delete one model: the fighter goes, and what was paid stays spent."""
+    """Remove the model through its shared departure flow without refunding payment."""
     return _dismiss(request, pk, kind="delete")
 
 
 @login_required
 def refund_fighter(request, pk):
-    """Refund one model: the fighter goes, and what was paid comes back.
-
-    Paid, not worth: a refund undoes purchases, so what returns is the
-    ledger's own figure — free and granted things return nothing.
-    """
+    """Refund the model through its shared departure flow using recorded payments."""
     return _dismiss(request, pk, kind="refund")
 
 
 def _dismiss(request, pk, kind):
-    """The act behind both leaving dialogs.
+    """Perform a confirmed departure using its current purchase roots.
 
-    ``kit=stash`` first moves every kit line money was paid for to the
-    stash — where each keeps its pinned rating, because a move never
-    re-prices — and then the fighter leaves with whatever is left: the
-    built-ins, and anything their gear brought in. GET reopens the
-    dialog instead of acting.
-
-    A refusal from the operation unwinds the whole departure, so the
-    fighter is still there afterwards and the sheet says why.
+    GET redirects to confirmation. Under the gang lock, recalculate departure,
+    optionally stash paid equipment and then remove or refund the remaining roots.
+    Any refusal rolls back the entire move and departure.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.departure import departure_for
@@ -900,8 +709,7 @@ def _dismiss(request, pk, kind):
     stash_kit = request.POST.get("kit") == "stash"
     try:
         with operation(gang, actor=request.user) as op:
-            # Resolve the source again under the gang's lock: a purchase
-            # may have moved since the confirmation was drawn.
+            # Recalculate the purchase scope under the gang lock before departure.
             miniature.refresh_from_db()
             departure = departure_for(miniature)
             moved = 0
@@ -910,9 +718,7 @@ def _dismiss(request, pk, kind):
                     op.move(root, gang.stash, note=f"{was} left it behind")
                     moved += 1
                 departure = departure_for(miniature)
-            # What the whole departure returns, asked before anything is
-            # archived: refund_of skips archived assignments, so asking
-            # afterwards would answer zero.
+            # Read refunds before archiving because archived assignments are excluded from refund totals.
             paid_back = points_back = 0
             if (
                 kind == "refund"
@@ -940,10 +746,7 @@ def _dismiss(request, pk, kind):
         trade_points=points_back,
     )
     stashed = f" Their kit is in the stash ({moved} line{'s' if moved != 1 else ''})."
-    # What came back, worked out after the stash move rather than before
-    # it: kit put in the stash keeps what was paid for it, so a departure
-    # that stashed everything the allowance bought returns nothing, and a
-    # refund is what the deletion it turned out to be says it is.
+    # Calculate the final refund after stashing gear, whose payments remain with the gang.
     if kind == "refund" and (refunded_credits(gang, paid_back) or points_back):
         messages.success(
             request,
@@ -957,14 +760,10 @@ def _dismiss(request, pk, kind):
 
 @login_required
 def mark_fighter(request, pk):
-    """Put one model into a status by hand: the act behind the sheet's
-    ``?status=`` dialog.
+    """Set an owned model's status through an operation.
 
-    Nothing is priced, but a status is part of the gang's story, so it
-    goes through an operation and the history says what changed. A
-    death asks once about the kit: ``kit=stash`` moves what money was
-    paid for to the stash, ``kit=lost`` removes it, and nothing leaves it
-    on the body. GET reopens the dialog instead of acting.
+    GET opens confirmation. On death, a submitted kit choice can move paid gear
+    to the stash or remove it. Validate status against the declared values.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation, refund_of
@@ -1005,9 +804,7 @@ def mark_fighter(request, pk):
 
 
 def _back_url(request, miniature, sheet_url):
-    """Where an act on a model's status lands: its own page when the
-    address says ``back=edit``, the sheet otherwise. A named place, never
-    a URL, so there is nothing here for an open redirect to ride."""
+    """Select the model edit page only for back=edit; otherwise use the fixed gang sheet."""
     if request.GET.get("back") == "edit":
         return reverse("n26-edit-fighter", args=[miniature.pk])
     return sheet_url
@@ -1022,13 +819,11 @@ def status_label_for(miniature):
 
 @login_required
 def pay_ransom(request, pk):
-    """Settle a ransom: pay it and the model comes back into Recovery, or
-    say it could not be paid and the model dies, kit to the stash.
+    """Pay a validated ransom and mark Recovery, or mark an unpaid model Dead.
 
-    The payment is a transfer to the gang named, or to nobody the app
-    knows; either way the credits leave and the history says why. A
-    payment the gang cannot afford is refused whole and the model stays
-    held for ransom — the owner then chooses the other button.
+    Limit in-app payees to other campaign gangs and amounts to the offered values.
+    Lock payer and payee together and recheck ransom status before transferring.
+    Unpaid departures stash paid equipment; refusal rolls back the transaction.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.models import Gang
@@ -1052,9 +847,7 @@ def pay_ransom(request, pk):
     try:
         credits = to = None
         if outcome == "paid":
-            # Only what the dialog offered: a figure off the D6 × 10
-            # table, and a gang from the same campaign — a stranger's
-            # ledger is not this owner's to write to.
+            # Validate offered ransom amounts and same-campaign recipients before writing another gang's ledger.
             try:
                 credits = int(request.POST.get("credits", ""))
             except ValueError:
@@ -1066,9 +859,7 @@ def pay_ransom(request, pk):
                 if payee not in {pk for pk, _ in _payees(gang)}:
                     raise Refusal("Select who was paid from the list.")
                 to = Gang.objects.get(pk=payee)
-        # The payee's line is taken with the payer's, and whether the
-        # model is still held is read under it: the check above ran on a
-        # row that two clicks on Pay can both have read as Ransomed.
+        # Lock payer and payee together, then recheck ransom status to prevent duplicate payment.
         with operation(gang, actor=request.user, also=[to]) as op:
             miniature.refresh_from_db(fields=["status"])
             if miniature.status != Status.RANSOMED:
@@ -1079,10 +870,7 @@ def pay_ransom(request, pk):
                 )
                 op.set_status(miniature, Status.RECOVERY, note="Ransom paid")
             elif outcome == "unpaid":
-                # The Escape table names where an unpaid model's kit goes:
-                # all of it to the owner's stash, so nothing is asked. The
-                # deletion a Brute or Hanger-on suffers is the general
-                # Clean House rule, which is what Mark as… pre-ticks.
+                # Unpaid-ransom kit goes to the stash independently of ordinary death defaults.
                 for root in _kit_roots(miniature):
                     if refund_of(root)[1] > 0:
                         op.move(root, gang.stash, note=f"{miniature.name} died")
@@ -1104,7 +892,7 @@ def pay_ransom(request, pk):
 
 @login_required
 def clean_house(request, pk):
-    """Clear In Recovery across the gang: the end of the cycle, by hand."""
+    """Clear Recovery statuses through an owner-authorised operation and report affected models."""
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import operation
 
@@ -1131,12 +919,10 @@ def clean_house(request, pk):
 
 @login_required
 def rename_fighter(request, pk):
-    """Rename one model: the act behind the model's own-page dialog.
+    """Rename an owned model through an operation, recording the previous name.
 
-    No rating moves and nothing is priced, but a rename is part of the
-    gang's story, so it goes through an operation and the history keeps
-    both names. GET reopens the dialog instead of acting, so the
-    address can be followed, sent, or reloaded without renaming anyone.
+    GET opens confirmation. Retain validated Edit-page navigation state and return
+    htmx dialog or saved-header partials when requested from that surface.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.forms import RenameFighterForm
@@ -1146,10 +932,7 @@ def rename_fighter(request, pk):
     from n26.core.views.permissions import _own_miniature_or_404
 
     miniature = _own_miniature_or_404(request, pk)
-    # The model's own page carries the rename pencil; the sheet still
-    # draws the dialog when ``?rename=`` names a member. The act lands
-    # back on whichever asked. Edit-page state is rebuilt from its allowed
-    # query parameters, and the sheet remains a fixed destination.
+    # Rebuild allowed Edit-page return state; the gang sheet remains a fixed destination.
     if request.GET.get("back") == "edit":
         addresses = request_edit_dialog_addresses(request, miniature)
         back_url = addresses.back
