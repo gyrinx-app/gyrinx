@@ -49,6 +49,14 @@ describe("Tooltip", () => {
         act(() => vi.advanceTimersByTime(120));
         expect(screen.getByRole("tooltip").textContent).toBe("Rating");
         fireEvent.mouseLeave(anchor);
+        act(() => vi.advanceTimersByTime(100));
+        const panel = screen.getByRole("tooltip");
+        expect(panel.className).not.toContain("pointer-events-none");
+        fireEvent.mouseEnter(panel);
+        act(() => vi.advanceTimersByTime(500));
+        expect(screen.getByRole("tooltip")).toBeTruthy();
+        fireEvent.mouseLeave(panel);
+        act(() => vi.advanceTimersByTime(200));
         expect(screen.queryByRole("tooltip")).toBeNull();
     });
 

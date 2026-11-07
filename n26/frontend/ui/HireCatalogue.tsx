@@ -139,7 +139,7 @@ const Row = memo(function Row({
                 <ButtonLink
                     href={href}
                     size="sm"
-                    variant="success"
+                    variant="primary"
                     data-busy="off"
                     aria-label={`Hire ${entry.name}`}
                 >

@@ -7,7 +7,7 @@ const data: GangFiguresData = {
     items: [
         {
             short: "TP",
-            label: "Trade Points",
+            label: "Trade points",
             value: "—",
             absent: "No Visit Trading Post action open",
             href: "/trade/",
@@ -115,9 +115,9 @@ describe("GangFigures", () => {
     it("explains absent figures on activation and returns focus on Escape", async () => {
         const user = userEvent.setup();
         render(<GangFigures data={data} />);
-        const label = screen.getByRole("button", { name: "Trade Points" });
+        const label = screen.getByRole("button", { name: "Trade points" });
         await user.click(label);
-        const help = screen.getByRole("dialog", { name: "Trade Points" });
+        const help = screen.getByRole("dialog", { name: "Trade points" });
         expect(
             within(help).getByText("No Visit Trading Post action open"),
         ).toBeTruthy();

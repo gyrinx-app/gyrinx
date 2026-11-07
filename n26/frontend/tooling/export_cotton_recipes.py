@@ -85,7 +85,7 @@ def tooltip_recipe():
     ]
     if len(panels) != 1:
         raise ValueError("Cotton tooltip panel changed")
-    return {"panel": _without(class_name(panels[0]), "absolute")}
+    return {"panel": _without(class_name(panels[0]), "absolute", "pointer-events-none")}
 
 
 def gang_figures_recipe():

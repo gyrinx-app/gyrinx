@@ -223,7 +223,7 @@ def figures_data(gang, summary, *, trade_points_href="", credits_href=""):
         "items": [
             figure(
                 "TP",
-                "Trade Points",
+                "Trade points",
                 gang.trade_points_left,
                 unit="",
                 absent=""

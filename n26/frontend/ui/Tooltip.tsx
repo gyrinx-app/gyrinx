@@ -34,6 +34,11 @@ export function Tooltip({
         window.clearTimeout(timer.current);
         setOpen(false);
     };
+    const leave = () => {
+        window.clearTimeout(timer.current);
+        if (!root.current?.contains(document.activeElement))
+            timer.current = window.setTimeout(() => setOpen(false), 200);
+    };
     useDismiss(root, root, open, close, { onEscape: close });
     useEffect(() => () => window.clearTimeout(timer.current), []);
     return (
@@ -44,11 +49,7 @@ export function Tooltip({
                 window.clearTimeout(timer.current);
                 timer.current = window.setTimeout(() => setOpen(true), 120);
             }}
-            onMouseLeave={() => {
-                window.clearTimeout(timer.current);
-                if (!root.current?.contains(document.activeElement))
-                    setOpen(false);
-            }}
+            onMouseLeave={leave}
             onFocusCapture={() => {
                 window.clearTimeout(timer.current);
                 setOpen(true);
@@ -78,6 +79,8 @@ export function Tooltip({
                 hidden={!open}
                 className={`${cotton.tooltip.panel} fixed`}
                 style={style}
+                onMouseEnter={() => window.clearTimeout(timer.current)}
+                onMouseLeave={leave}
             >
                 {label}
             </div>
