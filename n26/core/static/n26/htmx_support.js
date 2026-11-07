@@ -1,27 +1,11 @@
-/*
- * Client glue for htmx partial updates. The server side of the pattern is
- * documented in n26/core/views/htmx.py; this file holds the pieces the
- * browser needs.
- */
+/* Browser support for the partial-response contract in n26/core/views/htmx.py. */
 
 /*
- * 1. Clicks on controls built after the page loaded.
+ * Alpine can insert links after htmx has scanned the page. Handle their clicks
+ * by delegation, skipping events htmx already prevented.
  *
- * htmx wires a control when the page is drawn or when a swap brings it in.
- * Some controls are built later by Alpine — the copies inside an opened
- * catalogue row live in a <template x-if> — so htmx has never seen them and
- * their hx-get would otherwise be inert markup on a normal link. Their
- * clicks are caught here at the document level, which cannot be raced by
- * whatever built them.
- *
- * A control htmx did wire handles its own click and calls preventDefault
- * before this listener runs, so the defaultPrevented test is what stops a
- * second request being sent for the same click.
- *
- * The request names the link it came from. A request with no source is
- * reported against the document body, and anything watching the request —
- * the busy state a control takes on while it works, for one — then has no
- * way to tell which control to act on, or reaches the whole page.
+ * Pass the link as the request source so request listeners, including busy-
+ * state cleanup, can identify its control.
  */
 document.body.addEventListener("click", function (event) {
     if (event.defaultPrevented || event.button !== 0) return;
@@ -37,18 +21,11 @@ document.body.addEventListener("click", function (event) {
 });
 
 /*
- * 2. URL parameters carried onto every htmx request.
+ * Read page-declared n26-carry parameters from the current URL for each
+ * request; rendered control URLs may predate tab or selection changes.
  *
- * Some UI state lives only in the address, written there as the reader
- * clicks — which section tab is on screen, which row stands open. Controls
- * were addressed when they were drawn and know nothing of a click since, so
- * the current values are read off the address here, once, for every
- * request. Which parameter names matter is the page's knowledge, not this
- * file's: the page declares them in a <meta name="n26-carry"> tag.
- *
- * A request that already carries a value — a form field, or a parameter in
- * the requested path — keeps it. Adding a second copy would put both in the
- * address bar, and the address bar is what the next control reads.
+ * Preserve values already supplied by the form or request URL to avoid
+ * duplicate parameters.
  */
 document.body.addEventListener("htmx:configRequest", function (event) {
     var meta = document.querySelector('meta[name="n26-carry"]');
@@ -68,18 +45,8 @@ document.body.addEventListener("htmx:configRequest", function (event) {
 });
 
 /*
- * 3. <noscript> arriving in a swapped fragment.
- *
- * A page's own parser has scripting enabled, so a <noscript>'s contents are
- * text and nothing in them applies. htmx builds a response with innerHTML,
- * where the parser has scripting disabled — and there the same contents are
- * parsed as real elements. Everything written for a reader with no script
- * then comes alive on a page that has one: a <style> revealing the boxes a
- * picker keeps hidden until they are chosen, a plain list drawing a second
- * copy of a menu's rows.
- *
- * Emptying them leaves the swapped copy as the page's own parser would have
- * left it. A reader with no script runs none of this and keeps the fallback.
+ * htmx parses fragments with scripting disabled, so noscript contents can
+ * become active elements. Empty them to match normal scripted page rendering.
  */
 function n26EmptyNoscript(event) {
     var swapped = event.target;
@@ -94,14 +61,8 @@ document.body.addEventListener("htmx:afterSwap", n26EmptyNoscript);
 document.body.addEventListener("htmx:oobAfterSwap", n26EmptyNoscript);
 
 /*
- * 4. Toasts from the HX-Trigger header.
- *
- * A partial response carries the server's queued messages in its
- * HX-Trigger header as one n26-toasts event holding the whole list. htmx
- * wraps a trigger payload that is not a plain object as { value: ... }
- * before dispatching, so the list arrives one level down — read
- * event.detail as the list itself and it is silently empty. Each entry is
- * handed to the toast container one at a time, which is how it takes them.
+ * htmx wraps array trigger payloads in detail.value. Forward each n26-toasts
+ * entry separately to the toast container.
  */
 document.body.addEventListener("n26-toasts", function (event) {
     var detail = event.detail || {};

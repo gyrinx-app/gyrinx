@@ -7,9 +7,9 @@ export type ThemeChoiceProps = {
     /** The key the page's head script reads before first paint. */
     storageKey: string;
     defaultMode: Mode;
-    /** Each scheme with its words and drawing, in the order shown. */
+    /** Theme identifier, label and icon for each option, in display order. */
     choices: [Mode, string, "sun" | "moon" | "monitor"][];
-    /** A caller's classes for the group. */
+    /** Additional classes for the group. */
     className?: string;
 };
 
@@ -34,9 +34,9 @@ function darkFor(mode: Mode) {
 }
 
 /**
- * Light, dark or the device's choice. The `dark` class on the root element
- * is the shared truth: another control or the head script may change it, and
- * this follows; another tab's choice arrives through storage.
+ * Synchronise the theme with the root dark class, device preference and shared
+ * storage key. Observe class changes from other controls and storage changes
+ * from other tabs.
  */
 export function ThemeChoice({
     storageKey,
@@ -44,7 +44,8 @@ export function ThemeChoice({
     choices,
     className = "",
 }: ThemeChoiceProps) {
-    // The head script painted from the same two, so this matches the page.
+    // Use the same stored choice and default as the head script to match
+    // the initial page theme.
     const [mode, setMode] = useState<Mode>(
         () => stored(storageKey) ?? defaultMode,
     );
@@ -62,7 +63,8 @@ export function ThemeChoice({
         media.addEventListener("change", followDevice);
         const observer = new MutationObserver(() => {
             const dark = document.documentElement.classList.contains("dark");
-            // A control sharing the key stored its choice first; that keeps System.
+            // Prefer the saved mode when it matches the class, preserving
+            // System rather than replacing it with Light or Dark.
             const saved = stored(storageKey);
             setMode((current) =>
                 saved && darkFor(saved) === dark
@@ -94,7 +96,8 @@ export function ThemeChoice({
         try {
             localStorage.setItem(storageKey, next);
         } catch {
-            // A blocked store still changes the page for this visit.
+            // Apply the choice for this page even when storage is
+            // unavailable.
         }
         setMode(next);
     }
