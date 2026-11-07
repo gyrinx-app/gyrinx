@@ -1,10 +1,6 @@
-"""The gang's history page — the ledger's events told plainly.
-
-The page turns the journal into acts a player can read: a hire is one
-line with what came with it folded beneath, an undoing reads as an
-undoing, and none of the machinery underneath is ever named. The page
-itself is the owner's, because the history says things the roster does
-not — when notes were edited, what a model was renamed from.
+"""Gang history groups ledger events into player-facing acts, including caused grants,
+reversals and edits. Access is owner-only because the journal includes details absent
+from the public roster.
 """
 
 import pytest
@@ -72,10 +68,8 @@ def edit(gang):
 
 @pytest.fixture(autouse=True)
 def the_books_stay_honest(gang):
-    """Telling the story reads the ledger and must never move it.
-
-    Fetched fresh: operations repin through instances of their own, so
-    a cached one would report a drift that is only staleness.
+    """Reload the gang before reconciling so operation updates cannot leave this check
+    using stale balances.
     """
     yield
     from n26.core.reconcile import assert_reconciled
@@ -84,8 +78,7 @@ def the_books_stay_honest(gang):
 
 
 class TestTheStoryReadsPlainly:
-    """Each act is one sentence in the player's words, with what rode
-    along folded beneath it."""
+    """Related grants appear beneath the acquisition that caused them."""
 
     def test_a_hire_and_refund_fold_their_built_ins_and_tell_the_money(self, gang, vex):
         act = act_saying(gang, "hired Vex, a Ganger")
@@ -109,8 +102,9 @@ class TestTheStoryReadsPlainly:
         assert not any("removed Loner" in line for line in sentences(gang))
 
     def test_a_paid_profile_leaves_in_the_story_too(self, gang, vex):
-        """A free profile is the weapon's own and never a line; a
-        bought one is money in the books, so it is named when it goes."""
+        """Default weapon profiles are omitted, while separately purchased profiles appear
+        when acquired and sold.
+        """
         from n26.library.authoring import add_weapon_profile
         from n26.tests.sandbox.actions import buy_weapon_profile, sell
 
@@ -150,8 +144,9 @@ class TestTheStoryReadsPlainly:
 
 
 class TestUndoingReadsAsUndoing:
-    """Archiving a taken-away thing restores it, and the story says so —
-    the plain record would read as the opposite of what happened."""
+    """Removing a take-away edit restores the item, and history must describe that
+    reversal.
+    """
 
     def test_taking_away_and_resetting_read_as_opposites(self, gang, vex):
         mounted = create_subtype("Mounted")
@@ -203,7 +198,7 @@ class TestUndoingReadsAsUndoing:
 
 
 class TestWhenAGrantArrivesLater:
-    """A grant folds under its own act, never a different day's."""
+    """A later grant appears in its own batch rather than the original acquisition."""
 
     def test_a_later_grant_stands_alone_and_unmarked_records_fold_by_cause(
         self, gang, vex
@@ -231,7 +226,7 @@ class TestWhenAGrantArrivesLater:
 
 
 class TestWhatAnActSaysAboutItself:
-    """Who did it, what it was called before, which cell moved."""
+    """History preserves old names and identifies changed characteristics."""
 
     def test_a_rename_keeps_both_names(self, gang, vex):
         with edit(gang) as op:
@@ -261,8 +256,7 @@ class TestWhatAnActSaysAboutItself:
 
 
 class TestTheGangsOwnFacts:
-    """Changing what the gang is called or may spend is part of its
-    story; how it is drawn is not."""
+    """Budget and gang-name changes appear in history; display preferences do not."""
 
     def test_the_budget_change_is_in_the_history(self, gang, vex):
         with edit(gang) as op:
@@ -293,8 +287,7 @@ class TestTheGangsOwnFacts:
     def test_a_refused_budget_leaves_the_page_stating_what_is_stored(
         self, client, gang, vex
     ):
-        """A budget the spending cannot fit is refused and rolled back,
-        so the screen must not show the figures it rejected."""
+        """A refused budget change leaves the displayed gang values unchanged."""
         client.force_login(gang.owner)
         response = client.post(
             reverse("n26-edit-gang", args=[gang.pk]),
@@ -306,7 +299,7 @@ class TestTheGangsOwnFacts:
         assert "budget" not in " ".join(sentences(gang))
 
     def test_the_edit_page_records_what_it_changed(self, client, gang):
-        """The screen an owner really uses, not the verb underneath."""
+        """Submitting the edit form records name and budget changes."""
         client.force_login(gang.owner)
         response = client.post(
             reverse("n26-edit-gang", args=[gang.pk]),
@@ -319,12 +312,7 @@ class TestTheGangsOwnFacts:
 
 
 class TestTheCostDoesNotFollowTheLength:
-    """Telling a long story costs the same queries as a short one.
-
-    The reads are fixed by design — the events, the records they name,
-    who is still on the roster — and none of them is per act. A gang
-    played for a season would otherwise pay a query a line.
-    """
+    """History and snapshot query counts stay fixed as events grow."""
 
     def _lengthen(self, gang, vex, acts):
         for number in range(acts):
@@ -355,12 +343,8 @@ class TestTheCostDoesNotFollowTheLength:
 
 
 class TestASnapshotOfTheStory:
-    """A screen wanting the last few acts reads the last stretch of
-    events, never the whole story: a gang played for a season would
-    otherwise pay for every act it ever did to print five lines.
-
-    The sentences are the history page's own, so the two cannot describe
-    one act differently.
+    """Snapshots read a bounded window of recent events and use the same act descriptions
+    as full history.
     """
 
     def _lengthen(self, gang, vex, acts):
@@ -391,9 +375,7 @@ class TestASnapshotOfTheStory:
     def test_a_gang_nothing_has_been_done_to_has_nothing_to_tell(
         self, gang_type, owner
     ):
-        """A row written without an operation behind it — the state a
-        screen has to draw something for rather than a heading over
-        nothing."""
+        """A gang created directly without ledger events has no recent acts."""
         bare = Gang.objects.create(
             name="The Rust Sermon", owner=owner, gang_type=gang_type
         )
@@ -401,9 +383,9 @@ class TestASnapshotOfTheStory:
         assert history.latest(bare) == []
 
     def test_it_reads_only_the_last_stretch_of_events(self, gang, vex):
-        """The window is counted in events because acts are made of them.
-        Asked for more acts than the stretch holds, it gives what the
-        stretch tells and no more — where the whole story has them all."""
+        """The snapshot event window bounds results even when the caller requests more
+        acts.
+        """
         self._lengthen(gang, vex, history.SNAPSHOT_WINDOW + 20)
         whole = Gang.objects.get(pk=gang.pk)
 
@@ -413,8 +395,7 @@ class TestASnapshotOfTheStory:
 
 
 class TestThePageIsTheOwners:
-    """The history says things the roster does not, so only the owner
-    reads it — and every narrowing is an address."""
+    """Only owners can read history; URL parameters filter and paginate it."""
 
     def test_the_owner_reads_real_acts_and_address_filters_narrow_them(
         self, client, gang, vex
@@ -481,8 +462,7 @@ class TestThePageIsTheOwners:
         assert response.status_code == 302
 
     def test_a_long_story_is_read_a_page_at_a_time(self, client, gang, vex):
-        """A gang played for a season has more acts than a screen holds,
-        and the pager keeps whatever question the reader asked."""
+        """Pagination limits displayed acts and preserves the search query."""
         from n26.core.views.history import PER_PAGE
 
         for number in range(PER_PAGE + 2):
@@ -493,8 +473,7 @@ class TestThePageIsTheOwners:
         first = client.get(at)
         assert first.context["shown"] == PER_PAGE
         assert first.context["pages"]["of"] == 2
-        # The pager is really drawn, not merely computed — and the end
-        # it cannot go to is dead rather than a live link to nowhere.
+        # The previous-page control is disabled on the first page.
         drawn = first.content.decode()
         assert "page=2" in drawn
         back = drawn[drawn.index('aria-label="Previous page"') - 200 :][:400]
