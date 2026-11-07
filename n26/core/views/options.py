@@ -1,4 +1,4 @@
-"""Changing a model's options — the web face of ``Operation.rechoose``."""
+"""Edit the acquisition options recorded on a model's profile assignment."""
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -17,14 +17,10 @@ from n26.core.views.permissions import (
 
 
 def _option_rows(entry, chosen_pks):
-    """The entry's groups as the page draws them, checked states decided here.
+    """Build hire-option groups checked from recorded selections.
 
-    The same groups the hire listing drew, in the same order and under
-    the same field scheme, so the submission parses through the same code
-    — but checked from what the model *currently* takes rather than from
-    the defaults. A one-of group with nothing recorded is on its head:
-    that is what a group with nothing picked means at purchase, and what
-    ``resolve_selection`` will read an untouched submission back to.
+    Use the same group indices as hiring. Choose a pick-one group's default only
+    when no recorded selection belongs to it; omit synthesised standard choices.
     """
     groups = []
     for index, group in enumerate(entry.groups):
@@ -37,8 +33,7 @@ def _option_rows(entry, chosen_pks):
         options = []
         for position, option in enumerate(group.options):
             if option.default_set is None:
-                # The synthesised standard option: what a profile with no
-                # alternatives has. Nothing to save, nothing to draw.
+                # Skip the synthetic default option because it represents no stored default set.
                 continue
             options.append(
                 {
@@ -62,19 +57,11 @@ def _option_rows(entry, chosen_pks):
 
 @login_required
 def fighter_options(request, pk):
-    """The options a model was hired with, reopened.
+    """Reopen hire options and settle replacements through ``Operation.rechoose``.
 
-    The same groups the hire listing offered, checked from what the model
-    currently takes, with one Save. POST resolves the picks exactly as
-    the hire did and hands them to ``op.rechoose``: assignments swap, the price
-    difference lands on the hire's own line in either direction, and an
-    upgrade the gang cannot afford unwinds whole.
-
-    The model's card sits above the tabs, as it does on the Edit face,
-    so what an option changes is in view while it is changed. This page
-    holds no host a partial update could land in, so the card's controls
-    are plain links and forms, and the kit acts open over the model's
-    own page.
+    The original hire's ledger entry records any price difference. Parse options
+    with the hiring parser. Card controls return to the model's edit page because
+    this page has no partial-update hosts.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.card import build_card, build_modifier_index, carriers
@@ -103,9 +90,7 @@ def fighter_options(request, pk):
             messages.error(request, str(refusal))
             return redirect(here)
         except ValueError:
-            # A set this profile does not offer — what resolve_selection
-            # refuses and the indices cannot express. A broken link, not
-            # a rule to explain.
+            # Reject option-set identities outside this profile's current offer as invalid input.
             raise Http404("No such option") from None
         if entry_row is not None:
             entry_row.refresh_from_db()
@@ -130,12 +115,8 @@ def fighter_options(request, pk):
         row.default_set_id for row in miniature.membership.chosen_options.all()
     }
     members = roster(gang)
-    # The card, read the way the Edit face reads it — this one model, with
-    # the options each copy was bought with, so the kit acts can describe
-    # every copy. Every act on it lands on the model's own page — the kit
-    # acts, the status badge, and the choice and counter controls alike —
-    # because this screen holds no host for any of them and is not where
-    # a reader who has just acted on the card wants to be left.
+    # Load option provenance so card actions identify the exact owned copy.
+    # Return every card action to the model edit page, which has its update hosts.
     own = build_card(miniature, with_statlines=True, with_options=True)
     computed = compute(own, build_modifier_index(carriers(own)))
     edit = reverse("n26-edit-fighter", args=[miniature.pk])
@@ -160,16 +141,14 @@ def fighter_options(request, pk):
             "trade_points_href": trade_points_href(gang, request.user),
             "credits_href": credits_href(gang, request.user),
             "card": card,
-            # The badge leads to the status question, and the act lands on
-            # the model's own page — a named place the sheet knows.
+            # After status changes, return to the model edit page.
             "status_href": (
                 status_href(gang, miniature, back="edit")
                 if may_mark_status(gang, request.user)
                 else ""
             ),
             "groups": _option_rows(entry, chosen_pks),
-            # The field scheme is the hire listing's, slugified pk and all,
-            # so the parser reads this page's POST unchanged.
+            # Match the hiring form's slugified profile identifier for the shared POST parser.
             "field_scope": slugify(str(profile.pk)),
             "options_url": here,
         },

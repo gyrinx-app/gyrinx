@@ -81,7 +81,7 @@ MOST_WEAPON_SLOTS_ON_A_CARD = 3
 
 
 def _previews(miniature, assignment_sets):
-    """Build once, then deal every selection from the same hydrated rows."""
+    """Build equipment-card previews from one set of hydrated assignments."""
     base = build_card(miniature, with_statlines=True)
     own_rows = [
         node.assignment for node in base.all_nodes() if not node.broadcast
