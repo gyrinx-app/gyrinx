@@ -1,16 +1,7 @@
-"""Concurrency: two simultaneous deliveries hitting the lifecycle signals.
+"""Concurrent task lifecycle signals must record each transition once.
 
-The signal handlers are check-then-act — they read the execution's status and
-then transition on the strength of it. Every step they take is a legal
-transition on its own, so the state machine's row lock cannot catch two
-deliveries interleaving *here*; the handlers need their own lock.
-
-The FAILED case is the one that bites. A redelivery of a FAILED execution is a
-retry, so the handler resets the record to READY before marking it RUNNING. Two
-concurrent retries could both read FAILED, both reset, and both mark RUNNING,
-leaving two RUNNING transitions for one attempt. These tests run the handlers on
-separate threads against a real (committed) database, as a concurrent Pub/Sub
-redelivery would.
+Hold the execution lock across status checks and transitions, including
+the FAILED-to-READY reset before retries.
 """
 
 import threading
@@ -46,13 +37,9 @@ class _Error:
 
 
 def _run_concurrently(target, *, n=2, timeout=15):
-    """Run ``target`` on ``n`` threads simultaneously; return whatever they raised.
+    """Release n delivery threads together and return their raised exceptions.
 
-    The barrier matters. Without it the threads are free to serialise, and a
-    handler that runs entirely after the other has committed re-reads the new
-    status and skips correctly whether or not it holds a lock — so the test
-    would pass on unlocked code. Releasing both threads immediately before the
-    call puts them in the handler together, which is the case being tested.
+    The barrier increases overlap so serial execution cannot hide missing locks.
     """
     errors = []
     start = threading.Barrier(n, timeout=timeout)
@@ -64,7 +51,7 @@ def _run_concurrently(target, *, n=2, timeout=15):
         except Exception as e:  # noqa: BLE001 - surface, don't swallow
             errors.append(e)
         finally:
-            # Each thread has its own connection; leaving it open strands it.
+            # Close each delivery thread's database connection when it finishes.
             connection.close()
 
     threads = [threading.Thread(target=wrapped) for _ in range(n)]
@@ -92,7 +79,7 @@ def _make_execution(task_id="dup"):
 
 @pytest.mark.django_db(transaction=True)
 def test_concurrent_retries_of_a_failed_execution_start_once():
-    """Two simultaneous retries of a FAILED execution produce one RUNNING."""
+
     execution = _make_execution()
     execution.mark_running()
     execution.mark_failed(error_message="transient boom")
@@ -114,8 +101,7 @@ def test_concurrent_retries_of_a_failed_execution_start_once():
 
 @pytest.mark.django_db(transaction=True)
 def test_concurrent_first_deliveries_start_once():
-    """The same guarantee from READY: a duplicate delivery of a fresh execution
-    marks it RUNNING once rather than twice."""
+
     execution = _make_execution(task_id="fresh")
     assert execution.status == "READY"
 
@@ -131,13 +117,7 @@ def test_concurrent_first_deliveries_start_once():
 
 @pytest.mark.django_db(transaction=True)
 def test_concurrent_finishes_record_one_success():
-    """Two simultaneous SUCCESSFUL finishes settle the execution once.
-
-    This is the case the finish handler's lock exists for: both deliveries pass
-    the terminal-state guard while the record is still RUNNING, and unlocked the
-    second would raise InvalidStateTransition — which through the Pub/Sub push
-    handler is a 500 and the redelivery storm the guard is there to prevent.
-    """
+    """Concurrent successful finishes must settle once without an invalid second transition."""
     execution = _make_execution(task_id="finish-ok")
     execution.mark_running()
     before = TRANSITIONS.objects.filter(instance=execution).count()
@@ -162,7 +142,7 @@ def test_concurrent_finishes_record_one_success():
 
 @pytest.mark.django_db(transaction=True)
 def test_concurrent_finishes_record_one_failure():
-    """The same guarantee for a failing task, including its error fields."""
+
     execution = _make_execution(task_id="finish-bad")
     execution.mark_running()
     before = TRANSITIONS.objects.filter(instance=execution).count()
@@ -186,8 +166,7 @@ def test_concurrent_finishes_record_one_failure():
 
 @pytest.mark.django_db
 def test_missing_execution_is_logged_not_raised():
-    """An unknown task_id stays a warning even with the handler now atomic —
-    a raise here 500s the prod push handler into a redelivery storm."""
+
     handle_task_started(sender=None, task_result=_Delivery("never-enqueued"))
 
     assert not TaskExecution.objects.filter(task_id="never-enqueued").exists()
