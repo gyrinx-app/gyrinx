@@ -521,8 +521,8 @@ class GeneratedForm(forms.Form):
     def _refuse_as_the_row_would(self, name, kind, chosen, picked, asks):
         """Validate attachment parameters using an unsaved through record.
 
-        Map its ``clean()`` errors to the corresponding form fields before the
-        function writes anything. New name-only content is validated by its creator.
+        Map its ``clean()`` errors to the corresponding form fields.
+        Name-only creations skip this check and are resolved by ``verb_data()``.
         """
         try:
             kind.through(**{chosen: picked}, **asks).clean()
@@ -986,8 +986,8 @@ def _effect_choices():
 
 
 #: Accepted target kinds used to disable incompatible effect choices.
-#: Declare this table explicitly because an unsaved grant cannot resolve trait
-#: compatibility with weapon profiles; tests compare the other cases to accepts().
+#: List grant targets explicitly because they depend on selected content.
+#: Tests compare accepts() using bare grants and grants naming a trait or rule.
 EFFECT_CAN_TARGET = {
     "ef_adds": ("model", "weapon_profile", "gang"),
     "ef_removes": ("model", "weapon_profile", "gang"),
