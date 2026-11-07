@@ -1,9 +1,6 @@
-"""Founding a gang: picking its type, and seeing what that type looks like.
+"""Gang founding type cards retain radio selection and optional badges.
 
-The type is chosen from a grid of cards rather than a dropdown, so what these
-pin is that the grid is still a plain form control — one radio per type over a
-shared name, submitting the type the reader clicked — and that a type's badge
-is drawn where it has one and nowhere where it does not.
+Use one shared radio name and submit the selected type ID.
 """
 
 import pytest

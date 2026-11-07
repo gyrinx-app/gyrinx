@@ -1,9 +1,7 @@
-"""Renaming a fighter: the dialog the URL opens, and the act behind it.
+"""Fighter rename dialogs open from their URL and write only on submission.
 
-The hire form promises "you can name them later", and this is the later
-it promised. The pencil lives on the model's own page; the sheet still
-draws the dialog when ``?rename=<pk>`` names one of the gang's own live
-members, so an address can be followed or reloaded with no script.
+The model page supplies the control. Gang sheets can reopen a live member's
+dialog through the rename query parameter without JavaScript.
 """
 
 import pytest
@@ -119,8 +117,7 @@ class TestTheAct:
         assert vex.name == "Vex"
 
     def test_get_only_reopens_the_dialog(self, client, tester, gang, vex):
-        """The act's address can be followed, sent, or reloaded without
-        renaming anyone — GET goes back to the question."""
+        """GET returns to the dialog without renaming the model."""
         client.force_login(tester)
         response = client.get(reverse("n26-rename-fighter", args=[vex.pk]))
         assert response.status_code == 302

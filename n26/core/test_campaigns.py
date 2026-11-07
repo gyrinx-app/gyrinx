@@ -228,10 +228,9 @@ class TestTheLogIsOneCampaignsOwn:
 
 
 class TestTwoArbitratorsAtOnce:
-    """What changed is measured against the row as it stands, never against
-    whatever the reader had on screen. Without that, one arbitrator's save
-    silently reverts another's, and the note names a name that had already
-    been replaced — in a log nothing can go back and correct."""
+    """Compare against locked current values so stale saves cannot overwrite
+    another arbitrator's changes or journal the wrong previous name.
+    """
 
     def test_a_stale_instance_is_read_back_before_anything_is_decided(
         self, campaign, arbitrator
@@ -344,9 +343,7 @@ class TestReadingOnlyPartOfTheLog:
 
 class TestALongRename:
     def test_both_names_are_kept_in_full(self, campaign, arbitrator):
-        """A campaign name may run to 200 characters, so a rename note holds
-        two of them and the mark between. Nothing here is ever rewritten, so
-        a note cut short would leave a reader with half a name for good."""
+        """Rename notes must hold two full 200-character names and their separator."""
         was = "A" * 200
         now = "B" * 200
         campaign.name = was
