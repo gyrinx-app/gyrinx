@@ -14,11 +14,8 @@ const OPEN_DELAY = 120;
 const CLOSE_DELAY = 200;
 
 /**
- * A question-mark button that opens a short explanation.
- *
- * Hovering opens the panel and leaving closes it. A click keeps it open until
- * the next click, Escape, or a click or focus outside, so touch and keyboard
- * readers can open it too.
+ * Show help on hover or activation. Clicking pins it open until dismissal,
+ * including for keyboard and touch users.
  */
 const TONES = {
     help: {
@@ -44,7 +41,7 @@ export function HelpPopover({
     label: string;
     triggerId?: string;
     tone?: keyof typeof TONES;
-    /** A link under the explanation, for what the reader can do next. */
+    /** Optional link below the explanation. */
     cta?: { label: string; href: string };
     /** Text that opens the explanation, with a dashed underline. */
     triggerContent?: ReactNode;
@@ -97,8 +94,8 @@ export function HelpPopover({
             close();
             return;
         }
-        // A keyboard press reports no click count. Moving focus into the
-        // panel is what tells a screen reader the explanation has opened.
+        // Keyboard activation has detail 0. Focus the panel to announce its
+        // content to screen readers.
         focusPanel.current = event.detail === 0;
         setOpen(true);
         setPinned(true);

@@ -772,12 +772,14 @@ def rating_routes(setup):
         "Recruitment name",
         s.pick.slot_type,
         slot.picklist,
+        label="Legendary name",
         pick_rating_override=0,
     )
     s.advancement_name_slot = a.create_slot(
         "Advancement name",
         s.pick.slot_type,
         slot.picklist,
+        label="Legendary name",
         pick_rating_override=0,
     )
     advancement_kind = a.create_slot_type("Advancement")
@@ -859,6 +861,59 @@ def test_shared_names_use_the_three_acquisition_ratings_without_spending_credits
     assert s.fighter.recompute_rating() == before + 15
     assert s.gang.recompute_rating() == before + 15
     assert s.gang.recompute_credits() == credits
+
+    from bs4 import BeautifulSoup
+    from django.template import Context, Template
+    from django_cotton.compiler_regex import CottonCompiler
+
+    from n26.core.printing import detail_groups
+    from n26.core.render import render_gang
+    from n26.core.render_text import render_model_card
+    from n26.core.views.choose import link_slots
+
+    card = render_gang(s.gang).models[0]
+    link_slots(s.gang, card)
+    row = next(row for row in card.detail_rows if row.label == "Legendary name")
+    assert len(row.parts) == 3
+    assert len({part.value.key for part in row.parts}) == 3
+    assert [part.value.chosen for part in row.parts].count("The Unbroken") == 2
+    assert [part.value.chosen for part in row.parts].count("Ironhand") == 1
+    html = BeautifulSoup(
+        Template(
+            CottonCompiler().process(
+                '<c-n26.model-card.body :card="card" mode="edit" />'
+            )
+        ).render(Context({"card": card})),
+        "html.parser",
+    )
+    assert (
+        len(
+            [
+                dt
+                for dt in html.select("dt")
+                if dt.get_text(strip=True) == "Legendary name"
+            ]
+        )
+        == 1
+    )
+    assert all(html.find("a", href=part.value.href) for part in row.parts)
+    printed = [
+        group for group in detail_groups(card) if group.label == "Legendary name"
+    ]
+    assert len(printed) == 1
+    assert printed[0].text.count("The Unbroken") == 2
+    assert (
+        len([line for line in render_model_card(card) if "Legendary name:" in line])
+        == 1
+    )
+    # Rendering groups headings only; each acquisition keeps its frozen price.
+    assert recruit.ledger_entry.rating_contribution == 0
+    assert wrapper.ledger_entry.rating_contribution == 10
+    assert advanced_name.ledger_entry.rating_contribution == 0
+    assert (
+        battle.advancement_selection.pick_assignment.ledger_entry.rating_contribution
+        == 5
+    )
     assert_reconciled(s.gang)
 
 

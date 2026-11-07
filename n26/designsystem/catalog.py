@@ -1,9 +1,6 @@
-"""The gallery's table of contents: what exists, how it is grouped, what it is for.
-
-Props are never restated here — they are read from each component's own
-``<c-vars>`` block at runtime (see :mod:`designsystem.introspect`). Internal
-``impl.html`` templates get no entry: they have no public tag, and their props are
-documented on the wrapper that forwards to them.
+"""Component groups and gallery registration. Read public props from each template's c-vars
+block through designsystem.introspect; document internal implementation templates
+through their public wrapper.
 """
 
 from __future__ import annotations
@@ -18,7 +15,7 @@ from .demos import Demo, demos_for
 
 @dataclass(frozen=True)
 class Part:
-    """A subcomponent: its own tag, documented on its parent's page."""
+    """A subcomponent documented on its parent's gallery page."""
 
     tag: str
     template: str
@@ -56,10 +53,8 @@ class Component:
 
     @property
     def uses_react(self) -> bool:
-        """Whether this component, or one of its parts, renders through React.
-
-        Read from the templates, so it changes when a template adds or removes
-        an island mount.
+        """Whether this component or one of its parts mounts React, determined from its
+        templates.
         """
         return any(
             introspect.mounts_react(template)
@@ -68,7 +63,7 @@ class Component:
 
     @property
     def search_term(self) -> str:
-        """What the sidebar filter matches against."""
+        """Lower-case terms used by the sidebar filter."""
         return f"{self.slug} {self.tag} {self.group}".lower()
 
 
@@ -1257,8 +1252,8 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
-                # Not "dialog": c-ui.dialog already uses that slug, and a
-                # duplicate slug would replace its gallery page.
+                # Use a distinct slug because c-ui.dialog already occupies the dialog
+                # gallery URL.
                 slug="server-dialog",
                 tag="c-n26.dialog",
                 template="n26/dialog.html",
@@ -2972,8 +2967,7 @@ GROUPS: list[Group] = [
 ]
 
 
-# Each component is declared inside its group, so stamp the group name back onto it
-# rather than repeating it on every entry.
+# Derive each component's group name from its containing group.
 for _group in GROUPS:
     _group.components[:] = [
         replace(component, group=_group.name) for component in _group.components
