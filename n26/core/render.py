@@ -1,6 +1,7 @@
 """Build plain display data for model cards, gangs and campaigns.
 
-Dataclasses contain display facts without HTML. Web templates and
+Dataclasses contain display facts. Notes and lore may retain untrusted stored
+HTML and need sanitising when rendered on web pages. Web templates and
 ``n26.core.render_text`` consume the same structures. Gang rendering uses
 a fixed query count as its roster and equipment grow; see ``render_gang``
 and ``n26/tests/sandbox/test_render.py``.
