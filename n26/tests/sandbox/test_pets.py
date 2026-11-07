@@ -795,7 +795,7 @@ class TestTheWargearLineNamesThePet:
         client.force_login(gang.owner)
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
         assert "Cyber-mastiff (pet) (Fang)" in body
-        assert "Equipment: Cyber-mastiff (pet) (Fang)" in gang_to_text(gang)
+        assert "Gear: Cyber-mastiff (pet) (Fang)" in gang_to_text(gang)
 
     def test_the_stash_line_names_the_pet(self, client, gang, mastiff_wargear):
         assign(mastiff_wargear, stash=gang.stash, paid=100)

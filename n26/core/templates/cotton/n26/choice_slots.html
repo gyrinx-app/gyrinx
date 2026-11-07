@@ -11,29 +11,10 @@ size is xs for compact facts or lg for body-sized labels and values. variant set
 
 <c-vars :choices="None" choose_label="Choose" size="xs" variant="ghost" class="" />
 
-{% for choice in choices %}
-    {% if choice.dismissed %}
-        <c-n26.detail-list.row label="{{ choice.kind_label }}"
-                               :editable="False"
-                               size="{{ size }}"
-                               class="{{ class }}"
-                               value="Dismissed">
-            <c-slot name="trailing"><c-n26.choice-dismiss :choice="choice" /></c-slot>
-        </c-n26.detail-list.row>
-    {% elif choice.href %}
-        <c-n26.detail-list.row label="{{ choice.kind_label }}"
-                               href="{{ choice.href }}"
-                               variant="{{ variant }}"
-                               size="{{ size }}"
-                               class="{{ class }}"
-                               value="{% if choice.is_resolved %}{{ choice.chosen }}{% elif choice.follows_status %}Resolve →{% else %}{{ choose_label }}{% endif %}">
-            <c-slot name="trailing"><c-n26.choice-dismiss :choice="choice" /></c-slot>
-        </c-n26.detail-list.row>
-    {% else %}
-        <c-n26.detail-list.row label="{{ choice.kind_label }}"
-                               :editable="False"
-                               size="{{ size }}"
-                               class="{{ class }}"
-                               value="{% if choice.is_resolved %}{{ choice.chosen }}{% else %}—{% endif %}" />
-    {% endif %}
+{% load n26_rows %}
+{% composed_choices choices as rows %}
+{% for row in rows %}
+    <c-n26.detail-list.row label="{{ row.label }}" :editable="False" size="{{ size }}" class="{{ class }}">
+        {% include "n26/includes/row_parts.html" with parts=row.parts campaign_style=False slot_style=True %}
+    </c-n26.detail-list.row>
 {% endfor %}

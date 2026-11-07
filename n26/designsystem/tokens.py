@@ -1,9 +1,5 @@
-"""The theme token reference.
-
-Names and intent are listed here; *values* are deliberately not. The page reads
-each token's real value out of the browser with ``getComputedStyle``, so the
-table shows what is actually in effect — including whatever you have just changed
-in the playground, and correctly per light/dark mode.
+"""Theme token names and purposes. Read computed values in the browser so the reference
+follows the active theme and playground edits.
 """
 
 from __future__ import annotations
@@ -157,15 +153,8 @@ BUCKETS: tuple[Bucket, ...] = (
 )
 
 
-# One-click starting points. These are not a second theming engine: each is a set
-# of values for the kit's own theme-builder widget, which the playground reaches
-# into and drives. That way presets, the widget's own dials, its localStorage
-# persistence and its CSS export all stay in agreement — one thing holds the
-# current theme, and it is the widget.
-#
-# Keys and value formats therefore have to match the widget's Alpine state
-# exactly: radii are CSS lengths, buttonRadius is "default" or "full", and
-# darkDepth is the ink shade that drives --color-bg in dark mode.
+# Preset keys and value formats must match the theme-builder widget's Alpine state. The
+# widget applies, persists and exports these values.
 PRESETS = (
     {
         "name": "Cotton",
@@ -242,8 +231,7 @@ PRESETS = (
 )
 
 
-# The specimen on the token page. Mynor is one variable face across this range, so
-# these are weights of the same file rather than separate downloads.
+# Mynor uses one variable font file for all specimen weights.
 WEIGHTS = (
     (300, "Light"),
     (400, "Regular"),
