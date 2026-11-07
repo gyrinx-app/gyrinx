@@ -1,29 +1,7 @@
-"""The journal content seed: the Gang supertype and the two Underhive
-Journals' territories, created once, as a maintenance operation.
-
-The rules (design/house-and-territory-tables.md): a Goliath gang may roll
-its starting Territory on the House of Chains table, an Escher gang on
-the House of Blades table. Every Territory provides its baseline Income.
-A hidden Gang supertype pick gives each House its table, including
-Clan House Outcasts. The content that writes it, and the journals'
-territories and tables, is one seed
-(``n26/library/gang_supertypes.py``, ``n26/library/journal_content.py``)
-run from the maintenance console on the tasks framework.
-
-What this file holds still: the seed creates every row exactly once and
-a rerun creates nothing and says so; a gang type or Outcast pick that is
-not there is skipped and said; a Goliath gang founded after the seed has
-the pick, one founded before catches up by propagation, a Clan House
-Goliath Outcast gang has it once House Goliath is picked, and an Escher
-gang and a Clanless Outcast never do; baseline territory income reaches
-either House; the maintenance run removes known seeded Controlled
-modifiers and unused rules while preserving authored content and player
-history; the House table reaches a
-gang through its pick and its starting-roll dialog offers it, while a
-reader who may not see staged content is not offered a staged table;
-both D6 tables cover every roll once; the House tables are never built
-into the campaign type; and the console previews, enqueues, records and
-stands down on a redelivery.
+"""Seed gang supertypes and journal territory tables through maintenance. Cover idempotent
+creation, propagation to existing gangs, House-specific table access, baseline income
+and removal of unchanged legacy placeholder boons while protecting authored content and
+player history.
 """
 
 import threading
@@ -117,9 +95,6 @@ ESCHER_TABLE = JOURNALS[1][1]
 ORLOCK_TABLE = "Orlock Territories"
 
 
-# --- The world the seed runs in --------------------------------------------
-
-
 @pytest.fixture
 def arbitrator(db):
     return User.objects.create_user("arbitrator")
@@ -146,8 +121,7 @@ def propagating(db):
 
 @pytest.fixture
 def core(default_pack):
-    """The Territory campaign type as it ships, with the Territory
-    Selection Table built in."""
+    """Seed the core campaign type and its default Territory Selection Table."""
     seed_core_campaign(apps)
     seed_territory_table(apps)
     return CampaignType.objects.get(name=CAMPAIGN_TYPE)
@@ -156,8 +130,7 @@ def core(default_pack):
 @pytest.fixture
 @library_setup
 def gang_types(default_pack):
-    """The six Clan House gang types and Outcast, as the system pack has
-    them, with no supertype built in yet."""
+    """Six Clan House types and Outcast without supertype built-ins."""
     made = {house: create_gang_type(house) for house in HOUSES}
     made["Outcast"] = create_gang_type("Outcast")
     return made
@@ -166,9 +139,7 @@ def gang_types(default_pack):
 @pytest.fixture
 @library_setup
 def clan_house(default_pack, gang_types, person_type):
-    """The Outcast gang's Clan House choice as it stands in the system
-    pack: its own slot type and pickables, House Goliath among them, on
-    a visible gang-level slot built into the Outcast Leader."""
+    """A visible gang-hosted Clan House slot carried by the Outcast Leader."""
     slot_type = create_slot_type("Clan House")
     picks = {
         house: create_pickable(clan_house_pickable_name(house), slot_type)
@@ -185,9 +156,7 @@ def clan_house(default_pack, gang_types, person_type):
 
 @pytest.fixture
 def seeded(core, gang_types, clan_house):
-    """The whole seed, run once over a world with everything it looks for.
-    The gang types in hand are read again afterwards: the seed founds
-    each type's built-ins set on a copy of its own."""
+    """Run the seed, then refresh type instances to read newly assigned built-in sets."""
     lines = seed_all()
     for gang_type in gang_types.values():
         gang_type.refresh_from_db()
@@ -197,8 +166,9 @@ def seeded(core, gang_types, clan_house):
 @pytest.fixture
 @library_setup
 def legacy_boons(seeded, default_pack):
-    """The exact additional content written by the journal seed: eleven
-    placeholder rules and Amneo-vats' conditional extra Income."""
+    """Recreate legacy seeded content: eleven staged placeholder rules and the conditional
+    Amneo-vats Income modifier.
+    """
     made = {}
     for house, _table, territories in LEGACY_JOURNALS:
         for entry in territories:
@@ -226,8 +196,7 @@ def legacy_boons(seeded, default_pack):
 
 
 def gang_facts(gang):
-    """The gang as its own scopes see it: stored facts with the computed
-    grants — a pick a grant dealt included — layered on."""
+    """Combine stored and computed gang facts for selector matching."""
     card = build_gang_card(gang)
     index = build_modifier_index(carriers(card))
     return _Facts(card, compute(card, index)).model()
@@ -238,8 +207,7 @@ def has_picked(gang, house):
 
 
 def gang_rules(gang):
-    """The rules on the gang's own card, the campaign assets it holds
-    among the carriers."""
+    """Compute gang rules including modifiers carried by campaign assets."""
     card = build_gang_card(gang)
     index = build_modifier_index(carriers(card))
     return [contribution.thing for contribution in compute_gang(card, index).rules]
@@ -254,12 +222,8 @@ def created_lines(lines):
     return [line for line in lines if not line.startswith("skipped")]
 
 
-# --- What the seed creates -------------------------------------------------
-
-
 class TestTheSeedCreatesEverythingOnce:
-    """Every row the programme needs, in the system pack, matched by name
-    and pack; a second run creates nothing and says so."""
+    """Match seed content by name and pack; repeated runs create no additional rows."""
 
     def test_orlock_source_order_income_and_authored_boons_are_preserved(self, seeded):
         table = AssetTable.objects.get(name=ORLOCK_TABLE)
@@ -294,8 +258,7 @@ class TestTheSeedCreatesEverythingOnce:
         assert not slot_type.allows_repeats
         picks = Pickable.objects.filter(slot_type=slot_type).order_by("name")
         assert sorted(p.name for p in picks) == sorted(HOUSES)
-        # The Venator Gang Legacy picks hold the bare names in the pack,
-        # so the markers are told apart by an author-facing qualifier.
+        # Qualifiers distinguish supertype markers from same-named Gang Legacy picks.
         assert {p.qualifier for p in picks} == {SLOT_TYPE}
         # Each seeded House table is granted by its supertype marker.
         by_name = {p.name: p for p in picks}
@@ -404,10 +367,10 @@ class TestTheSeedCreatesEverythingOnce:
     def test_the_preview_says_the_same_and_writes_nothing(
         self, core, gang_types, clan_house, task_queue
     ):
-        """Rolled back whole — the propagation filings the built-in members
-        make included, whose messages would otherwise have a scheduled
-        sweep reconcile every Clan House gang from a page load."""
-        # The Clan House fixture filed its own passes; only new filings count.
+        """Preview rolls back content and propagation records, preventing a page load from
+        scheduling gang updates.
+        """
+        # Exclude propagation records already created by fixture setup.
         filed = BuiltInPropagationTask.objects.count()
         with task_queue.capture():
             lines = preview()
@@ -423,8 +386,7 @@ class TestTheSeedCreatesEverythingOnce:
         assert BuiltInPropagationTask.objects.count() == filed + 6
 
     def test_a_missing_gang_type_or_outcast_pick_is_skipped_and_said(self, core):
-        """A fresh database has no gang lists; the seed creates none, and
-        says which built-ins and grants it could not write."""
+        """Report absent source rows without creating missing gang types or Outcast picks."""
         lines = seed_all()
 
         assert "skipped Goliath: no gang type of that name" in lines
@@ -433,15 +395,13 @@ class TestTheSeedCreatesEverythingOnce:
             in lines
         )
         assert AssetTable.objects.filter(name=GOLIATH_TABLE).exists()
-        # The skips are said on every run, but they are not work: a rerun
-        # still reports nothing to do.
+        # Repeated skips are reported without counting as newly performed work.
         again = seed_all()
         assert again[0] == NOTHING_TO_DO
         assert created_lines(again[1:]) == []
 
     def test_an_archived_built_in_member_is_left_archived(self, seeded, gang_types):
-        """An author who took the slot out of a type's built-ins is not
-        overruled by a rerun: the archived member is found, and said."""
+        """A repeated seed preserves the author’s archived built-in member."""
         slot = Slot.objects.get(name=SLOT)
         member = DefaultAssignment.objects.get(
             default_set=gang_types["Goliath"].built_ins, slot=slot
@@ -466,14 +426,10 @@ class TestTheSeedCreatesEverythingOnce:
         assert len(outcome.skipped) == 6  # the Outcast picks are not there
 
 
-# --- Who has a supertype --------------------------------------------------
-
-
 class TestWhoHasASupertype:
-    """A Goliath gang has picked Goliath however it came to be one: founded
-    on the type after the seed, founded before and caught up, or an
-    Outcast gang that chose House Goliath. An Escher gang and a Clanless
-    Outcast have not."""
+    """House membership can come from founding, propagation or an Outcast Clan House
+    choice.
+    """
 
     def test_a_goliath_gang_founded_after_the_seed_has_the_pick(
         self, seeded, gang_types, owner
@@ -529,8 +485,8 @@ class TestWhoHasASupertype:
 
         assert has_picked(gang, "Goliath")
         assert not has_picked(gang, "Escher")
-        # Dealt by the grant, not written: the gang's only stored pick is
-        # the Clan House one.
+        # The supertype is computed from the grant; only the Clan House answer is
+        # stored.
         assert not gang.assignments.filter(
             pickable=supertype_pick("Goliath"), archived=False
         ).exists()
@@ -557,11 +513,8 @@ class TestWhoHasASupertype:
         assert not has_picked(clanless, "Escher")
 
 
-# --- Nothing is told about the supertype ------------------------------------
-
-
 def told(acts):
-    """Every sentence and every line beneath one, flattened."""
+    """Flatten act sentences and their subordinate lines."""
     lines = []
     for act in acts:
         lines.append("".join(span.text for span in act.spans))
@@ -570,10 +523,7 @@ def told(acts):
 
 
 class TestNothingIsToldAboutTheSupertype:
-    """The supertype is a classification players never see, so the gang
-    history and the campaign log say nothing when a gang gets it — at
-    founding, or when propagation catches an older gang up — while a
-    visible slot's pick is told as it always was."""
+    """Hidden supertype grants appear in neither gang nor campaign history."""
 
     def test_the_propagation_pass_writes_no_line_naming_it(
         self,
@@ -598,9 +548,6 @@ class TestNothingIsToldAboutTheSupertype:
             assert lines
             assert not any(SLOT_TYPE in line for line in lines)
             assert not any("comes with" in line for line in lines)
-
-
-# --- Journal territories in play -------------------------------------------
 
 
 class TestAJournalTerritoryInPlay:
@@ -972,14 +919,10 @@ class TestTheSeededControlledBoonsAreReset:
         assert Rule.objects.filter(name__endswith="Controlled").count() == 11
 
 
-# --- The House table and the starting roll ---------------------------------
-
-
 class TestTheHouseTable:
-    """A Goliath gang holds Goliath Territories through its pick and its
-    starting-roll dialog offers it; an Escher gang's does not until the
-    arbitrator opens the table. A staged table is offered only to a reader
-    who may see staged content."""
+    """House picks grant their tables. Opening a table shares it with other gangs; staging
+    still restricts selection.
+    """
 
     @pytest.fixture
     def campaign(self, seeded, core, staff_arbitrator):
@@ -1066,10 +1009,9 @@ class TestTheHouseTable:
     def test_a_reader_who_may_not_see_staged_content_is_not_offered_a_staged_table(
         self, client, campaign, gangs, staff_arbitrator
     ):
-        """The grant reaches the Goliath gang's card whoever is looking,
-        but rolling on a table is where a Territory is newly chosen for
-        the campaign, so the dialog holds a staged table back from a
-        reader who may not see staged content."""
+        """Table grants remain gang facts, but selecting new territory still requires
+        access to the staged table.
+        """
         goliath = AssetTable.objects.get(name=GOLIATH_TABLE)
         assert goliath in tables_held_by(
             gangs["Goliath"], campaign, include_staged=True
@@ -1084,7 +1026,7 @@ class TestTheHouseTable:
         assert TABLE in kings
         assert GOLIATH_TABLE not in kings
 
-        # Posting the staged table's key by hand is refused the same way.
+        # Submitting a staged table ID cannot bypass discovery restrictions.
         territory = campaign.campaign_type.asset_types.get(label_singular="Territory")
         response = client.post(
             reverse(
@@ -1098,8 +1040,7 @@ class TestTheHouseTable:
         ).exists()
         assert response.status_code == 200
 
-        # The act itself refuses too, whoever calls it: the gate is not
-        # only the dialog's.
+        # The domain operation enforces the same staging gate.
         with pytest.raises(Refusal, match="cannot roll for a territory from Goliath"):
             roll_asset(campaign, goliath, gang=gangs["Goliath"], rolled=1, actor=player)
         roll = roll_asset(
@@ -1123,13 +1064,10 @@ class TestTheHouseTable:
         assert TABLE in page.content.decode()
 
 
-# --- The console -------------------------------------------------------------
-
-
 class TestTheMaintenanceOperation:
-    """The seed runs from the maintenance console: GET previews without
-    writing, POST records a run and enqueues it, the task writes its
-    outcome onto the record, and a redelivered message changes nothing."""
+    """GET previews without persistent writes; POST records a task run; duplicate delivery
+    changes nothing.
+    """
 
     @pytest.fixture
     def address(self):

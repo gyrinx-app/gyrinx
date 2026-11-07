@@ -1,11 +1,6 @@
-"""The campaign as a data structure of its own.
-
-A campaign gets the treatment a gang does (design/gang-sheet.md): a plain
-structure holding everything its page draws — the gangs at the table with
-their money, their campaign counters and what they hold, every asset of every
-Holding asset type with its holder — built by ``render_campaign`` in a fixed
-number of queries however many gangs are in it. The page is a renderer
-over this; what the campaign *is* is asserted here.
+"""Verify render_campaign display data: gang finances, campaign counters and assets, asset
+ownership and budget guidance. Fetch related rows in batches so query counts remain
+fixed as gangs are added; see n26/design/gang-sheet.md.
 """
 
 import pytest
@@ -65,7 +60,7 @@ def campaign(arbitrator, core):
 
 @pytest.fixture
 def old_ruins(core):
-    """A Territory worth Reputation while held, with a named rule."""
+    """Territory contributing Reputation and a named rule while held."""
     territory = core.asset_types.get(label_singular="Territory")
     asset = create_asset("Old Ruins", territory, income=30)
     reputation = Counter.objects.get(name="Reputation")
@@ -86,23 +81,21 @@ def old_ruins(core):
 
 @pytest.fixture
 def toll_crossing(core):
-    """A Territory with income and nothing else."""
+
     territory = core.asset_types.get(label_singular="Territory")
     return create_asset("Toll Crossing", territory, income=20)
 
 
 @pytest.fixture
 def protection(campaign):
-    """A Racket the arbitrator added to this campaign alone, so a second
-    Holding asset type sits beside the shared type's Territory."""
+    """Campaign-authored Racket alongside the shared Territory asset type."""
     racket = add_asset_type(campaign.additions, "Racket", "pooled")
     return create_asset("Protection", racket)
 
 
 @pytest.fixture
 def gangs(gang_type, campaign):
-    """Three gangs at the table, named out of alphabetical order so the
-    sheet's sorting is seen to do something."""
+    """Create gangs out of alphabetical order so sorting is exercised."""
     made = []
     for name, owner in (
         ("The Rust Kings", "rust"),
@@ -120,15 +113,12 @@ def line_named(sheet, name):
 
 
 def readings(line):
-    """The counter values down one gang's row, None where the gang does
-    not carry the counter: the lines carry the assignment behind each
-    reading too, which these tests are not about."""
+    """Return counter values from one gang row, using None when the counter is absent."""
     return [counter.value if counter is not None else None for counter in line.counters]
 
 
 class TestTheGangsTable:
-    """One line per gang playing, sorted by name, carrying the gang's own
-    money and the campaign's counters and assets by column."""
+    """Sort active gang rows by name and include finance, counter and asset columns."""
 
     def test_gangs_are_sorted_by_name_with_their_money(self, campaign, gangs):
         sheet = render_campaign(campaign)
@@ -144,9 +134,9 @@ class TestTheGangsTable:
         assert ash.href == ""
 
     def test_reputation_leads_the_counter_columns(self, campaign, gang_type):
-        """Reputation first however the counters sort; the rest by name.
-        A gang joining carries the type's counter and the additions' at
-        their opening values."""
+        """Prioritise Reputation before the remaining counter columns, with opening values
+        from shared and campaign-authored built-ins.
+        """
         meat = create_counter("Meat")
         add_built_in(campaign.additions, meat, amount=2)
         gang = found_gang("Late", gang_type, owner=User.objects.create_user("late"))
@@ -158,8 +148,7 @@ class TestTheGangsTable:
         assert readings(line_named(sheet, "Late")) == [1, 10, 2]
 
     def test_a_held_territory_counts_in_the_reading(self, campaign, gangs, old_ruins):
-        """The same reading the gang sheet shows: stored value plus what a
-        held asset contributes."""
+        """Combine the stored counter value with held-asset contributions."""
         entry = add_asset(campaign, old_ruins)
         assign_asset(entry, gangs[1])
         reputation = gangs[1].assignments.get(counter__name="Reputation")
@@ -171,8 +160,7 @@ class TestTheGangsTable:
         assert readings(line_named(sheet, "The Rust Kings")) == [1, 10]
 
     def test_a_gang_without_the_counter_reads_none(self, campaign, gangs):
-        """A dash, never a blank: a gang whose card lacks the counter says
-        so rather than reading as a zero."""
+        """Distinguish an absent counter from a zero reading."""
         from n26.core.models import Assignment
 
         Assignment.objects.filter(
@@ -185,9 +173,9 @@ class TestTheGangsTable:
     def test_assets_sit_under_their_asset_type_column(
         self, campaign, gangs, old_ruins, toll_crossing, protection
     ):
-        """Every asset type the campaign deals in is a column — the shared
-        type's first, then the arbitrator's own — and a gang's possessions
-        and holdings land under theirs. A Settlement is every gang's own."""
+        """Order shared asset types before campaign-authored types, and place each gang's
+        assets under the matching column.
+        """
         ruins = add_asset(campaign, old_ruins)
         toll = add_asset(campaign, toll_crossing, name="The Sump Toll")
         racket = add_asset(campaign, protection)
@@ -210,8 +198,7 @@ class TestTheGangsTable:
         assert pit.assets == [["Settlement"], [], []]
 
     def test_over_budget_is_marked_on_the_line(self, campaign, gangs, make_profile):
-        """Measured on wealth, as the join warning is: a gang whose rating
-        alone passes the budget is marked."""
+        """Use wealth for budget guidance, consistently with joining warnings."""
         profile = make_profile("Ganger", price=1200)
         hire_with_option(gangs[0], profile, "Vex")
         sheet = render_campaign(campaign)
@@ -241,8 +228,7 @@ class TestTheGangsTable:
 
 
 class TestTheAssetsTables:
-    """One table per Holding asset type, each asset with its name, income,
-    and holder."""
+    """List transferable asset types with each holding's income and owner."""
 
     def test_holdings_get_a_table_and_possessions_do_not(
         self, campaign, gangs, old_ruins, protection
@@ -294,10 +280,9 @@ class TestTheAssetsTables:
 
 
 class TestTheQueryBudget:
-    """A campaign of many gangs costs what a campaign of one does. The
-    gangs are read together — one assignment fetch, one hydration pass,
-    one modifier index — so adding gangs adds rows to queries already
-    made and never a query of its own."""
+    """Batch gang assignments, hydration and modifiers so more gangs add rows without
+    adding queries.
+    """
 
     def measure(self, campaign):
         found = Campaign.objects.select_related(
@@ -333,11 +318,8 @@ class TestTheQueryBudget:
     def test_the_page_costs_a_fixed_number_of_queries(
         self, client, campaign, gang_type, old_ruins, arbitrator
     ):
-        # What the arbitrator added draws a counter column with a control in
-        # every cell, and a label every gang is asked.
-        # Added before any gang joins, so every gang measured carries the
-        # same kinds: the first card carrying a slot pays that kind's
-        # hydration once, which is the price of the kind and not of a gang.
+        # Add counter and label content before the smaller measurement so both rosters
+        # hydrate the same relation kinds.
         add_campaign_counter(campaign, "Meat", opening=3)
         add_campaign_label(campaign, "Alignment", ["Law Abiding", "Outlaw"])
         gangs = []
@@ -348,8 +330,7 @@ class TestTheQueryBudget:
         assign_asset(add_asset(campaign, old_ruins), gangs[0])
         client.force_login(arbitrator)
         address = reverse("n26-campaign", args=[campaign.pk])
-        # The first request of a session writes the session row; that is
-        # the sign-in's, not the page's, so it is paid before measuring.
+        # Warm the signed-in session before measuring page queries.
         client.get(address)
 
         with CaptureQueriesContext(connection) as few:
@@ -380,8 +361,8 @@ class TestTheQueryBudget:
             == 6
         )
         assert len(more_queries.captured_queries) == len(few.captured_queries)
-        # Rendering the assets and filling their addresses share the same
-        # reader instance, so the staged-content flag is checked once.
+        # Share the asset reader when populating action URLs so staged-content access is
+        # checked once.
         assert (
             sum(
                 "site_featureflag" in query["sql"] and STAGED_CONTENT in query["sql"]
