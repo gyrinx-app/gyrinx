@@ -1,15 +1,7 @@
-"""One grammar, four dialects — the selector convergence, pinned.
-
-Route B of design/selectors.md: every persisted "which things match"
-shape keeps its own tailored fields, but compiles to ``n26.core.select`` and
-executes through it. These tests pin three things:
-
-* each stored dialect **compiles** to the algebra;
-* matching runs through the **one engine**, so the semantics (default
-  open, any-of within a field) are encoded once;
-* the printed-vs-computed divergence between the two fact adapters is
-  **policy, documented and asserted** — not an accident that a refactor
-  may silently flip.
+"""Verify that stored scopes, usability restrictions and collection selectors compile to
+n26.core.select and share its matching semantics. Cover exact profile identity,
+SQL/in-memory agreement and specificity rounds that let conditional rules see earlier
+grants; see n26/design/selectors.md.
 """
 
 import pytest
@@ -49,7 +41,7 @@ def computed_for(miniature):
 
 
 class TestEveryDialectCompiles:
-    """The stored shapes stay tailored; the grammar underneath is one."""
+    """Compile each persisted selector shape to the shared algebra."""
 
     def test_a_scope_s_subtype_filter(self, db):
         scope = targets_model(with_subtypes=[create_subtype("Leader")])
@@ -66,8 +58,9 @@ class TestEveryDialectCompiles:
         assert str(skill.usable_by_selector()) == "has Fighter or has Walker"
 
     def test_a_restriction_to_a_fighter_entry_is_an_exactly(self, make_profile):
-        """Being an entry is identity, not possession — "(Wyld Runner
-        only)" compiles to the algebra's ``Exactly``, its first real use."""
+        """A fighter-entry restriction matches profile identity with Exactly rather than
+        checking for a held assignment.
+        """
         runner = make_profile("Wyld Runner")
         bow = create_wargear("Wyld bow")
         restrict_use(bow, runner)
@@ -80,10 +73,11 @@ class TestEveryDialectCompiles:
         assert str(sweep.as_selector()) == "any weapon and homed in Pistols"
 
     def test_the_narrowed_sweep_compiles_to_sql_and_agrees_with_memory(self, db):
-        """``HomedIn`` works in both worlds: the queryset it compiles to
-        and the in-memory match give the same answer."""
+        """Use the same category selector for queryset filtering and in-memory matching."""
         pistols = create_category("Ranged Weapons", "Pistols", 0)
-        stub = create_wargear("Stub gun", category=pistols)  # wargear for ease
+        stub = create_wargear("Stub gun", category=pistols)  # Use wargear to isolate
+        # category matching from
+        # weapon-profile setup.
         mesh = create_wargear("Mesh armour")
         catalogue = create_collection("Catalogue", contains=[(Wargear, pistols)])
         (sweep,) = catalogue.selectors.all()
@@ -94,14 +88,8 @@ class TestEveryDialectCompiles:
 
 
 class TestRoundsBySpecificity:
-    """Compute runs in rounds; a scope's round is its selector's specificity.
-
-    Unconditional modifiers (specificity 0)
-    settle first; filtered scopes (specificity 1+) then ask against the
-    settled facts, all seeing the same snapshot. So a wargear's
-    unconditional "grants Mounted" lands in round 0, and a rule for
-    Mounted models — round 1 — reaches the rider. Add settles before
-    remove within a round. The whole run is data: ``computed.plan``.
+    """Apply unconditional grants in round zero, then evaluate filtered scopes against the
+    resulting facts in later rounds. Record those rounds in computed.plan.
     """
 
     @pytest.fixture
@@ -109,14 +97,14 @@ class TestRoundsBySpecificity:
         mounted = create_subtype("Mounted")
         hit_and_run = create_skill("Hit & Run")
         profile = make_profile("Outrider", price=50)
-        # The filtered rule (round 1), carried by the profile itself.
+        # Evaluate the profile's Mounted condition in round one.
         modifier(
             "Mounted models gain Hit & Run",
             targets_model(with_subtypes=[mounted]),
             adds(hit_and_run),
             carried_by=profile,
         )
-        # The unconditional grant (round 0), carried by bought kit.
+        # Grant Mounted from equipment in round zero.
         saddle = create_wargear("Saddle")
         modifier(
             "Saddle grants Mounted", targets_model(), adds(mounted), carried_by=saddle
@@ -135,9 +123,9 @@ class TestRoundsBySpecificity:
         assert [c.name for c in computed.skills] == ["Hit & Run"]
 
     def test_usability_and_scopes_now_agree(self, rider):
-        """One world: the fighter the equip screen sees is the fighter the
-        rules see. The divergence this class used to pin is resolved by
-        rounds."""
+        """Use computed facts, including unconditional grants, for equipment usability as
+        well as rule scopes.
+        """
         fighter, mounted = rider
         _, computed = computed_for(fighter)
 
@@ -160,8 +148,9 @@ class TestRoundsBySpecificity:
 
 class TestTheEngineIsShared:
     def test_use_notes_flow_through_the_same_match(self, gang, make_profile):
-        """The listing-noting path builds one fighter matchable and asks
-        each line's compiled selector — no bespoke comparison code left."""
+        """Evaluate browse use notes through compiled selectors against the model's
+        computed facts.
+        """
         runner = make_profile("Wyld Runner", price=45)
         other = make_profile("Gang Queen", price=135)
         bow = create_skill("Bowcraft")
