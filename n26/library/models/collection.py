@@ -112,7 +112,7 @@ def paid_profiles(
     """Select named, paid profiles for display beneath weapons.
 
     Unnamed and free profiles belong to the weapon's standard grant.
-    ``with_trade_point_price`` limits profiles to Trading Post offers.
+    ``with_trade_point_price`` requires a non-null ``trade_point_price``.
     ``for_use_notes`` prefetches restrictions only when the listing displays them.
     Exclude archived content and include staged content only when requested.
     """
