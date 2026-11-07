@@ -1,9 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Naming a generated scenario and saving it to the campaign's log. The
-scenario rides the form as hidden fields, so an error comes back with
-the name and the scenario as they were.
+Carry the generated scenario as hidden fields so validation errors preserve it alongside
+the submitted name.
 {% endcomment %}
 {% block head_title %}Save scenario{% endblock %}
 {% block nav_switcher %}

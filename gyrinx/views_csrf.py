@@ -33,5 +33,5 @@ def csrf_failure(request, reason=""):
 
     referer = request.META.get("HTTP_REFERER")
 
-    # The fallback is shared by both editions.
+    # Keep the fallback at the shared site root instead of an edition-specific route.
     return safe_redirect(request, referer)

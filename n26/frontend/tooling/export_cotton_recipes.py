@@ -1247,6 +1247,7 @@ def recipes():
         "radioCards": radio_cards_recipe(),
         "radioOption": radio_option_recipe(),
         "input": input_recipe(),
+        "textarea": classes("<c-ui.textarea />", "textarea")[0],
         "workflowPage": workflow_page_recipe(),
         "nameList": name_list_recipe(),
         "nativeSelect": native_select_recipe(),

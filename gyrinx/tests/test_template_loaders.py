@@ -1,17 +1,7 @@
-"""How development loads templates: cached, and reset when a template changes.
+"""Development template caching, invalidation and Cotton loader ordering.
 
-django-cotton's autoconfig wraps the chain in Django's ``cached.Loader``. The dev
-server keeps a cached loader, because Django's template autoreload watches every
-template directory and resets the loaders when a template file changes, so an
-edit still reaches the next request without a restart. The autoreloader ignores
-newly created files, so ``gyrinx.cotton_dev.DevCottonConfig`` also resets the
-loaders when a file appears in, or leaves, a template directory.
-
-``GYRINX_CACHE_TEMPLATES=False`` takes the cached loader out altogether, for a
-process with no autoreloader that must still see template edits.
-
-The suite keeps Django's own cached loader, so the dev server's settings are
-probed in a subprocess, against a real ``django.setup()``.
+Probe development settings in a subprocess because pytest retains its own
+cached-loader configuration.
 """
 
 import json
@@ -41,9 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 FILESYSTEM_LOADER = "django.template.loaders.filesystem.Loader"
 APP_DIRECTORIES_LOADER = "django.template.loaders.app_directories.Loader"
 
-# The shape cotton's autoconfig produces, as of 2.7.2. The subprocess test below
-# is what catches this going out of date; these unit tests only need a chain of
-# the right shape to exercise the unwrap.
+# A representative cached Cotton loader chain for unwrapping tests.
 COTTON_CACHED_CHAIN = [
     (CACHED_LOADER, [COTTON_LOADER, FILESYSTEM_LOADER, APP_DIRECTORIES_LOADER])
 ]
@@ -104,7 +92,7 @@ def probe_dev_settings(**env):
 
 
 def test_the_dev_server_keeps_the_cached_loader():
-    """Compiled templates survive between requests; autoreload clears them."""
+
     probed = probe_dev_settings(GYRINX_CACHE_TEMPLATES="")
 
     assert probed["cache_templates"] is True
@@ -113,13 +101,13 @@ def test_the_dev_server_keeps_the_cached_loader():
 
 
 def test_the_dev_server_can_read_templates_fresh():
-    """GYRINX_CACHE_TEMPLATES=False takes the cached loader out, cotton first."""
+
     probed = probe_dev_settings(GYRINX_CACHE_TEMPLATES="False")
 
     assert probed["cache_templates"] is False
     assert CACHED_LOADER not in flatten(probed["settings_loaders"])
     assert CACHED_LOADER not in flatten(probed["engine_loaders"])
-    # Cotton's loader compiles the <c-…> tags, so it has to stay in front.
+    # Keep Cotton's loader first so component tags compile.
     assert probed["engine_loaders"][0] == COTTON_LOADER
     assert probed["engine_loaders"].index(FILESYSTEM_LOADER) < probed[
         "engine_loaders"
@@ -129,18 +117,12 @@ def test_the_dev_server_can_read_templates_fresh():
 @pytest.mark.parametrize(
     "template_name",
     [
-        # A plain app template, and a cotton component from an app directory.
         "core/list.html",
         "cotton/ui/button.html",
     ],
 )
 def test_editing_a_template_resets_the_cached_loader(template_name):
-    """What keeps template edits live under runserver with the cache on.
-
-    runserver's autoreloader watches the directories this returns and sends
-    file_changed for each edit. Django's template_changed handler then resets
-    every loader, so the next render compiles the file again.
-    """
+    """Reset loaded templates through Django's template_changed handler."""
     assert flatten(engines["django"].engine.loaders)[0] == CACHED_LOADER
 
     before = get_template(template_name).template
@@ -175,14 +157,14 @@ def render(name):
 
 
 def test_a_new_override_shows_once_its_directory_changes(two_template_dirs):
-    """An override created after the template cached shows on the next request."""
+
     high, low, watch = two_template_dirs
     (low / "page.html").write_text("from low")
     watch()
     assert render("page.html") == "from low"
 
     (high / "page.html").write_text("from high")
-    # Without the watch the cached loader keeps serving the old match.
+    # The cached match stays stale until the directory watcher resets loaders.
     assert render("page.html") == "from low"
 
     watch()
@@ -202,7 +184,7 @@ def test_a_template_created_after_a_miss_is_found(two_template_dirs):
 
 
 def test_a_template_root_created_later_is_noticed(tmp_path):
-    """A root missing at the snapshot still counts once it appears."""
+
     missing = tmp_path / "later"
     watch = TemplateDirectoryWatch(roots=[missing])
     watch()
@@ -226,7 +208,7 @@ def test_an_unchanged_directory_keeps_the_cache(two_template_dirs):
 
 
 def test_cotton_is_still_installed_under_its_own_name():
-    """The swapped-in AppConfig keeps cotton installed — checks.py relies on it."""
+
     assert apps.is_installed("django_cotton")
     assert (
         apps.get_app_config("django_cotton").__class__.__module__ == "gyrinx.cotton_dev"
@@ -261,7 +243,7 @@ def test_uncached_loaders_leaves_an_uncached_chain_alone():
 
 
 def test_uncached_loaders_rejects_a_cached_loader_it_cannot_unwrap():
-    """A shape we don't recognise fails loudly rather than serving a broken chain."""
+
     with pytest.raises(ImproperlyConfigured):
         uncached_loaders([(CACHED_LOADER, "not-a-list")])
 
@@ -270,7 +252,7 @@ def test_uncached_loaders_rejects_a_cached_loader_it_cannot_unwrap():
 
 
 def test_unwrapping_a_chain_without_cotton_fails_loudly():
-    """If cotton's autoconfig ever changes shape, startup should say so."""
+
     with override_settings(
         TEMPLATES=engine_config([(CACHED_LOADER, [FILESYSTEM_LOADER])])
     ):

@@ -70,6 +70,7 @@ def stageable_kinds():
         Interstitial,
         InterstitialSlot,
         PicklistMember,
+        ScenarioTable,
     )
     from n26.library.models.collection import entryable_kinds
     from n26.library.models.modifier import OFFERABLE_KINDS
@@ -80,6 +81,7 @@ def stageable_kinds():
         Asset,
         CollectionEntry,
         PicklistMember,
+        ScenarioTable,
         PicklistMember._meta.get_field("pickable").related_model,
         Interstitial,
         InterstitialSlot,

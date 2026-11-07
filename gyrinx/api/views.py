@@ -1,87 +1,8 @@
-"""
-Webhooks allow you to receive real-time updates from Patreon servers.
+"""Receive authenticated Patreon webhooks and Discord interactions.
 
-We provie a URL for Patreon to send an HTTP POST to when one of a few events occur. This POST request will
-contain the relevant data from the user action in JSON format. It will also have headers:
-
-    X-Patreon-Event: [trigger]
-    X-Patreon-Signature: [message signature]
-
-where the message signature is the HEX digest of the message body HMAC signed (with MD5) using your webhook's secret viewable on the webhooks page.
-You can use this to verify us as the sender of the message.
-
-
-Sample Webhook payload
-
-{
-  "data": {
-    "attributes": {
-      "amount_cents": 250,
-      "created_at": "2015-05-18T23:50:42+00:00",
-      "declined_since": null,
-      "patron_pays_fees": false,
-      "pledge_cap_cents": null
-    },
-    "id": "1",
-    "relationships": {
-      "address": {
-        "data": null
-      },
-      "card": {
-        "data": null
-      },
-      "creator": {
-        "data": {
-          "id": "3024102",
-          "type": "user"
-        },
-        "links": {
-          "related": "https://www.patreon.com/api/user/3024102"
-        }
-      },
-      "patron": {
-        "data": {
-          "id": "32187",
-          "type": "user"
-        },
-        "links": {
-          "related": "https://www.patreon.com/api/user/32187"
-        }
-      },
-      "reward": {
-        "data": {
-          "id": "599336",
-          "type": "reward"
-        },
-        "links": {
-          "related": "https://www.patreon.com/api/rewards/599336"
-        }
-      }
-    },
-    "type": "pledge"
-  },
-  "included": [{ ** * Creator Object ** *
-    },
-    { ** * Patron Object ** *
-    },
-    { ** * Reward Object ** *
-    },
-  ]
-}
-
-Triggers
-A trigger is an event type. The syntax of a trigger is [resource]:[action] (e.g. pledges:create).
-We can add or remove triggers for a webhook to listen to on the webhooks page:
-https://www.patreon.com/portal/registration/register-webhooks
-
-Trigger	Description
-pledge:create	Fires when a user pledges to a creator. This trigger fires even if the charge is declined or fraudulent.
-    The pledge object is still created, even if the user is not a valid patron due to charge status.
-pledge:update	Fires when a user edits their pledge. Notably, the pledge ID will change, because the underlying pledge object is different.
-    The user id should be the primary key to reference.
-pledge:delete	Fires when a user stops pledging or the pledge is cancelled altogether. Does not fire for pledge pausing, as the pledge still exists.
-members:create    Fires when a user becomes a patron of a creator.
-members:update    Fires when a user updates their membership tier.
+Patreon signs the raw body with HMAC-MD5 in X-Patreon-Signature. Discord
+uses Ed25519 over its timestamp and body. Store accepted payloads for audit;
+process Patreon membership inline and enqueue Discord issue commands.
 """
 
 import hashlib
@@ -100,11 +21,11 @@ from gyrinx.api.models import WebhookRequest
 logger = logging.getLogger(__name__)
 
 
-# Discord interaction types
+# Discord interaction types.
 DISCORD_PING = 1
 DISCORD_APPLICATION_COMMAND = 2
 
-# Discord interaction response types
+# Discord interaction response types.
 DISCORD_PONG = 1
 DISCORD_DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE = 5
 
@@ -121,7 +42,7 @@ def hook_patreon(request):
             logger.error("No signature provided")
             return HttpResponse(status=400)
 
-        # "the message signature is the HEX digest of the message body HMAC signed (with MD5)"
+        # Patreon signs the raw request body with the configured shared secret.
         computed_signature = hmac.new(
             settings.PATREON_HOOK_SECRET.encode(), request.body, hashlib.md5
         ).hexdigest()
@@ -156,16 +77,13 @@ def hook_patreon(request):
 
             process_patreon_webhook(payload, event)
         except Exception:
-            # Log with full stack trace but still return 204 — the webhook
-            # payload is already persisted and can be reprocessed via the
-            # admin backfill action.  Returning 500 would cause Patreon to
-            # retry, creating duplicate WebhookRequest rows.
+            # Keep the accepted response after storing the payload, even if processing fails.
+            # The admin can replay the stored webhook without asking Patreon to redeliver it.
             logger.exception("Error processing Patreon webhook")
 
         return HttpResponse(status=204)
 
     if request.method == "GET":
-        # Handle GET requests if needed, e.g., for health checks
         return HttpResponse(
             json.dumps(
                 {
@@ -192,16 +110,7 @@ def _verify_discord_signature(body: bytes, signature: str, timestamp: str) -> bo
 
 @csrf_exempt
 def discord_interactions(request):
-    """
-    Discord Interactions Endpoint.
-
-    Receives HTTP POST from Discord when users invoke the "Create Issue"
-    message context menu command. Verifies the Ed25519 signature, handles
-    PING for endpoint verification, and enqueues a background task for
-    application commands.
-
-    See: https://discord.com/developers/docs/interactions/overview
-    """
+    """Verify a Discord POST, answer PING or dispatch an application command."""
     if request.method != "POST":
         return HttpResponse(status=405)
 
@@ -209,7 +118,6 @@ def discord_interactions(request):
         logger.error("No Discord public key configured")
         return HttpResponse(status=503)
 
-    # Verify Ed25519 signature
     signature = request.headers.get("X-Signature-Ed25519", "")
     timestamp = request.headers.get("X-Signature-Timestamp", "")
 
@@ -221,7 +129,6 @@ def discord_interactions(request):
         logger.error("Invalid Discord signature")
         return HttpResponse(status=401)
 
-    # Parse interaction
     try:
         interaction = json.loads(request.body)
     except json.JSONDecodeError:
@@ -230,11 +137,9 @@ def discord_interactions(request):
 
     interaction_type = interaction.get("type")
 
-    # Handle PING (Discord endpoint verification)
     if interaction_type == DISCORD_PING:
         return JsonResponse({"type": DISCORD_PONG})
 
-    # Handle application commands (context menu)
     if interaction_type == DISCORD_APPLICATION_COMMAND:
         return _handle_discord_command(interaction, signature)
 
@@ -247,7 +152,6 @@ def _handle_discord_command(interaction: dict, signature: str) -> JsonResponse:
     data = interaction.get("data", {})
     command_name = data.get("name", "")
 
-    # Store for audit trail
     try:
         WebhookRequest.objects.create(
             source="discord",
@@ -270,7 +174,6 @@ def _handle_discord_command(interaction: dict, signature: str) -> JsonResponse:
             }
         )
 
-    # Extract required fields
     target_id = data.get("target_id")
     channel_id = interaction.get("channel_id")
     guild_id = interaction.get("guild_id")
@@ -288,17 +191,14 @@ def _handle_discord_command(interaction: dict, signature: str) -> JsonResponse:
             }
         )
 
-    # Extract the target message from resolved data
     resolved = data.get("resolved", {})
     messages = resolved.get("messages", {})
     target_message = messages.get(target_id, {})
 
-    # Get the user who triggered the command
     member = interaction.get("member", {})
     user = member.get("user", {}) or interaction.get("user", {})
     username = user.get("username", "unknown")
 
-    # Enqueue the background task to trigger GitHub Action
     try:
         from gyrinx.api.tasks import trigger_discord_issue_action
 
@@ -324,7 +224,6 @@ def _handle_discord_command(interaction: dict, signature: str) -> JsonResponse:
             }
         )
 
-    # Return deferred response ("Bot is thinking...")
     return JsonResponse(
         {
             "type": DISCORD_DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,

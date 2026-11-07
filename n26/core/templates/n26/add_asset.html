@@ -1,14 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation react %}
 {% comment %}
-Adding an asset to the campaign, picked from what the campaign type and the
-arbitrator's own additions offer. Only asset types whose ownership is Holding
-are offered: a Settlement is every gang's own and is never added here.
-Reached from the Add beside one asset type's table, the list is narrowed to
-that type and the page says so in its title.
-
-Native checkboxes submit the selection without scripting. React adds Select all
-and optional names for the selected assets.
+Add holding assets from the campaign's available definitions. A type-specific entry URL
+narrows the list; React enhances native checkbox selection and optional names.
 {% endcomment %}
 {% block head_title %}Add {{ adding }} to {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -20,8 +14,8 @@ and optional names for the selected assets.
 {% endblock %}
 {% block content %}
     {% comment %}
-    The asset type rides the form's own address, so a failed submit comes
-    back to the same narrowed list rather than to every type at once.
+    Keep the asset type in the submission URL so validation errors retain the narrowed
+    list.
     {% endcomment %}
     <c-n26.form-page action="{{ request.get_full_path }}"
                      title="Add {{ adding }}"

@@ -300,3 +300,16 @@ def island_props(body, name):
     host = soup.select_one(f'[data-react-name="{name}"]')
     assert host is not None
     return json.loads(soup.find(id=host["data-react-props"]).string)
+
+
+@pytest.fixture
+def scenario_content(db):
+    """The original editable scenario catalogue, normally installed by migration."""
+    from importlib import import_module
+
+    from django.apps import apps
+
+    migration = import_module(
+        "n26.library.migrations.0130_scenario_content_is_author_editable"
+    )
+    migration.seed(apps)

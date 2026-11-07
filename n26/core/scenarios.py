@@ -13,17 +13,17 @@ before there were sets have, is from the General set.
 from dataclasses import dataclass
 
 from n26.library.scenario_tables import (
-    GENERAL_SIDE_JOBS,
+    PRIMARY_KEYS,
     SIDE_JOB_KEYS,
-    TABLES,
     ScenarioEntry,
     ScenarioTable,
+    load_catalogue,
     side_job_set,
     side_job_table,
 )
 
 SCENARIO_PICK_KEYS = (
-    *(f"{table.key}_pick" for table in TABLES),
+    *(f"{key}_pick" for key in PRIMARY_KEYS),
     *(f"{key}_{suffix}" for key in SIDE_JOB_KEYS for suffix in ("pick", "set")),
     "side_jobs",
 )
@@ -58,12 +58,16 @@ class ScenarioResult:
         return f"{found.key}-{self.roll}" if found else self.roll
 
 
-def roll(keys, rng=None):
+def roll(keys, rng=None, *, catalogue=None):
     """A D6 roll for each named table, as ``{key: roll}`` in table order.
     ``rng`` is anything with ``randint``, so a test can seed it."""
     from n26.library.models import Dice
 
-    return {found.key: Dice.roll(Dice.D6, rng) for found in TABLES if found.key in keys}
+    return {
+        found.key: Dice.roll(Dice.D6, rng)
+        for found in (catalogue or load_catalogue()).tables
+        if found.key in keys
+    }
 
 
 def roll_side_jobs(picks, rng=None):
@@ -89,7 +93,7 @@ def roll_side_jobs(picks, rng=None):
     return values
 
 
-def reroll_side_job(found, key, set_key, rng=None):
+def reroll_side_job(found, key, set_key, rng=None, *, catalogue=None):
     """The rolls of the scenario ``found`` with its side job under ``key``
     rolled again on the set ``set_key``, keeping everything else.
 
@@ -97,31 +101,33 @@ def reroll_side_job(found, key, set_key, rng=None):
     including the job it replaces, unless the set has no other. None when
     the scenario has no side job under ``key`` or there is no such set.
     """
-    chosen = side_job_set(set_key)
+    chosen = side_job_set(set_key, catalogue)
     side_jobs = [(r.table.side_job_set, r.roll) for r in found if r.table.side_job_set]
     keys = {r.table.key for r in found if r.table.side_job_set}
-    if chosen is None or key not in keys:
+    if chosen is None or not chosen.available or key not in keys:
         return None
     value = roll_side_jobs([*side_jobs, (chosen, None)], rng)[-1]
     return {**rolls_of(found), key: value}
 
 
-def read_side_job(value):
+def read_side_job(value, catalogue=None):
     """``(set, entry)`` for a stored side job value, "escher-3", or a bare
     roll from the General set. Either is None for a value that is not a
     side job."""
+    catalogue = catalogue or load_catalogue()
+    general = catalogue.side_job_set("general")
     if type(value) is int:
-        return GENERAL_SIDE_JOBS, GENERAL_SIDE_JOBS.entry(value)
+        return general, general.entry(value) if general else None
     if not isinstance(value, str):
         return None, None
     set_key, dash, roll_text = value.rpartition("-")
-    found = side_job_set(set_key) if dash else GENERAL_SIDE_JOBS
+    found = catalogue.side_job_set(set_key) if dash else general
     if found is None or roll_text not in {str(e.roll) for e in found.entries}:
         return found, None
     return found, found.entry(int(roll_text))
 
 
-def parse(mapping):
+def parse(mapping, catalogue=None):
     """The results a mapping of ``{key: roll}`` names, in table order, and
     the tables whose value is not one of their rolls.
 
@@ -130,8 +136,16 @@ def parse(mapping):
     caller refuses the whole scenario rather than quietly dropping a part.
     Side jobs come last, numbered in order from 1 whatever their keys.
     """
+    if not any(
+        mapping.get(key) not in (None, "") for key in (*PRIMARY_KEYS, *SIDE_JOB_KEYS)
+    ):
+        return [], []
+    catalogue = catalogue or load_catalogue()
     found, wrong = [], []
-    for each in TABLES:
+    for key in PRIMARY_KEYS:
+        each = catalogue.table(key) or ScenarioTable(
+            key=key, name=key.capitalize(), entries=()
+        )
         value = mapping.get(each.key)
         if value in (None, ""):
             continue
@@ -153,8 +167,13 @@ def parse(mapping):
         if value in (None, ""):
             continue
         place += 1
-        side_jobs, entry = read_side_job(value)
-        each = side_job_table(place, side_jobs or GENERAL_SIDE_JOBS)
+        side_jobs, entry = read_side_job(value, catalogue)
+        each = side_job_table(
+            place,
+            side_jobs
+            or catalogue.side_job_set("general")
+            or ScenarioTable(key="side_job", name="Side jobs", entries=()),
+        )
         if entry is None:
             wrong.append(each)
         else:
@@ -162,9 +181,9 @@ def parse(mapping):
     return found, wrong
 
 
-def results(mapping):
+def results(mapping, catalogue=None):
     """The results a mapping names, or an empty list if any part is wrong."""
-    found, wrong = parse(mapping)
+    found, wrong = parse(mapping, catalogue)
     return [] if wrong else found
 
 

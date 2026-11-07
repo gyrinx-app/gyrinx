@@ -8,9 +8,8 @@ definitions.
 {% endcomment %}
 {% block head_title %}Edit {{ campaign.name }}{% endblock head_title %}
 {% comment %}
-richtext.js before form.media, as on the set-up screen: the listener that
-swaps the editor's skin with the colour mode has to be registered before
-django-tinymce reads its config.
+Load richtext.js before form.media so theme configuration runs before TinyMCE
+initialisation.
 {% endcomment %}
 {% block extra_head %}
     {% if tab == "general" %}

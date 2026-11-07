@@ -23,36 +23,17 @@ logger = logging.getLogger(__name__)
 
 
 class PubSubBackend(BaseTaskBackend):
-    """
-    Task backend that publishes to per-task Pub/Sub topics.
+    """Publish tasks to per-task topics with optional confirmation.
 
-    Each registered task gets its own topic, allowing independent
-    configuration of retry policies and ack deadlines.
-
-    By default publishing is fire-and-forget for low latency. Routes marked
-    confirm_publish wait for Pub/Sub confirmation before enqueue returns; use
-    them for chains whose current delivery must not be acknowledged first.
-    A callback tracks success and failure for both modes.
-
-    Configuration in settings.py:
-        TASKS = {
-            "default": {
-                "BACKEND": "gyrinx.tasks.backend.PubSubBackend",
-                "OPTIONS": {
-                    "project_id": "my-gcp-project",
-                },
-            }
-        }
+    Each route has independent retry and acknowledgement settings. A callback
+    records publish results. Most routes return a READY TaskResult before
+    confirmation; confirm_publish routes wait before returning.
+    Configure project_id in backend OPTIONS or GCP_PROJECT_ID.
     """
 
-    # Backend capabilities
-    # To support defer: add run_after to message, use Pub/Sub scheduled delivery
     supports_defer = False
-    # To support async: use aiohttp or async Pub/Sub client in aenqueue()
     supports_async_task = False
-    # Results are stored in database via TaskExecution model
     supports_get_result = True
-    # To support priority: use separate topics per priority level
     supports_priority = False
 
     def __init__(self, alias, params):
@@ -65,7 +46,7 @@ class PubSubBackend(BaseTaskBackend):
 
     @property
     def publisher(self):
-        """Lazy initialization of Pub/Sub publisher client."""
+        """Create the Pub/Sub publisher on first access and reuse it."""
         if self._publisher is None:
             from google.cloud import pubsub_v1
 
@@ -73,28 +54,15 @@ class PubSubBackend(BaseTaskBackend):
         return self._publisher
 
     def enqueue(self, task, args, kwargs):
-        """
-        Publish task to its dedicated Pub/Sub topic.
+        """Publish task arguments and return a READY result.
 
-        This method normally returns after initiating the publish. Routes with
-        confirm_publish wait for Pub/Sub confirmation. A callback tracks both
-        success and failure via track().
-
-        Args:
-            task: The Task instance to enqueue
-            args: Positional arguments for the task
-            kwargs: Keyword arguments for the task
-
-        Returns:
-            TaskResult with the task ID (status is READY, though publish may still be in flight)
-
-        Raises:
-            ValueError: If the task isn't declared in its app's task_routes
+        Create TaskExecution through task_enqueued before publishing. Track the
+        publish result in a callback. Confirmed routes wait for publication.
+        Raise ValueError for unregistered tasks or non-JSON arguments.
         """
         task_id = str(uuid.uuid4())
         task_name = task.func.__name__
 
-        # Look up in registry to get topic name
         route = get_task(task_name)
         if not route:
             raise ValueError(
@@ -105,10 +73,9 @@ class PubSubBackend(BaseTaskBackend):
 
         topic_path = self.publisher.topic_path(self.project_id, route.topic_name)
 
-        # Compute enqueued_at once for consistency between message and database
+        # Use one timestamp for the message and its execution record.
         enqueued_at = datetime.now(UTC)
 
-        # Serialize message
         message_data = {
             "task_id": task_id,
             "task_name": task_name,
@@ -126,7 +93,6 @@ class PubSubBackend(BaseTaskBackend):
                 "(dict, list, str, int, float, bool, None)."
             ) from e
 
-        # Create TaskResult for signal (and return value)
         task_result = TaskResult(
             task=task,
             id=task_id,
@@ -142,14 +108,12 @@ class PubSubBackend(BaseTaskBackend):
             worker_ids=[],
         )
 
-        # Send signal to create TaskExecution record
         task_enqueued.send(sender=type(self), task_result=task_result)
 
-        # Publish without waiting - use callback for tracking
         future = self.publisher.publish(topic_path, data)
 
         def on_publish_complete(f):
-            """Callback to track publish success/failure."""
+            """Track publish success or log and track failure."""
             try:
                 message_id = f.result()
                 track(
@@ -174,24 +138,16 @@ class PubSubBackend(BaseTaskBackend):
 
         future.add_done_callback(on_publish_complete)
 
-        # Durable chains need confirmation before their current delivery is
-        # acknowledged. A timeout can still produce a duplicate publication;
-        # callers using this option must be replay-safe.
+        # A failed continuation must leave the current task unacknowledged.
+        # Confirmation can time out after a publish succeeds, so these routes
+        # must also tolerate duplicate deliveries.
         if route.confirm_publish:
             future.result(timeout=10)
 
         return task_result
 
     def get_result(self, result_id):
-        """
-        Retrieve task result from the database.
-
-        Args:
-            result_id: The task ID (TaskResult.id, not our internal UUID)
-
-        Returns:
-            TaskResult instance with current status and results, or None if not found
-        """
+        """Build a TaskResult from its external task ID, or return None when absent."""
         from gyrinx.tasks.models import TaskExecution
 
         try:
@@ -199,7 +155,6 @@ class PubSubBackend(BaseTaskBackend):
         except TaskExecution.DoesNotExist:
             return None
 
-        # Map TaskExecution status to TaskResultStatus
         status_map = {
             "READY": TaskResultStatus.READY,
             "RUNNING": TaskResultStatus.RUNNING,
@@ -207,7 +162,6 @@ class PubSubBackend(BaseTaskBackend):
             "FAILED": TaskResultStatus.FAILED,
         }
 
-        # Build errors list if failed
         errors = []
         if execution.is_failed and execution.error_message:
             errors = [execution.error_message]

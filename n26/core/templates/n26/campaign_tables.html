@@ -1,17 +1,9 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-The tables the gangs in the campaign can use, by asset type. The campaign
-type's own tables are included and carry no control. Every other table of
-the type the arbitrator may make available — a system pack's, or one written
-for this campaign — carries a tick. Ticked, the table is built into the
-campaign's own campaign type, so every gang holds it; unticked, it is
-withdrawn, and nothing a gang already rolled is taken back.
-
-One form over every tick, saved together: the view reads the ticks against
-what stood before and changes only what moved. The words are the view's:
-each section's intro, its help and its empty line take the asset type's own
-word for what a table contains.
+Select additional asset tables for the campaign type in one submission. Removing access
+leaves existing rolled assets unchanged; inherited tables are displayed without
+controls.
 {% endcomment %}
 {% block head_title %}Tables in {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}

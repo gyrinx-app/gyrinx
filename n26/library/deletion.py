@@ -408,7 +408,13 @@ class _Planner:
     # -- the reading -----------------------------------------------------
 
     def read(self):
+        from n26.library.models import ScenarioEntry, ScenarioTable
+
         for thing in self.targets:
+            if isinstance(thing, (ScenarioTable, ScenarioEntry)):
+                self.refuse(
+                    "Scenario content may be referenced by saved results. Retire its table instead."
+                )
             self.doom(thing, root=True)
         while self.queue:
             batch, self.queue = self.queue, []

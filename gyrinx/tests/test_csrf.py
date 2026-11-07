@@ -1,4 +1,4 @@
-"""Test custom CSRF failure handler."""
+"""CSRF failure redirects, messages and destination validation."""
 
 import pytest
 from django.contrib.messages import get_messages
@@ -11,32 +11,23 @@ pytestmark = pytest.mark.core
 
 @pytest.mark.django_db
 def test_csrf_failure_redirects_with_message(client: Client):
-    """Test that CSRF failure redirects back to form with an error message."""
-    # Create a test URL (using new list as an example)
+
     form_url = reverse("core:lists-new")
 
-    # Make a request without a CSRF token
-    # First, get a valid session by loading the form
     response = client.get(form_url)
     assert response.status_code == 302  # Should redirect to login
 
-    # Now test with an authenticated user
     from django.contrib.auth import get_user_model
 
     User = get_user_model()
     user = User.objects.create_user(username="testuser", password="password")
     client.force_login(user)
 
-    # Get the form page (skip_packs=1 to bypass pack interstitial redirect)
     response = client.get(form_url + "?skip_packs=1")
     assert response.status_code == 200
 
-    # Now post without CSRF token (simulating expired token)
-    # We need to manually trigger the CSRF failure
-    # Django's test client includes CSRF tokens by default, so we use a different approach
+    # Call the failure view directly to isolate its response from middleware token checking.
 
-    # Save the current CSRF_FAILURE_VIEW setting
-    # Create a mock request
     from django.test import RequestFactory
 
     from gyrinx.views_csrf import csrf_failure
@@ -46,17 +37,13 @@ def test_csrf_failure_redirects_with_message(client: Client):
     request.META["HTTP_REFERER"] = form_url
     request.session = client.session
 
-    # Set up messages framework for the request
     request._messages = FallbackStorage(request)
 
-    # Call the CSRF failure view directly
     response = csrf_failure(request, reason="CSRF token missing or incorrect")
 
-    # Check that it redirects
     assert response.status_code == 302
     assert response.url == form_url
 
-    # Check that the error message was added
     messages = list(get_messages(request))
     assert len(messages) == 1
     assert "Your session has expired" in str(messages[0])
@@ -64,41 +51,35 @@ def test_csrf_failure_redirects_with_message(client: Client):
 
 @pytest.mark.django_db
 def test_csrf_failure_redirects_to_home_without_referer(client: Client):
-    """Test that CSRF failure redirects to home page when no referer is present."""
+
     from django.test import RequestFactory
 
     from gyrinx.views_csrf import csrf_failure
 
     factory = RequestFactory()
     request = factory.post("/some-url/", data={})
-    # No referer header
     request.session = client.session
 
-    # Set up messages framework for the request
     request._messages = FallbackStorage(request)
 
     response = csrf_failure(request, reason="CSRF token missing")
 
-    # Should redirect to the site root. Asserted literally rather than via
-    # reverse("core:index"): this is a platform view, and its fallback is the
-    # root of the site regardless of what the loaded edition routes there.
+    # Assert the shared root literally so the fallback does not depend on an edition route.
     assert response.status_code == 302
     assert response.url == "/"
 
 
 @pytest.mark.django_db
 def test_csrf_failure_view_is_csrf_exempt():
-    """Test that the CSRF failure view itself is CSRF exempt."""
+
     from gyrinx.views_csrf import csrf_failure
 
-    # Check that the view has been wrapped by csrf_exempt
-    # The csrf_exempt decorator adds the attribute 'csrf_exempt' to the function
     assert getattr(csrf_failure, "csrf_exempt", False) is True
 
 
 @pytest.mark.django_db
 def test_csrf_failure_with_malicious_referer(client: Client):
-    """Test that CSRF failure rejects malicious referer URLs."""
+
     from django.test import RequestFactory
     from django.urls import reverse
 
@@ -106,22 +87,19 @@ def test_csrf_failure_with_malicious_referer(client: Client):
 
     factory = RequestFactory()
     request = factory.post("/some-url/", data={})
-    # Set a malicious referer from external domain
     request.META["HTTP_REFERER"] = "https://evil.com/steal-data"
     request.session = client.session
 
-    # Set up messages framework for the request
     request._messages = FallbackStorage(request)
 
     response = csrf_failure(request, reason="CSRF token missing")
 
-    # Should redirect to home, not the malicious URL
     assert response.status_code == 302
     assert response.url == reverse("core:index")
 
 
 def test_csrf_failure_view_setting():
-    """Test that CSRF_FAILURE_VIEW is properly configured in settings."""
+
     from django.conf import settings
 
     assert hasattr(settings, "CSRF_FAILURE_VIEW")

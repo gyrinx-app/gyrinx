@@ -1,28 +1,11 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Buying equipment for one fighter — the design system's collection picker over a
-real browse. The gallery's shell twin is designsystem/shell/shop.html. The rows
-themselves are shared now (n26/includes/equip_row.html), so only the page around
-them can drift; a change to this file's chrome still wants a look at that one.
-
-Which list is being browsed is URL state (?list=<pk>), so a particular list is
-linkable and the back button walks the choices. The Buy buttons submit the
-line's identity and nothing else; every price is the server's own derivation.
-
-Trade Points are drawn where a line has them, and a list swept together *by*
-having them charges them: buying from that list spends against the gang's
-allowance, and going past it asks first. A list an author wrote out by hand
-prices in credits and charges no points. The TP slider only appears when the
-list actually has TP-priced lines to filter.
+Equipment catalogue for one model. The list selection is URL state; prices and Trade
+Point charges are derived by the server. Share row rendering with
+designsystem/shell/shop.html through n26/includes/equip_row.html.
 {% endcomment %}
 {% block head_title %}Equip {{ miniature.name }}{% endblock head_title %}
-{% comment %}
-The bar names the gang, not the fighter. Halfway through a fighter's
-screen the way out a reader wants is to their other gang, and the
-fighter is named by the page's own heading directly below — the
-breadcrumb above it has the gang as well, so nothing is lost.
-{% endcomment %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
     <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
@@ -32,28 +15,16 @@ breadcrumb above it has the gang as well, so nothing is lost.
 {% endblock %}
 {% block extra_head %}
     {% comment %}
-    URL parameters every htmx request from this screen carries along —
-    which section tab is on screen, which row stands open. Read by
-    n26/core/static/n26/htmx_support.js.
+    htmx_support.js carries these URL parameters on requests so section and open-row
+    state survive updates.
     {% endcomment %}
     <meta name="n26-carry" content="section owned">
 {% endblock extra_head %}
 {% block content %}
     {% include "n26/includes/equip_hosts.html" %}
-    {% comment %}
-    The model's own header — this screen is the Equip tab of the model's
-    page, and the Edit face wears the same one. See <c-n26.model-header>.
-    {% endcomment %}
     <c-n26.model-header :miniature="miniature" lead="{{ role }}" active="equip">
         {% comment %}
-        The heading is about the fighter, so this offers the gang's others —
-        every row landing on this same screen for them. Equipping a gang is
-        done one fighter at a time and the next one is the commonest thing to
-        want; without this the way there is back to the sheet and in again.
-
-        Not what the bar offers, which is the reader's other gangs: the two
-        controls sit on the same screen and switch different things, which is
-        the whole reason the heading has one of its own.
+        Switch models within this gang here; the navigation bar switches gangs.
         {% endcomment %}
         <c-slot name="switcher">
             {% fighter_switcher gang miniature as fighter_switcher_ %}
@@ -70,11 +41,6 @@ breadcrumb above it has the gang as well, so nothing is lost.
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
-        {% comment %}
-        The numbers a purchase is decided against, in the corner the gang
-        sheet keeps its own — the count holding the roster's arithmetic
-        one click away rather than a line of the page.
-        {% endcomment %}
         <c-slot name="actions">
             <div class="flex flex-col items-end gap-1">
                 <c-n26.gang-figures :gang="gang"
@@ -82,11 +48,8 @@ breadcrumb above it has the gang as well, so nothing is lost.
                                     trade_points_href="{{ trade_points_href }}"
                                     credits_href="{{ credits_href }}" />
                 {% comment %}
-                Under the figures, and only while no action is open: with one open the
-                TP figure is a number that already leads here, and this would be asking
-                for a second of something a gang performs one of at a time. A model
-                spending a founding allowance is buying against that instead, so a
-                visit would not be where its Trade Points came from.
+                Offer a visit only when no action is open and the model is not spending
+                a founding allowance.
                 {% endcomment %}
                 {% if trade_points_href and not gang.visiting_trading_post and not post_is_shut and not founding_budget %}
                     <c-n26.link href="{{ trade_points_href }}" class="text-sm">
@@ -96,11 +59,8 @@ breadcrumb above it has the gang as well, so nothing is lost.
             </div>
         </c-slot>
         {% comment %}
-        The model's card above the tabs, as the Edit face draws it: what
-        they hold, and what it makes of them, in view while buying. Its
-        controls post through htmx — this page holds every host an update
-        of theirs names — and a purchase below sends the card back with
-        the row (n26/includes/equip_update.html).
+        Purchases return the updated model card through equip_update.html. Keep all of
+        its response targets on this page.
         {% endcomment %}
         <c-slot name="card">
             {% include "n26/includes/model_card_host.html" with htmx=True %}
@@ -110,40 +70,22 @@ breadcrumb above it has the gang as well, so nothing is lost.
         </c-slot>
     </c-n26.model-header>
     {% comment %}
-    Where the Mark as… and Pay ransom questions land when asked from the
-    card's status badge: the sheet sends back this host with the question
-    in it, and the act lands on the model's own page.
+    Status dialogs load here, then submit to the model's page.
     {% endcomment %}
     <div id="n26-status-dialog-host"></div>
     {% comment %}
-    What the fighter already owns is a *state of a row*, not a list of its own:
-    a row for something they are carrying draws the count where Buy would be,
-    and opens onto the copies themselves. See n26/includes/equip_line.html.
-
-    Anything they own that this list does not sell therefore has nowhere to be
-    drawn. That is known and deliberate for now; a home for it is a design
-    decision that has not been made, and inventing one here — a tab, a fallback
-    list, a row injected into somebody else's section — would make it for them.
+    Owned equipment is displayed only within matching catalogue entries. Equipment
+    absent from the selected list has no entry here.
     {% endcomment %}
     {% comment %}
-    Which list, as the page's top-level choice: a fighter's own lists — the ones
-    their built-ins carry — then the Trading Post, as a sidebar down the left of
-    the catalogue. A rail rather than a strip over the rows, because choosing the
-    list you are buying from is a larger decision than narrowing what it shows and
-    should not sit among the filters that only mean anything within one of them.
-    On a phone the rail takes the full width above the catalogue.
-
-    Links, not client state: a list is a place you can be, so it goes in the URL
-    — linkable, back-button-friendly, and the server renders the one you are on.
-    The rail is always drawn: the Unrestricted tab stands beside every list,
-    and stands alone for a fighter holding none. The search box names the
-    list it searches.
+    List selection uses navigation links so the server renders a shareable URL. Keep the
+    Unrestricted option available even when the model has no equipment lists.
     {% endcomment %}
     {% if catalogue %}
         <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-[11rem_minmax(0,1fr)]">
             {% comment %}
-            The rail and what sits under it are one grid cell, so the blocks
-            below the lists need no placement of their own.
+            Keep allowance and visit blocks in the same grid cell as the list
+            navigation.
             {% endcomment %}
             <div class="flex flex-col gap-4 self-start">
                 {% include "n26/includes/equip_rail.html" %}
@@ -151,11 +93,9 @@ breadcrumb above it has the gang as well, so nothing is lost.
                     {% include "n26/includes/unrestricted_note.html" %}
                 {% endif %}
                 {% comment %}
-                An allowance and an open visit are two pots at once, so both
-                blocks are drawn and the second says which one this page
-                spends. The post-is-shut note is the one thing an allowance
-                still silences: a model with Trade Points of its own has
-                somewhere for them to go.
+                Show both the model's allowance and an open gang visit, identifying
+                which funds this purchase. An allowance suppresses the closed Trading
+                Post notice.
                 {% endcomment %}
                 {% if founding_budget %}
                     {% include "n26/includes/founding_budget.html" %}
@@ -167,12 +107,8 @@ breadcrumb above it has the gang as well, so nothing is lost.
                 {% endif %}
             </div>
             {% comment %}
-            The whole catalogue posts here. A purchase submitted by htmx gets
-            back only the elements it changed — so the filters, the section on
-            screen and any price typed elsewhere survive it. Nothing is
-            targeted from here: which elements an act updates is decided
-            server-side, in n26/includes/equip_update.html. Without JavaScript
-            this is an ordinary form and the whole page is served.
+            The partial response in equip_update.html selects its own targets. Keep the
+            catalogue form and filters mounted to preserve edits elsewhere.
             {% endcomment %}
             <form method="post"
                   id="equip-catalogue"
@@ -184,14 +120,8 @@ breadcrumb above it has the gang as well, so nothing is lost.
                        name="personal_activity"
                        value="{{ founding_budget.activity.pk }}">
                 {% comment %}
-                Sections keep their own strip, at the bottom of the same pinned
-                bar. The two strips are choosing different things at different
-                sizes: the upper one picks which list you are buying from and costs
-                a page load, this one picks which section of that list is on
-                screen and costs nothing. Stacking the sections instead would
-                put a section's worth of rows between one heading and the next,
-                and a list with several sections under one name would draw a
-                heading each — every one of them counting the same rows.
+                Section tabs change the visible portion of the selected list locally;
+                list navigation loads a new catalogue.
                 {% endcomment %}
                 <c-n26.collection-picker :categories="categories"
                                          :sections="sections"
@@ -201,25 +131,14 @@ breadcrumb above it has the gang as well, so nothing is lost.
                                          noun="items">
                     <c-slot name="filters">
                         {% comment %}
-                        In the picker's filters slot rather than above it,
-                        because that slot is what the picker keeps pinned: the
-                        bands a reader steers with — how the list is narrowed,
-                        which section is on screen — stay together as the rows
-                        scroll under them. Which list is the rail's business,
-                        beside the catalogue rather than pinned over it.
+                        Keep search, filters and section tabs inside the picker's pinned
+                        slots.
                         {% endcomment %}
                         <c-n26.search-bar :live="True"
                                           :nested="True"
                                           model="query"
                                           placeholder="Search {{ browsing }}" />
                         {% if category_options or price_ceiling > price_floor or has_trade_points %}
-                            {% comment %}
-                            A size under the search field above them. These
-                            refine what the field returned rather than
-                            competing with it, and a row of full-height
-                            controls under a full-height input is two bars of
-                            chrome before the list gets a pixel.
-                            {% endcomment %}
                             <div class="flex flex-wrap items-center gap-2">
                                 {% if category_options %}
                                     <c-n26.filter-menu label="Category"
@@ -250,24 +169,16 @@ breadcrumb above it has the gang as well, so nothing is lost.
                                                       at_max_label="Any" />
                                 {% endif %}
                                 {% comment %}
-                                No Exclusive toggle here. Exclusive means "sold
-                                by an equipment list rather than the Trading
-                                Post", which answers nothing a reader of either
-                                tab is asking: on a list almost everything is
-                                exclusive, and the Trading Post does not deal in
-                                them at all. A filter whose answer is "all" or
-                                "none" is a control that only ever looks broken.
+                                Exclusive is not a useful filter within a selected list:
+                                equipment lists contain exclusive entries, while the
+                                Trading Post excludes them.
                                 {% endcomment %}
                             </div>
                         {% endif %}
                     </c-slot>
                     {% comment %}
-                    Names are bound, not written into the attribute. A name
-                    with an ampersand in it — "Armour & field armour" — comes
-                    back from an attribute HTML-escaped, and the picker keys
-                    its filter and its counts on the string the view put in
-                    `categories`. The two would not match, and the whole
-                    category would count zero and hide itself.
+                    Bind category names as data so HTML escaping of ampersands cannot
+                    change filter keys or counts.
                     {% endcomment %}
                     {% for section in catalogue.sections %}
                         <c-n26.collection-picker.section :name="section.name" :open="forloop.first">
@@ -279,10 +190,6 @@ breadcrumb above it has the gang as well, so nothing is lost.
                                         {% endfor %}
                                     </c-n26.collection-picker.category>
                                 {% else %}
-                                    {% comment %}
-                                    Unnamed home: rows sit straight inside the
-                                    section, the same convention as the hire page.
-                                    {% endcomment %}
                                     {% for row in category.rows %}
                                         {% include "n26/includes/equip_row.html" %}
                                     {% endfor %}

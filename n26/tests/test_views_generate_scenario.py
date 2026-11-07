@@ -18,7 +18,7 @@ from n26.core.models import CampaignEvent
 from n26.library.scenario_tables import table
 from n26.tests.sandbox.actions import found_campaign
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("scenario_content")]
 
 
 def name_of(key, roll):

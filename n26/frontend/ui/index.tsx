@@ -312,6 +312,24 @@ export function Input({
     );
 }
 
+export function Textarea({
+    id,
+    className = "",
+    "aria-describedby": describedBy,
+    ...props
+}: ComponentProps<"textarea">) {
+    const field = useFieldControl(id, describedBy);
+    return (
+        <textarea
+            {...props}
+            id={field.id}
+            className={`${cotton.textarea} ${className}`}
+            aria-invalid={field.errorId ? true : undefined}
+            aria-describedby={field.describedBy}
+        />
+    );
+}
+
 export function NativeSelect({
     id,
     className = "",

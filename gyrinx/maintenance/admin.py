@@ -1,20 +1,9 @@
-"""Mounts the maintenance console on the admin site.
+"""Mount the superuser-only maintenance console on the admin site.
 
-Pattern mirrors ``gyrinx/analytics/admin.py``: subclass whatever admin.site is
-currently using (so the chain composes — analytics's routes survive), add new
-custom routes via ``get_urls``, then monkey-patch ``admin.site.__class__``.
-
-For this to compose, the ``gyrinx.maintenance`` app must be listed AFTER
-``gyrinx.analytics`` in ``INSTALLED_APPS``. Because this module patches the site
-the moment it is imported, nothing that loads earlier — an edition's admin
-package, in particular — may import it. The pieces an edition needs live in
-``gyrinx.maintenance.registry`` and ``gyrinx.maintenance.views``.
-
-The console's own pages are in ``views.py``; the repairs it can run come from
-the registry, so this module knows nothing about any particular edition. All
-routes are **superuser-gated** here (the standard ``admin_view`` wrapper only
-enforces ``is_staff``; mutation-capable views need tighter control), which means
-a registered operation cannot accidentally be published ungated.
+Subclass the active site class so analytics routes remain available. Load
+gyrinx.maintenance after gyrinx.analytics; earlier-loading apps must use
+maintenance.registry or maintenance.views instead of importing this module.
+Wrap registered operation routes here so edition pages share the same gate.
 """
 
 from datetime import date
@@ -53,12 +42,10 @@ register_operation(
 
 
 class OperationFilter(admin.SimpleListFilter):
-    """Filter by operation, showing names rather than slugs.
+    """Label stored operation slugs from the registry.
 
-    ``operation`` has no choices — the repairs come from the registry — so
-    Django's own field filter would list bare slugs. Lookups are the slugs
-    actually present in the data, labelled from the registry, so a record left
-    behind by an edition that is no longer installed stays filterable.
+    Include slugs from existing records even when their operation is no longer
+    registered, keeping those records filterable.
     """
 
     title = "operation"
@@ -83,10 +70,11 @@ class OperationFilter(admin.SimpleListFilter):
 
 @admin.register(Backfill)
 class BackfillAdmin(admin.ModelAdmin):
-    """Read-mostly: records are created by the maintenance trigger pages and
-    updated by their task chains. The one legitimate edit is flipping a stale
-    RUNNING record (task runner died mid-chain) to Failed so the maintenance
-    pages' one-chain-at-a-time guard releases."""
+    """Display task-maintained repair records with an editable status.
+
+    Status edits allow recovery from stalled runs; creation belongs to the
+    maintenance trigger pages.
+    """
 
     list_display = [
         "operation_name",
@@ -116,11 +104,9 @@ class BackfillAdmin(admin.ModelAdmin):
 
 
 class MaintenanceAdminSite(admin.site.__class__):
-    """Adds /admin/maintenance/* routes on top of whatever admin.site already is."""
+    """Add maintenance routes while retaining the active admin site's existing routes."""
 
-    # Admin home shows a Maintenance banner to those who can use it
-    # (superusers). The template extends the stock index — a different
-    # template NAME, so no extends-recursion.
+    # Use a distinct template name so extending the stock index cannot recurse.
     index_template = "admin/maintenance/admin_index.html"
 
     def get_urls(self):
@@ -154,6 +140,5 @@ class MaintenanceAdminSite(admin.site.__class__):
         return custom + urls
 
 
-# Install on the live admin site. Order in INSTALLED_APPS must place this app
-# AFTER gyrinx.analytics so the chain composes (analytics's routes survive).
+# Install after analytics so this subclass retains its routes.
 admin.site.__class__ = MaintenanceAdminSite
