@@ -97,8 +97,7 @@ export function Share({
 
     function onClick(event: MouseEvent<HTMLAnchorElement>) {
         const link = event.currentTarget;
-        // A modified click, or a link aimed at another window, is the
-        // browser's to handle: open in a new tab, and so on.
+        // Leave modified clicks and other-window targets to the browser.
         if (
             event.button !== 0 ||
             event.metaKey ||
@@ -109,7 +108,7 @@ export function Share({
             return;
         if (link.target && link.target !== "_self") return;
         event.preventDefault();
-        // Share the browser's absolute href, not the path the template passed.
+        // Use the browser-resolved absolute URL for sharing and clipboard fallback.
         share(link.href);
     }
 
@@ -128,7 +127,10 @@ export function Share({
                     {label}
                 </span>
             </ButtonLink>
-            {/* Mounted from the start so a reader announces the text when it appears. */}
+            {/*
+             * Mount the live region before its content changes so screen readers announce
+             * the result.
+             */}
             <span
                 role="status"
                 className={copied ? "text-xs text-muted" : "sr-only"}
