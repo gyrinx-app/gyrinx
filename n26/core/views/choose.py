@@ -1,29 +1,15 @@
-"""Making a choice a modifier offered.
+"""Resolve computed choices and record picks, rolls and dismissal state.
 
-A slot is computed — it exists while its carrier does, and only what was
-chosen is ever stored — so there is nothing to open until a reader
-clicks Choose. Choose leads here: the slot's question, and what this
-gang or this fighter may choose for it.
+Assignment choice URLs identify the displayed card, carrier assignment and
+offer. Status follow-ups add a status revision. Recompute the card to resolve
+each address; removed carriers or changed revisions invalidate it.
 
-The whole flow is one page because the difference between a skill, an
-pick and an affiliation is data. The offer itself says what may be
-chosen (``n26.core.browse.offered_by``) and the pick screen is built
-from that list (``n26.core.render.build_choice_offer``), so nothing
-here asks what kind of thing is being chosen.
+Holding choices identify the holding, ownership revision and slot.
+Lock affected campaigns before the gang, matching ownership operations.
 
-The address holds the slot::
-
-    /gangs/<gang>/choose/<card>:<carrier>:<offer>/
-
-``card`` is the model whose card was clicked, or ``gang`` for the gang's
-own card; ``carrier`` is the assignment offering the choice; ``offer`` is
-which of its offers. Status follow-ups append the model’s status revision.
-Everything the page needs is in the URL, so it is a
-link, it survives a reload, and it works with scripting off.
-
-A campaign holding uses ``holding:<holding>@<ownership revision>:<Slot>``.
-The same picker settles it for the holding gang, with the campaign locked
-before that gang so a choice cannot follow an ownership change.
+Single-pick choices replace their existing answer. Multi-pick choices add or
+remove one result per submission without evicting another pick when full.
+Rolls are recorded before selection and scoped to the same card and choice.
 """
 
 from contextlib import ExitStack, contextmanager
@@ -43,19 +29,17 @@ from n26.core.owned import with_query
 from n26.core.views.permissions import _own_gang_or_404, _safe_redirect, own_address
 from n26.library.staged import sees_staged
 
-#: The query that asks a screen to draw the offers the owner has dismissed,
-#: each with a way to bring it back. In the address, so the screen is a
-#: link and a reload draws it again.
+#: URL state requesting dismissed offers and their restoration controls.
 SHOW_DISMISSED = "dismissed"
 SHOWING = "show"
 
 
 @contextmanager
 def choice_operation(gang, keys, *, actor=None):
-    """Take holding campaigns before the gang, then rederive choices inside.
+    """Lock holding campaigns in stable order before the gang operation.
 
-    Ordinary assignment choices need only the gang lock. Holding addresses
-    name a campaign whose ownership writers use campaign-before-gang order.
+    Ordinary assignment choices require only the gang lock. Resolve choices again
+    inside these locks before writing.
     """
     from n26.core.campaigns import campaign_operation
     from n26.core.models import CampaignAsset
@@ -83,11 +67,9 @@ def choice_operation(gang, keys, *, actor=None):
 
 
 def showing_dismissed(url):
-    """Whether an address asks for the dismissed offers to be drawn.
+    """Read dismissed-choice display state from an explicit source URL.
 
-    Asked of a URL rather than a request, because the address a card is
-    redrawn under after an act arrives in the act's form, not on the
-    request that redraws it.
+    Partial redraw requests may use an operation URL rather than the page URL.
     """
     from urllib.parse import parse_qs, urlsplit
 
@@ -96,11 +78,10 @@ def showing_dismissed(url):
 
 
 def settle_dismissed(gang, *holders, hide_only=()):
-    """Hide dismissed choices with one query for all holders.
+    """Read dismissal keys once for all holders.
 
-    Model choices go into a separate list for the Edit page. ``hide_only``
-    holders get no Restore controls: gang sheets and dead models only hide
-    their dismissed choices.
+    Move model choices into their dismissed list; hide_only holders receive no
+    restoration controls.
     """
     from n26.core.models import DismissedOffer
     from n26.core.render import hide_dismissed
@@ -114,38 +95,21 @@ def settle_dismissed(gang, *holders, hide_only=()):
 
 @dataclass(frozen=True)
 class _Found:
-    """One slot, located: the computed slot, the card it sits on, and the
-    stored assignment carrying the offer."""
+    """A resolved computed choice, its computation, carrier and optional target model."""
 
     slot: object
     computed: object
     anchor: object
-    #: The model whose card the slot was drawn on, or None for the gang's.
+    #: The model whose card displays the choice; None for a gang choice.
     miniature: object = None
 
 
 def link_slots(gang, *holders, back="", dismiss_back=None):
-    """Point every choice slot on these structures at its picker.
+    """Link all addressable questions to their picker and permitted dismissal actions.
 
-    A slot with no address keeps an empty href and has nothing to click,
-    as on a card depicting nobody.
-
-    ``back`` is the screen the card is drawn on, carried on every link
-    so the picker returns the reader there once the choice is settled
-    rather than to the gang. Passed rather than read off a request, as
-    ``link_counters`` has it: a card redrawn after an act is rendered
-    under that act's own address.
-
-    A card files some of its questions into rows of their own — the ones
-    drawn beside the skills and the powers the model already has — so what
-    is asked for here is the holder's whole run of questions rather than
-    each list by name. Where a question is drawn is the holder's business;
-    every one of them is chosen for at the same address, and a holder that
-    grows another row is linked by the same line.
-
-    ``dismiss_back`` is where dismissing or restoring an offer lands,
-    where that differs from where a settled choice does. Left unsaid,
-    it is ``back``.
+    Use the supplied source-page back destination rather than an operation request
+    path. dismiss_back can independently choose where dismissal controls return.
+    Preview questions without keys remain unlinked.
     """
     from n26.core.owned import with_query
     from n26.core.status import Status
@@ -153,34 +117,21 @@ def link_slots(gang, *holders, back="", dismiss_back=None):
     if dismiss_back is None:
         dismiss_back = back
     for holder in holders:
-        # A dead model's dismissed offers are never shown on any screen
-        # (``settle_dismissed`` hides them on the sheet, which draws the
-        # dead with nothing to click, and the model's page follows the
-        # sheet): an X would offer an act with no way back. The picker
-        # links stay, as every other control on the model's page does.
+        # Dead models retain picker links but receive no dismissal or restoration controls.
         dead = getattr(holder, "status", None) == Status.DEAD
         for line in [*holder.questions, *getattr(holder, "dismissed_choices", ())]:
             if not line.key:
                 continue
             if line.is_full and not line.is_resolved:
-                # Full with nothing chosen — authored to take no picks.
-                # Its picker lists nothing, so the line keeps no address
-                # and every screen draws it as a fact; a settled choice
-                # keeps its link, since clicking it is how it is changed.
+                # Zero-capacity choices remain plain facts; resolved choices keep links for editing.
                 continue
             line.href = reverse("n26-choose", args=[gang.pk, line.key])
             if back:
                 line.href = with_query(line.href, **{"return": back})
             if dead:
                 continue
-            # Only the owner's structures come through here, so the way
-            # to dismiss an offer is drawn for nobody else. An open offer
-            # can be dismissed; one holding a pick cannot, since what
-            # was chosen is drawn and there is nothing to hide; one full
-            # from the start — authored to take no picks — draws no
-            # Choose, so it gets no X beside a control it does not have;
-            # a dismissed one, kept on the structure to be shown, offers
-            # only the way back.
+            # Add dismissal controls only to eligible unresolved, non-full owner questions.
+            # Dismissed questions offer restoration instead.
             line.back = dismiss_back
             if not line.allow_dismissal:
                 continue
@@ -195,14 +146,7 @@ def link_slots(gang, *holders, back="", dismiss_back=None):
 
 
 def find_slot(gang, key):
-    """The slot an address names, on the card it was drawn on.
-
-    Rebuilt rather than remembered: a slot is computed, so the honest
-    answer to "does this slot still exist" is to compute the card again
-    and look. A carrier that has since been removed takes its slot with
-    it, and the address stops resolving — a 404, because the question no
-    longer exists rather than because the reader may not ask it.
-    """
+    """Recompute the addressed card and resolve the current choice, otherwise return 404."""
     from n26.core.card import (
         build_card,
         build_gang_card,
@@ -231,7 +175,7 @@ def find_slot(gang, key):
                 membership__archived=False,
             )
         except ValidationError:
-            # A pk that is not a ULID at all is only ever a bad link.
+            # Convert malformed model identifiers into missing-choice responses.
             raise Http404("No such fighter") from None
         card = build_card(miniature)
 
@@ -255,23 +199,12 @@ def find_slot(gang, key):
 
 
 def _landing(request, gang, key, offer, op, here, back, found):
-    """Where a settled click goes, by way of the screen for whatever the
-    pick itself brought, where any of it asks for one.
+    """Choose the post-selection destination, including newly introduced interstitials.
 
-    A choice of one leaves for ``back``; where the reader came from the
-    screen for what arrived, what this pick brought joins it rather
-    than opening a second. A choice worked at a pick at a time comes
-    back to itself, full or not — the page says when it is full, and
-    offers the way back — and stays the way on while it is worked at: a
-    screen for what an early pick brought leads back to the picker for
-    the rest, and only the pick that fills the choice hands what it
-    brought on to where the reader came from. So does a pick that
-    takes its own question away: nothing is left to work at, and the
-    picker is no longer a page.
-
-    Whether the choice is still worked at is read off a fresh
-    derivation, and only once the pick has brought a screen: a click
-    that brought nothing must not pay for it.
+    Single picks continue back. Multi-pick choices return to the picker when no
+    follow-up screen arrives, even when full. When a screen arrives, recompute the
+    choice and return there only while it remains open; otherwise continue back.
+    Lasting-effect choices return to the affected model's edit page.
     """
     if (
         found.slot.slot
@@ -294,14 +227,10 @@ def _landing(request, gang, key, offer, op, here, back, found):
 
 
 def find_slots(gang, keys):
-    """The slots these addresses name, on the cards they were drawn on —
-    ``{key: _Found}`` for the ones still there, from one derivation of
-    the whole gang.
+    """Resolve many choice addresses through one gang-card derivation.
 
-    What ``find_slot`` does for one address, for many: the screen after
-    an act may name a dozen, and rebuilding the gang for each would cost
-    a dozen derivations. An address naming a carrier that has gone, or
-    naming nothing well-formed, is simply absent from the answer.
+    Return a key-to-Found mapping, omitting malformed, missing and vanished choices.
+    Canonicalise model identifiers for lookup without rewriting the requested keys.
     """
     from n26.core.card import build_gang_card, build_modifier_index, carriers
     from n26.core.effects import compute, compute_gang
@@ -317,17 +246,11 @@ def find_slots(gang, keys):
             continue
         if where not in (GANG_SLOT_HOST, HOLDING_SLOT_HOST):
             try:
-                # The carrier as the cards spell it. A ULID has a UUID
-                # spelling too, and the query below takes either; what
-                # it finds is keyed by the canonical one, so the lookup
-                # must be as well. The address itself keeps the
-                # reader's spelling. The anchor and the offer are
-                # matched exactly, as ``find_slot`` matches them.
+                # Canonicalise model ULIDs for dictionary lookup because the field also accepts UUID spelling.
+                # Match carrier and offer identifiers exactly, preserving the original URL key.
                 where = str(Miniature._meta.pk.to_python(where))
             except ValidationError:
-                # A pk that is not a ULID at all is only ever a bad link,
-                # and one bad link must not take the well-formed ones
-                # with it.
+                # Convert malformed model identifiers into missing-choice responses.
                 continue
         wanted.setdefault(where, {})[(anchor_pk, offer_pk)] = key
     if not wanted:
@@ -382,20 +305,12 @@ def find_slots(gang, keys):
 
 
 def _settled(found):
-    """The picks that answer this question, as the card reads them.
-
-    The card is the one authority on what answers what: it scopes a
-    question broadcast onto many cards to the one whose card was
-    clicked, and it adopts an answer that names no question — or names
-    one this card no longer asks — rather than leaving it stranded. A
-    query written here would have to repeat all of that and would drift
-    from it, so the card is asked instead.
-    """
+    """Read stored answers from the computed choice's scoped and adopted picks."""
     return [pick for pick in found.slot.picks if pick.assignment is not None]
 
 
 def _pick_of(found, wanted):
-    """The pick behind one option on the list, or None if it is not there."""
+    """Find a stored settled pick matching an option identity, or return None."""
     from n26.core.render import option_key
 
     return next(
@@ -405,16 +320,13 @@ def _pick_of(found, wanted):
 
 
 def _roll_table(found):
-    """The die behind this choice, where its list names one — or None,
-    which draws no roll controls at all."""
+    """Build roll controls for a non-full choice with an authored die."""
     from n26.core.render import RollTable
     from n26.library.models import Dice
 
     slot = found.slot.slot
     if slot is None or not slot.picklist.dice or found.slot.is_full:
-        # A full choice takes no more picks, so a roll for it would be
-        # one the next Add refuses; the way to another is to take a
-        # pick back first.
+        # Full choices cannot accept another roll until a pick is removed.
         return None
     dice = Dice(slot.picklist.dice)
     rolls = Dice.rolls(dice)
@@ -422,13 +334,10 @@ def _roll_table(found):
 
 
 def _roll_at(key, gang, found, select_related=()):
-    """The roll a key names, or None for no key — a 404 for a key that
-    names no roll made for this very choice on this very card.
+    """Resolve a roll scoped to this gang, choice, model and revision context.
 
-    Scoped to the gang, the slot and the model whose card was clicked
-    (or to no model, for the gang's own choice). One Slot row serves
-    every fighter of the gang, so the slot alone would let a roll made
-    for one fighter be drawn on, and spent from, another's page.
+    Holding ownership and status-follow-up revisions prevent reuse after their
+    context changes. Invalid or unrelated identifiers return 404.
     """
     from n26.core.models import LedgerEvent
 
@@ -457,26 +366,21 @@ def _roll_at(key, gang, found, select_related=()):
 
 
 def _roll_named(request, gang, found):
-    """The roll the page was opened on, or None when it was opened plain.
-
-    The pick that spent the roll, where one has, comes back on the event
-    so the page can say so and stop offering it.
-    """
+    """Resolve the GET roll parameter for display."""
     return _roll_at(request.GET.get("roll", ""), gang, found)
 
 
 def _roll_posted(request, gang, found):
-    """The roll a pick says it came from, or None for a pick made plain."""
+    """Resolve the POST roll parameter supplied with a selection."""
     return _roll_at(request.POST.get("roll", ""), gang, found)
 
 
 def _roll_result(event, found, offer, *, include_staged=False):
-    """One roll, as the page draws it, and the keys of the rows it reached.
+    """Describe a recorded roll and identify the visible picklist results it reaches.
 
-    The table is read as the pick screen offers it to this reader
-    (``picklist_lines``): never an archived line or pickable, and a staged
-    one only for a reader who may see staged content — the roll lands on
-    nothing there rather than on a name they were never offered.
+    Apply archive and staged visibility through picklist_lines. An archived pick
+    releases its roll for reuse. Prefer the recorded die, falling back to the
+    current table for unknown stored values.
     """
     from django.db.models import F
 
@@ -486,9 +390,7 @@ def _roll_result(event, found, offer, *, include_staged=False):
     from n26.library.models import Dice, RollSelects
 
     picklist = found.slot.slot.picklist
-    # The lines the pick screen offers this reader, in the list's own roll
-    # order, so what the panel names reads in the order the list beneath
-    # it draws.
+    # Read visible results in the same roll order as the displayed picklist.
     members = picklist_lines(picklist, include_staged=include_staged).order_by(
         F("roll_low").asc(nulls_last=True), "position", "pickable__name"
     )
@@ -497,11 +399,9 @@ def _roll_result(event, found, offer, *, include_staged=False):
     named = {
         option.key: option.name for group in offer.groups for option in group.options
     }
-    # The standing pick this roll was spent on, where there is one. A pick
-    # taken back frees its roll, so an archived one does not count.
+    # Only live picks consume a roll; removing a pick releases it.
     spent = event.picks.filter(archived=False).select_related("pickable").first()
-    # The die as the record holds it; a die the library no longer names
-    # reads as the table's, since the figure is what the page is about.
+    # Prefer the recorded die, falling back to the current table for unknown values.
     dice = Dice(picklist.dice)
     try:
         dice = Dice(event.dice) if event.dice else dice
@@ -521,16 +421,7 @@ def _roll_result(event, found, offer, *, include_staged=False):
 
 
 def _host(found):
-    """Whose choice this is, when the carrier cannot say.
-
-    A carrier held by the gang and echoed onto a member's card offers the
-    slot to that member — "Leaders and Champions each select a skill" —
-    and the assignment it echoed from belongs to nobody in particular, so what
-    is chosen has to name the fighter whose card was clicked. Every other
-    slot lets the offer decide: a fighter's own carrier lands on the
-    fighter, and an offer that says the gang holds what is chosen still
-    does.
-    """
+    """Identify the target model for choices broadcast from gang-held assignments."""
     if (
         found.miniature is not None
         and found.slot.anchor is not None
@@ -572,38 +463,13 @@ def _campaign_label_update(request, gang, *, close=True):
 
 @login_required
 def choose(request, pk, slot):
-    """The pick screen for one slot, and the click that settles it.
+    """Display a computed choice or record one submitted pick or roll.
 
-    GET asks and writes nothing. POST names one thing from the list the
-    server has just re-derived — never a price and never a free-text
-    identity — and writes what was chosen as an assignment caused by the
-    carrier's, so removing the carrier takes it with it.
-
-    A choice that holds one pick is settled in one go: the list is a set
-    of radios, clicking again replaces what was chosen, and the reader
-    lands back where they came from — by way of the screen for whatever
-    the pick itself brought, where any of it asks for one. One that holds several is worked at instead —
-    every option carries its own control, a click adds or takes back one
-    pick, and the page comes back so the next one is a click away. It
-    stops offering the rest when it is full: the way to something else is
-    to take a pick back, never to have one pushed out unasked. A choice
-    that holds none offers nothing and writes nothing.
-
-    Nothing here withholds a pick. The list is short because the offer is
-    narrow, and leaving the slot open costs nothing — the way back is
-    whatever opened the page, the gang sheet unless something says
-    otherwise. The operation may still refuse the click: a pick that would
-    settle nothing, or a gang with no room in its budget. Either way the
-    reader is told and lands back on the list, because a page that drew
-    the button owes a reply rather than a traceback.
-
-    A choice whose list is a roll table is rolled for here too. A Roll
-    click writes the roll to the gang's history and comes back at
-    ``?roll=<event>``, which draws that roll and lifts the rows it landed
-    on; a pick posted from there names the roll, and a roll is applied
-    once. The roll is on the record from the moment it is made, whether
-    or not anything is ever picked for it — which is what makes a second
-    roll visible to whoever reads the history.
+    Build offers under the user's staging access and validate return URLs.
+    Rolls are written in the shared lock context and redisplayed by event ID.
+    Single choices replace; multi-pick controls settle one change at a time.
+    Campaign label dialogs return partial updates when requested by htmx.
+    Earned battle-action choices redirect to their action flow.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal
@@ -621,15 +487,10 @@ def choose(request, pk, slot):
             record_id=battle_action.pk,
             step="resume",
         )
-    # The list is built for this reader: staged picks are on it only for
-    # somebody who may see staged content, and the click below and the
-    # roll panel are read against the same list.
+    # Use identical staged-content access for the offer, roll results and selection.
     shown = sees_staged(request.user)
     offer = build_choice_offer(found.slot, found.computed, include_staged=shown)
-    # Where the reader came from, forwarded by the link that opened this
-    # page and carried through the form, so settling the choice lands
-    # them back on the screen they were reading. Only this site's own
-    # addresses are honoured; anything else falls back to the gang.
+    # Validate return addresses and preserve them through picker submissions.
     returning = request.POST.get("return") or request.GET.get("return", "")
     back = own_address(request, returning) or reverse("n26-gang", args=[gang.pk])
     here = reverse("n26-choose", args=[gang.pk, slot])
@@ -641,12 +502,9 @@ def choose(request, pk, slot):
         here = with_query(here, dialog="campaign")
 
     if request.method == "POST" and request.POST.get("act") in {"roll", "enter"}:
-        # Rolling writes before anything is picked: the roll is on the
-        # record from this moment, and the page comes back at it. A roll
-        # made at the table and entered here goes the same way, with the
-        # record saying it was entered.
+        # Record rolls immediately, including entered tabletop results, before any pick is made.
         if found.slot.slot is None or not found.slot.slot.picklist.dice:
-            # No die behind this choice: no page drew a Roll for it.
+            # Reject Roll submissions for choices without an authored die.
             raise Http404("Nothing to roll here")
         rolled = None
         if request.POST["act"] == "enter":
@@ -659,9 +517,7 @@ def choose(request, pk, slot):
             with choice_operation(gang, [slot], actor=request.user) as op:
                 fresh = find_slot(gang, slot)
                 if fresh.slot.is_full:
-                    # Filled while this page stood open: a roll now would
-                    # be one the next Add refuses, and a roll is on the
-                    # record for good.
+                    # Recheck capacity under lock before recording a new roll.
                     raise Refusal(
                         f"{offer.label} holds all the picks it will take. "
                         "Take one back before rolling."
@@ -726,11 +582,8 @@ def choose(request, pk, slot):
             if option.key in landed and option.control in {"choose", "both"}
         ]
         if not roll.is_spent and len(addable) == 1 and len(landed) == 1:
-            # One result, still open, on a choice worked at a pick at a
-            # time: the panel carries the Add, and the list below stays
-            # the whole table, unlifted. A choice of one is settled by
-            # its radios, which post under the same name a panel button
-            # would, so that shape lifts the row instead.
+            # For one addable multi-pick result, place Add on the roll panel and retain the full list.
+            # Other unspent results highlight the corresponding options.
             roll = replace(roll, add=addable[0])
         elif not roll.is_spent:
             offer = lift_landing(offer, landed, threshold=roll.threshold)
@@ -747,19 +600,13 @@ def choose(request, pk, slot):
             "gang": gang,
             "miniature": found.miniature,
             "offer": offer,
-            # The die behind the choice, drawn as Roll controls — or, when
-            # the page was opened on a roll, that roll in their place.
+            # Replace roll controls with an unspent recorded roll until it is applied.
             "roll_table": roll_table if roll is None or roll.is_spent else None,
             "roll": roll,
             "back": back,
-            # A choice worked at a pick at a time has no one act to end
-            # it: every option carries its own, and a Save at the bottom
-            # would be a second way to settle what is already settled.
+            # Multi-pick options submit independently and need no additional Save action.
             "submit_label": "" if offer.takes_several else "Save",
-            # Not "lead". A cotton slot is a context variable, and any
-            # component on the page with a slot of that name — the site
-            # footer's columns have one — draws whatever the page happens
-            # to have under it.
+            # Use a distinct Cotton slot name to avoid collisions with unrelated page components.
             "pick_lead": found.slot.slot.introduction if found.slot.slot else "",
             "returning": returning,
             "choice_action": here,
@@ -779,20 +626,10 @@ def choose(request, pk, slot):
 @login_required
 @require_POST
 def dismiss_offer(request, pk, slot):
-    """Put one open offer out of sight, everywhere the gang is drawn.
+    """Hide an eligible unresolved offer under the shared choice locks.
 
-    The slot is found again rather than trusted from the address, the
-    way the pick screen finds it: an offer that no longer exists is a
-    404, and one holding a pick is refused in words — the page that
-    drew the control was drawn before the pick landed. That second look
-    is taken with the gang's line held, as every pick is written, so a
-    pick landing at the same moment is read either before the row is
-    written and refuses it, or after and takes the row off again. Nothing
-    is written for a dismissal already on record; a second click is the
-    same act.
-
-    Lands back where the control was clicked, given as ``back`` and
-    honoured only for this site's own addresses; the gang otherwise.
+    Resolve it again after locking and refuse resolved or zero-capacity choices.
+    Repeated dismissal creates no duplicate record. Validate the return destination.
     """
 
     from n26.analytics import EventVerb, N26Noun, record
@@ -809,8 +646,7 @@ def dismiss_offer(request, pk, slot):
             )
             return _safe_redirect(request, request.POST.get("back"), fallback)
         if found.slot.is_resolved:
-            # Counted, because a choice worked at a pick at a time may
-            # hold several, and every one of them has to go first.
+            # Require all existing picks to be removed before dismissal.
             held = (
                 "It has a pick. Take the pick back first."
                 if len(found.slot.picks) == 1
@@ -819,9 +655,7 @@ def dismiss_offer(request, pk, slot):
             messages.error(request, f"You cannot dismiss {label}. {held}")
             return _safe_redirect(request, request.POST.get("back"), fallback)
         if found.slot.is_full:
-            # Full with nothing chosen: a choice authored to take no
-            # picks. No page draws an X for it, so this is a hand-built
-            # post; it draws no Choose either, so there is nothing to hide.
+            # Refuse dismissal of zero-capacity choices, which have no interactive picker.
             messages.error(
                 request, f"You cannot dismiss {label}. It offers nothing to choose."
             )
@@ -847,16 +681,10 @@ def dismiss_offer(request, pk, slot):
 @login_required
 @require_POST
 def restore_offer(request, pk, slot):
-    """Bring a dismissed offer back, so it draws as an open Choose again.
+    """Remove dismissal state under the gang lock, including keys whose carrier is gone.
 
-    The row is deleted whether or not the slot still exists: a key left
-    behind by a carrier since sold hides nothing, and taking it off is
-    harmless. Deleted with the gang's line held, as a dismissal is
-    written, so a dismiss and a restore arriving together are read one
-    after the other and the reply says what stands. The slot is then
-    found again only to name the offer in the confirmation — the same
-    derivation opening its pick screen pays. Lands where the control was
-    clicked, or on the gang's Dismissed choices tab.
+    Resolve the choice afterwards only to name the confirmation, then return to
+    the validated source or the gang's dismissed-choices tab.
     """
     from django.db import transaction
 
@@ -886,21 +714,15 @@ def restore_offer(request, pk, slot):
 
 
 class NotOnTheList(Exception):
-    """A click naming something the list drawn to this reader does not
-    hold: a stale page, or a post built by hand. The list itself is the
-    reply, so the caller redraws rather than explaining."""
+    """A stale or invalid submitted option requiring the current picker to be redisplayed."""
 
 
 def _write_pick(op, request, gang, slot_key, found, offer, wanted, *, dropped=""):
-    """Write one settled choice inside an operation already open, and
-    say what was picked.
+    """Validate and write one choice inside an existing operation.
 
-    The one place a pick is written, whichever screen drew the picker:
-    the pick screen settles one at a time, and the screen after an act
-    settles a page of them together. Raises ``NotOnTheList`` for a
-    choice this reader was never offered and ``Refusal`` for one the
-    rules will not take. ``None`` comes back where the reader chose
-    none: the standing pick is taken back and nothing is written.
+    Reject options absent from the supplied offer and rederive the choice under
+    lock before replacing, adding or removing answers. Optional None clears the
+    answer only when offered. Earned battle results require their action flow.
     """
     from n26.core.action_records import battle_action_for_slot
     from n26.core.allowances import require_allowance_available
@@ -914,10 +736,7 @@ def _write_pick(op, request, gang, slot_key, found, offer, wanted, *, dropped=""
 
     rolled_on = _roll_posted(request, gang, found)
     if wanted == NONE_KEY and not dropped:
-        # The None row on an optional choice: nothing is written —
-        # the standing pick, if any, is taken back, and the choice
-        # reads open again. Only honoured where the page drew the
-        # row, so a hand-built post cannot reset a required choice.
+        # Honour None only when explicitly offered; required choices cannot be cleared this way.
         offered_none = any(
             option.key == NONE_KEY for group in offer.groups for option in group.options
         )
@@ -936,14 +755,9 @@ def _write_pick(op, request, gang, slot_key, found, offer, wanted, *, dropped=""
         None,
     )
     if picked is None or (dropped and _pick_of(found, wanted) is None):
-        # Nothing on the list, or nothing behind the option a click
-        # asked to take back — a stale page either way.
+        # Reject stale selections and removal requests for picks not currently held.
         raise NotOnTheList
-    # The page named the picks it drew, but it was drawn before this
-    # answer and before any other in flight. The card is computed again
-    # with the gang held, so what settles the question is what stands at
-    # the moment of writing — and a question that has since gone stops
-    # resolving here rather than growing an answer nobody asked for.
+    # Recompute the choice under lock before writing, including concurrent answers or carrier removal.
     fresh = find_slot(gang, slot_key)
     if dropped:
         taken = _pick_of(fresh, wanted)
@@ -956,20 +770,15 @@ def _write_pick(op, request, gang, slot_key, found, offer, wanted, *, dropped=""
             fresh.slot.slot is not None and fresh.slot.slot.slot_type.allows_repeats
         )
     ):
-        # A worked-at choice, and this pick is already among them: the
-        # click has landed once already, and once is what it asked for.
-        # Where the slot type allows repeats a second click is a second
-        # pick, and falls through to be written like any other.
+        # Ignore an already-held multi-pick result unless its slot type explicitly permits repeats.
         pass
     else:
         if not offer.takes_several:
-            # One pick, already made: the new pick replaces it.
+            # Single-pick selection replaces all existing stored answers.
             for standing in _settled(fresh):
                 op.remove(standing.assignment)
         elif fresh.slot.is_full:
-            # Filled while this page stood open. The way to something
-            # else is to take a pick back, never to have one pushed out
-            # unasked.
+            # Reject newly full multi-pick choices without removing an existing answer.
             raise Refusal(
                 f"{offer.label} holds all the picks it will "
                 "take. Take one back to make room."
@@ -986,9 +795,7 @@ def _write_pick(op, request, gang, slot_key, found, offer, wanted, *, dropped=""
 
 
 def _said_about(picked, offer, dropped):
-    """What the confirmation calls what just happened, in the choice's
-    own terms: a several-pick choice has picks added to it, a choice of
-    one is chosen — whatever the control that sent it was called."""
+    """Describe choice, addition or removal using the offer's single- or multi-pick terms."""
     if picked is None:
         return f"Chose none — {offer.label}."
     if dropped:
@@ -1001,9 +808,7 @@ def _said_about(picked, offer, dropped):
 
 
 def _record_pick(request, gang, offer, picked, dropped):
-    """Which choice was made and with what. Changing your mind records a
-    second choice rather than editing the first: what a player picked
-    and then dropped is a thing worth being able to ask about."""
+    """Record the submitted choice outcome without rewriting earlier analytics events."""
     from n26.analytics import EventVerb, N26Noun, record
 
     record(
@@ -1019,25 +824,14 @@ def _record_pick(request, gang, offer, picked, dropped):
 def settle_pick(
     request, gang, slot_key, found, offer, *, here, land, wanted=None, dropped=None
 ):
-    """The click that settles one choice, wherever the picker was drawn.
+    """Settle one picker submission and redirect through the supplied landing function.
 
-    Reads the post the picker sends — a thing to choose, or one to take
-    back — writes it as an assignment caused by the carrier's, and
-    redirects. ``here`` is where a refused or stale click lands, the
-    page that drew the list; ``land`` is called with the operation once
-    the pick is written and says where a settled click goes, so the
-    pick screen can send a worked-at choice back to itself.
-
-    The writing itself is ``_write_pick``, which the screen after an act
-    also uses for a page of answers at once: what is refused and what is
-    recorded cannot come to differ between the two screens.
+    Use here after stale input or refusal. Refresh status for confirmation when
+    the chosen result changed the model.
     """
     from n26.core.operations import Refusal
 
-    # The pick screen draws one question, so its controls are named
-    # plainly. A page drawing several names each control after its own
-    # question and hands the answer in, because "thing" would say
-    # nothing about which one was answered.
+    # Multi-question screens pass question-specific values; the dedicated picker reads plain POST names.
     if dropped is None:
         dropped = request.POST.get("remove", "")
     if wanted is None:
@@ -1077,17 +871,10 @@ def settle_pick(
 
 
 def settle_picks(request, gang, answers, *, here, land):
-    """Every answer a page of questions carries, written together.
+    """Settle supplied answers together in one operation.
 
-    The screen after an act asks several choices at once and settles
-    them with one control, so they are written in one operation: either
-    the page lands whole or nothing in it does. ``answers`` is
-    ``[(slot_key, found, offer, wanted)]`` for the questions the reader
-    answered; a question left blank is not among them and stays open.
-
-    Each is written by ``_write_pick``, the same call the pick screen
-    makes, so a choice settled here and one settled there cannot come to
-    differ.
+    Each answer is (slot_key, found, offer, wanted). Omitted questions remain open.
+    Any refusal rolls back every answer; empty submissions write nothing.
     """
     from n26.core.operations import Refusal
 
