@@ -64,6 +64,7 @@ def test_scrub_batches_resume_and_duplicate_delivery_is_harmless(legacy_events):
     assert record.summary["remaining"] == 0
     assert count_legacy_session_keys() == 0
     assert enqueue.call_count == 3
+    enqueue.assert_any_call(backfill_id=str(record.pk), batch_size=2)
 
 
 @pytest.mark.django_db(transaction=True)

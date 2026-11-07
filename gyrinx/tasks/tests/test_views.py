@@ -94,9 +94,12 @@ def test_pubsub_handler_returns_429_when_db_at_capacity(
     from django.db import OperationalError
 
     url = reverse("tasks:pubsub")
-    with patch(
-        "gyrinx.tasks.views.connection.ensure_connection",
-        side_effect=OperationalError(error_message),
+    with (
+        patch(
+            "gyrinx.tasks.views.connection.ensure_connection",
+            side_effect=OperationalError(error_message),
+        ),
+        patch("gyrinx.security_events.track") as telemetry,
     ):
         response = client.post(
             url,
@@ -104,6 +107,10 @@ def test_pubsub_handler_returns_429_when_db_at_capacity(
             content_type="application/json",
         )
     assert response.status_code == 429
+    timeout_calls = [
+        call for call in telemetry.call_args_list if call.args == ("db_pool_timeout",)
+    ]
+    assert len(timeout_calls) == 1
 
 
 @pytest.mark.django_db

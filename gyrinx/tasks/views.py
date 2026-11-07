@@ -16,6 +16,7 @@ from django.http import (
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
+from gyrinx.security_events import emit_pool_timeout
 from gyrinx.tasks.backend import PubSubBackend
 from gyrinx.tasks.executor import run_task
 from gyrinx.tasks.groups import group_status
@@ -106,9 +107,10 @@ def pubsub_push_handler(request):
             or "too many connections" in msg
             or "couldn't get a connection" in msg
         ):
+            emit_pool_timeout(request)
             logger.warning(
                 "Database connection pool exhausted, returning 429 for retry",
-                extra={"error": str(e)},
+                extra={"error_type": type(e).__name__},
             )
             return HttpResponse("Database at capacity", status=429)
         raise

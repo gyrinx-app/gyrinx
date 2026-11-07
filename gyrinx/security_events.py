@@ -86,13 +86,18 @@ def has_pool_timeout(exception):
     return False
 
 
+def emit_pool_timeout(request):
+    """Record a failed database checkout without exception or request contents."""
+    track(
+        "db_pool_timeout",
+        route=request_route(request),
+        request_id=request_id(request),
+        trace_id=trace_id(request),
+    )
+
+
 @receiver(signals.got_request_exception)
 def record_pool_timeout(sender, request, **kwargs):
     """Catch unhandled view and middleware timeouts at Django's 500 boundary."""
     if has_pool_timeout(sys.exc_info()[1]):
-        track(
-            "db_pool_timeout",
-            route=request_route(request),
-            request_id=request_id(request),
-            trace_id=trace_id(request),
-        )
+        emit_pool_timeout(request)

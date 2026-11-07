@@ -94,7 +94,7 @@ def scrub_event_sessions(backfill_id: str, batch_size: int = SESSION_SCRUB_BATCH
     # Enqueue after the progress commit. If publication fails, let the task
     # framework redeliver this batch so the chain cannot strand a RUNNING row.
     if continue_needed:
-        scrub_event_sessions.enqueue(backfill_id=backfill_id)
+        scrub_event_sessions.enqueue(backfill_id=backfill_id, batch_size=batch_size)
 
 
 task_routes = [TaskRoute(scrub_event_sessions, ack_deadline=300, confirm_publish=True)]

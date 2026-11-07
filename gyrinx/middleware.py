@@ -74,6 +74,10 @@ class SecurityTelemetryMiddleware:
             and request.method == "POST"
             and match
             and status in (200, 400, 401, 403, 429)
+            and not (
+                status == 200
+                and response.get("Content-Type", "").startswith("application/json")
+            )
         ):
             action = self._ACCOUNT_ROUTES.get(match.url_name)
             if action:

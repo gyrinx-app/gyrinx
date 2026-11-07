@@ -3,6 +3,7 @@
 from unittest.mock import Mock, patch
 
 import pytest
+from allauth.account.models import EmailAddress
 from allauth.mfa.totp.internal import auth as totp_auth
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
@@ -52,6 +53,32 @@ def test_rejected_account_forms_emit_bounded_audit(monkeypatch, path, data, acti
         assert len(labels["target_fingerprint"]) == 64
     else:
         assert labels["target_fingerprint"] is None
+
+
+@pytest.mark.django_db
+def test_successful_json_login_is_not_recorded_as_rejected(monkeypatch):
+    monkeypatch.setattr(
+        "django_recaptcha.fields.ReCaptchaField.validate", lambda self, value: True
+    )
+    user = get_user_model().objects.create_user(
+        username="ajax-login-user", password="password"
+    )
+    EmailAddress.objects.create(
+        user=user, email="ajax-login-user@example.com", verified=True, primary=True
+    )
+
+    with patch("gyrinx.security_events.track") as audit:
+        response = Client(HTTP_ACCEPT="application/json").post(
+            "/accounts/login/",
+            {"login": "ajax-login-user", "password": "password"},
+        )
+
+    assert response.status_code == 200
+    assert response["Content-Type"].startswith("application/json")
+    assert response.json()["location"]
+    assert not [
+        call for call in audit.call_args_list if call.args == ("security_request",)
+    ]
 
 
 @pytest.mark.django_db
