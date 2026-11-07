@@ -67,11 +67,12 @@ def fighter_options(request, pk):
     from n26.core.card import build_card, build_modifier_index, carriers
     from n26.core.effects import compute
     from n26.core.hire import build_hire_entry
+    from n26.core.hire_workflow import chosen_sets
     from n26.core.operations import Refusal, operation
     from n26.core.owned import EquipHost
     from n26.core.render import roster, summarise_roster
     from n26.core.views.edit import link_model_card
-    from n26.core.views.hire import _chosen, _picks
+    from n26.core.views.hire import _picks
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.membership.gang
@@ -85,7 +86,7 @@ def fighter_options(request, pk):
         before = entry_row.paid if entry_row is not None else 0
         try:
             with operation(gang, actor=request.user) as op:
-                op.rechoose(miniature.membership, option=_chosen(picks))
+                op.rechoose(miniature.membership, option=chosen_sets(picks))
         except Refusal as refusal:
             messages.error(request, str(refusal))
             return redirect(here)

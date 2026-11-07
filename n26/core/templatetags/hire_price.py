@@ -2,7 +2,7 @@
 
 from django import template
 
-from n26.core.views.equip import PRICE_CEILING
+from n26.core.prices import PRICE_CEILING
 
 register = template.Library()
 
@@ -14,8 +14,8 @@ def _whole(value, fallback):
         return fallback
 
 
-def price_box_props(field, quoted, label="", price_cap="", element_id=""):
-    """The quote the box starts at, and the bounds the server will accept."""
+def price_box_props(field, quoted, label="", price_cap="", element_id="", initial=None):
+    """The quote, retained input and bounds the server will accept."""
     amount = _whole(quoted, 0)
     cap = _whole(price_cap, PRICE_CEILING)
     return {
@@ -25,6 +25,7 @@ def price_box_props(field, quoted, label="", price_cap="", element_id=""):
         "min": min(0, amount),
         "max": cap,
         "id": "" if element_id is None else str(element_id),
+        "initial": str(amount) if initial is None else str(initial),
     }
 
 

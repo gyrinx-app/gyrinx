@@ -11,6 +11,8 @@ an import can hold back what it makes. (n26/library/staged.py, and
 design/collections.md on hiding content from some viewers.)
 """
 
+from uuid import uuid4
+
 import pytest
 from django.contrib.auth.models import Group, User
 from django.urls import reverse
@@ -300,7 +302,8 @@ class TestHiring:
         )
 
         response = client.post(
-            hire_url(gang), {"profile": str(runner.pk), "name": "Sand"}
+            hire_url(gang),
+            {"request_key": str(uuid4()), "profile": str(runner.pk), "name": "Sand"},
         )
 
         assert response.status_code == 200
@@ -320,7 +323,8 @@ class TestHiring:
         assert "Nomad Runner" in client.get(hire_url(gang)).content.decode()
 
         response = client.post(
-            hire_url(gang), {"profile": str(runner.pk), "name": "Sand"}
+            hire_url(gang),
+            {"request_key": str(uuid4()), "profile": str(runner.pk), "name": "Sand"},
         )
 
         assert response.status_code == 302

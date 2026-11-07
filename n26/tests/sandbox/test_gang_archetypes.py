@@ -7,6 +7,8 @@ visibility, section grouping, and gang-sheet rendering.
 Design: `design/collections.md`.
 """
 
+from uuid import uuid4
+
 import pytest
 from django.contrib.auth.models import User
 from django.db import connection
@@ -400,7 +402,10 @@ class TestAnArchetypeSwapsTheList:
         response = screen(client, gang, owner)
         key = row(response.context["hire_list"], "Chem Wytch").key
 
-        client.post(hire_url(gang), {"profile": key, "name": "Sela"})
+        client.post(
+            hire_url(gang),
+            {"request_key": str(uuid4()), "profile": key, "name": "Sela"},
+        )
 
         assert [str(member) for member in roster(gang)] == ["Sela"]
         # At the archetype's price, not the fighter's own: the offer the
@@ -430,7 +435,10 @@ class TestAnArchetypeSwapsTheList:
 
         key = row(response.context["hire_list"], "Death-Maiden").key
 
-        response = client.post(hire_url(gang), {"profile": key, "name": "Ilyanna"})
+        response = client.post(
+            hire_url(gang),
+            {"request_key": str(uuid4()), "profile": key, "name": "Ilyanna"},
+        )
 
         assert response.status_code == 302
         hired = next(member for member in roster(gang) if str(member) == "Ilyanna")

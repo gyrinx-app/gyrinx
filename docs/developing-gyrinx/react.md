@@ -40,10 +40,11 @@ an API. [Operations](../../n26/core/operations.py) own player-data writes,
 [render structures](../../n26/core/render.py) prepare display facts. Some workflow
 decisions still live in views:
 
-- [Manage credits](../../n26/core/views/credits.py) combines permission checks,
-  form validation, the locked write, errors, analytics and return navigation.
-- [Hire](../../n26/core/views/hire.py) also resolves offered profiles, option
-  picks, quotes and confirmation state before calling the hire operation.
+- [Manage credits](../../n26/core/credits.py) shares permission checks, validation
+  and its keyed command between HTML and JSON adapters.
+- [Hire](../../n26/core/hire_workflow.py) shares offer and option resolution,
+  quotes, locked access checks and a durable acquisition result. The native
+  [Hire view](../../n26/core/views/hire.py) owns confirmation and navigation.
 - [Equip](../../n26/core/views/equip.py) combines purchase preparation,
   confirmations and several HTML updates after a write.
 
@@ -124,8 +125,16 @@ expiry, CSRF failure, field and non-field errors, stale reads, network failure
 and pending state. Distinguish a rejected
 write from a request whose outcome is unknown. Disable duplicate submissions,
 and implement server request-key handling where retries could spend or grant
-twice. A disabled button is not idempotency. Existing keyed action flows are
-examples; `adjust_credits` needs an explicit retry design before promising one.
+twice. A disabled button is not idempotency. Manage credits records its command
+key on the adjustment event. Hire uses a separate `HireReceipt` because one hire
+can create several assignments and events.
+
+Bind an acquisition key to the actor and submitted business input. Check current
+access under the write lock, then look for the saved result before resolving
+today's catalogue. A retry must confirm an earlier purchase even if its profile
+is now archived or its options have changed. A refused transaction must leave no
+receipt. Hire retains the assignment IDs needed to rederive arrival screens;
+the HTTP adapter still builds and validates navigation destinations.
 
 Keep forms and domain rules authoritative on the server. Form-encoded input can
 reuse Django forms; JSON responses do not require JSON request bodies. Return

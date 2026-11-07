@@ -8,6 +8,8 @@ along with the refusals, because every one of them is a way a fighter
 could be bought at the wrong price or not at all.
 """
 
+from uuid import uuid4
+
 import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
@@ -307,7 +309,10 @@ def test_the_dialog_hires_and_comes_back_for_the_next_one(client, tester, gang, 
     """The gang sheet is not where a hire lands. The answer to "who else?"
     is this screen, so the confirmation is drawn on it."""
     client.force_login(tester)
-    response = client.post(hire_url(gang), {"profile": str(ganger.pk), "name": "Vex"})
+    response = client.post(
+        hire_url(gang),
+        {"request_key": str(uuid4()), "profile": str(ganger.pk), "name": "Vex"},
+    )
     assert response.status_code == 302
     assert response.url == hire_url(gang)
 
@@ -330,7 +335,10 @@ def test_the_confirmation_is_drawn_once_and_inside_the_form(
     only way to tell is where the alert sits relative to the form.
     """
     client.force_login(tester)
-    client.post(hire_url(gang), {"profile": str(ganger.pk), "name": "Vex"})
+    client.post(
+        hire_url(gang),
+        {"request_key": str(uuid4()), "profile": str(ganger.pk), "name": "Vex"},
+    )
     body = client.get(hire_url(gang)).content.decode()
 
     assert body.count("Hired Vex") == 1
@@ -341,7 +349,10 @@ def test_hiring_twice_running_needs_no_detour(client, tester, gang, ganger):
     client.force_login(tester)
     for name in ("Vex", "Sull"):
         assert click(client, gang, ganger).url == dialog_url(gang, ganger)
-        client.post(hire_url(gang), {"profile": str(ganger.pk), "name": name})
+        client.post(
+            hire_url(gang),
+            {"request_key": str(uuid4()), "profile": str(ganger.pk), "name": name},
+        )
 
     assert sorted(
         model.name for model in Miniature.objects.filter(membership__gang=gang)
@@ -352,7 +363,10 @@ def test_hiring_twice_running_needs_no_detour(client, tester, gang, ganger):
 
 def test_an_unnamed_hire_takes_the_profiles_name(client, tester, gang, ganger):
     client.force_login(tester)
-    client.post(hire_url(gang), {"profile": str(ganger.pk), "name": ""})
+    client.post(
+        hire_url(gang),
+        {"request_key": str(uuid4()), "profile": str(ganger.pk), "name": ""},
+    )
     assert Miniature.objects.get(membership__gang=gang).name == "Ganger"
 
     body = client.get(hire_url(gang)).content.decode()
@@ -384,7 +398,13 @@ def test_a_name_the_field_refuses_comes_back_in_the_dialog(
     scoped = f"{slugify(str(ganger.pk))}:1"
     client.force_login(tester)
     response = client.post(
-        hire_url(gang), {"profile": str(ganger.pk), "name": "V" * 300, scoped: "1"}
+        hire_url(gang),
+        {
+            "request_key": str(uuid4()),
+            "profile": str(ganger.pk),
+            "name": "V" * 300,
+            scoped: "1",
+        },
     )
     assert response.status_code == 200
     assert not Miniature.objects.filter(membership__gang=gang).exists()
@@ -412,7 +432,12 @@ def test_an_option_maps_back_to_its_set(client, tester, gang, ganger, armament):
     client.force_login(tester)
     response = client.post(
         hire_url(gang),
-        {"profile": str(ganger.pk), "name": "Vex", f"{slugify(str(ganger.pk))}:1": "1"},
+        {
+            "request_key": str(uuid4()),
+            "profile": str(ganger.pk),
+            "name": "Vex",
+            f"{slugify(str(ganger.pk))}:1": "1",
+        },
     )
     assert response.status_code == 302
 
@@ -457,7 +482,12 @@ def test_a_dialog_reached_by_hand_hires_the_option_it_names(
 
     client.post(
         hire_url(gang),
-        {"profile": str(ganger.pk), "name": "Vex", f"{slugify(str(ganger.pk))}:1": "1"},
+        {
+            "request_key": str(uuid4()),
+            "profile": str(ganger.pk),
+            "name": "Vex",
+            f"{slugify(str(ganger.pk))}:1": "1",
+        },
     )
     fighter = Miniature.objects.get(membership__gang=gang)
     assert [
@@ -476,6 +506,7 @@ def test_a_double_pick_in_a_choose_one_group_is_refused(
     response = client.post(
         hire_url(gang),
         {
+            "request_key": str(uuid4()),
             "profile": str(ganger.pk),
             "name": "Vex",
             f"{slugify(str(ganger.pk))}:1": ["0", "1"],
@@ -506,7 +537,13 @@ def test_an_option_index_that_does_not_exist_is_refused(
     )
     assert (
         client.post(
-            hire_url(gang), {"profile": str(ganger.pk), "name": "Vex", scoped: "7"}
+            hire_url(gang),
+            {
+                "request_key": str(uuid4()),
+                "profile": str(ganger.pk),
+                "name": "Vex",
+                scoped: "7",
+            },
         ).status_code
         == 404
     )
@@ -576,7 +613,8 @@ def test_an_overspend_refuses_and_writes_nothing(client, tester, gang, make_prof
 
     client.force_login(tester)
     response = client.post(
-        hire_url(gang), {"profile": str(expensive.pk), "name": "Vesna"}
+        hire_url(gang),
+        {"request_key": str(uuid4()), "profile": str(expensive.pk), "name": "Vesna"},
     )
     # Back to the hire page with a message, and nothing half-written.
     assert response.status_code == 302
@@ -605,13 +643,15 @@ def test_another_gang_types_profile_hires_but_an_unhireable_one_never_does(
 
     client.force_login(tester)
     response = client.post(
-        hire_url(gang), {"profile": str(outsider.pk), "name": "Poached"}
+        hire_url(gang),
+        {"request_key": str(uuid4()), "profile": str(outsider.pk), "name": "Poached"},
     )
     assert response.status_code == 302
     assert Miniature.objects.filter(membership__gang=gang).count() == 1
 
     refused = client.post(
-        hire_url(gang), {"profile": str(collared.pk), "name": "Wrong"}
+        hire_url(gang),
+        {"request_key": str(uuid4()), "profile": str(collared.pk), "name": "Wrong"},
     )
     assert refused.status_code == 200  # redisplays the list
     assert Miniature.objects.filter(membership__gang=gang).count() == 1
@@ -631,7 +671,10 @@ def test_an_archived_profile_is_neither_offered_nor_hired(
     client.force_login(tester)
     assert "Forgotten Juve" not in client.get(hire_url(gang)).content.decode()
     assert client.get(dialog_url(gang, gone)).context["dialog"] is None
-    refused = client.post(hire_url(gang), {"profile": str(gone.pk), "name": "Ghost"})
+    refused = client.post(
+        hire_url(gang),
+        {"request_key": str(uuid4()), "profile": str(gone.pk), "name": "Ghost"},
+    )
     assert refused.status_code == 200
     assert not Miniature.objects.filter(membership__gang=gang).exists()
     assert (
@@ -644,7 +687,10 @@ def test_a_profile_that_is_not_a_ulid_draws_no_dialog(client, tester, gang, gang
     genuine buttons never send one, so it names nothing."""
     client.force_login(tester)
     assert client.get(f"{hire_url(gang)}?hire=nonsense").context["dialog"] is None
-    response = client.post(hire_url(gang), {"profile": "nonsense", "name": "Vex"})
+    response = client.post(
+        hire_url(gang),
+        {"request_key": str(uuid4()), "profile": "nonsense", "name": "Vex"},
+    )
     assert response.status_code == 200
     assert not Miniature.objects.filter(membership__gang=gang).exists()
 
@@ -654,7 +700,12 @@ def test_someone_elses_gang_is_not_found(client, gang, ganger):
     client.force_login(stranger)
     assert client.get(hire_url(gang)).status_code == 404
     assert client.get(dialog_url(gang, ganger)).status_code == 404
-    assert client.post(hire_url(gang), {"profile": str(ganger.pk)}).status_code == 404
+    assert (
+        client.post(
+            hire_url(gang), {"request_key": str(uuid4()), "profile": str(ganger.pk)}
+        ).status_code
+        == 404
+    )
     assert click(client, gang, ganger).status_code == 404
 
 
@@ -684,7 +735,10 @@ def test_the_figures_strip_counts_the_roster_and_quotes_the_books(
     assert "Roster breakdown: 0 models in the gang" in body
     assert f">{gang.credits}\u00a2<" in body
 
-    client.post(hire_url(gang), {"profile": str(ganger.pk), "name": "Vex"})
+    client.post(
+        hire_url(gang),
+        {"request_key": str(uuid4()), "profile": str(ganger.pk), "name": "Vex"},
+    )
     gang.refresh_from_db()
     body = client.get(hire_url(gang)).content.decode()
     assert "Roster breakdown: 1 model in the gang" in body
@@ -701,7 +755,10 @@ def test_a_profile_not_offered_for_hire_is_not_on_the_screen(
     ganger.save(update_fields=["hireable"])
     client.force_login(tester)
     assert str(ganger.pk) not in client.get(hire_url(gang)).content.decode()
-    response = client.post(hire_url(gang), {"profile": str(ganger.pk), "name": "Vex"})
+    response = client.post(
+        hire_url(gang),
+        {"request_key": str(uuid4()), "profile": str(ganger.pk), "name": "Vex"},
+    )
     assert response.status_code == 200
     assert not Miniature.objects.filter(membership__gang=gang).exists()
 
@@ -730,7 +787,12 @@ class TestTheTypedPrice:
         client.force_login(tester)
         response = client.post(
             hire_url(gang),
-            {"profile": str(ganger.pk), "name": "Vex", "paid": "30"},
+            {
+                "request_key": str(uuid4()),
+                "profile": str(ganger.pk),
+                "name": "Vex",
+                "paid": "30",
+            },
         )
         assert response.status_code == 302
 
@@ -746,7 +808,12 @@ class TestTheTypedPrice:
         client.force_login(tester)
         client.post(
             hire_url(gang),
-            {"profile": str(ganger.pk), "name": "Dear", "paid": "80"},
+            {
+                "request_key": str(uuid4()),
+                "profile": str(ganger.pk),
+                "name": "Dear",
+                "paid": "80",
+            },
         )
         entry = Miniature.objects.get(name="Dear").membership.ledger_entry
         assert entry.paid == 80
@@ -760,7 +827,12 @@ class TestTheTypedPrice:
         for bad in ("-5", "5.5", "9999999"):
             response = client.post(
                 hire_url(gang),
-                {"profile": str(ganger.pk), "name": "Nix", "paid": bad},
+                {
+                    "request_key": str(uuid4()),
+                    "profile": str(ganger.pk),
+                    "name": "Nix",
+                    "paid": bad,
+                },
             )
             assert response.status_code == 302
         assert not Miniature.objects.filter(name="Nix").exists()
@@ -771,7 +843,12 @@ class TestTheTypedPrice:
         client.force_login(tester)
         client.post(
             hire_url(gang),
-            {"profile": str(ganger.pk), "name": "Plain", "paid": ""},
+            {
+                "request_key": str(uuid4()),
+                "profile": str(ganger.pk),
+                "name": "Plain",
+                "paid": "",
+            },
         )
         entry = Miniature.objects.get(name="Plain").membership.ledger_entry
         assert entry.paid == 55
@@ -814,6 +891,7 @@ class TestRatingTheHire:
         client.post(
             hire_url(gang),
             {
+                "request_key": str(uuid4()),
                 "profile": str(ganger.pk),
                 "name": "Cheap",
                 "paid": "30",
@@ -837,11 +915,22 @@ class TestRatingTheHire:
         client.force_login(tester)
         client.post(
             hire_url(gang),
-            {"profile": str(ganger.pk), "name": "Paid", "paid": "30", "rate": "paid"},
+            {
+                "request_key": str(uuid4()),
+                "profile": str(ganger.pk),
+                "name": "Paid",
+                "paid": "30",
+                "rate": "paid",
+            },
         )
         client.post(
             hire_url(gang),
-            {"profile": str(ganger.pk), "name": "Quoted", "paid": "40"},
+            {
+                "request_key": str(uuid4()),
+                "profile": str(ganger.pk),
+                "name": "Quoted",
+                "paid": "40",
+            },
         )
 
         gang.refresh_from_db()
@@ -858,7 +947,13 @@ class TestRatingTheHire:
         client.force_login(tester)
         client.post(
             hire_url(gang),
-            {"profile": str(ganger.pk), "name": "Dear", "paid": "80", "rate": "paid"},
+            {
+                "request_key": str(uuid4()),
+                "profile": str(ganger.pk),
+                "name": "Dear",
+                "paid": "80",
+                "rate": "paid",
+            },
         )
         entry = Miniature.objects.get(name="Dear").membership.ledger_entry
         assert entry.rating_contribution == 80
@@ -872,7 +967,12 @@ class TestRatingTheHire:
         client.force_login(tester)
         client.post(
             hire_url(gang),
-            {"profile": str(ganger.pk), "name": "Bargain", "paid": "30"},
+            {
+                "request_key": str(uuid4()),
+                "profile": str(ganger.pk),
+                "name": "Bargain",
+                "paid": "30",
+            },
         )
         entry = Miniature.objects.get(name="Bargain").membership.ledger_entry
         assert entry.rating_contribution == 55
@@ -886,7 +986,12 @@ class TestRatingTheHire:
         client.force_login(tester)
         client.post(
             hire_url(gang),
-            {"profile": str(ganger.pk), "name": "Plain", "rate": "paid"},
+            {
+                "request_key": str(uuid4()),
+                "profile": str(ganger.pk),
+                "name": "Plain",
+                "rate": "paid",
+            },
         )
         entry = Miniature.objects.get(name="Plain").membership.ledger_entry
         assert entry.paid == 55
@@ -900,7 +1005,12 @@ class TestRatingTheHire:
         client.force_login(tester)
         body = client.post(
             hire_url(gang),
-            {"profile": str(ganger.pk), "name": "x" * 500, "paid": "30"},
+            {
+                "request_key": str(uuid4()),
+                "profile": str(ganger.pk),
+                "name": "x" * 500,
+                "paid": "30",
+            },
         ).content.decode()
 
         assert "<dialog open" in body
@@ -981,7 +1091,12 @@ class TestTheScopes:
 
         hired = client.post(
             hire_url(gang),
-            {"profile": str(supplementary.pk), "list": "supplementary", "name": ""},
+            {
+                "request_key": str(uuid4()),
+                "profile": str(supplementary.pk),
+                "list": "supplementary",
+                "name": "",
+            },
         )
         assert hired.status_code == 302
         assert "list=supplementary" in hired.url
@@ -1018,7 +1133,7 @@ class TestTheScopes:
 
         hired = client.post(
             f"{hire_url(gang)}?list=supplementary",
-            {"profile": str(supplementary.pk), "name": ""},
+            {"request_key": str(uuid4()), "profile": str(supplementary.pk), "name": ""},
         )
         assert hired.status_code == 302
         assert "list=supplementary" in hired.url
@@ -1040,7 +1155,7 @@ class TestTheScopes:
 
         hired = client.post(
             clicked.url,
-            {"profile": str(supplementary.pk), "name": ""},
+            {"request_key": str(uuid4()), "profile": str(supplementary.pk), "name": ""},
         )
         assert hired.status_code == 302
         assert "list=supplementary" in hired.url
