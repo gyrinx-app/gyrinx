@@ -1,4 +1,4 @@
-"""Every stored picture holds its surface's shape, whatever arrived."""
+"""Uploaded images are cropped to the target ratio, size-limited and stored as JPEG."""
 
 from io import BytesIO
 
@@ -20,8 +20,7 @@ def size_of(upload):
 
 
 class TestTheSpelling:
-    """A ratio spells itself the way the crop dialog reads its
-    declaration, so a template can stamp the constant straight on."""
+    """Aspect ratios serialise as width:height for the crop dialog."""
 
     def test_the_pair_reads_width_to_height(self):
         assert str(PORTRAIT) == "4:5"
