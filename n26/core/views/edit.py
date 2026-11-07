@@ -1,4 +1,4 @@
-"""One model's own page — the card, editable, and the owner's notes."""
+"""Edit a model's characteristics, skills, traits, notes and owned-content controls."""
 
 from dataclasses import dataclass
 from typing import NamedTuple
@@ -19,59 +19,47 @@ from n26.core.views.permissions import (
 )
 from n26.library.staged import sees_staged
 
-#: The kinds an owner edits by hand on this page: the assignable column
-#: each section writes, the input name its form posts, and the heading
-#: over its boxes.
+#: Editable form sections mapped to their assignment fields.
 EDITABLE_KINDS = {"subtypes": "subtype", "rules": "rule"}
 
 
 @dataclass(frozen=True)
 class _EditState:
-    """How each thing of one kind stands on a card, keyed the way a pick
-    list keys its options.
+    """Content offered, stored, granted, manually changed or fixed for one editable kind.
 
-    Not "is it held" but *how* it is held, because each answer settles a
-    different write: an owner's own addition is archived, anything else
-    gains a removal, a standing removal is archived to bring the thing
-    back, and something fixed is not offered at all.
+    Track provenance because clearing an owner addition archives it, while clearing
+    inherited content requires a stored removal. Fixed purchased content cannot
+    be cleared through these controls.
     """
 
-    #: Every thing of the kind the live library offers.
+    #: Current selectable content of this kind.
     offered: list
-    #: The written assignment showing each thing, by key.
+    #: Stored assignments by content key.
     stored: dict
-    #: The subset the owner added themselves.
+    #: Stored owner additions by content key.
     own_adds: dict
-    #: Keys the gang holds, riding this card.
+    #: Gang-broadcast content keys applying to this model.
     gang_held: set
-    #: Key -> what grants it, for things no assignment stands behind.
+    #: Computed grant sources by content key.
     granted: dict
-    #: Key -> the owner's standing removal of it.
+    #: Owner removal assignments by content key.
     removed: dict
-    #: Keys a removal could not shift, because money stands behind them.
+    #: Content keys immune to removal while purchased assignments remain.
     fixed: set
 
 
 def _edit_state(own, computed, field, *, include_staged=False):
-    """What the card currently says for one editable kind, keyed the way
-    a tick list keys its options.
+    """Classify offered content and card provenance for an editable kind.
 
-    The diff needs to know not just whether a thing is held but *how*:
-    any stored assignment showing it, which of those are the gang's
-    riding this card, the subset that are the owner's own additions,
-    what a modifier grants, the owner's standing removals — and which
-    could not be taken away at all, because money stands behind every
-    line of them. A suppressed line is held by nobody: it has been taken
-    away, and the box for it opens clear.
+    Ignore suppressed assignments. Distinguish broadcast content, owner additions,
+    computed grants, owner removals and content immune to removal.
     """
     from n26.core.effects import stands_whatever_happens
     from n26.core.models import Assignment, Reason
     from n26.core.views.skills import _key
 
     kind_class = Assignment._meta.get_field(field).related_model
-    # The live library, as every player-facing offer reads it — an
-    # archived subtype is not a box to tick, and neither is a staged one
-    # for a reader who may not see staged content.
+    # Apply archive and staged-content discovery rules to editable choices.
     offered = list(kind_class.objects.selectable(include_staged=include_staged))
     stored, own_adds, gang_held = {}, {}, set()
     for node in own.all_nodes():
@@ -82,9 +70,7 @@ def _edit_state(own, computed, field, *, include_staged=False):
         key = _key(node.assignable)
         stored.setdefault(key, node.assignment)
         if node.broadcast:
-            # The gang's, riding this card: it applies to this model —
-            # which is what a tick says — and clearing it takes it away
-            # from this model alone.
+            # A model-specific removal can suppress broadcast content only for this model.
             gang_held.add(key)
             continue
         entry = getattr(node.assignment, "ledger_entry", None)
@@ -99,9 +85,7 @@ def _edit_state(own, computed, field, *, include_staged=False):
         for row in own.removals
         if isinstance(row.assignable, kind_class)
     }
-    # Bought, so a removal would leave it exactly where it is. Asked of
-    # the engine's own rule rather than restated here, because a surface
-    # that disagreed would offer a clearing that quietly does nothing.
+    # Use the effects engine's removal rule so fixed controls match actual behaviour.
     fixed = {
         key
         for key, assignment in stored.items()
@@ -119,20 +103,10 @@ def _edit_state(own, computed, field, *, include_staged=False):
 
 
 def _edits_offer(own, computed, field, heading, *, include_staged=False):
-    """One section of the edits box: every thing of the kind, as options.
+    """Build current editable checkboxes and remaining searchable options.
 
-    A granted thing's box still clears — the owner's clearing becomes a
-    stored removal, and ticking it again archives that removal, so the
-    content's own answer is always one click away. What does *not* clear
-    is a thing money stands behind: a removal would leave it exactly
-    where it is, so it is drawn fixed and says so rather than being
-    offered and refused.
-
-    Two answers, because the page draws them differently. What the card
-    shows — and anything the owner has touched, so a thing they took
-    away stays where it can be put back — is the list of boxes. The rest
-    of the library is what the search panel offers: a box each, which
-    appears in the list above once it is ticked.
+    Keep owner removals visible for restoration. Granted content can be cleared
+    through a stored removal; fixed purchased content has no clearable control.
     """
     from n26.core.render import ChoiceOffer, Choosable, ChoosableGroup
     from n26.core.views.skills import _key
@@ -143,8 +117,7 @@ def _edits_offer(own, computed, field, heading, *, include_staged=False):
         key = _key(thing)
         fixed_because = ""
         if key in state.fixed:
-            # Named as a price rather than a rule: the owner can sell it
-            # from the equip screen, which is the way back.
+            # Direct purchased-content removal through equipment sale controls.
             fixed_because = "bought — sell it to take it away"
         if key in state.own_adds:
             detail = "added by you"
@@ -177,22 +150,12 @@ def _edits_offer(own, computed, field, heading, *, include_staged=False):
     return held, rest, bool(state.own_adds or state.removed)
 
 
-#: How the skills box's two listings are named in the address.
+#: Supported skill-tab values carried by the URL.
 OWN_SETS, ALL_SETS = "their-sets", "all-sets"
 
 
 def _skills_tabs(miniature, current):
-    """The two ways the skills box lists a model's sets.
-
-    Their own first, because it is the everyday answer: the handful of
-    sets somebody wrote a placement for, which is what a reader came to
-    settle. The whole library is a tab away rather than the default,
-    since it holds every set the content has and the two that are theirs
-    would be lost among them.
-
-    Both addresses render the whole page on a plain visit, so a tab is
-    somewhere a link can point and a reload comes back to.
-    """
+    """Link the placed-or-held and complete skill offers through stable URL values."""
     here = reverse("n26-edit-fighter", args=[miniature.pk])
     return [
         {
@@ -209,16 +172,10 @@ def _skills_tabs(miniature, current):
 
 
 def _skills_here(request, miniature):
-    """Where a skills save goes back to: the tab it was made from.
+    """Return a skills save to its supported tab on this model's edit page.
 
-    The form carries which listing drew it, so settling the boxes leaves
-    the reader looking at the same ones. A form naming no tab, or one
-    this page does not draw, lands on the page's own default.
-
-    What was posted chooses between addresses; it never becomes part of
-    one. Every address here is built from this page's own route and one
-    of its two constants, so no value a form carries can reach the
-    reader's browser as somewhere to go.
+    Select only predefined route and tab values; never use submitted destinations
+    directly in a link.
     """
     here = reverse("n26-edit-fighter", args=[miniature.pk])
     asked = request.POST.get("tab")
@@ -229,14 +186,11 @@ def _skills_here(request, miniature):
 
 
 def _apply_edits(op, miniature, own, computed, field, ticked, *, include_staged=False):
-    """Make what the card shows match what was ticked, and say what moved.
+    """Match an editable kind to the submitted checkboxes using current library content.
 
-    The state is derived again here rather than trusted from the page,
-    so a stale form can only name things the library offers now. Each
-    box's difference picks its own write: a cleared owner-addition is
-    archived, any other cleared held thing gains a stored removal, a
-    ticked standing removal is archived so the thing comes back, and a
-    ticked absence is added in the owner's name.
+    Archive cleared owner additions, create removals for other cleared content,
+    restore cleared removals and add newly ticked content through the operation.
+    Skip fixed content.
     """
     from n26.core.models import Reason
     from n26.core.views.skills import _key
@@ -246,10 +200,7 @@ def _apply_edits(op, miniature, own, computed, field, ticked, *, include_staged=
     for thing in state.offered:
         key = _key(thing)
         if key in state.fixed:
-            # Drawn fixed, and a fixed box submits nothing — so its
-            # silence is not a clearing. Nothing here may act on it: a
-            # removal would leave the thing on the card and the page
-            # would report a loss the card denies.
+            # Fixed boxes submit no value; do not interpret their absence as a removal.
             continue
         shown = key in state.stored or key in state.granted
         if key in ticked:
@@ -262,9 +213,7 @@ def _apply_edits(op, miniature, own, computed, field, ticked, *, include_staged=
         elif key in state.own_adds:
             op.remove(state.own_adds[key])
             if key in state.granted and key not in state.removed:
-                # A grant also supplies it, and archiving the owner's
-                # addition leaves that standing — clearing means gone by
-                # every route, so the grant is cancelled too.
+                # Clearing an owner addition must also suppress a simultaneous grant.
                 op.take_away(miniature, thing)
             taken.append(str(thing))
         elif shown and key not in state.removed:
@@ -286,25 +235,11 @@ def link_model_card(
     rank_summaries=None,
     amount_dialog=False,
 ):
-    """The model's card with every control addressed — the card each of
-    the model's own screens draws above its tabs.
+    """Build a model card and link controls consistently across Edit, Equip and Options.
 
-    One place turns the reading into the card and points its controls
-    somewhere, so the Edit, Equip and Options faces, and the card an act
-    sends back, cannot offer different things: the choice slots, the
-    Skills control, the counters, and on each piece of kit the acts the
-    equip listing offers. Reads dismissed offers once, and which collections
-    hold skills unless the caller has already asked (``among``).
-
-    ``back`` is the screen the card is drawn on, carried on the choice
-    and counter controls so the act returns the reader there. ``host``
-    decides where the kit acts open: on ``host.at``, which is the
-    screen's own address where it holds the dialog host, and the model's
-    own page otherwise. ``amount_dialog`` is set only where that page also
-    holds the amount-dialog host, so each counter pencil has somewhere to land.
-
-    ``dismissal_at`` keeps dismissal controls on their current screen where
-    other card actions return somewhere else, as on Options.
+    Use host.at for equipment panels and back for choices and counters.
+    Amount-dialog controls require explicit opt-in by pages hosting that dialog.
+    Reuse collection data through among and dismissal state through dismissal_at.
     """
     from n26.core.access import model_collections
     from n26.core.owned import with_query
@@ -313,9 +248,7 @@ def link_model_card(
     from n26.core.views.owned import link_counters, link_possession_actions
     from n26.core.views.skills import link_skills
 
-    # One line per assignment: every screen this card is drawn on hangs
-    # the kit acts off each line, and a menu names one assignment, so a
-    # line standing for two of a thing would have nowhere to send them.
+    # Keep separate owned assignments so each equipment menu targets one copy.
     card = build_model_card(
         miniature,
         card=own,
@@ -333,16 +266,13 @@ def link_model_card(
     link_slots(gang, card, back=back, dismiss_back=dismissal_at)
     link_skills(card, among=model_collections() if among is None else among)
     link_counters(card, back=back)
-    # The amount dialog's host is on the Edit face. Options borrows this
-    # page's address for its counters and does not hold that host, so the
-    # pencil is opted into by the caller rather than inferred from ``back``.
+    # Only pages with the amount-dialog host opt into counter pencil controls.
     if amount_dialog:
         for line in card.counters:
             if line.href:
                 line.adjust_href = with_query(line.href, back=back)
     link_possession_actions(card, host, refunds=not gang.credits_unlimited)
-    # Options sends card actions to Edit; dismissal_at retains the screen
-    # actually showing this card.
+    # Preserve dismissal state on Options even when other controls return to Edit.
     if dismissal_at.split("?")[0] == reverse("n26-edit-fighter", args=[miniature.pk]):
         addresses = edit_dialog_addresses(miniature, dismissal_at)
         if card.skills_href:
@@ -353,28 +283,17 @@ def link_model_card(
 
 
 class CardScreen(NamedTuple):
-    """One of the screens a model's card is drawn on, as the card sent
-    back to it needs to know it."""
+    """Supported card-surface navigation state and whether it hosts equipment dialogs."""
 
-    #: Whether the screen holds the dialog host the kit acts open in. Where
-    #: it does not, the acts open over the Edit face.
+    #: Whether equipment dialogs can open on this surface; otherwise use Edit.
     hosts_dialogs: bool
-    #: The query parameters the screen's address carries as a place to
-    #: return to: the state that outlives an act, and nothing that names a
-    #: question mid-ask. Anything else in the posted address is dropped.
+    #: Shareable navigation keys retained after a card action, excluding open dialogs.
     carries: tuple[str, ...]
 
 
-#: The screens a model's card is drawn on, by route name. A card sent back
-#: to one of them is addressed the way that screen addresses its own card,
-#: so the controls it carries keep opening where the screen's own do.
-#:
-#: The Edit face carries which skills tab is open, and not the rename or
-#: the kit panel its address may also name: a question stood open is not
-#: somewhere to come back to once it is settled. The Equip face carries
-#: which list is open, which section, and which row stands open. Options
-#: carries only dismissal visibility, and its card's acts land on Edit.
-#: Every screen keeps dismissal visibility when an act redraws the card.
+#: Supported card routes and navigation keys.
+#: Edit retains skills and dismissed state; Equip retains its listing state;
+#: Options retains dismissal state while equipment actions return to Edit.
 CARD_SCREENS = {
     "n26-edit-fighter": CardScreen(hosts_dialogs=True, carries=("skills", "dismissed")),
     "n26-equip": CardScreen(
@@ -385,22 +304,11 @@ CARD_SCREENS = {
 
 
 def card_screen(miniature, back):
-    """The screen an act on this model's card came from: its address, and
-    where its kit acts open. Both are built here.
+    """Validate a posted card source and rebuild its address from supported routes and keys.
 
-    ``back`` is what the control posted, and is trusted for one thing
-    only: naming which of the model's own screens it was drawn on. Its
-    path is resolved against the URL table and must name one of
-    :data:`CARD_SCREENS` for this very model; the address is then rebuilt
-    from the route and the query parameters that screen carries, so
-    nothing the request sent reaches an href as written. Anything else —
-    a stale link, another model's page, an address from elsewhere — is
-    read as the Edit face, where a card's acts open by default.
-
-    Returns ``(address, host_at)``: the screen's own address, which the
-    choice and counter controls return to, and where the kit acts open —
-    the screen itself where it holds the dialog host, the Edit face
-    otherwise.
+    Require this model's identifier and one CARD_SCREENS route. Drop unsupported
+    query parameters and ignore the supplied origin. Return (address, host_at),
+    falling back to Edit for unknown, malformed or unrelated sources.
     """
     from urllib.parse import parse_qsl, urlencode, urlsplit
 
@@ -411,10 +319,7 @@ def card_screen(miniature, back):
         parts = urlsplit(back or "")
         match = resolve(parts.path)
     except ValueError, Resolver404:
-        # Not an address at all — an unclosed IPv6 bracket is what
-        # urlsplit refuses — or not a page of this app. A crafted value
-        # posted as ``back`` is read as the Edit face like any other
-        # stranger, never as an error.
+        # Malformed or unresolved source URLs fall back to Edit without an error.
         return edit, edit
     screen = CARD_SCREENS.get(match.url_name)
     if screen is None or match.kwargs.get("pk") != str(miniature.pk):
@@ -435,7 +340,7 @@ class EditDialogAddresses(NamedTuple):
 
 
 def edit_dialog_addresses(miniature, at=None):
-    """Keep the model's validated Edit-page state through either dialog."""
+    """Build rename and rating URLs retaining validated Edit-page state."""
     from urllib.parse import urlencode
 
     edit = reverse("n26-edit-fighter", args=[miniature.pk])
@@ -468,22 +373,21 @@ def request_edit_dialog_addresses(request, miniature):
 
 
 def _dismissal_holders(miniature, card):
-    """Only live models collect dismissed choices for their Edit page."""
+    """Collect dismissed choices only on live models' edit cards."""
     from n26.core.status import Status
 
     return [] if miniature.status == Status.DEAD else [card]
 
 
 def _dismissal_hidden(miniature, card):
-    """The complement of ``_dismissal_holders``: the card, when its
-    dismissed offers only go."""
+    """Hide dismissed choices without restoration controls on dead models."""
     from n26.core.status import Status
 
     return [card] if miniature.status == Status.DEAD else []
 
 
 def action_panel_context(miniature, own, computed, *, counter_tracking_active=None):
-    """The same available flows on Edit, Equip and their partial updates."""
+    """Build shared action-flow and history props for Edit, Equip and partial updates."""
     from n26.core.action_flow import action_panels
     from n26.core.counter_tracking import is_active as counter_tracking_is_active
     from n26.core.views.action_flows import link_action_panels, split_action_panels
@@ -510,21 +414,10 @@ def action_panel_context(miniature, own, computed, *, counter_tracking_active=No
 def render_card_update(
     request, miniature, at, *, close_counter_dialog=False, announce_counter=""
 ):
-    """The partial update for an act on one model's card.
+    """Rebuild a model card and its relevant partial-update sections.
 
-    Why the whole card is sent back rather than the part that moved is
-    the template's own comment.
-
-    ``at`` is what the control posted as the screen the act came from.
-    It is read through :func:`card_screen` and never used as written:
-    the card sent back carries the addresses that screen's own card
-    carries, so a tally on the Equip face hands back kit menus that
-    still open over the listing.
-
-    The model is read again rather than trusted from the request, because
-    the act changed what this reports on — and read the way the page
-    itself reads it, from this one model rather than from the gang
-    around it, so an act costs what the page costs and not more.
+    Validate at through card_screen before linking returned controls. Reuse one
+    computed card and load progression or action sections only where displayed.
     """
     from n26.core.card import build_card, build_modifier_index, carriers
     from n26.core.effects import compute
@@ -537,10 +430,7 @@ def render_card_update(
     own = build_card(miniature, with_statlines=True, with_options=True)
     index = build_modifier_index(carriers(own))
     computed = compute(own, index)
-    # The card is drawn in edit mode, and edit mode's card carries the
-    # kit acts. They open where the screen the act came from opens its
-    # own: over the listing on Equip, over the model's own page from
-    # anywhere else. Neither address is the one the request sent.
+    # Derive equipment action destinations from the validated source surface.
     back, host_at = card_screen(miniature, at)
     host = EquipHost.fighter(gang, own, miniature, host_at)
     on_edit = back.split("?")[0] == reverse("n26-edit-fighter", args=[miniature.pk])
@@ -560,8 +450,7 @@ def render_card_update(
     )
     link_model_cards(gang, [card], request.user)
     if announce_counter:
-        # The toast names the reading on the card, contributions included,
-        # which is the number the reader is looking at.
+        # Announce the displayed counter total, including computed contributions.
         announced = next(
             (line for line in card.counters if line.assignment_id == announce_counter),
             None,
@@ -599,7 +488,7 @@ def render_card_update(
 
 @login_required
 def base_rating(request, pk):
-    """The owner can change a live model's base rating."""
+    """Edit the owned model's hire-rating contribution or remove its override."""
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.forms import BaseRatingForm
     from n26.core.operations import Refusal, operation
@@ -680,7 +569,7 @@ def base_rating(request, pk):
 
 
 def _base_rating_dialog(request, miniature, form=None):
-    """Only the editable hire contribution, never the total card rating."""
+    """Build controls for the editable hire contribution, excluding equipment rating."""
     from django.middleware.csrf import get_token
 
     from n26.core.forms import BaseRatingForm
@@ -709,39 +598,15 @@ def _base_rating_dialog(request, miniature, form=None):
 
 @login_required
 def edit_fighter(request, pk):
-    """One model, whole: their card with its edit affordances, the
-    characteristics they can set by hand, and the notes box.
+    """Render one computed model and process independently submitted edit actions.
 
-    One derivation of one model serves the whole page: the card, the
-    skills listing and the edits boxes are all read off it, so they
-    cannot disagree about what the model is. That reading carries the
-    gang's own assignments, which is how what the gang grants reaches
-    the card without the rest of the roster being computed for it. The
-    card draws in ``edit`` mode: the choice controls the sheet hides
-    are offered here, outlined, the Gear and Weapons rows carry the way
-    to the Equip tab, and each piece of kit the model holds offers the
-    same Sell and more-menu the equip listing does, so taking something
-    off does not mean finding it on another page first.
+    Route every player-data change through an operation, including notes, lore,
+    images and characteristics. Unknown POST actions write nothing.
+    Notes and lore htmx saves preserve the other live editor.
 
-    Several forms post here, and ``act`` says which was clicked. Every
-    one goes through an operation: notes and characteristics price
-    nothing and move no rating, but they are part of the gang's story,
-    so each writes a journal event and the history can say what the
-    owner did. Notes and lore each save on their own, and htmx leaves
-    the page as drawn so typing in one box survives saving the other.
-    What the notes editor produced is stored as written and sanitised
-    on the way out, so a tightened allowlist reaches old notes too.
-
-    The subtypes and rules box edits what the model *is*: ticking adds
-    in the owner's name, clearing stores a removal whatever route the
-    thing arrived by, and each section's Reset archives the owner's
-    edits so the content's own answer returns. The skills a model
-    holds post the same way, and selecting writes an assignment while
-    clearing archives one, so the whole difference lands or none of it
-    does.
-
-    A refused characteristic redraws the page with the boxes as typed
-    and the complaint under them; anything saved lands back here.
+    Use one card for displayed facts, skill selection and manual subtype or rule
+    edits. Owner removals can be reset to restore content-derived facts.
+    Characteristic validation errors retain submitted values.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.access import model_collections
@@ -770,11 +635,9 @@ def edit_fighter(request, pk):
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.membership.gang
     profile = miniature.membership.profile
-    # Whether this reader is offered staged content, on every list this
-    # page draws and every save it checks against them.
+    # Reuse staged-content access for every offered list and submitted selection.
     shown = sees_staged(request.user)
-    # A model with no entry behind it has no shape to set characteristics
-    # to, so the section is simply not drawn for one.
+    # Omit characteristic controls when there is no profile defining their shape.
     statline_class = statline_override_form_for(profile) if profile else None
     statline_edit = None
 
@@ -823,8 +686,7 @@ def edit_fighter(request, pk):
             selected=len(selected),
             cleared=len(cleared),
         )
-        # What moved, by name: a box ticked by mistake is easiest to spot
-        # in the sentence saying what it did.
+        # Name selected and cleared content in the confirmation.
         moved = [
             phrase
             for phrase in (
@@ -866,9 +728,7 @@ def edit_fighter(request, pk):
             taken=len(taken),
             restored=len(restored),
         )
-        # Everything named here really moved: a thing a removal could not
-        # shift is drawn fixed and never acted on, so the sentence cannot
-        # claim a loss the card denies.
+        # Confirm only actual changes; fixed content is neither removed nor reported lost.
         moved = [
             phrase
             for phrase in (
@@ -956,26 +816,18 @@ def edit_fighter(request, pk):
             else:
                 messages.success(request, "Nothing changed.")
         else:
-            # The one field that can refuse — a file that is not an
-            # image. The reason travels as a message to the page this
-            # redirects back to.
+            # Report upload validation errors on the destination page.
             for wrong in form.errors.get("image", []):
                 messages.error(request, wrong)
         return redirect("n26-edit-fighter", pk=miniature.pk)
     elif request.method == "POST":
-        # An act this page does not know writes nothing — the notes form
-        # is not a place for a stray submit to land, because its empty
-        # box is a real answer and would clear what is written.
+        # Unknown POST actions must not fall through to an empty notes submission.
         return redirect("n26-edit-fighter", pk=miniature.pk)
 
     if statline_edit is None and statline_class is not None:
         statline_edit = statline_class.opened_on(miniature)
 
-    # This model, read once: the card drawn below, the skills listing and
-    # the edits boxes all come off it. A fixed number of queries, however
-    # much this model holds and however large the gang around it. The
-    # options each copy was bought with ride along because the kit acts
-    # below describe every copy, and would otherwise ask per copy.
+    # Reuse one model card with option provenance for the page's facts, skills and owned-copy controls.
     own = build_card(miniature, with_statlines=True, with_options=True)
     index = build_modifier_index(carriers(own))
     computed = compute(own, index)
@@ -992,9 +844,7 @@ def edit_fighter(request, pk):
     )
     panels["result_history"] = result_history(miniature)
 
-    # The same acts the equip listing offers, pointed at this page so
-    # the confirmations open over it. A gang sheet and a print sheet
-    # never call this, and their cards stay names with nothing to click.
+    # Link equipment controls to this page's confirmation host.
     at, _ = card_screen(miniature, request.get_full_path())
     host = EquipHost.fighter(gang, own, miniature, at)
 
@@ -1003,10 +853,7 @@ def edit_fighter(request, pk):
         renaming = None
     from n26.core.views.gangs import rename_dialog_props
 
-    # One question at a time: a URL naming a rename and a sale draws
-    # the rename, because two open modals is not a state the page can
-    # mean. Accessorise is drawn per-weapon on the equip page; here
-    # there is one panel, the one the address names.
+    # Give rename priority over equipment dialogs so only one modal opens.
     dialog = None
     if not renaming and any(request.GET.get(kind) for kind in DIALOGS):
         dialog = owned_dialog(request, host)
@@ -1019,24 +866,16 @@ def edit_fighter(request, pk):
                 ),
                 None,
             )
-        # A click on a kit menu with script running is answered with
-        # the panel alone: the question is about one thing the model
-        # holds, and the reading in hand already says everything the
-        # panel needs. Only a click that named a panel — a page asked
-        # for as a whole is drawn whole however it was asked for. This
-        # page holds no row an update could name, so the panel's own
-        # submit is not partial (see panel_response).
+        # Return only the requested htmx panel; its submit remains a full-page action
+        # because this surface has no equipment-row update hosts.
         if (panel := panel_response(request, dialog, htmx=False)) is not None:
             return panel
 
-    # Asked once and used twice: the listing reads these collections, and
-    # so does the card's Skills control.
+    # Share the collection lookup between skill offers and the card's Skills control.
     sets = model_collections()
     skills = skills_offer(own, computed, sets, include_staged=shown)
     asked = request.GET.get("skills")
-    # A model no placement names has nothing under the first heading, so
-    # the box opens on the listing holding every set. An address naming a
-    # tab is obeyed either way: the first one saying so is a real answer.
+    # Default to All sets when the placed-or-held partition is empty; honour explicit supported tabs.
     tab = (
         asked
         if asked in (OWN_SETS, ALL_SETS)
@@ -1045,24 +884,17 @@ def edit_fighter(request, pk):
     skills_box = {
         "miniature": miniature,
         "edit_url": reverse("n26-edit-fighter", args=[miniature.pk]),
-        # Nothing rather than an empty box: a library with no set for a
-        # model to take anything from is not worth asking about. Which of
-        # the two listings is empty is the box's own business, and it says
-        # so under its own heading.
+        # Omit the skills box only when the complete offer is empty.
         "skills": None
         if skills.everything.is_empty
         else (skills.own if tab == OWN_SETS else skills.everything),
-        # The panel searches what the drawn listing leaves out, which on
-        # the listing holding every set is nothing.
+        # Search only options outside the currently displayed skill partition.
         "skills_more": skills.rest if tab == OWN_SETS else [],
         "skills_tab": tab,
         "skills_tabs": _skills_tabs(miniature, tab),
     }
 
-    # A tab clicked with script running is answered with the box alone,
-    # before the card is drawn: changing which sets are listed changes
-    # nothing else on the page, and the address still says which tab is
-    # open so a reload draws the same screen.
+    # Return only the htmx skills box and update URL state before building other display sections.
     if request.method == "GET" and asked and is_htmx(request):
         answer = render(
             request, "n26/includes/skills_box.html", {**skills_box, "oob": True}
@@ -1070,11 +902,7 @@ def edit_fighter(request, pk):
         answer["HX-Replace-Url"] = request.get_full_path()
         return answer
 
-    # Drawn from the reading already in hand. A card is a fact about one
-    # model — what it holds, what modifiers make of that — so the gang is
-    # asked for only what the gang alone can answer, which on this page is
-    # the roster tally below. The card's own build carries the gang's
-    # assignments already, so what the gang grants still reaches it.
+    # Build the card from the existing model computation; load only the roster summary separately.
     card = link_model_card(
         gang,
         miniature,
@@ -1095,8 +923,7 @@ def edit_fighter(request, pk):
         own, computed, "rule", "Special rules", include_staged=shown
     )
 
-    # The header's far corner: the gang's figures and the roster tally,
-    # the same numbers the equip face keeps there. One query.
+    # Load the gang's shared figures and roster summary for the header.
     members = roster(gang)
     may_mark = may_mark_status(gang, request.user)
     may_refund = not gang.credits_unlimited
@@ -1133,8 +960,7 @@ def edit_fighter(request, pk):
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),
             "credits_href": credits_href(gang, request.user),
-            # The badge leads to whichever question the status wants, the
-            # menu item always to Mark as….
+            # Status badges can open ransom; the menu item always opens manual status editing.
             "status_href": (
                 status_href(gang, miniature, back="edit") if may_mark else ""
             ),
@@ -1143,32 +969,19 @@ def edit_fighter(request, pk):
                 if may_mark
                 else ""
             ),
-            # A model brought by another is part of that model's purchase.
-            # Copying the owner carries both across; the child has no
-            # independent purchase to copy on its own.
+            # Generated models share their originating purchase and cannot be cloned independently.
             "may_clone": miniature.membership.caused_by_id is None,
-            # An unlimited gang refunds only Trade Points. A generated
-            # model's points may be on its originating purchase.
+            # Unlimited-credit gangs refund only founding trade points, including a generated model's originating purchase.
             "may_refund": may_refund,
-            # The role beside the name: the rank the profile is filed
-            # under, which is what a reader checking "which of my models
-            # is this" wants said once at the top. The bare name — the
-            # category's own str carries its section, which is taxonomy
-            # rather than anything about this model.
+            # Use the profile category's bare name for the displayed rank.
             "role": profile.category.name if profile and profile.category else "",
             "form": FighterNotesForm(initial={"notes": miniature.notes}),
             "lore_form": FighterLoreForm(initial={"lore": miniature.lore}),
-            # The boxes, not the form: pairing a statline type with a
-            # bound form is display logic, and the component that draws
-            # them has no business knowing what a form looks like.
+            # Pass prepared characteristic cells rather than form internals to the display component.
             "statline_cells": statline_edit.cells() if statline_edit else None,
-            # Which sets are listed, which tab is open, and what the
-            # panel searches — the same box the tab click is answered
-            # with, so the two cannot draw different things.
+            # Share skill-box props between full pages and tab partials.
             **skills_box,
-            # A library offering no subtypes and no rules draws no edits
-            # box at all. Each section carries its own Reset, drawn only
-            # while the owner has edits of that kind to undo.
+            # Hide empty edit sections and show Reset only for existing owner changes.
             "subtype_edits": subtype_edits,
             "subtype_more": subtype_more,
             "subtype_edits_dirty": subtype_edits_dirty,
@@ -1180,9 +993,7 @@ def edit_fighter(request, pk):
             if renaming
             else None,
             "dialog": dialog,
-            # The crop spec the picture box stamps onto the browser's
-            # dialog — handed from the same constants the server crops
-            # with, so the two cannot disagree.
+            # Use the server's crop constants for browser image controls too.
             "picture_shape": PORTRAIT,
             "picture_max": MAX_PX,
             "picture_url": miniature.image.url if miniature.image else "",
