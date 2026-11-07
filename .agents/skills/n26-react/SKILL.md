@@ -134,3 +134,70 @@ code after checking its other callers. Report the feature and migration outcomes
 including any concrete deferral reason.
 These instructions do not authorise unrelated refactors, scheduled jobs,
 deployment, automatic merges or access to another user's data.
+
+## Command migration checks
+
+Use Manage credits (`n26/core/credits.py` and the `manage-credits` island) as the
+first complete form example. Its form-encoded command shares Django validation
+with native POST, uses `http/command.ts`, and records a durable request key.
+Choose the receipt from the workflow's actual effects; a ledger grouping batch
+is not a unique command key. Test concurrent replay and changed-payload rejection.
+
+For an uncertain write, keep the exact submitted payload and key and freeze
+editing until a retry confirms its outcome. A rejected retry cannot prove an
+earlier write failed. Protect navigation during pending saves as well as after
+network failure. Test the real CSRF failure handler, which runs before the view,
+and preserve success feedback without duplicating it on replay. Generic transport
+tests in `.test.ts` are included by the shared Vitest configuration.
+
+Prove reload and reauthentication recovery as well as an immediate retry. Persist
+unresolved business input and its key before sending, scoped to actor and task;
+restore that input with a fresh CSRF token. Never retain credentials or an old
+CSRF token with the recovery payload. A reload instruction must not discard an
+unresolved command's identity.
+Keep an earlier uncertain save frozen after any rejected retry, including a
+structured form refusal. Opt workflow forms out of the shared busy-link handler
+with `data-busy="off"`; the React `WorkflowPage` adapter does this by default.
+Test Back after saving: a cached completed form must not submit a consumed key
+as a new command. Manage credits prevents HTTP caching and refreshes completed
+forms restored from the back-forward cache, while retaining unsaved drafts.
+Read recovery storage again on persisted history restoration. A cached older
+form can predate a later unresolved save for the same task; refresh it rather
+than allowing it to replace that command's key or payload. Preserve an unsaved
+draft only when no command needs recovery.
+
+## Absolute edits
+
+Use Edit campaign holding (`n26/core/asset_edit.py`, `edit-holding`) as the
+absolute-edit example. Sign the subject, actor and starting state; compare current
+values and revision under the same lock as the write. A matching desired state
+is a no-op success; a stale different state returns a specific revision conflict
+with current facts. Keep the draft frozen until an explicit review action loads
+a fresh baseline. Never automatically overwrite a newer edit.
+
+A retained submission takes precedence over native POST props. Ignore errors or
+conflict metadata for another submission until retry resolves the retained one.
+Test simultaneous drafts, delayed old requests, same-value retries, blank versus
+zero, and reload recovery. Do not reuse a money-adjustment receipt for an absolute
+edit merely because the forms look similar.
+
+## Reuse the established form lifecycle
+
+Manage credits, Edit holding and Edit asset type use `useWorkflowForm`, exported
+from `ui`. Keep pending state, retained input, fresh CSRF, focus and navigation
+handling there. Each island still validates and interprets its server response.
+Never treat every 409 as a confirmed revision conflict: a credits key refusal
+cannot resolve a lost adjustment response. Run all three forms' tests after a
+shared lifecycle change.
+
+For Edit asset type, the signed snapshot also contains whether ownership was
+locked. Related assets or tables can change this constraint without updating the
+type row. Validate a disabled field against its signed starting value, then
+compare current state under the lock. Return current facts and require review
+when a new constraint changes the submitted intent. Preserve Inherent and
+Transferable, the displayed labels from the model.
+
+Signed snapshots can outlive a deployment. Validate their shape as well as their
+signature and return a form error for unsupported input. Keep retry formats
+compatible with retained commands; a validation refusal cannot resolve an
+earlier uncertain write.

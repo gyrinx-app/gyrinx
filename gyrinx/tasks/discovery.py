@@ -65,11 +65,9 @@ FIRST_PARTY_PREFIXES = ("gyrinx.", "n23.", "n26.")
 
 
 def first_party_task_modules() -> list[str]:
-    """Every first-party ``<app>.tasks`` module that actually exists.
+    """Return existing first-party task modules in INSTALLED_APPS order.
 
-    Ordered by ``INSTALLED_APPS`` (which ``get_app_configs()`` preserves) and
-    returned as a list rather than a set: this ordering reaches topic
-    provisioning and the tests, and set iteration order would make both flaky.
+    Keep this order stable for task registration and topic provisioning.
     """
     modules = []
     for app_config in django_apps.get_app_configs():

@@ -1,31 +1,13 @@
-"""
-Development-only template loading: cotton's loader chain, adjusted for editing.
+"""Development template cache configuration for django-cotton.
 
-django-cotton's autoconfig (``django_cotton.apps.LoaderAppConfig``) rewrites
-``TEMPLATES[0]["OPTIONS"]["loaders"]`` from ``ready()``: it pops ``APP_DIRS`` and
-substitutes its own chain, wrapped in Django's ``cached.Loader``. Rewriting that
-chain from ``settings_dev`` doesn't work: the autoconfig runs later, when the app
-registry is populated, and overwrites whatever settings declared. So development
-swaps the ``django_cotton`` entry in ``INSTALLED_APPS`` for the subclass below,
-which lets the autoconfig build its chain and then adjusts it. The chain stays
-cotton's own — nothing here has its own opinion about which loaders belong in it,
-so a future cotton version that changes the chain is followed rather than
-silently contradicted.
+Cotton installs its loader chain during ready(), after settings are loaded.
+The development AppConfig adjusts that chain after Cotton initialisation.
+With CACHE_TEMPLATES=False, remove cached loaders while retaining their order.
 
-The dev server keeps the cached loader. runserver's autoreloader tells Django's
-template autoreload (``django/template/autoreload.py``) about every edit to a file
-under a template directory, and that resets the loaders. It ignores files that
-did not exist when it started, though, so a new template would never reach the
-cache: not a component written into a page before its file existed, and not an
-override of a template that had already loaded from a lower-priority directory.
-``TemplateDirectoryWatch`` below covers that. Adding, removing or renaming a file
-changes its directory's modification time, so before each request it checks
-those times and resets the loaders when one has moved. That is the
-``WATCH_TEMPLATE_DIRECTORIES`` setting's call.
-
-``CACHE_TEMPLATES`` set to false takes the cached loader out altogether, for a
-process with no autoreloader. Production and the test suite keep Django's own
-cached loader.
+The dev server normally keeps cached loaders. TemplateDirectoryWatch checks
+directory modification times to invalidate them when files are added, removed
+or renamed, including files unknown to Django's template autoreloader.
+Production and tests retain the standard cached loader.
 """
 
 import os
@@ -39,12 +21,10 @@ COTTON_LOADER = "django_cotton.cotton_loader.Loader"
 
 
 def uncached_loaders(loaders):
-    """
-    Return ``loaders`` with every cached loader replaced by the loaders it wraps.
+    """Unwrap cached.Loader entries recursively and preserve other loaders.
 
-    Anything that isn't a cached loader is passed through untouched, including
-    other wrapping loaders — only ``cached.Loader`` takes a plain list of loaders
-    as its argument, so it's the only one it is safe to splice.
+    Only cached.Loader has the supported nested-loader configuration. Raise
+    ImproperlyConfigured if that configuration is malformed.
     """
     unwrapped = []
     for loader in loaders:
@@ -66,13 +46,10 @@ def uncached_loaders(loaders):
 
 
 def unwrap_cached_template_loader():
-    """
-    Take the cached loader out of every configured template engine, in place.
+    """Remove cached loaders from configured template engines in place.
 
-    Engines that don't have one are left exactly as they are. An engine that does
-    must come out of the unwrap with cotton's loader first, or the shape cotton
-    builds has changed and this module needs revisiting — better a hard failure at
-    startup than a chain that quietly resolves components the wrong way.
+    Require Cotton's loader first after unwrapping; otherwise fail at startup
+    because component resolution depends on that order.
     """
     from django.conf import settings
 

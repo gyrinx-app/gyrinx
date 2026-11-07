@@ -58,36 +58,19 @@ def handle_task_enqueued(sender, task_result, **kwargs):
 @traced("signal_task_started")
 @transaction.atomic
 def handle_task_started(sender, task_result, **kwargs):
-    """
-    Update TaskExecution to RUNNING when task starts.
+    """Lock TaskExecution and start an eligible attempt.
 
-    Atomic, and the execution row is locked below, because everything here is
-    check-then-act: the branches read the status and then transition on the
-    strength of it. Each step they take is a legal transition on its own, so the
-    state machine's own locking cannot catch two deliveries interleaving here —
-    without the lock, two concurrent redeliveries of a FAILED execution can both
-    reset it to READY and both mark it RUNNING.
-
-    Args:
-        sender: The backend class executing the task
-        task_result: TaskResult instance with task metadata
+    The lock covers both status checks and transitions. Without it, two
+    retries could each reset FAILED to READY and start the same execution.
+    Keep RUNNING and SUCCESSFUL records unchanged on duplicate signals.
     """
     try:
         execution = TaskExecution.objects.select_for_update().get(
             task_id=task_result.id
         )
 
-        # At-least-once delivery can re-fire task_started for the same task_id.
-        # Re-marking a terminal execution RUNNING is an illegal state transition
-        # that would raise (and, via the Pub/Sub push handler, 500 into a
-        # redelivery storm), so handle each prior state explicitly:
-        #   - RUNNING: an overlapping delivery is already in flight — skip.
-        #   - SUCCESSFUL: a duplicate of a completed success — skip; the business
-        #     logic re-runs idempotently but the record stays SUCCESSFUL.
-        #   - FAILED: a retry (e.g. Pub/Sub redelivering after a transient
-        #     failure). Reset the record so this fresh attempt transitions cleanly
-        #     and reflects its own outcome, rather than reporting a permanent
-        #     failure for a task that eventually succeeded.
+        # Duplicate deliveries must preserve SUCCESSFUL and overlapping RUNNING
+        # records. Reset FAILED to READY so a retry can record a new result.
         if execution.status in ("RUNNING", "SUCCESSFUL"):
             logger.debug(
                 "Task %s already %s, skipping task_started (task_id=%s)",
@@ -98,8 +81,7 @@ def handle_task_started(sender, task_result, **kwargs):
             return
 
         if execution.status == "FAILED":
-            # Bypass the state machine on purpose (terminal states are otherwise
-            # sticky) — mirrors the local worker's _reset_execution_for_attempt.
+            # Reset the failed record before the state machine permits READY to RUNNING.
             TaskExecution.objects.filter(pk=execution.pk).update(
                 status="READY",
                 started_at=None,
