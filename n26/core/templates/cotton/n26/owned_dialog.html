@@ -1,7 +1,7 @@
 {% comment %}
 <c-n26.owned-dialog> — Confirms an action on held gear, from the dialog dict the owned view builds.
 
-Pass dialog from owned_dialog(). Kinds this template does not name use the delete copy.
+Pass a prepared dialog with its lead, title and action from owned_dialog().
 
 open, redrawn, htmx, and id must reach c-n26.dialog so a swapped-in panel can
 dismiss without navigating away.
@@ -36,48 +36,7 @@ A page that draws one panel per weapon must pass a distinct id. The accessory fi
               :htmx="htmx"
               id="{{ id }}"
               class="{{ class }}">
-    <c-slot name="lead">
-        {% if dialog.kind == "accessorise" %}
-            {% if dialog.accessories %}
-                What fits this weapon. Its effects land on this gun and no other
-                the fighter is carrying.
-            {% else %}
-                Nothing in the library fits this weapon.
-            {% endif %}
-        {% elif dialog.kind == "sell" %}
-            {% if dialog.keepable %}
-                {{ dialog.sum }} The gun is removed from the gang.
-            {% else %}
-                {{ dialog.sum }} It and anything attached to it are removed from
-                the gang.
-            {% endif %}
-        {% elif dialog.kind == "rechoose" %}
-            You will be charged or refunded the difference.
-        {% elif dialog.kind == "reassign" %}
-            Moving it does not change its rating.
-        {% elif dialog.kind == "fit" %}
-            {% if dialog.weapons %}
-                Fitting it does not change its rating. Its effects land on that
-                gun and no other the fighter is carrying.
-            {% else %}
-                There is no weapon here to fit it to.
-            {% endif %}
-        {% elif dialog.kind == "detach" %}
-            {% if dialog.stash_host %}
-                It will stay in the stash. Detaching it does not change its
-                rating.
-            {% else %}
-                The fighter will still hold it. Detaching it does not change
-                its rating.
-            {% endif %}
-        {% elif dialog.kind == "refund" %}
-            {{ dialog.sum }} It and anything attached to it are removed from the
-            gang, undoing the purchase.
-        {% else %}
-            It and anything attached to it are permanently removed from the gang.
-            {{ dialog.remove_note }}
-        {% endif %}
-    </c-slot>
+    <c-slot name="lead">{{ dialog.lead }}</c-slot>
 
     {{ slot }}
 

@@ -4,6 +4,7 @@ import { CommandError, postForm, type FormErrors } from "../http/command";
 type Values<V> = { [K in keyof V]: string };
 export type WorkflowResult =
     | { kind: "saved"; nextUrl: string }
+    | { kind: "completed" }
     | { kind: "invalid"; errors: FormErrors }
     | { kind: "conflict"; errors: FormErrors };
 
@@ -42,21 +43,29 @@ export function useWorkflowForm<
     commandHref: string;
     csrfToken: string;
     recoveryKey: string;
+    optionalRecoveryFields?: ReadonlyArray<keyof V>;
     interpret: (
         status: number,
         data: Record<string, unknown>,
     ) => WorkflowResult | null;
     onNavigate?: (url: string) => void;
+    onComplete?: () => void;
     onReload?: () => void;
 }) {
-    const [fields] = useState(() => Object.keys(options.values));
+    const [fields] = useState(() =>
+        Object.keys(options.values).filter(
+            (name) => !options.optionalRecoveryFields?.includes(name),
+        ),
+    );
     const [recovery] = useState(() => recover(options.recoveryKey, fields));
     const [values, setValues] = useState<Values<V>>(
         () =>
             Object.fromEntries(
                 Object.entries(options.values).map(([key, value]) => [
                     key,
-                    recovery ? recovery.body.get(key)! : String(value),
+                    recovery?.body.has(key)
+                        ? recovery.body.get(key)!
+                        : String(value),
                 ]),
             ) as Values<V>,
     );
@@ -147,14 +156,18 @@ export function useWorkflowForm<
                 options.csrfToken,
             );
             const result = options.interpret(status, data);
-            if (result?.kind === "saved") {
+            if (result?.kind === "saved" || result?.kind === "completed") {
                 saved.current = true;
                 unknownOutcome.current = false;
                 clearRecovery(options.recoveryKey);
                 setUncertain(false);
-                (options.onNavigate ?? ((url) => window.location.assign(url)))(
-                    result.nextUrl,
-                );
+                if (result.kind === "completed")
+                    (options.onComplete ?? (() => window.location.reload()))();
+                else
+                    (
+                        options.onNavigate ??
+                        ((url) => window.location.assign(url))
+                    )(result.nextUrl);
                 return;
             }
             if (result?.kind === "conflict") {

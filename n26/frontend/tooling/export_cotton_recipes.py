@@ -332,6 +332,146 @@ def hire_catalogue_recipe():
     }
 
 
+def tally_recipe():
+    from n26.core.confirm import Fact
+
+    result = {}
+    for ruled in (False, True):
+        for strong in (False, True):
+            source = '<c-n26.tally :facts="facts" />'
+            rendered = Template(CottonCompiler().process(source)).render(
+                Context(
+                    {
+                        "facts": [
+                            Fact(
+                                "Remaining",
+                                "3",
+                                sub="Open action",
+                                ruled=ruled,
+                                strong=strong,
+                            )
+                        ]
+                    }
+                )
+            )
+            elements = Elements(rendered).elements
+            if tuple(tag for tag, _ in elements) != ("dl", "div", "dt", "span", "dd"):
+                raise ValueError("Cotton tally structure changed")
+            result[f"{int(ruled)}{int(strong)}"] = dict(
+                zip(
+                    ("root", "row", "label", "sub", "value"),
+                    (class_name(attrs) for _, attrs in elements),
+                    strict=True,
+                )
+            )
+    return result
+
+
+def equipment_rail_recipe():
+    rendered = Template('{% include "n26/includes/equip_rail.html" %}').render(
+        Context(
+            {
+                "collection_tabs": [
+                    {
+                        "label": "In stash",
+                        "href": "?list=stash",
+                        "title": "",
+                        "current": True,
+                    },
+                    {
+                        "label": "Trading Post",
+                        "href": "?list=post",
+                        "title": "",
+                        "current": False,
+                    },
+                ]
+            }
+        )
+    )
+    elements = Elements(rendered).elements
+    nav = [attrs for tag, attrs in elements if tag == "nav"]
+    links = [attrs for tag, attrs in elements if tag == "a"]
+    if len(nav) != 1 or len(links) != 2:
+        raise ValueError("Equipment list navigation changed")
+    return {
+        "root": class_name(nav[0]),
+        "active": class_name(links[0]),
+        "inactive": class_name(links[1]),
+    }
+
+
+def equipment_recipe():
+    from types import SimpleNamespace
+    from unittest import mock
+
+    from n26.core.listing import Action, Listing, OwnedCopyRow, OwnedPartRow
+
+    action = Action("Sell", "link", "/?sell=copy", "danger")
+    row = Listing(
+        key="gear",
+        name="Sword",
+        price=35,
+        trade_points=2,
+        is_exclusive=False,
+        notes=(SimpleNamespace(text="Check the equipment list.", level="warning"),),
+        price_field="gear:price",
+        parts_field="gear:parts",
+        options=(),
+        buy=Action("Buy", "submit", "gear", "primary"),
+    )
+    copy = OwnedCopyRow(
+        id="copy",
+        key="gear",
+        name="Sword",
+        rating=35,
+        parts=(OwnedPartRow("part", "part", "Sight", 10, action, ()),),
+        sell=action,
+        more=(),
+        chosen=("Equipped",),
+    )
+    source = (
+        '{% include "n26/includes/equip_line.html" %}'
+        '<c-n26.owned-lines :copies="copies" />'
+    )
+    with mock.patch(
+        "n26.core.templatetags.react._entry", return_value=("/island.js", "")
+    ):
+        rendered = Template(CottonCompiler().process(source)).render(
+            Context({"row": row, "copies": [copy], "price_cap": 100000})
+        )
+    elements = Elements(rendered).elements
+
+    def find(tag, *tokens, without=()):
+        found = {
+            class_name(attrs)
+            for name, attrs in elements
+            if name == tag
+            and set(tokens) <= set(attrs.get("class", "").split())
+            and not set(without) & set(attrs.get("class", "").split())
+        }
+        if len(found) != 1:
+            raise ValueError(
+                f"Equipment presentation changed: {tag}, {tokens}: {found}"
+            )
+        return found.pop()
+
+    return {
+        "priceInput": find("input", "w-16", "text-right"),
+        "copyList": find("div", "flex-col", "gap-1"),
+        "copyLine": find("div", "min-h-9", "gap-2", without=("pl-4",)),
+        "partLine": find("div", "min-h-9", "pl-4"),
+        "copyNameBlock": find("span", "flex-col", "justify-center"),
+        "copyName": find(
+            "span", "text-sm", "text-ink-900", without=("shrink-0", "flex-1")
+        ),
+        "partName": find("span", "min-w-0", "flex-1", without=("flex",)),
+        "rating": find("span", "n26-cp-price"),
+        "chosen": find("span", "text-xs", "text-muted"),
+        "note": find("div", "n26-cp-inset", "pb-1"),
+        "tradePoints": find("span", "shrink-0", "text-xs", "tabular-nums"),
+    }
+
+
 def model_preview_recipe():
     from n26.core.render import (
         AssignableLine,
@@ -1396,7 +1536,18 @@ def range_menu_recipe():
     def at(index):
         return " ".join(elements[index][1].get("class", "").split())
 
+    single = Elements(
+        Template(
+            CottonCompiler().process(
+                '<c-n26.range-slider model="value" min="0" max="100" />'
+            )
+        ).render(Context())
+    ).elements
+    inputs = [attrs for tag, attrs in single if tag == "input"]
+    if len(inputs) != 1:
+        raise ValueError("Cotton single range slider changed")
     return {
+        "valueLabel": inputs[0]["aria-label"],
         "root": at(0),
         "anchor": at(1),
         "trigger": at(3),
@@ -1673,6 +1824,9 @@ def recipes():
         "modelPreview": model_preview_recipe(),
         "gangFigures": gang_figures_recipe(),
         "hireCatalogue": hire_catalogue_recipe(),
+        "equipment": equipment_recipe(),
+        "equipmentRail": equipment_rail_recipe(),
+        "tally": tally_recipe(),
         "tooltip": tooltip_recipe(),
         "nameList": name_list_recipe(),
         "nativeSelect": native_select_recipe(),

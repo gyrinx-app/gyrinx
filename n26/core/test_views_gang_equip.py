@@ -5,7 +5,10 @@ tests. These cover the gang-specific destination, lists, stash management,
 and the absence of fighter usability rules.
 """
 
+import json
+
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.urls import reverse
 
@@ -85,6 +88,22 @@ def choice_field(thing, group):
     return f"{slugify(key_of(thing))}:option:{group}"
 
 
+def props(response):
+    page = BeautifulSoup(response.content, "html.parser")
+    host = page.select_one('[data-react-name="equip-stash"]')
+    assert host is not None
+    return json.loads(page.find(id=host["data-react-props"]).string)
+
+
+def rows(response):
+    return [
+        entry
+        for section in props(response)["sections"]
+        for category in section["categories"]
+        for entry in category["entries"]
+    ]
+
+
 class TestTheWayIn:
     """The gang page offers the act, and only to whoever owns the gang."""
 
@@ -117,7 +136,7 @@ class TestWhichListsAreOffered:
         create_trading_post()
 
         client.force_login(tester)
-        tabs = client.get(equip_url(gang)).context["collection_tabs"]
+        tabs = props(client.get(equip_url(gang)))["scopeTabs"]
 
         assert [tab["label"] for tab in tabs] == [
             "In stash",
@@ -144,7 +163,7 @@ class TestWhichListsAreOffered:
             op.assign(skills, gang=gang)
 
         client.force_login(tester)
-        tabs = client.get(equip_url(gang)).context["collection_tabs"]
+        tabs = props(client.get(equip_url(gang)))["scopeTabs"]
 
         assert [tab["label"] for tab in tabs] == [
             "In stash",
@@ -160,8 +179,6 @@ class TestWhichListsAreOffered:
         have — and as an attribute rather than as words, because a
         template tag written inside a component's attributes is not read
         as one and lands in the page as text."""
-        import re
-
         nomads = create_collection(
             "Ash Waste Nomads Equipment List",
             entries=[create_wargear("Rope", price=5)],
@@ -170,11 +187,10 @@ class TestWhichListsAreOffered:
             op.assign(nomads, gang=gang)
 
         client.force_login(tester)
-        body = client.get(equip_url(gang, nomads)).content.decode()
-
-        assert re.search(r">\s*Ash Waste Nomads\s*<", body)
-        assert 'title="Ash Waste Nomads Equipment List"' in body
-        assert "{% if" not in body
+        page = props(client.get(equip_url(gang, nomads)))
+        tab = next(tab for tab in page["scopeTabs"] if tab["current"])
+        assert tab["label"] == "Ash Waste Nomads"
+        assert tab["title"] == "Ash Waste Nomads Equipment List"
 
     def test_a_gang_with_no_lists_still_reaches_the_library(self, client, tester, gang):
         """The library tab is always there, so a gang whose content gave it
@@ -182,12 +198,13 @@ class TestWhichListsAreOffered:
         client.force_login(tester)
         response = client.get(equip_url(gang))
 
-        assert response.context["catalogue"] is None
-        assert [tab["label"] for tab in response.context["collection_tabs"]] == [
+        page = props(response)
+        assert page["sections"] == []
+        assert [tab["label"] for tab in page["scopeTabs"]] == [
             "In stash",
             "Unrestricted",
         ]
-        assert "No equipment lists yet" in response.content.decode()
+        assert page["scope"] == ""
 
     def test_the_chosen_list_is_url_state(self, client, tester, gang, house_list):
         from n26.library.authoring import create_trading_post
@@ -442,28 +459,28 @@ class TestNothingSaysWhoMayUseIt:
 
         client.force_login(tester)
         response = client.get(equip_url(gang, collection))
-        row = next(
-            row
-            for row in response.context["catalogue"].all_rows()
-            if row.name == "Grav-harness"
-        )
+        row = next(row for row in rows(response) if row["name"] == "Grav-harness")
 
-        assert row.notes == ()
+        assert row["purchase"]["notes"] == []
         assert "Walker only" not in response.content.decode()
 
 
 class TestTheRail:
-    def test_it_says_where_a_clicked_tabs_page_will_land(
+    def test_the_catalogue_has_one_owner_and_scoped_endpoints(
         self, client, tester, gang, house_list
     ):
-        """The same wait as a fighter's screen: on the catalogue, not the
-        tab."""
+        """One React owner receives the complete initial catalogue."""
         client.force_login(tester)
         html = client.get(equip_url(gang)).content.decode()
 
-        assert 'data-busy-replaces="#equip-catalogue"' in html
-        assert 'id="equip-catalogue"' in html
-        assert "<template data-busy-wait>" in html
+        page = props(client.get(equip_url(gang)))
+        assert page["displayHref"] == reverse("n26-equip-stash-display", args=[gang.pk])
+        assert page["commandHref"] == reverse("n26-equip-stash-command", args=[gang.pk])
+        assert "hx-post=" not in str(
+            BeautifulSoup(html, "html.parser").select_one(
+                '[data-react-name="equip-stash"]'
+            )
+        )
 
 
 class TestTheLibraryTab:
@@ -498,12 +515,10 @@ class TestTheLibraryTab:
     ):
         client.force_login(tester)
         response = client.get(equip_url(gang, scope="all"))
-        catalogue = response.context["catalogue"]
-
         drawn = {
-            category.name: [row.name for row in category.rows]
-            for section in catalogue.sections
-            for category in section.categories
+            category["name"]: [row["name"] for row in category["entries"]]
+            for section in props(response)["sections"]
+            for category in section["categories"]
         }
         assert drawn["Wargear"] == ["Mesh Armour"]
         assert drawn["Pistols"] == ["Autogun"]
@@ -516,11 +531,14 @@ class TestTheLibraryTab:
         """A profile names one particular weapon and is bought onto it,
         so it is drawn under the gun rather than as a row of its own."""
         client.force_login(tester)
-        catalogue = client.get(equip_url(gang, scope="all")).context["catalogue"]
-        rows = {row.name: row for row in catalogue.all_rows()}
+        entries = {
+            row["name"]: row for row in rows(client.get(equip_url(gang, scope="all")))
+        }
 
-        assert "warp round" not in rows
-        assert [option.name for option in rows["Autogun"].options] == ["warp round"]
+        assert "warp round" not in entries
+        assert [
+            option["name"] for option in entries["Autogun"]["purchase"]["parts"]
+        ] == ["warp round"]
 
     def test_buying_from_it_lands_in_the_stash(self, client, tester, gang, library):
         from n26.core.reconcile import assert_reconciled
@@ -599,18 +617,8 @@ class TestTheQueryBudget:
     ):
         client.force_login(tester)
 
-        # The reader and their session, the gang, its card — two
-        # assignment queries, one hydration pass per kind they name and the
-        # campaign's assets it holds — the roster behind the header's count,
-        # which of its lists hold gear, and
-        # the browse of the one chosen with its entries, their use lists and
-        # their offers. The page's own furniture answers for the rest, including one
-        # write-pause state read for its notice and one built-in action visibility read.
-        #
-        # No Visit Trading Post action is open here, which is a column read
-        # and no query: what a visit has left is only asked of the ledger
-        # where there is a visit to ask about.
-        assert self.measure(client, equip_url(gang, house_list)) == 39
+        # Include one batched option-selection read rather than a read for each copy.
+        assert self.measure(client, equip_url(gang, house_list)) == 40
 
     def test_the_library_costs_a_fixed_number(self, client, tester, gang, house_list):
         create_wargear("Mesh Armour", price=15)
@@ -618,13 +626,8 @@ class TestTheQueryBudget:
 
         client.force_login(tester)
 
-        # The same page with the library beside that browse: one query
-        # per gear kind, plus the guns' paid rounds and the wargear's
-        # offers — never one per item, and no use lists, because a gang has
-        # nothing to test a restriction against — and the browse of each
-        # list held, which prices the library's lines. Plus the one
-        # write-pause state read shared by every n26 page.
-        assert self.measure(client, equip_url(gang, scope="all")) == 44
+        # Library kinds and held-list pricing add fixed reads, including selected options.
+        assert self.measure(client, equip_url(gang, scope="all")) == 45
 
     def test_the_library_costs_the_same_however_much_it_holds(
         self, client, tester, gang, house_list
@@ -648,19 +651,24 @@ class TestStashManagement:
         client.force_login(tester)
         body = client.get(equip_url(gang, house_list)).content.decode()
 
-        assert ">Equip</h1>" in body
+        assert (
+            BeautifulSoup(body, "html.parser").title.get_text(strip=True)
+            == "Equip | Gyrinx"
+        )
         assert "Buy Equipment" not in body
 
-    def test_the_search_box_does_not_buy_on_enter(
+    def test_the_catalogue_has_no_alpine_or_htmx_owner(
         self, client, tester, gang, house_list
     ):
-        """The bar narrows rows already on the page, as you type. Enter
-        would otherwise submit the Buy form and buy the first listed
-        item into the stash."""
+        """The complete catalogue belongs to one React root."""
         client.force_login(tester)
         body = client.get(equip_url(gang, house_list)).content.decode()
-        assert 'role="search"' in body
-        assert "@keydown.enter.prevent" in body
+        host = BeautifulSoup(body, "html.parser").select_one(
+            '[data-react-name="equip-stash"]'
+        )
+        assert host is not None
+        assert "x-data" not in str(host)
+        assert "hx-post" not in str(host)
 
     def test_a_held_item_on_the_browsed_list_draws_in_stash(
         self, client, tester, gang, house_list
@@ -674,7 +682,13 @@ class TestStashManagement:
         client.force_login(tester)
         body = client.get(equip_url(gang, house_list)).content.decode()
 
-        assert "in stash" in body
+        entry = next(
+            row
+            for row in rows(client.get(equip_url(gang, house_list)))
+            if row["name"] == "Knife"
+        )
+        assert entry["count"] == 1
+        assert entry["copies"][0]["id"] == str(bought.pk)
         assert f"sell={bought.pk}" in body
 
     def test_gear_the_list_does_not_sell_is_on_the_stash_tab(
@@ -693,18 +707,18 @@ class TestStashManagement:
         )
         body = on_stash.content.decode()
 
-        assert "Autogun" not in {
-            row.name for row in on_house.context["catalogue"].all_rows()
-        }
-        assert on_stash.context["stash_tab"] is True
-        (row,) = on_stash.context["catalogue"].all_rows()
-        assert row.expanded is True
+        assert "Autogun" not in {row["name"] for row in rows(on_house)}
+        assert props(on_stash)["scope"] == "stash"
+        (row,) = rows(on_stash)
+        assert row["expanded"] is True
         assert "Autogun" in body
         assert f"sell={bought.pk}" in body
-        assert 'aria-expanded="true"' in body
-        assert '@click="expanded = !expanded"' not in body
-        sell = body.index(f"sell={bought.pk}")
-        assert body.rfind("<template", 0, sell) <= body.rfind("</template>", 0, sell)
+        assert row["purchase"] is None
+        assert row["copies"][0]["id"] == str(bought.pk)
+        host = BeautifulSoup(body, "html.parser").select_one(
+            '[data-react-name="equip-stash"]'
+        )
+        assert host is not None and "x-data" not in str(host)
 
     def test_selling_from_the_stash_tab_returns_to_it(
         self, client, tester, gang, house_list

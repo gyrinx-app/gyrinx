@@ -335,6 +335,16 @@ urlpatterns = [
     # The gang's own equip page: what is bought here goes to the stash,
     # where a fighter's equip page buys onto the fighter.
     path("gangs/<str:pk>/equip/", views.equip_gang, name="n26-equip-gang"),
+    path(
+        "gangs/<str:pk>/equip/display/",
+        views.stash_display,
+        name="n26-equip-stash-display",
+    ),
+    path(
+        "gangs/<str:pk>/equip/command/",
+        views.stash_command,
+        name="n26-equip-stash-command",
+    ),
     # One option's preview card, fetched when its row is first opened —
     # the hire list ships priced rows and no cards.
     path(

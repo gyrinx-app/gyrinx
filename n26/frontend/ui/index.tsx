@@ -10,6 +10,7 @@ import {
     useState,
     type ComponentProps,
     type ReactNode,
+    type Ref,
 } from "react";
 import cotton from "../generated/cotton.json";
 
@@ -1418,6 +1419,7 @@ export function WorkflowPage({
     actions,
     children,
     footer,
+    headingRef,
     ...form
 }: ComponentProps<"form"> & {
     title: string;
@@ -1425,6 +1427,7 @@ export function WorkflowPage({
     breadcrumb: ReactNode;
     actions?: ReactNode;
     footer: ReactNode;
+    headingRef?: Ref<HTMLHeadingElement>;
 }) {
     const recipe = cotton.workflowPage;
     const h = recipe.header;
@@ -1436,7 +1439,13 @@ export function WorkflowPage({
                 </div>
                 <div className={h[3]}>
                     <div className={h[4]}>
-                        <h1 className={h[5]}>{title}</h1>
+                        <h1
+                            ref={headingRef}
+                            tabIndex={headingRef ? -1 : undefined}
+                            className={h[5]}
+                        >
+                            {title}
+                        </h1>
                         {lead && <p className={h[6]}>{lead}</p>}
                     </div>
                     {actions && <div className={h[7]}>{actions}</div>}
@@ -1517,3 +1526,20 @@ export {
 } from "./HireCatalogue";
 
 export { Alert, type AlertTone } from "./Alert";
+
+export {
+    CatalogueFrame,
+    type CatalogueEntry,
+    type CatalogueSection,
+} from "./CatalogueFrame";
+
+export {
+    EquipmentRow,
+    EquipmentChoices,
+    equipmentDefaults,
+    Tally,
+    EquipmentRail,
+    type EquipmentEntry,
+    type EquipmentPurchase,
+    type EquipmentChoice,
+} from "./Equipment";

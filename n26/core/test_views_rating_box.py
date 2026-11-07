@@ -109,7 +109,7 @@ class TestWhatAsks:
         assert answer.status_code == 200
         assert "Match rating to price" in body
         assert 'name="rate"' in body
-        assert "keeps its full rating of 20¢" in body
+        assert "full rating for Sword is 20¢" in body
         assert not LedgerEntry.objects.filter(
             assignment__wargear__name="Sword"
         ).exists()
@@ -160,7 +160,7 @@ class TestWhatAsks:
         )
 
         assert answer.status_code == 200
-        assert "keeps its full rating of 25¢" in answer.content.decode()
+        assert "full rating for Pistol is 25¢" in answer.content.decode()
 
     def test_the_panel_carries_the_box_for_a_screen_updating_in_place(
         self, client, fighter, free_list
@@ -262,7 +262,7 @@ class TestAGunAndItsAmmo:
         ).content.decode()
 
         # A named profile reads as the round and its gun.
-        assert "round (Autogun) keeps its full rating of 10¢" in body
+        assert "full rating for warp round (Autogun) is 10¢" in body
         assert "Autogun and" not in body
         # The whole click's price, gun and ammo together.
         assert "Autogun — 24¢." in body
@@ -293,7 +293,7 @@ class TestAGunAndItsAmmo:
             self.click(autogun, gun_price="12", ammo_price="4"),
         ).content.decode()
 
-        assert "round (Autogun) keep their full rating of 30¢" in body
+        assert "round (Autogun) is 30¢" in body
         assert "Autogun and " in body
         assert "Autogun — 16¢." in body
 
@@ -366,7 +366,7 @@ class TestWithAnOverspend:
             buying("Mesh armour", **{price_field("Mesh armour"): "5"}),
         ).content.decode()
 
-        assert "Not enough Trade Points" in body
+        assert "Not enough trade points" in body
         assert "Match rating to price" in body
         assert body.count('name="rate"') == 1
 
@@ -393,5 +393,5 @@ class TestWithAnOverspend:
             equip_url(fighter, post), buying("Mesh armour")
         ).content.decode()
 
-        assert "Not enough Trade Points" in body
+        assert "Not enough trade points" in body
         assert "Match rating to price" not in body

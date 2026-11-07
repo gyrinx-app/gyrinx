@@ -789,7 +789,9 @@ def _forest(rows, holdings=()):
     return roots
 
 
-def build_gang_card(gang, with_statlines=True, assignment_set=None):
+def build_gang_card(
+    gang, with_statlines=True, assignment_set=None, *, with_options=False
+):
     """Build the gang card, stash and member cards with shared hydration.
 
     Fetch roster and gang-hosted assignments together, with stash contents
@@ -804,7 +806,9 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
     rows = _flat_rows(gang_root=gang, stash_root__isnull=True, with_status=True)
     # Hydrate stash and roster assignments together to share narrow queries.
     stash_rows = _flat_rows(gang_root=gang, stash_root__isnull=False)
-    hydrate_rows([*rows, *stash_rows], with_statlines=with_statlines)
+    hydrate_rows(
+        [*rows, *stash_rows], with_statlines=with_statlines, with_options=with_options
+    )
     holdings = held_assets(gang)
     active = {
         row.pk

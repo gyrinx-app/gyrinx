@@ -290,13 +290,11 @@ class TestTheScreensAgree:
         client.force_login(owner)
 
         response = client.get(reverse("n26-equip-gang", args=[gang.pk]))
-        current = [
-            tab["label"]
-            for tab in response.context["collection_tabs"]
-            if tab["current"]
-        ]
+        props = response.context["equip_props"]
+        current = [tab["label"] for tab in props["scopeTabs"] if tab["current"]]
         assert current == ["Escher"]
-        assert response.context["browsing"] == "Escher Equipment List"
+        assert props["scopeLabel"] == "Escher Equipment List"
+        assert props["scope"] == str(lists["house"].pk)
 
 
 class TestTheTradingPostIsLast:

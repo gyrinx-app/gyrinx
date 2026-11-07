@@ -788,3 +788,55 @@ draft. A request whose outcome is unknown restores the exact frozen command and
 key, even if a later retry was rejected. Only a confirmed result resolves that
 uncertainty. Retained data remains URLSearchParams, compatible with cached clients;
 the private rejected-draft marker is stripped before posting.
+
+### Equipment decisions and payments
+
+The gang-stash Equip body mounts `islands/equip-stash` once. The root owns
+catalogue filters, purchase drafts, owned-item panels and mutable figures.
+`core/equip_display.py` projects plain data from the existing listing structures.
+`views/equip_react.py` uses that projection for the initial page and later JSON
+reads. Successful commands refresh those facts within the existing root so that
+filters and other purchase drafts survive. No HTML enters the React owner.
+
+`core/equip_purchase.py` and `core/owned_actions.py` share validation, confirmations,
+writes and results with native adapters. They reload offers or possessions under
+the gang lock, check current access, and recall a saved `EquipReceipt` before
+resolving mutable catalogue or assignment records. A removed item must not hide
+the result of its earlier refund. Check receipts for every action, including
+accessory purchases and option changes; disabling a button is not retry protection.
+
+A confirmation is a settled decision too. Save the original question with its
+request key and give its explicit continuation a separate key. Retrying a lost
+question must repeat that question, even if the price or allowance has since
+changed. It must never become an unreviewed purchase. The continuation rechecks
+current facts and can ask another question if needed.
+
+React purchases submit stable Option IDs and weapon-profile identities. They also
+submit the **full displayed payment**, including option surcharges. Native indexed
+forms submit a base payment, to which the server adds the surcharge. Preserve
+that native format separately. Reordering a pick-one group can change which
+option is included in the base price; combining stable IDs with a base-only
+payment would still change the actual payment. Test that the same selected option
+and displayed payment survive a change of default.
+
+When replacing a URL-driven panel, carry the root's current section and expanded
+entry into its JSON read. The links delivered with the first page can predate
+those changes. Keep the selected panel in the URL, use ordinary links between
+catalogue scopes, and restore URL state from browser history. Cached native htmx
+GETs navigate to the complete React page rather than inserting another renderer
+into its children.
+
+A command can finish without navigating. Equip interprets its validated response
+as `{ kind: "completed" }` and uses `useWorkflowForm.onComplete` to apply the
+new display or open the next confirmation. The shared hook clears retained input
+and navigation warnings only after that confirmed result. Keep recovery navigation
+separate: Reload page and Sign in must still navigate while retaining unresolved
+input. Do not replace `onNavigate` with an in-place refresh callback.
+
+Retained input also takes precedence over fresh confirmation metadata. Equip uses
+a panel only when its request identity matches the retained form. Otherwise it
+shows the earlier action and item with a readable snapshot of the submitted
+selections. A newly opened panel for another item must never describe an older
+command. Cover rejected and uncertain recovery in that state. Non-business display
+fields can use `optionalRecoveryFields` so adding readable recovery context does
+not discard older pending commands. Keep request keys and business input required.

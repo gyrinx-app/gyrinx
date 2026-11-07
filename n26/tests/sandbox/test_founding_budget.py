@@ -1883,7 +1883,7 @@ class TestHireTimeTradePoints:
         response = client.post(at, payload)
 
         assert response.status_code == 200
-        assert "Not enough Trade Points" in response.content.decode()
+        assert "Not enough trade points" in response.content.decode()
         assert "Kel has 4." in response.content.decode()
         assert not recruit.assignments.filter(wargear=item).exists()
         assert budget(recruit).remaining == 4
@@ -2102,7 +2102,7 @@ class TestHireTimeTradePoints:
         overspend = client.post(at, rating_fields)
 
         assert overspend.status_code == 200
-        assert "Not enough Trade Points" in overspend.content.decode()
+        assert "Not enough trade points" in overspend.content.decode()
         assert "Kel has 4." in overspend.content.decode()
         assert not recruit.assignments.filter(wargear=item).exists()
         overspend_fields = fields(overspend)

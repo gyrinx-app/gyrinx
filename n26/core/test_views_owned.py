@@ -1299,7 +1299,7 @@ class TestDetachingAnAccessory:
 
         body = response.content.decode()
         assert "Take Telescopic sight off Lasgun?" in body
-        assert "The fighter will still hold it." in body
+        assert "The model keeps it." in body
         assert 'name="to" value="held"' in body or (
             'name="to"' in body and 'value="held"' in body
         )

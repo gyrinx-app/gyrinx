@@ -9,22 +9,19 @@ pages and partial updates. Updates replace changed rows and shared figures
 while preserving controls elsewhere on the listing. See n26.core.views.htmx.
 """
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render
-from django.template.defaultfilters import pluralize
+from django.views.decorators.cache import never_cache
 
 from n26.core.activities import founding_blocks_visit
-from n26.core.confirm import CONFIRM_FIELD, Confirmation, carried
-from n26.core.listing import choice_field as _choice_field
-from n26.core.listing import parts_field as _parts_field
-from n26.core.listing import price_field as _price_field
+from n26.core.confirm import CONFIRM_FIELD, Confirmation
 from n26.core.owned import thing_key as _thing_key
-from n26.core.prices import PRICE_CEILING, BadPrice, price_typed
+from n26.core.prices import PRICE_CEILING
 from n26.core.views.htmx import is_htmx, no_update, with_toasts
 from n26.core.views.permissions import (
     _own_gang_or_404,
@@ -39,228 +36,15 @@ from n26.library.staged import sees_staged
 
 
 def _parts_picked(data, key, line):
-    """Resolve submitted part indices against the current line and retain their positions.
+    from n26.core.equip_purchase import UnavailableEquipment, parts_picked
 
-    Reject duplicates, negative values and out-of-range indices. Positions also
-    identify each part's submitted price field.
-    """
-    picked, seen = [], set()
-    for value in data.getlist(_parts_field(key)):
-        # Reject negative indices before Python can index from the end.
-        if not value.isdigit():
-            raise Http404("No such option")
-        index = int(value)
-        if index >= len(line.parts) or index in seen:
-            raise Http404("No such option")
-        seen.add(index)
-        picked.append((index, line.parts[index]))
-    return picked
-
-
-def _choices_picked(data, key, groups):
-    """Resolve alternative indices against the supplied offer groups.
-
-    Reject duplicate or invalid indices. Empty values select no member of an
-    optional group. Reuse this parser for purchases and changes to owned options.
-    """
-    picked = []
-    for index, group in enumerate(groups):
-        seen = set()
-        for value in data.getlist(_choice_field(key, index)):
-            if value == "":
-                continue
-            # Reject negative indices before Python can index from the end.
-            if not value.isdigit():
-                raise Http404("No such option")
-            position = int(value)
-            if position >= len(group.options) or position in seen:
-                raise Http404("No such option")
-            seen.add(position)
-            picked.append(group.options[position])
-    return picked
-
-
-def _price_typed(data, field, line):
-    return price_typed(data, field, line.credits, line.name)
-
-
-#: Use the same rating checkbox field and value as hiring.
-RATE_FIELD, RATE_AT_PAID = "rate", "paid"
-
-
-def _full_price(line, surcharge=0):
-    """Use the greater of listing and reference price, plus option surcharges.
-
-    For negatively priced content, retain the listing price as its rating basis.
-    """
-    if line.credits < 0:
-        return line.credits + surcharge
-    return max(line.credits, line.thing.reference_price()) + surcharge
-
-
-def _charge(line, paid, surcharge=0, *, rate_at_paid=False):
-    """Build recorded payment, list price and discount for one purchase line.
-
-    Add option surcharge to both payment and full price. Normally rating follows
-    full price; rate_at_paid adds an explicit lower rating only when payment is
-    below full price. Preserve list price for purchase-history interpretation.
-    """
-    full = _full_price(line, surcharge)
-    paid = paid + surcharge
-    charge = {"paid": paid, "list_price": full, "discount": full - paid}
-    if rate_at_paid and paid < full:
-        # Preserve full list price: history uses zero list price to identify free bundled profiles.
-        charge["rating"] = paid
-    return charge
-
-
-def _rating_box(request, charges):
-    """Ask whether to rate discounted lines at their actual payment.
-
-    Include only underpriced lines and omit the question after confirmation.
-    """
-    from n26.core.confirm import Checkbox
-
-    if request.POST.get(CONFIRM_FIELD):
-        return None
-    below = [
-        (line.name, line_paid + surcharge, _full_price(line, surcharge))
-        for line, line_paid, surcharge in charges
-    ]
-    below = [(name, paid, full) for name, paid, full in below if paid < full]
-    if not below:
-        return None
-    # Identify every discounted line separately because only selected parts may need lower ratings.
-    names = " and ".join(name for name, _, _ in below)
-    paid = sum(paid for _, paid, _ in below)
-    full = sum(full for _, _, full in below)
-    one = len(below) == 1
-    keeps, its = ("keeps", "its") if one else ("keep", "their")
-    return Checkbox(
-        name=RATE_FIELD,
-        value=RATE_AT_PAID,
-        label="Match rating to price",
-        description=(
-            f"By default, {names} {keeps} {its} full rating of {full}¢ even "
-            f"though you pay {paid}¢. If your group agrees that something "
-            "bought for less is worth only what you paid — for example, one "
-            f"given to you for free — tick this box to set {its} rating to "
-            f"{paid}¢."
-        ),
-    )
-
-
-def _rating_question(request, line, spent, checkbox, back):
-    """Build a separate rating confirmation when no overspend confirmation already carries it."""
-    from n26.core.confirm import Confirmation, carried
-
-    return Confirmation(
-        title="Choose the rating",
-        lead=f"{line.name} — {spent}¢.",
-        heading="You are paying less than the full price",
-        body=(
-            "Choose whether the gang's rating goes up by the full price or "
-            "by the price you pay."
-        ),
-        variant="info",
-        checkbox=checkbox,
-        confirm_label=f"Buy {line.name}",
-        action=request.get_full_path(),
-        cancel_url=back,
-        carry=carried(request.POST, leave_out={RATE_FIELD}),
-        confirm_value="1",
-    )
+    try:
+        return parts_picked(data, key, line)
+    except UnavailableEquipment as error:
+        raise Http404(str(error)) from None
 
 
 LIST_SUFFIX = "equipment list"
-
-
-def _trade_points_asked(line, picked):
-    """Sum trade points charged by this line and selected parts.
-
-    Options are credit surcharges only. Lines with no trade-point price charge
-    zero points even when their collection uses Trading Post terms.
-    """
-    asked = line.trade_points if line.charges_trade_points else 0
-    return (asked or 0) + sum(
-        part.trade_points or 0 for _, part in picked if part.charges_trade_points
-    )
-
-
-def _counted_against(gang, line, budget=None):
-    """Attribute trade-point purchases to a personal allowance or the gang's open visit.
-
-    Credit-only purchases have no activity. Personal founding allowances take
-    precedence over a simultaneous visit.
-    """
-    if not line.charges_trade_points:
-        return None
-    return budget.activity if budget is not None else gang.open_visit
-
-
-def _overspend(request, gang, line, asked, back, budget=None, holder=""):
-    """Ask for confirmation when trade points exceed the current allowance.
-
-    Use personal-budget figures when supplied, otherwise the open visit.
-    Without an activity, warn that points will be recorded against none.
-    An explicitly confirmed overspend remains permitted.
-    """
-    from n26.core.confirm import Aside, Fact, carried
-
-    if not asked or request.POST.get(CONFIRM_FIELD) == "tp-overspend":
-        return None
-    visit = None if budget is not None else gang.open_visit
-    open_activity = budget is not None or visit is not None
-    if budget is not None:
-        brought, spent = budget.granted, budget.spent
-    elif visit is not None:
-        # Read visit spend once so spent and remaining figures use the same value.
-        brought, spent = (visit.trade_points or 0), gang.trade_points_spent
-    else:
-        brought, spent = 0, 0
-    left = brought - spent
-    if asked <= left:
-        return None
-    # Use the model as the personal allowance holder and the gang for an open visit.
-    whose = holder if budget is not None and holder else gang.name
-    if budget is not None:
-        left_over = (
-            f"What {whose} has left goes below zero, and stays there until "
-            "the action is finished."
-        )
-    elif visit is not None:
-        left_over = (
-            "What the action has left goes below zero, and stays there "
-            "until it is finished."
-        )
-    else:
-        left_over = "The purchase records the Trade Points against no action."
-    return Confirmation(
-        title="Not enough Trade Points",
-        lead=f"{line.name} — {asked} Trade Point{pluralize(asked)}.",
-        heading="You don't have enough TP for this purchase",
-        body=(
-            f"{line.name} uses {asked} Trade Point{pluralize(asked)}, and "
-            f"{whose} has {left}."
-        ),
-        aside=Aside(lead="You can buy it anyway.", rest=left_over),
-        facts=(
-            Fact(
-                "Available",
-                str(brought),
-                sub="" if open_activity else "no action open",
-            ),
-            Fact("Spent", str(spent)),
-            Fact("Remaining", str(left), ruled=True, strong=True),
-            Fact("This purchase", str(asked)),
-            Fact("Remaining after", str(left - asked), ruled=True, strong=True),
-        ),
-        confirm_label=f"Buy {line.name} anyway",
-        action=request.get_full_path(),
-        cancel_url=back,
-        carry=carried(request.POST),
-        confirm_value="tp-overspend",
-    )
 
 
 def _tab_label(collection):
@@ -409,7 +193,7 @@ def _screen(gang, miniature=None, list_param="", budgets=True, *, include_staged
             gang, miniature, card, computed, collections, chosen, view, budget
         )
 
-    card = build_gang_card(gang, with_statlines=False)
+    card = build_gang_card(gang, with_statlines=False, with_options=True)
     index = build_modifier_index(carriers(card))
     computed = compute_gang(card, index)
     collections = buyable_lists(
@@ -543,170 +327,81 @@ def render_confirmation(request, confirmation):
 
 
 def _buy_clicked(
-    request, gang, holder, view, *, into, collection, at="", event=None, budget=None
+    request, gang, catalogue, *, scope, at="", event=None, activity_seen=None
 ):
-    """Validate and perform a purchase for a model or stash.
+    """Render shared purchase decisions using native messages and analytics."""
+    from n26.core.equip_purchase import UnavailableEquipment, purchase
 
-    Resolve the line and selected parts from the current view. Validate every
-    price before writing, then ask any overspend or rating questions.
-    Recheck a model's founding activity under the gang lock before charging it.
+    try:
+        result = purchase(
+            gang,
+            request.user,
+            request.POST,
+            catalogue,
+            action=request.get_full_path(),
+            back=at,
+            activity_seen=activity_seen,
+            identity={
+                "holder": (event or {}).get("miniature_id", "stash"),
+                "list": scope,
+            },
+        )
+    except UnavailableEquipment as error:
+        raise Http404(str(error)) from None
+    if result.confirmation is not None:
+        return result.confirmation
+    if result.refused:
+        messages.error(request, result.refused)
+        return None
+    purchase_feedback(request, result, event=event)
+    return result.key
 
-    Return the affected key on success, None after a refusal, or a Confirmation
-    requiring another submission. Callers choose the HTTP response shape.
-    """
+
+def purchase_feedback(request, result, *, event=None):
+    """Emit success feedback once for a committed equipment purchase."""
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.operations import Refusal, operation
 
-    key = request.POST.get("thing", "")
-    line = next((row for row in view.all_lines() if _thing_key(row.thing) == key), None)
-    if line is None:
-        messages.error(request, "That item is not on this list.")
-        return None
-    picked = _parts_picked(request.POST, key, line)
-    picks = _choices_picked(request.POST, key, line.choices)
-    surcharge = sum(option.surcharge for option in picks)
-    # Validate payment for the weapon and every selected part before writing any purchase.
-    try:
-        paid = _price_typed(request.POST, _price_field(key), line)
-        paid_for = [
-            (part, _price_typed(request.POST, _price_field(key, index), part))
-            for index, part in picked
-        ]
-    except BadPrice as refusal:
-        messages.error(request, str(refusal))
-        return None
-    # An absent rating checkbox keeps the full rating.
-    rate_at_paid = request.POST.get(RATE_FIELD) == RATE_AT_PAID
-    charge = _charge(line, paid, surcharge, rate_at_paid=rate_at_paid)
-    # Combine rating and overspend questions into one confirmation before writing.
-    asked = _trade_points_asked(line, picked)
-    expected_personal = request.POST.get("personal_activity")
-    if (
-        asked
-        and expected_personal is not None
-        and expected_personal != (str(budget.activity.pk) if budget is not None else "")
-    ):
-        messages.error(
-            request, "This spending action has changed. Reload the page before buying."
-        )
-        return None
-    checkbox = _rating_box(
-        request,
-        [
-            (line, paid, surcharge),
-            *((part, part_paid, 0) for part, part_paid in paid_for),
-        ],
-    )
-    confirmation = _overspend(request, gang, line, asked, at, budget, into)
-    if confirmation is not None:
-        return replace(
-            confirmation,
-            checkbox=checkbox,
-            # Remove a carried rating value so it cannot override an unchecked confirmation control.
-            carry=carried(
-                request.POST, leave_out={RATE_FIELD} if checkbox is not None else ()
-            ),
-        )
-    if checkbox is not None:
-        spent = charge["paid"] + sum(part_paid for _, part_paid in paid_for)
-        return _rating_question(request, line, spent, checkbox, at)
-    try:
-        with operation(gang, actor=request.user) as op:
-            from n26.core.models import Miniature
-
-            if (
-                asked
-                and isinstance(holder, Miniature)
-                and may_see_founding(gang, request.user)
-            ):
-                from n26.core.card import build_card, build_modifier_index, carriers
-                from n26.core.effects import compute
-                from n26.core.founding import budget_for
-
-                # Recheck allowance identity and lifetime spend after acquiring the gang lock.
-                current = Miniature.objects.select_related("membership").get(
-                    pk=holder.pk
-                )
-                card = build_card(current, with_statlines=False, with_options=True)
-                index = build_modifier_index(carriers(card))
-                fresh_budget = budget_for(gang, current, compute(card, index))
-                if (
-                    current.membership.archived
-                    or current.membership.gang_id != gang.pk
-                    or (
-                        budget is not None
-                        and (
-                            fresh_budget is None
-                            or fresh_budget.activity.pk != budget.activity.pk
-                        )
-                    )
-                ):
-                    raise Refusal(
-                        "This spending action has changed. Reload the page before buying."
-                    )
-                budget = fresh_budget
-                confirmation = _overspend(request, gang, line, asked, at, budget, into)
-                if confirmation is not None:
-                    if budget is not None:
-                        confirmation = replace(
-                            confirmation,
-                            carry=(
-                                *carried(request.POST, leave_out={"personal_activity"}),
-                                ("personal_activity", str(budget.activity.pk)),
-                            ),
-                        )
-                    return confirmation
-            # Materialise selected options through the purchase; unselected pick-one groups use their default.
-            bought = op.buy(
-                holder,
-                line=line,
-                option=[option.default_set for option in picks],
-                activity=_counted_against(gang, line, budget),
-                **charge,
-            )
-            # Host paid profiles on the newly bought weapon, pricing each from its own listing line.
-            for part, part_paid in paid_for:
-                op.buy(
-                    bought,
-                    line=part,
-                    activity=_counted_against(gang, part, budget),
-                    **_charge(part, part_paid, rate_at_paid=rate_at_paid),
-                )
-    except Refusal as refusal:
-        messages.error(request, str(refusal))
-        return None
-    except ValueError:
-        # Reject invalid option combinations after individual index parsing.
-        raise Http404("No such option") from None
-    spent = charge["paid"] + sum(part_paid for _, part_paid in paid_for)
-    # Record one purchase analytics event with part and option counts.
-    record(
-        request,
-        N26Noun.ASSIGNMENT,
-        EventVerb.CREATE,
-        bought,
-        gang_id=str(gang.pk),
-        thing=line.name,
-        collection=collection,
-        paid=spent,
-        trade_points=asked,
-        parts=len(paid_for),
-        options=len(picks),
-        **(event or {}),
-    )
-    extras = [
-        *(option.name for option in picks),
-        *(part.thing.name for part, _ in paid_for),
-    ]
-    price = f"{spent}¢" + (f" and {asked} TP" if asked else "")
-    if extras:
-        messages.success(
+    if not result.replayed:
+        record(
             request,
-            f"Bought {line.name} with {', '.join(extras)} for {into} — {price}.",
+            N26Noun.ASSIGNMENT,
+            EventVerb.CREATE,
+            result.assignment,
+            **result.facts,
+            **(event or {}),
         )
-    else:
-        messages.success(request, f"Bought {line.name} for {into} — {price}.")
-    return key
+    messages.success(request, result.message)
+
+
+def _purchase_catalogue(request, gang, miniature, wanted):
+    """Reload the offers and destination while the purchase holds the gang lock."""
+    from n26.core.equip_purchase import PurchaseCatalogue
+    from n26.core.models import Miniature
+
+    if miniature is not None:
+        miniature = Miniature.objects.select_related("membership").get(pk=miniature.pk)
+    screen = _screen(
+        gang,
+        miniature=miniature,
+        list_param=wanted,
+        budgets=may_see_founding(gang, request.user),
+        include_staged=sees_staged(request.user),
+    )
+    if wanted not in {"", ALL_SCOPE} and (
+        screen.chosen is None or str(screen.chosen.pk) != wanted
+    ):
+        from n26.core.operations import Refusal
+
+        raise Refusal("This equipment list has changed. Reload the page before buying.")
+    return PurchaseCatalogue(
+        holder=miniature if miniature is not None else gang.stash,
+        view=screen.view,
+        into=miniature.name if miniature is not None else "the stash",
+        collection=ALL_LABEL
+        if wanted == ALL_SCOPE
+        else (screen.chosen.name if screen.chosen is not None else ""),
+        budget=screen.budget,
+    )
 
 
 @login_required
@@ -770,13 +465,13 @@ def equip(request, pk):
         key = _buy_clicked(
             request,
             gang,
-            miniature,
-            view,
-            into=miniature.name,
-            collection=ALL_LABEL if everything else chosen.name,
+            lambda: _purchase_catalogue(request, gang, miniature, wanted),
+            scope=wanted,
             at=here(chosen),
             event={"miniature_id": str(miniature.pk)},
-            budget=screen.budget,
+            activity_seen=str(screen.budget.activity.pk)
+            if screen.budget is not None
+            else "",
         )
         if isinstance(key, Confirmation):
             if not hx:
@@ -1009,29 +704,31 @@ def gang_tabs(collections, chosen, everything, *, stash=False):
 
 
 @login_required
+@never_cache
 def equip_gang(request, pk):
     """Buy into the owned gang's stash and manage its stored possessions.
 
     The stash tab includes gear absent from held catalogues. ALL_SCOPE browses
     the unrestricted library. Stash listings omit model-specific usability notes.
     """
-    from n26.core.listing import build_catalogue, build_stash_catalogue
-    from n26.core.owned import possessions
-    from n26.core.render import roster as gang_roster
-    from n26.core.render import summarise_roster
-    from n26.core.views.owned import (
-        accessorise_dialogs,
-        owned_dialog,
-        panel_response,
-    )
+
+    from n26.core.views.equip_react import stash_read
 
     gang = _own_gang_or_404(request, pk)
+    if request.method == "GET":
+        if is_htmx(request):
+            return HttpResponse(headers={"HX-Redirect": request.get_full_path()})
+        return render(
+            request,
+            "n26/gang_equip.html",
+            {"gang": gang, "equip_props": stash_read(request, gang)},
+        )
 
     wanted = request.POST.get("list", request.GET.get("list", ""))
     stash_tab = wanted == STASH_SCOPE
     everything = wanted == ALL_SCOPE
     screen = _screen(gang, list_param=wanted, include_staged=sees_staged(request.user))
-    collections, chosen, view = screen.collections, screen.chosen, screen.view
+    chosen = screen.chosen
 
     section = request.POST.get("section", request.GET.get("section", ""))[:100]
     expanded_key = request.POST.get("owned", request.GET.get("owned", ""))[:200]
@@ -1049,15 +746,13 @@ def equip_gang(request, pk):
         params.append(("owned", expanded_key))
     here = f"{request.path}?{urlencode(params)}" if params else request.path
 
-    if request.method == "POST" and view is not None:
+    if request.method == "POST":
         hx = is_htmx(request)
         key = _buy_clicked(
             request,
             gang,
-            gang.stash,
-            view,
-            into="the stash",
-            collection=ALL_LABEL if everything else chosen.name,
+            lambda: _purchase_catalogue(request, gang, None, wanted),
+            scope=wanted,
             at=here,
         )
         if isinstance(key, Confirmation):
@@ -1082,63 +777,8 @@ def equip_gang(request, pk):
             closed=carried_confirmation(request),
         )
 
-    host = screen.host(here)
-    owned = possessions(host)
-    refunds = not gang.credits_unlimited
-
-    dialog = owned_dialog(request, host)
-    if (panel := panel_response(request, dialog)) is not None:
-        return panel
-
-    if stash_tab:
-        catalogue = build_stash_catalogue(
-            owned,
-            STASH_LABEL,
-            refunds=refunds,
-            expanded_key=expanded_key,
-        )
-        browsing = STASH_LABEL
-    elif view is not None:
-        catalogue = build_catalogue(
-            view,
-            owned,
-            refunds=refunds,
-            expanded_key=expanded_key,
-        )
-        browsing = ALL_BROWSING if everything else str(chosen or "")
-    else:
-        catalogue = None
-        browsing = ""
-
-    stash_picker = picker_context(catalogue, view, gang)
     return render(
         request,
         "n26/gang_equip.html",
-        {
-            "gang": gang,
-            "action": here,
-            "collection_tabs": gang_tabs(
-                collections,
-                chosen,
-                everything,
-                stash=stash_tab,
-            ),
-            "browsing": browsing,
-            "catalogue": catalogue,
-            "stash_tab": stash_tab,
-            "everything": everything,
-            "htmx": True,
-            "held_label": host.held_label,
-            "dialog": dialog,
-            "accessorise": accessorise_dialogs(request, host),
-            "summary": summarise_roster(gang_roster(gang)),
-            "trade_points_href": trade_points_href(gang, request.user),
-            "credits_href": credits_href(gang, request.user),
-            "founding_blocks_visit": (
-                founding_blocks_visit(gang, may_see_founding(gang, request.user))
-                if stash_picker["post_is_shut"]
-                else False
-            ),
-            **stash_picker,
-        },
+        {"gang": gang, "equip_props": stash_read(request, gang)},
     )

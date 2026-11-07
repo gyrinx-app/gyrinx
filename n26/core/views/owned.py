@@ -15,11 +15,8 @@ messages as toasts. Determine source rows before operations move or archive
 assignments. See n26.core.views.htmx.
 """
 
-from dataclasses import dataclass
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
 from django.http import Http404, HttpResponse
 from django.shortcuts import render
 from django.urls import reverse
@@ -30,12 +27,12 @@ from n26.core.owned import (
     EquipHost,
     can_unbolt,
     is_built_in_profile,
-    is_detachable,
     is_possession,
     thing_key,
     weapons_on,
     with_query,
 )
+from n26.core.owned_actions import refund_words, refunded_credits, removal_words
 from n26.core.views.htmx import is_htmx, no_update
 from n26.core.views.permissions import _own_assignment_or_404, _safe_redirect
 from n26.library.models import marked_name
@@ -70,21 +67,6 @@ def _possession_or_404(request, pk):
     if not is_possession(assignment.assignable):
         raise Http404("Not something the gang owns")
     return assignment
-
-
-def _bundled_profile_message(assignment, act):
-    """Explain why a weapon's built-in profile cannot be removed separately."""
-    name = assignment.assignable.name or str(assignment.assignable)
-    weapon = str(assignment.parent.assignable) if assignment.parent_id else "the weapon"
-    return f"You cannot {act} {name} on its own. It comes with {weapon}."
-
-
-def _refuse_bundled_profile(request, assignment, act, back):
-    """Return an unchanged response for attempts to remove a bundled profile."""
-    if not is_built_in_profile(assignment):
-        return None
-    messages.error(request, _bundled_profile_message(assignment, act))
-    return _unchanged(request, back)
 
 
 def _held(host, pk):
@@ -177,34 +159,6 @@ def _asked(request):
 ROUTES = {"fit": "reassign", "detach": "reassign"}
 
 
-def refunded_credits(gang, paid):
-    """Return recorded credit payment only when the gang tracks a credit budget."""
-    return 0 if gang.credits_unlimited else paid
-
-
-def refund_words(gang, paid, trade_points):
-    """Describe refundable credits and founding trade points, omitting unused resources."""
-    from django.template.defaultfilters import pluralize
-
-    credits = refunded_credits(gang, paid)
-    if not trade_points:
-        return f"{credits}¢"
-    points = f"{trade_points} Trade Point{pluralize(trade_points)}"
-    return f"{credits}¢ and {points}" if credits else points
-
-
-def removal_words(gang, paid, trade_points):
-    """Explain that removal returns nothing and identify any available refund alternative."""
-    if not gang.credits_unlimited:
-        return "No credits are returned. Use Refund instead to recover the amount paid."
-    if trade_points:
-        return (
-            "Nothing comes back. Use Refund instead to get "
-            f"{refund_words(gang, paid, trade_points)} back."
-        )
-    return "Nothing comes back."
-
-
 def _panel(request, assignment, kind, at):
     """Build shared confirmation fields, preserving catalogue and section navigation state."""
     from n26.core.views.choose import SHOWING, showing_dismissed
@@ -267,10 +221,20 @@ def accessorise_dialogs(request, host: EquipHost):
                 "submit_variant": "success",
             }
         )
-    return dialogs
+    from n26.core.equip_display import owned_description
+
+    return [dialog | {"lead": owned_description(dialog)} for dialog in dialogs]
 
 
 def owned_dialog(request, host: EquipHost):
+    """Return a selected panel with consequences shared by both renderers."""
+    from n26.core.equip_display import owned_description
+
+    dialog = _owned_dialog(request, host)
+    return dialog | {"lead": owned_description(dialog)} if dialog is not None else None
+
+
+def _owned_dialog(request, host: EquipHost):
     """Build the URL-selected confirmation for an actionable possession on this host.
 
     Unknown assignments and invalid actions display no panel. Accessory purchase
@@ -610,25 +574,6 @@ def _return_to(request, fallback):
     return _safe_redirect(request, request.POST.get("return"), fallback_url=fallback)
 
 
-@dataclass(frozen=True)
-class _Touched:
-    """A changed catalogue key and the model whose listing renders it."""
-
-    key: str
-    miniature: object | None
-
-
-def _row_behind(assignment):
-    """Find the top-level listing containing an assignment.
-
-    Read before moving or archiving it, because its source host may change.
-    """
-    node = assignment
-    while node.parent_id is not None:
-        node = node.parent
-    return _Touched(key=thing_key(node.assignable), miniature=node.miniature_root)
-
-
 def _unchanged(request, back):
     """Return queued messages without a row update, or redirect an ordinary submission."""
     if not is_htmx(request):
@@ -662,412 +607,97 @@ def _acted(request, touched, gang, back, also=""):
     return response
 
 
-@login_required
-@require_POST
-def sell_assignment(request, pk):
-    """Sell a possession through an operation, returning rating-based proceeds.
-
-    Keep detachable accessories in the stash unless POST requests their sale
-    or the gang has no stash. Move them before sale so proceeds use the
-    remaining item; each move preserves its recorded price.
-    """
-    from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.operations import Refusal, detachable_children, operation
+def _owned_action(request, pk, action):
+    """Adapt one shared equipment action to native redirects or htmx updates."""
+    from n26.core.equip_purchase import UnavailableEquipment
+    from n26.core.owned_actions import change
 
     assignment = _possession_or_404(request, pk)
     gang = assignment.gang_root
-    miniature = assignment.miniature_root
-    name = str(assignment.assignable)
     back = _back_to(request, assignment, gang)
-    if refused := _refuse_bundled_profile(request, assignment, "sell", back):
-        return refused
-    touched = _row_behind(assignment)
-
-    stash = getattr(gang, "stash", None)
-    keeping = (
-        []
-        if request.POST.get("accessories") == "sell" or stash is None
-        else detachable_children(assignment)
-    )
-
     try:
-        with operation(gang, actor=request.user) as op:
-            # Move kept accessories before sale so they are excluded from sale proceeds.
-            for child in keeping:
-                op.move(child, stash)
-            proceeds = op.sell(assignment)
-    except Refusal as refusal:
-        messages.error(request, str(refusal))
-        return _unchanged(request, back)
-    if proceeds is None:
-        messages.info(request, f"{name} was already removed.")
-        return _unchanged(request, back)
-
-    record(
-        request,
-        N26Noun.ASSIGNMENT,
-        EventVerb.ARCHIVE,
-        assignment,
-        gang_id=str(gang.pk),
-        miniature_id=str(miniature.pk) if miniature else None,
-        thing=name,
-        action="sell",
-        proceeds=proceeds,
-        stashed=len(keeping),
-    )
-    if keeping:
-        kept = ", ".join(str(child.assignable) for child in keeping)
-        messages.success(
-            request, f"Sold {name} for {proceeds}¢. {kept} went to the stash."
+        result = change(
+            gang,
+            request.user,
+            action,
+            pk,
+            request.POST,
+            include_staged=sees_staged(request.user),
         )
-    else:
-        messages.success(request, f"Sold {name} for {proceeds}¢.")
-    return _acted(request, touched, gang, back)
+    except UnavailableEquipment as error:
+        raise Http404(str(error)) from None
+    if result.refused:
+        messages.error(request, result.refused)
+        return _unchanged(request, back)
+    owned_feedback(request, result)
+    if not result.changed:
+        return _unchanged(request, back)
+    if result.detached_to_stash and is_htmx(request):
+        response = HttpResponse(status=200)
+        response["HX-Redirect"] = back
+        return response
+    return _acted(request, result.touched, gang, back, also=result.also)
+
+
+def owned_feedback(request, result):
+    """Deliver shared action feedback without repeating analytics on replay."""
+    from n26.analytics import EventVerb, N26Noun, record
+
+    getattr(messages, result.tone)(request, result.message)
+    if result.facts is not None:
+        record(
+            request,
+            N26Noun.ASSIGNMENT,
+            {
+                "create": EventVerb.CREATE,
+                "update": EventVerb.UPDATE,
+                "archive": EventVerb.ARCHIVE,
+            }[result.verb],
+            result.assignment,
+            **result.facts,
+        )
+
+
+@login_required
+@require_POST
+def sell_assignment(request, pk):
+    """Sell a possession through the shared equipment command."""
+    return _owned_action(request, pk, "sell")
 
 
 @login_required
 @require_POST
 def reassign_assignment(request, pk):
-    """Move a possession without changing its recorded price or rating.
-
-    ``to`` selects stash, miniature, weapon or held. Held detaches an accessory
-    onto its weapon's existing model or stash. Reject bundled accessories here;
-    operations enforce weapon-profile movement constraints.
-    """
-    from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.models import Assignment, Miniature
-    from n26.core.operations import Refusal, operation
-
-    assignment = _possession_or_404(request, pk)
-    gang = assignment.gang_root
-    # Determine the source page before movement changes the assignment host.
-    came_from = assignment.miniature_root
-    off = str(assignment.parent.assignable) if assignment.parent_id else ""
-    back = _back_to(request, assignment, gang)
-    touched = _row_behind(assignment)
-    name = str(assignment.assignable)
-
-    # Movement restrictions apply to the part independently of its proposed destination.
-    stays_on = (
-        f"You cannot take {name} off {off}. Only a bought accessory can come off."
-    )
-    # Bundled accessories stay with their granting weapon.
-    # Enforce this here because the reassignment operation does not reject them.
-    if (
-        assignment.parent_id is not None
-        and assignment.caused_by_id is not None
-        and is_detachable(assignment.assignable)
-    ):
-        messages.error(request, stays_on)
-        return _unchanged(request, back)
-
-    wanted = request.POST.get("to")
-    if wanted == "stash":
-        destination = getattr(gang, "stash", None)
-    elif wanted == "held":
-        # Detach to the weapon's current model or stash, preserving its top-level host.
-        if assignment.parent_id is None:
-            destination = None
-        elif not can_unbolt(assignment):
-            messages.error(request, stays_on)
-            return _unchanged(request, back)
-        elif assignment.miniature_root_id:
-            destination = assignment.miniature_root
-        else:
-            destination = getattr(gang, "stash", None)
-    elif wanted == "weapon":
-        try:
-            destination = (
-                Assignment.objects.filter(
-                    pk=request.POST.get("weapon", ""),
-                    gang_root=gang,
-                    archived=False,
-                )
-                .exclude(weapon=None)
-                # Reject the assignment itself and its current parent as weapon destinations.
-                .exclude(pk=assignment.pk)
-                .exclude(pk=assignment.parent_id)
-                .first()
-            )
-        except ValidationError:
-            destination = None
-    else:
-        try:
-            destination = Miniature.objects.filter(
-                pk=request.POST.get("miniature", ""),
-                membership__gang=gang,
-                membership__archived=False,
-            ).first()
-        except ValidationError:
-            destination = None
-    if destination is None:
-        messages.error(request, f"There is nowhere to move {name} to.")
-        return _unchanged(request, back)
-
-    # Fit and Detach can change both the weapon and accessory rows on the same screen.
-    if wanted == "held":
-        also = thing_key(assignment.assignable)
-    else:
-        landed = (
-            _row_behind(destination) if isinstance(destination, Assignment) else None
-        )
-        also = landed.key if landed and landed.miniature == touched.miniature else ""
-
-    try:
-        with operation(gang, actor=request.user) as op:
-            op.reassign(assignment, destination)
-    except Refusal as refusal:
-        messages.error(request, str(refusal))
-        return _unchanged(request, back)
-
-    record(
-        request,
-        N26Noun.ASSIGNMENT,
-        EventVerb.UPDATE,
-        assignment,
-        gang_id=str(gang.pk),
-        miniature_id=str(came_from.pk) if came_from else None,
-        thing=name,
-        action="reassign",
-        to=wanted if wanted in ("stash", "weapon", "held") else "model",
-    )
-    if wanted == "stash":
-        messages.success(request, f"Moved {name} to the stash.")
-    elif wanted == "weapon":
-        messages.success(request, f"Fitted {name} to {destination.assignable}.")
-    elif wanted == "held":
-        if came_from is None:
-            messages.success(request, f"Took {name} off {off}. It is in the stash.")
-        else:
-            messages.success(request, f"Took {name} off {off}.")
-    else:
-        messages.success(request, f"Moved {name} to {destination.name}.")
-    if wanted == "held" and came_from is None and is_htmx(request):
-        # Detaching in the stash creates a row absent from the current page.
-        # Reload because an out-of-band update cannot insert it by a missing identifier.
-        response = HttpResponse(status=200)
-        response["HX-Redirect"] = back
-        return response
-    return _acted(request, touched, gang, back, also=also)
+    """Reassign a possession through the shared equipment command."""
+    return _owned_action(request, pk, "reassign")
 
 
 @login_required
 @require_POST
 def rechoose_assignment(request, pk):
-    """Replace acquisition options and settle their price difference on the owned item.
-
-    Parse offered options from server-derived content. The operation rolls back
-    the whole replacement on refusal. Detect changed option sets independently
-    of payment, because two alternatives may have the same price.
-    """
-    from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.browse import offered_choices
-    from n26.core.operations import Refusal, operation
-    from n26.core.views.equip import _choices_picked
-    from n26.library.models.assignable import Optioned
-
-    assignment = _possession_or_404(request, pk)
-    thing = assignment.assignable
-    if not isinstance(thing, Optioned) or not thing.offers_a_choice:
-        # Only content with offered acquisition alternatives supports rechoosing.
-        raise Http404("Nothing to choose")
-    gang = assignment.gang_root
-    miniature = assignment.miniature_root
-    back = _back_to(request, assignment, gang)
-    touched = _row_behind(assignment)
-
-    picked = _choices_picked(request.POST, thing_key(thing), offered_choices(thing))
-    taken = {row.default_set_id for row in assignment.chosen_options.all()}
-    entry = getattr(assignment, "ledger_entry", None)
-    before = entry.paid if entry is not None else 0
-    try:
-        with operation(gang, actor=request.user) as op:
-            op.rechoose(assignment, option=[option.default_set for option in picked])
-    except Refusal as refusal:
-        messages.error(request, str(refusal))
-        return _unchanged(request, back)
-    if entry is not None:
-        entry.refresh_from_db()
-    after = entry.paid if entry is not None else 0
-
-    record(
-        request,
-        N26Noun.ASSIGNMENT,
-        EventVerb.UPDATE,
-        assignment,
-        gang_id=str(gang.pk),
-        miniature_id=str(miniature.pk) if miniature else None,
-        thing=str(thing),
-        action="rechoose",
-        delta=after - before,
-    )
-    # Compare recorded option sets because a real option change can have zero payment difference.
-    now = {row.default_set_id for row in assignment.chosen_options.all()}
-    if now == taken:
-        messages.success(request, f"{thing}'s options are unchanged.")
-        return _unchanged(request, back)
-    holds = ", ".join(option.name for option in thing.options_taken(now))
-    settled = (
-        f" — {after - before}¢ more."
-        if after > before
-        else f" — {before - after}¢ back."
-        if after < before
-        else "."
-    )
-    messages.success(request, f"{thing} now has {holds}{settled}")
-    return _acted(request, touched, gang, back)
+    """Rechoose a possession through the shared equipment command."""
+    return _owned_action(request, pk, "rechoose")
 
 
 @login_required
 @require_POST
 def accessorise_assignment(request, pk):
-    """Buy a selectable accessory at its library price under an owned weapon.
-
-    Read identity and price server-side. Compatibility is a catalogue suggestion,
-    not an operation restriction.
-    """
-    from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.operations import Refusal, operation
-    from n26.library.models import Weapon, WeaponAccessory
-
-    assignment = _possession_or_404(request, pk)
-    if not isinstance(assignment.assignable, Weapon):
-        # Accessory purchases must target an owned weapon.
-        raise Http404("Not a weapon")
-    gang = assignment.gang_root
-    miniature = assignment.miniature_root
-    back = _back_to(request, assignment, gang)
-    touched = _row_behind(assignment)
-
-    try:
-        accessory = WeaponAccessory.objects.selectable(
-            include_staged=sees_staged(request.user)
-        ).get(pk=request.POST.get("accessory", ""))
-    except WeaponAccessory.DoesNotExist, ValidationError, ValueError:
-        # Return stale or invalid selections to the source catalogue.
-        messages.error(request, "That accessory does not fit this weapon.")
-        return _unchanged(request, back)
-
-    try:
-        with operation(gang, actor=request.user) as op:
-            bought = op.buy(assignment, thing=accessory)
-    except Refusal as refusal:
-        messages.error(request, str(refusal))
-        return _unchanged(request, back)
-
-    record(
-        request,
-        N26Noun.ASSIGNMENT,
-        EventVerb.CREATE,
-        bought,
-        gang_id=str(gang.pk),
-        miniature_id=str(miniature.pk) if miniature else None,
-        thing=accessory.name,
-        action="accessorise",
-        onto=str(assignment.assignable),
-        paid=bought.rating,
-    )
-    messages.success(
-        request,
-        f"Fitted {accessory.name} to {assignment.assignable} — "
-        f"{bought.ledger_entry.paid}¢.",
-    )
-    return _acted(request, touched, gang, back)
+    """Accessorise a possession through the shared equipment command."""
+    return _owned_action(request, pk, "accessorise")
 
 
 @login_required
 @require_POST
 def remove_assignment(request, pk):
-    """Archive a possession without returning credits, preserving its purchase history."""
-    from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.operations import Refusal, operation
-
-    assignment = _possession_or_404(request, pk)
-    gang = assignment.gang_root
-    miniature = assignment.miniature_root
-    name = str(assignment.assignable)
-    back = _back_to(request, assignment, gang)
-    if refused := _refuse_bundled_profile(request, assignment, "remove", back):
-        return refused
-    touched = _row_behind(assignment)
-
-    try:
-        with operation(gang, actor=request.user) as op:
-            removed = op.remove(assignment)
-    except Refusal as refusal:
-        messages.error(request, str(refusal))
-        return _unchanged(request, back)
-    if removed is None:
-        messages.info(request, f"{name} was already removed.")
-        return _unchanged(request, back)
-
-    record(
-        request,
-        N26Noun.ASSIGNMENT,
-        EventVerb.ARCHIVE,
-        assignment,
-        gang_id=str(gang.pk),
-        miniature_id=str(miniature.pk) if miniature else None,
-        thing=name,
-        action="remove",
-    )
-    messages.success(request, f"Removed {name}.")
-    return _acted(request, touched, gang, back)
+    """Remove a possession through the shared equipment command."""
+    return _owned_action(request, pk, "remove")
 
 
 @login_required
 @require_POST
 def refund_assignment(request, pk):
-    """Archive a purchase and return its recorded credits and founding trade points.
-
-    Calculate payments before the operation zeroes ledger entries. Unlimited-credit
-    gangs with no refundable founding points use removal instead.
-    """
-    from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.operations import Refusal, operation, refund_of, trade_points_in
-
-    assignment = _possession_or_404(request, pk)
-    gang = assignment.gang_root
-    back = _back_to(request, assignment, gang)
-    if refused := _refuse_bundled_profile(request, assignment, "refund", back):
-        return refused
-    refunding, paid = refund_of(assignment)
-    points = trade_points_in(refunding)
-    # A gang with no budget pays no credits, so unless a founding
-    # allowance paid for this there is nothing to give back: the act
-    # behind this address is the removal the dialog promised.
-    if gang.credits_unlimited and not points:
-        return remove_assignment(request, pk)
-    miniature = assignment.miniature_root
-    name = str(assignment.assignable)
-    touched = _row_behind(assignment)
-
-    try:
-        with operation(gang, actor=request.user) as op:
-            refunded = op.refund(assignment)
-    except Refusal as refusal:
-        messages.error(request, str(refusal))
-        return _unchanged(request, back)
-    if refunded is None:
-        messages.info(request, f"{name} was already removed.")
-        return _unchanged(request, back)
-
-    record(
-        request,
-        N26Noun.ASSIGNMENT,
-        EventVerb.ARCHIVE,
-        assignment,
-        gang_id=str(gang.pk),
-        miniature_id=str(miniature.pk) if miniature else None,
-        thing=name,
-        action="refund",
-        refunded=paid,
-        trade_points=points,
-    )
-    messages.success(
-        request, f"Refunded {name} — {refund_words(gang, paid, points)} back."
-    )
-    return _acted(request, touched, gang, back)
+    """Refund a possession through the shared equipment command."""
+    return _owned_action(request, pk, "refund")
 
 
 def _campaign_counter_update(request, assignment, gang, back, *, close=False):

@@ -251,3 +251,25 @@ Search the whole edition for workflow callers and tests before deleting a shared
 helper. Page contracts also live in colocated `core/test_*.py` modules. Move
 remaining consumers onto the shared parser rather than another view's private
 helper, and preserve browser navigation hints alongside visible controls.
+
+For Equip, a receipt can settle a confirmation question without writing a purchase.
+Replay that question and its stored continuation key; use a distinct key for the
+explicit confirmation. Otherwise a lost question can become an unreviewed write
+after prices or allowances change. Recall receipts before resolving removed
+possessions, and test every owned-item action as well as purchases.
+
+Stable selection IDs alone do not preserve a payment. A pick-one default can move
+part of the price between the base and the option surcharge. React Equip posts
+the full displayed payment; native indexed forms retain their base-plus-surcharge
+format. Test a reordered default with the same selection and payment. Carry the
+root's current section and expanded entry into panel reads, rather than trusting
+links generated before those controls changed.
+
+For commands that refresh an existing root, interpret a confirmed terminal result
+as `completed` and use `useWorkflowForm.onComplete`. Keep `onNavigate` available
+for recovery navigation. Correlate fresh confirmation metadata with the retained
+request before showing it: a restored command for one item must never use another
+item's title, choices or consequences. Retain readable selection details alongside
+unresolved input. Add non-business display fields through `optionalRecoveryFields`
+so older pending commands still restore; request keys and business input remain
+required. Test both rejected and uncertain recovery against an unrelated panel.

@@ -627,7 +627,7 @@ def _leaving(request, gang):
     """
     from n26.core.departure import departure_for
     from n26.core.operations import Refusal
-    from n26.core.views.owned import refund_words
+    from n26.core.owned_actions import refund_words
 
     for kind in ("delete", "refund"):
         miniature = _fighter_named(request, gang, kind)
@@ -665,7 +665,7 @@ def _leaving(request, gang):
 
 def _stash_label(gang, kind, paid, trade_points):
     """Name the stash-first departure option and any remaining refundable payment."""
-    from n26.core.views.owned import refund_words, refunded_credits
+    from n26.core.owned_actions import refund_words, refunded_credits
 
     if kind != "refund":
         return "Stash their kit, then delete"
@@ -696,7 +696,7 @@ def _dismiss(request, pk, kind):
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.departure import departure_for
     from n26.core.operations import Refusal, operation
-    from n26.core.views.owned import refund_words, refunded_credits
+    from n26.core.owned_actions import refund_words, refunded_credits
     from n26.core.views.permissions import _own_miniature_or_404
 
     miniature = _own_miniature_or_404(request, pk)

@@ -561,7 +561,7 @@ class TestTheOwnedDialogsPage:
         assert "Gun stabiliser — 30¢" in page
         assert "Taking an accessory off a gun" in page
         assert "Take Telescopic sight off Meltagun?" in page
-        assert "The fighter will still hold it." in page
+        assert "The model keeps it." in page
         assert 'value="held"' in page
         assert "Selling a gun with something bolted to it" in page
         assert 'value="stash"' in page

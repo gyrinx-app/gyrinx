@@ -1893,6 +1893,20 @@ class Operation:
         grant_recruitment_allowances(self, miniature)
         return miniature
 
+    def record_equip_receipt(self, request_key, payload, result):
+        """Commit a write or confirmation decision with its equipment command."""
+        from n26.core.models import EquipReceipt
+
+        if self.actor is None:
+            raise ValueError("Equipment receipts require an actor.")
+        return EquipReceipt.objects.create(
+            gang=self.gang,
+            actor=self.actor,
+            request_key=request_key,
+            payload=payload,
+            result=result,
+        )
+
     def record_hire_receipt(self, request_key, payload, miniature, profile_name):
         """Retain the hire result inside the transaction that created it."""
         from n26.core.models import HireReceipt

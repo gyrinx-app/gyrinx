@@ -569,7 +569,7 @@ class TestKitActionsOnTheCard:
         body = client.get(f"{edit_url(vex)}?detach={bolted.pk}").content.decode()
 
         assert "Take Telescopic sight off Lasgun?" in body
-        assert "The fighter will still hold it." in body
+        assert "The model keeps it." in body
         assert reverse("n26-reassign", args=[bolted.pk]) in body
         assert 'name="to" value="held"' in body
 

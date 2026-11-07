@@ -17,17 +17,24 @@ def price_floor(quoted):
     return min(0, quoted)
 
 
-def price_typed(data, field, quoted, name):
-    """Parse a whole-credit payment, retaining a blank field's quoted price."""
+def price_typed(data, field, quoted, name, *, adjustment=0):
+    """Parse a whole-credit payment, retaining a blank field's quoted price.
+
+    An adjustment includes selected equipment surcharges in the displayed payment
+    while preserving the base payment's lower and upper bounds.
+    """
     raw = data.get(field)
     if raw is None or not raw.strip():
-        return quoted
+        return quoted + adjustment
     raw = raw.strip()
-    floor = price_floor(quoted)
-    typed = int(raw) if _WHOLE_CREDITS.fullmatch(raw) else None
-    if typed is None or not floor <= typed <= PRICE_CEILING:
+    floor = price_floor(quoted) + adjustment
+    ceiling = PRICE_CEILING + adjustment
+    try:
+        typed = int(raw) if _WHOLE_CREDITS.fullmatch(raw) else None
+    except ValueError:
+        typed = None
+    if typed is None or not floor <= typed <= ceiling:
         raise BadPrice(
-            f"{name}: a price is a whole number of credits, "
-            f"from {floor} to {PRICE_CEILING}."
+            f"{name}: a price is a whole number of credits, from {floor} to {ceiling}."
         )
     return typed
