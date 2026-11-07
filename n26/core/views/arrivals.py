@@ -1,29 +1,13 @@
-"""The screen shown after an act, for what the act brought.
+"""Show authored interstitials for slots introduced by a completed operation.
 
-Founding a gang, hiring a model or making a pick can put a slot on a
-card, and an author may have attached a screen to that slot — a heading
-and a few words on why the choice matters. When one does, the act sends
-the reader here before wherever it was going, with every such slot
-named in the address::
+The URL carries slot addresses and a validated next destination. Resolve slots
+again on each request; missing slots are omitted and an empty screen redirects
+onwards. Questions use the same settlement functions as the dedicated picker.
 
-    /gangs/<gang>/next/?ask=<card:carrier:offer>&ask=…&next=<back>
-
-Nothing is stored. Each question is located again from its address
-(``find_slot``), so one that has since gone stops being asked rather
-than failing the whole screen; the screens attached to what remains are
-read from the library; and a screen with nothing left to say sends the
-reader on to ``next``. The picker draws in place and posts back here,
-through the same handling the pick screen uses, so a pick made on
-either is one code path.
-
-The whole screen is one form and Continue submits it, so every choice
-the reader made is written together. Continue is offered once every
-compulsory question is settled — it holds every pick it asks for, asks
-for none, or has nothing to offer; a question on a block the author
-made skippable never holds anybody, and leaving it blank is the way
-past it. Where no question is compulsory, Skip sits beside Continue and
-goes on without writing anything. Leaving by the navigation is always
-open, and nothing is policed.
+Continue saves answered single-pick questions together. Multi-pick controls
+settle one change and remain on this screen. Newly introduced interstitials
+are added to the next destination. Skippable blocks do not require answers;
+leaving through navigation remains available.
 """
 
 from django.contrib import messages
@@ -39,9 +23,7 @@ from n26.library.staged import sees_staged
 
 
 def _asks(query):
-    """The addresses the screen was asked about, each once, in order.
-    Capped where the address was typed rather than built: ``next_url``
-    never names more than a screenful."""
+    """Deduplicate requested slot addresses in order and cap them at MAX_ASKS."""
     seen = []
     for key in query.getlist("ask"):
         if key and key not in seen:
@@ -50,17 +32,17 @@ def _asks(query):
 
 
 def _question(request, gang, key, found, *, here, include_staged, under=""):
-    """One arriving slot as the screen draws it. ``under`` is which block
-    draws it, for a page that draws it under several."""
+    """Build one arriving choice and its roll link for the containing block.
+
+    Treat minimum picks met or an empty offer as settled.
+    """
     from n26.core.render import ArrivalQuestion, build_choice_offer
 
     slot = found.slot
     offer = build_choice_offer(slot, found.computed, include_staged=include_staged)
     roll_href = ""
     if slot.slot is not None and slot.slot.picklist.dice and not slot.is_full:
-        # Rolling lives on the pick screen, which offers it only while the
-        # choice will take another pick; the link brings the reader back
-        # here once the roll is made and the pick taken.
+        # Use the dedicated picker for rolls and return here after selection.
         roll_href = with_query(
             reverse("n26-choose", args=[gang.pk, key]), **{"return": here}
         )
@@ -69,13 +51,8 @@ def _question(request, gang, key, found, *, here, include_staged, under=""):
         label=slot.kind_label,
         bearer=found.miniature.name if found.miniature is not None else gang.name,
         chosen=slot.chosen_name,
-        # Settled once it holds every pick it asks for — the count the
-        # sheet's own shortfall note reads, so the screen and the card
-        # agree on what is outstanding. A choice asking for none is
-        # settled from the start. Nothing to offer is settled too: a
-        # screen that withheld Continue over a choice nobody can make
-        # would be policing, and the card's own note still says the
-        # choice is open.
+        # Continue requires minimum picks unless the offer is empty.
+        # Keep empty choices non-blocking while the card can still show its shortfall note.
         settled=len(slot.picks) >= slot.min_picks or offer.is_empty,
         offer=offer,
         roll_href=roll_href,
@@ -85,13 +62,10 @@ def _question(request, gang, key, found, *, here, include_staged, under=""):
 
 @login_required
 def gang_next(request, pk):
-    """What just arrived, and the choices it brought.
+    """Render current arrival screens or settle submitted choices through shared picker functions.
 
-    GET writes nothing. POST is Continue, which writes every question
-    the reader answered in one operation — or one click of a choice
-    worked at a pick at a time, handed to the pick screen's own
-    handling. Either comes back here with whatever the picks brought
-    added to the address.
+    Discard vanished slots and submissions for questions absent from the screen.
+    GET writes nothing.
     """
     from n26.core.render import ArrivalBlock, ArrivalScreen, is_tier_ladder
 
@@ -102,11 +76,8 @@ def gang_next(request, pk):
     )
 
     asks = _asks(request.GET)
-    # One derivation of the gang for every address at once. A carrier
-    # that has gone since the address was made is simply not found, and
-    # what remains is still worth asking about. An offer rather than a
-    # slot carries no screen, and a slot taking no picks has nothing to
-    # draw.
+    # Resolve all requested slots in one gang-card derivation, dropping vanished slots,
+    # modifier offers and slots with no displayed picks.
     located = {
         key: found
         for key, found in find_slots(gang, asks).items()
@@ -119,10 +90,7 @@ def gang_next(request, pk):
     carrying = interstitials_on(
         {found.slot.slot.pk for found in located.values()}, include_staged=shown
     )
-    # Each screen's questions in the order the author gave its slots —
-    # position, then the slot's name, as the attachments themselves are
-    # ordered — and only then in address order, so permuting the address
-    # never reorders a screen.
+    # Order questions by attachment position, then slot name, then URL order.
     grouped = {}
     for order, (key, found) in enumerate(located.items()):
         for attachment in carrying.get(found.slot.slot.pk, ()):
@@ -136,8 +104,7 @@ def gang_next(request, pk):
     }
     if not grouped:
         return redirect(back)
-    # Only a question some screen draws is on this page: the address
-    # self-cleans of the rest, and a post naming one settles nothing here.
+    # Keep only questions attached to a displayed interstitial in both URL and POST scope.
     screened = {key for _interstitial, keys in grouped.values() for key in keys}
     located = {key: found for key, found in located.items() if key in screened}
     here = next_url(gang, list(located), back)
@@ -145,8 +112,7 @@ def gang_next(request, pk):
     if request.method == "POST":
 
         def brought_by(op):
-            """What the picks themselves brought that asks for a screen
-            of its own — nothing, where the answer wrote nothing."""
+            """Find newly written slots requiring interstitials, excluding those already displayed."""
             if op is None:
                 return []
             return [
@@ -156,28 +122,20 @@ def gang_next(request, pk):
             ]
 
         def stay(op):
-            """Back to this screen with what the pick brought added:
-            where one click of a choice worked at a pick at a time
-            lands, because the rest of the page is still to answer."""
+            """Reopen this screen with any slots introduced by an individual pick."""
             return next_url(gang, [*located, *brought_by(op)], back)
 
         def leave(op):
-            """Where Continue lands: on to what the act was going to,
-            or first to a screen for whatever the answers themselves
-            brought — never back to the questions just answered."""
+            """Continue to newly introduced interstitials, otherwise to the original destination."""
             brought = brought_by(op)
             return next_url(gang, brought, back) if brought else back
 
-        # Each question's controls are named after it, so a click says
-        # which one it answered and a page of them cannot be confused
-        # for one another.
+        # Question-specific field names identify which slot a control updates.
         drawn = {
             key: _question(request, gang, key, found, here=here, include_staged=shown)
             for key, found in located.items()
         }
-        # A post naming a question no screen here draws is a stale page
-        # or a hand-built post; the screen says so rather than quietly
-        # writing nothing.
+        # Reject submitted questions no longer displayed instead of silently dropping the write.
         named = {
             field.split(":", 1)[1]
             for field in request.POST
@@ -187,9 +145,7 @@ def gang_next(request, pk):
             messages.error(request, "That choice is no longer on this screen.")
             return redirect(here)
 
-        # A choice worked at a pick at a time acts on its own, the way it
-        # does on the pick screen: one click is one pick, and the rest of
-        # the page is left as it stands.
+        # Multi-pick and removal controls settle one question without submitting the rest.
         for key, question in drawn.items():
             dropped = request.POST.get(question.remove_name, "")
             wanted = dropped or request.POST.get(question.field_name, "")
@@ -206,9 +162,7 @@ def gang_next(request, pk):
                     dropped=dropped,
                 )
 
-        # Continue: every question the reader answered, written together.
-        # A blank one is left out rather than settled as nothing, so
-        # Continue on an untouched screen writes nothing at all.
+        # Settle answered single-pick questions together; blank controls do not clear existing picks.
         answers = [
             (key, located[key], question.offer, request.POST[question.field_name])
             for key, question in drawn.items()
@@ -235,15 +189,12 @@ def gang_next(request, pk):
                         located[key],
                         here=here,
                         include_staged=shown,
-                        # A slot under two screens is asked under each,
-                        # and the two drawings need headings of their own.
+                        # A slot displayed under two interstitials needs distinct heading identifiers.
                         under=str(order),
                     )
                     for key in keys
                 ),
-                # What the author said: a block nobody has to answer
-                # never holds Continue, and a screen of nothing but
-                # those offers Skip beside it.
+                # Skippable blocks never block Continue; entirely skippable screens also offer Skip.
                 skippable=interstitial.skippable,
             )
         )

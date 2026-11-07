@@ -1,9 +1,6 @@
-"""The further pages of a switcher's list.
+"""Paged switcher results and search as JSON.
 
-A switcher's page carries its first rows; this answers for the rest, and for
-a search over all of them. What each list holds, and who may read it, is
-``n26.core.navigation.switcher_rows``'s — this only reads the request and
-writes the JSON.
+switcher_rows owns each list's contents and access checks.
 """
 
 from django.contrib.auth.decorators import login_required
@@ -12,8 +9,7 @@ from django.views.decorators.http import require_GET
 
 from n26.core.navigation import switcher_rows
 
-#: Longer than any name, and short enough that a pasted paragraph is
-#: not turned into a query.
+#: Cap search input before building the query.
 QUERY_LIMIT = 100
 
 

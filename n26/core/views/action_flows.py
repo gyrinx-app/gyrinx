@@ -145,11 +145,9 @@ def _description(outcome):
 
 
 def _steps(record=None, *, action=None, stage="start", correction=False):
-    """The flow's full list of steps, in a fixed order for its kind of outcome.
+    """Keep step numbering stable by marking unused steps as skipped.
 
-    A step this run will not take is marked skipped rather than dropped, so
-    the numbers do not shift part-way through. A stage the list does not
-    name, such as a cancel or unavailable page, marks no step current.
+    Cancellation and unavailable pages have no current step.
     """
     if stage in {"undo", "on-hold"}:
         return []
