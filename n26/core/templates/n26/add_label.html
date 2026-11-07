@@ -1,10 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Asking every gang in the campaign one question with a fixed set of options —
-an Alignment, an Allegiance. The question and its options are written into
-the campaign's pack and built into the campaign's own campaign type, so every
-gang's sheet asks it and each gang's owner picks there.
+Create the choice and its options in the campaign pack. Build the slot into the private
+campaign additions type for participating gangs.
 {% endcomment %}
 {% block head_title %}Add a label to {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -56,9 +54,8 @@ gang's sheet asks it and each gang's owner picks there.
                         name="options"
                         for="label-options">
                 {% comment %}
-                The bare textarea rather than the kit's wrapper: the wrapper
-                declares name as a prop of its own and never hands it to the
-                element, so a box drawn through it posts nothing.
+                Use a native textarea because the kit wrapper consumes name without
+                forwarding it to the input.
                 {% endcomment %}
                 {# djlint:off #}
                 <c-ui.textarea.impl id="label-options" name="options" rows="4">{{ form.options.value|default:'' }}</c-ui.textarea.impl>

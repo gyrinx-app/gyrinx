@@ -1,10 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Giving every gang in the campaign a new counter. The counter is written into
-the campaign's pack and built into the campaign's own campaign type at the
-opening value, so gangs joining from now on start there and gangs already
-playing catch up within moments. It shows as a column of the gangs table.
+Add the counter to the campaign pack and its private additions type so existing and
+future gangs receive its starting value.
 {% endcomment %}
 {% block head_title %}Add a counter to {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
