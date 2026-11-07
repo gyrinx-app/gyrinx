@@ -1,24 +1,12 @@
-"""Operations — the only place player data is written.
+"""Atomic writes to player data and its journal.
 
-An operation is a small set of changes that apply together: hire a model,
-buy a weapon, remove something. Everything inside one runs in a single
-transaction, and when it closes, the pinned numbers it disturbed are
-rewritten:
+Each operation groups related changes in one transaction. On exit, it
+recomputes affected model ratings and the gang's rating and credits from
+the ledger. ``n26.core.reconcile`` checks those cached totals independently.
 
-* every affected model's rating,
-* the gang's rating and credits.
-
-They are rewritten by **recomputing**, not by adding deltas. A delta drifts
-the moment a code path forgets one and nothing notices for months; a
-recompute at the boundary is right by construction, and ``n26.reconcile``
-still catches anything that bypassed the boundary entirely.
-
-Not every operation moves money. A rename, a notes edit, a
-characteristic set by hand price nothing — they go through here anyway,
-because they are part of the gang's story and each writes a journal
-event, so the history can say who did what and when. The line is the
-story, not the money: device preferences (a print config, a display
-set) are nobody's history and stay plain saves.
+Renames, notes and characteristic overrides also use operations so the
+journal records who changed them. Device preferences, including print
+configurations and display sets, use ordinary saves.
 
 Use it as a context manager::
 
@@ -47,8 +35,7 @@ from n26.core.models import (
 from n26.core.status import Status
 from n26.errors import UserFacingError
 
-#: The least a sale ever returns. Half of a knife is nothing, and nobody
-#: hands a knife over for nothing.
+#: Minimum proceeds for a sale with a non-negative rating.
 MINIMUM_PROCEEDS = 5
 
 
@@ -62,18 +49,11 @@ class _CloneResult:
 
 
 def proceeds_for(rating):
-    """What selling something worth ``rating`` puts back in the gang's hand.
+    """Return sale proceeds calculated from rating.
 
-    Half, rounded up, never under :data:`MINIMUM_PROCEEDS`. Worth, not
-    outlay: a sword haggled down to 60 is still a hundred credits of sword,
-    and rating is what the gang owns.
-
-    Nothing at all for something worth less than nothing. A Gene-smithing
-    upgrade that weakens the fighter is priced below zero, and the floor
-    would otherwise pay a gang to shed its own liabilities as often as it
-    liked. The sale still goes through — the owner may drop whatever they
-    want — it simply pays nothing. A thing worth nothing still fetches the
-    floor, as a free knife always has.
+    Non-negative ratings return half, rounded up, with a minimum of
+    :data:`MINIMUM_PROCEEDS`. Negative ratings return zero, preventing repeated
+    sales of negative-rating upgrades from generating credits.
     """
     if rating < 0:
         return 0
@@ -81,17 +61,10 @@ def proceeds_for(rating):
 
 
 def sale_of(assignment, keeping=()):
-    """What selling this would move: the assignments that go, and what
-    comes back.
+    """Return live assignments to sell, their total rating, and the proceeds.
 
-    Asked before the act as well as during it, so the confirmation quotes
-    the figure the sale will actually pay rather than a second arithmetic
-    that could disagree with it.
-
-    ``keeping`` names children being unbolted into the stash rather than
-    sold — each with whatever hangs off it. A sale that leaves the sight
-    behind is a sale of the gun alone, and pays for the gun alone, so a
-    confirmation offering that choice has to be able to price it.
+    Confirmation pages and settlement share this calculation. ``keeping``
+    excludes each retained child's subtree, which can be moved into the stash.
     """
     kept = {row.pk for child in keeping for row in [child, *subtree(child)]}
     rows = [
@@ -104,18 +77,10 @@ def sale_of(assignment, keeping=()):
 
 
 def detachable_children(assignment):
-    """What hangs off this that could be kept instead of going with it.
+    """Return live children that can be kept when selling their parent.
 
-    Selling a gun sells everything on it. An accessory need not be part
-    of that bargain: it is gear in its own right, so it can be unbolted
-    into the stash first and fitted to another gun later, and the seller
-    is asked which they meant.
-
-    Two sorts of child are never on offer. A weapon profile is the
-    weapon's own (:func:`n26.core.owned.is_detachable`). And anything
-    the weapon *brought* — a sight that came with it as standard —
-    belongs to the package rather than to the gang: what caused it goes,
-    so it goes.
+    Weapon profiles and equipment granted by the parent cannot be detached.
+    See :func:`n26.core.owned.can_unbolt`.
     """
     from n26.core.owned import can_unbolt
 
@@ -127,22 +92,11 @@ def detachable_children(assignment):
 
 
 def refund_of(assignment):
-    """What refunding this would move: the assignments that go, and what
-    comes back.
+    """Return live assignments in the subtree and their total paid credits.
 
-    Asked before the act as well as during it, for the same reason
-    :func:`sale_of` is — a confirmation that quotes its own arithmetic is
-    a confirmation that can disagree with the click underneath it.
-
-    What comes back is what was **paid**, every credit of it, across the
-    whole subtree: a gun's ammo was bought on the same click and is
-    refunded on this one. That is a different number from a sale's, which
-    is half of what the thing is *worth*, and the two part company the
-    moment anything is discounted or given away.
-
-    Credits alone. What the same purchases took out of a model's founding
-    allowance is :func:`trade_points_refund_of`, and one purchase may have
-    taken both.
+    Confirmation pages and settlement share this calculation. Trade Points
+    are calculated separately by :func:`trade_points_refund_of`; a purchase
+    may have spent both currencies.
     """
     rows = [row for row in [assignment, *subtree(assignment)] if not row.archived]
     paid = sum(
@@ -271,10 +225,10 @@ def option_refunds(carrier, default_sets):
 
 
 def trade_points_in(assignments):
-    """The Trade Points these assignments were bought with.
+    """Sum Trade Points paid for these assignments.
 
-    Takes what :func:`refund_of` already gathered, so a screen wanting
-    both figures walks the subtree once.
+    Accepts the assignments from :func:`refund_of` so a confirmation needing
+    both currencies traverses the subtree once.
     """
     return sum(
         entry.trade_points
@@ -284,27 +238,18 @@ def trade_points_in(assignments):
 
 
 def trade_points_refund_of(assignment):
-    """The Trade Points refunding this would give back.
+    """Return the Trade Points refundable from this assignment's live subtree.
 
-    The other half of :func:`refund_of`, over the same assignments. A
-    purchase made while the gang's Spend founding TP activity was open
-    came off the buyer's founding allowance, and undoing it puts them
-    back.
-
-    A gang founded with no credit budget hands over nothing else, so this
-    is the whole of what a refund of one of its purchases returns — which
-    is why a screen asks it before deciding whether to offer the act.
+    These points return to the purchase's original allowance. Gangs without
+    a credit budget use this total when deciding whether to offer a refund.
     """
     return trade_points_in(refund_of(assignment)[0])
 
 
 def trade_points_carried_by(miniature):
-    """The Trade Points still riding on everything this model holds.
+    """Sum Trade Points paid for all live assignments on this model.
 
-    The same total a full refund of the model would give back — its hire,
-    what the hire brought, and every piece of kit bought since — asked as
-    one query rather than a walk per line, because the screens that ask
-    it only want to know whether to offer the act.
+    Includes the hire and equipment in one query, for refund availability checks.
     """
     from django.db.models import Sum
 
@@ -317,18 +262,11 @@ def trade_points_carried_by(miniature):
 
 
 class Refusal(UserFacingError):
-    """An operation will not do this, and the message says why.
+    """A player action cannot be completed; ``public_message`` explains why.
 
-    Raised inside the operation, so the transaction unwinds and nothing
-    is left half-written. A view catches it, shows the sentence, and
-    sends the reader back to the page they clicked on — so the sentence
-    is written for the player who clicked the button.
-
-    What belongs here is an act some control really offered and the
-    app declines: an overspend, a pick that cannot settle the
-    choice it was given. What does not is a content bug or a caller
-    mistake — nobody can click their way to one, the sentence would mean
-    nothing to a player, and an unhandled error is the right answer.
+    Raising inside an operation rolls back its transaction. Views display the
+    message and redirect. Content defects and caller mistakes must propagate
+    as ordinary exceptions so their tracebacks remain available.
     """
 
 
@@ -344,13 +282,10 @@ class LibraryError(Exception):
 
 
 class NotEnoughCredits(Refusal):
-    """A spend would take the gang below zero credits.
+    """Settlement would leave a gang with a credit budget below zero.
 
-    Raised at the operation boundary, so the whole operation rolls back —
-    nothing is half-bought. This is the one *rule* we enforce rather than
-    inform about: the founding budget "may not be exceeded", and the
-    alternative is a database IntegrityError with nobody's name on it.
-    Allowing debt is simply raising or clearing the budget.
+    Raised at the operation boundary so assignments, payments and events all
+    roll back together. Raising or clearing the budget permits the expenditure.
     """
 
     def __init__(self, gang, shortfall):
@@ -403,32 +338,23 @@ class NotOnOffer(Refusal):
         )
 
 
-#: Stands for "this operation has not looked yet", so that a gang playing no
-#: campaign is asked about once rather than on every event it writes.
+#: Distinguish an unqueried campaign from a cached absence of membership.
 _UNASKED = object()
 
-#: The note on a roll the reader made themselves and typed in, which is
-#: how the record tells one from a roll the page generated.
+#: Distinguish manually entered rolls from generated rolls in the journal.
 ROLL_ENTERED = "Manual roll."
 
-#: What the same note said before the wording changed. Rolls recorded
-#: under it still read as manual ones.
+#: Also recognise this stored note as a manually entered roll.
 ROLL_ENTERED_BEFORE = "Rolled at the table and entered here."
 
-#: The reason on a status change Clean House made, which is how the
-#: history tells the cycle's end from the owner's own hand.
+#: Identify status changes caused by Clean House in the history.
 CLEAN_HOUSE = "Clean House"
 
 
 def _movement_note(moved, reason):
-    """A tally's note: what moved, then why, inside the column's width.
+    """Combine a counter movement and reason within the event note limit.
 
-    The movement is the half that has to survive — an audit reads the
-    number, and the reason is the reader's own words about it — so a
-    reason too long to fit is what gives way. A caller can hand over a
-    great deal more than the column holds: an assignable's name and its
-    annotation are 200 characters each, and a rule that tallies passes
-    the pair of them as its reason.
+    Truncate the reason first so the recorded numeric movement remains intact.
     """
     from n26.core.models import LedgerEvent
 
@@ -441,29 +367,24 @@ def _movement_note(moved, reason):
 
 
 class Operation:
-    """Collects what it touched, so the boundary knows what to repin."""
+    """Track changed miniatures for recomputation at settlement."""
 
-    #: A pet whose profile brings a pet whose profile brings a pet is a
-    #: content bug, not a use case.
+    #: Bound recursive model grants to reject cyclic content.
     MAX_STORED_EFFECT_DEPTH = 3
 
     def __init__(self, gang, actor=None, batch=None, post_battle_revision=None):
         self.gang = gang
         self.actor = actor
-        # Every event this operation writes carries the same mark, so
-        # the history can tell one act's records from its neighbours'. A
-        # caller writing one act across two gangs — an asset handed from
-        # one to the other — passes the mark in, so both halves share it.
+        # Share the batch across participating gangs so their events can
+        # be grouped as one operation in history.
         self.batch = batch or uuid4()
         self.post_battle_revision = post_battle_revision
         self.post_battle_occurrence = None
         self._miniatures = {}
         self._effect_depth = 0
         self._campaign = _UNASKED
-        #: The ids of every assignment this operation wrote, as strings.
-        #: A slot is computed, so "this slot just arrived" can only be
-        #: read off the assignment it hangs from; ``n26.core.arrivals``
-        #: reads this to find the slots an act brought.
+        #: Created assignment IDs, as strings. ``n26.core.arrivals`` uses
+        #: these anchors to find choices introduced by this operation.
         self.written = set()
 
     def touched(self, miniature):
@@ -784,20 +705,12 @@ class Operation:
         ]
 
     def event(self, about, kind, **deltas):
-        """Append to the log. Nothing already written is ever altered.
+        """Append an event linked to its gang and current campaign.
 
-        ``about`` is the assignment or the model the record concerns —
-        or a campaign's asset the gang gained or lost, or ``None``,
-        for an act on the gang itself. Every event is pinned to its gang,
-        so a gang's whole history is one query, in order: this
-        operation's gang, or — opened without one — the gang at the top
-        of the assignment's own chain.
-
-        Where the gang is playing a campaign, the event names it too.
-        That is read here rather than passed in, so no caller has to
-        remember, and a campaign's log holds everything its gangs did
-        while they were in it rather than only the acts somebody thought
-        to mark.
+        ``about`` may be an assignment, model, campaign asset or None for a gang
+        change. When no operation gang is set, derive it from the assignment or
+        model membership. Post-battle events use the report's campaign; other
+        events resolve the gang's current membership here.
         """
         assignment = about if isinstance(about, Assignment) else None
         gang = self.gang
@@ -1077,27 +990,16 @@ class Operation:
         return miniature
 
     def transfer(self, to, credits, note="", about=None):
-        """Pay another gang: credits leave this one and arrive at ``to``.
+        """Pay credits to another gang and journal both sides atomically.
 
-        Two events, one on each gang, each naming the other as its
-        counterpart and carrying the same note. This gang's carries the
-        spend as a positive delta, and its ``settle`` refuses the whole
-        act if the credits would go below zero — the rules' "or the model
-        dies" is then the caller's next question. The other gang's event
-        is written in an operation of its own, inside this transaction,
-        so its numbers are repinned too; a gang with no budget records
-        the receipt and counts nothing, as it counts nothing for what it
-        spends.
+        The payer records a positive spend delta. The recipient's nested
+        operation records the receipt and repins its totals. Settlement rolls
+        back both sides if the payer would overspend. Unlimited-budget gangs
+        record events without changing an available-credit balance.
 
-        ``to`` may be None for a payment to somebody the app does not
-        know — a gang at the table that is not on Gyrinx. The credits
-        still leave. ``about`` is the model the payment concerned, where
-        it concerned one.
-
-        The operation this runs in must have been opened with ``to``
-        among its ``also`` gangs, so both lines were taken together in
-        one order; taking the payee's here, second, would let two gangs
-        paying each other wait on one another.
+        ``to=None`` records a payment outside Gyrinx. ``about`` optionally names
+        the model concerned. Include ``to`` in the enclosing operation's ``also``
+        gangs so both locks are acquired in a consistent order.
         """
         if credits <= 0:
             raise Refusal("A transfer has to move at least one credit.")
@@ -1584,14 +1486,11 @@ class Operation:
                 self.close_activity(active)
 
     def remove(self, assignment, note="", **event_fields):
-        """Take something away — and everything it brought with it.
+        """Archive an assignment and its dependants, preserving their ledger history.
 
-        Archives rather than deletes: the ledger is append-only, so the
-        record of having owned the thing survives. Its rating stops counting
-        because rating sums skip archived assignments; the entry keeps
-        saying what the thing was worth.
-
-        Already gone means nothing to do: see :func:`_under_the_lock`.
+        Archived assignments stop contributing to rating. Entries retain their
+        rating and expenditure. An archived root is a no-op; see
+        :func:`_under_the_lock`.
         """
         assignment = _under_the_lock(assignment)
         if assignment.archived:
@@ -1622,14 +1521,10 @@ class Operation:
         return assignment
 
     def restore(self, assignment, note="", **event_fields):
-        """Put back one removed assignment, exactly as it was.
+        """Restore this archived assignment without restoring its dependants.
 
-        Only this assignment: unlike ``remove`` nothing beneath it comes
-        back with it, because what it caused may have been removed for
-        reasons of its own — a pick the player replaced stays replaced.
-        The caller restores each assignment it means to. Nothing it held
-        changed while it was archived, so a counter's value and a slot's
-        pick read as they did. Already live means nothing to do.
+        Callers restore each required assignment explicitly, since a dependant
+        may have been removed independently. An already live assignment is a no-op.
         """
         assignment = _under_the_lock(assignment)
         if not assignment.archived:
@@ -1642,28 +1537,14 @@ class Operation:
         return assignment
 
     def refund(self, assignment, note=""):
-        """Take something back and return what was paid for it.
+        """Archive the assignment's subtree and return its credits and Trade Points.
 
-        Removal and refund are deliberately different acts: ``remove``
-        archives and keeps what was spent; this archives the same subtree
-        *and* gives it back. ``sell`` is the third of them, and returns
-        half of what the thing is worth rather than what was paid.
+        Zero each refunded entry with a matching event so folding events still
+        reproduces the entry. Assignments with no payment are simply removed.
+        Trade Points return to the purchase's original activity; they cannot
+        increase a later visit's allowance.
 
-        Credits and Trade Points both count as having been paid, so a
-        purchase that took nothing but Trade Points is refunded like any
-        other. Only a line nobody handed anything over for is simply
-        removed.
-
-        Each refunded line's entry is settled to zero with a matching
-        event, so folding the events still reproduces the entry and the
-        gang's recomputed credits rise by exactly what was returned. A
-        refund taken on the same trip as the purchase puts the Trade
-        Points back in the allowance; once a new allowance is set,
-        neither the spending nor its undoing counts any more — the trip
-        a refund belongs to is the trip the purchase belonged to, not
-        whenever the owner got round to handing it back.
-
-        Already gone means nothing comes back: see :func:`_under_the_lock`.
+        An already archived root returns None; see :func:`_under_the_lock`.
         """
         assignment = _under_the_lock(assignment)
         if assignment.archived:
@@ -1706,30 +1587,15 @@ class Operation:
         return assignment
 
     def sell(self, assignment, note=""):
-        """Sell something on, and put half of what it is worth in the bank.
+        """Archive the sold subtree and return proceeds based on its total rating.
 
-        The third act beside ``remove`` and ``refund``: removal archives and
-        keeps the money spent, a refund undoes the purchase and returns
-        every credit of it, and a sale is a later trade — the thing goes,
-        and what comes back is :func:`proceeds_for` of its **rating**, not
-        of what was paid for it. Those two part company the moment anything
-        is discounted, and rating is what the gang owns.
+        Retained children are moved into the stash first. Record the entire
+        payment on the root entry, reducing ``paid`` and adjusting ``discount``
+        to preserve ``paid = list_price - discount``. Entries keep their rating
+        contributions, which cease to count while archived.
 
-        The subtree is sold with it and counts towards the figure: a gun's
-        paid ammo and its sight go with the gun, so what the gang is giving
-        up is the whole of it. Every line archives, so none of them counts
-        towards rating any more; each entry keeps saying what its thing was
-        worth, because it was worth that.
-
-        The credits land on the sold line's own entry, whose ``paid`` drops
-        by what came back — a sale makes the gang less out of pocket for
-        the thing than it was, and the discount absorbs the difference so
-        that ``paid = list_price - discount`` still holds. Folding the
-        events therefore still reproduces the entry, which is the invariant
-        ``n26.reconcile`` exists to check.
-
-        Returns what the gang was paid, or None for something already
-        gone: see :func:`_under_the_lock`.
+        Return the credits received, or None for an archived root. See
+        :func:`proceeds_for` and :func:`_under_the_lock`.
         """
         assignment = _under_the_lock(assignment)
         if assignment.archived:
@@ -1740,9 +1606,7 @@ class Operation:
             target.archived = True
             target.archived_at = _now()
             target.save(update_fields=["archived", "archived_at", "modified"])
-            # One sale, one payment: the lines that rode along are sold
-            # too, but the money is the root's — a buyer pays for the gun
-            # with the sight on it, not twice.
+            # Record the entire subtree's proceeds on the root entry once.
             self.event(
                 target,
                 LedgerEvent.Kind.SOLD,
@@ -1759,11 +1623,10 @@ class Operation:
     # --- composites ------------------------------------------------------
 
     def clone_miniature(self, source, *, name=None):
-        """Copy one model's standing state into this operation's gang.
+        """Copy a model's current state into this operation's gang.
 
-        A clone is a snapshot, not another performance of the acquisitions
-        that built the source.  The low-level copier therefore writes fresh
-        assignments and ledger openings without running stored effects again.
+        Write fresh assignments and ledger openings without replaying stored
+        acquisition effects.
         """
         from n26.core.cloning import (
             HoldingDependentClone,
@@ -3360,13 +3223,9 @@ class Operation:
         return track_progression_counter(self, fighter, counter_id)
 
     def tally(self, assignment, change, note="", **event_fields):
-        """Change a counter's value — the only writer it has.
+        """Change a counter, respecting its minimum, and journal the actual movement.
 
-        ``change`` is signed; the value floors at the counter's minimum.
-        Every change is a ledger event, so the history of a Kill Count reads like the
-        history of anything else the gang owns — and carries what moved
-        and where it landed, which is what a reader auditing a number is
-        looking for. ``note`` is why, where the caller knows.
+        ``change`` is signed. ``note`` supplies the reason for the adjustment.
         """
         from n26.core.models import CounterValue, LedgerEvent
 
@@ -3377,10 +3236,7 @@ class Operation:
         before = held.value
         held.value = max(assignment.counter.minimum, held.value + change)
         held.save(update_fields=["value", "modified"])
-        # What moved and where it landed, so the history can be read
-        # against the number on the card. The movement recorded is the
-        # one that happened rather than the one asked for: a subtraction
-        # that would go below the counter's minimum stops at that minimum.
+        # Record the actual movement after applying the counter's minimum.
         moved = f"{held.value - before:+d} → {held.value}"
         amounts = (
             {
@@ -3575,23 +3431,11 @@ class Operation:
         return self.move(assignment, to)
 
     def move(self, assignment, to, note="", *, action_record=None):
-        """Re-home an assignment — model to stash, stash to model, onto a gun.
+        """Move an assignment and its subtree without repricing them.
 
-        The rulebook's equipment redistribution: stash gear "can be moved
-        to any number of Model Cards". The subtree rides along (roots are
-        rewritten down the chain), the pinned rating rides untouched — a
-        move never re-prices — and a MOVED event records who did it.
-
-        ``to`` is a model, the gang's stash, or **another assignment**,
-        which is how an accessory is bolted onto a weapon: it hangs off
-        that weapon's assignment, so re-homing it is giving it a new parent
-        rather than a new host. The same act either way — nothing is
-        bought, nothing is charged, and what the thing is worth does not
-        move with it.
-
-        What cannot be re-homed is a part that *is* what it hangs off
-        (:func:`n26.core.owned.is_detachable`) — a weapon's profile
-        names one gun and is nothing away from it.
+        ``to`` may be a model, stash or parent assignment, such as a weapon
+        receiving an accessory. Recompute denormalised roots and record a MOVED
+        event. Weapon profiles cannot be detached from their weapon.
         """
         from n26.core.models import Assignment, LedgerEvent, Miniature, Stash
         from n26.core.owned import is_detachable
@@ -3604,8 +3448,8 @@ class Operation:
                 f"{assignment.parent.assignable} — move that instead."
             )
         self.touched(assignment.miniature_root)
-        # Where the carrier's own grants were hosted: beside its root, so a
-        # sight bolted onto a gun hosts what it brings on the gun's model.
+        # Sibling grants use the carrier's root host, including a weapon's
+        # bearer when the carrier is an accessory.
         was_on = (assignment.miniature_root_id, assignment.stash_root_id)
         assignment.gang = None
         assignment.miniature = assignment.stash = assignment.parent = None
@@ -3614,9 +3458,7 @@ class Operation:
         elif isinstance(to, Miniature):
             assignment.miniature = to
         elif isinstance(to, Assignment):
-            # Hanging a thing off itself, or off something already hanging
-            # off it, would make a loop with no root — the denormalised
-            # roots would have nowhere to come from. No control offers it.
+            # Parent cycles prevent denormalised roots from being derived.
             if to.pk == assignment.pk or any(
                 row.pk == to.pk for row in subtree(assignment)
             ):
@@ -3625,13 +3467,9 @@ class Operation:
         else:
             raise ValueError(f"Cannot move something onto {to!r}.")
         assignment.save()
-        # What the thing brought and hosted beside itself — a built-in
-        # choice, the picks made for it — is hosted beside it still: a gun
-        # moving from the stash to a model takes its augmentation choice
-        # along, or the choice would stay where nobody can make it. Only
-        # what sat on the carrier's old host follows; a pick the gang
-        # holds stays the gang's. Parts hang off the carrier and re-derive
-        # their roots from it.
+        # Move sibling grants only when they shared the carrier's old
+        # host. Gang-held picks stay on the gang; attached parts derive
+        # their new roots from the carrier.
         if isinstance(to, Assignment):
             host = (to.miniature_root, to.stash_root)
         else:
@@ -3662,10 +3500,10 @@ class Operation:
     # --- boundary --------------------------------------------------------
 
     def settle(self):
-        """Rewrite the pinned numbers this operation disturbed.
+        """Recompute touched ratings and the gang's available credits.
 
-        Rating overflow and overspend are refused here so the whole
-        transaction unwinds, including assignments, payments and events.
+        Refuse rating overflow or overspend so the transaction rolls back all
+        assignments, payments and events.
         """
 
         def repin_rating(thing):
@@ -3681,10 +3519,8 @@ class Operation:
         for miniature in self._miniatures.values():
             repin_rating(miniature)
         if self.gang is not None:
-            # What the gang read about its own open activities is dropped
-            # here as well as at each writer: the instance goes on being
-            # used after the operation closes, and an act that opened or
-            # closed one must not leave it answering from before.
+            # The gang instance may outlive this operation; invalidate its cached
+            # activities after an opening or closing.
             self.gang.forget_open_activities()
             stash = getattr(self.gang, "stash", None)
             if stash is not None:
@@ -3702,10 +3538,9 @@ def _budget_word(credits):
 
 
 def _reason_for(paid, caused_by):
-    """Why this exists: something granted it, it was bought, or it was free.
+    """Classify an acquisition by its cause and payment.
 
-    "Granted" means another assignment brought it — a mount granting a
-    subtype. Something free that nobody granted is just free.
+    A caused assignment is granted even when its paid amount is zero.
     """
     if caused_by is not None:
         return Reason.GRANTED
@@ -3725,19 +3560,11 @@ def _now():
 
 
 def _under_the_lock(assignment):
-    """The root of a removal, read again now that the gang's line is held.
+    """Reload an assignment and ledger entry after acquiring the gang lock.
 
-    A caller loads what it means to remove, refund or sell before the
-    operation begins, and so before :func:`_hold` — two clicks of the same
-    button each load a live, paid-for line, and the second waits its turn
-    holding a copy that still says so. Acting on that copy would archive
-    a thing already archived and hand its money back a second time, with
-    the entry settled to zero twice while its events fold to minus what
-    it was worth. So the act reads the row afresh, entry beside it, and
-    every removal treats an already-archived root as done: nothing
-    written, and None returned so a caller can say so rather than report
-    an act that did not happen. The rows beneath it are always read
-    fresh, so they need no such care.
+    The caller may have loaded the assignment before another operation
+    archived or refunded it. Removal methods check the fresh archive state
+    to prevent duplicate refunds or sales. Descendants are queried afresh.
     """
     from n26.core.models import Assignment
 
@@ -3844,22 +3671,11 @@ def _clear_dismissal(anchor, identity, kwargs):
 
 
 def _hold(*gangs):
-    """Take the gangs' own lines, before this operation touches anything.
+    """Lock all participating gangs in primary-key order until transaction end.
 
-    Every operation ends by rewriting the gang's pinned numbers, so all
-    of them take this line either way. Taking it first gives every writer
-    one order: one gang's work settles an act at a time, each act reads
-    what the act before it wrote, and no two wait on each other's rows in
-    opposite orders.
-
-    An act that writes to more than one gang — a payment — takes every
-    line it will need here, in one statement ordered by key, so two such
-    acts meeting over the same gangs queue instead of each waiting on the
-    other's row.
-
-    Held for the length of the transaction, and only against others
-    taking it — one gang at a time, while every other gang goes on
-    untouched.
+    All player-data writers acquire these locks before modifying assignments
+    or totals. Consistent ordering prevents opposite-direction transfers from
+    deadlocking on the same gangs.
     """
     from n26.core.models import Gang
 
@@ -3913,11 +3729,10 @@ def clone_gang(source, *, name, owner, actor=None):
 
 @contextmanager
 def operation(gang, actor=None, batch=None, also=(), post_battle_revision=None):
-    """One transaction; pinned numbers rewritten when it closes.
+    """Run player-data writes atomically and recompute cached totals on exit.
 
-    ``also`` names the other gangs this act will write to — the payee of
-    a transfer — so their lines are taken with this gang's, together and
-    in one order.
+    ``also`` includes every other gang to be modified, such as a transfer
+    recipient, so their locks are acquired together in primary-key order.
     """
     op = Operation(
         gang, actor=actor, batch=batch, post_battle_revision=post_battle_revision
@@ -3927,10 +3742,8 @@ def operation(gang, actor=None, batch=None, also=(), post_battle_revision=None):
     with transaction.atomic(), write_guard():
         if gang is not None and gang.pk is not None:
             _hold(gang, *also)
-            # Anything the gang read before its line was taken can
-            # already be stale — two clicks on one button arrive
-            # together often enough. What is decided in here is decided
-            # on what stands under that line.
+            # Refresh values loaded before locking so concurrent submissions
+            # use the preceding operation's committed state.
             gang.refresh_from_db(fields=["starting_credits"])
             gang.forget_open_activities()
         yield op
