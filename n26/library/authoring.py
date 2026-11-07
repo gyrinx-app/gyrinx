@@ -2618,8 +2618,7 @@ def ef_adds(thing, with_pick=None):
 
     grant = AddsAssignable(**_assignable_kwarg(thing), with_pick=with_pick)
     if with_pick is not None or grant.asset_id is not None:
-        # Only the row knows whether the asset is inherent and whether a
-        # starting pick belongs to its hidden slot.
+        # Validate inherent-asset eligibility and starting-pick compatibility on the effect record.
         grant.clean()
     grant.save()
     return grant
@@ -2865,12 +2864,7 @@ def _countable_kwarg(thing):
 
 
 def _parts(scope, effect):
-    """Which of a modifier's columns these two parts fill.
-
-    The column a part goes in is the part's own kind, so the pairing is
-    read off the class name rather than declared — a new scope or
-    effect model is a column and nothing here.
-    """
+    """Resolve scope and effect fields from their model classes."""
     from n26.library.models.modifier import EFFECT_FIELDS, SCOPE_FIELDS
 
     fields = {}
@@ -2895,22 +2889,11 @@ def modifier(name, scope, effect, attach_to=None, **kwargs):
 
 @guarded_write
 def recompose_modifier(row, name, scope, effect):
-    """Say something else with a modifier that already exists.
+    """Replace an existing modifier's scope and effect records without changing their kinds.
 
-    The new parts are built by the same verbs that build a new
-    modifier's, and the old ones are dropped once nothing points at
-    them. Written that way because a scope's narrowing is condition
-    rows: changing it is a different set of rows, which no write to a
-    column can express.
-
-    Order is load-bearing. A modifier's columns *cascade from* its
-    parts — deleting a scope deletes the modifier holding it — so the
-    old parts may only go after the modifier points at the new ones.
-
-    The kinds do not change: the caller passes a scope and an effect of
-    the kinds already there, and a modifier reaching something else is
-    a different modifier. The row keeps its identity, so every carrier
-    holding it says the new sentence with nothing re-attached.
+    Point the modifier at its new parts before deleting old ones: deleting a
+    referenced part cascades the modifier. Delete condition records with the old
+    scope. Preserve modifier identity so every carrier uses the new behaviour.
     """
     old_scope, old_effect = row.scope, row.effect
     parts = _parts(scope, effect)
@@ -2930,13 +2913,7 @@ def recompose_modifier(row, name, scope, effect):
 @guarded_write
 @preserves_income_choices
 def delete_modifier(row):
-    """Remove a modifier, and the rows it is made of, from everywhere.
-
-    Every carrier loses the behaviour: the many-to-many rows go with
-    the modifier. Its scope and effect go too — the modifier holds the
-    only reference to either, so leaving them would leave rows nothing
-    can reach — and the scope takes its condition rows with it.
-    """
+    """Delete a modifier from every carrier, including its scope, effect and conditions."""
     scope, effect = row.scope, row.effect
     row.delete()
     scope.delete()
