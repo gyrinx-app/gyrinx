@@ -3666,13 +3666,10 @@ def deletion(request, pk):
 
 @staff_member_required
 def option_add(request, pk):
-    """One more thing inside an option, at an address of its own.
+    """Add another member to an option's default set.
 
-    An option that hands over two items — "a claw and a baton" — is one
-    option bringing both, so the second item joins the first option's
-    set rather than becoming an option of its own. A page rather than a
-    row control because the picker is a whole form: a kind, the row of
-    that kind, and whatever attaching it asks for.
+    The member joins the same option; it does not become an alternative.
+    The form asks for its content kind, content and attachment parameters.
     """
     from n26.core.propagation import reach_of
     from n26.library.models import Option
@@ -3708,8 +3705,7 @@ def option_add(request, pk):
             "label": option.name,
             "carrier": carrier,
             "brings": [_label_for(member.assignable) for member in _brought_by(option)],
-            # Held only by the carriers that took this option, so the
-            # sentence counts choosers rather than every use of the thing.
+            # Count holders of this option's set, excluding unrelated uses of its content.
             "reach_said": _reach_said(
                 reach_of(option.default_set), "anything added here"
             ),
@@ -3724,18 +3720,10 @@ def option_add(request, pk):
 
 @staff_member_required
 def option_remove(request, pk):
-    """The question asked before an alternative is withdrawn.
+    """Confirm removal of an option and, when unprotected, its default set.
 
-    A page rather than a control in the row, because what the act
-    reaches cannot be read off the row. The kit the option would have
-    brought goes with it — that set was founded for this option and
-    nothing else can reach it — while the weapons and skills it names
-    stay in the library untouched.
-
-    Taking the last option out of a set leaves the set empty, and taking
-    every option out of the main pick makes the thing hired one way
-    again. Both are said here, because both are changes to what a hire
-    screen offers rather than to this row alone.
+    The referenced weapons and skills remain. Removing the last option also
+    changes the acquisition choices, which the confirmation page explains.
     """
     from n26.library import authoring
     from n26.library.models import Option
@@ -3771,9 +3759,7 @@ def option_remove(request, pk):
             "carrier": carrier,
             "set_label": option.group.name if option.group_id else "",
             "brings": [_label_for(member.assignable) for member in _brought_by(option)],
-            # A set founded for this option is reached through it and
-            # nothing else, so it goes when the option does. One offered
-            # somewhere else as well stays, and so does everything in it.
+            # Delete the default set only if no protected references remain; retain its referenced content.
             "shared_with": shared_with,
             "last_in_its_set": bool(option.group_id)
             and option.group.options.count() == 1,
@@ -3784,13 +3770,10 @@ def option_remove(request, pk):
 
 @staff_member_required
 def option_set_remove(request, pk):
-    """The question asked before a set of options is taken off.
+    """Confirm deletion of an option set and all its options.
 
-    The options go with their set, and that is the whole reason this is
-    a page: the heading says how many options a set holds and not what
-    becomes of them. Loose in the main pick they would compete with the
-    standard loadout instead of with each other, which is a different
-    offer from the one the author wrote — so they go too.
+    Keeping the options in the main set would change which choices are mutually
+    exclusive, so they are deleted with their set.
     """
     from n26.library import authoring
     from n26.library.models import OptionGroup
@@ -3834,8 +3817,7 @@ CONDITION_TOTAL = f"{CONDITION_PREFIX}-TOTAL_FORMS"
 _COMPOSER_KEYS = ("chips", "name", "make_reusable", "scope_kind", "effect_kind")
 _COMPOSER_PREFIXES = ("who-", "what-", f"{CONDITION_PREFIX}-")
 
-#: Posted keys that describe the click rather than the form, and so
-#: must not be written into an address a reader can reload.
+#: Submit-control keys excluded when encoding reloadable composer form state.
 _NOT_CARRIED = ("csrfmiddlewaretoken", "act", "drop_condition")
 
 #: How long an address carrying a half-filled composer may get. A single
@@ -3869,16 +3851,9 @@ def _modifier_naming_props(composer):
 
 
 def _carried_state(request):
-    """The composer's own fields as this address carries them, or
-    ``None`` where the address carries no form at all.
+    """Read composer form state from the query string, or return ``None``.
 
-    A form written into the query string is what lets taking a condition
-    off keep the rest: the click redirects, and everything typed arrives
-    back as an ordinary GET.
-
-    A count naming more chips than the composer will ever draw is
-    shortened rather than obeyed — it comes off the address, where any
-    number can be typed.
+    Cap the requested chip count at the number the composer supports.
     """
     if CONDITION_TOTAL not in request.GET:
         return None
@@ -3941,10 +3916,7 @@ def _modifier_kind_picker_props(scope_kind, effect_kind, *, attach_to, submit_la
 
 
 def _composer_state(request, attach_to=None, bound_composer=None, *, switch_label):
-    """The composer as the URL describes it: closed, open at the named
-    kinds, filled in from a form the address carries, or bound with
-    errors after a refused submit. Shared by the carrier pages and the
-    standalone modifiers page."""
+    """Build composer state from GET selections or a POST with validation errors."""
     from n26.library.forms import ModifierComposerForm
 
     scope_kind = request.POST.get("scope_kind", request.GET.get("scope_kind", ""))
@@ -3982,13 +3954,7 @@ def _composer_state(request, attach_to=None, bound_composer=None, *, switch_labe
 
 
 def _dropped_condition(request):
-    """Which condition chip the click was asking to remove, or ``None``
-    when the submit was an ordinary one.
-
-    A submit rather than a link, because the click must keep everything
-    typed into the other chips and both panes — a link carries none of
-    it. It saves nothing: taking a condition off is an edit to the form.
-    """
+    """Identify a submitted condition-removal control, or return ``None``."""
     asked = request.POST.get("drop_condition", "")
     try:
         return int(asked)
@@ -3997,20 +3963,11 @@ def _dropped_condition(request):
 
 
 def _dropping_a_condition(request, index, *, attach_to=None, editing=None):
-    """The answer to a "remove this condition" click, as ``(response,
-    form)`` — one or the other, never both.
+    """Remove a condition chip and return ``(response, form)``, with one non-null.
 
-    The chip count is read off the address on every draw, so a click
-    that only redrew the page would leave the address claiming a chip
-    that is no longer on the screen, and a reload would bring it back.
-    The click therefore redirects, and everything the author has typed
-    rides the address with it.
-
-    Some forms will not fit. A condition may name any number of weapons,
-    and enough of them make an address longer than a server will accept;
-    then the page redraws from the post instead. The chip still goes and
-    nothing typed is lost — only the address stays as it was, so a
-    reload of that one page brings the chip back.
+    Redirect with the remaining form state in the query string. If that URL
+    would be too long, render the POST directly instead; reloading then restores
+    the chip count still present in the URL.
     """
     from n26.library.forms import ModifierComposerForm, without_condition_chip
 
@@ -4024,13 +3981,10 @@ def _dropping_a_condition(request, index, *, attach_to=None, editing=None):
 
 
 def _carrying(request, data):
-    """This page's address with a posted composer written into it, or
-    ``None`` when that address would be too long to send.
+    """Encode posted composer state in this page's query string.
 
-    The composer's own keys are cleared out of the query string before
-    the posted ones go in: left in place, the fields of a form that has
-    since lost a chip would sit alongside the fields of the form that
-    replaced it, and the address would grow with every click.
+    Replace existing composer keys so removed chips do not accumulate stale
+    fields. Return ``None`` when the URL would exceed the accepted length.
     """
     params = request.GET.copy()
     for key in list(params):
@@ -4044,20 +3998,10 @@ def _carrying(request, data):
 
 
 def _one_more_chip(request, chips, scope_kind, effect_kind):
-    """This page's address with one more empty condition chip.
+    """Add a condition chip while preserving the complete query string.
 
-    Built from the whole query string rather than from the two kinds
-    alone: the page is showing step two because the address says so, and
-    everything else the address says — which carrier this is being
-    composed for, and any form it carries — has to survive the click.
-    The kinds are written in rather than read back off it, because the
-    page also draws itself after a refused submit, where they arrived in
-    the post body and the address has nothing in it.
-
-    Where the address carries a form, that form's own count says how
-    many chips there are and the plain count is not consulted: two
-    numbers claiming to say the same thing disagree the moment one of
-    them moves.
+    Use the supplied kinds because they may come from a failed POST.
+    When form state is present, its own chip count takes precedence.
     """
     params = request.GET.copy()
     if scope_kind and effect_kind:
@@ -4124,13 +4068,7 @@ CARRIED_LABELS = (
 
 
 def _facet_options(rows, key, labels):
-    """The facet's options, narrowed to the values these rows actually
-    hold.
-
-    A filter offering a kind nothing on the page has is a control whose
-    only effect is to empty the list. Order follows the declaration, not
-    the rows, so the menu reads the same however the pack grows.
-    """
+    """Return declared facet options used by the listed content, in declaration order."""
     present = {row["facets"][key] for row in rows}
     return [
         {"value": value, "label": label} for value, label in labels if value in present
@@ -4216,18 +4154,9 @@ def modifiers(request):
 
 
 def _composing_for(request):
-    """The carrier this composer page is being used on behalf of, named
-    in the address as ``for_kind`` and ``for``.
+    """Resolve the carrier identified by ``for_kind`` and ``for`` in the URL.
 
-    A carrier's own page hands the composing over to this one rather
-    than drawing it inline: a long page that reloads on every choice
-    puts the reader back at the top, scrolling to find the form again.
-    What the trip must not lose is which thing the modifier is being
-    made for — so it rides the URL, where it survives a refresh and can
-    be linked to.
-
-    Reached with no carrier named, this is the standalone page it has
-    always been, and the answer is ``(None, None)``.
+    Return ``(None, None)`` when no carrier is specified.
     """
     kind = request.POST.get("for_kind", request.GET.get("for_kind", ""))
     pk = request.POST.get("for", request.GET.get("for", ""))
@@ -4239,19 +4168,10 @@ def _composing_for(request):
 
 @staff_member_required
 def modifier_create(request):
-    """The composer on a page of its own.
+    """Create a modifier after GET selects its scope and effect kinds.
 
-    Two steps, as everywhere else it appears: a GET names the scope kind
-    and the effect kind, and only then are the fields those kinds call
-    for drawn. Both ride the URL, so step two survives a refresh and
-    "add a condition" is a plain link.
-
-    Reached from a carrier's page the carrier rides the URL too, and
-    what is composed here hangs on it — the same modifier that page
-    would have made inline, made somewhere the reader is not scrolled
-    away from. Reached without one, what it makes attaches to nothing:
-    reusable by construction, waiting in every carrier page's attach
-    picker.
+    The URL also identifies an optional carrier. Attach the result to that
+    carrier, or leave it unattached for later reuse.
     """
     from n26.library.forms import ModifierComposerForm
 
@@ -4910,11 +4830,8 @@ def entry_edit(request, pk):
         if form.is_valid():
             try:
                 with transaction.atomic():
-                    # The overrides ride the union as asks rather than
-                    # being spec fields, so ``apply_to`` does not carry
-                    # them: they go onto the row first, and its one
-                    # write — the row's own sense check, the save, the
-                    # use lists replaced — takes them with it.
+                    # Apply union attachment overrides before saving; they are not ordinary spec fields.
+                    # The same write validates the record and replaces its use lists.
                     for name in overrides:
                         setattr(entry, name, form.cleaned_data.get(name))
                     form.apply_to(entry)
@@ -4953,12 +4870,10 @@ def entry_edit(request, pk):
 
 @staff_member_required
 def entry_remove(request, pk):
-    """The question asked before a listing row is taken off.
+    """Confirm removal of a collection entry and its overrides.
 
-    What goes is the *entry* — this collection's row for the thing, its
-    overrides included. The thing named stays in the library and on
-    every other list that names it, and nothing already bought changes:
-    a purchase pinned its own record when it was made.
+    Keep the content and its other listings. Existing purchases retain their
+    recorded prices and ratings.
     """
     from n26.library import authoring
     from n26.library.models import CollectionEntry
@@ -5057,12 +4972,9 @@ SLOT_TYPE_PARTS = (
 
 
 def _slot_type_part_form(part, slot_type, posted=None):
-    """The form that adds one part to a slot type.
+    """Build a part form with its slot type supplied by the containing page.
 
-    The spec-generated create form for that kind, with the slot type
-    taken off: the page is the slot type, so asking again would be a box
-    with one right answer. Handed the slot type as its carrier, which is
-    what narrows a slot's picklist picker to the ones this slot type has.
+    The carrier also restricts the picklist choices to this slot type.
     """
     spec = specs()[part["verb"]]
     form_class = generate_form(spec)
@@ -5165,12 +5077,7 @@ def slot_type_page(request, pk):
 
 
 def _slot_type_rows(slot_type, part):
-    """One of a slot type's three sets of parts, with what its notes read.
-
-    Each set is one query and its notes one more, whatever the slot type
-    holds — one with eight pickables costs this page what one with a
-    single pickable costs it.
-    """
+    """Load a slot type's parts and description relations in two queries per kind."""
     rows = getattr(slot_type, part["parts"]).all()
     if part["act"] == "pickable":
         return rows.prefetch_related("listed_on")
@@ -5179,20 +5086,13 @@ def _slot_type_rows(slot_type, part):
     return rows.select_related("picklist")
 
 
-#: Kinds whose detail page is its own view rather than the
-#: parts-and-add-form shape. Checked by ``detail`` before anything else.
+#: Specialised detail views checked before the generic parts-and-form renderer.
 DETAIL_VIEWS = {"collection": collection_page, "slot-type": slot_type_page}
 
 
 @staff_member_required
 def foundations(request):
-    """The rows the rulebook fixes, created on a button.
-
-    Stats, statline shapes and profile types are nobody's authoring
-    decision — every pack needs the same ones, and nothing else can be
-    built until they exist. Each kind has its own page like anything
-    else; this page is only the shortcut that fills them in.
-    """
+    """Offer idempotent creation of standard characteristics, statlines and profile types."""
     from django.core import signing
 
     from n26.library.fighter_action_setup import (
