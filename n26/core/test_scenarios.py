@@ -15,6 +15,8 @@ from n26.core.scenarios import (
 )
 from n26.library.scenario_tables import table
 
+pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("scenario_content")]
+
 
 def test_roll_rolls_only_the_tables_named_in_table_order():
     # A seeded game die for a repeatable test, not a secret.

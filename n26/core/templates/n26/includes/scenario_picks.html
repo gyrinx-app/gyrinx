@@ -53,6 +53,7 @@ available without JavaScript; submitted selections are validated by Django.
                     {% endfor %}
                 </c-ui.select.native>
             </c-ui.field>
+            {% if menu.unavailable %}<input type="hidden" name="{{ menu.name }}" value="{{ menu.value }}">{% endif %}
             {% if menu.place > 1 %}
                 <div class="flex justify-end">
                     <c-ui.button type="submit"

@@ -14,7 +14,7 @@ from n26.core.models import Battle, CampaignEvent
 from n26.core.operations import Refusal
 from n26.tests.sandbox.actions import found_campaign, found_gang
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("scenario_content")]
 
 
 @pytest.fixture

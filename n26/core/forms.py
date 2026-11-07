@@ -633,11 +633,16 @@ class ScenarioComponentsMixin:
     components reach ``cleaned_data`` as one ``scenario_rolls`` mapping.
     """
 
-    def add_scenario_fields(self):
-        from n26.library.scenario_tables import SIDE_JOB_KEYS, TABLES
+    def __init__(self, *args, catalogue=None, **kwargs):
+        self.catalogue = catalogue
+        super().__init__(*args, **kwargs)
 
+    def add_scenario_fields(self):
+        from n26.library.scenario_tables import SIDE_JOB_KEYS, load_catalogue
+
+        self.catalogue = self.catalogue or load_catalogue()
         self.scenario_keys = []
-        for table in TABLES:
+        for table in self.catalogue.tables:
             self.scenario_keys.append(table.key)
             self.fields[table.key] = forms.TypedChoiceField(
                 required=False,
@@ -649,13 +654,15 @@ class ScenarioComponentsMixin:
         for key in SIDE_JOB_KEYS:
             self.scenario_keys.append(key)
             self.fields[key] = forms.CharField(
-                required=False, max_length=20, widget=forms.HiddenInput
+                required=False, max_length=80, widget=forms.HiddenInput
             )
 
     def gather_scenario(self, cleaned):
         from n26.core.scenarios import parse, rolls_of
 
-        found, wrong = parse({key: cleaned.get(key) for key in self.scenario_keys})
+        found, wrong = parse(
+            {key: cleaned.get(key) for key in self.scenario_keys}, self.catalogue
+        )
         if wrong or any(key in self.errors for key in self.scenario_keys):
             for key in self.scenario_keys:
                 self.errors.pop(key, None)
@@ -1219,18 +1226,35 @@ class ScenarioGeneratorForm(forms.Form):
     CHOOSE_SET = ""
     SIDE_JOBS = "side_jobs"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, catalogue=None, include_staged=False, **kwargs):
         from n26.library.scenario_tables import (
             SIDE_JOB_LIMIT,
-            SIDE_JOB_SETS,
-            TABLES,
+            load_catalogue,
             side_job_key,
         )
 
         super().__init__(*args, **kwargs)
+        self.catalogue = catalogue or load_catalogue(include_staged=include_staged)
         self._side_job_menus_from_results()
-        self.tables = TABLES
-        for table in TABLES:
+        from n26.core.scenarios import parse
+
+        held, wrong = parse(self.data or {}, self.catalogue)
+        self.referenced_side_job_sets = {
+            result.table.side_job_set.key: result.table.side_job_set
+            for result in held
+            if not wrong and result.table.side_job_set
+        }
+        # Held results may outlive a set's availability. They remain readable
+        # and keep their menu positions, but cannot supply a new generation.
+        readable_sets = list(self.catalogue.side_job_sets)
+        if "generate" not in self.data:
+            readable_sets += [
+                each
+                for each in self.referenced_side_job_sets.values()
+                if not each.available
+            ]
+        self.tables = self.catalogue.tables
+        for table in self.tables:
             self.fields[self.pick_name(table)] = forms.ChoiceField(
                 required=False,
                 label=table.name,
@@ -1253,9 +1277,13 @@ class ScenarioGeneratorForm(forms.Form):
         side_job_choices = [
             (self.CHOOSE_SET, "Choose a side job set"),
             (self.LEAVE_OUT, "Leave out"),
-            (self.ROLL, "Roll a D6"),
-        ] + [(str(roll), str(roll)) for roll in range(1, 7)]
-        for found in SIDE_JOB_SETS:
+        ]
+        general = self.catalogue.side_job_set("general")
+        if general and general in readable_sets:
+            side_job_choices += [(self.ROLL, "Roll a D6")] + [
+                (str(roll), str(roll)) for roll in range(1, 7)
+            ]
+        for found in readable_sets:
             side_job_choices.append((found.key, found.label))
             side_job_choices += [
                 (f"{found.key}-{entry.roll}", entry.label) for entry in found.entries
@@ -1271,17 +1299,31 @@ class ScenarioGeneratorForm(forms.Form):
                 required=False,
                 label="Side job set",
                 choices=[("", "Choose a side job set"), (self.LEAVE_OUT, "Leave out")]
-                + [(found.key, found.label) for found in SIDE_JOB_SETS],
+                + [(found.key, found.label) for found in readable_sets],
                 error_messages={"invalid_choice": "Select a side job set."},
             )
             # A native form can submit a new set beside the previous set's
             # job. That selection starts with a random job from the new set.
             if set_name in self.data:
                 selected = self.data[set_name]
-                if selected in {"", self.LEAVE_OUT, *(s.key for s in SIDE_JOB_SETS)}:
+                if selected in {
+                    "",
+                    self.LEAVE_OUT,
+                    *(s.key for s in readable_sets),
+                }:
                     pick = self.data.get(name, "")
                     if selected in ("", self.LEAVE_OUT) or (
-                        pick in side_job_values
+                        (
+                            pick in side_job_values
+                            or any(
+                                pick == held.key
+                                or pick
+                                in {
+                                    f"{held.key}-{entry.roll}" for entry in held.entries
+                                }
+                                for held in self.referenced_side_job_sets.values()
+                            )
+                        )
                         and not (pick == selected or pick.startswith(f"{selected}-"))
                     ):
                         self.data = self.data.copy()
@@ -1311,7 +1353,9 @@ class ScenarioGeneratorForm(forms.Form):
         ):
             return
         found = [
-            read_side_job(data.get(key))[0] for key in SIDE_JOB_KEYS if data.get(key)
+            read_side_job(data.get(key), self.catalogue)[0]
+            for key in SIDE_JOB_KEYS
+            if data.get(key)
         ]
         if not found or None in found:
             return
@@ -1339,26 +1383,31 @@ class ScenarioGeneratorForm(forms.Form):
         """Each side job menu's pick, first to last: a set's key to roll on
         it, a set's key and roll for that job, "leave", or "" for none. Picks from
         links made before there were sets are read as the General set."""
-        from n26.library.scenario_tables import GENERAL_SIDE_JOBS
+        general = self.catalogue.side_job_set("general")
 
         picks = []
         for name in self.side_job_names:
             pick = self.cleaned_data.get(name) or self.CHOOSE_SET
             if pick == self.ROLL:
-                pick = GENERAL_SIDE_JOBS.key
+                pick = general.key
             elif pick.isdigit():
-                pick = f"{GENERAL_SIDE_JOBS.key}-{pick}"
+                pick = f"{general.key}-{pick}"
             picks.append(pick)
         return picks
 
     def _side_job_choice(self, pick):
         """``(set, roll)`` for a side job pick, with None for a roll to
         make; ``(None, None)`` for a pick that adds no side job."""
-        from n26.library.scenario_tables import side_job_set
-
-        set_key, _, roll = pick.partition("-")
-        found = side_job_set(set_key) if set_key else None
-        return found, (int(roll) if found and roll else None)
+        found = self.catalogue.side_job_set(pick)
+        if found:
+            return (found, None) if found.available else (None, None)
+        set_key, _, roll = pick.rpartition("-")
+        found = self.catalogue.side_job_set(set_key) if set_key else None
+        return (
+            (found, int(roll))
+            if found and found.available and roll.isdigit()
+            else (None, None)
+        )
 
     def generate(self, rng=None):
         """``{key: roll}`` for the tables not left out: a D6 for the ones to
@@ -1369,7 +1418,9 @@ class ScenarioGeneratorForm(forms.Form):
 
         picks = self.picks()
         rolled = roll(
-            [key for key, pick in picks.items() if pick == self.ROLL], rng=rng
+            [key for key, pick in picks.items() if pick == self.ROLL],
+            rng=rng,
+            catalogue=self.catalogue,
         )
         generated = {
             key: rolled[key] if pick == self.ROLL else int(pick)
@@ -1386,6 +1437,7 @@ class ScenarioGeneratorForm(forms.Form):
         cleaned = super().clean()
         if (
             not self.errors
+            and not ("generate" not in self.data and self.referenced_side_job_sets)
             and all(pick == self.LEAVE_OUT for pick in self.picks().values())
             and not any(
                 self._side_job_choice(pick)[0] for pick in self.side_job_picks()
@@ -1453,7 +1505,6 @@ class ScenarioGeneratorForm(forms.Form):
 
     def side_job_menus(self):
         """The persistent set and job controls for each side job."""
-        from n26.library.scenario_tables import SIDE_JOB_SETS
 
         picks = (
             self.side_job_picks()
@@ -1465,6 +1516,10 @@ class ScenarioGeneratorForm(forms.Form):
             zip(self.side_job_names, picks, strict=True), start=1
         ):
             found, _ = self._side_job_choice(pick)
+            retained = self.referenced_side_job_sets.get(
+                pick
+            ) or self.referenced_side_job_sets.get(pick.rpartition("-")[0])
+            unavailable = retained if retained and not retained.available else None
             label = f"Side job {place}"
             if found:
                 options = [(found.key, "Roll a D6")] + [
@@ -1482,13 +1537,19 @@ class ScenarioGeneratorForm(forms.Form):
                     "value": pick,
                     "set_name": name.removesuffix("_pick") + "_set",
                     "set_id": f"id_{name.removesuffix('_pick')}_set",
-                    "set_value": found.key
-                    if found
+                    "set_value": (found or unavailable).key
+                    if found or unavailable
                     else ("" if pick == self.LEAVE_OUT else pick),
                     "set_options": [
                         ("", "Choose a side job set"),
                     ]
-                    + [(each.key, each.label) for each in SIDE_JOB_SETS],
+                    + (
+                        [(unavailable.key, f"{unavailable.label} (unavailable)")]
+                        if unavailable
+                        else []
+                    )
+                    + [(each.key, each.label) for each in self.catalogue.side_job_sets],
+                    "unavailable": unavailable is not None,
                     "disabled": found is None,
                     "options": options,
                     "field": self[name],

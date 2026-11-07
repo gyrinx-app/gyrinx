@@ -160,3 +160,15 @@ merge and is named: add it to the row that stays, or delete it from the
 duplicate first. Modifiers, use restrictions and built-ins on the
 duplicate itself are yours to move or detach before merging; the merge
 does not guess at them.
+
+## Scenario tables
+
+New side-job sets start staged. Their entries are released together with the
+set, so a player never meets half a table. Complete all six D6 entries before
+previewing or putting a set live. This check also applies when you select the
+set on the staged-content page.
+
+Staff can preview a complete staged set in the real generator. Ordinary players
+see it in new choices only after release, unless staged content is open to them.
+Known scenario links and saved battles continue to show their entries. Changes
+to live wording appear immediately, including on saved scenarios.

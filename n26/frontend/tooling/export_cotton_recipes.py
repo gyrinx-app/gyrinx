@@ -1181,6 +1181,7 @@ def recipes():
         "radioCards": radio_cards_recipe(),
         "radioOption": radio_option_recipe(),
         "input": input_recipe(),
+        "textarea": classes("<c-ui.textarea />", "textarea")[0],
         "nameList": name_list_recipe(),
         "nativeSelect": native_select_recipe(),
         "nativeSelectSmall": native_select_recipe("sm"),

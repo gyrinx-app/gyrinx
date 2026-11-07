@@ -563,6 +563,21 @@ def revise(row, **fields):
     their replacement function, such as ``set_traits`` or ``set_usable_by``,
     which defines how omitted members are handled.
     """
+    from n26.library.models import ScenarioEntry, ScenarioTable
+
+    if isinstance(row, (ScenarioTable, ScenarioEntry)):
+        with transaction.atomic():
+            table_id = row.pk if isinstance(row, ScenarioTable) else row.table_id
+            ScenarioTable.objects.select_for_update().get(pk=table_id)
+            row.refresh_from_db()
+            for name, value in fields.items():
+                setattr(row, name, value)
+            row.full_clean()
+            if isinstance(row, ScenarioTable) and not row.staged and not row.archived:
+                row.check_complete()
+            row.save()
+            return row
+
     for name, value in fields.items():
         if row._meta.get_field(name).many_to_many:
             raise ValueError(
@@ -657,6 +672,13 @@ def put_selected_live(selection):
                 "Some selected content is no longer available. Review your selection."
             )
         locked.append((model, pks))
+
+    from n26.library.models import ScenarioTable
+
+    for model, pks in locked:
+        if model is ScenarioTable:
+            for table in model.objects.filter(pk__in=pks):
+                table.check_complete()
 
     now = timezone.now()
     return sum(
@@ -2225,8 +2247,15 @@ def delete_content(row):
     protect their content. Callers convert protected-reference errors into
     appropriate messages.
     """
-    from n26.library.models import Asset, AssetTable
+    from django.db.models import ProtectedError
 
+    from n26.library.models import Asset, AssetTable, ScenarioEntry, ScenarioTable
+
+    if isinstance(row, (ScenarioTable, ScenarioEntry)):
+        raise ProtectedError(
+            "Scenario content may be referenced by saved results. Retire its table instead.",
+            [row],
+        )
     if isinstance(row, (Asset, AssetTable)):
         take_out_of_built_ins(row)
     row.delete()
@@ -2953,3 +2982,38 @@ def configure_trading_post_visit(excluded_gang_types=()):
     )
     action.excluded_gang_types.set(types)
     return action
+
+
+@guarded_write
+@transaction.atomic
+def create_scenario_table(name, position=0, **kwargs):
+    """Create a staged side-job set, ready for its six entries."""
+    from n26.library.models import ScenarioTable
+
+    kwargs.setdefault("staged", True)
+    table = ScenarioTable(name=name.strip(), position=position, **kwargs)
+    table.full_clean()
+    table.save()
+    return table
+
+
+@guarded_write
+@transaction.atomic
+def add_scenario_entry(table, roll, name, text, diagram=None, diagram_alt="", **kwargs):
+    """Add one D6 result to a scenario table."""
+    from n26.library.models import ScenarioEntry, ScenarioTable
+
+    table = ScenarioTable.objects.select_for_update().get(pk=table.pk)
+    entry = ScenarioEntry(
+        table=table,
+        pack_id=table.pack_id,
+        roll=roll,
+        name=name.strip(),
+        text=text.strip(),
+        diagram=diagram or "",
+        diagram_alt=diagram_alt,
+        **kwargs,
+    )
+    entry.full_clean()
+    entry.save()
+    return entry
