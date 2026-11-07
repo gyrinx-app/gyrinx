@@ -1,24 +1,13 @@
-"""Dropping the second refund a doubled click wrote.
+"""Repair duplicate refund, sale and removal events while preserving one valid removal.
 
-A refund, a sale and a removal each archive a line and write one event
-saying so; a refund or a sale also settles the line's ledger entry. Where
-the same click reached the server twice before the operation read the
-line again under the gang's lock, the second arrival acted on a copy
-loaded before the first had finished and wrote the same event again: two
-``refunded`` or two ``sold`` legs for one purchase, and — for a fighter —
-the removal legs of what they brought written twice as well. The entry's
-pins say zero, the events fold to minus what the thing was worth, and
-the gang's credits stand higher than its budget less its spending.
+Duplicate submissions can record repeated events against one archived
+assignment. The entry then disagrees with the folded events and gang totals.
+Find repeated events by assignment and kind, plus repeated dependent removals
+sharing a surplus event's batch.
 
-The books' invariant is that folding an entry's events reproduces the
-entry, and the surplus legs are the only thing between these gangs and
-it. Dropping them — every leg of a kind after the first on its line, and
-every removal leg that rode in the same act — leaves one true story per
-line, so the entries' pins already fit and the gang's pinned numbers
-need only be written again. Deleting from an append-only ledger is the
-sanctioned exception a repair earns the way a conversion does: it moves
-no money of its own, and proves every affected gang reconciles or
-unwinds whole.
+Delete only the surplus records and repin totals. This repair is an explicit
+exception to append-only history: each affected gang must reconcile before
+its transaction commits. A failure rolls back that gang without blocking others.
 """
 
 from dataclasses import dataclass
@@ -28,22 +17,19 @@ from django.db.models import Count, Q
 
 
 class Refused(Exception):
-    """The repair found something other than the fault it was written for."""
+    """The planned records do not match this repair's duplicate-event criteria."""
 
 
 @dataclass(frozen=True)
 class Doubled:
-    """Every surplus leg, grouped by the gang whose books carry it."""
+    """Surplus event IDs and balance adjustments grouped by gang."""
 
-    #: ``(gang id, surplus event ids, credits the gang was over)``, one
-    #: per gang. The credits figure is what the surplus legs handed back:
-    #: the gang's pinned credits fall by exactly this when they go.
+    #: Per-gang surplus event IDs and excess credits to remove from cached totals.
     gangs: tuple = ()
     problems: tuple = ()
     nothing_here: bool = False
-    #: Gangs that spent the credits they were never owed: dropping their
-    #: surplus legs would leave their credits below zero, which the books
-    #: never allow, so the repair leaves them as they stand and says so.
+    #: Gangs whose corrected balance would be negative remain unchanged and
+    #: are reported for a separate balance decision.
     overspent: tuple = ()
 
     @property
@@ -81,16 +67,11 @@ class Doubled:
 
 
 def _surplus_events(gang_id=None):
-    """Every leg after the first of its kind on a line, and every removal
-    leg written in the same act as one of those. ``gang_id`` narrows the
-    reading to one gang's ledger; every event is pinned to its gang, so
-    the narrowing is a filter rather than a join.
+    """Find duplicate settlement events and associated repeated removals for one gang.
 
-    Found in the ledger's own terms rather than by folding every gang's
-    books: a line with two ``refunded`` or two ``sold`` events is the
-    fault by definition, and the act that wrote the second is named by
-    its batch mark — so the removal legs it wrote for the lines beneath
-    are the ones sharing that mark that repeat an earlier removal.
+    Keep the first refund or sale of each kind per assignment. Its later
+    same-kind events identify surplus batches; remove repeated descendant removal
+    events from those batches as well.
     """
     from n26.core.models import LedgerEvent
 
@@ -119,10 +100,8 @@ def _surplus_events(gang_id=None):
             batch__in=batches, kind=LedgerEvent.Kind.REMOVED
         ).order_by("created", "id")
         for event in repeats:
-            # "Earlier" in the same total order the surplus legs above
-            # were ranked by: created, then id. Two legs written in the
-            # same instant still have one first, so an exact tie names
-            # one of them and never both.
+            # Use the same created-then-ID order as surplus ranking so simultaneous
+            # events still have one deterministic first event.
             earlier = (
                 LedgerEvent.objects.filter(
                     assignment_id=event.assignment_id,
@@ -140,8 +119,7 @@ def _surplus_events(gang_id=None):
 
 
 def find(gang_id=None):
-    """What stands to be dropped, gang by gang. ``gang_id`` narrows the
-    plan to that one gang."""
+    """Plan duplicate-event removals, optionally restricted to one gang."""
     surplus = _surplus_events(gang_id)
     if not surplus:
         return Doubled(nothing_here=True)
@@ -166,8 +144,7 @@ def find(gang_id=None):
 
 
 def _overspent(by_gang):
-    """The gangs whose pinned credits are less than the surplus they hold
-    — a gang with no budget has no floor to fall through."""
+    """Find finite-budget gangs whose corrected credits would become negative."""
     from n26.core.models import Gang
 
     short = []
@@ -180,15 +157,10 @@ def _overspent(by_gang):
 
 
 def apply(doubled):
-    """Drop what the plan names, gang by gang, and prove each gang's books
-    whole.
+    """Apply each gang's planned repair in its own transaction and verify reconciliation.
 
-    Each gang is its own transaction: one that cannot be made whole is
-    left exactly as it stood and reported, and the rest are repaired.
-    The one way a gang cannot be made whole is having spent the credits
-    it was never owed — dropping the surplus would leave its credits
-    below zero, which the books never allow — and what to do about that
-    is a decision, not a repair.
+    Report failures and leave their gangs unchanged. Removing surplus credits
+    can make a gang insolvent; resolving that balance requires a separate decision.
     """
     if doubled.problems:
         raise Refused("not repaired: " + "; ".join(doubled.problems))
@@ -202,10 +174,7 @@ def apply(doubled):
 
 
 def apply_one(gang_id):
-    """One gang's repair as it stands now, committed on its own. Returns
-    the line the report carries for it. The entry for a run that visits
-    gangs across deliveries, where the plan is read afresh per gang
-    rather than carried from the preview."""
+    """Rederive and apply one gang's repair in its own transaction, returning its report."""
     current = find(gang_id)
     if current.problems:
         return (
@@ -220,15 +189,12 @@ def apply_one(gang_id):
 
 
 def _repair_one(gang_id, ids):
-    """One gang's repair, committed or rolled back on its own. Returns
-    the line the report carries for it."""
+    """Repair and verify one gang atomically, returning its report."""
     from n26.core.models import Gang, LedgerEvent
     from n26.core.reconcile import check_gang, repin_everything
 
     with transaction.atomic():
-        # The gang first, so nothing lands on its books while its legs
-        # are being dropped; then the plan again, because it was read
-        # before this transaction opened.
+        # Lock the gang before rederiving the plan from current ledger state.
         gang = Gang.objects.select_for_update().get(pk=gang_id)
         standing = {g: legs for g, legs, _ in find(gang_id).gangs}
         if standing.get(gang_id) != ids:
