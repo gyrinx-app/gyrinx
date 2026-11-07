@@ -1585,8 +1585,8 @@ def model_card():
                 ],
             ),
         ],
-        # List skills alphabetically with provenance. A skill selected for a choice
-        # appears through that choice instead of being repeated independently.
+        # List skills alphabetically with provenance. Skills chosen through offers routed
+        # to Skills remain here; only their resolved prompts are omitted.
         skills=[
             _granted("Gang Hierarchy", "Leader", "subtype"),
             _granted("Group Activation (2)", "Leader", "subtype"),
@@ -1843,8 +1843,8 @@ def extra_groups(profile_name, subtype, base_price):
     ]
 
 
-#: Composition checks compare Champion, Brute and Hanger-on counts against other members.
-#: The view displays counts and notes; the operation enforces the limit.
+#: Mark sample hire entries for the gallery’s composition display. Production composition
+#: breaches produce notes without blocking hires.
 LIMITED_SUBTYPES = frozenset({"Champion", "Brute", "Hanger-on"})
 
 
