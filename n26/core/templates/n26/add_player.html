@@ -85,8 +85,8 @@ selected invitation recipient are URL state, including when htmx updates the res
                                   placeholder="Search by username" />
             </div>
             {% comment %}
-            Keep the loading overlay outside the swap target so replacing results cannot
-            remove it or change their height.
+            Keep the loading overlay outside the swap target so it survives result
+            replacements. Absolute positioning keeps the indicator from changing layout.
             {% endcomment %}
             <div id="looking" class="n26-awaiting relative">
                 <span class="n26-awaiting-mark absolute inset-0 z-10 items-center justify-center gap-2 bg-white/70 text-sm text-muted dark:bg-ink-950/70">

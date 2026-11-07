@@ -39,10 +39,6 @@ checked action URLs. The gallery preview uses designsystem/shell/campaign.html.
         <c-slot name="arbitrator">
             <c-n26.user-link :user="campaign.owner" tone="current" />
         </c-slot>
-        {% comment %}
-        Test whether a switcher exists before creating its slot: whitespace still counts
-        as slot content and would render an empty wrapper.
-        {% endcomment %}
         {% if yours %}
             <c-slot name="trailing">
                 {% campaign_switcher campaign named=False menu_label="Your other campaigns" as heading_campaigns_ %}
