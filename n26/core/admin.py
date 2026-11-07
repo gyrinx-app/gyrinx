@@ -1,23 +1,12 @@
-"""The admin's window onto player data — and mostly a window.
+"""Inspect player data without bypassing operation-managed writes.
 
-Player data is written by ``n26.operations`` and nowhere else: an
-assignment created or edited here would skip the ledger entry, the event
-and the repin, and nothing would notice until reconcile ran. So the
-ledger-adjacent models — Assignment, LedgerEntry, LedgerEvent, Stash —
-are registered read-only: the admin is for finding and inspecting, not
-for writing what only an operation may write. The pinned caches on Gang
-and Miniature are read-only fields for the same reason.
+Assignments, ledger entries, events and stash records are read-only.
+Gang and model totals are also read-only because operations recompute them.
+Superusers may delete individual objects through Django's cascade preview;
+changelists offer no batch deletion.
 
-Removing is the exception, and a superuser's alone. Django asks for
-the delete permission on every model a cascade reaches, so a gang is
-deletable only where the models its deletion touches allow it. It is
-taken one at a time, on the page that says what goes: the changelists
-offer no batch delete.
-
-Display-only state (AssignmentSet, PrintConfig, StatOverride, DismissedOffer) is
-editable — it moves no money, changes no rating and touches no ledger —
-though their selection M2Ms are managed in the app, where the choices
-are drawn with the context a bare multi-select cannot give.
+Display preferences remain editable. Assignment selections use the application's
+card and print screens, which provide the context for selecting equipment.
 """
 
 from django.contrib import admin
@@ -42,13 +31,7 @@ from n26.core.models.assignment import ASSIGNABLE_FIELDS
 
 
 class OneAtATime:
-    """No batch delete from a list.
-
-    Deleting player data is a deliberate act, taken on the page that
-    says what goes with it. The changelist's batch offers the same
-    power a checkbox at a time, over things whose consequences differ
-    one from the next, and with no such page in between.
-    """
+    """Disable changelist batch deletion in favour of each object's cascade preview."""
 
     def get_actions(self, request):
         actions = super().get_actions(request)
@@ -57,20 +40,13 @@ class OneAtATime:
 
 
 class ReadOnlyAdmin(OneAtATime, admin.ModelAdmin):
-    """Look, don't write — but a superuser may still remove.
+    """Permit inspection and superuser deletion while refusing creation and edits.
 
-    Writing is what the guard is for: an assignment created or edited
-    here skips the ledger entry, the event and the repin, and nothing
-    notices until reconcile runs. Removing is a different act, and a
-    superuser's: a gang that has to go takes its assignments, its
-    ledger and its stash with it. Its models stay — belonging to a gang
-    is an assignment, and a model outlives the one that placed it.
+    Operation-managed creation requires assignments, ledger entries, events and
+    recomputed totals together. Deleting part of a gang may invalidate totals
+    or its event history; reconciliation detects these discrepancies.
 
-    Deleting *part* of a gang is possible and is the sharp edge: one
-    assignment out of a live chain leaves that gang's pinned totals
-    standing for what has gone, which reconcile reports as a
-    discrepancy, and a lone ledger event is the audit trail losing a
-    line. The repair is to recompute, or to delete the gang whole.
+    Deleting a gang cascades through memberships to roster models.
     """
 
     def has_add_permission(self, request):
@@ -100,9 +76,8 @@ class GangAdmin(OneAtATime, admin.ModelAdmin):
     autocomplete_fields = ["owner"]
     date_hierarchy = "created"
     ordering = ["-created"]
-    # The caches are reconcile's to repair, and the founding is an
-    # assignment — a dropdown over that table would render every row in
-    # the database into one select.
+    # Keep cached totals read-only. Show founding as read-only rather than
+    # rendering every assignment as a dropdown option.
     readonly_fields = [
         "rating",
         "credits",
@@ -115,8 +90,7 @@ class GangAdmin(OneAtATime, admin.ModelAdmin):
 
     @admin.display(description="Sheet")
     def sheet(self, gang):
-        """The gang as a player reads it — a roster is readable by
-        whoever holds its address, so this is a plain link."""
+        """Link to the gang's public roster."""
         from django.utils.html import format_html
 
         return format_html(
@@ -125,13 +99,9 @@ class GangAdmin(OneAtATime, admin.ModelAdmin):
 
     @admin.action(description="Archive selected gangs")
     def archive_gangs(self, request, queryset):
-        """Put gangs away, one ``archive()`` each.
+        """Archive each selected gang through its lifecycle method.
 
-        A soft delete: nothing is dropped, and the gang stops being
-        listed, founded from, or reachable by its address. One gang at a
-        time rather than one UPDATE, because archiving stamps the time it
-        happened and carries to anything a gang says goes with it — a bulk
-        write would set the flag and neither.
+        Individual calls preserve archive timestamps and related lifecycle handling.
         """
         done = 0
         for gang in queryset.exclude(archived=True):
@@ -141,7 +111,7 @@ class GangAdmin(OneAtATime, admin.ModelAdmin):
 
     @admin.action(description="Unarchive selected gangs")
     def unarchive_gangs(self, request, queryset):
-        """The way back, for a gang put away by mistake."""
+        """Restore visibility for archived gangs."""
         done = 0
         for gang in queryset.filter(archived=True):
             gang.unarchive()
@@ -177,16 +147,13 @@ class AssignmentAdmin(ReadOnlyAdmin):
 
     @admin.display(description="Reason")
     def reason(self, assignment):
-        # The reason is the ledger's fact about the assignment, not the
-        # assignment's own — named here as a column because "why does
-        # this row exist" is the first question an inspection asks.
+        # Display acquisition reason from the joined ledger entry.
         entry = getattr(assignment, "ledger_entry", None)
         return entry.reason if entry else ""
 
     def get_queryset(self, request):
-        # __str__ is "<assignable> on <host>", which reads one of nineteen
-        # union FKs plus a host — joined here so a changelist page is one
-        # query rather than three per row.
+        # Preload assignable and host relations used by __str__ to avoid queries
+        # per changelist entry.
         return (
             super()
             .get_queryset(request)
@@ -264,8 +231,7 @@ class AssignmentSetAdmin(admin.ModelAdmin):
     search_fields = ["name", "miniature__name"]
     autocomplete_fields = ["miniature"]
     list_select_related = ["miniature"]
-    # The selection is edited in the app, against the model's own card;
-    # a multi-select over the whole assignment table says nothing.
+    # Edit equipment selection through the card, which provides item context.
     exclude = ["assignments"]
 
 
@@ -274,8 +240,7 @@ class StatOverrideAdmin(admin.ModelAdmin):
     list_display = ["miniature", "statline_type_stat", "value"]
     search_fields = ["miniature__name", "statline_type_stat__stat__full_name"]
     autocomplete_fields = ["miniature"]
-    # The cell names itself as "<shape> — <stat>", so both sides of that
-    # ride the changelist rather than costing a query per row.
+    # Preload stat and statline type for each cell's display label.
     list_select_related = [
         "miniature",
         "statline_type_stat__stat",
@@ -303,18 +268,15 @@ class PrintConfigAdmin(admin.ModelAdmin):
 
 @admin.register(Campaign)
 class CampaignAdmin(OneAtATime, admin.ModelAdmin):
-    """Editable, unlike the ledger-adjacent models: a campaign holds no
-    assignments, moves no money and pins no cache, so there is nothing here
-    for an edit to skip."""
+    """Edit campaign metadata while its founding type, pack and additions remain read-only."""
 
     list_display = ["name", "owner", "campaign_type", "budget", "archived"]
     list_filter = ["archived", "campaign_type"]
     search_fields = ["name", "owner__username"]
     autocomplete_fields = ["owner"]
     list_select_related = ["owner", "campaign_type"]
-    # Written once, by founding, along with the pack and the additions type
-    # the campaign never exists without. Founding is the only way to make
-    # a campaign, so there is no add form here.
+    # Founding creates the type, pack and additions together; admin cannot
+    # create an incomplete campaign.
     readonly_fields = ["campaign_type", "pack", "additions"]
 
     def has_add_permission(self, request):
@@ -323,8 +285,7 @@ class CampaignAdmin(OneAtATime, admin.ModelAdmin):
 
 @admin.register(CampaignEvent)
 class CampaignEventAdmin(ReadOnlyAdmin):
-    """Read-only, as the ledger is: the log is append-only, and an edit here
-    would rewrite what a reader was told happened."""
+    """Keep append-only campaign events read-only."""
 
     list_display = ["kind", "campaign", "actor", "note", "created"]
     list_filter = ["kind"]
@@ -334,9 +295,7 @@ class CampaignEventAdmin(ReadOnlyAdmin):
 
 @admin.register(CampaignMembership)
 class CampaignMembershipAdmin(ReadOnlyAdmin):
-    """Read-only: joining and leaving are written by an operation that logs
-    them in the same breath, and a membership edited by hand here would leave
-    the log saying something else happened."""
+    """Keep memberships read-only so joins and departures retain matching events."""
 
     list_display = ["gang", "campaign", "created", "left"]
     list_filter = ["campaign"]
@@ -347,8 +306,7 @@ class CampaignMembershipAdmin(ReadOnlyAdmin):
 
 @admin.register(Battle)
 class BattleAdmin(ReadOnlyAdmin):
-    """Read-only for the same reason a membership is: recording one writes a
-    line in the campaign's log, and the two are meant to agree."""
+    """Keep battles read-only so their campaign events remain consistent."""
 
     list_display = ["scenario", "date", "result", "campaign", "created"]
     list_filter = ["campaign"]
@@ -356,8 +314,7 @@ class BattleAdmin(ReadOnlyAdmin):
     list_select_related = ["campaign"]
 
 
-# Registering this edition's maintenance operations happens on import, and
-# admin autodiscovery is when it must happen. Importing the seam here — and
-# never gyrinx.maintenance.admin, which installs the console's admin site and
-# must run after the platform's own admin — is what puts them on the console.
+# Register maintenance operations during admin autodiscovery through the
+# edition seam. Importing the platform admin here would initialise its
+# console before the platform's own admin registration.
 import n26.maintenance  # noqa: E402,F401  (imported for its registrations)

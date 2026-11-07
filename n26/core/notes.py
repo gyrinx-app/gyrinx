@@ -1,14 +1,9 @@
-"""Notes — the one channel for telling the player something.
+"""Informational messages attached to card or line objects.
 
-The app keeps needing to say things without stopping anyone: "this
-fighter can't use that skill", later "you're over three weapon slots",
-"this is off your list". Each is the same kind of thing — a sentence
-attached to a line or a card, pointing at what it concerns — so there is
-one shape for all of them, not a named boolean per rule.
-
-A note points at real objects (``about``), never at display strings, so
-nothing downstream ever matches on text. Levels say how loudly to draw
-it; nothing anywhere blocks on one — we inform, never police.
+Use one Note structure for restrictions and other advice. ``about`` holds
+real objects so readers never match message text to find its subject.
+Levels control presentation; notes do not block operations. Inform rather
+than police.
 """
 
 from dataclasses import dataclass
@@ -23,11 +18,9 @@ _LOUDNESS = {INFO: 0, WARNING: 1, ERROR: 2}
 
 @dataclass(frozen=True)
 class Note:
-    """One remark: what it says, what it points at, how loud it is.
+    """Message text, subject object and presentation level.
 
-    ``about`` is the actual piece of content the remark concerns — a Skill, a
-    Weapon — so consumers compare identities, never strings. ``text`` is
-    for humans only.
+    Consumers compare about by identity; text is display-only.
     """
 
     text: str

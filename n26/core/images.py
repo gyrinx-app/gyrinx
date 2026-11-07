@@ -1,19 +1,11 @@
-"""Uploaded pictures, brought to the shape their surfaces draw.
+"""Validate, centre-crop and resize uploaded model and gang pictures.
 
-A model's picture is portrait, a gang's is landscape, and every surface
-that draws one — the card's dropdown, the printed card, the notes page,
-the lore page — assumes the ratio rather than measuring the file. So
-the shape is settled here, once, on the way in: whatever arrives is
-centre-cropped to the ratio and capped in size, and what is stored is
-always drawable.
+Store model portraits and gang landscapes at the aspect ratios expected
+by every display. Enforce those ratios on the server even when the
+browser cropper is unavailable or bypassed.
 
-The browser offers a nicer version of the same act — panning and
-zooming the crop before upload — but what it sends is still just a
-file, and nothing obliges it to have run. This is the rule; the
-browser's chooser is a courtesy. A file that is not an image at all is
-the form's refusal; one that only *opens* as an image and breaks on the
-full decode — a truncated transfer — is refused here, because this is
-where the full decode happens.
+Forms reject non-images. Decode fully here to reject truncated or otherwise
+corrupt image files before storing them.
 """
 
 from io import BytesIO
@@ -25,13 +17,7 @@ from PIL import Image, ImageOps
 
 
 class Ratio(NamedTuple):
-    """A picture's shape, width to height, spelt ``4:5`` where drawn.
-
-    One constant serves every layer: the crop here works on the pair,
-    and a template stamps ``str(ratio)`` onto the browser's crop dialog
-    — so the window the dialog offers and the shape the server enforces
-    cannot come apart.
-    """
+    """An aspect ratio shared by server crops and browser cropper attributes."""
 
     across: int
     down: int
@@ -45,19 +31,15 @@ PORTRAIT = Ratio(4, 5)
 #: A gang's picture: landscape, sixteen wide to nine tall.
 LANDSCAPE = Ratio(16, 9)
 
-#: The long side of a stored picture. Phone photographs arrive at many
-#: times this; a card, a print sheet and a notes or lore page never draw one
-#: bigger.
+#: Maximum stored dimension, covering the largest card and page display.
 MAX_PX = 1600
 
 
 def to_shape(upload, ratio):
-    """One picture, centre-cropped to ``ratio`` and capped at ``MAX_PX``.
+    """Return a JPEG upload cropped to ratio and bounded by MAX_PX.
 
-    Returns a fresh upload carrying JPEG bytes under the original name.
-    EXIF rotation is applied first — a phone photograph's pixels are
-    often stored sideways with a tag saying so, and a crop that ignored
-    the tag would take its window from the wrong axis.
+    Apply EXIF orientation before choosing the crop so rotated phone images
+    use the correct dimensions.
     """
     try:
         with Image.open(upload) as source:
@@ -70,9 +52,7 @@ def to_shape(upload, ratio):
         buffer = BytesIO()
         image.save(buffer, format="JPEG", quality=88)
     except OSError as broken:
-        # Opens as an image, breaks on the full decode: a truncated
-        # transfer. The validation layer's own check stops at the
-        # header, so the refusal is made here, as a refusal.
+        # Header validation can accept truncated images. Reject full-decode errors here.
         raise ValidationError(
             "That picture could not be read — the file may be cut short "
             "or damaged. Try uploading it again."
@@ -82,11 +62,9 @@ def to_shape(upload, ratio):
 
 
 def _flattened(image):
-    """The picture on an opaque white ground, ready to become a JPEG.
+    """Composite transparency onto white before JPEG conversion.
 
-    Dropping the alpha channel instead would keep whatever colour sat
-    under the transparent pixels — black for palette images, leftovers
-    for editor exports — and print it.
+    Discarding alpha alone can reveal hidden palette or editor pixel colours.
     """
     if image.mode in ("RGBA", "LA", "PA") or (
         image.mode == "P" and "transparency" in image.info
@@ -99,14 +77,7 @@ def _flattened(image):
 
 
 def _fitted(size, ratio):
-    """The largest ``ratio``-shaped box the picture can fill, capped.
-
-    Whole multiples of the ratio pair, so the stored shape is the ratio
-    exactly — rounding each side on its own drifts on small pictures,
-    and the surfaces drawing these assume the shape rather than
-    measuring the file. The pair is coprime, so multiples lose at most
-    a sliver of a ratio-step off each edge.
-    """
+    """Find the largest bounded crop using whole multiples of the ratio dimensions."""
     width, height = size
     across, down = ratio
     times = int(min(width / across, height / down))
