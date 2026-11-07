@@ -74,11 +74,8 @@ def build(report_dir):
         return "error", "could not fetch the branch", problems, notes
 
     if outcome("MERGE") != "success":
-        # A branch whose base is another branch conflicts with main whenever an
-        # ancestor has been squash-merged, because main holds the squashed
-        # version and this chain still holds the originals. Whether that is the
-        # cause here cannot be told from the merge alone, so say so as a note
-        # rather than as this branch's problem.
+        # Squash-merged ancestors can cause conflicts in stacked branches.
+        # The merge result alone cannot establish the cause, so report a note.
         base = os.environ.get("PR_BASE", "main")
         if base != "main":
             notes.append(
@@ -96,9 +93,8 @@ def build(report_dir):
         )
         return "failure", "conflicts with main", problems, notes
 
-    # The overlap check speaks through its findings file. Without a readable
-    # one it has said nothing, whatever its exit code was: it exits non-zero
-    # both when it finds a clash and when it cannot run at all.
+    # Non-zero overlap status can mean findings or an execution failure.
+    # Require a readable findings file before treating the check as complete.
     overlap_path = report_dir / "overlap.json"
     overlap = None
     if overlap_path.exists():
@@ -112,9 +108,7 @@ def build(report_dir):
             return overlap is not None
         return outcome(step) in ("success", "failure")
 
-    # Only a check that gave an answer tells you anything. Anything else leaves
-    # part of the branch unverified, and the result must say so rather than
-    # read as a pass.
+    # Missing outcomes leave part of the branch unverified.
     missing = [name for step, name in CHECKS.items() if not answered(step)]
     if len(missing) == len(CHECKS):
         notes.append(
@@ -191,8 +185,7 @@ def build(report_dir):
             problems,
             notes,
         )
-    # Nothing found, but not everything was looked at: say so rather than
-    # claim the branch is clear.
+    # Incomplete checks cannot establish a pass.
     if missing:
         return (
             "pending",
