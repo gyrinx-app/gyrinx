@@ -1415,13 +1415,10 @@ def add_picklist_member(
     level=None,
     **kwargs,
 ):
-    """One more pickable on a list, at the end unless placed.
+    """Add a pickable of the list's slot type, appending unless positioned.
 
-    Refused where the pickable belongs to another slot type: a list
-    offers one slot type's pickables and a choice reading it has to be
-    settleable by every one of them. On a roll table, ``roll_low`` and
-    ``roll_high`` are the band of rolls that lands here — give both, or
-    give ``roll_low`` alone for a band of one roll.
+    On a roll table, ``roll_low`` and ``roll_high`` define an inclusive band;
+    omit the upper bound for a single result.
     """
     from n26.library.models import PicklistMember
 
@@ -1463,12 +1460,7 @@ def add_picklist_member(
 @guarded_write
 @preserves_income_choices
 def remove_picklist_member(member):
-    """Stop offering one pickable on one list.
-
-    The pickable itself stays in the library and on every other list
-    that offers it; anyone who already picked it keeps it, because a
-    pick is an assignment and this is only what is offered next.
-    """
+    """Remove a picklist membership without deleting the pickable or existing picks."""
     member.delete()
 
 
@@ -1493,12 +1485,11 @@ def create_slot(
     pick_rating_override=None,
     **kwargs,
 ):
-    """One named use of a slot type: the choice a card actually asks.
+    """Create a choice that displays its label and selected pickables on a card.
 
-    Assign one — built into a fighter entry, given by something else —
-    and the card draws ``label`` (or this slot's name) with what has been
-    picked. ``assigned_to="gang"`` is the Leader-picks-for-the-gang
-    arrow, and ``hidden=True`` asks nothing while the pick still applies.
+    Assign the slot directly, through built-ins, or through a grant.
+    ``assigned_to="gang"`` stores the picks on the gang. A hidden slot applies
+    its picks without displaying the choice.
     """
     from n26.library.models import Slot
 
@@ -1541,13 +1532,10 @@ def create_interstitial(
     slots=(),
     **kwargs,
 ):
-    """A screen shown when a slot arrives: what the choice is and why
-    it matters.
+    """Create an explanation screen for the supplied slots, in order.
 
-    ``slots`` attaches it to those slots, in order. A founding, a hire
-    or a pick that brings one of them shows this screen before the
-    reader lands where they were going; nothing else does, and a slot
-    with nothing attached arrives as it always has.
+    Founding, hiring or choosing content that introduces a linked slot displays
+    the screen before the destination page.
     """
     from n26.library.models import Interstitial
 
@@ -1566,17 +1554,11 @@ def create_interstitial(
 
 @guarded_write
 def attach_interstitial(interstitial, slot, position=None, **kwargs):
-    """Show this interstitial when this slot arrives, after the slots it
-    is already attached to unless placed.
+    """Attach an interstitial to a slot, appending unless positioned.
 
-    Refused where it is already attached to that slot: a second
-    attachment would show the same screen twice. Two attachments made
-    at once are refused the same way, by the constraint behind the
-    check.
-
-    The attachment lands in the interstitial's pack unless told
-    otherwise: it is a part of the interstitial, and a screen in a
-    pack of its own is shown for the slots that pack attaches it to.
+    Duplicate attachments raise ``ValidationError``; a database constraint also
+    rejects concurrent duplicates. The attachment inherits the interstitial's
+    pack unless overridden.
     """
     from django.db import IntegrityError, transaction
 
@@ -1586,8 +1568,7 @@ def attach_interstitial(interstitial, slot, position=None, **kwargs):
     if InterstitialSlot.objects.filter(interstitial=interstitial, slot=slot).exists():
         raise ValidationError(already)
     if position is None:
-        # After the last, whatever it was numbered — archived attachments
-        # included, so adding one never reorders what is already there.
+        # Append after archived attachments too, preserving every existing position.
         from django.db.models import Max
 
         last = interstitial.attachments.aggregate(last=Max("position"))["last"]
@@ -1600,10 +1581,8 @@ def attach_interstitial(interstitial, slot, position=None, **kwargs):
                 interstitial=interstitial, slot=slot, position=position, **kwargs
             )
     except IntegrityError:
-        # The savepoint has rolled back. Only a pair that now exists is
-        # the duplicate the sentence describes; anything else the
-        # database refused — a slot deleted under the form — is its own
-        # failure and is raised as it came.
+        # After rollback, translate only a confirmed duplicate pair into this error.
+        # Re-raise unrelated integrity failures, such as a concurrently deleted slot.
         if InterstitialSlot.objects.filter(
             interstitial=interstitial, slot=slot
         ).exists():
@@ -1613,12 +1592,7 @@ def attach_interstitial(interstitial, slot, position=None, **kwargs):
 
 @guarded_write
 def detach_interstitial(attachment):
-    """Stop showing one interstitial when one slot arrives.
-
-    The interstitial stays in the library and on every other slot it is
-    attached to; the slot arrives as it did before anything was
-    attached.
-    """
+    """Remove one slot attachment while preserving the interstitial and other links."""
     attachment.delete()
 
 
@@ -1652,19 +1626,14 @@ def create_weapon(
     library_author_help="",
     **kwargs,
 ):
-    """A weapon, and optionally its profiles in one go.
+    """Create a weapon with optional profiles in their supplied order.
 
-    ``profiles`` is an ordered list of ``(name, price)`` or
-    ``(name, price, [traits])``. Given any, the first must be free —
-    that's the mandatory one every weapon has. Given none, the weapon
-    starts bare and profiles are added with ``add_weapon_profile``:
-    a weapon mid-authoring is a legitimate state, and the surfaces
-    that read one say so rather than refusing to exist.
+    Profiles are ``(name, price)`` or ``(name, price, traits)`` tuples.
+    When supplied, the first must be free. Otherwise profiles can be added later
+    with ``add_weapon_profile``.
 
-    The ``usable_by_*`` lists are the bracket the book prints after the
-    name — "Wyld bow (Wyld Runner only)" — true of the gun wherever it
-    is listed. Empty means everyone; a restriction only one list prints
-    belongs on that list's entry instead (``add_entry``).
+    ``usable_by_*`` restrictions apply wherever the weapon is offered.
+    Collection-specific restrictions belong on the entry through ``add_entry``.
     """
     from n26.library.models import Weapon
 
@@ -1750,8 +1719,7 @@ def add_weapon_profile(
     )
     if traits:
         profile.traits.set(traits)
-    # A new row's lists are already empty, so an import that names no
-    # restriction writes nothing rather than clearing three lists a row.
+    # Skip empty restriction writes on newly created records.
     if usable_by_profile_types or usable_by_subtypes or usable_by_profiles:
         set_usable_by(
             profile,
@@ -1780,15 +1748,10 @@ def create_counter(
 
 @guarded_write
 def restrict_use(thing, *allowed):
-    """Who may use this — a ProfileType, a Subtype or a Profile.
+    """Add a permitted profile type, subtype or fighter profile to an item's use lists.
 
-    ``restrict_use(wyld_bow, wyld_runner)`` is "Wyld bow (Wyld Runner
-    only)": a whole fighter entry, and a fact about the bow wherever it
-    is listed.
-
-    ``thing`` may equally be a collection entry, which narrows that one
-    list's offer and leaves every other list that names the item alone.
-    The three lists are the same shape on both, so this writes either.
+    The same fields on a collection entry restrict only that listing.
+    Item-level restrictions apply wherever the item is offered.
     """
     from n26.library.models import Profile, ProfileType, Subtype
 
@@ -1811,19 +1774,10 @@ def set_usable_by(
     usable_by_subtypes=None,
     usable_by_profiles=None,
 ):
-    """Who may use this, replaced — the write ``revise`` refuses.
+    """Replace supplied use-restriction lists on an item or collection entry.
 
-    Each list handed over is the whole statement about its own arm: what
-    it does not name may no longer use this. That is what a form's
-    multi-select carries, and what a re-imported sheet means, so the
-    decision is stated here once rather than at each writer. ``None``
-    says nothing about an arm and leaves it as it was — different from an
-    empty list, which opens that arm to everyone.
-
-    ``restrict_use`` is the other half of the pair: it adds one allowed
-    thing at a time, which is what building content up line by line
-    wants. Both write the same three lists, on an item or on the
-    collection entry offering it.
+    ``None`` preserves a list; an empty iterable clears its restriction.
+    Use ``restrict_use`` to add individual permitted types or profiles.
     """
     lists = {
         "usable_by_profile_types": usable_by_profile_types,
@@ -1852,13 +1806,8 @@ def create_default_set(name, members=(), price=0, **kwargs):
         (position, *(member if isinstance(member, tuple) else (member, {})))
         for position, member in enumerate(members)
     ]
-    # One transaction, guns before their lines whatever order the caller
-    # stated (each member keeps its stated position): a weapon profile's
-    # anchor is settled against the completed set, not against however
-    # much of it happens to exist yet — and a refusal unwinds the whole
-    # founding rather than leaving half a set behind. Every member still
-    # goes through the one adding verb, so what holds for a member added
-    # later holds for one written here.
+    # Create guns before their profiles so anchors resolve against the complete set.
+    # Preserve supplied positions and roll back the entire set on refusal.
     with transaction.atomic():
         default_set = DefaultAssignmentSet.objects.create(
             name=name, price=price, **kwargs
@@ -1874,20 +1823,10 @@ def create_default_set(name, members=(), price=0, **kwargs):
 
 
 def _free_set_name(carrier, phrase="built-ins", **shared):
-    """A name for a set of this carrier's, ending in ``phrase``, that
-    nothing else in the pack has taken.
+    """Find an unused author-only default-set name within the carrier's pack.
 
-    The set is named after the thing that comes with it, so an author
-    reading a list of sets can tell whose is whose. But a name is not an
-    identity: an exotic beast is both a piece of wargear a gang buys and
-    the model that arrives when it does, and both are called the same
-    thing — while a set name may appear only once in a pack. So the kind
-    goes in when the plain name is spoken for, and a number after that.
-
-    ``phrase`` says which of the carrier's sets this is: the things it
-    always comes with, or the wording of one alternative it offers. Both
-    are read by authors alone, which is what lets a name grow a kind and
-    a number without anybody minding.
+    Start with its name and ``phrase``, then add the kind and a numeric suffix
+    as needed. Same-named profiles and wargear can require distinct sets.
     """
     from itertools import chain, count
 
@@ -1899,8 +1838,7 @@ def _free_set_name(carrier, phrase="built-ins", **shared):
     pack = shared.get("pack") or default_pack_id()
     taken = DefaultAssignmentSet.objects.filter(pack=pack)
 
-    # Chained rather than collected: the numbered names never run out,
-    # and a tuple of them would never finish being built.
+    # Generate suffix candidates lazily because the numeric sequence is unbounded.
     tries = chain(
         (f"{label} {phrase}", f"{label} ({kind}) {phrase}"),
         (f"{label} ({kind}) {phrase} {number}" for number in count(2)),
@@ -1919,20 +1857,12 @@ def add_built_in(
     gun_member=None,
     **kwargs,
 ):
-    """Something ``carrier`` always comes with, materialised when it is
-    acquired — a profile's equipment list, its starting kit, its
-    opening XP. Founds the carrier's built-ins set on first use, so an
-    author never makes the set by hand.
+    """Add content materialised whenever the carrier is acquired.
 
-    A **slot** built in is a choice the thing arrives asking;
-    ``default_pickable`` is the answer it arrives with, changed
-    afterwards by the ordinary rechoose.
-
-    A **weapon profile** built in is an extra line for a gun in the same
-    set, and ``gun_member`` names which — see ``add_default_member``.
-
-    Refused for a kind that only ever arrives by being *chosen*: nothing
-    acquires one, so nothing would ever hand the items over.
+    Create the default set on first use. ``default_pickable`` supplies a slot's
+    starting pick; ``gun_member`` anchors an additional weapon profile.
+    Reject carriers acquired only by choosing because they do not materialise
+    built-in sets.
     """
     from n26.library.models import DefaultAssignmentSet
 
@@ -1976,8 +1906,7 @@ def _refuse_a_bare_pickable(thing):
         )
 
 
-# Atomic so the member and its propagation filing commit or roll back
-# together, whatever transaction the caller does or does not hold.
+# Commit the member and its propagation task together, even without an outer transaction.
 @guarded_write
 @transaction.atomic
 @preserves_income_choices
@@ -1990,21 +1919,12 @@ def add_default_member(
     gun_member=None,
     **kwargs,
 ):
-    """One more thing in a set of defaults, at the end unless placed.
+    """Add content to an existing default set, appending unless positioned.
 
-    The set is named rather than the carrier, which is what a re-import
-    of a fighter whose sheet has grown a rule needs: the set is already
-    there and only the new member is missing.
-
-    ``default_pickable`` is a slot member's starting pick, and belongs to
-    nothing else.
-
-    ``gun_member`` is a weapon-profile member's anchor: the weapon
-    member of the same set the extra line lands under. Unnamed, it is
-    settled here — the set's one matching weapon member where there is
-    one, refused in words where there are several, and null where there
-    are none, which keeps a real meaning: the profile rides whatever
-    matching weapon the acquirer already holds.
+    ``default_pickable`` is valid only for a slot member.
+    For an additional weapon profile, ``gun_member`` must be a matching weapon
+    member of this set. If omitted, use the unique match, reject multiple
+    matches, or leave it null to use an already-held matching weapon.
     """
     from n26.library.models import DefaultAssignment, WeaponProfile
 
@@ -2012,10 +1932,7 @@ def add_default_member(
     if isinstance(thing, WeaponProfile) and gun_member is None:
         gun_member = _the_one_gun_member(default_set, thing)
     if position is None:
-        # After the last position ever placed, archived members
-        # included — a live count would reuse a surviving member's
-        # position once an earlier one is archived, and ties draw in
-        # no promised order.
+        # Append after archived positions as well; live counts could create ordering ties.
         last = default_set.members.aggregate(last=Max("position"))["last"]
         position = 0 if last is None else last + 1
     member = DefaultAssignment(
@@ -2028,17 +1945,11 @@ def add_default_member(
         **kwargs,
     )
     if default_pickable is not None or gun_member is not None:
-        # A starting pick has to belong to the slot beside it, and an
-        # extra profile's gun has to be its own weapon's member of the
-        # same set. Only this row knows both ends — the database
-        # cannot say either.
+        # Validate starting-pick type and weapon-member ownership together;
+        # these cross-record constraints cannot be expressed by database checks.
         member.clean()
     member.save()
-    # Everything already holding this set is now owed the new member.
-    # The filing rides this transaction — made with the edit, rolled
-    # back with it — and a background pass applies it after commit.
-    # Every path that adds a member comes through here, so this is the
-    # one place the pass is filed.
+    # Schedule propagation for existing holders in the same transaction as the new member.
     from n26.core.propagation import file_propagation_task
 
     file_propagation_task(default_set)
@@ -2046,22 +1957,14 @@ def add_default_member(
 
 
 def gun_members_bringing(default_set, weapon):
-    """The set's live members that bring this weapon — the guns an
-    extra profile of it could ride. One statement of the match, read
-    wherever an anchor is settled or explained.
-    """
+    """Find this set's live weapon members that can anchor a matching profile."""
     return default_set.members.filter(archived=False, weapon=weapon)
 
 
 def _the_one_gun_member(default_set, weapon_profile):
-    """The set's single live member bringing this profile's weapon — the
-    anchor an unnamed add settles on.
+    """Return the unique live matching weapon member, or ``None`` if absent.
 
-    None where the set brings the weapon not at all: the profile then
-    rides whatever matching weapon the acquirer holds, which is how an
-    option set arms a gun the built-ins bring. Several is refused in
-    words, because a guess here would decide for good which gun a line
-    lands under.
+    Reject multiple matches rather than choosing a gun implicitly.
     """
     matches = list(gun_members_bringing(default_set, weapon_profile.weapon))
     if len(matches) > 1:
@@ -2076,25 +1979,12 @@ def _the_one_gun_member(default_set, weapon_profile):
 
 @guarded_write
 def remove_default_member(member):
-    """Take one thing back out of a set of defaults.
+    """Remove a default membership and its dependent weapon-profile memberships.
 
-    Only the membership goes. A membership something has materialised
-    from is archived rather than deleted — every copy names it as its
-    provenance, so the row must survive for those copies' sake — while
-    one nothing ever came from goes completely: an archived member is
-    invisible to every surface, so leaving one behind would hold its
-    assignable under PROTECT with no way to see why. The thing named —
-    the weapon, the skill, the equipment list — stays in the library
-    untouched, and so does the set, even when this was its last member:
-    a carrier that comes with nothing still has somewhere to put the
-    next thing.
-
-    Ammo lines go with their gun (``dependent_members``), because a
-    weapon profile left behind names a weapon nothing brings.
-
-    What has already been acquired keeps it: built-ins are materialised
-    when a carrier is acquired, and nothing retracts an assignment. This
-    changes what future acquisitions come with.
+    Archive members referenced by issued copies to preserve provenance; delete
+    unused members so invisible archives do not retain protected content.
+    Keep the default set, referenced library content and existing assignments.
+    Only future acquisitions stop receiving the removed members.
     """
     for dependent in list(member.dependent_members):
         remove_default_member(dependent)
@@ -2142,28 +2032,17 @@ def offer_option(
     default_set=None,
     **kwargs,
 ):
-    """Add an alternative offered when ``carrier`` is acquired.
+    """Add an acquisition option for a profile or piece of wargear.
 
-    ``carrier`` is a profile (offered at hire) or a wargear (offered when
-    bought). ``name`` is what a player is offered — "with razor-sharp
-    talons" — and ``price`` what taking it adds.
+    ``name`` labels the option and ``price`` sets the acquisition surcharge on a
+    newly created default set. A supplied ``default_set`` retains its stored
+    price. Create the set when needed, or pass an existing ``default_set``.
+    ``thing`` adds a member; ``amount`` and ``default_pickable`` configure that
+    member rather than the option.
 
-    Founds the set of things this brings on first use, so an author
-    never makes the set by hand: pass ``thing`` for what it brings, and
-    add any others to the same set afterwards. The set's own name is
-    derived and read by authors alone, because set names are unique
-    across a pack while two profiles may perfectly well both offer "As
-    standard". Pass ``default_set`` to offer kit that already exists,
-    and the set's own price stands.
-
-    Omit ``group`` for the carrier's main pick-one set; pass one for a
-    further set (``create_option_group``). New options go to the end of
-    whichever set they join, so the first one an author adds to a
-    pick-one set is the one taken unasked.
-
-    ``amount`` and ``default_pickable`` are what the thing being brought
-    asks for where it asks for anything — a counter's opening value, a
-    slot's starting pick — and reach the member rather than the option.
+    Append to ``group`` or the main pick-one set. Only pick-one groups select the
+    first option by default. Default-set names are derived and author-facing to
+    avoid pack-wide collisions.
     """
     from n26.library.models import Option
 
@@ -2194,17 +2073,11 @@ def offer_option(
 
 @guarded_write
 def stop_offering(option):
-    """Take one alternative back off what a carrier offers.
+    """Remove an option and attempt to delete its default set.
 
-    The set of things it brought goes with it when nothing else holds
-    it: a set founded for one option is that option, and left behind it
-    is a bag nothing can reach. A set shared with something else stays,
-    and so does everything it names — a weapon offered as an option is
-    still a weapon.
-
-    What has already been acquired keeps it. An option is materialised
-    at the moment of hiring, and nothing retracts an assignment; this
-    changes what future acquisitions may choose.
+    Shared sets, recorded acquisitions or issued members can protect the set.
+    Referenced content and existing assignments remain; the change affects options
+    offered on future acquisitions.
     """
     from django.db.models import ProtectedError
 
@@ -2213,10 +2086,7 @@ def stop_offering(option):
     try:
         default_set.delete()
     except ProtectedError:
-        # Everything that can hold a set holds it under protection, so
-        # the refusal is the answer: another option offers the same kit,
-        # or something always comes with it. Asking each kind in turn
-        # would be the same question with a list to keep up to date.
+        # Shared sets, recorded choices or materialised member references can protect the set.
         pass
 
 
@@ -2238,12 +2108,10 @@ def create_option_group(carrier, name, choose="one", position=None, **kwargs):
 
 @guarded_write
 def remove_option_group(group):
-    """Take a set of options off a carrier, and the options in it.
+    """Delete an option group and its options.
 
-    The options go with their set, which is what makes them
-    alternatives to each other; loose in the main pick they would
-    compete with the standard loadout instead, which is a different
-    offer from the one the author wrote.
+    Moving its options into the main group would change which choices compete
+    with the standard loadout, so the options are removed with their group.
     """
     for option in list(group.options.all()):
         stop_offering(option)
@@ -2263,16 +2131,11 @@ def create_section(name, position=0, **kwargs):
 
 @guarded_write
 def create_category(section, name, position=0, draws_its_own_row=False, **kwargs):
-    """A category under its heading. ``section`` is a Section row, or a
-    name — named headings are found or founded, so the example suites
-    keep reading ``create_category("Skills", "Combat")``.
+    """Create a category under a Section instance or a named section.
 
-    ``draws_its_own_row`` puts the category's items under their own
-    heading on a model's card rather than in with the rest of the gear.
-    A named parameter rather than a pass-through, because the authoring
-    form reads a switch off this signature — its starting state, and
-    whether it must be filled — and a name the catch-all absorbs is not
-    there to read.
+    A named section is found or created in the supplied pack.
+    ``draws_its_own_row`` displays the category separately on model cards.
+    It is an explicit parameter so generated forms can read its default.
     """
     from n26.library.models import Category, Section
 
@@ -2314,11 +2177,12 @@ def create_collection(
     library_author_help="",
     **kwargs,
 ):
-    """A collection. ``entries`` are assignables, or
-    ``(assignable, {overrides})`` pairs for priced ones; ``contains``
-    are selector sweeps — model classes, or ``(model, category)`` to
-    narrow. ``position`` orders it among the lists a fighter or gang
-    holds, lowest first."""
+    """Create a collection with ordered entries and selector sweeps.
+
+    ``entries`` contains assignables or ``(assignable, overrides)`` pairs.
+    ``contains`` contains model classes or ``(model, category)`` pairs.
+    ``position`` orders held collections, lowest first.
+    """
     from n26.library.models import Collection, CollectionEntry, CollectionSelector
 
     # Extra kwargs describe the collection; only the
@@ -2349,27 +2213,17 @@ def create_collection(
     return collection
 
 
-# Atomic so an asset's memberships and the asset go together: a refused
-# delete leaves the memberships standing.
+# Delete generated memberships and their asset atomically; restore both on refusal.
 @guarded_write
 @transaction.atomic
 @preserves_income_choices
 def delete_content(row):
-    """Take an authored row out of the library for good.
+    """Delete library content subject to database reference protection.
 
-    The database refuses wherever anything still points at it — an
-    assignment on somebody's gang, a collection entry, an option's kit
-    — because every such reference protects its target: content that
-    has been used is history, not clutter. The caller turns that
-    refusal into words. Reusable modifiers attached to the row survive
-    it — they may be carried elsewhere, so they are not this row's to
-    take.
-
-    An asset's or a table's built-in memberships are the one exception:
-    nobody authored them — a possession or a table is built in by being
-    created — so they go with the row rather than standing in its way.
-    Where a gang has already been given one, its assignment still
-    protects the row and the refusal stands.
+    Preserve reusable carried modifiers. Remove generated asset or table default
+    memberships in the same transaction, but existing issued assignments still
+    protect their content. Callers convert protected-reference errors into
+    appropriate messages.
     """
     from n26.library.models import Asset, AssetTable
 
@@ -2390,16 +2244,10 @@ def add_entry(
     position=None,
     **kwargs,
 ):
-    """One more item a collection lists — the curated entry.
+    """Append content to a curated collection with optional price and use overrides.
 
-    The overrides are what an entry may state; left blank, the item
-    is priced at its own reference. New entries go to the end.
-
-    The ``usable_by_*`` lists narrow who this list offers the item to —
-    a Goliath list's "Heavy rock saw (Forge-born only)", where two other
-    gangs list the same saw plainly. Empty offers it to everyone, and
-    whatever the item itself restricts still holds. ``restrict_use``
-    writes the same lists an item at a time, on an entry as on an item.
+    Blank prices use the item's reference values. Entry restrictions narrow only
+    this listing; item-wide restrictions continue to apply.
     """
     from n26.library.models import CollectionEntry
 
@@ -2426,9 +2274,7 @@ def add_entry(
 
 @guarded_write
 def remove_entry(entry):
-    """Stop listing one item. The thing named stays in the library and
-    on every other list that names it — only this collection's entry
-    goes."""
+    """Remove one collection entry while preserving content and other memberships."""
     entry.delete()
 
 
@@ -2455,9 +2301,7 @@ def create_trading_post(name="Trading Post", contains=None, entries=(), **kwargs
     shared = {"pack": kwargs["pack"]} if "pack" in kwargs else {}
     collection = create_collection(name, entries=entries, **kwargs)
     if contains is None:
-        # What the post sells is standard content's to say, so a bare
-        # call builds the real one rather than a subset that quietly
-        # leaves a kind out of the post.
+        # Use standard content's complete offerable kinds when no explicit subset is supplied.
         from n26.library.standard_content import trading_post_sweeps
 
         contains = trading_post_sweeps()
@@ -2655,8 +2499,7 @@ def targets_every_model(*conditions):
 def _model_scope(reach, conditions):
     from n26.library.models import TargetsMiniature
 
-    # Every condition is judged before the scope row exists, so a refusal
-    # leaves nothing behind.
+    # Validate all conditions before inserting the scope.
     for condition in conditions:
         if isinstance(condition, _weapon_conditions()):
             raise ValueError(
