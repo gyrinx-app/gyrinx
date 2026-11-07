@@ -34,24 +34,12 @@ LITERAL = re.compile(
 
 @register.filter
 def css_color(value, shade="500"):
-    """Resolve a colour prop to something usable in a style attribute.
+    """Resolve a literal CSS colour or theme token for a style attribute.
 
-    Lets one prop take either a literal or a theme colour, so a call site never
-    has to say which kind it meant::
-
-        {{ "#8d9900"|css_color }}      -> #8d9900
-        {{ "accent"|css_color }}       -> var(--color-accent)
-        {{ "red"|css_color:"600" }}    -> var(--color-red-600)
-
-    A value is a literal if it contains "#" or "(" — covering hex, rgb(), oklch()
-    and var(). Anything else is a token name, and resolving through var() rather
-    than a fixed value is the point: a swatch set to `accent` follows a theme
-    change, where a hex is frozen deliberately because a person chose it.
-
-    An unknown name yields a var() that resolves to nothing, which shows up as
-    a transparent swatch rather than an exception — the right failure for a
-    decorative mark. A value that is neither a plain name nor one of those
-    literal forms is transparent too, and never reaches the page.
+    Hex and functional values pass through only when LITERAL validates the full
+    string. Valid names use CSS variables and an optional scale shade, preserving
+    theme changes. Invalid values are transparent; unknown variable names remain
+    unresolved rather than raising.
     """
     if not value:
         return "transparent"

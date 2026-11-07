@@ -1,11 +1,7 @@
-"""Filters that let a template dispatch a bound field onto the kit.
+"""Adapt bound fields for generated authoring forms and design-system controls.
 
-The authoring forms are spec-generated — nobody can hand-write a
-``<c-ui.field>`` per field the way a fixed page does — so a dispatch
-include renders each bound field through the right kit control. These
-filters answer the three questions the template cannot: what kind of
-control the widget wants, what a dash-keyed widget attribute holds, and
-which choice values are selected.
+Expose widget kind, dash-keyed attributes and selected values to the dispatch
+include so generated fields use the appropriate control.
 """
 
 from django import template
@@ -35,8 +31,7 @@ def widget_kind(field):
 
 @register.filter
 def widget_attr(field, name):
-    """A widget attribute by its real (often dash-keyed) name — the
-    union markers live in ``data-union-*``, which dot lookup can't reach."""
+    """Read widget attributes whose dash-keyed names cannot use template dot lookup."""
     return field.field.widget.attrs.get(name, "")
 
 
@@ -52,8 +47,7 @@ def file_input_props(field):
 
 @register.filter
 def selected_values(field):
-    """The bound value(s) as strings, so an option template can ask
-    "am I selected?" the same way for single and multiple selects."""
+    """Normalise single or multiple selected values to strings for option comparison."""
     value = field.value()
     if value is None:
         return []
