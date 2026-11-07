@@ -3,17 +3,8 @@
 {% block head_title %}
     {{ thing }}
 {% endblock head_title %}
-{% comment %}
-No nav_heading: the bar says where you are standing — Collections,
-carried by its switcher's leading link — and the collection itself is
-the page heading's to name.
-{% endcomment %}
 {% block content %}
     <c-n26.page-header title="{{ thing }}">
-        {% comment %}
-        The other collections, for the same reason the rest of the detail
-        pages offer theirs: a definition is read against its neighbours.
-        {% endcomment %}
         <c-slot name="trailing">
             {% siblings_switcher 'collection' thing as siblings_ %}
             <c-n26.quick-switcher.of :switcher="siblings_" hotkey="r" />
@@ -67,11 +58,7 @@ the page heading's to name.
                                 <td class="whitespace-nowrap">{{ entry.label }}</td>
                                 <td class="w-full text-right text-muted">
                                     {{ entry.notes|join:" · " }}
-                                    {% comment %}
-                                    The item's own restriction holds wherever it is
-                                    listed and is changed on the item's page, so the
-                                    note links there rather than to this entry.
-                                    {% endcomment %}
+                                    {# Item-wide restrictions are edited on the item page; link the note there. #}
                                     {% if entry.item_restriction %}
                                         <div class="text-xs">
                                             The item itself is usable by {{ entry.item_restriction.words }} only, on every list.

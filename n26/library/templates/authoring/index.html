@@ -30,12 +30,6 @@
             </div>
         </c-ui.card>
     </div>
-    {% comment %}
-    What is staged is the one figure on this page that changes what an
-    author does next, so it is a card of its own rather than a line in the
-    prose — tinted while anything is waiting, so it cannot be read past.
-    The tint is the kit's warning surface, so the page has one amber.
-    {% endcomment %}
     <c-ui.card data-staged="{% if staged_count %}waiting{% else %}none{% endif %}"
                class="mt-6 max-w-xl {% if staged_count %}border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40{% endif %}">
         <div class="flex flex-wrap items-center justify-between gap-4">
@@ -53,13 +47,7 @@
             <c-ui.button href="{% url 'authoring-staged' %}" variant="primary">Open Staged content</c-ui.button>
         </div>
     </c-ui.card>
-    {% comment %}
-    One table, a tbody per family, rather than a table per family: column
-    widths are a table's own, so separate tables mean every family sizes
-    its Kind column to its own longest name and nothing lines up down the
-    page. The family heading is a row spanning the width, which is what
-    scope="colgroup" says out loud.
-    {% endcomment %}
+    {# Use one table so family groups share column widths. #}
     <c-ui.table class="mt-8">
         <thead>
             <tr>
@@ -71,8 +59,7 @@
         {% for family in families %}
             <tbody>
                 <tr>
-                    {# The ! wins over the kit's [&_th] colour rule, which #}
-                    {# out-specifies a plain utility on the cell itself. #}
+                    {# The important modifier overrides the table component's higher-specificity header colour rule. #}
                     <th scope="colgroup"
                         colspan="3"
                         class="bg-ink-100 font-semibold! text-ink-900! dark:bg-ink-800 dark:text-ink-100!">
@@ -81,7 +68,7 @@
                 </tr>
                 {% for entry in family.kinds %}
                     <tr>
-                        {# nowrap: the summary column takes the squeeze, never the name #}
+                        {# Keep names on one line; allow summaries to wrap. #}
                         <td class="whitespace-nowrap">
                             <c-n26.link href="{% url 'authoring-leaf' entry.kind %}">{{ entry.verbose_name|capfirst }}</c-n26.link>
                         </td>
@@ -89,11 +76,8 @@
                         <td class="text-right tabular-nums">{{ entry.count }}</td>
                     </tr>
                     {% comment %}
-                    A few kinds are places other content is filed under, so the
-                    way in is one particular row rather than the listing. Those
-                    rows follow their kind, indented to say they are of it.
-                    The ! is needed twice over: the kit's [&_td] padding and
-                    colour rules both out-specify a plain utility on the cell.
+Indent individual slot-type links beneath their kind.
+Important utilities override the table component's padding and colour selectors.
                     {% endcomment %}
                     {% for row in entry.rows %}
                         <tr>
