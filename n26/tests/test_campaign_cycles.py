@@ -232,6 +232,33 @@ class TestSetupAndAccess:
         advance(campaign, owner, retained)
         assert cycles.load(campaign).current.order == 2
 
+    def test_status_changes_while_disabled_invalidate_old_phase_reassignments(
+        self, campaign, owner, configured, opened
+    ):
+        opened.availability = Availability.OFF
+        opened.save()
+        with campaign_operation(campaign, actor=owner) as act:
+            act.set_status(Campaign.Status.IN_PROGRESS)
+        retained = cycles.load(campaign)
+        assert retained.revision == configured.revision + 1
+        assert retained.current_cycle_id == configured.current_cycle_id
+        opened.availability = Availability.EVERYONE
+        opened.save()
+        with pytest.raises(cycles.CycleConflict, match="schedule changed"):
+            cycles.edit_cycle(
+                campaign,
+                actor=owner,
+                target=s.SavedCycleRef(configured.current_cycle_id),
+                details=s.CycleDetails(configured.phases[1].id),
+                expected_revision=configured.revision,
+                request_key=uuid4(),
+            )
+        after = cycles.load(campaign)
+        assert after == retained
+        assert not CampaignCycleTransition.objects.exists()
+        assert not CampaignCycleDelivery.objects.exists()
+        assert CampaignCycleCommand.objects.count() == 1
+
 
 class TestMaterialisation:
     @pytest.mark.parametrize("identity", ["", "x" * 27])

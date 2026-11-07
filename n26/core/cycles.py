@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass, replace
 from uuid import UUID
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 from ulid import ULID
 
@@ -563,6 +563,10 @@ def resolve_selection(act, target):
 def status_changed(act, status):
     """Keep an opted-in schedule consistent with existing campaign status actions."""
     if not flags.enabled(flags.CYCLE_TRACKING, act.actor):
+        # Status is part of a cycle edit's baseline even while cycle controls are hidden.
+        CampaignSchedule.objects.filter(campaign=act.campaign).update(
+            revision=F("revision") + 1
+        )
         return False
     before = _load_locked(act.campaign)
     if before is None:
