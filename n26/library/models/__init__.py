@@ -97,6 +97,7 @@ from n26.library.models.modifier import (
 )
 from n26.library.models.pack import ContentPack, default_pack_id, get_default_pack
 from n26.library.models.profile import Profile, ProfileType
+from n26.library.models.scenario import ScenarioEntry, ScenarioTable
 from n26.library.models.slots import (
     Dice,
     Interstitial,
@@ -119,6 +120,8 @@ from n26.library.models.statline import (
 )
 
 __all__ = [
+    "ScenarioEntry",
+    "ScenarioTable",
     "AdvancementPromotion",
     "Action",
     "BuiltInAction",

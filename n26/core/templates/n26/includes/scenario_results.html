@@ -29,9 +29,9 @@ the link opens a dialog that asks which set to roll it on.
                 <c-n26.die value="{{ result.face }}" class="text-3xl" />
             </div>
             <p class="max-w-prose">{% for words, bold in result.entry.parts %}{% if bold %}<strong>{{ words }}</strong>{% else %}{{ words }}{% endif %}{% endfor %}</p>
-            {% if result.entry.image %}
-                <img src="{% static result.entry.image %}"
-                     alt="Deployment map for {{ result.entry.label }}"
+            {% if result.entry.image_url %}
+                <img src="{{ result.entry.image_url }}"
+                     alt="{{ result.entry.diagram_alt }}"
                      class="w-full max-w-md rounded border border-box-border">
             {% endif %}
         </li>

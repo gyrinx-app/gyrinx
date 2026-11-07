@@ -516,3 +516,16 @@ subtype modifiers still determine what each visitor contributes.
 
 Clearing an import preserves the gang types selected here and the subtype
 conditions used by the standard contribution rules.
+
+## Scenario table
+
+A scenario table has six D6 results. Deployment, Objective and Crew describe
+parts of a battle; side-job sets provide extra goals. Each entry has a result
+number, a name, a description and an optional diagram with a description for
+players who cannot see it.
+
+Authors can edit the existing tables and create new side-job sets. A new set
+starts staged and must have all six entries before it can be previewed or put
+live. Editing live wording also updates saved scenarios. Result numbers stay
+fixed. Retiring a set removes it from new choices while existing results remain
+readable.

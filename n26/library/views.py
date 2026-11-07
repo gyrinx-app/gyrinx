@@ -39,6 +39,7 @@ from n26.library.references import carrying_models as _assignable_models
 from n26.library.references import forward_relations as _forward_relations
 from n26.library.references import reading_sentences as _reading_sentences
 from n26.library.references import references_to
+from n26.library.scenario_views import table_page as scenario_table_page
 from n26.library.sheets import INGEST_SHEETS, SHEET_LABELS, SHEET_NAMES
 from n26.library.specs import specs
 from n26.library.staged import stageable, staged_count, staged_rows
@@ -51,6 +52,7 @@ SHEET_HOLDS = {name: holds for name, _label, holds in INGEST_SHEETS}
 #: url slug → (create verb, the model the page lists). The guard test
 #: keeps every entry backed by a spec.
 LEAF_KINDS = {
+    "scenario-table": "create_scenario_table",
     "subtype": "create_subtype",
     "rule": "create_rule",
     "trait": "create_trait",
@@ -1803,6 +1805,10 @@ def _selected(rows, pks):
 @staff_member_required
 def create(request, kind):
     """The form that makes one more of a leaf kind, on its own page."""
+    if kind == "scenario-table":
+        from n26.library.scenario_views import new_table
+
+        return new_table(request)
     if kind == "action":
         from n26.library.action_builder_views import new_action
 
@@ -2649,7 +2655,10 @@ def staged(request):
             )
         except ValidationError:
             raise Http404("No such row") from None
-        authoring.put_live(row)
+        try:
+            authoring.put_live(row)
+        except ValidationError as error:
+            return _staged_page(request, errors=error.messages, status=400)
         messages.success(request, f"{row} is live.")
         return redirect("authoring-staged")
 
@@ -5181,7 +5190,12 @@ def _slot_type_rows(slot_type, part):
 
 #: Kinds whose detail page is its own view rather than the
 #: parts-and-add-form shape. Checked by ``detail`` before anything else.
-DETAIL_VIEWS = {"collection": collection_page, "slot-type": slot_type_page}
+
+DETAIL_VIEWS = {
+    "collection": collection_page,
+    "slot-type": slot_type_page,
+    "scenario-table": scenario_table_page,
+}
 
 
 @staff_member_required

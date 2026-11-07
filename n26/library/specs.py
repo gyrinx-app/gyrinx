@@ -198,6 +198,11 @@ class Text(_Sourced):
 
 
 @dataclass(frozen=True)
+class Image(_Sourced):
+    """A raster image uploaded to site storage."""
+
+
+@dataclass(frozen=True)
 class Artwork(_Sourced):
     """The address of a drawing in the site's own storage.
 
@@ -1745,6 +1750,34 @@ def _build_registry():
             },
         ),
     ]
+    from n26.library.models import ScenarioEntry, ScenarioTable
+
+    specs.extend(
+        [
+            Spec(
+                authoring.create_scenario_table,
+                {
+                    "name": Text(source=(ScenarioTable, "name")),
+                    "position": Int(source=(ScenarioTable, "position")),
+                },
+            ),
+            Spec(
+                authoring.add_scenario_entry,
+                {
+                    "table": One(
+                        model=ScenarioTable, source=(ScenarioEntry, "table"), fixed=True
+                    ),
+                    "roll": Int(source=(ScenarioEntry, "roll"), fixed=True),
+                    "name": Text(source=(ScenarioEntry, "name")),
+                    "text": Text(source=(ScenarioEntry, "text"), long=True),
+                    "diagram": Image(source=(ScenarioEntry, "diagram")),
+                    "diagram_alt": Text(source=(ScenarioEntry, "diagram_alt")),
+                },
+                model=ScenarioEntry,
+                joins_carrier_pack=True,
+            ),
+        ]
+    )
     return {spec.name: spec for spec in specs}
 
 

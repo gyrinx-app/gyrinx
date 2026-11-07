@@ -1,0 +1,17 @@
+{% extends "authoring/base.html" %}
+{% load react %}
+{% block head_title %}{{ page_title }}{% endblock head_title %}
+{% block content %}
+    <c-n26.page-header title="{{ page_title }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' 'scenario-table' %}">Scenario tables</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ page_title }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    {% react_island "scenario-authoring" editor %}
+{% endblock content %}

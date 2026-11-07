@@ -21,6 +21,8 @@ from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
+from n26.library.scenario_tables import request_catalogue
+
 SAVE = "save"
 RECORD = "record"
 DIALOGS = (SAVE, RECORD)
@@ -54,7 +56,7 @@ def side_job_changes(request, form, here, extra=None):
         return _rerolled(request, form, here, extra)
     else:
         return None
-    found, wrong = parse(request.GET)
+    found, wrong = parse(request.GET, request_catalogue(request))
     rolls = {} if wrong else rolls_of(found)
     query = urlencode({**picks, **rolls, **(extra or {})})
     return redirect(f"{here}?{query}#scenario-components")
@@ -65,16 +67,18 @@ REROLL_REFUSED = (
 )
 
 
-def rerolled_rolls(data):
+def rerolled_rolls(data, catalogue=None):
     """The rolls of the scenario ``data`` holds with the side job
     ``reroll`` names rolled again on the set ``reroll_set`` names, or None
     when the scenario is wrong or has no such side job or set."""
     from n26.core.scenarios import parse, reroll_side_job
 
-    found, wrong = parse(data)
+    found, wrong = parse(data, catalogue)
     if wrong:
         return None
-    return reroll_side_job(found, data.get("reroll", ""), data.get("reroll_set", ""))
+    return reroll_side_job(
+        found, data.get("reroll", ""), data.get("reroll_set", ""), catalogue=catalogue
+    )
 
 
 def _rerolled(request, form, here, extra):
@@ -84,10 +88,10 @@ def _rerolled(request, form, here, extra):
     from n26.core.scenarios import parse, rolls_of
     from n26.library.scenario_tables import SIDE_JOB_KEYS
 
-    found, wrong = parse(request.GET)
+    found, wrong = parse(request.GET, request_catalogue(request))
     key = request.GET.get("reroll", "")
     set_key = request.GET["reroll_set"]
-    rolls = rerolled_rolls(request.GET)
+    rolls = rerolled_rolls(request.GET, request_catalogue(request))
     if rolls is None:
         picks, rolls = form.chosen_picks(), ({} if wrong else rolls_of(found))
     else:
@@ -107,9 +111,9 @@ def reroll_dialog(request, here, rolls, extra=None):
     """
     from n26.core.forms import ScenarioGeneratorForm
     from n26.core.scenarios import parse
-    from n26.library.scenario_tables import SIDE_JOB_KEYS, SIDE_JOB_SETS
+    from n26.library.scenario_tables import SIDE_JOB_KEYS
 
-    form = ScenarioGeneratorForm(request.GET)
+    form = ScenarioGeneratorForm(request.GET, catalogue=request_catalogue(request))
     state = {
         **(form.chosen_picks() if form.is_valid() else {}),
         **rolls,
@@ -123,7 +127,7 @@ def reroll_dialog(request, here, rolls, extra=None):
     key = request.GET.get("reroll", "")
     if key not in links:
         return None, links
-    found, _ = parse(rolls)
+    found, _ = parse(rolls, request_catalogue(request))
     (result,) = [r for r in found if r.table.key == key]
     return {
         "title": f"Reroll {result.table.name.lower()}",
@@ -132,7 +136,9 @@ def reroll_dialog(request, here, rolls, extra=None):
         "fields": [
             [name, str(value)] for name, value in {**state, "reroll": key}.items()
         ],
-        "sets": [{"value": s.key, "label": s.label} for s in SIDE_JOB_SETS],
+        "sets": [
+            {"value": s.key, "label": s.label} for s in form.catalogue.side_job_sets
+        ],
         "set": result.table.side_job_set.key,
     }, links
 
@@ -141,7 +147,7 @@ def _picks(request):
     """The non-default picks the address carries, so actions keep them."""
     from n26.core.forms import ScenarioGeneratorForm
 
-    form = ScenarioGeneratorForm(request.GET)
+    form = ScenarioGeneratorForm(request.GET, catalogue=request_catalogue(request))
     return form.chosen_picks() if form.is_valid() else {}
 
 
@@ -160,9 +166,9 @@ def _render_generator(request, *, dialog=None, dialog_form=None, data=None):
     data = request.GET if data is None else data
     from n26.core.views.scenario_props import scenario_picks_props
 
-    form = ScenarioGeneratorForm(request.GET)
+    form = ScenarioGeneratorForm(request.GET, catalogue=request_catalogue(request))
     valid = form.is_valid()
-    scenario, wrong = parse(data)
+    scenario, wrong = parse(data, request_catalogue(request))
     if wrong:
         scenario = []
     rolls = rolls_of(scenario)
@@ -188,6 +194,7 @@ def _render_generator(request, *, dialog=None, dialog_form=None, data=None):
             ConnectScenarioToBattleForm if dialog == SAVE else ScenarioCampaignForm
         )
         dialog_form = form_class(
+            catalogue=request_catalogue(request),
             campaigns=connecting_campaigns if dialog == SAVE else campaigns,
             initial={**rolls, **connection},
         )
@@ -284,13 +291,13 @@ def generate_scenario(request):
     """
     from n26.core.forms import ScenarioGeneratorForm
 
-    form = ScenarioGeneratorForm(request.GET)
+    form = ScenarioGeneratorForm(request.GET, catalogue=request_catalogue(request))
     connection = {
         key: request.GET[key] for key in ("campaign", "battle") if request.GET.get(key)
     }
     # The battle form's preview rerolls one side job here.
     if "reroll_set" in request.GET and request.GET.get("format") == "json":
-        rolls = rerolled_rolls(request.GET)
+        rolls = rerolled_rolls(request.GET, request_catalogue(request))
         if rolls is None:
             return JsonResponse({"errors": [REROLL_REFUSED]}, status=400)
         return JsonResponse({"rolls": rolls})
@@ -332,7 +339,9 @@ def save_scenario_to_campaign(request):
         raise Http404("Nothing to save")
     data = request.POST
     if request.POST.get("generate") == "1":
-        generator = ScenarioGeneratorForm(request.POST)
+        generator = ScenarioGeneratorForm(
+            request.POST, catalogue=request_catalogue(request)
+        )
         if not generator.is_valid():
             return JsonResponse(
                 {
@@ -345,24 +354,25 @@ def save_scenario_to_campaign(request):
                 status=400,
             )
         data = request.POST.copy()
-        from n26.library.scenario_tables import SIDE_JOB_KEYS, TABLES
+        from n26.library.scenario_tables import PRIMARY_KEYS, SIDE_JOB_KEYS
 
-        for key in [table.key for table in TABLES] + list(SIDE_JOB_KEYS):
+        for key in list(PRIMARY_KEYS) + list(SIDE_JOB_KEYS):
             data.pop(key, None)
         data.update(generator.generate())
     elif request.POST.get("reroll_set"):
         # A battle's Reroll: one side job rolled again, the rest kept.
-        rolls = rerolled_rolls(request.POST)
+        rolls = rerolled_rolls(request.POST, request_catalogue(request))
         if rolls is None:
             return JsonResponse({"errors": [REROLL_REFUSED]}, status=400)
         data = request.POST.copy()
-        from n26.library.scenario_tables import SIDE_JOB_KEYS, TABLES
+        from n26.library.scenario_tables import PRIMARY_KEYS, SIDE_JOB_KEYS
 
-        for key in [table.key for table in TABLES] + list(SIDE_JOB_KEYS):
+        for key in list(PRIMARY_KEYS) + list(SIDE_JOB_KEYS):
             data.pop(key, None)
         data.update(rolls)
     form = ConnectScenarioToBattleForm(
         data,
+        catalogue=request_catalogue(request),
         campaigns=recording_campaigns(request.user).filter(owner=request.user),
     )
     if form.is_valid():
@@ -414,7 +424,9 @@ def record_scenario_battle(request):
     if request.method != "POST":
         raise Http404("Nothing to record")
     form = ScenarioCampaignForm(
-        request.POST, campaigns=recording_campaigns(request.user)
+        request.POST,
+        catalogue=request_catalogue(request),
+        campaigns=recording_campaigns(request.user),
     )
     if form.is_valid():
         campaign = form.cleaned_data["campaign"]
@@ -432,7 +444,7 @@ def _print(request, back_url):
     generator it came from. A missing or wrong scenario is not found."""
     from n26.core.scenarios import parse
 
-    scenario, wrong = parse(request.GET)
+    scenario, wrong = parse(request.GET, request_catalogue(request))
     if wrong or not scenario:
         raise Http404("No scenario to print")
     return render(

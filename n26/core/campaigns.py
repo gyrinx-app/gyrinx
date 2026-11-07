@@ -447,13 +447,13 @@ class CampaignOperation:
         """
         from n26.core.models import Battle
         from n26.core.operations import Refusal
-        from n26.core.scenarios import parse, rolls_of
+        from n26.core.scenarios import rolls_of
 
         self._require_recorder()
         scenario = (
             scenario or ""
         ).strip() or f"Battle #{self.campaign.battles.count() + 1}"
-        scenario_found, wrong = parse(scenario_rolls or {})
+        scenario_found, wrong = self._scenario_selection(scenario_rolls or {})
         if wrong:
             raise Refusal(
                 "A scenario component is not on its table. Generate the scenario again."
@@ -631,6 +631,21 @@ class CampaignOperation:
         )
         return roll
 
+    def _scenario_selection(self, rolls, *, retained=None):
+        from n26.core.scenarios import parse, rolls_of
+        from n26.library.scenario_tables import load_catalogue
+        from n26.library.staged import sees_staged
+
+        if not rolls:
+            return [], []
+        catalogue = load_catalogue(include_staged=sees_staged(self.actor))
+        found, wrong = parse(rolls, catalogue)
+        kept = rolls_of(parse(retained or {}, catalogue)[0])
+        wrong.extend(
+            result.table for result in found if not catalogue.permits([result], kept)
+        )
+        return found, wrong
+
     def save_scenario(self, rolls, *, name):
         """Save a scenario from the generator for the arbitrator to see.
 
@@ -640,13 +655,13 @@ class CampaignOperation:
         one. One line says the whole scenario.
         """
         from n26.core.operations import Refusal
-        from n26.core.scenarios import history_note, parse, rolls_of
+        from n26.core.scenarios import history_note, rolls_of
 
         self._require_recorder()
         name = (name or "").strip()
         if not name or len(name) > 200:
             raise Refusal("Enter a scenario name of up to 200 characters.")
-        found, wrong = parse(rolls)
+        found, wrong = self._scenario_selection(rolls)
         if wrong:
             raise Refusal(
                 "A scenario component is not on its table. Generate the scenario again."
@@ -661,7 +676,7 @@ class CampaignOperation:
     def connect_scenario(self, battle, rolls, *, revision):
         """Attach generated components without changing the battle's name or outcome."""
         from n26.core.operations import Refusal
-        from n26.core.scenarios import parse, rolls_of
+        from n26.core.scenarios import rolls_of
 
         self._require_recorder()
         if self.actor.pk != self.campaign.owner_id:
@@ -669,7 +684,7 @@ class CampaignOperation:
         battle = self._locked_battle(battle)
         if battle.revision != revision:
             raise Refusal("This battle changed. Reload it before saving your changes.")
-        found, wrong = parse(rolls)
+        found, wrong = self._scenario_selection(rolls, retained=battle.scenario_rolls)
         if wrong or not found:
             raise Refusal("Generate a valid scenario before connecting it to a battle.")
         rolls = rolls_of(found)

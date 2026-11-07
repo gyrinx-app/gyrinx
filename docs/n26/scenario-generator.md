@@ -49,7 +49,8 @@ Some side jobs have words in bold, such as **only** or **at the same time**.
 The bold shows on the page, on the battle and in the print.
 
 The table wording, the side jobs and the Deployment maps are original content
-written for Gyrinx.
+written for Gyrinx. Staff maintain them under **Content library → Scenario tables**.
+New side-job sets appear in the menus after they are complete and put live.
 
 ## Generating a scenario
 

@@ -41,6 +41,7 @@ from n26.library.specs import (
     Bool,
     Choice,
     Conditions,
+    Image,
     Int,
     Many,
     One,
@@ -240,6 +241,12 @@ def _form_fields(spec, name, kind):
                 widget=forms.Textarea(attrs={"rows": 3})
                 if getattr(kind, "long", False)
                 else forms.TextInput(),
+            )
+        }
+    if isinstance(kind, Image):
+        return {
+            name: DiagramField(
+                required=_is_required(spec, name), help_text=kind.help, label=kind.label
             )
         }
     if isinstance(kind, Artwork):
@@ -444,6 +451,25 @@ def refuse_cross_pack_references(form, writing_into, picks):
             refusal = cross_pack_refusal(writing_into, row)
             if refusal is not None:
                 form.add_error(name, refusal)
+
+
+class DiagramField(forms.ImageField):
+    def __init__(self, **kwargs):
+        super().__init__(
+            widget=forms.ClearableFileInput(
+                attrs={"accept": "image/png,image/jpeg,image/webp"}
+            ),
+            **kwargs,
+        )
+
+    def to_python(self, data):
+        value = super().to_python(data)
+        if value is not None and (
+            value.size > 5 * 1024 * 1024
+            or value.image.format not in {"PNG", "JPEG", "WEBP"}
+        ):
+            raise forms.ValidationError("Upload a PNG, JPEG or WebP image up to 5 MB.")
+        return value
 
 
 class GeneratedForm(forms.Form):

@@ -10,6 +10,7 @@ export type SideJobSet = {
 export function SideJobFields({
     picks,
     sets,
+    referencedSets = [],
     keys,
     limit,
     onChange,
@@ -20,6 +21,7 @@ export function SideJobFields({
 }: {
     picks: string[];
     sets: SideJobSet[];
+    referencedSets?: SideJobSet[];
     keys: string[];
     limit: number;
     onChange: (picks: string[]) => void;
@@ -35,6 +37,13 @@ export function SideJobFields({
                     (each) =>
                         pick === each.key || pick.startsWith(`${each.key}-`),
                 );
+                const unavailable = !set
+                    ? referencedSets.find(
+                          (each) =>
+                              pick === each.key ||
+                              pick.startsWith(`${each.key}-`),
+                      )
+                    : undefined;
                 const key = keys[index];
                 const id = `${prefix}-${key}`;
                 return (
@@ -48,13 +57,18 @@ export function SideJobFields({
                             label="Side job set"
                             htmlFor={`${id}-set`}
                             errors={errors[`${key}_set`]}
+                            description={
+                                unavailable
+                                    ? "Select an available set to generate this side job again."
+                                    : undefined
+                            }
                         >
                             <NativeSelect
                                 id={`${id}-set`}
                                 name={submitNames ? `${key}_set` : undefined}
                                 aria-label={`Side job ${index + 1} set`}
                                 disabled={disabled}
-                                value={set?.key ?? pick}
+                                value={set?.key ?? unavailable?.key ?? pick}
                                 onChange={(event) =>
                                     onChange(
                                         picks.map((value, at) =>
@@ -66,6 +80,11 @@ export function SideJobFields({
                                 }
                             >
                                 <option value="">Choose a side job set</option>
+                                {unavailable && (
+                                    <option value={unavailable.key} disabled>
+                                        {unavailable.label} (unavailable)
+                                    </option>
+                                )}
                                 {sets.map((each) => (
                                     <option key={each.key} value={each.key}>
                                         {each.label}
