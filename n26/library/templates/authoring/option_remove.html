@@ -1,5 +1,5 @@
 {% extends "authoring/base.html" %}
-{# Remove the option and its unshared default set; preserve referenced content and acquired copies. #}
+{# Remove the option and attempt to delete its default set; preserve acquired copies. #}
 {% block head_title %}Withdraw {{ label }}{% endblock head_title %}
 {% block content %}
     <c-n26.form-page action="{% url 'authoring-option-remove' thing.pk %}"
