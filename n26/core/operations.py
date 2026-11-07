@@ -285,11 +285,9 @@ class NotEnoughCredits(Refusal):
 
 
 class AlreadyInACampaign(Refusal):
-    """A gang plays one campaign at a time.
+    """Joining would give the gang two open campaign memberships.
 
-    Not a rule of the game so much as of the record: two open memberships
-    would leave every event the gang wrote unable to say which campaign it
-    belonged to, and the campaign logs reading each other's acts.
+    A single active membership determines which campaign receives gang events.
     """
 
     def __init__(self, gang, campaign):
@@ -701,11 +699,9 @@ class Operation:
         )
 
     def _campaign_of(self, gang):
-        """The campaign this gang is playing, asked once per operation.
+        """Resolve the gang's current campaign once per operation.
 
-        A gang joining is itself an event, and it is written after the
-        membership, so the answer is looked up when it is first needed
-        rather than when the operation opened.
+        Delay the lookup until needed so a newly created membership is visible.
         """
         from n26.core.models import CampaignMembership
 
@@ -721,32 +717,20 @@ class Operation:
         return self._campaign
 
     def join_campaign(self, campaign):
-        """Put this operation's gang into a campaign, and say so in its history.
+        """Join a campaign and record its types as granted gang assignments.
 
-        A gang plays one campaign at a time, so joining a second while still in
-        the first is refused rather than quietly recorded — the database holds
-        the same line, and a player owed an explanation is better served by the
-        sentence than by a constraint error.
+        A second active campaign raises ``AlreadyInACampaign``. Rejoining the
+        same campaign returns the existing membership. Campaign budgets provide
+        information and do not block joining.
 
-        A campaign's budget stops nobody: it is a size the table agreed on,
-        and a gang bigger than it joins and is said to be bigger. What
-        counts against the budget is the gang's wealth — see
-        :func:`over_budget` — and the screens that add a gang say so.
-
-        Joining gives the gang the campaign's two types — the shared one it
-        was founded on and its own additions — as gang-hosted assignments,
-        granted, with their built-ins landing in the same breath: on N26
-        core a gang comes away holding a Settlement and a Reputation counter
-        at 1, each caused by the type's carrier. The membership points at
-        both carriers, so what the campaign gave can be found again. The
-        event is the gang's own, and names the campaign, so it reads in both
-        histories from one record.
+        The membership records both the campaign type and additions carriers.
+        Their built-ins arrive through normal reconciliation. The join event
+        appears in both the gang and campaign histories.
         """
         from n26.core.models import CampaignMembership
 
         gang = self.gang
-        # Read under the gang's line: a gang deleted since the form was
-        # drawn joins nothing.
+        # Check archival under the gang lock; the form may be stale.
         if type(gang).objects.filter(pk=gang.pk, archived=True).exists():
             raise Refusal(
                 f"{gang.name} has been deleted, so it cannot join a campaign."
@@ -761,9 +745,7 @@ class Operation:
             raise AlreadyInACampaign(gang, already.campaign)
 
         membership = CampaignMembership.objects.create(campaign=campaign, gang=gang)
-        # Set before the event is written, so the event that records the
-        # joining names the campaign it joined — and so the carriers and
-        # their built-ins, written next, name it too.
+        # The join and subsequent grant events must name this campaign.
         self._campaign = campaign
         self.event(None, LedgerEvent.Kind.JOINED_CAMPAIGN)
         membership.type_carrier = self._carry(campaign.campaign_type)
@@ -772,12 +754,9 @@ class Operation:
         return membership
 
     def _carry(self, campaign_type):
-        """Put one campaign type on the gang, with what it brings.
+        """Grant a campaign type and its built-ins to this gang.
 
-        The same shape as a founding — a free gang-hosted assignment whose
-        built-ins arrive caused by it — but granted rather than added:
-        the gang did not choose the type, the campaign did. Nothing is
-        priced, so the gang's rating is untouched.
+        The carrier is gang-hosted, free, and contributes no model rating.
         """
         carrier = self.assign(
             campaign_type,
@@ -790,22 +769,14 @@ class Operation:
         return carrier
 
     def leave_campaign(self):
-        """Take this operation's gang out of whatever campaign it is playing,
-        and give back everything the campaign gave it.
+        """Close the membership and remove the campaign's grants and holdings.
 
-        Every asset the gang holds goes back to the campaign unheld, with a
-        journal-only LOST event each, as unassigning one writes. Both
-        carriers are removed, and with them everything they brought: the
-        Settlement, the campaign's counters, the picks for its labels.
-        Nothing campaign-related stays on the gang but its history.
+        Release each asset with a LOST event, then remove both campaign type
+        carriers and their dependants. Preserve the membership and event history.
+        Return None if no membership is open.
 
-        Leaving closes the membership rather than deleting it: what a gang did
-        while it was in a campaign stays true, and the campaign's log keeps
-        reading. A gang playing nothing leaves nothing, and records nothing.
-
-        Every writer to a campaign asset holds the campaign's line before
-        the gang's, so a caller outside a test runs this inside
-        ``CampaignOperation.remove_gang``, which takes them in that order.
+        Call through ``CampaignOperation.remove_gang`` so the campaign lock is
+        acquired before the gang lock, matching other asset ownership writers.
         """
         from n26.core.models import CampaignMembership
 
@@ -817,10 +788,8 @@ class Operation:
         if membership is None:
             return None
 
-        # Settled before the membership closes: what this operation is asked
-        # about the gang's campaign is answered by looking for an open
-        # membership, and in a moment there will not be one — so the events
-        # that record the leaving would not be able to name what was left.
+        # Cache the campaign before closing membership so departure events
+        # remain linked to it.
         self._campaign = membership.campaign
         for campaign_asset in membership.held.select_related("asset").order_by(
             "created"
@@ -842,11 +811,9 @@ class Operation:
         return membership
 
     def archive_gang(self):
-        """Delete this operation's gang the way the app deletes: archive it.
+        """Archive this gang without overwriting its cached totals.
 
-        Written as an update of the two columns rather than a save of the
-        instance, so totals this operation has just rewritten are not put
-        back to what the caller loaded.
+        Update only the archive columns; the caller's other fields may be stale.
         """
         now = _now()
         type(self.gang).objects.filter(pk=self.gang.pk).update(
@@ -903,13 +870,7 @@ class Operation:
         return True
 
     def rename(self, miniature, name):
-        """Give one model a new name, and say so in the history.
-
-        The name is the owner's prose, so nothing here is priced — the
-        event stands alone, no entry behind it. The note keeps both
-        names, which is the whole of what a reader of the history wants
-        from a rename.
-        """
+        """Rename a model and record its old and new names in a journal event."""
         was = miniature.name
         if was == name:
             return miniature
@@ -919,21 +880,15 @@ class Operation:
         return miniature
 
     def set_status(self, miniature, status, note=""):
-        """Put a model into a status — In Recovery, Captured, Dead — and
-        say so in the history.
+        """Change a model's status and journal the old and new statuses.
 
-        Nothing is priced, so the event stands alone; but a death changes
-        what the rating sums to, so the model is marked touched and
-        ``settle`` repins it. The note keeps both statuses and, after a
-        colon, what did it — the result whose effect set it, "Clean
-        House", or nothing for the owner's own hand. The same status
-        again is nothing to do and writes nothing.
+        The note includes the cause when supplied. Mark the model for rating
+        recomputation because death affects its contribution. An unchanged status
+        produces no event.
         """
         status = Status(status)
-        # The caller read the model before this operation took the gang's
-        # line, and two clicks on one button arrive together: what it
-        # stands in is decided on what the line now holds, so the second
-        # of two identical acts finds nothing to do and writes nothing.
+        # Reload under the gang lock to avoid duplicate status events from
+        # concurrent submissions.
         miniature.refresh_from_db(fields=["status", "status_revision"])
         was = Status(miniature.status)
         if was == status:
@@ -1011,10 +966,9 @@ class Operation:
         )
 
     def clean_house(self):
-        """The end of the cycle: every model In Recovery is Active again.
+        """Return every model In Recovery to Active and return the changed models.
 
-        One event per model, all in this operation's batch, so the
-        history tells them as one act. Returns the models cleared.
+        Their events share this operation's batch and form one history entry.
         """
         from n26.core.models import Miniature
 
@@ -1030,13 +984,7 @@ class Operation:
         return cleared
 
     def rename_gang(self, name):
-        """Give the gang a new name, and say so in its own history.
-
-        The same act as renaming a model, one level up: the event stands
-        alone, about the gang rather than anything on it. The gang is
-        this operation's own — the one it was opened on — so there is no
-        second answer to which gang is being renamed.
-        """
+        """Rename this operation's gang and record both names in its history."""
         gang = self.gang
         was = gang.name
         if was == name:
@@ -1047,23 +995,14 @@ class Operation:
         return gang
 
     def set_budget(self, credits):
-        """Change what this operation's gang may spend, and record it.
+        """Change the gang's credit budget and journal both values.
 
-        ``credits`` is the new budget, or ``None`` for no ceiling at all.
-        Nothing is priced here: what the gang has left is recomputed by
-        ``settle`` from this figure less what the ledger says was spent,
-        which is also what refuses a budget the gang cannot fit.
+        ``credits=None`` means unlimited. Settlement recomputes the remaining
+        balance and rejects a budget below existing spending.
 
-        A gang that had no budget opens its new one from what it holds
-        now, so its credits are the budget less its wealth. What it spent
-        while it had no ceiling stays in the log, but models deleted and
-        kit sold since then must not go on using up the new budget. One
-        correction on this event brings the ledger's spend total to the
-        worth of what the gang holds. A change from one budget to another
-        keeps the whole spending history, where deleting is not a refund.
-
-        The note keeps both figures, since the whole of what a reader
-        wants from a budget change is what it was and what it became.
+        When setting a budget on an unlimited-budget gang, adjust recorded spend
+        to current wealth so sold or deleted possessions do not consume the new
+        budget. Changes between finite budgets retain the existing spending total.
         """
         from n26.core.reconcile import total_spent
 
@@ -1089,12 +1028,9 @@ class Operation:
         return gang
 
     def _refuse_if_open(self, kind, miniature=None):
-        """One of each kind at a time, and say which where there is one.
+        """Refuse a second open activity of the same kind under the gang lock.
 
-        Nothing spent while two of a kind were open could say which of
-        them it counted against, so the second is refused rather than
-        recorded. Decided on what stands under the gang's own line,
-        which the operation took before any of this ran.
+        Purchases must refer unambiguously to the activity they count against.
         """
         already = self.gang.open_activity(kind, miniature)
         if already is not None:
@@ -1104,18 +1040,10 @@ class Operation:
             )
 
     def open_activity(self, kind, trade_points=None, *, miniature=None):
-        """Start one of this gang's activities, and say so in its history.
+        """Open an activity and record its starting Trade Points in the journal.
 
-        An activity is a thing performed over several clicks — founding and
-        equipping the gang, a trip to the trading post — so it is opened
-        here and closed later. The event written first is what the row
-        points at: the act is the record, and the row is the state that
-        record leaves behind.
-
-        ``trade_points`` is what performing this brought, where it brings
-        anything. Nothing is priced and no money moves. The figure rides
-        the event's note as well as the row, so the history can say what
-        the gang set out with without reading a second table.
+        The activity references its opening event. Purchases record the activity
+        whose allowance they use; opening it moves no money.
         """
         from n26.core.models import Activity
         from n26.core.models.activity import note_for
@@ -1142,28 +1070,11 @@ class Operation:
         return activity
 
     def close_activity(self, activity):
-        """Finish an activity, and say so in its history.
+        """Close this gang's activity and record its remaining Trade Points.
 
-        What it did stays where it was written — the log between the two
-        events — so closing changes nothing but the state: from here the
-        gang may start another of the same kind.
-
-        What the act still had rides the closing event's note, where it
-        had anything to have: the book takes a visit's unspent Trade
-        Points away when it ends, and a log that recorded only the
-        ending would leave a reader no way to see what they lost.
-
-        The row is read again here, under the gang's own line, because
-        the caller's copy was read before that line was taken: two
-        clicks on one button arrive together often enough, and closing
-        an act twice would write it a second ending and orphan the
-        first. The read is scoped to this operation's gang as well as to
-        the row, so an activity belonging to another gang is not closed
-        here and its ending is not written into this gang's history.
-
-        Either miss — already closed, or not this gang's — does nothing
-        and returns None, so the caller can say so rather than report an
-        act that did not happen.
+        Reload under the gang lock to prevent duplicate closing events. An
+        already closed activity, or one belonging to another gang, returns None.
+        Closing allows a new activity of the same kind to open.
         """
         from n26.core.models import Activity
         from n26.core.models.activity import note_for
@@ -1215,38 +1126,19 @@ class Operation:
         return self.open_activity(Activity.Kind.HIRE_TIME, miniature=miniature)
 
     def visit_trading_post(self, visitors=(), brought=None):
-        """Open a Visit Trading Post activity, performed by these fighters.
+        """Open a Trading Post visit with these fighters and their Trade Points.
 
-        What they add between them becomes what the gang has to spend;
-        two ranks add Trade Points and the rest add none, which is
-        not the same as not going — one fighter going is what opens the
-        post at all.
+        A fighter can attend without contributing points. Each attendance event
+        shares the opening event's batch. Purchases reference the visit to charge
+        its allowance; closing it ends access to any remaining points.
 
-        Nothing is priced and nothing moves. What the visit has spent is
-        the purchases pointing back at its row, so the book's "unspent
-        Trade Points are lost" needs nothing taken away: closing the row
-        stops anything else counting against it, and a later visit is a
-        different row with a figure of its own.
-
-        Each fighter's own event says they went, in the same batch as
-        the one that opened the activity, so a receipt can name them and
-        the gang's history can say what each model did with their
-        activity.
-
-        ``brought`` overrides what they add up to. The operation takes
-        what it is given, the way a purchase does: a territory that adds
-        a point, or an arbitrator's own figure, is the same act with a
-        different number, and neither is something this should have to
-        know about.
+        ``brought`` overrides the total contributed by the fighters.
         """
         from n26.core.models import Activity
         from n26.core.trading import minted
 
         kind = Activity.Kind.TRADING_POST_VISIT
-        # Refused before the boundary is written: a second visit opened
-        # over an open one would lose what the first still had, and
-        # leave every purchase between them unable to say which of the
-        # two it counted against.
+        # A second open visit would make allowance attribution ambiguous.
         self._refuse_if_open(kind)
         going = [visitor for visitor in visitors if visitor.visiting]
         amount = minted(going) if brought is None else brought
@@ -1260,20 +1152,13 @@ class Operation:
         return self.gang
 
     def leave_trading_post(self):
-        """Close the open visit. What it had left is lost, as the book says.
+        """Close the current Trading Post visit and record its unused allowance.
 
-        The post shuts with it. In the book a gang with no visit open
-        may not buy from the Trading Post at all; here that is said
-        rather than enforced — a purchase with no activity open records
-        its Trade Points against none, once the owner has said they
-        meant it. The shut state is its own state all the same, because
-        "no visit" and "a visit that has spent everything" are different
-        things and the screens say so differently.
-
-        Nothing open is nothing to leave, and nothing is written. Read
-        under the gang's own line, which the operation took before this
-        ran, so two clicks on one button end the visit once: the second
-        finds it closed rather than writing the gang a second ending.
+        Purchases made without an open visit remain permitted after confirmation
+        and count against no activity. A closed visit differs from an open visit
+        with no remaining points. Return the gang whether or not a visit was open.
+        With no open visit, write nothing. The enclosing gang lock prevents
+        duplicate closing events.
         """
         from n26.core.models import Activity
 
@@ -1284,20 +1169,17 @@ class Operation:
         return self.gang
 
     def edit_notes(self, miniature, notes):
-        """Store the owner's notes as written, and say they changed.
+        """Save the model's notes and record that they changed.
 
-        The history records that the notes moved and never what they
-        say: the words are the owner's, and the journal is a list of
-        acts, not a copy of the prose.
+        The journal omits the notes' contents.
         """
         return self._write_prose(miniature, "notes", notes, LedgerEvent.Kind.NOTED)
 
     def append_note(self, miniature, paragraph, note=""):
-        """Add a paragraph to the end of a model's notes, and say so.
+        """Append an HTML paragraph already escaped by the caller to the model's notes.
 
-        What was there stays as it was. The paragraph is HTML the caller
-        has already escaped. As ``edit_notes``, the history records the
-        act and never the words; ``note`` says what added them.
+        The journal records ``note`` as the reason for the change without
+        copying the paragraph.
         """
         miniature.refresh_from_db(fields=["notes"])
         miniature.notes = f"{miniature.notes}{paragraph}"
@@ -1306,11 +1188,7 @@ class Operation:
         return miniature
 
     def edit_lore(self, miniature, lore):
-        """Store the model's story as written, and say it changed.
-
-        As ``edit_notes``: the journal records the act and never the
-        prose.
-        """
+        """Save the model's lore and journal the change without copying the prose."""
         return self._write_prose(miniature, "lore", lore, LedgerEvent.Kind.LORE_EDITED)
 
     def set_image(self, miniature, upload, clear=False):
@@ -1335,10 +1213,9 @@ class Operation:
         return self._write_picture(self.gang, upload, clear)
 
     def _write_prose(self, subject, field, value, kind):
-        """One written field on the gang or a model, changed and said.
+        """Save a gang or model's prose field and record the change.
 
-        An unchanged field writes nothing at all — no save, no event —
-        so saving a form around an untouched box leaves no trace.
+        An unchanged value produces neither a save nor an event.
         """
         if getattr(subject, field) == value:
             return subject
@@ -1349,11 +1226,9 @@ class Operation:
         return subject
 
     def _write_picture(self, subject, upload, clear):
-        """The picture on the gang or a model, replaced or removed.
+        """Replace or clear a gang or model's picture.
 
-        The old file is left in storage: an address someone shared
-        keeps working, and files are cheap where a broken image on a
-        page is not.
+        Keep the old file in storage so previously shared image URLs still work.
         """
         about = subject if isinstance(subject, Miniature) else None
         if upload:
@@ -1367,14 +1242,10 @@ class Operation:
         return subject
 
     def set_stats(self, miniature, changes):
-        """Set or clear the characteristics an owner has taken over.
+        """Apply characteristic overrides and journal each changed value.
 
-        ``changes`` is what the form worked out actually moved — each a
-        ``(type_stat, value, said)``, where an empty value clears the
-        override so the entry's own print stands again, and ``said`` is
-        the sentence the history keeps. Nothing here is priced: the
-        override replaces a printed value, and what the gang is worth
-        never followed from a characteristic.
+        ``changes`` contains ``(type_stat, value, said)`` tuples. An empty value
+        clears the override; ``said`` is the history text. Overrides do not alter rating.
         """
         from n26.core.models import StatOverride
 
