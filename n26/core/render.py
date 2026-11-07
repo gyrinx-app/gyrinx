@@ -2560,25 +2560,12 @@ def collapse(lines, key=identity):
 
 
 def brought_in_by(members):
-    """What each purchase on the roster brought in, by the purchase.
+    """Map equipment assignment IDs to the named living pets they created.
 
-    A map from the pk of the assignment that caused a model's membership
-    — the collar — to the names of the models it brought, as their owner
-    named them; what a kit line writes after its name (``brought_mark``).
-    A list, because one piece of kit may carry several model-adding
-    effects and every model they hire names the same purchase. Built
-    once from the roster, whose members arrive with the cause already
-    joined, so a whole gang's worth costs no query.
-
-    Every collar on the roster is in the map, because being in it is
-    what keeps a line from stacking: two collars are two pets, whatever
-    the pets are called. A pet its owner has not named yet is left out
-    of the names — its name is still its profile's, and "Phyrr Cat
-    (Phyrr Cat)" says nothing the bare line does not — and so is a dead
-    one, since the line is what the model carries and a dead pet is not
-    that any more. Keyed by the pk written as a string, and read the
-    same way, so a node's key and a membership's cause agree however
-    either is typed.
+    Use the roster's joined causes without querying. Include every causal
+    equipment ID even when no pet name is displayed, keeping distinct collars
+    from collapsing. Exclude profile-default names and dead pets from the names.
+    Normalise assignment keys to strings.
     """
     brought = {}
     for member in members:
@@ -2594,10 +2581,10 @@ def brought_in_by(members):
 
 
 def _brought_in_of(node, brought_in):
-    """The names of the models this line's kit brought, off the map
-    :func:`brought_in_by` builds — or nothing. The whole of the line is
-    asked, since the purchase a pet names may be a hidden part riding
-    under the visible kit."""
+    """Find pet names caused by this line or any of its descendants.
+
+    A hidden component may be the membership's recorded cause.
+    """
     if not brought_in:
         return ()
     return tuple(
@@ -2606,11 +2593,10 @@ def _brought_in_of(node, brought_in):
 
 
 def _brought_in_by_one(miniature):
-    """The same map, for the models one model's purchases brought in.
+    """Load pets created by one model's equipment in one query.
 
-    One query, for a card built on its own — the model's own page —
-    where no roster is to hand. Asked only of a card whose kit brings a
-    model (``_brings_a_model``), so every other card costs nothing more.
+    Used for standalone cards without a roster, only when _brings_a_model
+    finds a model-creating effect.
     """
     from n26.core.models import Miniature
 
@@ -2635,15 +2621,10 @@ def _brings(computed):
 
 
 def _brings_a_model(computed):
-    """Whether this model's own kit brings a model onto the roster.
+    """Whether this model's own equipment has an effect that creates a model.
 
-    Narrower than :func:`_brings` twice over: a stored effect may move
-    a counter or set a status instead, and a card carrying one of those
-    has no pet to look up; and what the gang holds rides every member's
-    card — as a broadcast row or as a guest — without being any
-    member's own, the same distinction ``effects.compute`` draws when
-    it notes a stored effect, so a gang-held collar's pet is nobody's
-    to look up either.
+    Exclude other stored effects and gang-owned broadcast or echoed sources,
+    which cannot identify this fighter's pet purchases.
     """
     if not computed:
         return False
@@ -2667,37 +2648,21 @@ def build_model_card(
     rank_summaries=None,
     open_lasting_effects=False,
 ):
-    """Everything needed to draw one model's card.
+    """Build one model's display card from its assignments and optional computation.
 
-    Pass ``computed`` (from ``n26.effects.compute``) to fold in what
-    modifiers say — granted subtypes and skills, added weapon traits,
-    shifted characteristics, forbidden combinations. Without it the card
-    shows only what is literally assigned. Pass ``assignment_set`` to show
-    one named selection instead of everything the model owns.
+    ``computed`` supplies modifier results; without it, display stored facts
+    only. ``assignment_set`` narrows the equipment selection.
 
-    ``budget`` is this model's founding allowance
-    (``n26.core.founding.FoundingBudget``) where its books give it one and
-    the gang is still being founded. Handed in rather than read here: what
-    has been spent is one sum for the whole roster, and a card that asked
-    for its own would be a query a fighter.
+    ``budget`` and ``rank_summaries`` may be supplied from roster-wide reads.
+    Without rank summaries, a ranked standalone card reads its effective tables
+    and thresholds in two library queries. Pass ``()`` to omit rank display.
 
-    ``collapse_repeats`` is passed through to ``card_to_model_card``: off
-    for the model's own page, whose kit lines carry acts.
+    ``collapse_repeats`` controls grouping in ``card_to_model_card``.
+    ``brought_in`` supplies the roster's pet map; without it, only cards with
+    model-creating effects perform a standalone pet lookup.
 
-    ``brought_in`` is :func:`brought_in_by`'s map, handed in by a caller
-    holding the roster so a sheet's cards pay nothing for it. Left out,
-    a card whose kit brings something looks its own up in one query,
-    and every other card looks up nothing.
-
-    ``rank_summaries`` comes from one batch read when drawing a roster. When
-    omitted, a standalone card reads its effective tables and thresholds in
-    two library queries if it has ranks. Pass ``()`` when rank display is
-    intentionally excluded, such as an effect-only comparison.
-
-    ``open_lasting_effects`` keeps a lasting-effect choice that holds
-    nothing yet. Only the model's own screens ask for it: that is where
-    an injury is recorded, and everywhere else it would be an empty row
-    on every card.
+    ``open_lasting_effects`` retains unresolved injury choices for model-editing
+    screens. Other surfaces omit these empty choice lines.
     """
     if card is None:
         card = build_card(miniature, with_statlines=True, assignment_set=assignment_set)
@@ -2724,9 +2689,7 @@ def build_model_card(
         notes=miniature.notes,
         lore=miniature.lore,
         image_url=(miniature.image.url if miniature.image else ""),
-        # Off the card, never off the model: what an owner set is loaded
-        # by the build (``n26.core.card.set_by_hand``), because drawing
-        # a card may not query.
+        # Use overrides already loaded by card.set_by_hand; rendering must not query.
         stat_overrides=card.stat_overrides,
         trade_points_left=budget.remaining if budget is not None else None,
         founding_budget=budget is not None,
@@ -2782,27 +2745,14 @@ def card_to_model_card(
     status="",
     collapse_repeats=True,
 ):
-    """Turn a card into the structure a renderer draws.
+    """Build display data from a stored card or library-only preview.
 
-    Everything about *who* the card is for arrives as arguments, so this
-    works the same whether the card came from a player's assignments or
-    from a profile's default equipment in a hire preview.
+    Identity arrives as arguments. ``xp`` supplies a fallback only when no XP
+    counter exists. ``stat_overrides`` contains this model's manual values.
 
-    ``xp`` is what to show when the card holds no XP counter; a card that
-    holds one shows its value instead, so the cell moves with every tally.
-
-    ``stat_overrides`` are the characteristics this model's owner set by
-    hand — none on a preview, which depicts nobody and so has nobody's
-    settings to honour.
-
-    ``collapse_repeats`` draws identical gear, skills, rules and powers
-    once with a count (:func:`collapse`). Off for the model's own page,
-    where each kit line carries acts that name one assignment.
-
-    ``brought_in`` maps the pk of a purchase to the name of the model it
-    brought onto the roster (:func:`brought_in_by`); a kit line whose
-    assignment — or anything under it — is in the map carries that name.
-    None is a card with nothing to say about it, as a preview has.
+    ``collapse_repeats`` groups identical lines; disable it where controls
+    address individual assignments. ``brought_in`` maps purchase IDs to the
+    names of pets created by those assignments or their descendants.
     """
     primary = None
     brought_in = brought_in or {}
@@ -2870,9 +2820,8 @@ def card_to_model_card(
         return thing_key(node.assignable)
 
     def brought_in_of(node):
-        # The purchase the pet's membership names may be the line itself
-        # or a hidden part riding under it, so the whole of the line is
-        # asked — the same walk that keeps such a line from stacking.
+        # Search descendants too: a pet's cause may be a hidden component of
+        # this visible equipment line.
         return _brought_in_of(node, brought_in)
 
     # A line's cause is almost always another line on the same card — the
@@ -2921,13 +2870,8 @@ def card_to_model_card(
         accessory_nodes = [
             child for child in node.children if not child.is_weapon_profile
         ]
-        # What the weapon brought is asked of the whole of its line, as
-        # a gear line asks — the purchase a pet names may be a hidden
-        # part under the weapon — except what is said on a line of its
-        # own beneath: a fitting and a named profile each name their own
-        # pet, so the weapon does not name it twice. The unnamed profile
-        # shares the weapon's row, so its pets are the weapon's. A
-        # profile assigned straight to a model is its own named line.
+        # Include pets created by the weapon and its unnamed profile. Accessories
+        # and named profiles display their own pets, so exclude them here.
         named_profile_nodes = [
             child for child in profile_nodes if child.assignable.name
         ]
@@ -2993,9 +2937,7 @@ def card_to_model_card(
             brought_in=brought,
         )
 
-    # What the model owns, and then what a modifier handed it. A granted
-    # line is drawn like any other — a weapon with its profiles — and
-    # tells itself apart by its provenance, which says it was computed.
+    # Display stored and computed equipment with their respective provenance.
     for node in (*card.roots, *card.granted):
         if node.key in chosen_keys:
             # A chosen thing is drawn as its choice's row, not as a loose
@@ -3083,9 +3025,7 @@ def card_to_model_card(
             if is_xp:
                 counted_xp = standing
         elif node.is_profile:
-            # A Legacy profile rides the card but is not drawn from: it is
-            # not equipment either, so it falls off here until Legacy gets
-            # its own line.
+            # Legacy profiles affect the card but have no equipment display line.
             if node.is_primary_profile:
                 primary = thing
         else:
@@ -3315,8 +3255,7 @@ def card_to_model_card(
         owned_by=owned_by,
         owned_by_id=owned_by_id,
         in_stash=in_stash,
-        # XP first, then the rest in the order the card holds them: it is
-        # the one every model keeps and the one a reader looks for.
+        # Display XP first, retaining card order for other counters.
         counters=sorted(counters, key=lambda line: not line.is_xp),
         xp=xp if counted_xp is None else counted_xp,
         xp_target=xp_target,
@@ -3827,14 +3766,10 @@ def _mustered(members, recategorised=None):
     by_pk = {member.pk: member for member in members}
 
     def rank(member):
-        """Where this model's rank sorts. Vehicles after every fighter —
-        their Type decides that, not their category's position, which
-        numbers them within their own section and would otherwise
-        collide with a fighter rank's. Within a Type, the category's
-        position alone, one ladder across sections: ranked by the
-        section first, a supplementary Hanger-on could only ever sort
-        where its whole section sorts. Uncategorised after everything
-        placed."""
+        """Sort fighters before vehicles, then by category position across sections.
+
+        Uncategorised models follow categorised models.
+        """
         profile = member.membership.profile if member.membership else None
         vehicle = profile is not None and profile.profile_type.name == "Vehicle"
         category = recategorised.get(member.pk) or (
@@ -3979,8 +3914,7 @@ def stash_lines(gang_card, collapse_repeats=True, brought_in=None):
             key="" if stands_alone(node) else thing_key(node.assignable),
         )
         for node in gang_card.stash_roots
-        # No row of its own is the kind's whole contract — a chosen
-        # option's Hidden carrier rides the stash invisibly.
+        # Hidden carriers affect stash content without drawing a line.
         if not isinstance(node.assignable, DRAWS_NO_LINE)
     ]
     return collapse(lines) if collapse_repeats else lines
@@ -3989,18 +3923,14 @@ def stash_lines(gang_card, collapse_repeats=True, brought_in=None):
 def render_gang(
     gang, with_effects=True, *, card=None, for_owner=False, collapse_repeats=True
 ):
-    """A whole gang sheet. A fixed number of queries, whatever its size.
+    """Build the gang sheet with a fixed query count as its roster grows.
 
-    ``for_owner`` says the sheet is being drawn for the person who owns
-    the gang, and is what puts the owner-only figures on it — what each
-    model has left of its founding Trade Points. Off by default, so a
-    reader who does not own the gang, a print run and a text card neither
-    show the figure nor pay the reads it takes to work out.
+    ``for_owner`` includes model-specific founding Trade Point balances. Public,
+    print and text displays omit those values and their database reads.
 
-    ``collapse_repeats`` draws identical stash lines once with a count.
-    Off for the owner's own sheet, whose stash lines each carry a menu
-    naming one assignment. The model cards stack their repeats either
-    way: a sheet's cards carry no kit acts.
+    ``collapse_repeats`` groups identical stash lines. Disable it where stash
+    controls address individual assignments. Model cards group repeats in both
+    cases because roster cards have no per-equipment actions.
     """
     from n26.core.card import build_gang_card, build_modifier_index, carriers
     from n26.core.effects import compute, compute_gang, counter_readings
@@ -4088,11 +4018,8 @@ def render_gang(
             for line in _orphan_asset_choices(gang_computed, origins)
             if line.asset_key in boon_keys
         )
-    # What each model still has of the Trade Points its books give it to
-    # spend as it joins. Off the fold that has just been worked out, plus
-    # one sum of what the whole roster has spent — never a query a
-    # fighter — and nothing at all for a gang whose books grant none, or
-    # for a reader the figure is not for.
+    # For owners, combine computed founding allowances with one roster-wide
+    # spending aggregate. Omit these reads when no allowance applies.
     grants = (
         grants_by_model(computed, models=models) if with_effects and for_owner else {}
     )
@@ -4133,9 +4060,7 @@ def render_gang(
         rows=gang_rows,
         rules=gang_rules,
         choices=choices,
-        # Only the ones a reader is shown: a counter the author marked
-        # undrawn is there for conditions to check. What the campaign
-        # brought has already been taken out, to be drawn under its name.
+        # Omit hidden counters and those already displayed in the campaign block.
         counters=[reading for reading in readings if reading.thing.drawn],
         campaign=campaign,
         stash=stash_lines(
@@ -4184,12 +4109,9 @@ LEADING_COUNTER = "Reputation"
 
 
 def load_owner_badges(*people):
-    """Read what naming these people with their badges needs — the profile
-    and the badge grants — in two queries, for people fetched without them.
+    """Load profiles and badge grants for these owners in two queries.
 
-    For the path that fetched a campaign and built its sheet for a dialog,
-    which names nobody, and then found the dialog could not be drawn and
-    has to serve the whole page after all. Nobody is skipped.
+    Used when a roll-only dialog falls back to the full campaign page.
     """
     from django.db.models import prefetch_related_objects
 
@@ -4199,23 +4121,15 @@ def load_owner_badges(*people):
 
 
 def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
-    """A whole campaign sheet. A fixed number of queries, whatever its size.
+    """Build a campaign sheet with a fixed query count as membership grows.
 
-    Every gang at the table is read at once: one query for the gang-hosted
-    assignments of all of them, one hydration pass, one modifier index,
-    then a query-free compute per gang — so a campaign of twelve gangs
-    costs what a campaign of one does. The campaign's assets ride one
-    query with their library assets' modifiers along, since the assets
-    table says what each does in words.
+    Load gang-hosted assignments in one batch, share hydration and the modifier
+    index, then compute each gang without queries. Load campaign assets and
+    their content modifiers together.
 
-    ``viewer`` decides which gangs and holdings are the reader's own; the
-    addresses of the controls that follow from that are the view's to
-    fill, because they belong to the URL space and to who may open them.
-
-    ``with_owner_badges`` reads each gang owner's profile and badge grants
-    along with the gangs, for a sheet whose gangs table will be drawn. A
-    sheet built only for a roll dialog names no owner and leaves
-    them out.
+    ``viewer`` determines ownership; views fill authorised action URLs.
+    ``with_owner_badges`` loads owner profiles and badges for the gangs table;
+    roll-only dialogs can omit those reads.
     """
     from django.db.models import Prefetch
 
@@ -4295,8 +4209,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     # Tables given through a member the arbitrator has since closed stay
     # on the gangs and are not offered: one query for every card at once.
     withdrawn = withdrawn_members(*cards.values())
-    # A staged table is offered to roll on only to a reader who may see
-    # staged content: the roll is where a Territory is newly chosen.
+    # Only viewers allowed staged content may acquire a result from its table.
     shown_staged = sees_staged(viewer)
     for membership in memberships:
         card = cards[membership.gang_id]
