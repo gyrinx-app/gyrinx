@@ -1,19 +1,12 @@
-"""Buying equipment — the web face of :mod:`n26.core.browse`.
+"""Buy equipment for models or the gang stash through a shared purchase parser.
 
-Two screens, one purchase. A fighter's equip page buys onto that
-fighter; the gang's buys into the stash, where the gang's spare kit
-waits for whoever needs it. Both re-derive the clicked line from the
-list on screen, charge what the box says, and land back where the click
-came from, so the two anchors cannot come to disagree about what buying
-means — the click is read once, in ``_buy_clicked``.
+Both pages derive the current offer, validate submitted selections and prices,
+and write through operations. Confirmation objects let callers choose between
+full pages and htmx panels without duplicating purchase logic.
 
-Both screens also update without a rebuild. A click sent by htmx gets back
-only the elements its act changed — the row, the gang's money, the accessory
-panels — each carrying the id of the element it replaces; the shared protocol
-is documented in :mod:`n26.core.views.htmx`. This module contributes
-:func:`_screen`, the one derivation of what a screen shows, used by the pages
-and by every update so the two cannot disagree, and :func:`render_update`,
-which builds the update itself.
+_screen supplies the same card, collection and budget derivation for ordinary
+pages and partial updates. Updates replace changed rows and shared figures
+while preserving controls elsewhere on the listing. See n26.core.views.htmx.
 """
 
 import re
@@ -44,41 +37,27 @@ from n26.core.views.permissions import (
 )
 from n26.library.staged import sees_staged
 
-#: The most a purchase will take for one line. No price in the game comes
-#: near it; it is here because the number is typed by hand, and a slip on
-#: the keyboard should be refused rather than stored — an unbounded
-#: figure does not fit the ledger's integer column, and a gang playing
-#: without a budget has nothing else to stop it.
+#: Bound hand-entered payment per line independently of gang credit affordability.
 PRICE_CEILING = 100_000
 
-#: A price is a whole number of credits in plain digits, with at most a
-#: leading minus. Python's own ``int`` would also take "+5", "1_0" and
-#: digits from other scripts, none of which a price field should quietly
-#: accept. Whether the minus is allowed for one particular purchase is
-#: ``price_floor``'s question, not the shape's.
+#: Accept only ASCII decimal digits and an optional minus; int() alone also
+#: accepts plus signs, underscores and non-ASCII digits.
 _WHOLE_CREDITS = re.compile(r"-?[0-9]+")
 
 
 class BadPrice(Exception):
-    """A typed price that is not a whole number of credits in range."""
+    """A submitted price is outside the accepted whole-credit range."""
 
 
 def _parts_picked(data, key, line):
-    """The parts a submission ticked on this line, each with the index it
-    was drawn at, in the order drawn.
+    """Resolve submitted part indices against the current line and retain their positions.
 
-    Values are indices into the line the server has just re-derived, so a
-    tampered form can name nothing the listing does not offer. A repeated
-    index is refused as well: a checkbox cannot be ticked twice, and one
-    click was never an order for two of the same ammo.
-
-    The index comes back out because it names the part's own price field.
+    Reject duplicates, negative values and out-of-range indices. Positions also
+    identify each part's submitted price field.
     """
     picked, seen = [], set()
     for value in data.getlist(_parts_field(key)):
-        # isdigit before int: a negative index is a real index from the
-        # far end, so "-1" would quietly resolve to another part rather
-        # than being refused like every other index the line lacks.
+        # Reject negative indices before Python can index from the end.
         if not value.isdigit():
             raise Http404("No such option")
         index = int(value)
@@ -90,18 +69,10 @@ def _parts_picked(data, key, line):
 
 
 def _choices_picked(data, key, groups):
-    """The alternatives a submission picked, group by group.
+    """Resolve alternative indices against the supplied offer groups.
 
-    Values are indices into the sets the server has just re-derived, so a
-    tampered form can name nothing the offer does not hold — and a group
-    that was not drawn has no field to pick from. The offer is passed in
-    rather than read off a line, because the same reading answers a row
-    being bought and a copy already held being changed.
-
-    An empty value is a one-or-none set's "None": the reader took
-    nothing, which is not a pick to pass on. A repeated index is refused
-    like a repeated tick box — one click was never an order for two of the
-    same swap.
+    Reject duplicate or invalid indices. Empty values select no member of an
+    optional group. Reuse this parser for purchases and changes to owned options.
     """
     picked = []
     for index, group in enumerate(groups):
@@ -109,10 +80,7 @@ def _choices_picked(data, key, groups):
         for value in data.getlist(_choice_field(key, index)):
             if value == "":
                 continue
-            # isdigit before int: a negative index is a real index from the
-            # far end, so "-1" would quietly resolve to another option in
-            # the set rather than being refused like every other index it
-            # does not have.
+            # Reject negative indices before Python can index from the end.
             if not value.isdigit():
                 raise Http404("No such option")
             position = int(value)
@@ -124,23 +92,11 @@ def _choices_picked(data, key, groups):
 
 
 def price_typed(data, field, quoted, name):
-    """What a purchase is charged: the price typed for it, or the price
-    it quoted where the form carried none. The same reading for an equip
-    page's listing and a hire — the box is the same control on both.
+    """Parse a submitted whole-credit price, using the quote for an absent or blank field.
 
-    The number arrives from the browser, so it is read as a whole number
-    of credits and nothing else. An enormous one would not fit the
-    ledger, and a negative one would hand the gang credits — except
-    where the listing itself prices the thing below nothing, which some
-    gear is: taking it makes the model worth less, and the gang is paid
-    the difference. So the floor is the quote where the quote is below
-    zero and zero otherwise. A figure under the floor manufactures
-    credits no content grants, and is refused rather than trimmed,
-    because with money, charging a figure nobody typed is worse than
-    charging nothing and saying so.
-
-    An empty box is not an override — the quote stands, which is the
-    number the reader saw before anyone touched it.
+    Accept plain ASCII digits with an optional minus. The minimum is zero or the
+    negative quoted price, whichever is lower; PRICE_CEILING bounds the maximum.
+    Reject an invalid amount without clamping or changing it.
     """
     raw = data.get(field)
     if raw is None or not raw.strip():
@@ -157,13 +113,7 @@ def price_typed(data, field, quoted, name):
 
 
 def price_floor(quoted):
-    """The least a buyer may type against a quote.
-
-    Nothing below zero for ordinary gear, whatever was typed. Gear the
-    listing prices below nothing may be taken at that price and at any
-    higher one, which is the buyer accepting less of the discount — never
-    at less, which would be the gang paying itself.
-    """
+    """Allow zero or the negative quoted price, whichever is lower."""
     return min(0, quoted)
 
 
@@ -171,58 +121,40 @@ def _price_typed(data, field, line):
     return price_typed(data, field, line.credits, line.name)
 
 
-#: The rating box's field and its ticked value: the hire dialog's own, so
-#: the same box posts the same thing wherever it is asked.
+#: Use the same rating checkbox field and value as hiring.
 RATE_FIELD, RATE_AT_PAID = "rate", "paid"
 
 
 def _full_price(line, surcharge=0):
-    """What a line is worth: the listing's price, or the item's own where
-    the listing asks less. A list may hand a thing out below its price,
-    and that does not make it a lesser thing.
+    """Use the greater of listing and reference price, plus option surcharges.
 
-    A listing priced below nothing keeps its own price: taking that gear
-    makes the model worth less, so its negative figure is the rating."""
+    For negatively priced content, retain the listing price as its rating basis.
+    """
     if line.credits < 0:
         return line.credits + surcharge
     return max(line.credits, line.thing.reference_price()) + surcharge
 
 
 def _charge(line, paid, surcharge=0, *, rate_at_paid=False):
-    """What the ledger is told about a line bought at a set price.
+    """Build recorded payment, list price and discount for one purchase line.
 
-    The full price stays the list price and the gap becomes the discount,
-    so ``paid = list - discount`` still holds and the entry says both
-    what the thing is worth and what the gang handed over.
-
-    By default rating follows the full price, not the payment. Rating is
-    what the gang owns and it is pinned for good: haggling a sword down
-    does not make it a lesser sword, and paying over the odds does not
-    make it a better one. The exception is ``rate_at_paid``, the ticked
-    rating box: a thing bought below its full price is then rated at what
-    was paid, for a table that reads it as worth only that.
-
-    ``surcharge`` is what the options picked on this line add. It
-    lands on both figures, because a mount with plasma guns is a dearer
-    mount and not a discounted one: what was agreed at the table is the
-    gap between the two, and picking an option never changes it.
+    Add option surcharge to both payment and full price. Normally rating follows
+    full price; rate_at_paid adds an explicit lower rating only when payment is
+    below full price. Preserve list price for purchase-history interpretation.
     """
     full = _full_price(line, surcharge)
     paid = paid + surcharge
     charge = {"paid": paid, "list_price": full, "discount": full - paid}
     if rate_at_paid and paid < full:
-        # The list price stays the full price, since the history reads a
-        # list price of nothing as a free profile riding its gun.
+        # Preserve full list price: history uses zero list price to identify free bundled profiles.
         charge["rating"] = paid
     return charge
 
 
 def _rating_box(request, charges):
-    """The rating box for one click, or ``None`` where it has nothing to ask.
+    """Ask whether to rate discounted lines at their actual payment.
 
-    ``charges`` is every ``(line, paid, surcharge)`` the click makes. The
-    box is asked where any is below its full price, and not again once
-    the reader has confirmed: their tick, or its absence, is the choice.
+    Include only underpriced lines and omit the question after confirmation.
     """
     from n26.core.confirm import Checkbox
 
@@ -235,8 +167,7 @@ def _rating_box(request, charges):
     below = [(name, paid, full) for name, paid, full in below if paid < full]
     if not below:
         return None
-    # Named, because a click can buy a gun and its ammo and only the ammo
-    # may be below its full price: the box rates only what it names.
+    # Identify every discounted line separately because only selected parts may need lower ratings.
     names = " and ".join(name for name, _, _ in below)
     paid = sum(paid for _, paid, _ in below)
     full = sum(full for _, _, full in below)
@@ -257,11 +188,7 @@ def _rating_box(request, charges):
 
 
 def _rating_question(request, line, spent, checkbox, back):
-    """The page that asks how to rate a purchase made below its full price.
-
-    Only where nothing else is asked: an overspend question carries the
-    box itself, so one click never opens two questions.
-    """
+    """Build a separate rating confirmation when no overspend confirmation already carries it."""
     from n26.core.confirm import Confirmation, carried
 
     return Confirmation(
@@ -282,26 +209,14 @@ def _rating_question(request, line, spent, checkbox, back):
     )
 
 
-#: What a collection's name says at the end when it says what it is. Every
-#: tab in the strip is a list to buy from, so the words they all share are
-#: the ones worth dropping.
 LIST_SUFFIX = "equipment list"
 
 
 def _trade_points_asked(line, picked):
-    """What one click spends at the post, the ticked parts included.
+    """Sum trade points charged by this line and selected parts.
 
-    A line says whether it charges Trade Points at all — the terms it
-    was browsed on ride it — so a list that merely prints TP figures
-    adds nothing here. Options add nothing either: a swap changes what
-    the thing is built from and is paid for in credits.
-
-    No Trade Point price is nothing to pay, not nothing to sell. A post
-    swept together by having such a price holds only things that have
-    one, but an author may add an entry to that same collection by hand,
-    and that line is browsed on the post's terms with no figure behind
-    it. It is a line on a post, so it is bought; it names no Trade
-    Points, so it takes none.
+    Options are credit surcharges only. Lines with no trade-point price charge
+    zero points even when their collection uses Trading Post terms.
     """
     asked = line.trade_points if line.charges_trade_points else 0
     return (asked or 0) + sum(
@@ -310,18 +225,10 @@ def _trade_points_asked(line, picked):
 
 
 def _counted_against(gang, line, budget=None):
-    """The open action a purchase of this line counts against, or None.
+    """Attribute trade-point purchases to a personal allowance or the gang's open visit.
 
-    A line that counts no Trade Points counts against nothing: buying
-    from an equipment list while a visit is open is not part of that
-    visit, and recording it against one would make the visit's own
-    figures a lie. With no visit open there is nothing to point at
-    either — the purchase goes through and counts against nothing, once
-    the owner has said they meant it.
-
-    A model's own founding allowance comes first, and a visit open at the
-    same time is not touched: the two are separate allowances, and the
-    points a model was given as it joined are the ones it spends.
+    Credit-only purchases have no activity. Personal founding allowances take
+    precedence over a simultaneous visit.
     """
     if not line.charges_trade_points:
         return None
@@ -329,20 +236,11 @@ def _counted_against(gang, line, budget=None):
 
 
 def _overspend(request, gang, line, asked, back, budget=None, holder=""):
-    """The page that asks whether a Trade Point overspend was meant.
+    """Ask for confirmation when trade points exceed the current allowance.
 
-    ``None`` where nothing needs asking: the click spends no points, or
-    the allowance covers it, or the reader has already said yes.
-
-    Trade Points are not credits — nothing here refuses, and an owner
-    who says they meant it gets what they asked for. What the page owes
-    them is the arithmetic, since the allowance is not on the screen
-    they clicked from and "you are short" is not a figure.
-
-    ``budget`` is the model's own founding allowance where it has one,
-    and it is what the figures are then read from: that is the allowance
-    the purchase will count against, so it is the one the reader is
-    deciding against. ``holder`` names whoever the allowance belongs to.
+    Use personal-budget figures when supplied, otherwise the open visit.
+    Without an activity, warn that points will be recorded against none.
+    An explicitly confirmed overspend remains permitted.
     """
     from n26.core.confirm import Aside, Fact, carried
 
@@ -353,19 +251,14 @@ def _overspend(request, gang, line, asked, back, budget=None, holder=""):
     if budget is not None:
         brought, spent = budget.granted, budget.spent
     elif visit is not None:
-        # One reading of the log, not one per figure: the page prints
-        # what has gone as well as what is left, and the two must agree.
+        # Read visit spend once so spent and remaining figures use the same value.
         brought, spent = (visit.trade_points or 0), gang.trade_points_spent
     else:
-        # Nothing is open, so there is nothing to read and nothing for
-        # the purchase to count against.
         brought, spent = 0, 0
     left = brought - spent
     if asked <= left:
         return None
-    # A founding allowance belongs to the model, so the sentences name
-    # the model; a visit's belongs to the gang, and the tally above is
-    # then the action's own.
+    # Use the model as the personal allowance holder and the gang for an open visit.
     whose = holder if budget is not None and holder else gang.name
     if budget is not None:
         left_over = (
@@ -388,8 +281,6 @@ def _overspend(request, gang, line, asked, back, budget=None, holder=""):
             f"{whose} has {left}."
         ),
         aside=Aside(lead="You can buy it anyway.", rest=left_over),
-        # The same tally the Visit Trading Post card draws, with the
-        # purchase and what it leaves added under it.
         facts=(
             Fact(
                 "Available",
@@ -410,13 +301,7 @@ def _overspend(request, gang, line, asked, back, budget=None, holder=""):
 
 
 def _tab_label(collection):
-    """A collection's name, shortened for a strip of tabs.
-
-    "Ash Waste Nomads Equipment List" reads as "Ash Waste Nomads" with
-    nothing lost — the strip is a row of lists, so a name ending by
-    saying so spends the width every tab is short of on the one word
-    they all have. A name that is nothing but the suffix keeps it.
-    """
+    """Remove a redundant equipment-list suffix while retaining an otherwise empty name."""
     name = str(collection)
     if not name.lower().endswith(LIST_SUFFIX):
         return name
@@ -424,26 +309,11 @@ def _tab_label(collection):
 
 
 def buyable_lists(held):
-    """The lists among those held that are somewhere to buy kit, in the
-    order they were come by, with the standard Trading Post after them.
-    The post is last whether or not something holds it: a held post sits
-    among the lists at whatever position it carries, and a screen that
-    opened on it would open on the whole catalogue rather than the gang's
-    own list.
+    """Select held collections containing gear and place the standard Trading Post last.
 
-    Holding a collection and buying from it are different things: a
-    set of skills is carried exactly as an equipment list is, and only
-    one of the two is somewhere to buy from. So which of them a buying
-    screen offers follows from what they contain, never from how they
-    were come by. Asked by family, so a new sort of gear puts its lists
-    on these screens without anyone editing them — one query, whatever
-    is held.
-
-    The Trading Post is pinned to the default pack: collection names are
-    only unique per pack, so a homebrew pack's own "Trading Post" must
-    not shadow the standard one. A pack's post is reached the way any
-    list is — by being assigned or granted, which is what ``held``
-    already answers.
+    Collection assignments also include skill sets, so filter by content family.
+    Resolve the standard post within the default pack; same-named custom posts
+    remain available only through their ordinary held-collection access.
     """
     from n26.library.models import Collection, Family, get_default_pack
     from n26.library.standard_content import TRADING_POST_COLLECTION
@@ -464,19 +334,9 @@ def buyable_lists(held):
 
 
 def collection_tabs(collections, chosen):
-    """One tab per collection, in the order a fighter reaches them.
+    """Build collection tabs, shortening names unless that creates duplicate labels.
 
-    Shortened names, unless two of them shorten to the same word: two
-    tabs reading alike is worse than two long ones, and the strip is
-    read as a set rather than a tab at a time, so the whole strip falls
-    back together.
-
-    ``title`` is the full name for a tab that was shortened, and empty
-    where nothing was lost: a tooltip repeating the word already on
-    screen tells a reader nothing. It is a plain value rather than
-    something the template decides, because a template tag written
-    inside a component's attributes is not read as one — it lands in the
-    page as text.
+    Include the full name as a tooltip only when shortened.
     """
     labels = [_tab_label(collection) for collection in collections]
     if len(set(labels)) != len(labels):
@@ -494,34 +354,20 @@ def collection_tabs(collections, chosen):
 
 @dataclass(frozen=True)
 class Screen:
-    """What an equip screen is showing, derived in one place.
-
-    Pages and partial updates both read the screen through
-    :func:`_screen`, so an update cannot be derived against a different
-    listing than the page it lands on.
-    """
+    """The shared card, budget and catalogue derivation for an equipment surface."""
 
     gang: object
     miniature: object | None
     card: object
     computed: object
     collections: list
-    #: The collection being browsed — ``None`` on the gang tabs that are
-    #: not collections (the stash, the whole library).
     chosen: object | None
-    #: The browsed listing, or ``None`` where the screen shows only what
-    #: is held.
     view: object | None
-    #: The model's founding allowance, where the gang is being founded
-    #: and this model has one. Trading Post purchases count against its
-    #: activity; overspend questions use its figures.
-    #: ``None`` on the gang's own screen and for a model with none.
+    #: The personal allowance supplying activity and confirmation figures; absent for stash views.
     budget: object | None = None
 
     def host(self, at):
-        """The assignment roots behind this screen. ``at`` is the page
-        address, query string and all: every owned copy's controls are
-        built from it."""
+        """Resolve model or stash assignment roots using the supplied page URL."""
         from n26.core.owned import EquipHost
 
         if self.miniature is not None:
@@ -530,18 +376,11 @@ class Screen:
 
 
 def _screen(gang, miniature=None, list_param="", budgets=True, *, include_staged=False):
-    """What an equip screen shows: card, collections, chosen list, view.
+    """Derive the current equipment view for a model or the gang stash.
 
-    ``miniature`` names whose screen this is; without one it is the
-    gang's. On either, ``list_param`` may be :data:`ALL_SCOPE`, the
-    library tab that is not a collection; on the gang's it may also be
-    :data:`STASH_SCOPE`. ``include_staged`` is whether the reader is
-    shown staged content on every list here (``n26.library.staged``).
-
-    One derivation for the pages and for every partial update — an update
-    re-derives here because the act it follows changed the state it
-    reports on, and a second implementation of "which list is the reader
-    on" would let the two quietly disagree.
+    A model view includes usability notes and an optional founding budget.
+    ALL_SCOPE browses unrestricted gear priced through held lists. STASH_SCOPE
+    shows only holdings on the gang screen. Apply staged-content access throughout.
     """
     from n26.core.access import collections_for, gang_collections, hidden_categories_for
     from n26.core.browse import (
@@ -562,32 +401,23 @@ def _screen(gang, miniature=None, list_param="", budgets=True, *, include_staged
     from n26.core.founding import budget_for
 
     def chosen_from(collections):
-        """The list the address names, or the one a plain visit opens on."""
+        """Choose the named held collection or the first available collection."""
         named = next((c for c in collections if str(c.pk) == list_param), None)
         return named or (collections[0] if collections else None)
 
     if miniature is not None:
-        # The options ride along because these screens name what each copy
-        # was bought with, which no other surface built from a card does.
-        # The statlines too: the screen draws the model's card above the
-        # listing, and a card without them has no characteristics strip.
+        # Load option provenance for owned-copy controls and statlines for the displayed model card.
         card = build_card(miniature, with_statlines=True, with_options=True)
         index = build_modifier_index(carriers(card))
         computed = compute(card, index)
-        # The allowance belongs to the model, while each collection
-        # determines whether a purchase spends it. Equipment lists use
-        # credits; the Trading Post charges Trade Points. A model with no
-        # allowance needs no counter or spend query.
+        # Load personal budgets only when needed; each collection determines whether it charges points.
         budget = budget_for(gang, miniature, computed) if budgets else None
         collections = buyable_lists(
             access.collection
             for access in collections_for(miniature, card=card, computed=computed)
         )
         if list_param == ALL_SCOPE:
-            # The library, priced from the lists this fighter holds and
-            # noted for them the way any list is: the tab is there for
-            # the thing no held list offers, which is where a use
-            # restriction is likeliest to bite.
+            # Price unrestricted gear through held collections and retain model usability notes.
             chosen = None
             view = priced_from(
                 all_gear(
@@ -636,8 +466,7 @@ def _screen(gang, miniature=None, list_param="", budgets=True, *, include_staged
         )
     else:
         chosen = chosen_from(collections)
-        # No usability notes: those are about a fighter, and the stash is
-        # not one.
+        # Usability notes apply to models, not stashes.
         view = (
             browse(chosen, include_staged=include_staged)
             if chosen is not None
@@ -658,35 +487,12 @@ def render_update(
     closed=False,
     also="",
 ):
-    """The partial update for one act on an equip screen.
+    """Rebuild affected catalogue rows and shared panels after an equipment operation.
 
-    The row the act changed, the gang's money, and the set of accessory
-    panels — each carrying the id of the element on the page it replaces.
-    Every other row is left as it stands, which is what keeps the
-    reader's filters, the section on screen, and the prices typed
-    elsewhere.
-
-    ``at`` is the page address, query string and all: every control on
-    the redrawn row is built from it, so a row rendered without one hands
-    back controls that have lost which list and section the reader is on.
-
-    ``closed`` marks an act submitted from a confirmation panel; the
-    update then also empties the dialog host, closing the panel.
-
-    ``also`` is a second key the same act changed — fitting an accessory
-    to a gun empties one row and fills another — drawn exactly as the
-    first is. It must name a row of this screen: a key belonging to some
-    other screen would be delivered as an instruction to remove a row
-    that is not there.
-
-    The screen is derived again rather than reused from the request,
-    because the act changed the state this update reports on. That costs
-    the same fixed handful of queries as a plain visit.
-
-    A row of ``None`` means the screen no longer has one for this key — a
-    listing always keeps a row, but a screen showing only what is held
-    loses the row along with the last copy — and the update removes the
-    row instead of redrawing it.
+    Use the same _screen derivation as the page. Preserve at, expanded_key and
+    list_param in returned controls. closed clears the confirmation panel;
+    also identifies a second affected row on this screen. A missing owned-only
+    row is removed when its final copy leaves.
     """
     from n26.core.listing import listing_row, owned_row, owned_row_manage_only
     from n26.core.owned import possessions
@@ -708,10 +514,7 @@ def render_update(
         copies = held.get(row_key)
         expanded = row_key == expanded_key
         if screen.view is None:
-            # A screen showing only what is held draws a row for each
-            # thing held and for nothing else, so parting with the last
-            # copy takes the row away rather than turning it back into an
-            # offer.
+            # Remove an owned-only row when the final copy leaves; catalogue rows retain their offer.
             return (
                 owned_row_manage_only(
                     row_key, copies, refunds=refunds, expanded=expanded
@@ -728,8 +531,7 @@ def render_update(
             None,
         )
         if line is None:
-            # The listing does not sell it, so the screen never had a row
-            # for it and there is nothing to redraw.
+            # Do not update catalogue keys this screen does not display.
             return None
         row = listing_row(line)
         return (
@@ -748,23 +550,14 @@ def render_update(
         {
             "rows": rows,
             "gang": gang,
-            # The model's card, redrawn from the same reading as the rows:
-            # what was bought is on it. The gang's own screen draws none.
             **_card_context(request, screen, host, at=at),
-            # The strip this delivers replaces the one on the page, so it
-            # is drawn with what that one had: without this the Trade
-            # Points figure comes back as a number that leads nowhere.
             "trade_points_href": trade_points_href(gang, request.user),
             "credits_href": credits_href(gang, request.user),
             "held_label": host.held_label,
             "miniature": miniature,
-            # The allowance the purchase came off, redrawn: what it has
-            # left has just changed, and the block sits outside the row.
             "founding_budget": screen.budget,
             "closed": closed,
-            # The update always replaces the whole set of accessory
-            # panels: a gun bought since the page was drawn has no panel
-            # yet, and one parted with would leave a panel behind.
+            # Rebuild accessory panels because newly bought weapons need hosts and removed weapons must lose them.
             "accessorise": accessorise_dialogs(request, host),
         },
     )
@@ -772,17 +565,12 @@ def render_update(
 
 
 def carried_confirmation(request):
-    """Whether this submission came back from a confirmation panel."""
+    """Detect a submission returned from a confirmation panel."""
     return bool(request.POST.get(CONFIRM_FIELD))
 
 
 def render_confirmation(request, confirmation):
-    """A question, delivered into the dialog host of a page still standing.
-
-    The whole-page answer is ``n26/confirm.html``; this is the same
-    question for a screen updating in place, so a reader with scripting
-    is not thrown out of the list they were buying from.
-    """
+    """Render an htmx confirmation panel with queued toast messages."""
     response = render(
         request,
         "n26/includes/equip_overspend.html",
@@ -794,31 +582,14 @@ def render_confirmation(request, confirmation):
 def _buy_clicked(
     request, gang, holder, view, *, into, collection, at="", event=None, budget=None
 ):
-    """One click on a Buy button, read and charged, whoever holds the thing.
+    """Validate and perform a purchase for a model or stash.
 
-    ``holder`` is what the purchase lands on — a fighter, or the gang's
-    stash. Everything else about the click is the same on both screens,
-    which is why it is read here: the line is found again in the list the
-    server has just re-derived, the prices are bounded before anything is
-    written, and a refusal buys nothing at all.
+    Resolve the line and selected parts from the current view. Validate every
+    price before writing, then ask any overspend or rating questions.
+    Recheck a model's founding activity under the gang lock before charging it.
 
-    ``into`` names the destination in the confirmation, and ``collection``
-    is the list the click came from, for the event. ``event`` carries
-    whatever else that screen knows about the purchase.
-
-    ``at`` is the page the click came from: where a question the reader
-    cancels puts them back.
-
-    ``budget`` is the founding allowance the screen is buying against,
-    where there is one: it decides what the purchase records the points
-    against and what the question before an overspend is asked with.
-
-    Three outcomes, and none of them is a response. The clicked line's
-    key where the purchase went through; ``None`` where it was refused,
-    its reason queued as a message; and a :class:`Confirmation` where it
-    needs saying twice. How the caller answers each — a redirect, a
-    partial update, a panel — is the caller's business, so nothing here
-    knows about transport.
+    Return the affected key on success, None after a refusal, or a Confirmation
+    requiring another submission. Callers choose the HTTP response shape.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation
@@ -826,16 +597,12 @@ def _buy_clicked(
     key = request.POST.get("thing", "")
     line = next((row for row in view.all_lines() if _thing_key(row.thing) == key), None)
     if line is None:
-        # Not on this list — a stale page or a tampered form. The
-        # list itself is the answer either way.
         messages.error(request, "That item is not on this list.")
         return None
     picked = _parts_picked(request.POST, key, line)
     picks = _choices_picked(request.POST, key, line.choices)
     surcharge = sum(option.surcharge for option in picks)
-    # Every price the click carries, read and bounded before anything
-    # is written: one bad box buys nothing at all, rather than a gun
-    # at a good price and its ammo at a refused one.
+    # Validate payment for the weapon and every selected part before writing any purchase.
     try:
         paid = _price_typed(request.POST, _price_field(key), line)
         paid_for = [
@@ -845,14 +612,10 @@ def _buy_clicked(
     except BadPrice as refusal:
         messages.error(request, str(refusal))
         return None
-    # Absent means unticked, because that is all an unticked box posts,
-    # and unticked keeps the full rating.
+    # An absent rating checkbox keeps the full rating.
     rate_at_paid = request.POST.get(RATE_FIELD) == RATE_AT_PAID
     charge = _charge(line, paid, surcharge, rate_at_paid=rate_at_paid)
-    # Asked before anything is written, and answered by the reader
-    # rather than by a rule: an overspend of Trade Points is allowed,
-    # and only doing it without meaning to is not. The rating box rides
-    # the overspend question where both apply.
+    # Combine rating and overspend questions into one confirmation before writing.
     asked = _trade_points_asked(line, picked)
     expected_personal = request.POST.get("personal_activity")
     if (
@@ -876,8 +639,7 @@ def _buy_clicked(
         return replace(
             confirmation,
             checkbox=checkbox,
-            # The box posts its own value; a carried copy would outvote an
-            # untick.
+            # Remove a carried rating value so it cannot override an unchecked confirmation control.
             carry=carried(
                 request.POST, leave_out={RATE_FIELD} if checkbox is not None else ()
             ),
@@ -898,8 +660,7 @@ def _buy_clicked(
                 from n26.core.effects import compute
                 from n26.core.founding import budget_for
 
-                # The screen predates the lock. Another gang operation may
-                # have changed both the allowance and its lifetime spend.
+                # Recheck allowance identity and lifetime spend after acquiring the gang lock.
                 current = Miniature.objects.select_related("membership").get(
                     pk=holder.pk
                 )
@@ -932,11 +693,7 @@ def _buy_clicked(
                             ),
                         )
                     return confirmation
-            # The picked sets go to the operation, which materialises
-            # them onto the thing caused by this purchase — so selling
-            # the mount takes its guns with it. A pick-one set with
-            # nothing picked is resolved there too, to the option that
-            # comes as standard.
+            # Materialise selected options through the purchase; unselected pick-one groups use their default.
             bought = op.buy(
                 holder,
                 line=line,
@@ -944,10 +701,7 @@ def _buy_clicked(
                 activity=_counted_against(gang, line, budget),
                 **charge,
             )
-            # Onto the gun, not onto its holder: a profile belongs to
-            # one particular weapon, and it is the same purchase
-            # either way, so each part is charged at the price its own
-            # listing was showing.
+            # Host paid profiles on the newly bought weapon, pricing each from its own listing line.
             for part, part_paid in paid_for:
                 op.buy(
                     bought,
@@ -959,18 +713,10 @@ def _buy_clicked(
         messages.error(request, str(refusal))
         return None
     except ValueError:
-        # Two picks in one exclusive set, or a set this thing does
-        # not offer — what ``resolve_selection`` refuses and the
-        # indices cannot express. Treated the way a bad index is: a
-        # broken link, not a rule to explain.
+        # Reject invalid option combinations after individual index parsing.
         raise Http404("No such option") from None
-    # The confirmation names what left the bank, because with the
-    # prices in the reader's hands the total is no longer something
-    # the page can be read off for.
     spent = charge["paid"] + sum(part_paid for _, part_paid in paid_for)
-    # One click, one event, whatever it bought. A gun with three paid
-    # ammo types is one purchase to the player and should be one row
-    # here — the parts are a count, not four writes.
+    # Record one purchase analytics event with part and option counts.
     record(
         request,
         N26Noun.ASSIGNMENT,
@@ -985,16 +731,10 @@ def _buy_clicked(
         options=len(picks),
         **(event or {}),
     )
-    # What was picked is named before what was ticked: an option is a
-    # way the thing itself is built, while a paid round is something
-    # extra riding along with it.
     extras = [
         *(option.name for option in picks),
         *(part.thing.name for part, _ in paid_for),
     ]
-    # Trade Points are named beside the credits where any were spent,
-    # because the tally they come off is not on the screen the reader
-    # is being sent back to unless the gang is carrying an allowance.
     price = f"{spent}¢" + (f" and {asked} TP" if asked else "")
     if extras:
         messages.success(
