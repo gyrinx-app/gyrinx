@@ -689,9 +689,10 @@ def _profiles_by_id(ids):
 
 
 def _empty_budget_modifiers(counter):
-    """Find seeded founding-budget contributions whose profile condition is now empty.
+    """Find contributions with positive profile conditions naming no profiles.
 
-    Exclude authored bearer grants that never had a profile condition.
+    Search all modifiers contributing to ``counter``, including authored ones.
+    Exclude bearer grants that have no profile condition.
     """
     from n26.library.models import Modifier
 

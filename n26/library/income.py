@@ -46,8 +46,9 @@ def ensure_income_counter():
 
 
 def is_income_contribution(modifier):
-    """Identify an unconditional gang-scoped contribution to the system Income counter.
+    """Identify an unconditional gang-scoped contribution to an Income counter.
 
+    Match its name case-insensitively with an empty qualifier, regardless of pack.
     Load the effect, counter and scope conditions together for bulk reads;
     ``with_income`` supplies those relations. Conditional contributions apply
     through the effects engine but do not count as the asset's base income.
