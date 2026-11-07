@@ -840,3 +840,11 @@ selections. A newly opened panel for another item must never describe an older
 command. Cover rejected and uncertain recovery in that state. Non-business display
 fields can use `optionalRecoveryFields` so adding readable recovery context does
 not discard older pending commands. Keep request keys and business input required.
+
+Catalogue drafts belong to the workflow owner, keyed by equipment identity.
+Filtering or switching sections can unmount an entry; returning to it must restore
+its edited payment, options and selected profiles. Selected profiles display the
+same retained amount that a purchase will submit, even if a refreshed quote
+changes. Confirmation chains preserve carried decisions when the next question
+does not offer that input again. A native keyed adapter must reach the shared
+receipt check before requiring the assignment to remain active.

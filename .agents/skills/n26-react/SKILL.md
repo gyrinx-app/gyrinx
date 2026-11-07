@@ -273,3 +273,10 @@ item's title, choices or consequences. Retain readable selection details alongsi
 unresolved input. Add non-business display fields through `optionalRecoveryFields`
 so older pending commands still restore; request keys and business input remain
 required. Test both rejected and uncertain recovery against an unrelated panel.
+
+Keep catalogue purchase drafts above any filtering or section boundary that can
+unmount an entry. Test edited base prices, stable choices and selected profile
+payments after hiding and restoring that entry. A selected profile must display
+its retained payment after a quote refresh. A follow-up confirmation without a
+rating checkbox preserves the carried rating policy. Native keyed adapters must
+also reach receipt replay before requiring a live assignment.

@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId } from "react";
 import cotton from "../generated/cotton.json";
 import { Button, ButtonLink, Icon } from "./index";
 import { ActionMenu } from "./ActionMenu";
@@ -207,14 +207,35 @@ function Actions({ part }: { part: OwnedPart }) {
     );
 }
 
+export type EquipmentDraft = {
+    paid: string;
+    selection: string[];
+    parts: Record<string, string>;
+    partPrices: Record<string, string>;
+};
+export function equipmentDraft(entry: EquipmentEntry): EquipmentDraft {
+    return {
+        paid: String(entry.purchase?.price ?? 0),
+        selection: equipmentDefaults(entry.purchase?.choices ?? []),
+        parts: {},
+        partPrices: {},
+    };
+}
+
 export function EquipmentRow({
     entry,
     expanded,
     onExpand,
     onBuy,
     disabled,
+    draft,
+    onDraftChange,
 }: {
     entry: EquipmentEntry;
+    draft: EquipmentDraft;
+    onDraftChange: (
+        update: (previous: EquipmentDraft) => EquipmentDraft,
+    ) => void;
     expanded: boolean;
     onExpand: () => void;
     disabled: boolean;
@@ -229,12 +250,7 @@ export function EquipmentRow({
     const equip = cotton.equipment;
     const id = useId();
     const purchase = entry.purchase;
-    const [paid, setPaid] = useState(() => String(purchase?.price ?? 0));
-    const [selection, setSelection] = useState(() =>
-        equipmentDefaults(purchase?.choices ?? []),
-    );
-    const [parts, setParts] = useState<Record<string, string>>({});
-    const [partPrices, setPartPrices] = useState<Record<string, string>>({});
+    const { paid, selection, parts, partPrices } = draft;
     const surcharge =
         purchase?.choices
             .flatMap((group) => group.options)
@@ -288,7 +304,16 @@ export function EquipmentRow({
                     )}
                 </span>
                 <Terms part={entry} />
-                {price(purchase, paid, setPaid, purchase.choices.length > 0)}
+                {price(
+                    purchase,
+                    paid,
+                    (raw) =>
+                        onDraftChange((previous) => ({
+                            ...previous,
+                            paid: raw,
+                        })),
+                    purchase.choices.length > 0,
+                )}
                 <Button
                     size="sm"
                     variant="success"
@@ -314,7 +339,12 @@ export function EquipmentRow({
                     <EquipmentChoices
                         groups={purchase.choices}
                         selected={selection}
-                        onChange={setSelection}
+                        onChange={(selection) =>
+                            onDraftChange((previous) => ({
+                                ...previous,
+                                selection,
+                            }))
+                        }
                         label={entry.name}
                     />
                     <p role="status" className="text-sm text-muted">
@@ -333,14 +363,14 @@ export function EquipmentRow({
                                 type="checkbox"
                                 checked={part.key in parts}
                                 onChange={(event) =>
-                                    setParts((previous) => {
-                                        const next = { ...previous };
+                                    onDraftChange((previous) => {
+                                        const parts = { ...previous.parts };
                                         if (event.target.checked)
-                                            next[part.key] =
-                                                partPrices[part.key] ??
+                                            parts[part.key] =
+                                                previous.partPrices[part.key] ??
                                                 String(part.price);
-                                        else delete next[part.key];
-                                        return next;
+                                        else delete parts[part.key];
+                                        return { ...previous, parts };
                                     })
                                 }
                             />
@@ -351,17 +381,24 @@ export function EquipmentRow({
                         <Terms part={part} />
                         {price(
                             part,
-                            partPrices[part.key] ?? String(part.price),
+                            part.key in parts
+                                ? parts[part.key]
+                                : (partPrices[part.key] ?? String(part.price)),
                             (raw) => {
-                                setPartPrices((previous) => ({
+                                onDraftChange((previous) => ({
                                     ...previous,
-                                    [part.key]: raw,
+                                    partPrices: {
+                                        ...previous.partPrices,
+                                        [part.key]: raw,
+                                    },
+                                    parts:
+                                        part.key in previous.parts
+                                            ? {
+                                                  ...previous.parts,
+                                                  [part.key]: raw,
+                                              }
+                                            : previous.parts,
                                 }));
-                                setParts((previous) =>
-                                    part.key in previous
-                                        ? { ...previous, [part.key]: raw }
-                                        : previous,
-                                );
                             },
                         )}
                     </div>

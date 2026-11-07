@@ -1535,6 +1535,8 @@ export {
 
 export {
     EquipmentRow,
+    equipmentDraft,
+    type EquipmentDraft,
     EquipmentChoices,
     equipmentDefaults,
     Tally,

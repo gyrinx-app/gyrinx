@@ -515,3 +515,204 @@ test("different owned entries can remain expanded while the URL records the late
         "second-gun",
     );
 });
+
+test("complete row drafts survive filtering and section switches", async () => {
+    const fetcher = vi.fn().mockImplementation(completeFetch);
+    vi.stubGlobal("fetch", fetcher);
+    render(
+        <Equip
+            {...page}
+            categories={[...page.categories, "Other"]}
+            categoryOptions={[...page.categoryOptions, "Other"]}
+            sections={[
+                ...page.sections,
+                {
+                    name: "Other",
+                    categories: [
+                        {
+                            name: "Other",
+                            entries: [
+                                {
+                                    ...page.sections[0].categories[0]
+                                        .entries[0],
+                                    key: "other",
+                                    name: "Other",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ]}
+        />,
+    );
+    await userEvent.click(screen.getByRole("radio", { name: /Armed/ }));
+    await userEvent.clear(
+        screen.getByRole("spinbutton", { name: "Base price for Harness" }),
+    );
+    await userEvent.type(
+        screen.getByRole("spinbutton", { name: "Base price for Harness" }),
+        "11",
+    );
+    await userEvent.click(
+        screen.getByRole("button", { name: "Show Autogun in stash (1)" }),
+    );
+    await userEvent.click(
+        screen.getByRole("checkbox", { name: "Warp rounds" }),
+    );
+    await userEvent.clear(
+        screen.getByRole("spinbutton", { name: "Price for Warp rounds" }),
+    );
+    await userEvent.type(
+        screen.getByRole("spinbutton", { name: "Price for Warp rounds" }),
+        "4",
+    );
+    await userEvent.type(screen.getByRole("searchbox"), "Nothing here");
+    await userEvent.clear(screen.getByRole("searchbox"));
+    await userEvent.click(screen.getAllByRole("tab", { name: /Other\s*1/ })[0]);
+    await userEvent.click(screen.getAllByRole("tab", { name: /Gear\s*2/ })[0]);
+    expect(
+        (screen.getByRole("radio", { name: /Armed/ }) as HTMLInputElement)
+            .checked,
+    ).toBe(true);
+    expect(
+        (
+            screen.getByRole("spinbutton", {
+                name: "Base price for Harness",
+            }) as HTMLInputElement
+        ).value,
+    ).toBe("11");
+    expect(
+        (
+            screen.getByRole("checkbox", {
+                name: "Warp rounds",
+            }) as HTMLInputElement
+        ).checked,
+    ).toBe(true);
+    expect(
+        (
+            screen.getByRole("spinbutton", {
+                name: "Price for Warp rounds",
+            }) as HTMLInputElement
+        ).value,
+    ).toBe("4");
+    await userEvent.click(screen.getByRole("button", { name: "Buy Harness" }));
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    expect(fetcher.mock.calls[0][1].body.get("paid")).toBe("26");
+});
+
+test("a selected profile keeps the same displayed and posted payment after quote refresh", async () => {
+    const changed = {
+        ...page,
+        dialog: sell,
+        sections: page.sections.map((section) => ({
+            ...section,
+            categories: section.categories.map((category) => ({
+                ...category,
+                entries: category.entries.map((entry) => ({
+                    ...entry,
+                    purchase: entry.purchase
+                        ? {
+                              ...entry.purchase,
+                              parts: entry.purchase.parts.map((part) => ({
+                                  ...part,
+                                  price: 20,
+                              })),
+                          }
+                        : null,
+                })),
+            })),
+        })),
+    };
+    const fetcher = vi
+        .fn()
+        .mockResolvedValueOnce(response({ page: changed }))
+        .mockImplementation(completeFetch);
+    vi.stubGlobal("fetch", fetcher);
+    render(<Equip {...page} />);
+    await userEvent.click(
+        screen.getByRole("button", { name: "Show Autogun in stash (1)" }),
+    );
+    await userEvent.click(
+        screen.getByRole("checkbox", { name: "Warp rounds" }),
+    );
+    await userEvent.click(screen.getByRole("link", { name: "Sell" }));
+    await userEvent.click(
+        await screen.findByRole("button", { name: "Cancel" }),
+    );
+    expect(
+        (
+            screen.getByRole("spinbutton", {
+                name: "Price for Warp rounds",
+            }) as HTMLInputElement
+        ).value,
+    ).toBe("10");
+    await userEvent.click(screen.getByRole("button", { name: "Buy Autogun" }));
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(fetcher.mock.calls[1][1].body.get("parts"))).toEqual([
+        { key: "warp", paid: "10" },
+    ]);
+});
+
+test("a later overspend question preserves the chosen match-payment rating", async () => {
+    let calls = 0;
+    const fetcher = vi.fn().mockImplementation((_href, options) => {
+        const body = options.body as URLSearchParams;
+        calls++;
+        if (calls === 3)
+            return Promise.resolve(completed(body.get("request_key")!));
+        return Promise.resolve(
+            response({
+                requestKey: body.get("request_key"),
+                outcome: "confirmation",
+                page,
+                confirmation: {
+                    title:
+                        calls === 1
+                            ? "Choose rating"
+                            : "Not enough trade points",
+                    lead: "Harness",
+                    heading: "Review this purchase",
+                    body: "Confirm the purchase.",
+                    confirm_label: calls === 1 ? "Buy Harness" : "Buy anyway",
+                    confirm_field: "confirmed",
+                    confirm_value: "1",
+                    carry: [...body]
+                        .filter(
+                            ([name]) =>
+                                name !== "csrfmiddlewaretoken" &&
+                                name !== "request_key",
+                        )
+                        .concat([["request_key", `question-${calls}`]]),
+                    facts: [],
+                    aside: null,
+                    checkbox:
+                        calls === 1
+                            ? {
+                                  name: "rate",
+                                  value: "paid",
+                                  label: "Match rating to price",
+                                  description: "Use the paid amount.",
+                                  checked: false,
+                              }
+                            : null,
+                },
+            }),
+        );
+    });
+    vi.stubGlobal("fetch", fetcher);
+    render(<Equip {...page} />);
+    await userEvent.click(screen.getByRole("button", { name: "Buy Harness" }));
+    await userEvent.click(
+        await screen.findByRole("checkbox", { name: "Match rating to price" }),
+    );
+    await userEvent.click(
+        within(screen.getByRole("dialog")).getByRole("button", {
+            name: "Buy Harness",
+        }),
+    );
+    await userEvent.click(
+        await screen.findByRole("button", { name: "Buy anyway" }),
+    );
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
+    expect(fetcher.mock.calls[2][1].body.get("rate")).toBe("paid");
+});

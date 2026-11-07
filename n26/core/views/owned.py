@@ -609,12 +609,57 @@ def _acted(request, touched, gang, back, also=""):
 
 def _owned_action(request, pk, action):
     """Adapt one shared equipment action to native redirects or htmx updates."""
-    from n26.core.equip_purchase import UnavailableEquipment
-    from n26.core.owned_actions import change
+    from uuid import UUID
 
-    assignment = _possession_or_404(request, pk)
-    gang = assignment.gang_root
-    back = _back_to(request, assignment, gang)
+    from n26.core.equip_purchase import UnavailableEquipment
+    from n26.core.models import Assignment, EquipReceipt
+    from n26.core.owned_actions import change
+    from n26.core.views.permissions import _own_gang_or_404
+
+    try:
+        request_key = UUID(request.POST.get("request_key", ""))
+    except ValueError, AttributeError:
+        request_key = None
+    receipt = (
+        EquipReceipt.objects.select_related("gang")
+        .filter(
+            request_key=request_key,
+            actor=request.user,
+            payload__assignment=str(pk),
+            gang__owner=request.user,
+            gang__archived=False,
+        )
+        .first()
+        if request_key
+        else None
+    )
+    if receipt is not None:
+        gang = _own_gang_or_404(request, receipt.gang_id)
+        source_model = receipt.result["touched"]["miniature"]
+        base = (
+            reverse("n26-equip", args=[source_model])
+            if source_model
+            else reverse("n26-equip-gang", args=[gang.pk])
+        )
+        where = {
+            name: request.POST[name]
+            for name in ("list", "section", "owned", "dismissed")
+            if request.POST.get(name)
+        }
+        back = with_query(base, **where) if where else base
+    else:
+        if request_key:
+            from django.core.exceptions import ValidationError
+
+            try:
+                assignment = Assignment.objects.select_related("gang_root").get(pk=pk)
+            except Assignment.DoesNotExist, ValidationError:
+                raise Http404("No such possession") from None
+            gang = _own_gang_or_404(request, assignment.gang_root_id)
+        else:
+            assignment = _possession_or_404(request, pk)
+            gang = assignment.gang_root
+        back = _back_to(request, assignment, gang)
     try:
         result = change(
             gang,

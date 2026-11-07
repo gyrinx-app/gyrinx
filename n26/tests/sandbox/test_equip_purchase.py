@@ -606,3 +606,42 @@ def test_a_native_purchase_receipt_is_recalled_even_when_its_list_disappears(
     gang.refresh_from_db()
     assert gang.credits == 65
     assert_reconciled(gang)
+
+
+@pytest.mark.parametrize("action", ["sell", "refund", "remove"])
+def test_a_keyed_native_removal_replays_after_the_assignment_is_archived(
+    client, gang, owner, kit, action
+):
+    from django.urls import reverse
+
+    sword, _ = kit
+    assignment = assign(sword, stash=gang.stash, paid=35)
+    client.force_login(owner)
+    data = {"request_key": str(uuid4()), "list": "stash", "accessories": "stash"}
+    at = reverse(
+        {"sell": "n26-sell", "refund": "n26-refund", "remove": "n26-remove"}[action],
+        args=[assignment.pk],
+    )
+    first = client.post(at, data)
+    assert first.status_code == 302
+    assignment.refresh_from_db()
+    assert assignment.archived
+    gang.refresh_from_db()
+    before = (
+        gang.credits,
+        gang.stash_rating,
+        gang.wealth,
+        LedgerEvent.objects.filter(gang=gang).count(),
+    )
+    replay = client.post(at, data)
+    assert replay.status_code == 302
+    assert replay["Location"] == first["Location"]
+    gang.refresh_from_db()
+    assert (
+        gang.credits,
+        gang.stash_rating,
+        gang.wealth,
+        LedgerEvent.objects.filter(gang=gang).count(),
+    ) == before
+    assert EquipReceipt.objects.filter(gang=gang).count() == 1
+    assert_reconciled(gang)

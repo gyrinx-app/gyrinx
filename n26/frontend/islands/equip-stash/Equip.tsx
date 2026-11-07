@@ -12,6 +12,8 @@ import {
     ButtonLink,
     CatalogueFrame,
     EquipmentRow,
+    equipmentDraft,
+    type EquipmentDraft,
     EquipmentRail,
     GangFigures,
     UserLink,
@@ -40,6 +42,9 @@ const kinds = [
 
 export function Equip(initial: EquipProps) {
     const [page, setPage] = useState(initial);
+    const [purchaseDrafts, setPurchaseDrafts] = useState<
+        Record<string, EquipmentDraft>
+    >({});
     const [draft, setDraft] = useState<EquipDraft | null>(() =>
         initial.dialog ? panelDraft(initial, initial.dialog) : null,
     );
@@ -233,7 +238,11 @@ export function Equip(initial: EquipProps) {
                 ...navigationValues(),
                 ...Object.fromEntries(question.carry),
                 confirmed: question.confirm_value,
-                rate: question.checkbox?.checked ? question.checkbox.value : "",
+                rate: question.checkbox
+                    ? question.checkbox.checked
+                        ? question.checkbox.value
+                        : ""
+                    : new URLSearchParams(question.carry).get("rate") || "",
             };
             setDraft({ auto: false, dialog: null, question, values });
         } else {
@@ -402,6 +411,19 @@ export function Equip(initial: EquipProps) {
                                         url,
                                     );
                                 }}
+                                draft={
+                                    purchaseDrafts[entry.key] ??
+                                    equipmentDraft(entry)
+                                }
+                                onDraftChange={(update) =>
+                                    setPurchaseDrafts((previous) => ({
+                                        ...previous,
+                                        [entry.key]: update(
+                                            previous[entry.key] ??
+                                                equipmentDraft(entry),
+                                        ),
+                                    }))
+                                }
                                 onBuy={buy}
                             />
                         )}
