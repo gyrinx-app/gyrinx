@@ -1,24 +1,10 @@
-"""
-A debug toolbar Templates panel that keeps each context layer once.
+"""Deduplicate rendered context layers in the development Templates panel.
 
-The toolbar's own Templates panel records, for every template a page renders,
-the context that template saw as one long string: each layer of the context
-pretty-printed, then joined. Nested templates share most of their layers, the
-view's own context above all, so a page that renders hundreds of Cotton
-components keeps the same few megabytes of text hundreds of times over. A
-fighter edit page renders about 530 templates, which comes to about 330 MB in
-that panel, and the toolbar keeps the last 25 requests.
+Store each distinct layer once and keep per-template references. Rebuild
+the toolbar's context text when the panel opens, including history views.
 
-This panel pretty-prints each layer exactly as the toolbar does, but records
-each distinct layer once, plus the list of layers each template saw. It joins
-them only when someone opens the panel, so it shows the same text as the
-toolbar's own panel, both for the page just rendered and for a past request
-read from the History panel.
-
-It is development-only. ``settings_dev`` puts it in ``DEBUG_TOOLBAR_PANELS`` in
-place of the toolbar's own. It lives apart from ``gyrinx/toolbar_dev.py`` for
-the same reason as ``gyrinx/toolbar_store.py``: the toolbar's panels import a
-model, so this module cannot be imported while apps are still loading.
+settings_dev replaces the standard panel with this one. Import it after
+Django app loading because the toolbar panels import a model.
 """
 
 from debug_toolbar.panels.templates.panel import TemplatesPanel
@@ -26,8 +12,7 @@ from django.template.loader import render_to_string
 
 
 class SharedContextTemplatesPanel(TemplatesPanel):
-    # Keep the toolbar's own id, so the browser cookie that turns the panel on
-    # or off, and the toolbar's links to the panel, still find it.
+    # Retain the standard panel ID for toolbar links and visibility cookies.
     panel_id = "TemplatesPanel"
 
     def generate_stats(self, request, response):
@@ -47,9 +32,8 @@ class SharedContextTemplatesPanel(TemplatesPanel):
                         layers.append(text)
                     ids.append(layer_ids[text])
                 per_template.append(ids)
-                # The toolbar joins this list into the template's context
-                # string. Emptying it stops super() building the full join,
-                # which is the memory this panel exists to save.
+                # Prevent the base panel from joining and storing a separate full context
+                # string for every template.
                 template_data["context_list"] = []
         super().generate_stats(request, response)
         if not per_template:

@@ -1,8 +1,8 @@
-"""Define the scenario generator's D6 tables and side-job sets.
+"""The shared scenario catalogue, loaded from authored library content.
 
-``n26.core.scenarios`` rolls and validates Deployment, Objective, Crew and
-up to ``SIDE_JOB_LIMIT`` side jobs. This original game content is stored as
-constants rather than authored through the library.
+Display objects are immutable. One catalogue can be passed through forms,
+rolling and history without querying again. Known references resolve retired
+content; menus offer complete, live tables only.
 
 Table keys, side-job-set keys and roll values are stored in links and battles
 and must remain stable. Display names and text can change; saved battles
@@ -23,6 +23,8 @@ class ScenarioEntry:
     name: str
     text: str
     image: str = ""
+    image_url: str = ""
+    diagram_alt: str = ""
 
     @property
     def label(self):
@@ -75,6 +77,7 @@ class SideJobSet:
     key: str
     name: str
     entries: tuple[ScenarioEntry, ...]
+    available: bool = True
 
     @property
     def label(self):
@@ -89,358 +92,7 @@ class SideJobSet:
         return None
 
 
-DEPLOYMENT = ScenarioTable(
-    key="deployment",
-    name="Deployment",
-    entries=(
-        ScenarioEntry(
-            roll=1,
-            name="Sniping Range:",
-            text=(
-                'Roll-Off Winner chooses a board edge. Opponent takes the opposite. Both gangs may deploy anywhere in their deployment zone but no closer than 12" from the board’s centre line, so that both gangs start no closer than 24" from each other.'
-            ),
-            image="n26/scenarios/deployment-1.png",
-        ),
-        ScenarioEntry(
-            roll=2,
-            name="Face Off:",
-            text=(
-                'Roll-Off Winner chooses a board edge. Opponent takes the opposite. Both gangs may deploy anywhere in their deployment zone but no closer than 9" from the board’s centre line, so that both gangs start no closer than 18" from each other.'
-            ),
-            image="n26/scenarios/deployment-2.png",
-        ),
-        ScenarioEntry(
-            roll=3,
-            name="Stand Off:",
-            text=(
-                'Roll-Off Winner chooses a board edge. Opponent takes the opposite. Both gangs may deploy anywhere in their deployment zone but no closer than 6" from the board’s centre line, so that both gangs start no closer than 12" from each other.'
-            ),
-            image="n26/scenarios/deployment-3.png",
-        ),
-        ScenarioEntry(
-            roll=4,
-            name="Ambush",
-            text=(
-                'The Defender deploys anywhere on the battlefield within 6" from the centre point of the battlefield. The Attacker deploys anywhere in a ring around the Defender at least 12" from the centre of the board.'
-            ),
-            image="n26/scenarios/deployment-4.png",
-        ),
-        ScenarioEntry(
-            roll=5,
-            name="Free For All:",
-            text=(
-                'Roll-Off Winner chooses a board quarter. Opponent takes the quarter opposite. Each gang deploys anywhere in their board quarter, no closer than 9" from the board centre.'
-            ),
-            image="n26/scenarios/deployment-5.png",
-        ),
-        ScenarioEntry(
-            roll=6,
-            name="Chance Encounter:",
-            text=(
-                'Roll-Off Winner chooses a corner. They may deploy anywhere within 9" of that board corner and the opposite board corner. The opponent deploys within 9" of the other 2 corners. Both players should spread their gangs equally between their deployment corners where possible.'
-            ),
-            image="n26/scenarios/deployment-6.png",
-        ),
-    ),
-)
-OBJECTIVE = ScenarioTable(
-    key="objective",
-    name="Objective",
-    entries=(
-        ScenarioEntry(
-            roll=1,
-            name="King of the Hive: ",
-            text=(
-                "Place a suitable objective/marker at the centre of the board. This objective is worth 1 VP if held during the Check For Victory step of each turn’s End Phase. The Winner is the first player to reach 3 VP. If only one player has a model left on the board, they are the winner. If no players have any models left on the board, the battle is a draw."
-            ),
-        ),
-        ScenarioEntry(
-            roll=2,
-            name="Turf War: ",
-            text=(
-                'Starting with Round 3 — If only one player has models that are not Seriously Injured/Damaged within 9" of the centre of the board during the Check For Victory step of the End Phase, they are the winner. If only one player has a model left on the board, they are the winner. If no players have any models left on the board, the battle is a draw.'
-            ),
-        ),
-        ScenarioEntry(
-            roll=3,
-            name="Tunnel Clash:",
-            text=(
-                'Place a suitable objective/marker at the centre of the board. Then starting with the player that wins a roll-off; players take turns to place another objective marker at least 6" away from any other marker and at least 6" away from any board edge. During the Check For Victory step of the End Phase, if a player controls two objectives, they score 1 VP. The winner is the first to reach 3 VP. If only one player has a model left on the board, they are the winner. If no players have any models left on the board, the battle is a draw.'
-            ),
-        ),
-        ScenarioEntry(
-            roll=4,
-            name="Object Lesson:",
-            text=(
-                "Both gangs earn 1 VP for each enemy model that went OoA in that round. An additional 1 VP is earned for a Leader/Champ/Brute, and an additional 1 VP if they are taken OoA as part of a Fight/CdeG/Sabotage action. The winner is the first to 10 VP. If only one player has a model left on the board, they are the winner. If no players have any models left on the board, the battle is a draw."
-            ),
-        ),
-        ScenarioEntry(
-            roll=5,
-            name="Flank ‘em:",
-            text=(
-                'The Attacker places an objective/marker at the centre of one board edge, 6" onto the board. The Defender places an objective/marker in the same position from the opposite board edge. During the Check For Victory step of the End Phase, if a gang controls both objectives they score 1 VP. The Winner is the first player to score 3 VP. If only one player has a model left on the board, they are the winner. If no players have any models left on the board, the battle is a draw.'
-            ),
-        ),
-        ScenarioEntry(
-            roll=6,
-            name="Burn Them Out:",
-            text=(
-                'The Defender places an objective/marker in the Attacker’s deployment zone, then the Attacker places one in the Defender’s deployment zone. They take turns until each has placed 3 objectives. Each objective must be 6" from all other objectives — where possible. During the Check For Victory step of the End Phase, if a gang controls an objective in the opponent’s deployment zone they score 1 VP and remove the objective. The winner is the first to 2 VP. If both players have 2 VP or no players have any models left on the board, the battle is a draw.'
-            ),
-        ),
-    ),
-)
-GENERAL_SIDE_JOBS = SideJobSet(
-    key="general",
-    name="General",
-    entries=(
-        ScenarioEntry(
-            roll=1,
-            name="Stitch ‘em Up: ",
-            text=(
-                "Your Fighters may plant evidence on a Seriously Injured enemy model instead of making the usual Strength checks to take the fighter OoA. If at least one enemy Fighter had evidence planted on them in this way by the end of the battle (even if they are no longer on the board), your gang has accomplished this Side Job."
-            ),
-        ),
-        ScenarioEntry(
-            roll=2,
-            name="The Package:",
-            text=(
-                "At the start of the battle, after both starting Crews have deployed, choose 1 of your Fighters who is on the board and give them a marker representing The Package. If –during the Check For Victory step of the End Phase of round 3, or any round after– the Fighter carrying the package is in base-contact with a board edge in your opponent’s deployment zone (or the centre of the zone if it has no edges), they may remove the marker and your gang has accomplished this Side Job."
-            ),
-        ),
-        ScenarioEntry(
-            roll=3,
-            name="Settle a Score:",
-            text=(
-                "After both starting Crews have deployed, randomly select one of your opponent’s models (who is not the Leader) — declare them your target. During the Check For Victory step of the End Phase of any round: If the target model had been taken OoA or left the board for any reason, then your gang has accomplished this Side Job."
-            ),
-        ),
-        ScenarioEntry(
-            roll=4,
-            name="Crippling Strike:",
-            text=(
-                "During the Check For Victory step of the End Phase of any round — if at least half of your opponent’s models left on the board are Seriously Injured/Damaged or Engaged, then your gang has accomplished this Side Job."
-            ),
-        ),
-        ScenarioEntry(
-            roll=5,
-            name="Spread Unrest:",
-            text=(
-                'Any Active Fighter (without the Beast Subtype) from your gang may perform the Graffiti (Double) action if they are within your opponent’s deployment zone (or 6" from the centre of the board if there isn’t a DZ). If at least one Fighter performed this action during the battle (even if they are no longer on the board), your gang has accomplished this Side Job.'
-            ),
-        ),
-        ScenarioEntry(
-            roll=6,
-            name="Protect the Future:",
-            text=(
-                "After both crews are deployed — randomly select one of your Prospects who is on the board to be ‘protected’ and announce they have been selected. If the selected Fighter is still on the board at the end of the battle, your gang has accomplished this Side Job. (If you have no Prospects, select a Ganger; if you have no Gangers, generate a new Side Job)."
-            ),
-        ),
-    ),
-)
-CREW = ScenarioTable(
-    key="crew",
-    name="Crew",
-    entries=(
-        ScenarioEntry(
-            roll=1,
-            name="Escalating Engagement:",
-            text=(
-                "Both players use Hybrid (3+D3) for their Starting Crew. Both gangs use the Reinforcements (5) rule — D3 Reinforcements arrive each round starting from the 1st."
-            ),
-        ),
-        ScenarioEntry(
-            roll=2,
-            name="Hold Nothing Back:",
-            text=("Both players use Custom (10) to determine their Starting Crew."),
-        ),
-        ScenarioEntry(
-            roll=3,
-            name="Patrol:",
-            text=("Both gangs use Hybrid (3+4) to determine their Starting Crew."),
-        ),
-        ScenarioEntry(
-            roll=4,
-            name="Surprise Attack:",
-            text=(
-                "The Attacker uses Hybrid (4+4) to determine their Starting Crew. Defender uses Custom (3). The Defender uses Reinforcements (7) rule — D3 Reinforcements arriving each round starting with the 1st."
-            ),
-        ),
-        ScenarioEntry(
-            roll=5,
-            name="Strike Force:",
-            text=(
-                "Attacker and Defender both use Custom (5) to determine their Starting Crew."
-            ),
-        ),
-        ScenarioEntry(
-            roll=6,
-            name="Scouting Force:",
-            text=("Both gangs use Hybrid (D3+5) to determine their Starting Crew."),
-        ),
-    ),
-)
-
-ESCHER_SIDE_JOBS = SideJobSet(
-    key="escher",
-    name="Escher",
-    entries=(
-        ScenarioEntry(
-            roll=1,
-            name="Chemical Reign:",
-            text=(
-                "Keep count of each time an enemy Fighter loses a wound to a weapon with the Toxic (X) trait. If, during the Check For Victory step of any round, this count is at least 3, you have accomplished this Side Job."
-            ),
-        ),
-        ScenarioEntry(
-            roll=2,
-            name="Maiden, Mother, Matriarch:",
-            text=(
-                'If, during the Check For Victory step of any round, you have a Prospect, a Ganger AND a Leader or Champion, each Active or Suppressed, all within 6" of the centre of the battlefield, you have accomplished this Side Job.'
-            ),
-        ),
-        ScenarioEntry(
-            roll=3,
-            name="Hunt Together:",
-            text=(
-                "If a friendly Fighter and a pet both performed a Charge or Engage action against the same enemy Fighter in the same round, you have accomplished this Side Job in the Check For Victory step of that round."
-            ),
-        ),
-        ScenarioEntry(
-            roll=4,
-            name="Cut Off the Head:",
-            text=(
-                "If every enemy Leader and Champion is Out of Action or Seriously Injured during the Check For Victory step of any round, you have accomplished this Side Job."
-            ),
-        ),
-        ScenarioEntry(
-            roll=5,
-            name="Experimental Chem:",
-            text=(
-                'At the start of the battle, after all Fighters are deployed, choose one of your Fighters to carry 3 doses of an experimental Stimm. They can use a dose with the *Administer Dose* action. Roll a D6 for the effect: 1 – they suffer an L1 wound that ignores saves; 2 – they are Suppressed; 3+ – their Move increases by 1" for the rest of the battle. If all 3 doses are used, you have accomplished this Side Job.'
-            ),
-        ),
-        ScenarioEntry(
-            roll=6,
-            name="Murder Run:",
-            text=(
-                "If, during the Check For Victory step of any round, 3 enemy Fighters are Out of Action or Seriously Injured, you have accomplished this Side Job."
-            ),
-        ),
-    ),
-)
-GOLIATH_SIDE_JOBS = SideJobSet(
-    key="goliath",
-    name="Goliath",
-    entries=(
-        ScenarioEntry(
-            roll=1,
-            name="Pit Fight:",
-            text=(
-                "Randomly select one of your deployed Fighters. If that Fighter *only* uses weapons with the *Melee* trait for the entire battle, you have accomplished this Side Job."
-            ),
-        ),
-        ScenarioEntry(
-            roll=2,
-            name="Personal Vendetta:",
-            text=(
-                "Pick your Leader or one of your Champions, and the enemy Leader or one of their Champions (or any other Fighter if neither is available). If, at the end of the battle, your Fighter has taken that enemy Fighter Out of Action, you have accomplished this Side Job."
-            ),
-        ),
-        ScenarioEntry(
-            roll=3,
-            name="Wreck the Place:",
-            text=(
-                'Any Active Fighter in your gang within the enemy’s deployment zone (or within 6" of the centre of the board if there is no DZ) may perform the Vandalise (Single) action: roll a D6 and add their Strength. On a total of 6 or more, they have vandalised the area. If your gang does this twice or more by the end of the battle, you have accomplished this Side Job.'
-            ),
-        ),
-        ScenarioEntry(
-            roll=4,
-            name="Maximum Force:",
-            text=(
-                "If, by the end of the battle, your gang has taken 3 enemy Fighters Out of Action with Fight actions, you have accomplished this Side Job."
-            ),
-        ),
-        ScenarioEntry(
-            roll=5,
-            name="Hold the Forge:",
-            text=(
-                'Select a piece of terrain at least 12" from your deployment zone (or any piece if you have no DZ). If, at the end of the battle, there are no enemy models within 3" of it, you have accomplished this Side Job.'
-            ),
-        ),
-        ScenarioEntry(
-            roll=6,
-            name="Prove Your Worth:",
-            text=(
-                "If, during any round, a friendly Fighter was Engaged by *two* enemy Fighters *at the same time*, and at the end of that round is still on the board and not Seriously Injured, you have accomplished this Side Job."
-            ),
-        ),
-    ),
-)
-
-ORLOCK_SIDE_JOBS = SideJobSet(
-    key="orlock",
-    name="Orlock",
-    entries=(
-        ScenarioEntry(
-            roll=1,
-            name="Collecting a Debt:",
-            text=(
-                'When a friendly Fighter targets an enemy Fighter with a Fight action, they may "Shake Down" that enemy instead of making any attacks. If at least one friendly Fighter has shaken down an enemy Fighter by the end of the battle, you have accomplished this Side Job.'
-            ),
-        ),
-        ScenarioEntry(
-            roll=2,
-            name="Clear the Supply Routes:",
-            text=(
-                'If, at the end of the battle, there are no enemy models within the enemy’s deployment zone (or within 6" of the centre of the board if they have no DZ), you have accomplished this Side Job.'
-            ),
-        ),
-        ScenarioEntry(
-            roll=3,
-            name="Call Them Out:",
-            text=(
-                "After both crews have deployed, but before rolling for priority, pick a friendly Fighter and an enemy Fighter. If, by the end of the battle, your Fighter has taken that enemy Fighter Out of Action, you have accomplished this Side Job."
-            ),
-        ),
-        ScenarioEntry(
-            roll=4,
-            name="Prospecting Mission:",
-            text=(
-                'After both crews have deployed, but before rolling for priority, place 3 prospecting tokens on the board, each at least 8" from the other tokens and at least 12" from any friendly Fighter. A friendly Fighter within 1" of a token may perform the Interact action to remove it. If at least 2 tokens have been removed by the end of the battle, you have accomplished this Side Job.'
-            ),
-        ),
-        ScenarioEntry(
-            roll=5,
-            name="Wreck It:",
-            text=(
-                'After both crews have deployed, but before rolling for priority, choose a piece of terrain in the enemy’s deployment zone (or within 6" of the centre of the board if there is no DZ). That piece of terrain has T8, W4 and Sv5+, and attacks against it hit automatically. If, by the end of the battle, it has no wounds remaining, you have accomplished this Side Job.'
-            ),
-        ),
-        ScenarioEntry(
-            roll=6,
-            name="Earn Your Name:",
-            text=(
-                "After both crews have deployed, but before rolling for priority, randomly pick a friendly Fighter. That Fighter gains a Legendary Name of your choice for the rest of the battle, even if they already have the maximum number of Legendary Names. If that Fighter is still on the board at the end of the battle, you have accomplished this Side Job."
-            ),
-        ),
-    ),
-)
-
-#: The tables every scenario may use, in the order the generator shows
-#: them. Side jobs come after them.
-TABLES = (DEPLOYMENT, OBJECTIVE, CREW)
-
-#: The side job sets, in the order the generator's menu lists them.
-SIDE_JOB_SETS = (
-    GENERAL_SIDE_JOBS,
-    ESCHER_SIDE_JOBS,
-    GOLIATH_SIDE_JOBS,
-    ORLOCK_SIDE_JOBS,
-)
-
-#: The most side jobs one scenario may have.
+PRIMARY_KEYS = ("deployment", "objective", "crew")
 SIDE_JOB_LIMIT = 6
 
 
@@ -452,21 +104,92 @@ def side_job_key(place):
     return "side_job" if place == 1 else f"side_job_{place}"
 
 
-#: Every side job key, first to last.
 SIDE_JOB_KEYS = tuple(side_job_key(place) for place in range(1, SIDE_JOB_LIMIT + 1))
 
 
-def side_job_set(key):
-    """The side job set with this key, or None."""
-    for found in SIDE_JOB_SETS:
-        if found.key == key:
-            return found
-    return None
+@dataclass(frozen=True)
+class ScenarioCatalogue:
+    tables: tuple[ScenarioTable, ...]
+    side_job_sets: tuple[SideJobSet, ...]
+    all_side_job_sets: tuple[SideJobSet, ...]
+
+    def table(self, key):
+        return next((table for table in self.tables if table.key == key), None)
+
+    def side_job_set(self, key):
+        return next(
+            (table for table in self.all_side_job_sets if table.key == key), None
+        )
+
+    def permits(self, results, retained=None):
+        offered = {table.key for table in self.side_job_sets}
+        retained = retained or {}
+        return all(
+            not result.table.side_job_set
+            or result.table.side_job_set.key in offered
+            or retained.get(result.table.key) == result.value
+            for result in results
+        )
+
+
+def load_catalogue(*, include_staged=False):
+    from django.conf import settings
+    from django.templatetags.static import static
+
+    from n26.library.models import ScenarioTable as Table
+
+    tables, sets = {}, []
+    rows = (
+        Table.objects.filter(pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG)
+        .select_related("pack")
+        .prefetch_related("entries")
+    )
+    for row in rows:
+        entries = tuple(
+            ScenarioEntry(
+                roll=entry.roll,
+                name=entry.name,
+                text=entry.text,
+                image=entry.image,
+                image_url=entry.diagram.url
+                if entry.diagram
+                else (static(entry.image) if entry.image else ""),
+                diagram_alt=entry.diagram_alt
+                or f"Deployment map for {entry.name.strip().rstrip(':')}",
+            )
+            for entry in row.entries.all()
+        )
+        complete = tuple(entry.roll for entry in entries) == (1, 2, 3, 4, 5, 6) and all(
+            entry.name.strip() and entry.text.strip() for entry in entries
+        )
+        if row.purpose == Table.Purpose.SIDE_JOB:
+            available = (
+                complete
+                and not row.archived
+                and not row.pack.archived
+                and (include_staged or not row.staged)
+            )
+            sets.append(
+                SideJobSet(
+                    key=row.key, name=row.name, entries=entries, available=available
+                )
+            )
+        else:
+            tables[row.purpose] = ScenarioTable(
+                key=row.purpose, name=row.name, entries=entries
+            )
+    return ScenarioCatalogue(
+        tables=tuple(tables[key] for key in PRIMARY_KEYS if key in tables),
+        side_job_sets=tuple(table for table in sets if table.available),
+        all_side_job_sets=tuple(sets),
+    )
+
+
+def side_job_set(key, catalogue=None):
+    return (catalogue or load_catalogue()).side_job_set(key)
 
 
 def side_job_table(place, found):
-    """The table a scenario's side job at ``place`` is drawn from: the
-    entries of the set ``found``, named for the place."""
     return ScenarioTable(
         key=side_job_key(place),
         name=f"Side job {place}",
@@ -475,9 +198,16 @@ def side_job_table(place, found):
     )
 
 
-def table(key):
-    """The table with this key, or None."""
-    for found in TABLES:
-        if found.key == key:
-            return found
-    return None
+def table(key, catalogue=None):
+    return (catalogue or load_catalogue()).table(key)
+
+
+def request_catalogue(request):
+    """Reuse one loaded catalogue throughout a page and its prop builders."""
+    from n26.library.staged import sees_staged
+
+    if not hasattr(request, "_scenario_catalogue"):
+        request._scenario_catalogue = load_catalogue(
+            include_staged=sees_staged(request.user)
+        )
+    return request._scenario_catalogue

@@ -1,9 +1,4 @@
-"""
-Admin interface for task execution monitoring.
-
-Provides read-only views of task executions and state transitions
-for debugging and monitoring purposes.
-"""
+"""Task execution monitoring, transition history and local queue cleanup."""
 
 from django.contrib import admin
 from django.urls import NoReverseMatch, reverse
@@ -147,11 +142,10 @@ class TaskExecutionAdmin(admin.ModelAdmin):
 
     @admin.display(description="Related objects")
     def related_links(self, obj):
-        """One-click links to the objects a task's kwargs reference.
+        """Link supported task keyword IDs to their admin objects.
 
-        Turns raw UUIDs in ``kwargs`` into admin links so a failed task is quick to debug.
-        Currently understands ``complete_campaign_list_clone`` (#1222); extend the mapping
-        below for other tasks as needed.
+        The task-specific mapping supplies each keyword, admin route and label.
+        Omit absent IDs and routes that are not installed.
         """
         kwargs = obj.kwargs or {}
         # (kwargs key, admin change-view name, label)
@@ -181,10 +175,10 @@ class TaskExecutionAdmin(admin.ModelAdmin):
 
 @admin.register(QueuedTask)
 class QueuedTaskAdmin(admin.ModelAdmin):
-    """Admin view for the local durable queue (dev/test only; prod uses Pub/Sub).
+    """Inspect undelivered and retrying local queue records.
 
-    Shows what is currently in flight or waiting to retry. Rows are deleted on
-    success, so a non-empty table means undelivered or retrying work.
+    Successful or exhausted deliveries remove their queue record. Production
+    uses Pub/Sub rather than this local queue.
     """
 
     list_display = [

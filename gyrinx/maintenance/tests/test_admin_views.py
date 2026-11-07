@@ -1,8 +1,4 @@
-"""Smoke tests for the /admin/maintenance/* views (#1825).
-
-Verifies the auth gate (superuser-only), the dry-run rendering, and that POST
-applies and creates a Backfill record + per-list audit ListAction.
-"""
+"""Maintenance console access, repair execution and recorded summaries."""
 
 import pytest
 from bs4 import BeautifulSoup
@@ -67,14 +63,10 @@ def _setup_scenario(content_house, make_content_fighter, make_list, make_list_fi
     return {"list": lst, "stash": stash, "dying": dying, "assignment": assignment}
 
 
-# ---------------------------------------------------------------- auth gate
-
-
 @pytest.mark.django_db
 def test_anonymous_user_is_redirected_to_admin_login():
     c = Client()
     r = c.get(reverse("admin:maintenance_index"))
-    # admin_view redirects anonymous users to the admin login page
     assert r.status_code in (302, 401, 403)
 
 
@@ -159,9 +151,6 @@ def test_write_pause_control_does_not_resume_a_newer_pause(
     assert not LogEntry.objects.filter(object_id=str(held.pk)).exists()
 
 
-# ---------------------------------------------------------------- dry-run
-
-
 @pytest.mark.django_db
 def test_persistent_stash_view_shows_candidates(
     make_user, content_house, make_content_fighter, make_list, make_list_fighter
@@ -179,16 +168,11 @@ def test_persistent_stash_view_shows_candidates(
     r = c.get(reverse("admin:maintenance_persistent_stash"))
     assert r.status_code == 200
     body = r.content.decode()
-    # The would-move table includes our scenario
     assert s["assignment"].content_equipment.name in body
     assert "Bozur" in body
     assert "Admin Test Gang" in body
-    # Nothing has changed yet
     s["assignment"].refresh_from_db()
     assert s["assignment"].list_fighter_id == s["stash"].id
-
-
-# ---------------------------------------------------------------- apply
 
 
 @pytest.mark.django_db
@@ -206,27 +190,22 @@ def test_post_applies_creates_backfill_and_moves_assignment(
     c.force_login(su)
 
     r = c.post(reverse("admin:maintenance_persistent_stash"), follow=False)
-    # Redirect to detail page on success
     assert r.status_code == 302
     assert "/backfill/" in r["Location"]
 
-    # The assignment moved
     s["assignment"].refresh_from_db()
     assert s["assignment"].list_fighter_id == s["dying"].id
 
-    # A backfill row was created
     bf = Backfill.objects.get(triggered_by=su)
     assert bf.status == Backfill.Status.DONE
     assert bf.operation == Operation.MIGRATE_PERSISTENT_STASH
     assert bf.summary["moved"] == 1
     assert bf.summary["affected_lists"] == 1
 
-    # And the audit ListAction is recorded on the gang
     assert ListAction.objects.filter(
         list=s["list"], description__icontains="data repair"
     ).exists()
 
-    # Detail page renders
     r = c.get(reverse("admin:maintenance_backfill_detail", args=[bf.pk]))
     assert r.status_code == 200
     assert s["assignment"].content_equipment.name.encode() in r.content
@@ -256,7 +235,6 @@ def test_post_scoped_by_list_id_only_touches_that_list(
     )
     assert r.status_code == 302
 
-    # s1's assignment moved; s2's did not
     s1["assignment"].refresh_from_db()
     s2["assignment"].refresh_from_db()
     assert s1["assignment"].list_fighter_id == s1["dying"].id
@@ -265,9 +243,6 @@ def test_post_scoped_by_list_id_only_touches_that_list(
     bf = Backfill.objects.get(triggered_by=su)
     assert str(bf.list_id_scope) == str(s1["list"].id)
     assert bf.summary["moved"] == 1
-
-
-# ------------------------------------------------- labels and detail rendering
 
 
 @pytest.fixture
@@ -283,7 +258,7 @@ def maintenance_superuser(make_user):
 def test_detail_page_uses_the_operations_own_summary_fragment(
     client, maintenance_superuser
 ):
-    """A reconcile run renders reconcile-shaped detail, not the generic dump."""
+
     bf = Backfill.objects.create(
         operation=Operation.RECONCILE_LISTS,
         status=Backfill.Status.DONE,
@@ -300,7 +275,7 @@ def test_detail_page_uses_the_operations_own_summary_fragment(
 
 @pytest.mark.django_db
 def test_retired_operation_still_renders_its_name(client, maintenance_superuser):
-    """Its code is gone, but the record predates that and must stay readable."""
+    """Preserve readable labels for records whose operation is no longer runnable."""
     bf = Backfill.objects.create(
         operation=Operation.FIX_STAT_ADVANCEMENTS,
         status=Backfill.Status.DONE,
@@ -314,13 +289,12 @@ def test_retired_operation_still_renders_its_name(client, maintenance_superuser)
     ).content.decode()
 
     assert "stat-advancement cleanup" in body
-    # No fragment registered, so the summary falls back to a plain dump.
     assert "walked" in body
 
 
 @pytest.mark.django_db
 def test_unknown_operation_slug_degrades_to_the_slug(client, maintenance_superuser):
-    """A record written by an edition that is no longer installed still opens."""
+    """Keep records readable when their operation is no longer registered."""
     bf = Backfill.objects.create(
         operation="some_other_edition_repair",
         status=Backfill.Status.DONE,
@@ -341,17 +315,12 @@ def test_index_lists_only_runnable_operations(client, maintenance_superuser):
 
     assert Operation.RECONCILE_LISTS.label in body
     assert Operation.BACKFILL_PINS.label in body
-    # Retired operations have no page, so they must not be offered as repairs.
     assert Operation.FIX_STAT_ADVANCEMENTS.label not in body
 
 
 @pytest.mark.django_db
 def test_backfills_changelist_shows_names_not_slugs(client, maintenance_superuser):
-    """`operation` has no choices, so the label has to come from the registry.
-
-    Without the ModelAdmin asking for it, Django renders the bare slug in both
-    the column and the filter — which is what it did before this was fixed.
-    """
+    """Resolve operation labels through the registry because the field has no choices."""
     Backfill.objects.create(
         operation=Operation.RECONCILE_LISTS, status=Backfill.Status.DONE
     )
@@ -365,7 +334,7 @@ def test_backfills_changelist_shows_names_not_slugs(client, maintenance_superuse
 
 @pytest.mark.django_db
 def test_every_operation_page_is_gated_to_superusers(client, make_user):
-    """The gate is applied at mount time, so it covers edition pages too."""
+    """Apply the mount-time superuser gate to registered edition pages too."""
     staff = make_user("maint-staff", "pw")
     staff.is_staff = True
     staff.save()
@@ -388,8 +357,7 @@ def _fighter_statline_type():
         ContentStatlineTypeStat,
     )
 
-    # Metadata mirrors content.0156 — divergent hand-mirrors are a trap for
-    # any future display assertion added in this file.
+    # Match canonical statline metadata so later display assertions use a complete fixture.
     highlighted = {"leadership", "cool", "willpower", "intelligence"}
     statline_type, _ = ContentStatlineType.objects.get_or_create(name="Fighter")
     for position, field_name in enumerate(STAT_FIELDS, start=1):
@@ -403,9 +371,6 @@ def _fighter_statline_type():
             },
         )
     return statline_type
-
-
-# ------------------------------------------------- the index's own ordering
 
 
 def _next_suffix():
@@ -426,8 +391,7 @@ def _index_body(make_user):
 
 @pytest.mark.django_db
 def test_the_repairs_are_listed_newest_first():
-    """These accumulate and are nearly always run soon after being written,
-    so the one somebody came for is the one written most recently."""
+
     from gyrinx.maintenance.views import _operations_listing
 
     dated = [op["added"] for op in _operations_listing() if op["added"]]
@@ -438,7 +402,7 @@ def test_the_repairs_are_listed_newest_first():
 
 @pytest.mark.django_db
 def test_a_repair_with_no_date_given_sorts_last(monkeypatch):
-    """Undated means nobody said, which is not a claim to be recent."""
+
     import datetime
 
     from gyrinx.maintenance import views as maintenance_views

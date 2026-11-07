@@ -1,28 +1,7 @@
-"""
-OpenTelemetry tracing utilities for Google Cloud Run.
+"""OpenTelemetry tracing for Django and Cloud Run.
 
-This module provides tracing capabilities that integrate with Google Cloud Trace.
-Tracing mode is controlled by the TRACING_MODE setting:
-- "off": Tracing is disabled (no-op)
-- "console": Traces are printed to stdout (for development)
-- "gcp": Traces are exported to Google Cloud Trace (for production)
-
-Typical usage:
-
-    # Context manager for custom spans
-    from gyrinx.tracing import span
-
-    with span("database_query", query_type="select"):
-        results = Model.objects.filter(...)
-
-    # Decorator for tracing functions
-    from gyrinx.tracing import traced
-
-    @traced("process_fighter_stats")
-    def calculate_stats(fighter):
-        return fighter.get_stats()
-
-Error handling is automatic - exceptions are recorded on spans and re-raised.
+TRACING_MODE selects off, console output or Google Cloud Trace. Use span
+as a context manager or traced as a decorator for application spans.
 """
 
 import logging
@@ -37,31 +16,23 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-# Module-level state
 _tracing_enabled = False
 _tracer = None
 _initialized = False
 
 
 def _get_project_id():
-    """Get GCP project ID with fallback for Cloud Run."""
+    """Read GOOGLE_CLOUD_PROJECT or fall back to the hard-coded project ID."""
     return os.getenv("GOOGLE_CLOUD_PROJECT") or "windy-ellipse-440618-p9"
 
 
 def _get_tracing_mode():
-    """Get the tracing mode from settings.
-
-    Returns one of: "off", "console", "gcp"
-    """
+    """Read TRACING_MODE, defaulting to off."""
     return getattr(settings, "TRACING_MODE", "off")
 
 
 def _get_exporter():
-    """Get the appropriate span exporter based on TRACING_MODE setting.
-
-    "console": ConsoleSpanExporter for local debugging
-    "gcp": CloudTraceSpanExporter for Google Cloud Trace
-    """
+    """Build a console exporter in console mode, otherwise a Cloud Trace exporter."""
     tracing_mode = _get_tracing_mode()
 
     if tracing_mode == "console":
@@ -69,7 +40,6 @@ def _get_exporter():
 
         return ConsoleSpanExporter()
 
-    # Default to GCP exporter for "gcp" mode
     from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
 
     project_id = _get_project_id()
@@ -92,31 +62,18 @@ def _get_processor(exporter):
 
 
 def _should_force_sampling() -> bool:
-    """Check if we should force sampling on all requests.
-
-    Returns True when DEBUG=True and TRACING_MODE="gcp", which is useful
-    for local development against GCP Cloud Trace.
-    """
+    """Force sampling when DEBUG is enabled and tracing mode is gcp."""
     from django.conf import settings
 
     return getattr(settings, "DEBUG", False) and _get_tracing_mode() == "gcp"
 
 
 def _init_tracing() -> None:
-    """Initialize OpenTelemetry tracing based on TRACING_MODE setting.
+    """Initialise tracing once unless mode is off.
 
-    TRACING_MODE options:
-    - "off": Tracing is disabled (no-op) - no OpenTelemetry imports or setup
-    - "console": Traces are printed to stdout (for development)
-    - "gcp": Traces are exported to Google Cloud Trace (for production)
-
-    This configures:
-    1. CloudTraceFormatPropagator - parses X-Cloud-Trace-Context header from Cloud Run
-    2. Appropriate exporter based on mode
-    3. Django auto-instrumentation (automatic request spans)
-    4. ALWAYS_ON sampler when DEBUG=True and TRACING_MODE="gcp" (forces all requests to be traced)
-
-    Called automatically on module import.
+    Configure Cloud Trace propagation, a mode-specific exporter, Django spans
+    and logging context. Force sampling in DEBUG with gcp mode. Log setup
+    failures and leave tracing disabled.
     """
     global _tracing_enabled, _tracer, _initialized
 
@@ -127,7 +84,6 @@ def _init_tracing() -> None:
 
     tracing_mode = _get_tracing_mode()
 
-    # If tracing is off, do nothing - this is a no-op
     if tracing_mode == "off":
         logger.debug("Tracing disabled (TRACING_MODE=off)")
         return
@@ -143,32 +99,24 @@ def _init_tracing() -> None:
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.sampling import ALWAYS_ON
 
-        # Configure Cloud Trace propagator FIRST
-        # This tells OpenTelemetry to parse X-Cloud-Trace-Context header (GCP format)
-        # instead of the default W3C traceparent format
+        # Use Cloud Run's X-Cloud-Trace-Context format instead of W3C traceparent.
         set_global_textmap(CloudTraceFormatPropagator())
 
-        # Create tracer provider
-        # Use ALWAYS_ON sampler in DEBUG+gcp mode to trace every request
+        # Force sampling only for DEBUG with gcp tracing.
         sampler = ALWAYS_ON if _should_force_sampling() else None
         provider = TracerProvider(sampler=sampler)
 
-        # Add exporter with appropriate processor based on mode
         exporter = _get_exporter()
         processor = _get_processor(exporter)
         provider.add_span_processor(processor)
 
-        # Set as global tracer provider
         trace.set_tracer_provider(provider)
 
-        # Auto-instrument Django (adds automatic request spans)
         DjangoInstrumentor().instrument()
 
-        # Auto-instrument logging (injects trace context into log records)
-        # This ensures StructuredLogHandler uses OpenTelemetry span IDs
+        # Inject OpenTelemetry span IDs into log records without replacing the log format.
         LoggingInstrumentor().instrument(set_logging_format=False)
 
-        # Get tracer for manual spans
         _tracer = trace.get_tracer("gyrinx.tracing")
         _tracing_enabled = True
 
@@ -188,26 +136,16 @@ def _init_tracing() -> None:
 def span(
     name: str, *, record_exception: bool = True, **attributes: Any
 ) -> Generator[Any | None]:
-    """Create a custom span as a context manager.
+    """Yield an application span, or None when tracing is disabled.
 
-    Args:
-        name: Span name (e.g., "database_query", "process_fighter")
-        record_exception: If True, record exceptions on the span before re-raising
-        **attributes: Key-value attributes to attach to span
-
-    Yields:
-        The span object (or None if tracing disabled)
-
-    Example:
-        with span("calculate_list_cost", list_id=str(lst.id)):
-            total = sum(fighter.cost for fighter in lst.fighters.all())
+    Convert attributes to strings. With record_exception=True, record raised
+    exceptions and mark the span as failed before propagating the exception.
     """
     if not _tracing_enabled or _tracer is None:
         yield None
         return
 
     with _tracer.start_as_current_span(name) as current_span:
-        # Add attributes
         for key, value in attributes.items():
             current_span.set_attribute(key, str(value))
 
@@ -223,24 +161,9 @@ def span(
 
 
 def traced(name: str | None = None, **default_attributes: Any) -> Callable:
-    """Decorator to automatically trace a function.
+    """Wrap a function in a span with optional name and default attributes.
 
-    Args:
-        name: Optional span name (defaults to function name)
-        **default_attributes: Default attributes to add to span
-
-    Returns:
-        Decorated function
-
-    Example:
-        @traced("process_advancement")
-        def apply_stat_advancement(fighter, stat):
-            return fighter.apply_advancement(stat)
-
-        # With default attributes
-        @traced("cache_operation", cache_type="list_cost")
-        def update_cache(key, value):
-            cache.set(key, value)
+    Default to the function name and preserve its metadata.
     """
 
     def decorator(func: Callable) -> Callable:
@@ -257,23 +180,12 @@ def traced(name: str | None = None, **default_attributes: Any) -> Callable:
 
 
 def is_tracing_enabled() -> bool:
-    """Check if tracing is currently enabled.
-
-    Returns:
-        True if tracing is enabled and initialized, False otherwise.
-    """
+    """Return whether tracing initialisation succeeded."""
     return _tracing_enabled
 
 
 def get_gcp_trace_url(trace_id: str) -> str:
-    """Generate a GCP Cloud Trace console URL for a given trace ID.
-
-    Args:
-        trace_id: The OpenTelemetry trace ID (32 hex characters)
-
-    Returns:
-        A URL to view the trace in Google Cloud Console
-    """
+    """Build a Cloud Trace console URL for a hexadecimal trace ID."""
     project_id = _get_project_id()
     return (
         f"https://console.cloud.google.com/traces/explorer"
@@ -282,18 +194,10 @@ def get_gcp_trace_url(trace_id: str) -> str:
 
 
 class TraceURLLoggingMiddleware:
-    """Django middleware that logs GCP Cloud Trace URLs after each request.
-
-    Only active when DEBUG=True and TRACING_MODE="gcp". Logs a clickable URL
-    to the console that links directly to the trace in Google Cloud Console.
-
-    This is useful for local development when you want to inspect traces
-    in GCP Cloud Trace.
-    """
+    """Log the current request's Cloud Trace URL in DEBUG with gcp tracing."""
 
     def __init__(self, get_response):
         self.get_response = get_response
-        # Check once at startup if we should log trace URLs
         self._should_log = _should_force_sampling()
         if self._should_log:
             logger.info("TraceURLLoggingMiddleware active - will log GCP trace URLs")
@@ -315,7 +219,6 @@ class TraceURLLoggingMiddleware:
             span_context = span.get_span_context()
 
             if span_context.is_valid:
-                # Format trace_id as 32-character hex string
                 trace_id = format(span_context.trace_id, "032x")
                 url = get_gcp_trace_url(trace_id)
                 logger.info(
@@ -326,24 +229,10 @@ class TraceURLLoggingMiddleware:
 
 
 def _reset_tracing() -> None:
-    """Reset tracing state for testing purposes.
+    """Reset module state so tests can initialise tracing again.
 
-    This is intended for test scenarios where you need to re-initialize
-    tracing with different settings. It clears the initialization state
-    and resets all module-level variables.
-
-    WARNING: This should only be used in tests!
-
-    Note: This function performs incomplete cleanup. It resets module-level
-    variables but does NOT:
-    - Uninstrument Django or logging instrumentors that were registered
-    - Clean up span processors or tracer providers set globally
-    - Remove any existing spans in flight
-
-    For test purposes, this is acceptable because:
-    - Tests typically use mock tracers rather than real OpenTelemetry
-    - Each test worker process is isolated from others
-    - The global OpenTelemetry state doesn't affect mock-based tests
+    This does not remove global instrumentors, providers, processors or active
+    spans. Use only in isolated tests, normally with mock tracers.
     """
     global _tracing_enabled, _tracer, _initialized
     _tracing_enabled = False
@@ -351,10 +240,6 @@ def _reset_tracing() -> None:
     _initialized = False
 
 
-# Initialize tracing on module import.
-# Skip in the autoreloader's parent process to avoid duplicate startup logs.
-# Django's StatReloader spawns two processes: the parent (watcher) and child
-# (server, identified by RUN_MAIN=true). Both run full Django init, so without
-# this guard every startup message appears twice.
+# Skip the runserver watcher process to avoid duplicate tracing initialisation.
 if os.environ.get("RUN_MAIN") == "true" or "runserver" not in sys.argv:
     _init_tracing()

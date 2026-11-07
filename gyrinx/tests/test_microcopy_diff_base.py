@@ -1,10 +1,4 @@
-"""Branch diffs compare origin/main, the last fetched upstream.
-
-A local ``main`` that was never fast-forwarded makes ``git diff main...HEAD``
-include weeks of already-merged files. Finch hit that on a 14-file pull
-request that looked like 233 files. ``check_microcopy.py --diff`` and the
-review instructions now use ``origin/main``.
-"""
+"""Compare branch changes against fetched origin/main, falling back to local main only when necessary."""
 
 import subprocess
 from pathlib import Path

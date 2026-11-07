@@ -1,10 +1,8 @@
 {% comment %}
-    Records the browser's IANA timezone as a cookie so the next request can
-    guess a default before the user has opened the timezone settings page.
-    Harmless if the zone is already saved on the profile — the middleware
-    prefers the stored value. Keep COOKIE_NAME in gyrinx/timezones.py in step.
-    Write the IANA name raw: encodeURIComponent turns / into %2F, and Django
-    does not decode that, so Europe/London would never match a real zone.
+    Store the browser's IANA timezone as a fallback for the next request;
+    a saved profile timezone takes precedence. Match COOKIE_NAME in
+    gyrinx/timezones.py. Write the raw name because Django does not decode
+    percent-encoded slashes when reading the cookie.
 {% endcomment %}
 <script>
     (function() {

@@ -1,9 +1,7 @@
-"""What the migration watch tells a pull request.
+"""Migration-watch results must distinguish completed checks from missing evidence.
 
-These tests enforce one rule: the watch says a branch is clear only when every
-check gave an answer and none of them found anything. A run that was cancelled,
-or whose checks were skipped because something earlier broke, has not verified
-the branch, and its result must not look as though it has.
+Cancelled runs, skipped checks and missing findings cannot establish that a branch
+is clear.
 """
 
 import importlib.util
@@ -35,7 +33,7 @@ ALL_RAN = {
 
 @pytest.fixture
 def run(monkeypatch, tmp_path):
-    """Build a report from a set of step outcomes, as the workflow passes them."""
+    """Build a report from workflow step outcomes."""
 
     def build(findings=None, **outcomes):
         for name in [
@@ -67,7 +65,7 @@ def test_every_check_ran_and_found_nothing(run):
 
 
 def test_a_cancelled_run_says_it_checked_nothing(run):
-    # Every check is skipped because a newer push cancelled the run.
+    # A newer push cancelled the run before its checks executed.
     state, headline, _, notes = run(FETCH="success", MERGE="success")
     assert state == "pending"
     assert headline == "not checked"
@@ -75,7 +73,7 @@ def test_a_cancelled_run_says_it_checked_nothing(run):
 
 
 def test_a_skipped_check_is_not_a_pass(run):
-    # Main did not migrate, so the deploy replay never ran; the rest did.
+    # A failed main migration prevents the deploy replay from running.
     state, headline, problems, notes = run(
         findings="[]",
         FETCH="success",
@@ -93,8 +91,7 @@ def test_a_skipped_check_is_not_a_pass(run):
 
 
 def test_an_overlap_check_that_wrote_no_findings_is_not_a_pass(run):
-    # The command exits non-zero both when it finds a clash and when it cannot
-    # run, so a failure with no findings file means it checked nothing.
+    # An unsuccessful overlap check without a findings file has no result to report.
     state, headline, problems, notes = run(**{**ALL_RAN, "OVERLAP": "failure"})
     assert state != "success"
     assert "clear" not in headline
@@ -103,7 +100,7 @@ def test_an_overlap_check_that_wrote_no_findings_is_not_a_pass(run):
 
 
 def test_an_overlap_check_that_passed_without_findings_is_not_a_pass(run):
-    # A green step with no findings file has still read nothing.
+    # A successful step without a findings file still supplies no overlap result.
     state, headline, _, _ = run(**ALL_RAN)
     assert state != "success"
     assert "clear" not in headline
@@ -136,8 +133,7 @@ def test_a_branch_that_does_not_merge_is_a_problem(run, monkeypatch):
 
 
 def test_a_stacked_branch_that_does_not_merge_is_only_a_note(run, monkeypatch):
-    # Main holds a squashed ancestor this chain still carries unsquashed. That
-    # clears when the branch below lands, so it is not this branch's problem.
+    # A stacked branch may retain unsquashed ancestors already squashed into main.
     monkeypatch.setenv("PR_BASE", "codex/the-branch-below")
     state, headline, problems, notes = run(FETCH="success", MERGE="failure")
     assert state == "pending"

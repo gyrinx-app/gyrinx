@@ -1,13 +1,7 @@
-"""Admin impersonation: session keys, permission helpers, and the page subject.
+"""Shared impersonation session keys, permission checks and page-subject helpers.
 
-Impersonation is a per-request overlay. The admin stays authenticated — the
-session's ``_auth_user_id`` is unchanged — and the target user's id is stored in
-the session. :class:`gyrinx.middleware.ImpersonationMiddleware` swaps
-``request.user`` for the duration of each request, so everything derived from
-``request.user`` (history attribution, audit ledgers, permissions, templates)
-reflects the impersonated user without any per-feature changes.
-
-Only superusers may impersonate.
+Only superusers may impersonate. Middleware replaces request.user for each
+request while leaving the authenticated session user unchanged.
 """
 
 # Session keys.
@@ -44,21 +38,15 @@ def can_impersonate_target(admin, target) -> bool:
     )
 
 
-# Attribute the view sets to say whose content the page is showing. Read by
-# :func:`gyrinx.context_processors.impersonation` to offer the admin a way
-# straight into that account.
+# Shareable views record their content owner for the impersonation context processor.
 PAGE_SUBJECT_ATTR = "impersonation_page_subject"
 
 
 def note_page_subject(request, user) -> None:
-    """Record that this page is showing ``user``'s content.
-
-    Only pages that open for someone other than their owner have a subject
-    worth naming — a page scoped to the viewer is already about them.
-    """
+    """Set the content owner used by impersonation controls on shareable pages."""
     setattr(request, PAGE_SUBJECT_ATTR, user)
 
 
 def page_subject(request):
-    """Whose content the page is showing, or ``None`` if nothing said."""
+    """Return the recorded content owner, or None if the view supplied none."""
     return getattr(request, PAGE_SUBJECT_ATTR, None)

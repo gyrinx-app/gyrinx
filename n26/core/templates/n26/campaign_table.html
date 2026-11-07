@@ -1,17 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-One of the campaign's own tables: what it contains in roll order, whether
-its bands cover its die, and the form that adds to it. The assets offered
-are the ones the campaign may add by hand of the table's asset type, so a
-table contains nothing the campaign could not add. Removing one is a POST
-from its row; what was already rolled stays in the campaign.
-
-Every word for what the table contains is the asset type's own — `label`
-and `plural` from the view — so a table of territories says territories.
-
-The coverage check is the authoring page's own include, so a table is judged
-the same way wherever it is edited.
+Edit the campaign's asset-table entries and reuse the authoring coverage check. Removing
+an entry does not remove assets already rolled from it.
 {% endcomment %}
 {% block head_title %}{{ table }} in {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -56,10 +47,8 @@ the same way wherever it is edited.
                                 <td>{{ entry.label }}</td>
                                 <td class="text-right">
                                     {% comment %}
-                                    A button posting to the entry's own address,
-                                    outside the page's form: HTML does not nest
-                                    forms, and htmx is not needed for a POST that
-                                    reloads the page.
+                                    Use an external form target for each remove button
+                                    because forms cannot nest.
                                     {% endcomment %}
                                     <c-ui.button size="xs"
                                                  variant="ghost"
@@ -132,8 +121,7 @@ the same way wherever it is edited.
         </c-n26.form-section>
     </c-n26.form-page>
     {% comment %}
-    The remove forms, one per entry, outside the page's own form. Each row's
-    button names its form by id.
+    Keep entry-removal forms outside the page form and reference them by ID.
     {% endcomment %}
     {% for entry in entries %}
         <form id="remove-{{ forloop.counter }}"

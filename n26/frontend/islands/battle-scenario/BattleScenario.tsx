@@ -17,6 +17,7 @@ type Entry = {
     text: string;
     parts?: [string, boolean][];
     image: string;
+    imageAlt?: string;
 };
 
 type SideJobSet = {
@@ -32,7 +33,9 @@ type Result = { key: string; heading: string; entry: Entry; set?: string };
 // Picks can be empty, leave, a set key for a random result, or a set and
 // roll such as escher-3.
 function setOf(pick: string, sets: SideJobSet[]) {
-    return sets.find((found) => found.key === pick.split("-")[0]);
+    return sets.find(
+        (found) => pick === found.key || pick.startsWith(`${found.key}-`),
+    );
 }
 
 function Text({ entry }: { entry: Entry }) {
@@ -65,6 +68,7 @@ export type BattleScenarioProps = {
     sideJobKeys?: string[];
     sideJobLimit?: number;
     sideJobSets?: SideJobSet[];
+    referencedSideJobSets?: SideJobSet[];
 };
 
 export function BattleScenario(props: BattleScenarioProps) {
@@ -72,10 +76,11 @@ export function BattleScenario(props: BattleScenarioProps) {
     const [revision, setRevision] = useState(props.save?.revision);
     const sideJobKeys = props.sideJobKeys ?? [];
     const sideJobSets = props.sideJobSets ?? [];
+    const resultSets = [...sideJobSets, ...(props.referencedSideJobSets ?? [])];
     const initialSidePicks = sideJobKeys.flatMap((key) => {
         const value = props.rolls[key];
         if (!value) return [];
-        const set = setOf(value.includes("-") ? value : "general", sideJobSets);
+        const set = setOf(value.includes("-") ? value : "general", resultSets);
         return set ? [set.key] : [];
     });
     const { picks, sidePicks, setPicks, setSidePicks } = useScenarioPicks({
@@ -133,7 +138,7 @@ export function BattleScenario(props: BattleScenarioProps) {
             dash >= 0
                 ? [value.slice(0, dash), value.slice(dash + 1)]
                 : ["general", value];
-        const set = sideJobSets.find((found) => found.key === setKey);
+        const set = resultSets.find((found) => found.key === setKey);
         const entry = set?.entries.find((entry) => String(entry.roll) === roll);
         if (!set || !entry) invalid = true;
         else
@@ -293,13 +298,23 @@ export function BattleScenario(props: BattleScenarioProps) {
                                             <Button
                                                 variant="text"
                                                 className="text-sm"
-                                                disabled={pending}
+                                                disabled={
+                                                    pending ||
+                                                    !sideJobSets.length
+                                                }
                                                 aria-label={`Reroll ${heading}`}
                                                 onClick={() =>
                                                     setReroll({
                                                         key,
                                                         heading,
-                                                        set,
+                                                        set: sideJobSets.some(
+                                                            (each) =>
+                                                                each.key ===
+                                                                set,
+                                                        )
+                                                            ? set
+                                                            : (sideJobSets[0]
+                                                                  ?.key ?? ""),
                                                     })
                                                 }
                                             >
@@ -317,7 +332,10 @@ export function BattleScenario(props: BattleScenarioProps) {
                                         <img
                                             className="mt-2 w-full max-w-sm"
                                             src={entry.image}
-                                            alt={`${heading}: ${entry.name}`}
+                                            alt={
+                                                entry.imageAlt ||
+                                                `${heading}: ${entry.name}`
+                                            }
                                         />
                                     )}
                                 </div>
@@ -364,6 +382,7 @@ export function BattleScenario(props: BattleScenarioProps) {
                             prefix="preview"
                             picks={sidePicks}
                             sets={sideJobSets}
+                            referencedSets={props.referencedSideJobSets}
                             keys={sideJobKeys}
                             limit={props.sideJobLimit ?? 6}
                             disabled={pending}

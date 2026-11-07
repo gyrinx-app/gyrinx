@@ -1380,8 +1380,14 @@ def _campaign_own_acts(campaign, viewer, limit=None):
         if limit is not None
         else events.order_by("created", "id")
     )
+    events = list(events)
+    catalogue = None
+    if any(e.kind == CampaignEvent.Kind.SCENARIO_SAVED for e in events):
+        from n26.library.scenario_tables import load_catalogue
+
+        catalogue = load_catalogue()
     for e in events:
-        yield (e.created, str(e.pk)), _one_campaign_act(e, viewer)
+        yield (e.created, str(e.pk)), _one_campaign_act(e, viewer, catalogue)
 
 
 def _gang_acts_in_campaign(campaign, viewer, limit=None):
@@ -1510,8 +1516,8 @@ def _gang_named(e):
     return e.gang.name if e.gang_id else "a gang"
 
 
-def _one_campaign_act(e, viewer):
-    spans, category = _tell_campaign(e)
+def _one_campaign_act(e, viewer, catalogue=None):
+    spans, category = _tell_campaign(e, catalogue)
     return Act(
         when=e.created,
         actor=_actor(e, viewer),
@@ -1533,7 +1539,7 @@ def _scenario_href(campaign_id, rolls):
     return f"{path}?{urlencode(rolls)}#scenario"
 
 
-def _tell_campaign(e):
+def _tell_campaign(e, catalogue=None):
     """Build lowercase fragments for a campaign event following its actor.
 
     Campaign events describe no credit movement.
@@ -1627,7 +1633,7 @@ def _tell_campaign(e):
             from n26.core.scenarios import describe, read_history_note, results
 
             rolls, name = read_history_note(e.note)
-            found = results(rolls)
+            found = results(rolls, catalogue)
             what = f"saved the scenario {name}" if name else "saved a scenario"
             if not found:
                 return (Span(what),), "campaign"

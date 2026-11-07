@@ -1,10 +1,4 @@
-"""Generated trees stay out of the editable install.
-
-Hazel hit this on #lessons (11 Oct): after a rebase removed the gitignored
-Vite directory, ``uv sync`` still named ``n26/core/static/n26/react/assets``
-and failed before the frontend rebuild. The same discovery records
-``node_modules`` — more than a thousand packages — on the import path.
-"""
+"""Exclude generated frontend, logs and dependency trees from Python package discovery."""
 
 import tomllib
 from pathlib import Path

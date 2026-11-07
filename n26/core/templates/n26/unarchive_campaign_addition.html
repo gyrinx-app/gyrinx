@@ -1,12 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-The question asked before an archived counter or label goes back to every
-gang still in the campaign, at an address of its own. Following the link
-that leads here changes nothing; the POST is the act.
-
-Two lists: the gangs that get back what they had, and the gangs that joined
-while it was archived, which get it new.
+Show which gangs recover an archived counter or label and which receive it for the first
+time. Only POST restores it.
 {% endcomment %}
 {% block head_title %}Unarchive {{ name }}{% endblock head_title %}
 {% block nav_switcher %}

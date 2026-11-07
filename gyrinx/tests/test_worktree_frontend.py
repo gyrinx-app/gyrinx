@@ -1,9 +1,4 @@
-"""Exercise React-asset recovery in scripts/lib/worktree.sh.
-
-Not marked core: that suite is capped at 1200 tests and was already full.
-CI still runs this file when a pull request changes it, and the full suite
-runs it on every push.
-"""
+"""React asset provisioning and lock recovery in scripts/lib/worktree.sh."""
 
 import os
 import shutil

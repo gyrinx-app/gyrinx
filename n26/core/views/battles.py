@@ -28,6 +28,7 @@ from n26.core.operations import Refusal
 from n26.core.scenarios import results
 from n26.core.views.campaigns import _badge_a_redrawn_page
 from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_404
+from n26.library.scenario_tables import request_catalogue
 
 
 def battle_or_404(campaign, pk):
@@ -135,7 +136,9 @@ def battle(request, pk, battle_pk):
 
         from n26.core.views.scenario_props import battle_scenario_props
 
-        scenario_editor = battle_scenario_props(found.scenario_rolls or {})
+        scenario_editor = battle_scenario_props(
+            found.scenario_rolls or {}, request_catalogue(request)
+        )
         scenario_editor["save"] = {
             "action": reverse("n26-generate-scenario-save"),
             "csrfToken": get_token(request),
@@ -156,7 +159,9 @@ def battle(request, pk, battle_pk):
             "stake": battle_stake(found, request.user),
             "yours": campaign.owner_id == request.user.pk,
             "may_record_outcome": may_record_outcome(found, request.user),
-            "scenario_results": results(found.scenario_rolls or {}),
+            "scenario_results": results(
+                found.scenario_rolls or {}, request_catalogue(request)
+            ),
             "scenario_share_url": scenario_share_url,
             "scenario_print_url": f"{reverse('n26-scenario-print')}?{rolls_query}",
             "scenario_generate_url": scenario_generate_url,

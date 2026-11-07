@@ -132,9 +132,7 @@ def test_missing_custom_template_falls_back_to_the_default(client, shell_page):
 
 
 def test_the_shell_carries_the_full_account_menu(client, user, shell_page):
-    """The documentation shell names the reader first, as the app does,
-    and the button's name is text: a link inside a button is a click with
-    two answers."""
+    """Name the reader in the account menu and keep links outside its toggle button."""
     import json
 
     client.force_login(user)

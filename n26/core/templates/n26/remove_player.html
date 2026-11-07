@@ -1,9 +1,7 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-The question asked before somebody is taken out of a campaign, at an address
-of its own. Following the link that leads here changes nothing; the POST is
-the act.
+Confirm removal of a campaign player; only POST writes.
 {% endcomment %}
 {% block head_title %}Remove {{ player.user.username }}{% endblock head_title %}
 {% block nav_switcher %}

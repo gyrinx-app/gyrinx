@@ -27,13 +27,9 @@ from gyrinx.site.models import ImpersonationLog
 @login_required
 @require_POST
 def start_impersonation(request, user_id):
-    """Begin impersonating the user with id ``user_id`` (superuser only).
-
-    ``request.user`` here is the real admin — the middleware never swaps on this
-    request because no overlay is active yet.
-    """
-    # No nesting: if an overlay is already active, refuse. Checked first because
-    # while impersonating ``request.user`` is the target, not the admin.
+    """Begin a superuser impersonation session, rejecting nested sessions first."""
+    # Check the existing session before permissions because request.user may
+    # already be the impersonated account.
     if request.session.get(IMPERSONATE_KEY):
         messages.error(request, "You are already impersonating a user.")
         return safe_redirect(request, request.POST.get("next"))
@@ -62,11 +58,10 @@ def start_impersonation(request, user_id):
 @login_required
 @require_POST
 def stop_impersonation(request):
-    """Stop impersonating and return to the admin's own session.
+    """End impersonation by closing its audit record and clearing the session keys.
 
-    Works regardless of the overlay: while impersonating ``request.user`` is the
-    target, but this view only reads and clears the session, so the next request
-    resolves back to the admin.
+    Do not rely on request.user, which may still be the impersonated user
+    until the next request.
     """
     was_impersonating = bool(request.session.get(IMPERSONATE_KEY))
     log_id = request.session.get(IMPERSONATE_LOG_KEY)

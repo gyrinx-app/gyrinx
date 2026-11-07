@@ -1,10 +1,6 @@
-"""PEP 758 except groups are valid on this runtime, and ruff emits them.
+"""PEP 758 exception groups parse without parentheses unless binding with as.
 
-Copilot has flagged `except E1, E2:` as Python 2 / invalid Python 3
-(see `n26/core/action_initialisation.py`). Agents must not add parentheses
-unless the clause binds with `as`. These tests pin that boundary so a
-Copilot-driven rewrite fights the formatter in CI rather than silently
-landing.
+Keep formatter output and repository Python guidance consistent with that boundary.
 """
 
 import subprocess

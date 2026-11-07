@@ -1,13 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Equipping the gang's stash — buy into it and manage what it holds. The rows are
-the shared ones (n26/includes/equip_row.html), so a change to either page's
-chrome still wants a look at the fighter's equip page.
-
-Which list is URL state (?list=<pk>, ?list=all, or ?list=stash), so a list is
-linkable and the back button walks the choices. Gear the current list does not
-sell is managed from the In stash tab.
+Buy and manage stash equipment through shared equip_row.html entries. List selection is
+URL state, including the held-only stash list for equipment absent from sale catalogues.
 {% endcomment %}
 {% block head_title %}Equip{% endblock head_title %}
 {% block nav_switcher %}
@@ -19,20 +14,13 @@ sell is managed from the In stash tab.
 {% endblock %}
 {% block extra_head %}
     {% comment %}
-    URL parameters every htmx request from this screen carries along —
-    which section tab is on screen, which row stands open. Read by
-    n26/core/static/n26/htmx_support.js.
+    htmx_support.js carries these URL parameters so section and open-entry state survive
+    partial updates.
     {% endcomment %}
     <meta name="n26-carry" content="section owned">
 {% endblock extra_head %}
 {% block content %}
     {% include "n26/includes/equip_hosts.html" %}
-    {% comment %}
-    The header spans the page and keeps the gang's figures at its far end, the
-    way a model's own equip screen does — a catalogue is a wide thing, and the
-    numbers a purchase is decided against belong in the corner rather than
-    above a column of rows.
-    {% endcomment %}
     <c-n26.page-header title="Equip"
                        lead="Buy into the stash and manage what the gang already holds. Hand gear to a fighter from here, or buy on a fighter's own page to arm them directly.">
         <c-slot name="breadcrumb">
@@ -53,9 +41,8 @@ sell is managed from the In stash tab.
                                     trade_points_href="{{ trade_points_href }}"
                                     credits_href="{{ credits_href }}" />
                 {% comment %}
-                Under the figures, and only while no action is open: with one open the
-                TP figure is a number that already leads here, and this would be asking
-                for a second of something a gang performs one of at a time.
+                Offer a visit only when no action is open; an open visit is already
+                linked from the Trade Points figure.
                 {% endcomment %}
                 {% if trade_points_href and not gang.visiting_trading_post and not post_is_shut %}
                     <c-n26.link href="{{ trade_points_href }}" class="text-sm">
@@ -67,12 +54,7 @@ sell is managed from the In stash tab.
     </c-n26.page-header>
     <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-[11rem_minmax(0,1fr)]">
         {% comment %}
-        Which list is a place you can be, so the rail is links the server
-        answers — beside the catalogue rather than pinned over it, matching a
-        model's own screen.
-
-        The rail and what sits under it are one grid cell, so the block below
-        the lists needs no placement of its own.
+        Keep list links and their supporting blocks in the same sidebar cell.
         {% endcomment %}
         <div class="flex flex-col gap-4 self-start">
             {% include "n26/includes/equip_rail.html" %}
@@ -85,12 +67,8 @@ sell is managed from the In stash tab.
         </div>
         {% if catalogue %}
             {% comment %}
-            A purchase submitted by htmx gets back only the elements it
-            changed, so the filters and the section on screen survive it.
-            Nothing is targeted from here: which elements an act updates is
-            decided server-side, in n26/includes/equip_update.html. The rail
-            sits outside, because HTML has no nested forms and a list is a
-            link rather than a submit.
+            equip_update.html selects its own replacement targets, preserving filters
+            and section state. Keep navigation outside the purchase form.
             {% endcomment %}
             <form method="post"
                   id="equip-catalogue"
