@@ -1918,8 +1918,9 @@ class CampaignOperation:
         """Build a rollable table into campaign additions for current and future gangs.
 
         Require an eligible system or campaign table. Revive archived members to
-        preserve existing copy provenance. Shared-type tables and already open
-        tables are no-ops. Propagation grants new copies where needed.
+        preserve existing copy provenance. Tables built into the shared type and
+        tables already opened through additions are no-ops. Propagation grants
+        new copies where needed.
         """
         from n26.core.operations import Refusal
         from n26.core.propagation import file_propagation_task
@@ -1961,7 +1962,8 @@ class CampaignOperation:
         """Withdraw a table opened through additions without removing held copies.
 
         Archive its member when copies exist, otherwise delete it. Existing
-        territories remain. Shared-type tables cannot be closed here.
+        territories remain. Tables built into the shared type cannot be closed
+        here.
         """
         from n26.core.operations import Refusal
         from n26.library.authoring import remove_default_member
@@ -2416,7 +2418,8 @@ def addable_assets(campaign, *, include_staged=False):
     Include relevant asset types from the system, shared type and campaign
     packs. Also include entries of held tables regardless of pack, allowing
     those tables to extend eligibility. Exclude Possession assets, which are
-    granted to member gangs. ``add_asset`` validates against the same queryset.
+    granted to member gangs. ``add_asset`` checks type and pack or held-table
+    eligibility without applying these archive and staging filters.
     """
     from n26.library.models import Asset
 
