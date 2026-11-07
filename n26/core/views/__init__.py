@@ -25,6 +25,7 @@ from n26.core.views.battles import (
     battle,
     campaign_battles,
     edit_battle,
+    matchmaker,
     record_battle_outcome,
     restore_battle,
 )
@@ -219,6 +220,7 @@ __all__ = [
     "remove_battle",
     "archived_battles",
     "campaign_battles",
+    "matchmaker",
     "restore_battle",
     "remove_gang",
     "remove_player",
