@@ -748,68 +748,15 @@ def _buy_clicked(
 
 @login_required
 def equip(request, pk):
-    """Buy equipment for one fighter, from a list they can actually browse.
+    """Buy and manage equipment on an owned model's current catalogue.
 
-    Which list is URL state (``?list=<pk>``), picked from the collections
-    ``collections_for`` finds — the fighter's own lists, their gang's,
-    computed grants — kept down to the ones holding gear, plus the
-    standard Trading Post when the library has one. Holding a collection
-    and buying from it are different things: a fighter carries their
-    skill sets the same way they carry their equipment list, and only one
-    of the two is somewhere to buy from.
+    Keep collection, section and expanded-row state in navigation destinations.
+    Use _buy_clicked for typed payment, optional parts and acquisition options.
+    Each purchase is atomic, with paid weapon profiles hosted on that weapon.
 
-    The Buy buttons submit the *identity* of a line, never its price:
-    the server re-browses the chosen collection and hands the found line
-    whole to ``Operation.buy``, so a tampered form can name nothing that
-    is not on the list. Each list is browsed on its own terms
-    (``browse.terms_for``): one swept together by having Trade Point
-    prices is a trading post and charges them, one an author wrote out
-    by hand is a list and does not.
-
-    The one number the form does decide is what the gang pays. Each row
-    quotes its price in a box, and the figure in the box is what leaves
-    the bank — the catalogue is a price list, not a fixed tariff, and a
-    table that agrees a discount should not have to be argued with. It
-    is still bounded here rather than only in the input: whole credits,
-    nothing negative, nothing past ``PRICE_CEILING``, and a refusal buys
-    nothing. What the gang *owns* is unaffected — see ``_charge``.
-
-    A weapon's paid ammo and firing modes are ticked on the weapon's own
-    listing and bought with it, in the same operation and onto the same
-    gun. One click, one purchase, however many boxes are ticked: ammo is
-    a way the gun you are buying is built, not a second thing on the
-    list. Ammo for a gun a fighter already owns has no route here yet.
-
-    Some things offer a group of options at purchase — a mount that comes
-    with grenade launchers and offers plasma guns for fifteen more. It is
-    picked on the listing, in the same click, and the pick travels to the
-    assignment, so what the mount comes with is caused by the purchase
-    and leaves with it. With nothing picked, a pick-one uses the default,
-    which is what the listing was quoting. What a pick adds lands on the
-    price *and* on the rating: a mount with plasma guns is a dearer
-    mount, not a discounted one.
-
-    Owning something is a *state of its listing*. Where the fighter
-    already holds one, the listing says so instead of offering another:
-    the count stands where Buy would be and opens it onto the copies
-    themselves, each with the things that can happen to it — sold, handed
-    on, taken off — and onto the ordinary row underneath them, so buying
-    another is still one click. Read off the card this page already
-    built, so a catalogue of hundreds of rows costs no query for it.
-
-    What the screen draws is a ``Catalogue``: the browsed collection joined
-    to what the fighter holds, built in one place and asserted on
-    directly. The template asks a row what it is and what its controls
-    mean, and never composes an identity the server would have to guess
-    at.
-
-    Anything owned that this list does not sell has no row and so no
-    controls. That gap is known; where such a thing should be drawn is an
-    open design question, and answering it from here would be answering
-    it by accident.
-
-    A purchase stays on the page: kitting out a fighter is a run of
-    purchases, and the breadcrumb is the way back.
+    Build owned-copy controls from the same computed card as the catalogue.
+    Return confirmations or partial updates for htmx; ordinary requests render
+    or redirect through the same purchase behaviour.
     """
     from n26.core.listing import build_catalogue
     from n26.core.owned import possessions, with_query
@@ -835,11 +782,7 @@ def equip(request, pk):
     )
     collections, chosen, view = screen.collections, screen.chosen, screen.view
 
-    # Which of the picker's section tabs the reader was on — client state
-    # the picker posts along and reads back from the URL. Echoed into
-    # every address this page answers with, so buying from the third tab
-    # lands the reader back on the third tab; an unknown name just leaves
-    # the picker on its first.
+    # Carry section state through POST and redirects; unknown tabs fall back in the picker.
     section = request.POST.get("section", request.GET.get("section", ""))[:100]
     expanded_key = request.POST.get("owned", request.GET.get("owned", ""))[:200]
 
@@ -873,8 +816,6 @@ def equip(request, pk):
             budget=screen.budget,
         )
         if isinstance(key, Confirmation):
-            # Asked as a whole page where there is no script to update
-            # one, and as a panel over the list where there is.
             if not hx:
                 return render(
                     request,
@@ -883,13 +824,8 @@ def equip(request, pk):
                 )
             return render_confirmation(request, key)
         if not hx:
-            # Without JavaScript a purchase lands back on the page it was
-            # made from: kitting out is a run of purchases, and the
-            # breadcrumb is the way out.
             return redirect(here(chosen))
         if key is None:
-            # A refusal changes nothing on the page; the reason travels
-            # as a toast.
             return no_update(request)
         return render_update(
             request,
@@ -899,15 +835,10 @@ def equip(request, pk):
             list_param=wanted,
             expanded_key=expanded_key,
             at=here(chosen),
-            # A purchase confirmed from the panel closes it on the way
-            # out; one made straight from a row never opened one.
             closed=carried_confirmation(request),
         )
 
-    # What this fighter is already carrying, keyed the way the rows are, so
-    # a row asks one dictionary rather than the database. The dialogs open
-    # over this page, on the list being read, and Cancel comes back to it,
-    # so the page's own address is what the controls are built from.
+    # Index owned possessions from the existing card rather than querying per catalogue line.
     at = here(chosen)
     host = screen.host(at)
     owned = possessions(host)
@@ -916,17 +847,9 @@ def equip(request, pk):
     if (panel := panel_response(request, dialog)) is not None:
         return panel
 
-    # The card above the tabs, drawn from the reading the rows are drawn
-    # from, with its acts pointed at this page: the kit menus open over
-    # the listing, the same panels the rows open. After the panel's early
-    # return, so a click asking for a panel alone pays nothing for a card
-    # it is not sent.
+    # Build the linked model card only after an early panel-only response has been ruled out.
     card = _card_context(request, screen, host, at=at)
 
-    # The whole screen, as one structure: the browsed list joined to what
-    # the fighter holds. A row is a row for something on sale or a row for
-    # something they are carrying, and which it is is the structure's
-    # answer rather than a question the template asks of the card.
     catalogue = (
         build_catalogue(
             view,
@@ -937,13 +860,8 @@ def equip(request, pk):
         if view is not None
         else None
     )
-    # Which list is being browsed is a rail of tabs: the lists held, and
-    # the library beside them. A fighter holding no list has the library
-    # alone, and the rail is drawn all the same, so a reader on it can see
-    # where they are. The search box names the list it is searching.
     tabs = list_tabs(collections, chosen, everything)
-    # The catalogue posts to its list with the card's dismissal visibility.
-    # The picker's section and expanded item travel in the form.
+    # Preserve dismissal visibility in the action URL; section and expanded-row state use form fields.
     if everything:
         action = f"{request.path}?list={ALL_SCOPE}"
         browsing = ALL_BROWSING
@@ -958,19 +876,11 @@ def equip(request, pk):
     from n26.core.render import roster as gang_roster
     from n26.core.render import summarise_roster
 
-    # The whole roster in the gang list's own order, one query: the
-    # header's count is drawn from the tally it opens, which also lists
-    # every model with its pinned rating — a reader equipping down a
-    # roster is deciding against both.
     roster = gang_roster(gang)
 
     picker = picker_context(catalogue, view, gang, screen.budget)
     tp_href = trade_points_href(gang, request.user)
-    # An allowance and an open visit at once: the rail says so, because a
-    # purchase here counts against the allowance and never against the
-    # visit, and two Trade Point figures with nothing between them is the
-    # kind of thing an owner reads the wrong way round. What the visit has
-    # left is read once, here.
+    # Show personal allowance and visit figures separately; purchases use the personal allowance first.
     visit_beside_founding = bool(
         screen.budget is not None and tp_href and gang.visiting_trading_post
     )
@@ -980,8 +890,6 @@ def equip(request, pk):
         {
             "miniature": miniature,
             "gang": gang,
-            # The rank beside the name in the shared model header — the
-            # same line, said the same way, as the edit face draws it.
             "role": (
                 miniature.membership.profile.category.name
                 if miniature.membership.profile
@@ -998,32 +906,16 @@ def equip(request, pk):
             "browsing": browsing,
             "chosen": chosen,
             "catalogue": catalogue,
-            # This page holds every element a partial update replaces, so
-            # its act controls submit through htmx — see
-            # n26/includes/equip_hosts.html for the other half of the
-            # opt-in.
+            # Enable htmx only because the page includes every required out-of-band update host.
             "htmx": True,
-            # The confirmation the URL says is open, if any: sell, move or
-            # remove one assignment on this fighter's card. A server state,
-            # so it is a link, it survives a reload, and it is drawn rather than
-            # revealed by a script.
             "dialog": dialog,
-            # The accessory question for every gun the fighter is
-            # carrying, drawn closed beside the rows. The one the address
-            # names is drawn open, so the link works with no script; with
-            # a script the click opens the panel that is already on the
-            # page and never rebuilds the catalogue.
             "accessorise": accessorise_dialogs(request, host),
-            # What this model may still spend at the Trading Post while
-            # the gang is being founded, drawn beside the rail.
             "founding_budget": screen.budget,
             "visit_beside_founding": visit_beside_founding,
             "visit_trade_points_left": (
                 gang.trade_points_left if visit_beside_founding else None
             ),
-            # The way into a visit, shut while the founding stands open.
-            # Asked only where the note offering one is drawn, so a page
-            # that never mentions the post pays nothing to find out.
+            # Check founding restrictions only when rendering an invitation to open a Trading Post visit.
             "founding_blocks_visit": (
                 founding_blocks_visit(gang, founding_seen)
                 if picker["post_is_shut"]
@@ -1036,14 +928,9 @@ def equip(request, pk):
 
 
 def _card_context(request, screen, host, *, at):
-    """The model's card for a screen that is a model's, with every control
-    addressed, and where its status badge leads — or nothing for the
-    gang's own screen, which draws no card.
+    """Build linked model-card and action props from the screen's existing computation.
 
-    The same card the Edit face draws, from the reading the rows are
-    drawn from, so a page and the update a purchase sends back cannot
-    say different things about what the model holds. ``at`` is this
-    screen's address, which the choice and counter controls return to.
+    Stash screens return no model-card context.
     """
     from n26.core.views.edit import action_panel_context, link_model_card
 
@@ -1055,9 +942,6 @@ def _card_context(request, screen, host, *, at):
         "card": link_model_card(
             gang, miniature, screen.card, screen.computed, host, back=at
         ),
-        # The act lands on the model's own page — a named place the sheet
-        # knows — and the badge asks for the question over htmx, since
-        # this screen holds the status dialog host.
         "status_href": (
             status_href(gang, miniature, back="edit")
             if may_mark_status(gang, request.user)
@@ -1067,50 +951,28 @@ def _card_context(request, screen, host, *, at):
 
 
 def picker_context(catalogue, view, gang=None, budget=None):
-    """What the collection picker needs to draw its strips and filters.
+    """Build catalogue navigation, filter registrations and price ranges.
 
-    The same on every catalogue, whoever is buying, so it is derived
-    once: the strip of section tabs, the category filter's registration
-    names, and the ends of the sliders.
-
-    ``gang`` is handed over only so the listing can say whether the post
-    is open to it. Nothing here reads its money. ``budget`` is the
-    model's founding allowance, which settles the same question the
-    other way: a model spending one has somewhere for its Trade Points
-    to go, so there is nothing to tell it about the post.
+    Use browsed lines for price limits and only visible trade-point figures for
+    that slider. A personal budget suppresses the no-open-visit notice.
     """
     sections = catalogue.sections if catalogue is not None else []
-    # The sliders' ends are read off the browsed lines rather than the
-    # catalogue's rows: a slider's job is to bound what the *list* asks, and
-    # an owned row asks the same as it ever did.
     lines = list(view.all_lines()) if view is not None else []
-    # Only what this catalogue prints. A slider over a figure the rows do
-    # not draw is a control with nothing on screen to steer.
     trade_points = [
         line.trade_points
         for line in lines
         if line.shows_trade_points and line.trade_points is not None
     ]
     return {
-        # The rules only open the Trading Post to a gang where a fighter
-        # performed the Visit Trading Post action. This says so and stops
-        # there: buying still works, because this edition informs rather
-        # than polices, and a listing that vanished would leave a reader
-        # with no way to find out why.
+        # A closed-post notice informs the owner but does not block purchasing.
         "post_is_shut": bool(
             gang is not None
             and budget is None
             and not gang.visiting_trading_post
             and any(line.charges_trade_points for line in lines)
         ),
-        # Registration names — see the hire view: a row in an unnamed
-        # category registers under its section's name, and a list that
-        # omits one hides those rows client-side.
-        #
-        # Deduplicated, and not because of the sections: a category
-        # name is only unique within its section, so two sections'
-        # categories can register under one name. The filter keys on
-        # the string and a repeated key draws neither.
+        # Match filter registration keys, using section names for unnamed categories.
+        # Deduplicate names shared across sections.
         "categories": list(
             dict.fromkeys(
                 category.name or section.name
@@ -1127,47 +989,32 @@ def picker_context(catalogue, view, gang=None, budget=None):
                 if category.name
             )
         ],
-        # One tab per section, as on the hire page. A section missing
-        # from this list can never be the active tab and its rows
-        # become unreachable, so every section drawn appears here.
-        # Taken as they come: a browse draws a section once, so a name
-        # cannot repeat, and deduplicating here would hide it if that
-        # ever stopped being true.
+        # Include every rendered section in navigation so none becomes unreachable.
         "sections": [section.name for section in sections],
         "price_floor": min((line.credits for line in lines), default=0),
         "price_ceiling": max((line.credits for line in lines), default=0),
         "tp_ceiling": max(trade_points, default=0),
         "has_trade_points": bool(trade_points),
-        # The same bound the purchase enforces, so a browser can say no
-        # before a click does. The input's max is a courtesy; the
-        # check that counts is in the view.
+        # Expose the enforced server price ceiling as an input hint too.
         "price_cap": PRICE_CEILING,
     }
 
 
-#: The library tab, on a model's screen and the gang's: not a collection,
-#: so it names itself in the URL where a collection would name its id. A
-#: ULID is never this word, so the two cannot collide.
+#: Reserved non-ULID query value for unrestricted gear browsing.
 ALL_SCOPE = "all"
 
-#: What that tab is called. Not "All": beside a fighter's own lists that
-#: reads as "all of this fighter's", and the tab is the opposite — what
-#: no held list restricts it to.
 ALL_LABEL = "Unrestricted"
 
-#: What the tab is browsing, where a sentence names it — the search
-#: box's placeholder.
 ALL_BROWSING = "all equipment"
 
-#: The stash-holdings tab — not a collection. Gear the current list does
-#: not sell is reached from here, rather than drawn beside the catalogue.
+#: Reserved query value for owned stash content absent from the current catalogue.
 STASH_SCOPE = "stash"
 
 STASH_LABEL = "In stash"
 
 
 def library_tab(everything):
-    """The library tab, last on either screen."""
+    """Build the unrestricted-library tab shared by model and stash catalogues."""
     return {
         "label": ALL_LABEL,
         "title": "",
@@ -1177,14 +1024,14 @@ def library_tab(everything):
 
 
 def list_tabs(collections, chosen, everything):
-    """The buyable collections and, after them, the library tab."""
+    """Append unrestricted library browsing after held catalogue tabs."""
     tabs = collection_tabs(collections, chosen)
     tabs.append(library_tab(everything))
     return tabs
 
 
 def gang_tabs(collections, chosen, everything, *, stash=False):
-    """The stash, buyable collections, and library tabs."""
+    """Prepend stash holdings to the catalogue and unrestricted-library tabs."""
     tabs = list_tabs(collections, chosen, everything)
     tabs.insert(
         0,
@@ -1200,12 +1047,10 @@ def gang_tabs(collections, chosen, everything, *, stash=False):
 
 @login_required
 def equip_gang(request, pk):
-    """Buy into the stash and manage what it holds.
+    """Buy into the owned gang's stash and manage its stored possessions.
 
-    The chosen collection is URL state. ``all`` browses the library and
-    ``stash`` lists every possession, including gear absent from narrower
-    lists. Usability notes are omitted because they apply to fighters, not
-    the stash.
+    The stash tab includes gear absent from held catalogues. ALL_SCOPE browses
+    the unrestricted library. Stash listings omit model-specific usability notes.
     """
     from n26.core.listing import build_catalogue, build_stash_catalogue
     from n26.core.owned import possessions
@@ -1219,14 +1064,12 @@ def equip_gang(request, pk):
 
     gang = _own_gang_or_404(request, pk)
 
-    # The collection picker posts its URL state back with a purchase.
     wanted = request.POST.get("list", request.GET.get("list", ""))
     stash_tab = wanted == STASH_SCOPE
     everything = wanted == ALL_SCOPE
     screen = _screen(gang, list_param=wanted, include_staged=sees_staged(request.user))
     collections, chosen, view = screen.collections, screen.chosen, screen.view
 
-    # Preserve the collection picker's section across purchases.
     section = request.POST.get("section", request.GET.get("section", ""))[:100]
     expanded_key = request.POST.get("owned", request.GET.get("owned", ""))[:200]
 
@@ -1321,7 +1164,6 @@ def equip_gang(request, pk):
             "catalogue": catalogue,
             "stash_tab": stash_tab,
             "everything": everything,
-            # Opted in the same way as a model's own screen.
             "htmx": True,
             "held_label": host.held_label,
             "dialog": dialog,
@@ -1329,8 +1171,6 @@ def equip_gang(request, pk):
             "summary": summarise_roster(gang_roster(gang)),
             "trade_points_href": trade_points_href(gang, request.user),
             "credits_href": credits_href(gang, request.user),
-            # As on a model's own screen: asked only where the note
-            # offering a visit is drawn.
             "founding_blocks_visit": (
                 founding_blocks_visit(gang, may_see_founding(gang, request.user))
                 if stash_picker["post_is_shut"]
