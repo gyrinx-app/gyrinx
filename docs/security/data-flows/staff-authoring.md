@@ -20,14 +20,14 @@ sequenceDiagram
     participant Store as Media storage
     participant DB as PostgreSQL
     Author->>Browser: Edit content or upload CSV
-    Browser->>App: Staff request and form; crosses TB-01 and TB-06
+    Browser->>App: Staff request and form, crossing TB-01 and TB-06
     Note over Browser,App: TB-06: staff role grants content-writing authority
-    App->>Store: Hold CSV bytes for preview; crosses TB-03
-    App->>DB: Read held sheet, plan against library; crosses TB-02
-    App-->>Browser: Preview changes; crosses TB-01
+    App->>Store: Hold CSV bytes for preview, crossing TB-03
+    App->>DB: Read held sheet, plan against library, crossing TB-02
+    App-->>Browser: Preview changes, crossing TB-01
     Author->>Browser: Confirm import or put staged row live
-    Browser->>App: POST; crosses TB-01 and TB-06
-    App->>DB: Atomic import or publication; crosses TB-02
+    Browser->>App: POST, crossing TB-01 and TB-06
+    App->>DB: Atomic import or publication, crossing TB-02
 ~~~
 
 ## Boundaries and controls

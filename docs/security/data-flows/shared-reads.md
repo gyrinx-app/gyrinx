@@ -19,11 +19,11 @@ sequenceDiagram
     participant App as Django read view
     participant DB as PostgreSQL
     Reader->>Browser: Follow roster link or browse listings
-    Browser->>App: GET with optional session; crosses TB-01
-    Note over Browser,App: TB-01: URL knowledge is not ownership; owner-only material needs a separate check
-    App->>DB: Read non-archived roster and related records; crosses TB-02
+    Browser->>App: GET with optional session, crossing TB-01
+    Note over Browser,App: TB-01: URL knowledge is not ownership, and owner-only material needs a separate check
+    App->>DB: Read non-archived roster and related records, crossing TB-02
     Note over App,DB: TB-02: public discovery filters differ from direct shared-link lookup
-    App-->>Browser: Public sheet; owner controls or private notes only when authorised
+    App-->>Browser: Public sheet with owner controls or private notes only when authorised
 ~~~
 
 ## Boundaries and controls

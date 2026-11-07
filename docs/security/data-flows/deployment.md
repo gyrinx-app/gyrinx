@@ -23,15 +23,15 @@ sequenceDiagram
     participant DB as Cloud SQL
     participant Media as GCS
     Maintainer->>Repo: Merge source to main
-    Repo->>Build: Trigger build from revision; crosses TB-08
+    Repo->>Build: Trigger build from revision, crossing TB-08
     Note over Repo,Build: TB-08: repository revision becomes executable build input
     Build->>Registry: Push image tagged by commit SHA
-    Build->>Run: Update service to SHA image; crosses TB-09
+    Build->>Run: Update service to SHA image, crossing TB-09
     Note over Build,Run: TB-09: deployment identity selects production code
-    Config->>Run: Supply SECRET_KEY, DB config and provider credentials; crosses TB-10
+    Config->>Run: Supply SECRET_KEY, DB config and provider credentials, crossing TB-10
     Note over Config,Run: TB-10: runtime secret bindings are outside this repository
-    Run->>DB: Migrate on startup, then serve app data; crosses TB-02
-    Run->>Media: Read and write media objects; crosses TB-03
+    Run->>DB: Migrate on startup, then serve app data, crossing TB-02
+    Run->>Media: Read and write media objects, crossing TB-03
 ~~~
 
 ## Boundaries and controls

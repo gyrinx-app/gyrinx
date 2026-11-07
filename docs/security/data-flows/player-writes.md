@@ -20,17 +20,17 @@ sequenceDiagram
     participant Domain as N23 handler or N26 operation
     participant DB as PostgreSQL
     Player->>Browser: Submit a change
-    Browser->>App: POST with session and CSRF; crosses TB-01
-    Note over Browser,App: TB-01: player controls IDs and form fields; view must scope authority
-    App->>DB: Fetch owned list or gang; crosses TB-02
+    Browser->>App: POST with session and CSRF, crossing TB-01
+    Note over Browser,App: TB-01: player controls IDs and form fields, so view must scope authority
+    App->>DB: Fetch owned list or gang, crossing TB-02
     alt N23
         App->>Domain: Validated form and request user
-        Domain->>DB: Save state and event; crosses TB-02
+        Domain->>DB: Save state and event, crossing TB-02
     else N26
         App->>Domain: Enter operation(gang, actor=user)
-        Domain->>DB: Lock gang, write assignments and ledger, settle totals; crosses TB-02
+        Domain->>DB: Lock gang, write assignments and ledger, settle totals, crossing TB-02
     end
-    App-->>Browser: Redirect or validation error; crosses TB-01
+    App-->>Browser: Redirect or validation error, crossing TB-01
 ~~~
 
 ## Boundaries and controls

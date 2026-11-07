@@ -20,15 +20,15 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant Mail as SMTP provider
     Person->>Browser: Sign up, verify email, or sign in
-    Browser->>App: Form and session cookie; crosses TB-01
+    Browser->>App: Form and session cookie, crossing TB-01
     Note over Browser,App: TB-01: untrusted client becomes an authenticated request only after validation
-    App->>DB: Read identity and session; crosses TB-02
-    App->>Mail: Send verification or reset email; crosses TB-07
-    App-->>Browser: Set session cookie and next step; crosses TB-01
+    App->>DB: Read identity and session, crossing TB-02
+    App->>Mail: Send verification or reset email, crossing TB-07
+    App-->>Browser: Set session cookie and next step, crossing TB-01
     Person->>Browser: Open admin URL
-    Browser->>App: Admin request; crosses TB-01 and TB-06
+    Browser->>App: Admin request, crossing TB-01 and TB-06
     Note over Browser,App: TB-06: staff role plus current-session MFA required for Django admin
-    App->>DB: Check staff and MFA state; crosses TB-02
+    App->>DB: Check staff and MFA state, crossing TB-02
     App-->>Browser: Admin page or allauth MFA redirect
 ~~~
 

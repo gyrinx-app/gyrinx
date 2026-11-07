@@ -21,13 +21,13 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant Media as GCS or CDN
     Uploader->>Browser: Choose raster image, artwork SVG, or authoring CSV
-    Browser->>App: Multipart POST; crosses TB-01
+    Browser->>App: Multipart POST, crossing TB-01
     Note over Browser,App: TB-01: filename, MIME claim and bytes are client-controlled
     App->>App: Validate quota/type/size or transform picture
-    App->>Media: Save object; crosses TB-03
-    App->>DB: Store owner and object name; crosses TB-02
-    App-->>Browser: Object address; crosses TB-01
-    Reader->>Media: GET object address; crosses TB-03
+    App->>Media: Save object, crossing TB-03
+    App->>DB: Store owner and object name, crossing TB-02
+    App-->>Browser: Object address, crossing TB-01
+    Reader->>Media: GET object address, crossing TB-03
     Note over Reader,Media: TB-03: media serving is outside Django's owner checks
     Media-->>Reader: Object bytes
 ~~~

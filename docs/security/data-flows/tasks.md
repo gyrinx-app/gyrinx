@@ -19,15 +19,15 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant Queue as Google Pub/Sub
     participant Push as /tasks/pubsub/ handler
-    App->>DB: Create TaskExecution; crosses TB-02
-    App->>Queue: Publish task name and JSON args; crosses TB-05
+    App->>DB: Create TaskExecution, crossing TB-02
+    App->>Queue: Publish task name and JSON args, crossing TB-05
     Note over App,Queue: TB-05: producer delegates work to asynchronous transport
-    Queue->>Push: POST envelope with OIDC bearer token; crosses TB-05
+    Queue->>Push: POST envelope with OIDC bearer token, crossing TB-05
     Note over Queue,Push: TB-05: verify Google token, audience and exact expected sender email
-    Push->>DB: Run registered task; persist outcome; crosses TB-02
+    Push->>DB: Run registered task and persist outcome, crossing TB-02
     Push-->>Queue: 200 ack or retryable failure
-    Reader->>Push: GET /tasks/status with group key; crosses TB-01
-    Push->>DB: Read status and label only; crosses TB-02
+    Reader->>Push: GET /tasks/status with group key, crossing TB-01
+    Push->>DB: Read status and label only, crossing TB-02
 ~~~
 
 ## Boundaries and controls

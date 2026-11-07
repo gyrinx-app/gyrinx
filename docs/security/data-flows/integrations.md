@@ -19,12 +19,12 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant Queue as Task queue
     participant API as GitHub and Discord APIs
-    Provider->>App: Signed POST payload; crosses TB-04
+    Provider->>App: Signed POST payload, crossing TB-04
     Note over Provider,App: TB-04: provider identity is asserted by HMAC or Ed25519 signature
-    App->>DB: Persist webhook or update verified-email match; crosses TB-02
+    App->>DB: Persist webhook or update verified-email match, crossing TB-02
     alt Discord Create Issue
-        App->>Queue: Enqueue command; crosses TB-05
-        Queue->>API: Dispatch GitHub workflow and respond to Discord; crosses TB-07
+        App->>Queue: Enqueue command, crossing TB-05
+        Queue->>API: Dispatch GitHub workflow and respond to Discord, crossing TB-07
         Note over Queue,API: TB-07: outbound API credentials and message content leave Gyrinx
     end
     App-->>Provider: Acknowledge or reject

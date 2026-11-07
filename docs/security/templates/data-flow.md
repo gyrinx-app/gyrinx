@@ -19,10 +19,10 @@ sequenceDiagram
     participant App
     participant Store
     User->>Browser: [Action]
-    Browser->>App: [Request; crosses TB-XX]
+    Browser->>App: Example request crossing TB-XX
     Note over Browser,App: TB-XX: [Who controls each side]
-    App->>Store: [Read or write; crosses TB-YY if applicable]
-    App-->>Browser: [Response; crosses TB-XX]
+    App->>Store: Example read or write crossing TB-YY
+    App-->>Browser: Example response crossing TB-XX
 ~~~
 
 ## Boundaries and controls
