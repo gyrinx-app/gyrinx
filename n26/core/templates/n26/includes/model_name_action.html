@@ -1,10 +1,6 @@
 {% comment %}
-The way to rename a model, drawn beside their name on the card. Shared
-between the page and the partial update an act on the card sends back, so a
-redrawn card cannot come back without it.
-
-The Edit page opens its dialog with htmx. Other model screens navigate to
-Edit because they do not hold the rename dialog host.
+Share the rename action between full cards and partial responses. Edit can fetch the
+dialog into its host; other pages navigate to Edit.
 {% endcomment %}
 {% firstof card.rename_href rename_href as rename_dialog_href %}
 {% if rename_dialog_href %}

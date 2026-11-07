@@ -1,17 +1,7 @@
 {% comment %}
-The checkbox card as the server draws it: the island's fallback until React
-mounts, and the whole of a static card.
-
-The class strings here are the ones the React card copies. checked is a
-boolean, and each box carries checked when it starts ticked, so a form posted
-before React mounts still says what the server drew.
-
-With props_ this is the island's fallback, drawn from the same data React
-draws: meta as text and the nested ticks from items. Without it this is a
-static card, drawing its meta and body slots.
-
-The body is dimmed while the box is clear and is never inert here. Nothing
-would turn nested controls back on until React mounts.
+Native checkbox fallback and static card renderer, supplying the class recipes exported
+to React. props_ selects data-driven nested options; static calls use slots. Keep the
+unticked body non-inert until React can re-enable its controls.
 {% endcomment %}
 {% with on="border-accent bg-accent/5" off="border-ink-200 dark:border-ink-700" dim="opacity-50" %}
     <div {{ attrs }}
@@ -34,7 +24,7 @@ would turn nested controls back on until React mounts.
                     <span data-checkbox-meta class="shrink-0 text-sm tabular-nums text-muted">{{ props_.meta }}</span>
                 {% endif %}
             {% elif meta %}
-                {# contents keeps the slot's own boxes as the label's flex items. #}
+                {# display:contents makes slot children participate directly in the label's flex layout. #}
                 <span data-checkbox-meta class="contents">{{ meta }}</span>
             {% endif %}
         </label>
@@ -43,7 +33,7 @@ would turn nested controls back on until React mounts.
                 <div data-checkbox-body
                      class="mt-2 border-t border-box-border pt-2 pl-8{% if not checked %} {{ dim }}{% endif %}">
                     {% for item in props_.items %}
-                        {# The React card reads these classes from here, through the recipe exporter. #}
+                        {# The React recipe exporter reads these classes. #}
                         <label data-checkbox-item
                                class="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-control px-1 hover:bg-ink-500/5">
                             <input type="checkbox"
