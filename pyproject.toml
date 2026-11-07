@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
+requires = ["setuptools>=84.2.1", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -13,7 +13,7 @@ dependencies = [
     "bleach[css]==6.4.0",
     "click==8.5.0",
     "defusedxml==0.7.1",
-    "Django==6.0.7",
+    "Django==6.0.10",
     "django-allauth==65.21.1",
     "django-cotton==2.8.0",
     "django-cotton-ui==0.3.4",
@@ -29,30 +29,29 @@ dependencies = [
     "djlint==1.47.1",
     "docutils==0.23",
     "fido2==2.2.1",
-    "filelock==4.2.5",
+    "filelock==4.2.8",
     "google-cloud-logging==3.17.0",
     "google-cloud-pubsub==2.43.0",
     "google-cloud-scheduler==2.21.0",
-    "google-cloud-sqlcommenter==2.0.0",
     "gunicorn==26.2.0",
     "jsonschema==4.26.0",
     "lucide==1.1.4",
     "nbstripout==0.9.1",
-    "nodeenv==1.11.1",
+    "nodeenv==1.12.0",
     "opentelemetry-exporter-gcp-trace==1.15.0",
-    "opentelemetry-instrumentation-asgi==0.65b0",
-    "opentelemetry-instrumentation-django==0.65b0",
-    "opentelemetry-instrumentation-logging==0.65b0",
+    "opentelemetry-instrumentation-asgi==0.66b2",
+    "opentelemetry-instrumentation-django==0.66b2",
+    "opentelemetry-instrumentation-logging==0.66b2",
     "opentelemetry-propagator-gcp==1.15.0",
     # Was pinned to a pre-release (1.12.0a0) because this package shipped nothing
     # else for a long time, and its one non-prerelease (1.13.0) was yanked upstream
     # for breaking imports. 1.14.0 is a published, un-yanked stable release, so the
     # pre-release pin is no longer needed.
     "opentelemetry-resourcedetector-gcp==1.14.0",
-    "opentelemetry-sdk==1.44.0",
+    "opentelemetry-sdk==1.45.2",
     "Pillow==13.0.0",
     "pre-commit==4.7.0",
-    "psycopg[binary,pool]==3.3.6",
+    "psycopg[binary,pool]==3.3.7",
     "pygments==2.21.0",
     "python-ulid==4.1.0",
     "pyasn1==0.6.5",
@@ -70,12 +69,12 @@ dependencies = [
     "requests==2.34.2",
     "rich==15.0.0",
     "ruff==0.17.3",
-    "setuptools==81.0.0",
+    "setuptools==84.2.1",
     "simpleeval==1.0.8",
-    "sqlparse==0.6.0",
+    "sqlparse==0.6.1",
     # Security: minimum versions for vulnerable transitive dependencies
     "urllib3>=2.8.0",
-    "virtualenv>=21.15.2",
+    "virtualenv>=21.15.5",
     "whitenoise==6.12.0",
     "markdown-it-py>=4.2.0",
 ]
@@ -88,7 +87,7 @@ dev = [
     # declared, so once installs became `uv sync` — which prunes anything the
     # lock does not mention — a hand-installed copy would disappear and the
     # piped-query workflow in AGENTS.md would quietly stop working.
-    "ipython==9.18.0",
+    "ipython==9.18.1",
     # Only the scripts/ browser tools and the opt-in browser tests use it.
     "playwright==1.64.1",
 ]
