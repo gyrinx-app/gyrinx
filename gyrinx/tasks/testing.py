@@ -1,28 +1,8 @@
-"""
-Pytest driver for the local task queue.
+"""Drive the local durable task queue deterministically in tests.
 
-The ``task_queue`` fixture flips the backend into ``manual`` mode for one test:
-enqueued tasks land in the durable ``QueuedTask`` table but nothing runs until the
-test says so. The test then drives delivery deterministically and can script the
-exact adverse conditions the production Pub/Sub path can throw at the task —
-duplicate delivery, transient failure, message loss, ordering — to prove the
-codebase's at-least-once/idempotency hardening actually holds.
-
-Example::
-
-    def test_redelivery_is_idempotent(task_queue, ...):
-        with task_queue.capture():           # fire on_commit enqueues
-            do_thing_that_enqueues()
-        task_queue.deliver_all()             # run it once
-        task_queue.redeliver_last()          # at-least-once duplicate
-        assert ...                           # effect applied exactly once
-
-    def test_recovers_from_transient_failure(task_queue, ...):
-        with task_queue.capture():
-            do_thing_that_enqueues()
-        task_queue.fail_next()               # first attempt nacks
-        task_queue.deliver_all()             # backoff → retry → success
-        assert ...
+The task_queue fixture selects manual mode. Capture on_commit callbacks
+when triggering enqueues, then call deliver_all, fail_next, drop_next or
+redeliver_last to test retry and duplicate-delivery behaviour.
 """
 
 import logging
@@ -40,11 +20,9 @@ _MANUAL_LEASE = timedelta(seconds=300)
 
 
 class ManualTaskQueue:
-    """Deterministic, in-thread driver over the ``QueuedTask`` table.
+    """Deliver queued tasks in the test's own thread and transaction.
 
-    All delivery runs in the test's own thread and transaction, so it sees the
-    test's uncommitted data — unlike the real worker pool, which is why tests use
-    this rather than starting threads.
+    This makes uncommitted test data visible to tasks, unlike worker-pool threads.
     """
 
     def __init__(self, capture):
@@ -54,40 +32,35 @@ class ManualTaskQueue:
         self.delivered: list[dict] = []
         self._last: dict | None = None
 
-    # -- capturing on_commit enqueues -------------------------------------------------
-
     def capture(self, execute: bool = True):
-        """Context manager that runs ``transaction.on_commit`` callbacks on exit.
+        """Run captured on_commit callbacks on context exit when execute=True.
 
-        Most enqueues are deferred to ``on_commit``; under ``@pytest.mark.django_db``
-        those never fire on their own. Wrap the triggering code in this so the
-        enqueue actually reaches the queue.
+        Transactional tests do not normally commit, so deferred enqueues require
+        this capture around the triggering code.
         """
         return self._capture(execute=execute)
 
-    # -- scripting faults -------------------------------------------------------------
-
     def fail_next(self, n: int = 1) -> ManualTaskQueue:
-        """Force the next ``n`` deliveries to fail (transient nack → retry/backoff)."""
+        """Fail the next n deliveries, allowing retry with backoff."""
         self._fail_countdown += n
         return self
 
     def drop_next(self, n: int = 1) -> ManualTaskQueue:
-        """Silently lose the next ``n`` deliveries (the task never runs)."""
+        """Discard the next n deliveries without running their tasks."""
         self._drop_countdown += n
         return self
 
-    # -- driving delivery -------------------------------------------------------------
-
     def pending(self) -> int:
-        """How many task rows are still on the queue (undelivered/retrying)."""
+        """Count undelivered and retrying queue records."""
         from gyrinx.tasks.models import QueuedTask
 
         return QueuedTask.objects.count()
 
     def deliver_next(self):
-        """Claim and deliver a single task. Returns its ``Outcome`` or ``None`` if
-        the queue is empty."""
+        """Claim and deliver one task, or return None when none can be claimed.
+
+        Ignore scheduled delivery times while retaining visibility-lease checks.
+        """
         from gyrinx.tasks.models import QueuedTask
 
         qt = QueuedTask.objects.claim_one(
@@ -141,15 +114,11 @@ class ManualTaskQueue:
         )
 
     def redeliver_last(self, task_name: str | None = None):
-        """Re-run the most recently delivered task (at-least-once duplicate).
+        """Run a previously delivered task again without changing its execution record.
 
-        Runs the underlying function again with the same arguments and task_id but
-        without touching the observability record — exactly how the worker handles
-        a duplicate delivery of an already-completed task.
-
-        ``task_name`` picks the most recent delivery of a *specific* task, for when
-        one trigger fans out into several (e.g. a cost change enqueues both
-        ``propagate_content_cost_change`` and ``refresh_list_facts``).
+        Reuse its arguments and task ID. With task_name, select the most recent
+        delivery of that named task; otherwise select the latest delivery.
+        Write-admission checks still apply.
         """
         if task_name is not None:
             payload = next(
@@ -181,8 +150,6 @@ class ManualTaskQueue:
                 emit_signals=False,
             )
 
-    # -- assertions -------------------------------------------------------------------
-
     def delivered_names(self) -> list[str]:
         return [d["task_name"] for d in self.delivered]
 
@@ -192,9 +159,7 @@ class ManualTaskQueue:
 
 @pytest.fixture
 def task_queue(db, django_capture_on_commit_callbacks):
-    """Put the local task backend in ``manual`` mode and hand back a
-    :class:`ManualTaskQueue` for driving delivery. Cleans the queue on the way in
-    and out."""
+    """Select manual mode and yield a queue driver, clearing queue records before and after."""
     from gyrinx.tasks.models import QueuedTask
 
     local_backend.set_mode_override("manual")

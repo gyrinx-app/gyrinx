@@ -1,9 +1,4 @@
-"""
-Pub/Sub push handler view.
-
-This view receives push messages from Pub/Sub and dispatches them to the
-appropriate task handlers based on the task_name in the message payload.
-"""
+"""Pub/Sub delivery and public task-group progress endpoints."""
 
 import base64
 import json
@@ -32,16 +27,10 @@ logger = logging.getLogger(__name__)
 
 @require_GET
 def task_group_status(request):
-    """Report the status of a group of task runs as JSON — a generic progress-poll endpoint.
+    """Return progress for ?group= without requiring authentication.
 
-    ``GET /tasks/status?group=<group_key>`` returns each task run tagged with that group
-    plus a rollup (see :func:`gyrinx.tasks.groups.group_status`). Any feature that fans a
-    logical operation out into background tasks can tag them with a shared ``group_key`` (via
-    :func:`gyrinx.tasks.groups.enqueue_in_group`) and poll this to drive a progress UI.
-
-    Readable without authentication — it exposes only task status/label (no args, kwargs, or
-    tracebacks), and callers are expected to use group keys that embed an unguessable
-    component (e.g. a UUID), so knowledge of the key is the access control.
+    Knowledge of the unguessable group key grants access. Return only task
+    IDs, labels, states and aggregate counts.
     """
     group_key = request.GET.get("group", "").strip()
     if not group_key:
@@ -50,20 +39,11 @@ def task_group_status(request):
 
 
 def _verify_oidc_token(request) -> bool:
+    """Validate a Google-signed token for this service, unless DEBUG is enabled.
+
+    Require CLOUD_RUN_SERVICE_URL as the audience. When TASKS_SERVICE_ACCOUNT
+    is configured, also require that email claim. Return False on any failure.
     """
-    Verify the OIDC token from Pub/Sub push requests.
-
-    In production, Pub/Sub sends an Authorization header with a JWT token
-    signed by Google. We verify the token to ensure requests come from
-    our Pub/Sub subscriptions, not arbitrary attackers.
-
-    In development (DEBUG=True), authentication is skipped to allow
-    local testing without GCP infrastructure.
-
-    Returns:
-        True if token is valid (or in dev mode), False otherwise.
-    """
-    # Skip verification in development
     if settings.DEBUG:
         return True
 
@@ -78,20 +58,17 @@ def _verify_oidc_token(request) -> bool:
         from google.auth.transport import requests as google_requests
         from google.oauth2 import id_token
 
-        # Get expected audience (our service URL)
         audience = os.getenv("CLOUD_RUN_SERVICE_URL", "")
         if not audience:
             logger.error("CLOUD_RUN_SERVICE_URL not set, cannot verify token")
             return False
 
-        # Verify token signature and claims
         claim = id_token.verify_oauth2_token(
             token,
             google_requests.Request(),
             audience=audience,
         )
 
-        # Optionally verify the service account email
         expected_sa = os.getenv("TASKS_SERVICE_ACCOUNT")
         if expected_sa and claim.get("email") != expected_sa:
             logger.warning(
@@ -110,31 +87,19 @@ def _verify_oidc_token(request) -> bool:
 @require_POST
 @traced("pubsub_task_handler")
 def pubsub_push_handler(request):
-    """
-    Handle Pub/Sub push delivery.
+    """Validate a Pub/Sub envelope and execute its registered task.
 
-    Pub/Sub sends a POST with JSON body containing the message envelope.
-    We decode the message, look up the task, and execute it.
-
-    Returns:
-        200: Task executed successfully (acks message)
-        400: Bad request (acks message to prevent infinite retries)
-        403: Unauthorized (invalid or missing OIDC token)
-        429: Database at capacity (nacks message for retry with backoff)
-        500: Task failed (nacks message for retry)
+    Return 200 on success, 400 for malformed or unknown tasks, 403 for failed
+    authentication, 429 for database capacity, 503 for paused writes and 500
+    for task failure. Pub/Sub retries non-success responses, including 400.
     """
-    # Verify OIDC token (skipped in DEBUG mode)
     if not _verify_oidc_token(request):
         return HttpResponseForbidden("Unauthorized")
 
-    # Check database connectivity before processing
-    # If connection pool is exhausted, return 429 to trigger Pub/Sub retry
     try:
         connection.ensure_connection()
     except OperationalError as e:
-        # "connection slots" / "too many connections": Postgres itself is
-        # full. "couldn't get a connection": psycopg_pool exhausted its
-        # max_size and timed out waiting for a checkout.
+        # Recognise both PostgreSQL capacity errors and psycopg pool checkout timeouts.
         msg = str(e).lower()
         if (
             "connection slots" in msg
@@ -148,11 +113,9 @@ def pubsub_push_handler(request):
             return HttpResponse("Database at capacity", status=429)
         raise
 
-    # Parse the Pub/Sub envelope
     with span("parse_envelope"):
         try:
             raw_body = request.body
-            # Log the raw request for debugging
             logger.info(
                 "Received Pub/Sub push request",
                 extra={
@@ -172,7 +135,6 @@ def pubsub_push_handler(request):
                 },
             )
         except json.JSONDecodeError as e:
-            # Log truncated body for debugging (avoid logging huge payloads)
             body_preview = raw_body[:500].decode("utf-8", errors="replace")
             logger.error(
                 f"Invalid JSON in Pub/Sub push: {e}",
@@ -180,7 +142,6 @@ def pubsub_push_handler(request):
             )
             return HttpResponseBadRequest("Invalid JSON")
 
-    # Decode the message data
     with span("decode_message", message_id=message_id):
         data_b64 = message.get("data")
         if not data_b64:
@@ -205,7 +166,6 @@ def pubsub_push_handler(request):
                 },
             )
         except (ValueError, json.JSONDecodeError) as e:
-            # Log what we tried to decode (truncated)
             data_preview = data_b64[:200] if len(data_b64) > 200 else data_b64
             logger.error(
                 f"Failed to decode message data: {e}",
@@ -217,7 +177,6 @@ def pubsub_push_handler(request):
             )
             return HttpResponseBadRequest("Invalid message data")
 
-    # Extract task info
     task_id = data.get("task_id", "unknown")
     task_name = data.get("task_name")
     args = data.get("args", [])
@@ -234,7 +193,6 @@ def pubsub_push_handler(request):
         },
     )
 
-    # Validate args/kwargs types (defense in depth)
     if not isinstance(args, list):
         logger.error(
             "Invalid 'args' in message payload: expected list",
@@ -270,7 +228,6 @@ def pubsub_push_handler(request):
         )
         return HttpResponseBadRequest("Missing task_name")
 
-    # Look up the task
     with span("lookup_task", task_name=task_name, task_id=task_id):
         route = get_task(task_name)
         if not route:
@@ -286,13 +243,10 @@ def pubsub_push_handler(request):
                     "registered_tasks": registered_task_names,
                 },
             )
-            # Return 400 to ack and prevent infinite retries for unknown tasks
-            # Don't include task_name in response to prevent information disclosure
+            # Keep the unknown task name out of the public response.
             return HttpResponseBadRequest("Unknown task")
 
-    # Execute the task
     with span("execute_task", task_name=task_name, task_id=task_id):
-        # Parse enqueued_at from message if available
         enqueued_at = None
         if "enqueued_at" in data:
             try:
@@ -302,10 +256,8 @@ def pubsub_push_handler(request):
             except ValueError, ImportError:
                 pass
 
-        # Run through the shared executor so prod fires the exact same
-        # task_started/task_finished signals (and TaskExecution bookkeeping) as
-        # the local backend. run_task swallows the task's own exception into
-        # ok=False rather than propagating, so we map that to a 500 (nack) here.
+        # Use the same lifecycle signals and execution records as local delivery.
+        # Map task exceptions returned by run_task to a retryable response.
         from gyrinx.site.write_pause import task_delivery_gate
 
         with task_delivery_gate(route, kwargs) as admission:
@@ -327,5 +279,4 @@ def pubsub_push_handler(request):
         if ok:
             return HttpResponse("OK", status=200)
 
-        # Return 500 to nack message and trigger retry
         return HttpResponse("Task failed", status=500)
