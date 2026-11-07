@@ -1,25 +1,10 @@
-"""Gang book concepts (Gangs of the Underhive / Outlands), built for real.
+"""Build gang-book rule patterns using the shipped authoring API.
 
-Rules names and behaviour only — the wording stays in the book. This
-suite takes the most structurally demanding concepts in those books
-and builds each from shipped pieces, no new machinery:
-
-* **Chaos Corruption** (the corrupted-gang pattern, shared by
-  Genestealer and Malstrain corruption): a founding-time gang choice
-  whose pick *suppresses* the house's own rules, asks its own
-  follow-up (which Dark God?), opens a corruption-only equipment list,
-  and sells the Leader a priced Wyrd ascension whose power pick falls
-  out of a placement.
-* **Warped Monstrosity** (Chaos Spawn, both books): a random statline
-  table becomes option groups — the player rolls at the table, the
-  roster takes the option matching each die. Inform, not police.
-* **The Justicar Court Delegation**: an alliance is a gang-hosted
-  carrier; its stored effects hire the delegation free, and breaking
-  the alliance takes the delegation with it through the ordinary
-  cascade — the pets pattern at gang scale.
-* **Master of Whispers** (Delaque): a +35 credit hire option that
-  awakens the fighter — subtype, family placement, and the narrowed
-  power pick, all riding one Hidden in a priced option set.
+Chaos Corruption combines gang choices, rule suppression, collection access
+and priced power selection. Warped Monstrosity represents rolled characteristics
+as option groups. Justicar alliances create dependent delegation models.
+Master of Whispers adds a priced subtype, power placement and choice.
+Immovable Brutes exercises the same composition through an unsaved preview.
 """
 
 import pytest
@@ -81,7 +66,7 @@ def show(lines):
 
 
 def card_for(gang, name):
-    """One model's rendered card, computed the way the sheet computes it."""
+    """Render the named model card from the gang sheet."""
     sheet = render_gang(gang)
     return next(card for card in sheet.models if card.name == name)
 
@@ -128,8 +113,7 @@ def chaos_powers(default_pack):
 
 @pytest.fixture
 def corruption_choice(default_pack):
-    """A Variant slot whose Chaos Corrupted pickable grants the Chaos
-    God slot — the shape the conversion leaves standing."""
+    """Create a Variant choice and a separate Chaos God choice for chained selection."""
     variant_type = create_slot_type("Variant", allows_repeats=False)
     god_type = create_slot_type(
         "Chaos God", plural_name="Chaos Gods", allows_repeats=False
@@ -162,20 +146,14 @@ def corruption_choice(default_pack):
 
 @pytest.fixture
 def escher(ranks, default_pack, corruption_choice):
-    """A slim House Escher: its rule, and the founding corruption slot.
-
-    The charter Hidden is the gang type's anchor row — founding assigns
-    it, so gang-level questions have an assignment to hang picks off.
-    """
+    """Build a charter into Escher to anchor its gang choice and grant Nimble to models."""
     variant_slot, _, _, _ = corruption_choice
     nimble = create_rule("Nimble")
     charter = create_hidden(
         "House Escher charter",
         effects=[
             (targets_every_model(), ef_adds(nimble)),
-            # "During Gang Creation a player can decide that their gang
-            # has been corrupted" — an open question on the gang's own
-            # card, chosen for or simply left.
+            # Expose an optional gang-level corruption choice at founding.
             (targets_gang(), ef_adds(variant_slot)),
         ],
     )
@@ -187,16 +165,14 @@ def escher(ranks, default_pack, corruption_choice):
 
 @pytest.fixture
 def chaos_corruption(escher, ranks, chaos_powers, skills_catalogue, corruption_choice):
-    """Everything 'Embracing the Chaos Gods' means, hanging off one pick."""
+    """Attach rule suppression, ritual rules, a follow-up choice and equipment access to the corruption pick."""
     _, nimble, _ = escher
     _, god_slot, corruption, gods = corruption_choice
     family, powers = chaos_powers
     _, tiers = skills_catalogue
     wyrd = create_subtype("Wyrd")
 
-    # "The Leader can be upgraded to become a Wyrd for +35 credits" — a
-    # priced purchasable carrier. Its power pick falls out of the
-    # placement, the Enforcer Haunt pattern.
+    # A priced carrier grants the Wyrd subtype, family placement and power choice.
     ascension = create_wargear("Chaos Wyrd Ascension", price=35)
     for scope, effect in [
         (targets_model(), ef_adds(wyrd)),
@@ -208,8 +184,7 @@ def chaos_corruption(escher, ranks, chaos_powers, skills_catalogue, corruption_c
     ]:
         modifier(f"Ascension: {effect}", scope, effect, attach_to=ascension)
 
-    # "Leaders and Champions may purchase Chaos Familiars" — plain
-    # usability, said on the line, never a block.
+    # Note the familiar's Leader or Champion restriction without blocking purchase.
     familiar = create_wargear("Chaos Familiar", price=40)
     restrict_use(familiar, ranks["leader"], ranks["champion"])
 
@@ -218,8 +193,7 @@ def chaos_corruption(escher, ranks, chaos_powers, skills_catalogue, corruption_c
     )
 
     for scope, effect in [
-        # "Members of the gang do not benefit from any of the gang's
-        # special rules" — computed removal; removes always win.
+        # Suppress the House rule through a computed removal effect.
         (targets_every_model(), ef_removes(nimble)),
         # The Post-cycle rituals, printed on who may perform them.
         (
@@ -230,8 +204,7 @@ def chaos_corruption(escher, ranks, chaos_powers, skills_catalogue, corruption_c
             targets_every_model(),
             ef_adds(create_rule("Ritual Focus", annotation="max one Fighter")),
         ),
-        # "The gang must select one of the Chaos gods" — the pick
-        # grants the follow-up, retracted when Variant is un-chosen.
+        # The corruption pick grants the follow-up God choice and anchors its lifetime.
         (targets_gang(), ef_adds(god_slot)),
         # The corruption-only equipment list, opened for everyone.
         (targets_every_model(), ef_adds(options)),
@@ -402,11 +375,9 @@ WARPED_TABLE = {
 
 @pytest.fixture
 def spawn(default_pack, gang_type, fighter_type, fighter_stats):
-    """The Chaos Spawn: the middle band printed, the dice as options.
+    """Create a full-statline Spawn with the middle band as defaults and other rolls as options.
 
-    A real Fighter profile on the full characteristics statline. The
-    book's table leaves M and BS blank and rolls the other seven; the
-    unrolled columns simply stay unwritten, and the card shows the dash.
+    Movement and Ballistic Skill remain unset and display as dashes.
     """
     shorts = {
         "weapon_skill": "WS",
@@ -468,9 +439,7 @@ def spawn(default_pack, gang_type, fighter_type, fighter_stats):
 
 class TestWarpedMonstrosity:
     def test_the_dice_pick_the_options(self, spawn, gang_type):
-        """The player rolls at the table; the roster takes the matching
-        option per characteristic. Unrolled groups keep the printed
-        band — nothing is ever enforced, the card just says."""
+        """Use supplied option selections for rolled characteristics and retain defaults for unselected groups."""
         profile, rolls = spawn
         gang = found_gang(
             "Spawn Keepers", gang_type, owner=User.objects.create_user("keeper")
@@ -555,12 +524,7 @@ def justicar_profiles(default_pack, gang_type, fighter_type):
 
 @pytest.fixture
 def delegation(justicar_profiles):
-    """The alliance carrier. Its stored effects hire the delegation.
-
-    The scope is honest: the alliance **targets the
-    gang** and adds each model once — the "adds a Magistrate" note
-    belongs on the gang's card, never echoed onto members.
-    """
+    """Attach gang-scoped stored effects that create the delegation once and describe it on the gang sheet."""
     magistrate, bailiff = justicar_profiles
     alliance = create_affiliation("Justicar Court Alliance")
     modifier(
@@ -581,8 +545,7 @@ def delegation(justicar_profiles):
 
 class TestJusticarCourts:
     def test_the_tithe_buys_the_delegation_free(self, delegation, gang_type):
-        """'a gang must pay 200 credits from their Stash' … 'These
-        Fighters do not cost any credits.'"""
+        """Pay for the alliance while its dependent delegation models contribute no separate rating."""
         gang = found_gang(
             "The Deputised",
             gang_type,
@@ -605,9 +568,7 @@ class TestJusticarCourts:
         print("\n" + render_gang_sheet(sheet))
         assert sheet.rating == 200  # the pact is what the gang is worth
 
-        # The scope says where the news lands: targets_gang puts the
-        # three "adds a …" notes on the gang's own card, happened, and
-        # keeps them off every member's.
+        # Gang-targeted stored effects are described on the gang sheet without duplication on model cards.
         from n26.core.card import build_gang_card, build_modifier_index
         from n26.core.effects import compute_gang
 
@@ -629,17 +590,14 @@ class TestJusticarCourts:
         ]
         assert all(card.effects == [] for card in sheet.models)
 
-        # Breaking the alliance: the delegation leaves with it — the
-        # same cascade that sells a pet with its collar.
+        # Removing the alliance archives its dependent delegation models.
         remove(pact)
         for member in members:
             member.membership.refresh_from_db()
             assert member.membership.archived
 
     def test_the_composer_builds_the_delegation_modifier(self, justicar_profiles):
-        """The same row through the authoring stack: spec → generated
-        form panes → composer submit → the three-row assembly. What an
-        admin's one submit would write."""
+        """Create the attached delegation modifier through the generated composer form."""
         from n26.library.forms import ModifierComposerForm
 
         magistrate, _ = justicar_profiles
@@ -658,9 +616,7 @@ class TestJusticarCourts:
 
         assert str(row.scope) == "the gang"
         assert str(row.effect) == "adds a Justicar Magistrate"
-        # Attached and not made reusable, so the carrier stands where the
-        # scope would: this reaches the gang because it hangs on the gang's
-        # affiliation, and saying so twice tells the reader nothing.
+        # The attached modifier name inherits its alliance carrier and omits redundant scope wording.
         assert (
             row.name == "Justicar Court Alliance (composed): adds a Justicar Magistrate"
         )
@@ -775,9 +731,7 @@ class TestMasterOfWhispers:
 
 
 class TestImmovableBrutes:
-    """'All Leaders and Champions in a Free Ogryn gang gain the
-    Juggernaut skill.' One composer payload — and the scratch card
-    endpoint shows it working before a single row is saved."""
+    """Preview a gang rule granting Juggernaut to Leaders and Champions without saving content."""
 
     def test_the_rule_previews_before_anything_is_saved(self, default_pack):
         from n26.core.preview import preview
