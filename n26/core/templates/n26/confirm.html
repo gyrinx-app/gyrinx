@@ -41,8 +41,8 @@ view revalidates the action against current catalogue data.
                name="{{ confirmation.confirm_field }}"
                value="{{ confirmation.confirm_value }}">
         {% comment %}
-        Use informational styling because this action is allowed but needs a recording
-        choice or overspend confirmation.
+        Use the view’s confirmation variant: rating choices are informational and Trade
+        Point overspend confirmations are warnings.
         {% endcomment %}
         <c-ui.alert variant="{{ confirmation.variant }}"
                     title="{{ confirmation.heading }}">

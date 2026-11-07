@@ -14,8 +14,8 @@ gangs; submitting search opens the full gangs page.
 {% endblock %}
 {% block content %}
     {% comment %}
-    Pass the invitation marker as view-provided markup so it remains outside attribute
-    escaping and its classes are visible to the stylesheet scanner.
+    Render the invitation marker from view-provided markup. Its Python-defined classes
+    need the explicit @source inline list in n26/designsystem/assets/app.css.
     {% endcomment %}
     <c-n26.view.dashboard new_gang_href="{% url 'n26-create-gang' %}"
                           :campaigns_mark="campaigns_mark"
