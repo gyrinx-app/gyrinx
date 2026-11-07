@@ -139,6 +139,29 @@ def test_failed_initial_publish_marks_job_failed(legacy_events):
 
 
 @pytest.mark.django_db(transaction=True)
+def test_late_publish_error_preserves_completed_job(legacy_events):
+    user = legacy_events
+    user.is_staff = user.is_superuser = True
+    user.save()
+    client = Client()
+    client.force_login(user)
+
+    def finish_then_raise(*args, **kwargs):
+        Backfill.objects.filter(operation=SESSION_SCRUB_OPERATION).update(
+            status=Backfill.Status.DONE
+        )
+        raise RuntimeError("publish acknowledgement failed")
+
+    with patch("django.tasks.base.Task.enqueue", side_effect=finish_then_raise):
+        response = client.post(reverse("admin:maintenance_scrub_event_sessions"))
+
+    record = Backfill.objects.get(operation=SESSION_SCRUB_OPERATION)
+    assert response.status_code == 302
+    assert record.status == Backfill.Status.DONE
+    assert not record.error
+
+
+@pytest.mark.django_db(transaction=True)
 def test_concurrent_launches_create_one_running_job(legacy_events):
     from gyrinx.maintenance.views import running_guard
 

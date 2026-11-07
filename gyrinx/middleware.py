@@ -99,6 +99,7 @@ class SecurityTelemetryMiddleware:
         elif (
             not specific_rejection
             and status in (301, 302, 303, 307, 308)
+            and (not match or match.url_name != "account_logout")
             and urlsplit(response.get("Location", "")).path
             in ("/accounts/login/", "/admin/login/")
         ):

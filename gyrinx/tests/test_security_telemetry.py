@@ -128,6 +128,22 @@ def test_login_required_redirect_is_audited_without_next_url():
 
 
 @pytest.mark.django_db
+def test_mfa_cancel_logout_is_not_a_permission_rejection():
+    user = get_user_model().objects.create_user(username="mfa-cancel-user")
+    client = Client()
+    client.force_login(user)
+
+    with patch("gyrinx.security_events.track") as audit:
+        response = client.post("/accounts/logout/", {"next": "/accounts/login/"})
+
+    assert response.status_code == 302
+    assert response["Location"] == "/accounts/login/"
+    assert not [
+        call for call in audit.call_args_list if call.args == ("security_request",)
+    ]
+
+
+@pytest.mark.django_db
 def test_disallowed_host_is_audited_without_echoing_host():
     with patch("gyrinx.security_events.track") as audit:
         response = Client(HTTP_HOST="forged.example").get("/")

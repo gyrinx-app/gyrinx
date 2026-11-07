@@ -139,12 +139,15 @@ def scrub_event_sessions_view(request):
             try:
                 scrub_event_sessions.enqueue(backfill_id=str(backfill.pk))
             except Exception:
-                backfill.status = Backfill.Status.FAILED
-                backfill.error = "The cleanup task could not be queued."
-                backfill.save(update_fields=["status", "error", "modified"])
-                messages.error(
-                    request, "The cleanup task could not be queued. Try again."
-                )
+                if Backfill.objects.filter(
+                    pk=backfill.pk, status=Backfill.Status.RUNNING
+                ).update(
+                    status=Backfill.Status.FAILED,
+                    error="The cleanup task could not be queued.",
+                ):
+                    messages.error(
+                        request, "The cleanup task could not be queued. Try again."
+                    )
             else:
                 messages.success(request, "Session-key cleanup started.")
         else:
