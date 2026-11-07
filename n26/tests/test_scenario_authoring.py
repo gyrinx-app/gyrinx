@@ -575,3 +575,24 @@ def test_native_retained_named_pick_selects_its_set_and_cannot_silently_disappea
     )
     assert not generated.is_valid()
     assert "side_job_pick" in generated.errors
+
+
+@pytest.mark.parametrize("campaign_page", [False, True])
+def test_full_generators_omit_reroll_when_no_sets_are_available(
+    client, staff, campaign_type, campaign_page
+):
+    from n26.tests.sandbox.actions import found_campaign
+
+    for table in ScenarioTable.objects.filter(purpose=ScenarioTable.Purpose.SIDE_JOB):
+        authoring.revise(table, archived=True)
+    if campaign_page:
+        campaign = found_campaign("No available side jobs", campaign_type, owner=staff)
+        url = reverse("n26-scenario-generator", args=[campaign.pk])
+    else:
+        url = reverse("n26-generate-scenario")
+    response = client.get(url, {"side_job": "escher-2", "reroll": "side_job"})
+    assert response.status_code == 200
+    assert response.context["scenario"]
+    assert not response.context["scenario_reroll"]
+    assert not response.context["reroll_links"]
+    assert not island_props(response.content, "scenario-picks")["sideJobSets"]

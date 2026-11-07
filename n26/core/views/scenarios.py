@@ -114,6 +114,8 @@ def reroll_dialog(request, here, rolls, extra=None):
     from n26.library.scenario_tables import SIDE_JOB_KEYS
 
     form = ScenarioGeneratorForm(request.GET, catalogue=request_catalogue(request))
+    if not form.catalogue.side_job_sets:
+        return None, {}
     state = {
         **(form.chosen_picks() if form.is_valid() else {}),
         **rolls,
