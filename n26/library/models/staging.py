@@ -18,7 +18,11 @@ how a corrected export replaces a wrong one, which is the whole working
 rhythm while an edition is being built.
 """
 
-from django.db import models
+from functools import partial
+
+from django.db import models, transaction
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 
 from n26.core.models import Base, Owned
 from n26.library.sheets import SHEET_CHOICES
@@ -32,6 +36,21 @@ UPLOAD_PREFIX = "ingest-sheets/"
 #: text, so this refuses the mistaken upload — a workbook, an image, a video —
 #: long before anything tries to read it as CSV.
 MAX_SHEET_BYTES = 8 * 1024 * 1024
+
+
+def _delete_file_if_unreferenced(storage, name, using):
+    """Delete a stored sheet only when no database row still names it."""
+    if not UploadedSheet.objects.using(using).filter(file=name).exists():
+        storage.delete(name)
+
+
+def schedule_file_cleanup(storage, name, *, using="default"):
+    """Check references and delete a stored sheet after the transaction commits."""
+    if name:
+        transaction.on_commit(
+            partial(_delete_file_if_unreferenced, storage, name, using),
+            using=using,
+        )
 
 
 class UploadedSheet(Base, Owned):
@@ -86,14 +105,16 @@ class UploadedSheet(Base, Owned):
         with self.file.open("rb") as handle:
             return handle.read().decode("utf-8-sig")
 
-    def delete(self, *args, **kwargs):
-        """Take the stored file with the row.
 
-        A queryset delete goes round this, so held sheets are removed one at a
-        time — five files is not worth a bulk path that leaks bytes.
-        """
-        stored = self.file.name
-        result = super().delete(*args, **kwargs)
-        if stored:
-            self.file.storage.delete(stored)
-        return result
+@receiver(
+    post_delete,
+    sender=UploadedSheet,
+    dispatch_uid="delete_unreferenced_uploaded_sheet_file",
+)
+def cleanup_uploaded_sheet_file(sender, instance, using, **kwargs):
+    """Remove bytes after any instance, queryset or cascade deletion commits."""
+    schedule_file_cleanup(
+        instance.file.storage,
+        instance.file.name,
+        using=using,
+    )

@@ -5,7 +5,7 @@
 | ID | R-03 |
 | Last reviewed | 2026-11-07 |
 | Next review | On deployment verification or by 2027-02-07 |
-| Status | Verification pending after code change in this PR |
+| Status | Control implemented; deployment verification pending |
 | Related threats | [T-03](../threats/t-03-active-upload.md) |
 | Assets | [A-04](../assets/a-04-media.md), [A-01](../assets/a-01-accounts.md) |
 | Likelihood | Low after fix |

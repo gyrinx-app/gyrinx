@@ -14,14 +14,14 @@ STRIDE means **Spoofing** identity, **Tampering** with data or code, **Repudiati
 | --- | --- | --- | --- |
 | [T-01](t-01-staff-authoring-auth.md) | Spoofing | Password-only staff session can reach N26 authoring | Observed gate difference |
 | [T-02](t-02-cross-owner-write.md) | Elevation of Privilege | A player write acts on another player's object | Credible regression scenario |
-| [T-03](t-03-active-upload.md) | Tampering | Player stores active SVG through TinyMCE | Code fix in PR; verification pending |
+| [T-03](t-03-active-upload.md) | Tampering | Player stores active SVG through TinyMCE | Control implemented; verification pending |
 | [T-04](t-04-held-sheet-disclosure.md) | Information Disclosure | Held authoring CSV is read from public storage | Public read remains |
-| [T-05](t-05-task-sender-spoofing.md) | Spoofing | An unrelated Google identity invokes a background task | Code fix in PR; verification pending |
+| [T-05](t-05-task-sender-spoofing.md) | Spoofing | An unrelated Google identity invokes a background task | Control implemented; verification pending |
 | [T-06](t-06-public-read-overload.md) | Denial of Service | Automated public reads exhaust serving capacity | Prior incident; mitigations exist |
 | [T-07](t-07-impersonation-attribution.md) | Repudiation | A privileged edit is attributed only to the impersonated user | Observed audit design |
 | [T-08](t-08-shared-read-privacy.md) | Information Disclosure | A shared read exposes owner-only gang information | Credible regression scenario |
 | [T-09](t-09-deployment-tampering.md) | Tampering | Modified build input becomes the production application | Credible source-to-runtime scenario |
-| [T-10](t-10-held-sheet-collision.md) | Tampering | Staff CSV uploads share and can delete one object key | Open fixed-key design |
+| [T-10](t-10-held-sheet-collision.md) | Tampering | Staff CSV uploads share and can delete one object key | Mitigation in PR; verification pending |
 
 ## Coverage by flow
 

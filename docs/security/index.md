@@ -2,16 +2,16 @@
 
 | Metadata | Value |
 | --- | --- |
-| Baseline | 2026-11-07; origin/main revision bdce46108 plus fixes in this PR |
+| Baseline | 2026-11-07; origin/main revision 162be7c8b plus controls marked as verification pending |
 | Scope | N23 and N26 Django requests, identity, content authoring, media, background tasks, integrations, and deployment |
 | Method | Data flows and trust boundaries → assets and adversaries → STRIDE threats → residual risk ratings |
-| Evidence | Repository code and linked operational documentation; live cloud IAM, storage policy and runtime variables are unverified |
+| Evidence | Repository code and linked operational documentation; the live GCS overwrite setting and held-sheet reference counts were checked read-only, while bucket IAM and other runtime controls remain unverified |
 | Maintenance | [Review process](process.md): at least quarterly and when a boundary, privilege, storage destination, task handler, incident or deployment path changes |
 | Next scheduled review | 2027-02-07 |
 
 ## Summary
 
-Gyrinx's highest-priority open concerns are the MFA boundary around N26 staff authoring, held CSV integrity, and renewed overload of public read pages. Held authoring CSVs use storage documented as public and fixed object names that can collide across staff authors. The PR adds a guard against player SVG uploads and requires an exact Pub/Sub task sender; both await deployment verification. The model distinguishes observed code behavior from production configuration that still needs checking.
+Gyrinx's highest-priority open concerns are the MFA boundary around N26 staff authoring, held CSV integrity, and renewed overload of public read pages. This branch gives new held CSVs unpredictable object keys and protects legacy shared keys during cleanup; deployment verification is still required, and the files remain in storage documented as public. The model distinguishes observed code behaviour from production configuration that still needs checking.
 
 ## Read the model
 

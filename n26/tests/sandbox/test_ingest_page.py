@@ -4,6 +4,7 @@ planning and write behaviour is covered by test_ingest.py.
 """
 
 import json
+import re
 
 import pytest
 from bs4 import BeautifulSoup
@@ -70,6 +71,17 @@ def hold(client, sheet, text=None, name=None):
 def hold_all(client):
     for sheet in SHEETS:
         hold(client, sheet)
+
+
+def share_held_file(held, owner):
+    """Create a second row in the legacy shape where two authors share one key."""
+    return UploadedSheet.objects.create(
+        owner=owner,
+        sheet=held.sheet,
+        filename=held.filename,
+        file=held.file.name,
+        lines=held.lines,
+    )
 
 
 class TestHoldingTheSheets:
@@ -216,6 +228,83 @@ class TestHoldingTheSheets:
 
         assert "equipment.csv" not in body
         assert client.get(PREVIEW_URL, follow=True).request["PATH_INFO"] == URL
+
+    def test_two_authors_uploading_the_same_sheet_keep_separate_bytes(
+        self, author, client
+    ):
+        """Give every upload its own unpredictable storage object."""
+        hold(client, "equipment")
+        first = UploadedSheet.objects.get(owner=author)
+
+        other = User.objects.create_user("other", is_staff=True)
+        client.force_login(other)
+        other_csv = EQUIPMENT_CSV.replace("Respirator", "Photo-goggles")
+        hold(client, "equipment", text=other_csv)
+        second = UploadedSheet.objects.get(owner=other)
+
+        assert re.fullmatch(
+            r"ingest-sheets/equipment/[0-9a-f]{32}\.csv",
+            first.file.name,
+        )
+        assert re.fullmatch(
+            r"ingest-sheets/equipment/[0-9a-f]{32}\.csv",
+            second.file.name,
+        )
+        assert first.file.name != second.file.name
+        assert first.text() == EQUIPMENT_CSV.strip()
+        assert second.text() == other_csv.strip()
+
+    def test_replacing_one_legacy_reference_leaves_the_other_importable(
+        self,
+        author,
+        client,
+        foundation,
+        django_capture_on_commit_callbacks,
+    ):
+        """Preserve shared legacy bytes while another author's row still names them."""
+        hold(client, "equipment")
+        first = UploadedSheet.objects.get(owner=author)
+        other = User.objects.create_user("other", is_staff=True)
+        remaining = share_held_file(first, other)
+
+        with django_capture_on_commit_callbacks(execute=True):
+            hold(
+                client,
+                "equipment",
+                text=EQUIPMENT_CSV.replace("Respirator", "Bio-scanner"),
+            )
+
+        assert remaining.file.storage.exists(remaining.file.name)
+        client.force_login(other)
+        response = client.post(PREVIEW_URL, follow=True)
+
+        assert response.status_code == 200
+        assert Wargear.objects.filter(name="Respirator").exists()
+
+    def test_discarding_one_legacy_reference_leaves_the_other_previewable(
+        self,
+        author,
+        client,
+        foundation,
+        django_capture_on_commit_callbacks,
+    ):
+        """Keep a shared legacy object when one author discards their row."""
+        hold(client, "equipment")
+        first = UploadedSheet.objects.get(owner=author)
+        other = User.objects.create_user("other", is_staff=True)
+        remaining = share_held_file(first, other)
+
+        with django_capture_on_commit_callbacks(execute=True):
+            client.post(URL, {"remove": "equipment"})
+
+        assert remaining.file.storage.exists(remaining.file.name)
+        client.force_login(other)
+        response = client.get(PREVIEW_URL)
+
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert "equipment.csv" in body
+        assert "to create" in body
 
 
 class TestPreviewing:
