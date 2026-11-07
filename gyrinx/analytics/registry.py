@@ -1,16 +1,8 @@
-"""Extension point: the lines plotted on the dashboard's growth chart.
+"""Register edition-specific series for the cumulative growth chart.
 
-The platform owns the analytics dashboard, but it has no idea what a gang or a
-fighter is — only an edition does. So the dashboard asks: each edition
-registers one :class:`GrowthSeries` per line it wants on the cumulative-growth
-chart, carrying a callable that answers "how many of these were created on each
-day since <date>?". The platform does the cumulating and the Chart.js shaping.
-
-Editions register from their admin package, which Django imports during
-``admin.autodiscover()`` — see ``n23/core/admin/analytics.py``. Registration is
-therefore complete long before any dashboard request is served.
-
-An empty registry is not an error: the chart simply has no lines.
+Editions supply daily counts; the platform accumulates them and prepares
+Chart.js data. Register from edition admin packages during autodiscovery.
+An empty registry produces an empty chart.
 """
 
 from collections.abc import Callable, Mapping
@@ -30,15 +22,11 @@ __all__ = [
 
 @dataclass(frozen=True)
 class GrowthSeries:
-    """One line on the cumulative-growth chart.
+    """A cumulative chart series with its edition and daily count function.
 
-    ``daily_counts`` is called with the window's start datetime and returns a
-    mapping of day to "how many were created that day". Days with none may be
-    omitted — the platform accumulates the values and fills the gaps.
-
-    ``edition`` says whose line it is, so the dashboard can show one product at
-    a time. Two editions' gangs are not one number, and a chart that adds them
-    together says the site grew when one of them may be shrinking.
+    The function receives the window start datetime and returns counts by
+    date. Missing dates are treated as zero. The edition field allows the
+    dashboard to filter series without combining editions.
     """
 
     key: str
@@ -75,11 +63,7 @@ def growth_series(edition: str | None = None) -> tuple[GrowthSeries, ...]:
 def daily_counts_by_date(
     queryset: QuerySet, start_date: datetime, field: str = "created"
 ) -> dict[date, int]:
-    """Count rows per calendar day since ``start_date`` — the usual series body.
-
-    Offered here so editions don't each re-derive the ``TruncDate``/``Count``
-    incantation, and so every series groups days the same way.
-    """
+    """Count queryset records by calendar date from start_date, inclusive."""
     rows = (
         queryset.filter(**{f"{field}__gte": start_date})
         .annotate(_day=TruncDate(field))

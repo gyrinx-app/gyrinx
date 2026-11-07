@@ -1,17 +1,9 @@
-"""Browsing a collection — one rendered shape, however it was defined.
+"""Browse curated and selector-derived collections through one display structure.
 
-A curated collection (stored entries: an equipment list, a variant
-trading post) and a derived one (no entries: the default Trading
-Post) both come out as the same structure — taxonomy groups of priced
-lines — so a browsing UI never learns which species it is looking at.
-Same move as the model card and the hire view.
-
-Prices resolve through ``n26.library.models.collection.price_of`` in both
-cases: that single function is what stops the two species drifting.
-
-Grouping derives from each item's **home category** (fixed per assignable
-— see ``n26.library.models.category``), in taxonomy order. Items without a
-home gather at the end under no heading.
+Both produce taxonomy groups of priced lines. Resolve prices through
+``n26.library.models.collection.price_of`` so entry and selector paths
+share the same pricing rules. Group by each assignable's home category
+in taxonomy order, placing uncategorised items last without a heading.
 """
 
 from dataclasses import dataclass, field
@@ -46,20 +38,16 @@ class Terms:
 
 #: Browsing a list: everything the author put there, nothing charges TP.
 EQUIPMENT_LIST = Terms()
-#: A trading trip: purchases spend Trade Points, Exclusive items are off
-#: the listing. What makes buying "at a trading post" is the terms you
-#: buy on, not the collection you buy from.
+#: Trading terms spend Trade Points and exclude Exclusive items,
+#: regardless of the collection's name.
 TRADING_POST = Terms(charges_trade_points=True, shows_exclusive=False)
 
 
 def prints_trade_points(terms, in_trade_points):
-    """Whether a line from this browse prints its Trade Point figure.
+    """Whether the browse displays Trade Point values alongside its prices.
 
-    A collection prices in what it deals in, so a list an author wrote
-    out by hand leaves the figure off — it answers no question a reader
-    of that list is asking. A browse that *counts* Trade Points prints
-    them wherever it found the line, because then it is the question the
-    reader is asking.
+    Display them when the collection deals in Trade Points or the caller's
+    terms count them against an allowance.
     """
     return in_trade_points or terms.charges_trade_points
 
@@ -115,35 +103,24 @@ class OfferedOption:
 
 @dataclass(frozen=True)
 class Listed:
-    """One pickable as the list offering it puts it.
+    """A pickable with the label used by its offering picklist.
 
-    A picklist may call a pickable something of its own, so what a picker
-    prints is the list's word and not always the thing's own name. The
-    thing rides along because that is what a click settles on, and it is
-    what every other surface goes on calling by its own name: the wording
-    belongs to the list, so it reaches the picker and stops there.
+    Only the picker uses this label. The selection stores the underlying
+    pickable, which other surfaces display under its own name.
     """
 
     thing: object
     name: str
-    #: The band of rolls that lands on this row, as a roll table prints
-    #: it — "51", "21-26" — or nothing on an ordinary list. A player who
-    #: rolled on the physical table finds their result by this.
+    #: Displayed roll band, such as 51 or 21-26; empty for ordinary lists.
     band: str = ""
 
 
 @dataclass(frozen=True)
 class OfferedGroup:
-    """One set of the alternatives a line offers.
+    """Alternatives requiring one, any, or at most one selection.
 
-    ``choose`` is "one" (exactly one, the default marked), "any" (take any
-    number, none by default) or "one-or-none" (at most one, none by
-    default) — the same three the hire view draws.
-
-    The set has no name here, deliberately, exactly as at hire: the one
-    the content carries is the author's label for their own page, and a
-    player is shown the options rather than the question. What a reader
-    needs is that these go together, which is the grouping itself.
+    ``choose`` is one, any, or one-or-none. Mark the default only for
+    one-of groups. Internal set names are omitted from player-facing groups.
     """
 
     choose: str
@@ -165,32 +142,18 @@ class PricedLine:
     #: The entry that priced this line. None on a derived collection:
     #: reference prices, no entry anywhere.
     entry: object = None
-    #: Whether buying here spends Trade Points. An equipment list never
-    #: charges them; a trading post does. Rides the line so the purchase
-    #: needs no idea where the line came from.
+    #: Purchase terms recorded on the line, independent of its source collection.
     charges_trade_points: bool = False
-    #: Whether a surface should print this line's Trade Point figure.
-    #: A collection whose contents were chosen *by* having a TP price
-    #: deals in them; one an author wrote out by hand does not, and a
-    #: number drawn there answers a question nobody browsing it can ask
-    #: — unless the browse counts Trade Points, which is the question
-    #: put back. The line keeps the item's real figures either way, and
-    #: "E" goes with the figure, because "E" is a Trade Point value and
-    #: not a separate mark.
+    #: Display policy for Trade Points and their Exclusive marker. Retain
+    #: the actual item values even when these columns are hidden.
     shows_trade_points: bool = False
-    #: Remarks for the player about this line — "usable by Walkers only",
-    #: later "over your weapon slots". One channel, not a flag per rule;
-    #: see ``n26.core.notes``. Empty on unexamined views: default open.
+    #: Informational notes, including use restrictions. Empty before examination;
+    #: see n26.core.notes.
     notes: tuple = ()
-    #: Nested lines riding this one — a weapon's paid ammo and firing
-    #: modes, printed under the gun the way the book's table does. Each
-    #: part is itself a PricedLine, so a purchase buys one the same way:
-    #: onto the gun's own assignment, which is what a profile hangs off.
+    #: Nested PricedLines for ammunition and firing modes bought onto this
+    #: weapon's assignment.
     parts: tuple = ()
-    #: The alternatives this line offers at purchase — a mount's grenade
-    #: launchers or, for a surcharge, its plasma guns. Sets that offer no
-    #: real choice are left out, so anything here is worth asking about.
-    #: Empty for everything that offers none, which is most of a listing.
+    #: Actionable purchase option groups, excluding mandatory single-option groups.
     choices: tuple = ()
 
     @property
@@ -228,52 +191,23 @@ class CollectionView:
 
 
 def browse(collection, terms=None, *, include_staged=False):
-    """A collection, browsed: its selector sweeps plus its entries.
+    """Combine a collection's selector results and explicit entries into priced lines.
 
-    Entries win over selectors for the same item — that is where per-item
-    customisation lives (the Nomad post pricing Imperial equipment above
-    the usual). Swept-in items are priced at reference. The ``terms``
-    are the caller's — how this browse charges is the buying flow's
-    business, not the collection's — and they ride every line so the
-    purchase never needs to know where a line came from.
+    Explicit entries override selectors for the same item. Selector results
+    use reference prices. ``terms`` supplies purchasing rules on every line;
+    without it, use ``terms_for`` from the collection definition.
 
-    Given none, the collection is browsed on its own terms
-    (:func:`terms_for`): one swept together *by* Trade Point prices is
-    somewhere they are spent, one written out by hand is not. That is a
-    reading of the definition this already has in hand, so a screen
-    wanting it pays no query for it. A surface that means something else
-    — an author previewing their own list — says which terms it means.
+    Apply sweep eligibility from those terms, while preserving explicit curated
+    entries. Include only ammunition listed by entries or matched by selectors.
+    Group ammunition beneath its listed weapon at the listing's own price.
 
-    Sweeps respect the terms (a trading trip has no Exclusive items on
-    the listing); curated entries always show — they are the author's
-    explicit word.
+    Display Trade Point values when the collection deals in them or terms
+    count them. Keep original values on lines even when the display omits them.
+    Exclude staged items, entries and ammunition unless ``include_staged`` permits.
+    Held content is displayed elsewhere without this discovery filter.
 
-    **A collection shows only what it lists.** For a sweep that is what
-    the criteria caught, ammo included: membership at a Trading Post is
-    having a Trade Point price, and that is asked of a gun's rounds as
-    much as of the gun. For a curated list it is the entries and nothing
-    else — including the ammo, which is the list's own entry for that ammo
-    at the list's own price. A gun's other profiles are not on the list
-    and do not appear under it.
-
-    Whether the listing talks in Trade Points follows from the same
-    fact, unless the terms count them. A collection whose contents were
-    chosen *by* having a TP price deals in them; one written out by hand
-    prices in credits, and a TP figure or an "E" there answers a question
-    nobody browsing it can ask — but a browse that counts Trade Points
-    prints them wherever it found the line, because a reader deciding
-    against an allowance is asking exactly that. Each line says which,
-    and the lines keep the item's real numbers regardless — see
-    ``shows_trade_points``.
-
-    Staged content — swept in, listed, or a gun's staged round — is left
-    off the listing unless ``include_staged`` says the reader may see it
-    (``n26.library.staged``). The gate is here, where a thing is offered,
-    and nowhere a thing already held is drawn.
-
-    A fixed number of queries: the entries with their prefetches, plus
-    one per selector — the count follows the collection's
-    *definition*, never its size.
+    Query count depends on the collection definition, including one query per
+    selector, rather than the number of listed items.
     """
     from n26.library.models import CollectionEntry
     from n26.library.models.assignable import (
@@ -285,9 +219,7 @@ def browse(collection, terms=None, *, include_staged=False):
 
     lines = {}
     selectors = list(collection.selectors.select_related("of_kind"))
-    # Read off the definition rather than the name: a pack's own
-    # TP-swept collection is a trading post whatever it was called, and
-    # a list called one is not.
+    # Determine purchasing terms from the definition, independent of its name.
     in_trade_points = any(selector.with_trade_point_price for selector in selectors)
     if terms is None:
         terms = _on_its_own_terms(in_trade_points)
@@ -312,20 +244,14 @@ def browse(collection, terms=None, *, include_staged=False):
                 ),
             )
 
-    # Prefetch paths rather than joins: joined, the kinds and their
-    # category chains make a select wide enough that planning it costs
-    # more than running it, and a kind no entry names never queries.
+    # Narrow prefetches avoid wide-join planning overhead and skip absent kinds.
     entries = list(
         collection.entries.prefetch_related(
             *ENTRY_ASSIGNABLE_FIELDS,
             *(f"{name}__category__section" for name in ENTRY_ASSIGNABLE_FIELDS),
-            # What each line always comes with: pricing a line composes
-            # the set's own price in, so a list of mounts prices the
-            # packages without a query per line.
+            # Preload included sets to price packages without querying per listing.
             *(f"{name}__built_ins" for name in ENTRY_ASSIGNABLE_FIELDS),
-            # Use-restriction lists, derived for every kind carrying the
-            # mixin — so noting a whole listing costs no extra queries,
-            # whichever kind an author narrowed and however they narrowed it.
+            # Discover and preload restriction relations for every kind using the mixin.
             *(
                 f"{name}__{listed}"
                 for name in ENTRY_ASSIGNABLE_FIELDS
@@ -334,9 +260,7 @@ def browse(collection, terms=None, *, include_staged=False):
                 )
                 for listed in USABLE_BY_LISTS
             ),
-            # The alternatives a line offers at purchase, derived for every
-            # kind that can carry them — so a list of a hundred mounts puts
-            # their swaps on screen for the same queries as a list of one.
+            # Batch option discovery across all kinds to keep listing query counts fixed.
             *(
                 f"{name}__{path}"
                 for name in ENTRY_ASSIGNABLE_FIELDS
@@ -345,10 +269,7 @@ def browse(collection, terms=None, *, include_staged=False):
                 )
                 for path in OPTION_OFFER_PATHS
             ),
-            # The entries' own use lists — who *this* collection offers
-            # each line to, which is a different fact from what the item
-            # allows everywhere. Loaded with the listing for the same
-            # reason: noting a narrowed list costs no query per line.
+            # Preload entry-specific restrictions separately from item-wide restrictions.
             *USABLE_BY_LISTS,
         )
     )
@@ -359,8 +280,7 @@ def browse(collection, terms=None, *, include_staged=False):
         if entry.pk in housed:
             continue
         thing = entry.assignable
-        # An archived line or thing is off the listing for everyone; a
-        # staged one only for a reader who may not see staged content.
+        # Exclude archived content for everyone and staged content without permission.
         if entry.archived or thing.archived:
             continue
         if not include_staged and (entry.staged or thing.staged):
@@ -522,18 +442,10 @@ def priced_from(view, listings):
 
 
 def offered_choices(thing):
-    """The sets of alternatives this thing puts to a buyer.
+    """Return actionable option groups shared by purchase controls and validation.
 
-    Read off the same offer a hire reads (``Optioned.grouped_offers``), so
-    a mount's swaps are one description of the content however it is
-    acquired. Prefetched by the browse, so a listing pays no query per
-    line; a thing that offers nothing has nothing here.
-
-    Sets that are not a choice are left out: a pick-one set with a single
-    option is taken unasked, and drawing it would ask a reader to consider
-    something they cannot change. What comes back is what a surface draws
-    *and* what the purchase checks the picked option against, so a set
-    missing here is one nothing can name.
+    Use the same prefetched ``grouped_offers`` as hiring. Omit one-of groups
+    with a single mandatory option because they require no player selection.
     """
     if not isinstance(thing, Optioned):
         return ()
@@ -543,9 +455,8 @@ def offered_choices(thing):
         one_of = choose == "one"
         if one_of and len(offered) < 2:
             continue
-        # A pick-one set's head is already in the price the line quotes, so
-        # what an option adds is measured from there: taking the head adds
-        # nothing and a swap adds the difference.
+        # The default one-of option is already priced; surcharges measure the
+        # difference from that option.
         included = offered[0].price if one_of else 0
         groups.append(
             OfferedGroup(
@@ -565,17 +476,10 @@ def offered_choices(thing):
 
 
 def _ammo_by_weapon(entries):
-    """The list's own profile entries, filed under the gun they belong to.
+    """Group named profile entries beneath their weapon when that weapon is listed.
 
-    A profile a list names is that list's entry for that ammo, and it
-    belongs under the gun rather than beside it — otherwise a reader
-    cannot buy the two on one click, and the same thing can be priced
-    twice on one page by two different routes.
-
-    A profile whose gun the list does not name keeps a line of its own:
-    there is nothing to file it under, and dropping it would hide
-    something the author wrote down. A blank profile is never filed —
-    it *is* the weapon's own line, so it is bought with the gun.
+    Keep a standalone line when its weapon is absent. Unnamed profiles form
+    the weapon's own line and are never grouped as optional ammunition.
     """
     weapons = {entry.weapon_id for entry in entries if entry.weapon_id is not None}
     filed = {}
@@ -589,14 +493,10 @@ def _ammo_by_weapon(entries):
 
 
 def _entry_parts(entries, terms, shows_trade_points, *, include_staged=False):
-    """A curated gun's ammo: the list's own entries, at the list's prices.
+    """Price a curated weapon's ammunition through the list's own entries.
 
-    Priced through the entry like every other line the list carries, so
-    an author who reprices a round reprices the one the reader clicks.
-    Whether the profile has a price of its own is beside the point —
-    a list naming a free profile at 15 credits is the list pricing it at
-    15 credits. A staged round, or a staged entry for one, is not under
-    the gun unless the reader may see staged content.
+    Entry prices apply even to profiles free at reference. Exclude staged
+    profiles or entries unless the viewer is permitted staged content.
     """
     parts = []
     for entry in entries:
@@ -687,14 +587,10 @@ def usability_for(computed):
 
 
 def _use_note(restricted, fighter, about, said):
-    """One use-restriction as a note, or None where this fighter passes it.
+    """Return a use-restriction note when this model fails the item's or entry's lists.
 
-    ``restricted`` is whatever carries the four use lists — an item, or
-    the entry offering it. Both are read through the same reader, because
-    both are the same fact about a different thing, and ``said`` is how
-    the sentence opens so a reader can tell which they are looking at.
-    The note points at the item either way: that is the thing a surface
-    hangs it on.
+    ``said`` distinguishes those sources in the text. Attach the note to the
+    item in both cases.
     """
     check = getattr(restricted, "is_usable_by", None)
     if check is None or check(fighter):
@@ -742,9 +638,7 @@ def with_use_notes(view, fighter):
             )
             if note is not None
         ]
-        # The rounds under a gun are lines too, each with a restriction
-        # of its own — "krak grenades (Stimmer only)" under a launcher
-        # anyone may carry — so each is asked the same two questions.
+        # Apply item and entry restriction checks to nested ammunition too.
         parts = tuple(noted_line(part) for part in line.parts)
         if not found and parts == line.parts:
             return line
@@ -826,14 +720,10 @@ def regrouped_by_placement(view, placements, fallback=None, name=None):
 
 
 def picklist_lines(picklist, *, include_staged=False):
-    """The lines of a picklist a reader may be offered, unordered.
+    """Return non-archived picklist lines with non-archived pickables.
 
-    Archived lines and archived pickables are off every discovery surface,
-    as archived content always is. Staged ones are held back separately —
-    a staged pickable is off every list, a staged line is off this one,
-    the way a staged entry is off its collection — unless the reader may
-    see staged content. One statement of the rule, read by the pick
-    screen and by the roll panel, so the two cannot come to disagree.
+    Exclude staged lines or pickables unless permitted. Picker and roll panels
+    share this discovery rule.
     """
     return picklist.available_members(include_staged=include_staged)
 
@@ -850,44 +740,23 @@ def _offer_catalogue(cache, key, read):
 def offered_by(
     slot, computed, terms=EQUIPMENT_LIST, *, include_staged=False, _catalogues=None
 ):
-    """What *this* fighter may choose for a choice slot.
+    """Build this fighter's displayed options for a choice without enforcing access.
 
-    A slot narrowed to a tier ("a Skill from a set that is Primary for
-    them") draws the view they already browse: take the section's
-    collection, resection it by their placements, and keep that tier. So
-    a Leader's pickable skills and the skills they browse are the same
-    list built the same way — the pick is a collection with one section
-    showing, not a second mechanism.
+    Tier-narrowed choices reuse their collection and the fighter's category
+    placements. Unrestricted choices list the full kind. Skill offers may
+    include powers when explicitly allowed and placed in their power collection.
 
-    An unnarrowed slot has no collection to browse, so it draws the whole
-    kind. Either way this is a **list to offer**, never a rule:
-    ``Operation.choose`` checks the kind and nothing else, so an
-    owner may still hand over something off-list.
+    Slot choices use their picklist's labels and order, without prices.
+    ``Operation.choose`` validates the kind while allowing off-list choices.
+    Exclude staged options unless ``include_staged`` permits them.
 
-    A skill offer may explicitly allow powers as substitutes. Their families
-    must be placed for this model in the offer's power access collection.
-    An offer without that setting remains restricted to its own kind.
-
-    A choice borne by a ``Slot`` draws its picklist, in the list's own
-    order, each pickable under the wording that list gives it
-    (:class:`Listed`). No sections and no prices — the pickables behind a
-    choice and nothing else — and the same rule holds: the list informs,
-    and an owner may still hand over something off it.
-
-    ``_catalogues`` is private scratch state for one read of one fighter.
-    Only the unfiltered catalogue and default section are reused; each
-    offer still gets fresh containers narrowed by its own placements.
-
-    Whichever branch, a staged thing is not offered unless
-    ``include_staged`` says this reader may see it: the one gate on
-    staged content sits where things are offered (``n26.library.staged``).
+    ``_catalogues`` caches one fighter's unfiltered catalogue and default section
+    within a read. Give each offer fresh containers for its narrowed placements.
     """
     if slot.slot is not None:
         members = picklist_lines(slot.slot.picklist, include_staged=include_staged)
         if slot.slot.picklist.dice:
-            # A roll table is read by the roll, so its picker comes in
-            # roll order — a player who rolled 24 scans for the band
-            # that holds it. Bandless rows gather at the end.
+            # Order table options by roll band, placing unbanded options last.
             from django.db.models import F
 
             members = members.order_by(
@@ -925,8 +794,7 @@ def offered_by(
                 if isinstance(line.thing, Power) and line.thing.category in placements
             ]
             return [*skills, *powers]
-        # The whole kind, read as every discovery surface reads it: never
-        # an archived row, and a staged one only for a reader who may see it.
+        # Discovery excludes archived content and staged content without permission.
         found = offer.choosables().unarchived()
         return found if include_staged else found.live()
 

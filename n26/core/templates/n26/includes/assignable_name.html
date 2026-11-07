@@ -1,8 +1,5 @@
 {% comment %}
-One assignable's name, with the granted mark. Expects `line` — an
-n26.render.AssignableLine. The same mark <c-n26.assignable-lines> uses
-in a run, so a stacked list and a comma-separated one cannot disagree
-about which names were granted, and the same marks after the name: the pet
-the kit brought, then the count.
+Render an AssignableLine with the shared grant, pet and count markers used by compact
+assignable lists.
 {% endcomment %}
 {% if line.provenance.annotated %}<c-ui.tooltip size="sm"><span class="cursor-help underline decoration-dotted underline-offset-2">{{ line.name }}{{ line.tier_mark }}{{ line.brought_mark }}{{ line.count_mark }}<span class="sr-only"> ({{ line.provenance.description }})</span></span><c-slot name="content">{{ line.provenance.description }}</c-slot></c-ui.tooltip>{% else %}<span>{{ line.name }}{{ line.tier_mark }}{{ line.brought_mark }}{{ line.count_mark }}</span>{% endif %}

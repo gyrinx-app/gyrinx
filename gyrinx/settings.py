@@ -56,12 +56,9 @@ CSRF_FAILURE_VIEW = "gyrinx.views_csrf.csrf_failure"
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-# Cotton components raise on a mis-wired call site (a stringified BoundField, an
-# unmapped submit intent) instead of rendering something plausible. Defaults to
-# DEBUG; settings_dev forces it ON so it also fires under pytest, where
-# pytest-django sets DEBUG = False. Production logs instead of 500-ing, because
-# scripts/check_cotton.py + test_cotton_call_site_gates.py already make a
-# mis-wired call site uncommittable.
+# Strict mode raises for invalid Cotton component props and submit intents.
+# Development enables it independently of DEBUG so checks still raise under
+# pytest. Production logs these errors.
 COTTON_STRICT_COMPONENTS = DEBUG
 
 ALLOWED_HOSTS = _parse_json_env("ALLOWED_HOSTS", [])
@@ -141,26 +138,13 @@ INSTALLED_APPS = [
     "django_recaptcha",
     # simplehistory
     "simple_history",
-    # django-cotton: template components in templates/cotton/, invoked as <c-btn>.
-    # Autoconfig injects the cotton template loader and the `cotton` builtin tag
-    # library. It POPS APP_DIRS from TEMPLATES and substitutes an explicit
-    # cached.Loader chain that still includes app_directories, so app templates
-    # and both explicit DIRS keep resolving. That cached.Loader is why the dev
-    # server would otherwise serve stale templates; settings_dev swaps this entry
-    # for an AppConfig that takes it back out (see gyrinx/cotton_dev.py).
-    #
-    # Do NOT set COTTON_ISOLATE_BY_DEFAULT: it does not exist in 2.7.2 and fails
-    # silently. Do NOT set COTTON_ENABLE_CONTEXT_ISOLATION either: on 2.7.2 it
-    # builds a fresh RequestContext per component, re-running every context
-    # processor — including `notifications`, which issues an uncached COUNT.
-    # Measured: 20 components = 21 queries with it on, 1 with it off.
+    # Cotton installs its template loader chain and builtin tags during startup.
+    # Development cache invalidation is configured in gyrinx/cotton_dev.py.
+    # Do not enable context isolation: it repeats context processors, including
+    # the unread notification query, for every component.
     "django_cotton",
-    # The n26 edition's core sits ABOVE django_cotton_ui on purpose: the app
-    # template loader takes the first match in INSTALLED_APPS order, and
-    # n26/core/templates/cotton/ui/ overrides a handful of the package's
-    # components (button gains the `success` variant, and error, label and
-    # description carry the edition's words). In the edition's home repo a
-    # root DIRS entry did this job; here order is the mechanism.
+    # App template lookup uses INSTALLED_APPS order. Keep N26 core before
+    # Cotton UI so its button, error, label and description overrides resolve first.
     "n26.core",
     # Cotton UI components (<c-forms.field> and friends), used by the n26
     # edition. Must come after django_cotton, whose loader it relies on.
@@ -170,10 +154,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "n23.core",
     "n23.content",
-    # The rest of the n26 edition (core is above, beside the cotton apps):
-    # the content library and the design system. Labels are pinned in each
-    # apps.py (n26, library, designsystem) — the n26.core module deliberately
-    # does NOT take the label "core", which n23 owns.
+    # Keep app labels n26, library and designsystem stable; N23 uses core.
     "n26.library",
     "n26.designsystem",
     "gyrinx.accounts",
@@ -215,20 +196,14 @@ MIDDLEWARE = [
     # Admin impersonation overlay — after auth/allauth (so request.user is the real
     # admin when we authorize), before simple-history (so the swap is attributed).
     "gyrinx.middleware.ImpersonationMiddleware",
-    # Remembers which edition a reader is in. After auth (it only remembers
-    # signed-in readers) and after impersonation (the reader is whoever the
-    # request is being made as).
+    # Run after authentication and impersonation to remember the effective user's edition.
     "gyrinx.middleware.EditionMiddleware",
-    # Activate the reader's timezone so |date / localtime follow their zone
-    # rather than UTC. After impersonation (the reader is whoever the request
-    # is being made as).
+    # Activate the effective user's timezone after impersonation.
     "gyrinx.middleware.TimezoneMiddleware",
     # simplehistory
     "simple_history.middleware.HistoryRequestMiddleware",
-    # Serves admin-managed 301s. Must stay LAST: process_response runs in
-    # reverse order and this only acts on a 404, so anything below it here would
-    # see the 404 first. Matches on the full path *including* the query string,
-    # and an empty new_path returns 410 Gone rather than redirecting.
+    # Keep last so it sees the final 404 response. Redirect lookup includes the
+    # query string; an empty destination returns 410 Gone.
     "django.contrib.redirects.middleware.RedirectFallbackMiddleware",
     # CSP
     # "csp.middleware.CSPMiddleware",
@@ -245,13 +220,8 @@ TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [
-            # The platform's own templates, and the place third-party templates
-            # get overridden. DIRS is searched before APP_DIRS, which is what
-            # makes gyrinx/templates/{account,allauth,mfa,usersessions}/ beat
-            # allauth's own copies — allauth is listed first in INSTALLED_APPS.
-            # Editions do NOT get a DIRS entry; their templates resolve through
-            # APP_DIRS, so nothing an edition ships can shadow a platform or
-            # third-party template by accident.
+            # DIRS precedes app template lookup, allowing platform overrides of allauth.
+            # Edition templates resolve through app directories and cannot shadow these.
             BASE_DIR / "gyrinx/templates",
             BASE_DIR / "gyrinx/pages/templates",
         ],
@@ -273,8 +243,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "gyrinx.wsgi.application"
-# Inert since the move to gunicorn/WSGI (only daphne/channels read this).
-# Kept, with gyrinx/asgi.py, so reverting to ASGI stays a one-line change.
+# Only ASGI servers read this setting; gunicorn's WSGI entry point does not.
 ASGI_APPLICATION = "gyrinx.asgi.application"
 
 
@@ -305,14 +274,8 @@ DATABASES = {
 # Caching
 # https://docs.djangoproject.com/en/6.0/topics/cache/
 
-# Both caches are per-process LocMemCache, so every container starts cold and
-# each gunicorn worker keeps its own copy. That is tolerable only if the cache is
-# big enough to hold the whole working set — the default MAX_ENTRIES of 300 is
-# not. Production has 420 rules + 120 skills resolving against 570 page refs, so
-# at the default the cache culled a third of itself continuously and the hit rate
-# collapsed under crawl load, putting an unindexable LIKE query on the database
-# for every rule on every fighter card. Sized well above the working set so it
-# behaves as a cache rather than a rotating buffer.
+# Each worker has an independent cache. Allow enough entries for rule, skill
+# and page-reference lookups to avoid repeatedly culling active entries.
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
@@ -463,11 +426,7 @@ LOGGING = {
             "level": "ERROR",
             "propagate": False,
         },
-        # One entry per first-party top-level package. A logger inherits
-        # configuration only from an ancestor that is itself configured, so
-        # "gyrinx" does nothing for `n23.core.views` — every package root needs
-        # its own entry or the edition's logging silently falls through to root
-        # and stops responding to GYRINX_LOG_LEVEL. Add n26 here when it lands.
+        # Configure each first-party package root so edition logs use GYRINX_LOG_LEVEL.
         **{
             _root: {
                 "handlers": ["console"],

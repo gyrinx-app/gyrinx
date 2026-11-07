@@ -1,9 +1,7 @@
-"""Checking the pinned numbers against what the ledger actually says.
+"""Recompute assignment roots and ledger-derived totals to check cached values.
 
-Three things are written at write time rather than derived on read: an
-assignment's roots, a ledger entry's totals, and a gang's rating. Each is a
-cache, and each can be recomputed. These functions do the recomputing, so a
-test (or a management command) can prove the caches are honest.
+Tests and management commands use these independent calculations to detect
+inconsistent denormalised roots, ledger entries and gang ratings.
 """
 
 from collections import defaultdict
@@ -170,20 +168,10 @@ def total_spent(gang):
 
 
 def trade_points_spent_for(activity):
-    """Every Trade Point that counted against one activity.
+    """Sum signed Trade Point events attributed to one activity in one query.
 
-    A purchase records the activity it counted against on its ledger entry,
-    so this is a sum over what points at that row — no window, no
-    ordering, and an exact figure for an activity long since closed.
-
-    Summed from the events rather than from the entries because a refund
-    settles its entry to zero and appends the returning event: reading
-    the log keeps the two acts in the order they happened. The refund's
-    event sits on the assignment the purchase made, so it lands on the
-    activity the purchase counted against however long afterwards the
-    owner gets round to handing the thing back.
-
-    One query.
+    Use the purchase entry's recorded activity. Events preserve refunds after
+    entries are zeroed, so later refunds still belong to the original activity.
     """
     from n26.core.models import LedgerEvent
 
@@ -196,21 +184,11 @@ def trade_points_spent_for(activity):
 
 
 def trade_points_spent_by(activity, miniature):
-    """Every Trade Point one model spent against one activity.
+    """Sum one model's Trade Point events for one activity in one query.
 
-    The same sum as :func:`trade_points_spent_for`, narrowed to whoever
-    spent it: a founding allowance is the model's own, so what one has
-    spent says nothing about what another may.
-
-    Narrowed on the buyer the purchase recorded and never on where the
-    thing is now. An owner may move a gun into the stash or hand it to
-    somebody else, and neither hands the points back — moving kit about
-    is not a refund. Reading the assignment's model instead would refill
-    the buyer's allowance the moment they stashed anything, and refunding
-    the gun from its new owner would take that owner's allowance below
-    zero for points they never spent.
-
-    One query.
+    Attribute spending to the recorded buyer, independent of the equipment's
+    current host. Moving equipment must not replenish the buyer's allowance
+    or charge a later holder for an earlier purchase.
     """
     from n26.core.models import LedgerEvent
 
@@ -251,18 +229,10 @@ def trade_points_spent_by_model(activity):
 
 
 def trade_points_spent_by_kind(gang, kind, miniature):
-    """Every Trade Point one model spent against any activity of this kind.
+    """Sum a model's lifetime spending across activities of this kind in one query.
 
-    The same sum as :func:`trade_points_spent_by`, widened from one
-    activity to every activity of that kind the gang has opened. A founding
-    allowance is one allowance however many times the activity is opened:
-    completing it and starting again does not hand the figure back.
-
-    Visit spend stays on :func:`trade_points_spent` — a visit that closed
-    loses what it had left, and the next one starts from what the
-    fighters brought.
-
-    One query.
+    Founding allowances persist across repeated openings of the activity.
+    Trading Post visits instead use per-visit spending through trade_points_spent.
     """
     from n26.core.models import LedgerEvent
 
