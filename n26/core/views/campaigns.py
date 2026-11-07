@@ -1,6 +1,6 @@
-"""Setting a campaign up, and the arbitrator's pages for one.
+"""Campaign setup, membership, assets and arbitrator controls.
 
-Every view here asks the reader to sign in.
+All views require sign-in; each write checks its own campaign role.
 """
 
 from dataclasses import dataclass
@@ -22,58 +22,34 @@ from n26.core.views.permissions import (
 )
 from n26.library.staged import sees_staged
 
-#: Campaigns per page in the searchable listing.
 CAMPAIGNS_PER_PAGE = 25
 
-#: How many accounts a search for somebody to invite offers at once. Enough
-#: to find the person, few enough that the page is not a directory.
+#: Maximum account matches in an invitation search.
 PEOPLE_FOUND = 10
 
-#: How many battles the campaign's page lists, newest first. A campaign
-#: played for a year has more than a page wants; the campaign's battles
-#: page lists the rest.
+#: Recent battles shown on the campaign page.
 BATTLES_ON_THE_PAGE = 10
 
-#: How many acts the campaign's own page shows before saying there are more.
-#: Enough to see what happened since last time without burying the page.
+#: Recent acts shown before linking to the full log.
 LOG_ON_THE_PAGE = 10
 
-#: How many acts one screenful of the full log holds. The same as a gang's
-#: history page, which reads the same shape of act.
+#: Complete acts per log page, matching gang history.
 LOG_PER_PAGE = 50
 
 
 @login_required
 def campaigns(request):
-    """Every campaign this reader is in, narrowed by ``?q=``.
-
-    Both kinds together: the campaigns they arbitrate and the ones they
-    were asked into and accepted. Somebody looking for a campaign does not
-    first decide which sort it was, and a page that held only one sort
-    would leave the other reachable by nothing but the invitation that has
-    already been answered.
-
-    Drawn by the same table the gangs list uses, so the two pages search the
-    same way and count the same way. The matching is the platform's
-    ``search_queryset`` for the same reason the gangs list uses it: a second
-    search written here is how two lists come to disagree about what a query
-    means.
-    """
-    # The gangs list builds the numbered links the same way, and a second
-    # copy of that would be a second set of addresses to keep in step.
+    """List campaigns the reader owns or has joined, with shared search and paging."""
     from gyrinx.querysets import search_queryset
     from n26.core.models import Campaign
     from n26.core.views.gangs import _pages
 
     query = request.GET.get("q", "").strip()
-    # Ordered by name and then by key: two campaigns may share a name now
-    # that the list holds other people's, and tied rows under a name-only
-    # sort are free to swap places from one page to the next.
+    # Use the key to keep equal names stable across pages.
     listed = (
         Campaign.objects.involving(request.user)
         .filter(archived=False)
-        # A row names its arbitrator with the badge they hold, which reads
-        # their profile and their grants.
+        # Load profile and grants for the arbitrator badge.
         .select_related("owner", "owner__profile", "campaign_type")
         .prefetch_related("owner__badge_grants")
         .order_by("name", "pk")
@@ -89,25 +65,17 @@ def campaigns(request):
             "invitations": invitations_for(request.user),
             "campaigns": rows,
             "query": query,
-            # How many rows this page carries, for a reader with no script:
-            # the live count is Alpine's, and without it the number beside
-            # the noun would be blank.
+            # Provide the count for readers without JavaScript.
             "listed": len(rows),
             "total": page.paginator.count,
-            # Drawn only where there is more than one, so a short list is a
-            # list rather than a list with a pager saying "1 of 1".
             "pages": _pages(request, page) if page.paginator.num_pages > 1 else None,
-            # Kept for the pager tests, which read the page itself.
             "page": page,
         },
     )
 
 
 def campaign_rows(listed):
-    """Campaign facts shared by the dashboard and the campaigns list.
-
-    Count memberships and battles independently so their rows do not multiply.
-    """
+    """Build dashboard and list rows, counting memberships and battles separately."""
     from n26.core.models import Battle, CampaignMembership
 
     memberships = (
@@ -138,20 +106,12 @@ def campaign_rows(listed):
 
 @login_required
 def create_campaign(request):
-    """Set a campaign up on a type. POST founds it and lands on its page.
-
-    Founding writes the campaign, its own pack and its own campaign type,
-    and the line that opens its log in one operation: a log whose first
-    entry is missing cannot be filled in afterwards, because nothing here
-    is ever rewritten.
-    """
+    """Found a campaign, its private content and its opening log entry atomically."""
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import FoundCampaignForm
     from n26.core.models import Campaign
 
-    # Staged campaign types are on the cards for whoever may see staged
-    # content and for nobody else.
     shown = sees_staged(request.user)
     if request.method == "POST":
         form = FoundCampaignForm(request.POST, include_staged=shown)
@@ -185,19 +145,10 @@ def create_campaign(request):
 
 @login_required
 def campaign(request, pk):
-    """One campaign, whoever is reading it.
+    """Render a campaign for any signed-in reader.
 
-    An arbitrator can send the address round the table, and everybody who
-    opens it reads the same campaign — the same facts, the same gangs, the
-    same battles, the same log. Accepted players can record battles and
-    dice rolls. Campaign management remains with the arbitrator.
-
-    Who the address reaches is the decorator's answer rather than this
-    one's: anybody signed in.
-
-    The log reads newest first and is cut to the most recent acts: the page
-    is a campaign, not its history, and a log that grew without bound would
-    push everything else off the bottom.
+    Management controls require the arbitrator; accepted players may record
+    battles and rolls. Roll dialogs can be returned without the full page.
     """
     from django.urls import reverse
 
@@ -207,9 +158,7 @@ def campaign(request, pk):
 
     accepted = CampaignParticipant.State.ACCEPTED
 
-    # A roll dialog asked for over htmx is sent on its own and names nobody
-    # — not the arbitrator, not a gang's owner — so only the whole page
-    # reads their badge data with the campaign and the sheet.
+    # Standalone dialogs show no owner badges, so defer those queries.
     asked_for_a_dialog = (
         request.method == "GET"
         and is_htmx(request)
@@ -221,10 +170,6 @@ def campaign(request, pk):
     sheet = render_campaign(
         found, viewer=request.user, with_owner_badges=not asked_for_a_dialog
     )
-    # The two roll questions the address may ask — ``?roll=`` for the pool,
-    # ``?starting=`` for one gang — and only the arbitrator's to ask. Over
-    # htmx the panel alone is sent, in its host, and the page underneath
-    # stays as it is; the address is corrected so a reload draws it again.
     rolling = _rolling(found, sheet, request.GET.get("roll", "")) if yours else None
     starting = (
         _starting(sheet, request.GET.get("starting", ""), request.GET.get("type", ""))
@@ -241,15 +186,12 @@ def campaign(request, pk):
         response["HX-Replace-Url"] = _table_action_href(request)
         return response
     if asked_for_a_dialog:
-        # Asked for a dialog that cannot be drawn — a stale or withdrawn
-        # question — so the whole page is served, and it names everybody.
+        # A stale dialog falls back to the full page, which needs owner badges.
         load_owner_badges(found.owner, *(line.owner for line in sheet.gangs))
     acts, more_acts = _recent_acts(found, request.user)
     battles = found.battles.filter(archived=False).prefetch_related("gangs", "winners")[
         :BATTLES_ON_THE_PAGE
     ]
-    # Read once and asked twice: the page draws the players, and whether
-    # this reader is one of them decides what it offers them.
     players = list(_players(found))
     player_lines = []
     for player in players:
@@ -286,8 +228,6 @@ def campaign(request, pk):
             "yours": yours,
             "log_href": reverse("n26-campaign-log", args=[found.pk]),
             "more_actions": more_actions(found, yours=yours, playing=at_the_table),
-            # A player at the table brings their own gangs; the arbitrator
-            # brings anybody's. Both reach the same screen.
             "may_add_gang": yours or at_the_table,
             "may_record": yours or at_the_table,
             "players": players,
@@ -306,12 +246,7 @@ def campaign(request, pk):
 
 
 def more_actions(campaign, *, yours, playing=False):
-    """The links in the campaign header's More actions menu.
-
-    Every player at the table may read the log. Only the arbitrator manages
-    the campaign's counters, labels and asset types, or archives it. Only a
-    player may leave: the arbitrator is never one. No separators.
-    """
+    """Build header actions for the arbitrator, accepted player or other reader."""
     actions = [
         Action(
             "View log",
@@ -361,9 +296,7 @@ def more_actions(campaign, *, yours, playing=False):
 
 
 def _fill_addresses(sheet, campaign, *, yours, viewer, request=None, current_url=""):
-    """Put the addresses on a campaign sheet. The structure says who may
-    act; only the view knows where each act is asked, so the same filling
-    serves the page and the partial update a roll delivers."""
+    """Add role-specific URLs to a sheet for full-page and partial responses."""
     from django.urls import reverse
 
     from n26.core.owned import with_query
@@ -377,20 +310,15 @@ def _fill_addresses(sheet, campaign, *, yours, viewer, request=None, current_url
         preferences = table_query(request, current_url=sheet.table_href)
     for line in sheet.gangs:
         line.href = reverse("n26-gang", args=[line.gang_id])
-        # The arbitrator of a campaign still being played may change any
-        # gang's credits here, and an owner their own.
         if not line.credits_unlimited and (
             line.yours or (yours and not campaign.archived)
         ):
             line.credits_href = reverse("n26-gang-credits", args=[line.gang_id])
-        # The arbitrator may take any gang out, and an owner their own.
         if yours or line.yours:
             line.remove_href = reverse(
                 "n26-campaign-remove-gang", args=[campaign.pk, line.gang_id]
             )
-        # The arbitrator may move a campaign counter on any gang in the
-        # campaign, and a gang's owner their own — the same act the gang
-        # sheet offers, posted from here and landing back here.
+        # Counter controls follow the same owner/arbitrator permissions as gang sheets.
         if yours or line.yours:
             for counter in line.counters:
                 if counter is not None and counter.assignment_id:
@@ -398,17 +326,12 @@ def _fill_addresses(sheet, campaign, *, yours, viewer, request=None, current_url
                     counter.back = (sheet.table_href or here) + "#gangs"
                     counter.adjust_href = with_query(counter.href, back=counter.back)
     if yours:
-        # What the arbitrator adds sits where it will show: an asset type
-        # becomes a table under Assets, a counter or a label becomes a
-        # column of the gangs table.
         sheet.add_asset_type_href = reverse(
             "n26-campaign-add-asset-type", args=[campaign.pk]
         )
         sheet.add_counter_href = reverse("n26-campaign-add-counter", args=[campaign.pk])
         sheet.add_label_href = reverse("n26-campaign-add-label", args=[campaign.pk])
         sheet.tables_href = reverse("n26-campaign-tables", args=[campaign.pk])
-        # A starting roll is asked on this page, for one gang and one asset
-        # type; the address names both so a reload asks it again.
         for line in sheet.gangs:
             for roll in line.starting_rolls:
                 roll.href = with_query(
@@ -422,8 +345,6 @@ def _fill_addresses(sheet, campaign, *, yours, viewer, request=None, current_url
                 reverse("n26-campaign-add-asset", args=[campaign.pk])
                 + f"?type={table.asset_type_id}"
             )
-            # Only where there is a rolled table: a control for a roll
-            # with nothing to roll from would be a control saying no.
             if table.tables:
                 table.roll_href = with_query(
                     sheet.table_href or here, roll=table.asset_type_id
@@ -473,10 +394,7 @@ def _fill_addresses(sheet, campaign, *, yours, viewer, request=None, current_url
 
 
 def _recent_acts(campaign, viewer):
-    """The acts the campaign page draws, oldest first, and how many more
-    there are. Only the acts that will be drawn are built; the rest are
-    counted rather than read, so a campaign played for a year opens as
-    quickly as one set up this morning."""
+    """Build the latest acts, return them oldest first, and count the remainder."""
     from n26.core.history import (
         campaign_history,
         campaign_history_size,
@@ -490,9 +408,7 @@ def _recent_acts(campaign, viewer):
 
 
 def _rolling(campaign, sheet, asked):
-    """The pool roll ``?roll=`` asks for, where ``asked`` names one of the
-    campaign's Holding asset types with a rolled table. Anything else is
-    a page without the panel."""
+    """Resolve ?roll= to a Holding asset type with a campaign-held rolled table."""
     from django.urls import reverse
 
     from n26.library.territory_table import TERRITORY
@@ -500,9 +416,7 @@ def _rolling(campaign, sheet, asked):
     table = next((t for t in sheet.assets if t.asset_type_id == asked), None)
     if table is None or not table.tables:
         return None
-    # Three per gang is the rulebook's figure for Territories. An asset
-    # type the arbitrator declared has no such rule, so its dialog says
-    # nothing about how many to generate.
+    # Territories default to three per gang; custom asset types have no default count.
     label = table.plural.lower()
     lead = f"Add unclaimed {label} to the campaign pool."
     count_help = "Choose how many to add to the unclaimed pool, up to 100 at a time."
@@ -527,9 +441,7 @@ def _rolling(campaign, sheet, asked):
 
 
 def _starting(sheet, gang_id, asked):
-    """The starting roll ``?starting=`` asks for: one gang in the
-    campaign, and an asset type of which it holds a rolled table.
-    Anything else is a page without the panel."""
+    """Resolve ?starting= to an active gang and an asset type it can roll for."""
     from django.urls import reverse
 
     from n26.library.territory_table import TERRITORY
@@ -540,8 +452,6 @@ def _starting(sheet, gang_id, asked):
     roll = next((r for r in line.starting_rolls if r.asset_type_id == asked), None)
     if roll is None:
         return None
-    # The type's own word, off the sheet's columns rather than peeled off
-    # the control's wording, so a change to the button cannot reach here.
     column = next(
         column for column in sheet.asset_types if column.asset_type_id == asked
     )
@@ -570,8 +480,7 @@ def _starting(sheet, gang_id, asked):
 
 
 def _island_field(bound):
-    """A form field as a roll island's props: its words, its value as
-    text and its errors."""
+    """Serialise a roll form field with its label, value, help and errors."""
     value = bound.value()
     return {
         "label": bound.label,
@@ -584,16 +493,10 @@ def _island_field(bound):
 def _roll_context(
     campaign, rolling, starting, form=None, *, redrawn=True, cancel_url=""
 ):
-    """What the roll dialogs template draws from: the open question, its
-    form, and which table its cards show as chosen.
+    """Build roll-dialog props from a fresh or refused form.
 
-    ``form`` is the bound form carrying a refusal, for a dialog drawn
-    again; without one the form is fresh, over the tables the dialog
-    offers. The chosen table is the one the form was posted with, or the
-    first offered — decided here rather than in the template, which
-    cannot compare two values inside a component's attribute. A posted
-    value that is not one of the tables offered falls back to the first,
-    so the cards still show one chosen and the script reads a known id.
+    An invalid table selection falls back to the first offered table so the
+    picker always names an available table.
     """
     from n26.core.forms import PoolRollForm, RollAssetForm
     from n26.library.models import AssetTable
@@ -659,7 +562,7 @@ def _roll_context(
                 bands = by_table[table.table_id]
                 if not bands:
                     continue
-                # Count only the assets allocation can reach with this table's die.
+                # Count only assets reachable by the selected table's die.
                 reachable = {
                     entry.asset_id
                     for roll in Dice.rolls(table.dice)
@@ -698,15 +601,13 @@ def _roll_context(
         "form": form,
         "redrawn": redrawn,
         "cancel_url": cancel_url or _campaign_page(campaign),
-        # A dialog drawn again after a refusal replaces one still open.
+        # Replace the refused dialog while keeping it open.
         "reopened": redrawn and form is not None and form.is_bound,
     }
 
 
 def _roll_dialog(request, campaign, rolling, starting, form, *, cancel_url=""):
-    """A refused roll's dialog on its own, in its host, for a page that is
-    not rebuilt: drawn open again with the refusal inside it. ``form`` is
-    the bound form carrying the refusal."""
+    """Return an open roll dialog carrying the bound form and its refusal."""
     return render(
         request,
         "n26/includes/campaign_roll_dialogs.html",
@@ -715,13 +616,11 @@ def _roll_dialog(request, campaign, rolling, starting, form, *, cancel_url=""):
 
 
 def _campaign_update(request, campaign):
-    """What a roll changed on the campaign page, delivered out of band:
-    the figures, the gangs table, the assets section and the log, each
-    redrawn whole from a fresh sheet, plus the dialog host emptied so the
-    panel closes. Whole sections rather than a row, because what a roll
-    adds is a new line, and no partial update can put one where there
-    was none. The address keeps the table’s sorting and grouping, and the
-    queued message rides along as a toast."""
+    """Redraw campaign sections and close the dialog after a roll.
+
+    Keep table sorting and grouping in the URL and deliver queued messages
+    as toasts.
+    """
     from n26.core.render import render_campaign
     from n26.core.views.htmx import with_toasts
 
@@ -745,20 +644,15 @@ def _campaign_update(request, campaign):
 
 @login_required
 def roll_asset(request, pk):
-    """Roll from one of the campaign's tables to add an unclaimed asset:
-    the act behind the ``?roll=`` dialog.
+    """Roll campaign-held tables to add unclaimed assets.
 
-    The tables accepted are the rolled ones the campaign itself holds of
-    the asset type named, the same list the dialog offered. A refusal in
-    words is drawn into the dialog; a roll that happens updates the page
-    in place over htmx, and serves the plain campaign page without it.
-    GET reopens the dialog instead of acting.
+    HTMX receives a dialog refusal or updated sections; ordinary requests
+    redirect to the campaign page.
     """
     from n26.core.campaigns import campaign_operation, tables_in_play
     from n26.core.forms import PoolRollForm
     from n26.core.operations import Refusal
 
-    # Acts and leaves, or draws a dialog that names nobody.
     found = _own_campaign_or_404(request, pk, with_owner_badge=False)
     asked = request.POST.get("type", "") or request.GET.get("type", "")
     asset_type = _asset_type_asked_for(found, asked)
@@ -809,9 +703,7 @@ def roll_asset(request, pk):
 
 
 def _back_to_the_page(request, again):
-    """Leave a roll dialog for the page itself: a plain redirect, or over
-    htmx — where a redirect's body would be swallowed by ``hx-swap="none"``
-    and nothing would move — an ``HX-Redirect`` the browser follows."""
+    """Redirect normally or use HX-Redirect when hx-swap="none" would discard it."""
     from n26.core.views.htmx import is_htmx
 
     if not is_htmx(request):
@@ -822,12 +714,11 @@ def _back_to_the_page(request, again):
 
 
 def _roll_refused(request, campaign, form, again, question):
-    """A roll that did not happen — the form did not hold up, or the
-    operation refused it in words. Over htmx the dialog is drawn back
-    into its host, open, with the reason inside it, and nothing else on
-    the page moves; without htmx the reason is queued and the page with
-    the dialog open is served again. ``question`` builds the dialog's
-    facts from a fresh sheet."""
+    """Redisplay a refused roll against a fresh sheet.
+
+    HTMX replaces the dialog only; ordinary requests queue the error and
+    redirect to the page with the dialog open.
+    """
     from n26.core.campaign_table import prepare_gang_table
     from n26.core.render import render_campaign
     from n26.core.views.htmx import is_htmx
@@ -835,13 +726,11 @@ def _roll_refused(request, campaign, form, again, question):
     if not is_htmx(request):
         messages.error(request, _first_error(form))
         return redirect(again)
-    # A dialog names no gang's owner.
     sheet = render_campaign(campaign, viewer=request.user, with_owner_badges=False)
     prepare_gang_table(sheet, request, _campaign_page(campaign))
     asked = question(sheet)
     if asked is None:
-        # The dialog no longer has anything to offer — the table was
-        # withdrawn since it was drawn. The page is the only answer.
+        # The table was withdrawn, so return to the page instead.
         response = HttpResponse(status=204)
         response["HX-Redirect"] = _campaign_page(campaign)
         return response
@@ -855,9 +744,7 @@ def _roll_refused(request, campaign, form, again, question):
 
 
 def _roll_made(request, campaign):
-    """A roll that happened. Over htmx the page is updated in place and
-    the message shows as a toast; without htmx the plain campaign page
-    is served, with no anchor, so the message at its top is seen."""
+    """Update the campaign over HTMX or redirect to show the queued message."""
     from n26.core.views.htmx import is_htmx
 
     if is_htmx(request):
@@ -867,14 +754,7 @@ def _roll_made(request, campaign):
 
 @login_required
 def roll_starting_asset(request, pk, gang_pk):
-    """Roll one gang's starting asset from a table it holds: the act
-    behind the ``?starting=`` dialog.
-
-    The tables accepted are the rolled ones that gang holds of the asset
-    type named — stored or granted, the same list the dialog offered. The
-    asset lands assigned to the gang, and the gangs table redrawn names it
-    on the gang's line.
-    """
+    """Roll a gang-held table and assign its starting asset to that gang."""
     from django.core.exceptions import ValidationError
     from django.http import Http404
 
@@ -888,9 +768,7 @@ def roll_starting_asset(request, pk, gang_pk):
     from n26.core.operations import Refusal
     from n26.library.models import AssetTable
 
-    # Acts and leaves, or draws a dialog that names nobody.
     found = _own_campaign_or_404(request, pk, with_owner_badge=False)
-    # A key that is not a key at all is a bad link, not a server error.
     try:
         membership = (
             CampaignMembership.objects.filter(
@@ -960,14 +838,9 @@ def _campaign_page(campaign):
 
 
 def _badge_a_redrawn_page(request, campaign):
-    """A POST that did not act draws its page again, and every page under a
-    campaign names the arbitrator in its trail with the badge they hold.
+    """Load the arbitrator badge when a POST must redisplay its page.
 
-    The fetch reads their grants only where the request is a GET, since a
-    POST that acts leaves without drawing anybody. So a redraw reads them
-    here: ahead of the drawing, rather than during it, where it would be a
-    query in the middle of a template. A GET has them already and this
-    costs nothing.
+    GET lookups already include it; successful POSTs redirect without it.
     """
     from n26.core.render import load_owner_badges
 
@@ -976,9 +849,7 @@ def _badge_a_redrawn_page(request, campaign):
 
 
 def _first_error(form):
-    """The first thing wrong with a dialog's form, as the one sentence a
-    message can carry: the dialog is drawn again and the reader tries
-    once more."""
+    """Return the first form error for a queued message."""
     for errors in form.errors.values():
         for error in errors:
             return str(error)
@@ -987,18 +858,10 @@ def _first_error(form):
 
 @login_required
 def campaign_log(request, pk):
-    """The whole of a campaign's log, newest first, a screenful at a time.
+    """Filter and page complete campaign acts, newest first.
 
-    The campaign's own page cuts its log to the most recent acts; this is
-    where the rest are read. It opens for whoever the campaign's page opens
-    for — the arbitrator and the people they sent the address to — because
-    the log is the same story the page tells, told in full. Nothing here
-    changes anything. Accepted players and the arbitrator can open the
-    dice recording page from here.
-
-    Paged, because a campaign played for a year has more acts than one
-    page wants, and every act is built before the page is cut: acts fold
-    what rode with them, so they cannot be counted or cut by row.
+    Build acts before paging because one act may combine several ledger rows.
+    Only the displayed page needs actor badge data.
     """
     from n26.core.campaign_permissions import may_record_campaign
     from n26.core.history import campaign_history, load_actor_badges
@@ -1009,12 +872,11 @@ def campaign_log(request, pk):
     acts = campaign_history(found, viewer=request.user)
     total = len(acts)
     filters, acts, narrowed = filter_campaign_acts(request, acts)
-    # Newest first before paging, so page one is the latest screenful
-    # rather than the founding.
+    # Sort newest first before paging.
     page = Paginator(list(reversed(acts)), LOG_PER_PAGE).get_page(
         request.GET.get("page")
     )
-    # The badges of the people this page names, and no other page's.
+    # Load actor badges only for the displayed page.
     load_actor_badges(page.object_list)
 
     return render(
@@ -1035,19 +897,11 @@ def campaign_log(request, pk):
 
 @login_required
 def scenario_generator(request, pk):
-    """The scenario generator for a campaign: for each scenario table, roll
-    a D6, leave it out, or use a named entry, then see the scenario.
+    """Generate a scenario with its complete state in the query string.
 
-    It opens for whoever the campaign's page opens for, because players
-    set up a scenario before their battle, not only the arbitrator.
-    Nothing here is saved. Whoever may record battles can save the result
-    to the log or take it to Record a battle.
-
-    The whole state is in the query string. Generate scenario
-    (``?generate``) rolls once and redirects to an address holding the
-    result, under each table's key, and any pick that is not a roll, so
-    a reload or a shared link shows the same scenario, and generating
-    again keeps the picks and rolls afresh.
+    Generation redirects to fixed rolls and preserves explicit picks, making
+    results reloadable and shareable. Readers with recording permission can
+    save the scenario or use it for a battle.
     """
     from urllib.parse import urlencode
 
@@ -1098,7 +952,7 @@ def scenario_generator(request, pk):
             "reroll_links": reroll_links,
             "record_href": record_href,
             "save_href": save_href,
-            # Print saves nothing, so whoever can read the campaign gets it.
+            # Printing requires read access rather than recording permission.
             "print_url": (
                 f"{reverse('n26-campaign-scenario-print', args=[found.pk])}"
                 f"?{urlencode({**(form.chosen_picks() if valid else {}), **rolls})}"
@@ -1109,12 +963,9 @@ def scenario_generator(request, pk):
 
 @login_required
 def save_scenario(request, pk):
-    """Give a generated scenario a name and save it to the campaign's log.
+    """Save a named scenario to the log for an arbitrator or accepted player.
 
-    The generator's Save to log opens this page with the scenario in the
-    query string; the form carries it as hidden fields. Whoever may record
-    battles may save one. An error shows on the same page with the name
-    and the scenario kept, and anybody else gets a 404.
+    Carry scenario components in hidden fields and preserve them on errors.
     """
     from urllib.parse import urlencode
 
