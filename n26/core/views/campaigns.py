@@ -1025,7 +1025,7 @@ def save_scenario(request, pk):
 
 @login_required
 def edit_campaign(request, pk):
-    """The facts an arbitrator may change after setting up."""
+    """Edit campaign settings, custom asset types, counters and labels."""
     from django.db.models import Q
     from django.urls import reverse
 
@@ -1123,8 +1123,7 @@ def edit_campaign(request, pk):
                 item = {"name": member.slot.choice_label}
                 labels.append(item)
                 thing, route = member.slot, "n26-campaign-archive-label"
-            # Only what the arbitrator added can be archived here; what the
-            # shared type gives is named once, under the lists.
+            # Archive only campaign additions; shared definitions remain read-only.
             if (
                 member.default_set_id == found.additions.built_ins_id
                 and thing.pack_id == found.pack_id
@@ -1196,15 +1195,7 @@ def edit_campaign(request, pk):
 
 @login_required
 def archive_campaign(request, pk):
-    """The question at its own address, then the act.
-
-    GET asks and changes nothing; the POST from that page archives. Archiving
-    is the whole of it, and the word the screen uses: the campaign stops
-    being listed and its pages stop opening, because every reader here asks
-    for live campaigns only. Nothing is destroyed, so nothing here says
-    "delete" — what a campaign recorded stays true whether or not it is
-    still on show.
-    """
+    """Confirm on GET and archive on POST, preserving the campaign records."""
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.campaigns import campaign_operation
 
@@ -1222,17 +1213,9 @@ def archive_campaign(request, pk):
 
 
 def _addable_gangs(campaign, reader, arbitrating):
-    """The gangs this reader may put into this campaign, newest first.
+    """Offer active gangs owned by the reader, or by accepted players to an arbitrator.
 
-    The arbitrator draws on everybody at the table — the people who have
-    accepted a place, and themselves — because a campaign's gangs come
-    from its players and asking for an address is asking somebody to
-    fetch one. A player draws on their own and nobody else's.
-
-    Ordered by the last thing that happened to each, which is the ledger's
-    to answer: the gang somebody is picking is nearly always the one they
-    were last working on. A gang nothing has happened to yet sorts last
-    rather than first, where a null would put it.
+    Order by each gang's latest ledger event, with untouched gangs last.
     """
     from django.db.models import Exists, F, OuterRef, Subquery
 
@@ -1257,10 +1240,8 @@ def _addable_gangs(campaign, reader, arbitrating):
         Gang.objects.filter(owner_id__in=owners, archived=False)
         .select_related("owner", "stash")
         .annotate(
-            # The newest event of this gang's own, read one at a time rather
-            # than aggregated: a Max over the join groups every event
-            # belonging to every gang on the page to produce one sort key
-            # each, where this seeks the gang's own newest and stops.
+            # A correlated subquery reads one latest event per gang without grouping
+            # all joined events.
             last_touched=Subquery(
                 LedgerEvent.objects.filter(gang=OuterRef("pk"))
                 .order_by("-created")
@@ -1278,15 +1259,10 @@ def _addable_gangs(campaign, reader, arbitrating):
 
 @login_required
 def add_gang(request, pk):
-    """Put a gang into this campaign, chosen from the ones at its table.
+    """Add a gang selected from the reader's permitted owners.
 
-    The arbitrator sees every gang belonging to somebody who has accepted
-    a place, and their own; a player sees their own. Both pick from a list
-    rather than naming an address, and the same list decides what the POST
-    will accept — a gang the screen would not offer is not one it takes.
-
-    Nothing about the gang changes but where it plays, and the gang's own
-    history says it happened and who did it.
+    Validate POST against the same list shown by the picker. The operation
+    adds campaign grants and records the membership change.
     """
     from django.http import Http404
 
@@ -1313,10 +1289,6 @@ def add_gang(request, pk):
                 messages.error(request, str(refused))
             else:
                 messages.success(request, f"{gang.name} joined {found.name}.")
-                # Said after the fact, because the budget stops nobody. The
-                # sum is spelled out: a reader comparing this against their
-                # gang sheet should not have to work out which figures it
-                # added together.
                 gang.refresh_from_db()
                 if gang.credits_unlimited:
                     messages.warning(
@@ -1338,13 +1310,10 @@ def add_gang(request, pk):
         form = BringGangForm(gangs=offering)
     _badge_a_redrawn_page(request, found)
 
-    # Drawn here rather than in the template, which cannot ask a gang what
-    # it is worth without a query per row.
+    # Render gang wealth in bulk to avoid a query per picker row.
     drawn = offering
     if arbitrating:
-        # The arbitrator's rows name each gang's owner with their badge,
-        # which reads their profile and their grants: with the rows, never
-        # once per row.
+        # Preload owner badge data for the arbitrator's gang picker.
         drawn = offering.select_related("owner__profile").prefetch_related(
             "owner__badge_grants"
         )
@@ -1358,20 +1327,14 @@ def add_gang(request, pk):
             if row.credits_unlimited and row.owner_id == request.user.pk
             else "",
             "owner": row.owner.username,
-            # The person behind the name the arbitrator's rows draw. Which
-            # badge follows it is the platform's to decide from the person,
-            # so the name alone will not do.
             "owned_by": row.owner,
             "wealth": row.wealth,
-            # The arbitrator's rows draw the owner, so a search that did not
-            # reach it would find nothing for a name the reader can see.
+            # Search owner names because they are visible in the arbitrator's picker.
             "search": f"{row.name} {row.owner.username}".lower(),
             "playing": row.playing_now,
         }
         for row in drawn
     ]
-    # Only where there is somebody to tell apart: a list of one person's
-    # gangs is not narrowed by asking which person.
     players = sorted({row["owner"] for row in gangs})
     badges = {}
     picker = {
@@ -1392,12 +1355,11 @@ def add_gang(request, pk):
             }
             for row in gangs
         ],
-        # Each badge's artwork once, however many rows its holder has.
+        # Deduplicate badge artwork across gangs with the same owner.
         "badges": badges,
         "playerOptions": [{"value": name, "label": name} for name in players]
         if len(players) > 1
         else [],
-        # The ends of the wealth filter, which are also its off positions.
         "wealthCeiling": max((row["wealth"] for row in gangs), default=0),
     }
     return render(
@@ -1416,19 +1378,9 @@ def add_gang(request, pk):
 
 @login_required
 def remove_gang(request, pk, gang_pk):
-    """The question at its own address, then the act.
+    """Confirm and remove a gang, showing campaign grants and holdings it loses.
 
-    A gang that joins is given the campaign's types and everything they
-    bring, so taking it out gives all of it back — the carriers, the
-    Settlement, the counters, the label picks, every asset the gang holds
-    (``CampaignOperation.remove_gang``). The page lists what goes, read
-    off the gangs table's own line for the gang, so the reader sees the
-    same facts the campaign page shows.
-
-    The arbitrator may take out any gang; a gang's owner may take out
-    their own. Anybody else is told there is nothing here, as is a reader
-    asking after a gang not playing this campaign. A gang key that is not
-    a key at all is a bad link, not a server error.
+    The arbitrator may remove any active gang; its owner may remove their own.
     """
     from django.core.exceptions import ValidationError
     from django.http import Http404
@@ -1460,7 +1412,7 @@ def remove_gang(request, pk, gang_pk):
             messages.error(request, f"{gang.name} is not in {found.name}.")
         else:
             messages.success(request, f"Removed {gang.name} from {found.name}.")
-        # The top of the page, not the gangs table, so the message is in view.
+        # Return to the page top so the queued message is visible.
         return redirect(back)
 
     losing, returning = _what_the_gang_loses(found, gang)
@@ -1478,21 +1430,13 @@ def remove_gang(request, pk, gang_pk):
 
 
 def may_remove_gang(campaign, gang, user):
-    """Whether this reader may take this gang out of this campaign: the
-    campaign's arbitrator, or the gang's owner."""
+    """Allow the campaign arbitrator or the gang owner to remove the gang."""
     reading = getattr(user, "id", None)
     return reading is not None and reading in (campaign.owner_id, gang.owner_id)
 
 
 def _what_the_gang_loses(campaign, gang):
-    """What taking the gang out removes from it, and which of the
-    campaign's assets it holds go back unheld.
-
-    Read off the gangs table's line for the gang, so the page lists the
-    same facts the campaign page shows: each counter with its value, each
-    label with its pick, each possession. Empty values are left out,
-    since nothing is lost there.
-    """
+    """Read lost grants and returned holdings from the gang's campaign-sheet row."""
     from n26.core.render import render_campaign
 
     sheet = render_campaign(campaign, with_owner_badges=False)
@@ -1501,7 +1445,7 @@ def _what_the_gang_loses(campaign, gang):
 
 
 def _what_the_line_loses(sheet, line):
-    """``_what_the_gang_loses`` for a line of a sheet already rendered."""
+    """Extract lost grants and returned holdings from an existing sheet row."""
     losing = []
     returning = []
     for column, names in zip(sheet.asset_types, line.assets, strict=True):
@@ -1517,7 +1461,7 @@ def _what_the_line_loses(sheet, line):
 
 
 def _playing(campaign):
-    """The gangs currently in this campaign, for a picker to offer."""
+    """Offer the campaign's active gangs, ordered by name."""
     from n26.core.models import Gang
 
     return Gang.objects.filter(
@@ -1528,13 +1472,9 @@ def _playing(campaign):
 
 @login_required
 def add_battle(request, pk):
-    """Add a battle before it is fought; its outcome is recorded by editing it.
+    """Create a battle and preserve supplied scenario components.
 
-    The generator's Record a battle opens this page with the scenario's
-    rolls in the query string. They ride the form as hidden fields, are
-    summarised under the scenario's name, and are saved with the battle.
-    The name is left for the reader to give. Invalid components stay in
-    the hidden fields so submitting cannot silently discard them.
+    Keep invalid components in the form so submission cannot silently drop them.
     """
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import BattleForm
@@ -1585,7 +1525,7 @@ def add_battle(request, pk):
 
 @login_required
 def remove_battle(request, pk, battle_pk):
-    """The question at its own address, then the act."""
+    """Confirm on GET and remove the battle at the submitted revision on POST."""
     from n26.core.campaigns import campaign_operation
     from n26.core.operations import Refusal
     from n26.core.views.battles import battle_or_404
@@ -2969,11 +2909,7 @@ def remove_table_entry(request, pk, table_pk, entry_pk):
 
 
 def invitations_for(user):
-    """The campaigns this reader has been asked into and not yet answered.
-
-    Drawn on the campaigns list and the home page's campaigns tab, because an
-    invitation nobody sees is an invitation nobody answers.
-    """
+    """Return unanswered invitations to active campaigns with arbitrator badge data."""
     from n26.core.models import CampaignParticipant
 
     if not user.is_authenticated:
@@ -2984,8 +2920,7 @@ def invitations_for(user):
             state=CampaignParticipant.State.INVITED,
             campaign__archived=False,
         )
-        # Each invitation names its arbitrator with the badge they hold,
-        # which reads their profile and their grants.
+        # Preload arbitrator profile and grants for invitation badges.
         .select_related(
             "campaign", "campaign__owner", "campaign__owner__profile", "invited_by"
         )
@@ -2995,13 +2930,7 @@ def invitations_for(user):
 
 
 def _person(value):
-    """The active account with this id, or None.
-
-    Ids arrive from forms and addresses, where anything can be typed. A
-    primary key column refuses a value it cannot parse by raising, so asking
-    for one straight from a request is a way to answer a stray character with
-    a server error.
-    """
+    """Return an active account for a numeric id, or None for invalid input."""
     from django.contrib.auth.models import User
 
     try:
@@ -3011,12 +2940,9 @@ def _person(value):
 
 
 def _plays_in(campaign, user):
-    """Whether this reader has a place at this campaign's table.
+    """Check accepted participation, excluding pending or declined invitations.
 
-    Accepted and nothing else: an invitation still waiting has not been
-    answered, and a declined one is over. Somebody who arbitrates the
-    campaign is not a player in it, so callers asking "may this reader act
-    here" have to ask both questions.
+    Arbitrators are authorised separately from this player check.
     """
     from n26.core.models import CampaignParticipant
 
@@ -3030,13 +2956,12 @@ def _plays_in(campaign, user):
 
 
 def _players(campaign):
-    """Everybody asked into this campaign, and what they said."""
+    """Load campaign participants and their states with user badge data."""
     from n26.core.models import CampaignParticipant
 
     return (
         CampaignParticipant.objects.filter(campaign=campaign)
-        # Each player is drawn with the badge they hold, which reads their
-        # profile and their grants.
+        # Preload profile and grants for participant badges.
         .select_related("user", "user__profile")
         .prefetch_related("user__badge_grants")
         .order_by("user__username")
@@ -3045,20 +2970,15 @@ def _players(campaign):
 
 @login_required
 def add_player(request, pk):
-    """Find somebody by name, and ask them into the campaign.
+    """Search active accounts and invite a selected person.
 
-    The search is an ordinary ``?q=`` form, so the page works typed and
-    submitted with no scripting; htmx makes the same request as you type and
-    swaps the results in. Which person is being asked rides the address too,
-    so the message dialog is a state the server draws rather than something
-    the browser opens: a reload lands back on the same question.
+    Keep search and the selected invitation dialog in the URL for reloads.
     """
     from django.contrib.auth.models import User
 
     from n26.core.campaigns import campaign_operation
     from n26.core.operations import Refusal
 
-    # The trail names the arbitrator with their badge; a POST redirects.
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     query = request.GET.get("q", "").strip()
 
@@ -3077,21 +2997,19 @@ def add_player(request, pk):
         return redirect("n26-campaign-add-player", pk=found.pk)
 
     players = list(_players(found))
-    # Already asked, so the search offers them as asked rather than again.
+    # Mark existing participants in the search results.
     asked_already = {player.user_id for player in players}
     people = []
     if query:
         people = list(
             User.objects.filter(username__icontains=query, is_active=True)
             .exclude(pk=found.owner_id)
-            # Each person found is named with the badge they hold, which
-            # reads their profile and their grants.
+            # Preload profile and grants for search-result badges.
             .select_related("profile")
             .prefetch_related("badge_grants")
             .order_by("username")[:PEOPLE_FOUND]
         )
 
-    # Which person the message box is being written for, from the address.
     asking = _person(request.GET.get("invite")) if request.GET.get("invite") else None
 
     return render(
@@ -3110,15 +3028,14 @@ def add_player(request, pk):
 
 @login_required
 def remove_player(request, pk, user_pk):
-    """The question at its own address, then the act."""
+    """Confirm removal of a player, optionally removing their gangs too."""
     from n26.core.campaigns import campaign_operation
     from n26.core.models import CampaignParticipant
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     players = CampaignParticipant.objects.select_related("user")
     if request.method != "POST":
-        # The question names the player with their badge, which reads
-        # their profile and their grants; the act names nobody.
+        # Load player badges only for the confirmation page.
         players = players.select_related("user__profile").prefetch_related(
             "user__badge_grants"
         )
@@ -3126,8 +3043,7 @@ def remove_player(request, pk, user_pk):
 
     if request.method == "POST":
         name = player.user.username
-        # Their gangs stay unless the arbitrator chose to remove them. A
-        # player with no gangs is offered no choice and posts none.
+        # Remove gangs only when explicitly requested.
         with_gangs = request.POST.get("gangs") == "remove"
         with campaign_operation(found, actor=request.user) as act:
             removed = act.remove_player(player, with_gangs=with_gangs)
@@ -3155,13 +3071,10 @@ def remove_player(request, pk, user_pk):
 
 @login_required
 def leave_campaign(request, pk):
-    """The question at its own address, then the act.
+    """Confirm an accepted player's departure and remove their active gangs.
 
-    Only an accepted player may leave. The arbitrator is never one, and
-    anybody else is told there is nothing here. Leaving takes every gang
-    of theirs out as removing it would (``CampaignOperation.leave``), so
-    the page lists what each gang loses, gang by gang, and the battles of
-    theirs that are still unfinished. Leaving does not wait for those.
+    Preview each gang's losses and unfinished battles; unfinished work does not
+    block departure.
     """
     from django.http import Http404
 
@@ -3183,12 +3096,10 @@ def leave_campaign(request, pk):
             messages.success(request, f"You and your {gangs} left {found.name}.")
         else:
             messages.success(request, f"You left {found.name}.")
-        # The top of the page, not the gangs table, so the message is in view.
+        # Return to the page top so the queued message is visible.
         return redirect(back)
 
     sheet = render_campaign(found, with_owner_badges=False)
-    # The player's gangs are read off the sheet, so every gang listed has a
-    # line to read its losses from.
     lines = [
         line
         for line in sheet.gangs
@@ -3212,7 +3123,7 @@ def leave_campaign(request, pk):
 
 
 def _gangs_of(campaign, user):
-    """The gangs this person owns that are playing this campaign, by name."""
+    """List a player's active gangs in this campaign, ordered by name."""
     from n26.core.models import Gang
 
     return Gang.objects.filter(
@@ -3224,8 +3135,7 @@ def _gangs_of(campaign, user):
 
 @dataclass(frozen=True)
 class GangLosses:
-    """One gang on the leave page: what it loses, and which assets it
-    holds go back to the campaign. Each list is (column, value) pairs."""
+    """One departing gang's lost grants and returned holdings, as (column, value) pairs."""
 
     name: str
     losing: list
@@ -3234,20 +3144,14 @@ class GangLosses:
 
 @dataclass(frozen=True)
 class UnfinishedBattle:
-    """A battle the leave page points at: what to call it, and where to go."""
+    """A label and URL for unfinished work on the leave page."""
 
     label: str
     href: str
 
 
 def _unfinished_battles(campaign, gang_ids):
-    """The leaving player's post-battle reports still in draft, and the
-    battles their gangs fought that have no result yet.
-
-    Drafts stay the owner's to finish once they have left. A battle's
-    result is the arbitrator's to record. Gangs taken out earlier are not
-    listed: leaving changes nothing about them.
-    """
+    """List draft reports and unrecorded battles involving the departing gangs."""
     from n26.core.models import Battle, PostBattleReport
 
     if not gang_ids:
@@ -3282,12 +3186,9 @@ def _unfinished_battles(campaign, gang_ids):
 
 @login_required
 def answer_invitation(request, pk):
-    """Accept or decline an invitation, as the person who was asked.
+    """Accept or decline the signed-in reader's own campaign invitation.
 
-    Not owner-scoped, and deliberately: the one page in this feature acted on
-    by somebody who does not own the campaign. What stands in for ownership
-    is the invitation itself — no invitation, no answer, and the address says
-    nothing about a campaign the reader was never asked into.
+    Read its stored state under the campaign lock before choosing the response.
     """
     from django.core.exceptions import ValidationError
     from django.http import Http404
@@ -3300,8 +3201,6 @@ def answer_invitation(request, pk):
     if request.method != "POST":
         return redirect("n26-campaigns")
 
-    # A malformed address is a 404, not a server error: the key column
-    # refuses what it cannot parse by raising, and anybody may type anything.
     try:
         player = get_object_or_404(
             CampaignParticipant.objects.select_related("campaign"),
@@ -3322,8 +3221,7 @@ def answer_invitation(request, pk):
     accepted = answer == "accept"
     with campaign_operation(campaign, actor=request.user) as act:
         answered = act.answer_invitation(request.user, accepted)
-        # Read the stored result while the campaign lock still excludes
-        # removal. A stale form may refer to an invitation already withdrawn.
+        # Read invitation state while the campaign lock prevents concurrent removal.
         state = (
             CampaignParticipant.objects.filter(pk=player.pk)
             .values_list("state", flat=True)
