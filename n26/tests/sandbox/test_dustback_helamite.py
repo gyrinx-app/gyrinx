@@ -1,31 +1,7 @@
-"""A Dustback Helamite: wargear that brings its own weapon.
-
-"A Dustback Helamite is equipped with Helamite claws, which gain the
-Additional Attacks (1) trait." The Helamite is a piece of wargear, the
-claws are a weapon, and the trait is a modifier the wargear carries.
-
-There are two ways to bring the claws, and this file states both.
-
-As the wargear's **built-ins**: free kit, materialised when the wargear
-is bought and caused by it. What free kit is supposed to mean is no
-rating, no ledger entry, no sale, and gone when the thing that brought it
-goes; ``TestTheClawsArriveAsFreeKit`` states each separately, because
-they are not all true of a built-in.
-
-As a **grant** — a modifier on the wargear whose effect adds the claws.
-Nothing is bought, so there is no row: the weapon and its profiles
-are worked out afresh on every read and written nowhere.
-``TestTheGrantedClawsAreFreeKit`` states the same four properties of this
-route, where all four hold, and ``TestWhatTheTwoRoutesDiffer`` says what
-a reader gains and loses by choosing one.
-
-The trait half is the same either way. The modifier names the claws
-outright: nothing else the fighter carries answers to "Helamite claws",
-and no fact about the claws — a trait, a category — picks them out
-without also describing weapons the Helamite never brought.
-``TestNoScopeNamesTheseClaws`` shows what the other scopes do with this
-rule; ``TestNamingTheClawsOutright`` is the expression the rule wants,
-and ``TestTheWholeRuleAsTwoModifiers`` puts both halves on one wargear.
+"""Compare materialised built-in claws with a computed weapon grant from Dustback Helamite
+wargear. Both add no separate rating and disappear with their source; only materialised
+claws have assignments and ledger entries. Trait modifiers must target the named claws
+after the grant has computed.
 """
 
 import pytest
@@ -111,7 +87,7 @@ def additional_attacks(default_pack):
 
 @pytest.fixture
 def helamite(claws):
-    """The wargear, and the weapon it always comes with."""
+    """Wargear with claws as a materialised built-in."""
     beast = create_wargear("Dustback Helamite", price=45)
     add_built_in(beast, claws)
     return beast
@@ -119,7 +95,7 @@ def helamite(claws):
 
 @pytest.fixture
 def granting_helamite(claws):
-    """The same beast, bringing its claws by modifier instead."""
+    """Wargear granting computed claws through a modifier."""
     beast = create_wargear("Dustback Helamite", price=45)
     modifier(
         "A Dustback Helamite is equipped with Helamite claws",
@@ -132,7 +108,7 @@ def granting_helamite(claws):
 
 @pytest.fixture
 def autogun(weapon_statline_type):
-    """Something else the fighter carries — what a scope must not reach."""
+    """An unrelated weapon that the claw modifier must not affect."""
     weapon = create_weapon("Autogun", profiles=[("", 0)])
     weapon.statline_type = weapon_statline_type
     weapon.save()
@@ -152,7 +128,7 @@ def fighter(gang, make_profile):
 
 
 def claws_row(fighter, claws):
-    """The granted weapon's own assignment."""
+    """Find the materialised claw assignment."""
     return next(
         assignment
         for assignment in fighter.assignments.all()
@@ -172,12 +148,8 @@ def traits_on(card, weapon_name):
 
 
 class TestTheClawsArriveAsFreeKit:
-    """Buying the Helamite brings the claws with it, free.
-
-    Free kit means the gang is no richer or poorer for having it: it adds
-    nothing to what the gang is worth, cost nothing, cannot be turned
-    back into money, and lasts exactly as long as the thing that brought
-    it.
+    """Built-in claws have zero contribution and are removed with their cause. Their
+    assignments still expose sale controls, covered by the strict expected failure.
     """
 
     @pytest.fixture
@@ -193,10 +165,9 @@ class TestTheClawsArriveAsFreeKit:
         assert claws_row(fighter, claws).rating == 0
 
     def test_the_claws_ledger_entry_records_nothing_spent(self, fighter, bought, claws):
-        """An entry is written, and it says the gang paid nothing for a
-        thing that lists at nothing. Every assignment gets one, which is
-        what lets the ledger be folded back into the entry it belongs to;
-        what makes this one free kit is that all four numbers are zero."""
+        """Materialised built-ins receive a ledger entry with zero paid, list price and
+        discount.
+        """
         entry = LedgerEntry.objects.get(assignment=claws_row(fighter, claws))
         assert (entry.reason, entry.paid, entry.list_price, entry.discount) == (
             "default",
@@ -223,8 +194,7 @@ class TestTheClawsArriveAsFreeKit:
     def test_the_claws_are_offered_for_sale_like_anything_carried(
         self, fighter, bought, claws
     ):
-        """Why the sale is reachable: the controls ask what *kind* of
-        thing this is, and a weapon is gear whoever gave it to you."""
+        """Owned-gear controls include the materialised weapon assignment."""
         held = owned_things(build_card(fighter), "/n26/fighters/x/equip/")
         offered = {thing.name for things in held.values() for thing in things}
         assert "Helamite claws" in offered
@@ -234,15 +204,14 @@ class TestTheClawsArriveAsFreeKit:
         gang.refresh_from_db()
 
         assert card_for(fighter).weapons == []
-        assert gang.rating == 50  # the fighter, and nothing they were lent
+        assert gang.rating == 50  # Fighter contribution only.
         assert_reconciled(gang)
 
 
 class TestNoScopeNamesTheseClaws:
-    """The modifier half. The rule is about *these* claws, and no scope
-    says that: one reaches every weapon the fighter has, one reaches
-    none, and the third gets the right answer by describing the claws
-    rather than naming them."""
+    """Compare broad, attached-weapon and category scopes with the required named-weapon
+    scope.
+    """
 
     @pytest.fixture
     def armed(self, gang, fighter, helamite, autogun):
@@ -260,17 +229,16 @@ class TestNoScopeNamesTheseClaws:
         return _arm
 
     def test_the_unfiltered_scope_arms_the_autogun_too(self, armed):
-        """ "The weapons of whoever carries this" is every weapon they
-        carry — the fighter's own gun included, which is not the rule."""
+        """An unfiltered weapon scope also changes the unrelated Autogun."""
         card = armed(targets_weapons())
 
         assert traits_on(card, "Helamite claws") == ["Additional Attacks (1)"]
         assert traits_on(card, "Autogun") == ["Additional Attacks (1)"]
 
     def test_the_attached_weapon_scope_reaches_nothing(self, armed):
-        """That scope is for a thing bolted *to* a weapon, like a sight.
-        The claws are brought *by* the wargear and sit beside it on the
-        card, so the wargear has nothing hanging off it to find."""
+        """The wargear is not attached to a weapon, so the attached-weapon scope has no
+        target.
+        """
         card = armed(targets_attached_weapon())
 
         assert traits_on(card, "Helamite claws") == []
@@ -279,10 +247,9 @@ class TestNoScopeNamesTheseClaws:
     def test_a_category_narrowing_lands_but_says_the_wrong_thing(
         self, armed, beast_weapons
     ):
-        """Homing the claws in a category of their own does reach them
-        and nothing else. It states a fact about where claws file, though,
-        not about this beast: a second weapon in that category would be
-        armed by a Helamite that never brought it."""
+        """A category happens to isolate the claws here, but would also target any other
+        weapon in that category.
+        """
         card = armed(targets_weapons(in_categories(beast_weapons)))
 
         assert traits_on(card, "Helamite claws") == ["Additional Attacks (1)"]
@@ -290,7 +257,7 @@ class TestNoScopeNamesTheseClaws:
 
 
 class TestNamingTheClawsOutright:
-    """The rule as the book states it: these claws, and nothing else."""
+    """The modifier targets the named Helamite claws without affecting the Autogun."""
 
     @pytest.fixture
     def helamite_rule(self, gang, fighter, helamite, claws, autogun):
@@ -316,8 +283,9 @@ class TestNamingTheClawsOutright:
     def test_selling_the_beast_takes_the_trait_with_the_claws(
         self, gang, helamite_rule, helamite
     ):
-        """The trait is the wargear's to give: nothing about it is stored
-        on the claws, so parting with the beast leaves no trace of it."""
+        """Removing the wargear removes its materialised claws and the modifier supplying
+        their trait.
+        """
         beast_row = next(
             assignment
             for assignment in helamite_rule.assignments.all()
@@ -331,7 +299,7 @@ class TestNamingTheClawsOutright:
 
 
 def beast_row(fighter, beast):
-    """The wargear's own assignment."""
+    """Find the owned Helamite wargear assignment."""
     return next(
         assignment
         for assignment in fighter.assignments.all()
@@ -340,13 +308,8 @@ def beast_row(fighter, beast):
 
 
 class TestTheGrantedClawsAreFreeKit:
-    """The other way to bring the claws: a modifier that adds the weapon.
-
-    Nothing is bought, so nothing is written — and the four things free
-    kit is supposed to mean follow from that rather than having to be
-    arranged. The gang is no richer or poorer for the claws, they are on
-    no ledger, there is nothing to sell, and they last exactly as long as
-    the beast.
+    """Computed claws have no assignment, ledger entry or sale controls and last only while
+    the granting wargear is present.
     """
 
     @pytest.fixture
@@ -359,9 +322,7 @@ class TestTheGrantedClawsAreFreeKit:
         ]
 
     def test_the_claws_draw_their_profile(self, fighter, bought):
-        """A weapon with no statline is a name, and a name is no use at
-        the table. The granted claws print what they do: Strength 4,
-        Armour Piercing -1, at engagement range."""
+        """Computed weapons retain their declared statline."""
         card = card_for(fighter)
         line = next(w for w in card.weapons if w.name == "Helamite claws").own_line
 
@@ -379,24 +340,21 @@ class TestTheGrantedClawsAreFreeKit:
         assert weapon.provenance.computed is True
 
     def test_the_claws_add_no_rating(self, gang, fighter, bought):
-        """The fighter and the beast, and not a credit for the claws."""
+        """Only the fighter and wargear contribute rating."""
         gang.refresh_from_db()
 
         assert gang.rating == 50 + 45
         assert_reconciled(gang)
 
     def test_the_claws_are_on_no_ledger(self, fighter, bought, claws):
-        """There is no row for them at all, so there is nothing for an
-        entry to be about."""
+        """Computed weapons have no assignment or ledger entry."""
         assert not LedgerEntry.objects.filter(assignment__weapon=claws).exists()
         assert not any(
             assignment.weapon_id == claws.pk for assignment in fighter.assignments.all()
         )
 
     def test_the_claws_cannot_be_sold(self, fighter, bought):
-        """The sale controls are drawn from what the model owns, and a
-        granted weapon is not owned: nobody paid for it, so there is
-        nothing to hand back for money."""
+        """Sale controls list stored assignments, excluding computed weapons."""
         held = owned_things(build_card(fighter), "/n26/fighters/x/equip/")
         offered = {thing.name for things in held.values() for thing in things}
 
@@ -409,19 +367,13 @@ class TestTheGrantedClawsAreFreeKit:
         gang.refresh_from_db()
 
         assert card_for(fighter).weapons == []
-        assert gang.rating == 50  # the fighter, and nothing they were lent
+        assert gang.rating == 50  # Fighter contribution only.
         assert_reconciled(gang)
 
 
 class TestTheWholeRuleAsTwoModifiers:
-    """ "A Dustback Helamite is equipped with Helamite claws, which gain
-    the Additional Attacks (1) trait" — the whole sentence, carried by
-    the wargear, as two modifiers: one hands over the weapon, one arms it.
-
-    They run in that order because of what each says, not because of how
-    they were written. Handing over the claws asks nothing of anybody, so
-    it settles first; naming a weapon is a condition, so it is asked
-    afterwards, of a card the claws are already on.
+    """The unconditional weapon grant computes before the conditional named-weapon trait
+    modifier.
     """
 
     @pytest.fixture
@@ -445,8 +397,7 @@ class TestTheWholeRuleAsTwoModifiers:
         assert traits_on(card, "Helamite claws") == ["Additional Attacks (1)"]
 
     def test_the_fighters_own_gun_is_left_alone(self, fighter, bought):
-        """The scope names the claws, so it reaches the claws — the
-        weapon the beast never brought keeps its own printed traits."""
+        """Named targeting leaves the Autogun unchanged."""
         assert traits_on(card_for(fighter), "Autogun") == []
 
     def test_removing_the_beast_takes_the_armed_claws_away(
@@ -460,10 +411,9 @@ class TestTheWholeRuleAsTwoModifiers:
         assert_reconciled(gang)
 
     def test_the_grant_is_asked_before_the_arming(self, fighter, bought):
-        """Which is the whole reason this works. Handing over the claws
-        is unconditional, so it settles in the first round; naming a
-        weapon is a condition, so it is asked in the second, of a card
-        the claws are already on."""
+        """The grant runs in round 0; the conditional named-weapon modifier runs in round
+        1.
+        """
         card = build_card(fighter, with_statlines=True)
         index = build_modifier_index([node.assignable for node in card.all_nodes()])
 
@@ -478,11 +428,9 @@ class TestTheWholeRuleAsTwoModifiers:
     def test_working_the_claws_out_costs_no_queries(
         self, django_assert_num_queries, fighter, bought
     ):
-        """Everything a granted weapon draws — its profiles, their
-        characteristics, the traits printed on them — is fetched before
-        the computing starts, because the computing may not query. A card
-        that reached back to the database here would do it once per
-        granted weapon, on every model, on every page showing a gang."""
+        """Fetch granted profiles, stats and traits before computing so rendering needs no
+        SQL.
+        """
         card = build_card(fighter, with_statlines=True)
         index = build_modifier_index([node.assignable for node in card.all_nodes()])
 
@@ -491,17 +439,8 @@ class TestTheWholeRuleAsTwoModifiers:
 
 
 class TestAnUnfilteredArmingModifierMissesTheClaws:
-    """The trap next door to the rule that works.
-
-    Scopes are asked in rounds by how conditional they are, so that a
-    narrow rule sees what a broad one did. A scope with no conditions is
-    asked in the first round — at the same time as the grant, and
-    therefore before it. So a wargear that hands over a weapon and, in
-    the same breath, says "all my bearer's weapons gain this" arms every
-    weapon except the one it just handed over.
-
-    Naming the weapon is what fixes it, and naming the weapon is what the
-    rule says anyway.
+    """An unconditioned weapon modifier runs in the same round as the grant, before the
+    newly granted claws can be targeted.
     """
 
     @pytest.fixture
@@ -526,27 +465,12 @@ class TestAnUnfilteredArmingModifierMissesTheClaws:
 
 
 class TestWhatTheTwoRoutesDiffer:
-    """Built-in and granted claws look alike on the card and are not the
-    same thing underneath.
-
-    **All four properties of free kit hold on the grant route, and only
-    three on the built-ins route** — because a built-in is a row and a
-    grant is not. A row is what makes a thing sellable, so free kit
-    brought as a built-in can be turned into money it was never worth
-    (the strict xfail above), while free kit brought as a grant has
-    nothing to sell. That is the argument for reaching for a grant when
-    what you mean is "this comes with it and is not the owner's to trade".
-
-    The price of a grant is the same fact read the other way: nothing can
-    be done to it. It cannot be handed to another fighter, it takes no
-    accessories, and it carries no bought ammunition. A weapon a player
-    is meant to own — even one that arrives free — wants the row.
+    """Materialised claws can be moved or sold through their assignment. Computed claws
+    have no writable row for movement, accessories or purchased ammunition.
     """
 
     def test_a_built_in_is_a_row_and_a_grant_is_not(self, fighter, helamite, claws):
-        """A built-in is materialised at purchase, so the fighter holds a
-        real assignment for it — which is what makes it sellable, movable
-        and countable, and what makes taking it away an operation."""
+        """Purchasing materialises built-in claws as a zero-contribution assignment."""
         buy(fighter, thing=helamite, paid=45)
 
         assert claws_row(fighter, claws).rating == 0
@@ -554,9 +478,7 @@ class TestWhatTheTwoRoutesDiffer:
     def test_a_grant_leaves_nothing_to_move_or_sell(
         self, fighter, granting_helamite, claws
     ):
-        """The same claws, granted, exist only while the card is being
-        read. An owner cannot hand them to somebody else or sell them,
-        because there is no row to re-home."""
+        """Computed claws render without creating an assignment."""
         buy(fighter, thing=granting_helamite, paid=45)
 
         assert not any(
@@ -567,10 +489,9 @@ class TestWhatTheTwoRoutesDiffer:
         ]
 
     def test_a_granted_weapon_offers_no_paid_ammo(self, fighter, granting_helamite):
-        """A paid profile is ammunition somebody bought, and nobody
-        bought this: the card draws the profiles that come with the gun and
-        no others, and there is no assignment for an accessory or an ammo
-        type to hang off."""
+        """A computed weapon exposes its default profiles without controls for purchased
+        profiles or accessories.
+        """
         buy(fighter, thing=granting_helamite, paid=45)
         weapon = next(
             w for w in card_for(fighter).weapons if w.name == "Helamite claws"
