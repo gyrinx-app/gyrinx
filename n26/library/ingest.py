@@ -152,32 +152,25 @@ def _unsmart(value):
 
 
 def _norm(name):
-    """The resolution key for a printed name: case, spacing, asterisks —
-    and quote glyphs, because ``Butcher's`` and ``Butcher’s`` are the
-    same name typed by different hands."""
+    """Normalise case, whitespace, trailing slot asterisks and quote glyphs for matching."""
     return _unsmart(re.sub(r"\s+", " ", name.strip().rstrip("*").strip())).lower()
 
 
 def _clean(name):
-    """The stored form: trimmed, asterisks (slot marks) off. Quote glyphs
-    are kept as the sheet wrote them — only resolution folds them."""
+    """Trim and collapse whitespace and remove trailing slot asterisks.
+
+    Preserve quote glyphs in stored names; only matching normalises them.
+    """
     return re.sub(r"\s+", " ", name.strip().rstrip("*").strip())
 
 
 @dataclass(frozen=True)
 class ItemId:
-    """The sheets' own join key, parsed into its four parts.
+    """Identify a catalogue item by name, profile, category and section.
 
-    Every catalogue sheet carries an ``ID`` column printing
-    ``Name (Profile) (Category ← Section)``, and it reproduces exactly
-    from those four columns — which is what makes the sheets joinable
-    without guessing at names. Resolution goes through this, never
-    through the name alone: eight weapons share a printed name across
-    categories (a power fist is Exo kit *and* a Power weapon), so a
-    name is not an identity.
-
-    ``key`` is the resolution form — case, spacing and quote glyphs
-    folded. The parts keep whatever the sheet wrote, for storing.
+    Sheets join through ``Name (Profile) (Category ← Section)``. Names alone
+    are ambiguous across categories. ``key`` normalises case, whitespace and
+    quotes; the component values retain their storage spelling.
     """
 
     name: str
@@ -187,7 +180,7 @@ class ItemId:
 
     @classmethod
     def of(cls, row):
-        """The ID a row *means*, read off its four columns."""
+        """Read the four identity components from a sheet record."""
         return cls(
             name=_clean(row.get("Name") or ""),
             profile=_clean(row.get("Profile") or ""),
@@ -197,7 +190,7 @@ class ItemId:
 
     @property
     def printed(self):
-        """The ID as the sheet prints it — for saying so in a problem."""
+        """Format the sheet's item identifier for problem messages."""
         return f"{self.name} ({self.profile}) ({self.category} ← {self.section})"
 
     @property
@@ -209,19 +202,14 @@ class ItemId:
 
     @property
     def parent(self):
-        """The weapon a named profile hangs on: the same row, unnamed."""
+        """Identify the base weapon by clearing this item's profile name."""
         return ItemId(
             name=self.name, profile="", category=self.category, section=self.section
         )
 
 
 def _name_and_annotation(token):
-    """``"Ammo (5+)"`` → ``("Ammo", "5+")``; ``"Melee"`` → ``("Melee", "")``.
-
-    The authoring layer's rule, borrowed rather than restated: a person
-    typing ``Leash (3")`` into the admin and a sheet cell saying the
-    same must land on the same row (``authoring.split_annotation``).
-    """
+    """Use the authoring API's name parser so typed and imported names match."""
     from n26.library.authoring import split_annotation
 
     return split_annotation(token)
@@ -240,8 +228,10 @@ def _dash_name(name):
 
 
 def _price(cell):
-    """Credits column: a number is a price; ``-`` and blank are 0 —
-    ``-`` means "look to the equipment list" (§5b), tracked separately."""
+    """Read credits as a number, treating blank and ``-`` as zero.
+
+    A dash means equipment-list-only pricing, which is tracked separately.
+    """
     cell = cell.strip()
     return int(cell) if cell.isdigit() else 0
 
@@ -363,7 +353,7 @@ class IngestPlan:
 
 
 def _fold_column(name):
-    """A column heading's matching form: case and spacing set aside."""
+    """Normalise a column heading for case-insensitive, whitespace-insensitive lookup."""
     return re.sub(r"\s+", " ", str(name).strip()).casefold()
 
 
@@ -375,8 +365,7 @@ class Row(dict):
 
     def __init__(self, row):
         super().__init__(row)
-        # Built once per row rather than per lookup: a sheet is tens of
-        # thousands of gets, and a fold on each is the whole read.
+        # Cache normalised headers once per record to avoid repeating work on every lookup.
         self._folded = {
             _fold_column(key): value for key, value in row.items() if key is not None
         }
@@ -388,7 +377,7 @@ class Row(dict):
 
 
 def read_csv(text):
-    """CSV text → rows. The file interface: everything after this is rows."""
+    """Parse CSV text into records used by the planner."""
     return [Row(row) for row in csv.DictReader(io.StringIO(text.strip()))]
 
 
@@ -526,9 +515,7 @@ def _exists(plan, model, **filters):
 
 
 def _plan_category(plan, section, name, source, section_position=0):
-    """A category and the heading above it. ``section_position`` is the
-    order that heading reads in, and applies only where the plan founds
-    it — a heading already in the pack keeps the order it has."""
+    """Plan a category and its section, preserving an existing section's position."""
     key = f"Category:{_norm(section)}:{_norm(name)}"
     if plan.get(key):
         return key
@@ -559,23 +546,16 @@ EQUIPMENT_KINDS = {
     "weapon profile": "WeaponProfile",
 }
 
-#: The kinds that are a name, a home and a price and nothing more. They
-#: differ only in which table they land in, so they are planned by one
-#: branch rather than one apiece.
+#: Content kinds sharing name, category and price planning.
 PLAIN_KINDS = ("Wargear", "WeaponAccessory")
 
 
 def _prices(row):
-    """``Cost`` and ``TP`` → the three priced fields.
+    """Read catalogue price, trade-point price and exclusivity from sheet columns.
 
-    The sheets keep one rule and it is worth stating plainly: a thing is
-    either sold at the Trading Post at a printed price, or it is
-    equipment-list only. ``Cost`` ``-`` and ``TP`` ``E`` always appear
-    together, and the database refuses exclusive-with-a-TP-price, so the
-    pair is written as the single fact it is.
-
-    ``0`` is a real Trade Point price, not a blank — an item free at the
-    post is still offered there.
+    ``Cost`` set to ``-`` and ``TP`` set to ``E`` mean equipment-list-only.
+    Exclusive items cannot also have a trade-point price. Zero is a valid
+    trade-point price and still offers the item at the Trading Post.
     """
     cost = (row.get("Cost") or "").strip()
     trade = (row.get("TP") or "").strip().upper()
@@ -738,10 +718,8 @@ def _plan_weapon_profiles(plan, rows, prices):
         weapon_key = f"Weapon:{ident.parent.key}"
         weapon = plan.get(weapon_key)
         if weapon is None:
-            # Nothing is created either way, so this is said and carried
-            # past rather than blocking an otherwise good upload. (A row
-            # the catalogue types Wargear cannot land here: having a
-            # statline is what makes it a weapon — see _plan_equipment.)
+            # Report unmatched statlines as notes because they create no content.
+            # Wargear with statlines has already been planned as a weapon by _plan_equipment.
             plan.problem(
                 source,
                 f"{ident.printed!r} has a statline, but the equipment "
@@ -811,8 +789,10 @@ def _plan_weapon_profile_row(plan, weapon_key, ident, priced, position, source, 
 
 
 def _statline_values(row, columns):
-    """The stat cells of one sheet row, keyed by sheet column. Blank
-    cells stay unwritten; a printed ``-`` is stored as the dash it is."""
+    """Read characteristic values by sheet column.
+
+    Omit blank cells but preserve an explicit dash.
+    """
     values = {}
     for column, _full in columns:
         cell = _unsmart(row.get(column, "") or "").strip()
@@ -935,9 +915,7 @@ def _plan_profiles(plan, rows):
                 continue
             members.append((resolved, {}))
 
-        # A fighter reaches an equipment list by holding it among its
-        # built-ins, which is why the column lands here rather than
-        # anywhere else: access is a thing the fighter comes with.
+        # Grant equipment-list access through the profile's built-in set.
         buys_at = _clean(row.get(EQUIPMENT_LIST_COLUMN) or "")
         if buys_at:
             listed = _resolve_equipment_list(plan, buys_at)
@@ -1054,14 +1032,10 @@ def _plan_skill_grid(plan, row, profile_key, label, source):
 
 
 def _resolve_item(plan, name):
-    """A name that must already mean something: a planned weapon or
-    wargear, or one in the pack. Returns its key, or None.
+    """Resolve built-in equipment by name from planned or existing content.
 
-    The catalogue is keyed by ID, which carries the category — but a
-    fighter's built-in kit prints a bare name and no category, so this
-    is the one place resolution goes by name alone. A name two catalogue
-    rows share cannot be resolved that way and is refused rather than
-    guessed at.
+    Built-in cells lack categories, so they cannot use the full catalogue ID.
+    Reject ambiguous names and return ``None`` when unresolved.
     """
     from n26.library.models import Wargear, Weapon, WeaponAccessory
 
@@ -1117,13 +1091,7 @@ EQUIPMENT_LIST_COLUMN = "Equipment List"
 
 
 def _collection_name(title):
-    """The collection a ``Title`` names — "Ash Waste Nomads Equipment List".
-
-    The sheet splits the kind (``Collection``) from the name (``Title``);
-    the library holds one row, so the two are put back together. Saying
-    the kind matters: a gang type and its list would otherwise be one
-    word apart in every dropdown.
-    """
+    """Combine a sheet's Collection and Title into the collection's stored name."""
     return f"{_clean(title)} {EQUIPMENT_LIST_COLLECTION}"
 
 
@@ -1243,18 +1211,10 @@ def _override(item, list_price):
 
 
 def _resolve_by_id(plan, ident):
-    """The catalogue row an ID names: planned, or already in the pack.
+    """Resolve planned or existing content from its full catalogue identity.
 
-    A listing that carries a ``Profile`` is offering one profile of a
-    weapon — a grenade type, an ammo — which is its own listable thing;
-    everything else is named directly.
-
-    Against the pack the whole ID is used, category and all, because a
-    printed name is not an identity: matching "Power fist" by name alone
-    would take whichever row came first and could hand a list the wrong
-    weapon at the wrong price. Only where the name turns out to be the
-    pack's alone does it fall back to that, which is what lets a
-    hand-authored item filed under its own category still be found.
+    A non-empty profile identifies a weapon profile. Use name-only fallback
+    only when the pack has one match, allowing hand-authored categorisation.
     """
     from n26.library.models import (
         Wargear,
@@ -1309,13 +1269,10 @@ def _resolve_by_id(plan, ident):
 
 
 def _plan_existing(plan, kind, found, ident):
-    """A row the pack already holds, as a planned "exists" line.
+    """Represent existing content as a resolved plan record.
 
-    It carries what anything reading the plan will ask of it — the
-    qualifier that tells two same-named rows apart, and for a weapon
-    profile the weapon it hangs on, which is how an entry knows whether
-    it is already listed. A key left off here surfaces much later as a
-    missing lookup on somebody else's line.
+    Include its qualifier and, for weapon profiles, its parent weapon so
+    subsequent identity and membership checks have their required fields.
     """
     fields = {
         "price": found.price,
@@ -1383,9 +1340,7 @@ def _plan_restrictions(plan, pending):
 
 
 def _profile_ref(plan, name, gang):
-    """The profile a restriction names — preferring the naming gang's own
-    qualified row (§6a) over another gang's bare one. Planned or already
-    in the pack; None otherwise."""
+    """Resolve a fighter, preferring its gang-qualified profile over an unqualified one."""
     from n26.library.models import Profile
 
     for key in (f"Profile:{_norm(name)}:{_norm(gang)}", f"Profile:{_norm(name)}"):
@@ -1412,14 +1367,10 @@ def _profile_ref(plan, name, gang):
 
 @dataclass(frozen=True)
 class Fields:
-    """What a sheet claims to know about one kind, split three ways.
+    """Partition planned fields by their update semantics.
 
-    ``identity`` is what the lookup matched on, so it agrees by
-    construction and is never a difference. ``updatable`` is what a
-    re-upload may rewrite. ``ignored`` says, deliberately, that a
-    planned field is not a claim about a row the pack already holds —
-    a planning-time hint, or something that only applies where the row
-    is being founded.
+    ``identity`` fields define matching. ``updatable`` fields may change on
+    re-import. ``ignored`` fields are planning hints or creation-only values.
     """
 
     identity: tuple = ()
@@ -1430,15 +1381,8 @@ class Fields:
         return {*self.identity, *self.updatable, *self.ignored}
 
 
-#: What these four spreadsheets are authoritative about, per kind.
-#:
-#: This is a statement about the *sheets*, not about the content: a
-#: second importer reading different columns would claim different
-#: things, and the model stays the authority on what is valid either
-#: way. Every field the planner puts in a row's ``fields`` appears in
-#: exactly one of the three lists, and a test proves the partition is
-#: total — a new planned field then fails a test rather than being
-#: quietly left out of every difference.
+#: Partition every planned field into identity, updatable or ignored semantics.
+#: This describes the sheet's authority; models still validate stored content.
 SHEET_FIELDS = {
     "Category": Fields(
         identity=("section",),
@@ -1666,9 +1610,7 @@ def find_existing(planned, pack, resolve):
 
 
 def _already_allows(entry, allows):
-    """Does this entry already name that fighter among the few this
-    list offers the item to? Asked of the entry's own lists, which are
-    the same three an item carries, so it reads either."""
+    """Check whether an item's or entry's use restrictions already include a fighter."""
     from n26.library.models import Profile, ProfileType, Subtype
 
     arms = {
@@ -1791,8 +1733,7 @@ def _note_restrictions_the_sheet_no_longer_names(plan, found):
 
     from django.db.models import prefetch_related_objects
 
-    # The lists are the long sheets, so the entries' own lists are read
-    # in one batch rather than once per line.
+    # Batch-load entry restrictions to avoid one query per equipment-list entry.
     entries = {
         key: found[key] for key in wanted if found.get(key) is not None
     }  # absent: founded by this upload, and carries only what this says
@@ -1817,9 +1758,7 @@ def _pk(row):
 
 
 def _in_perform_order(plan):
-    """The planned rows, in the order perform will take them. A kind
-    with no place in that order would be planned and then skipped
-    without a word, so it is refused here instead."""
+    """Order planned records by dependencies, rejecting kinds without an execution order."""
     order = {kind: index for index, kind in enumerate(PERFORM_ORDER)}
     unplaceable = sorted({row.kind for row in plan.planned} - set(order))
     if unplaceable:
@@ -1957,22 +1896,15 @@ def _stat_difference(planned, row):
 
 
 def _stored_stats(row):
-    """The row's statline, as ``{field name: the value as stored}``.
-    The raw value, not the formatted one: a sheet cell and a stored
-    cell must be comparable as the same kind of thing."""
+    """Return characteristic field names and raw stored values for comparison."""
     statline = getattr(row, "statline", None)
     if statline is None:
         return {}
     return {stat.field_name: stat.value for stat in statline.ordered_stats()}
 
 
-#: Built-in members a sheet **replaces** rather than adds to, by the
-#: kind the plan names. A fighter buys from one equipment list, so
-#: naming one is naming *the* one: a fighter moved from the Escher list
-#: to the Cawdor list must not be left holding both, which would widen
-#: what they can buy without anybody saying so. Everything else in the
-#: set is kit, and kit is only ever added to — that is where the pieces
-#: no sheet defines are put by hand.
+#: Built-in kinds replaced by the sheet when another member is named.
+#: Profiles use one equipment list; preserve omitted equipment and other authored kit.
 REPLACED_BUILT_INS = ("Collection",)
 
 
@@ -1982,17 +1914,11 @@ def _kind_of(key):
 
 
 def _superseded_built_ins(members, stored, named):
-    """Built-in members this upload takes off rather than keeps.
+    """Find replaced built-ins when the upload names another member of that kind.
 
-    Only the kinds a set holds at most one of, and only where the sheet
-    names one of that kind: a column saying nothing takes nothing off.
-    That reading matters, because the other one strips every fighter the
-    first time a sheet without the column is uploaded — and a blank cell
-    is the sheet declining to say, here as everywhere else.
-
-    ``members`` is the planned membership, ``stored`` the rows the set
-    holds, and ``named`` the assignables among them the sheet still
-    names.
+    Only kinds restricted to one member are replaced. An omitted or blank
+    column preserves existing built-ins. ``members`` is planned membership,
+    ``stored`` is current membership and ``named`` is content still specified.
     """
     claimed = {_kind_of(member["item"]) for member in members} & set(REPLACED_BUILT_INS)
     return [
@@ -2067,13 +1993,9 @@ def _grid_difference(plan, planned, row, resolve):
 
 
 def _placements(carrier):
-    """The placement modifiers on this carrier that place a skill set.
+    """Select only this carrier's skill-set placement modifiers.
 
-    Only those: a carrier may hold modifiers doing anything at all, and
-    an import's statement about the grid is not a statement about the
-    rest of them. Only the *skill* sets, too — a placement of a category
-    from another heading is other content that happens to share the
-    tiers, not part of any sheet's grid.
+    Other modifiers and placements outside Skills are outside the sheet's grid.
     """
     return [
         modifier
@@ -2093,8 +2015,10 @@ def _placements(carrier):
 
 @dataclass
 class IngestResult:
-    """What perform did: rows created, rows changed, rows found already
-    there and left alone."""
+    """Mappings from plan keys to created, updated and existing model instances.
+
+    ``counts()`` tallies only the newly created records.
+    """
 
     created: dict = field(default_factory=dict)  # key -> model instance
     updated: dict = field(default_factory=dict)
@@ -2282,15 +2206,11 @@ def perform(plan, *, staged=False):
 
 
 def _stage_created(result):
-    """Hold back the rows the import made, one write per kind.
+    """Stage newly created records of player-discoverable content kinds.
 
-    Only kinds a player is offered are staged (``stageable_kinds``): a
-    category or a modifier the import made is reached through a fighter
-    or a weapon that is, and staging it as well would only lengthen the
-    list of things to put live. A planned row whose creator hands back a
-    row of some other kind — a restriction returns the item it narrows,
-    which may have been live for years — is left alone: what was made is
-    what is staged.
+    Skip non-discoverable supporting content. Also skip results whose model
+    differs from the planned kind, such as a restriction creator returning an
+    existing item rather than newly created content.
     """
     from n26.library import authoring
     from n26.library.staged import stageable_kinds
@@ -2312,8 +2232,7 @@ class _Performer:
         self.shared = {"pack": plan.pack}
 
     def _standard(self, model, what, **filters):
-        """A standard-content row, by its fixed name. Missing means the
-        seed hasn't been created — say which, don't plant it here."""
+        """Resolve required standard content by name, failing if Foundations has not created it."""
         row = model.objects.filter(**filters).first()
         if row is None:
             raise LookupError(
@@ -2323,7 +2242,7 @@ class _Performer:
         return row
 
     def resolve(self, key):
-        """A planned key → the model row it now names."""
+        """Resolve a plan key to its current library record."""
         if key in self.result.created:
             return self.result.created[key]
         if key in self.result.existing:
@@ -2388,8 +2307,7 @@ class _Performer:
     # again here what has changed: the preview said, and this does that.
 
     def _revise_columns(self, planned, row):
-        """The plain columns this change names — its own values, and the
-        rows its keys point at — written through one verb."""
+        """Resolve changed field values and references, then update through ``revise``."""
         from n26.library import authoring
 
         values = {}
@@ -2435,16 +2353,7 @@ class _Performer:
         return row
 
     def _retract_placements(self, profile, planned):
-        """Take off the skill-set placements this fighter's sheet no
-        longer names.
-
-        The placements it *does* name are made afterwards, as modifiers
-        in their own right, so what is left here is only the leaving.
-        A modifier can hang on more than one carrier, so it is detached
-        first and only deleted where nothing else holds it — and then by
-        its scope and effect rows, which are what the modifier cascades
-        away with.
-        """
+        """Remove skill-set placements omitted by the sheet before adding its replacements."""
         from n26.library import authoring
 
         wanted = {
@@ -2503,16 +2412,8 @@ class _Performer:
         from n26.library import authoring
         from n26.library.models import Section
 
-        # The heading is founded here rather than left to the verb so it
-        # can carry the order it reads in; one already in the pack keeps
-        # the order it has.
-        #
-        # Matched case-insensitively, the way every other lookup in this
-        # performer matches: a pack is unique on a section's lowercased
-        # name, so an exact-match lookup asked for "Gang list" where the
-        # pack holds "Gang List" misses it, inserts, and trips the
-        # constraint — taking the whole import down. Two sheets spelling
-        # one heading differently is all it takes to get there.
+        # Create the section here to preserve the planned order on new records.
+        # Use case-insensitive matching to agree with the pack-scoped uniqueness constraint.
         section = Section.objects.filter(
             name__iexact=planned.fields["section"], **self.shared
         ).first()
@@ -2781,13 +2682,7 @@ class _Performer:
 
 
 def _anything_carries(modifier):
-    """Is any assignable still holding this modifier?
-
-    Modifiers are shareable, so taking one off a fighter is not the
-    same as being finished with it. The kinds are read off the app
-    rather than listed, so a new one is covered without anyone
-    remembering to say so.
-    """
+    """Check every assignable kind for remaining references to a shared modifier."""
     from django.apps import apps
 
     return any(
@@ -2797,12 +2692,8 @@ def _anything_carries(modifier):
     )
 
 
-#: How each kind is made, and how a kind the sheets can change is
-#: changed. Two tables that can be read against a plan before anything
-#: is written, which is the point of their being tables: a kind planned
-#: to be made or changed with nothing to do it is refused up front
-#: (:func:`_refuse_what_cannot_be_done`) rather than failing part way
-#: through an import, on the one row that needed it.
+#: Creators and updaters are registered by planned kind so validation can reject
+#: unsupported writes before executing any part of the import.
 CREATORS = {
     "Category": "_create_category",
     "Trait": "_create_trait",
@@ -2912,12 +2803,8 @@ def _imported(pack=None):
         Modifier.objects.filter(**scope).exclude(spared).values_list("pk", flat=True)
     )
 
-    # A modifier holds its scope and effect, and those rows are what
-    # hold the trait — deleting the modifier alone leaves them behind
-    # still protecting it. So the scope and effect rows are the ones
-    # swept, and the modifier cascades away with them. Read off the
-    # model rather than listed, so a new scope or effect kind is
-    # covered without anyone remembering to say so.
+    # Delete scope and effect records to cascade modifiers without orphaned parts
+    # that still protect imported content. Discover parts from model fields.
     from n26.library.models.modifier import EFFECT_FIELDS, SCOPE_FIELDS
 
     parts = []

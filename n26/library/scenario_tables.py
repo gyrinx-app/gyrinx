@@ -3,6 +3,10 @@
 Display objects are immutable. One catalogue can be passed through forms,
 rolling and history without querying again. Known references resolve retired
 content; menus offer complete, live tables only.
+
+Table keys, side-job-set keys and roll values are stored in links and battles
+and must remain stable. Display names and text can change; saved battles
+render current text. Asterisks mark bold text.
 """
 
 import re
@@ -47,10 +51,10 @@ _BOLD = re.compile(r"\*([^*]+)\*")
 
 @dataclass(frozen=True)
 class ScenarioTable:
-    """One table. ``key`` is what URLs and stored battles use; ``name`` is
-    what a reader sees. A side job in a scenario is drawn from a table for
-    its place, "Side job 2", whose ``side_job_set`` is the set it came
-    from."""
+    """A scenario table with a stable stored key and a display name.
+
+    A side-job instance also identifies its source set and numbered position.
+    """
 
     key: str
     name: str
@@ -93,6 +97,10 @@ SIDE_JOB_LIMIT = 6
 
 
 def side_job_key(place):
+    """Return the stored key for a one-based side-job position.
+
+    The first uses ``side_job`` for compatibility; later keys include the number.
+    """
     return "side_job" if place == 1 else f"side_job_{place}"
 
 

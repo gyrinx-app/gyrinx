@@ -1,16 +1,7 @@
 {% extends "authoring/base.html" %}
 {% comment %}
-The question asked before a profile leaves its weapon, at an address
-of its own. A page rather than a prompt: it survives a reload, Back is a
-real answer, and it works with scripting switched off. Nothing here
-changes anything — the form's POST is the act.
-
-Deleting is for the unused. Every reference protects the line — a list
-that offers it, a hire that comes with it as an ammo type, a fighter
-who paid for it — so a line anybody relies on is refused in words. The
-one holder that does not refuse is a fighter the weapon brought the
-line to for nothing: the page names those fighters, and the line is
-removed from them before it goes.
+List references blocking deletion and eligible free copies that the operation removes.
+The weapon itself remains.
 {% endcomment %}
 {% block head_title %}Delete {{ label }}{% endblock head_title %}
 {% block content %}
@@ -45,11 +36,6 @@ removed from them before it goes.
                 it, so only the line itself goes.
             </c-ui.alert>
         {% endif %}
-        {% comment %}
-        The weapon stands whatever happens here. Said because the control
-        that leads here sits in a row of the weapon's own lines, where
-        "Remove" beside the gun's name reads as one that deletes the gun.
-        {% endcomment %}
         <c-ui.alert variant="info" title="{{ weapon }} is not deleted">
             The weapon stays in the library with its other lines. A weapon
             with no lines is allowed while you correct its table.

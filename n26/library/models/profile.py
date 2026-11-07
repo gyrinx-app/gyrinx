@@ -16,8 +16,7 @@ from n26.library.models.gang_type import GangType
 from n26.library.models.statline import StatlineType
 from n26.library.offers import Suggest
 
-#: The two Types the rules know. Everything else a model might be
-#: called is a Subtype.
+#: The core profile types. Other model classifications use subtypes.
 TYPE_NAMES = ("Fighter", "Vehicle")
 
 
@@ -86,12 +85,8 @@ class Profile(Content, Assignable, Optioned):
         Suggest("Subtypes", Subtype, many=True),
     )
 
-    # The mixin's ``price`` is the fighter alone, before any sets —
-    # additive with the sets' prices, so put the whole number here or on
-    # ``built_ins``, whichever reads better. Hiring also buys the sets,
-    # which is why ``reference_price`` composes rather than reads. One
-    # number, not two: a price beside a rating on the same entry would
-    # make one of them a lie.
+    # The inherited price covers the fighter before built-in and option-set prices.
+    # reference_price combines the amounts charged by hiring.
 
     profile_type = models.ForeignKey(
         ProfileType, on_delete=models.PROTECT, related_name="profiles"

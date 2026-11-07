@@ -1,13 +1,5 @@
 {% extends "authoring/base.html" %}
-{% comment %}
-The question asked before an asset is taken off a table, at an address
-of its own. A page rather than a prompt: it survives a reload, Back is a
-real way out, and it works with scripting switched off. Nothing here
-changes anything — the form's POST is the act.
-
-The first line says the one fact the row's Remove control cannot: what
-goes is this table's entry for the asset, never the asset itself.
-{% endcomment %}
+{# Removing a table entry preserves the asset and existing campaign holdings. #}
 {% block head_title %}Remove {{ label }}{% endblock head_title %}
 {% block content %}
     <c-n26.form-page action="{% url 'authoring-asset-table-entry-remove' thing.pk %}"

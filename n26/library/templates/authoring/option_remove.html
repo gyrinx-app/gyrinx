@@ -1,19 +1,5 @@
 {% extends "authoring/base.html" %}
-{% comment %}
-The question asked before an alternative is withdrawn, at an address of
-its own. A page rather than a prompt: it survives a reload, Back is a
-real answer, and it works with scripting switched off. Nothing here
-changes anything — the form's POST is the act.
-
-Two facts change what the act means and neither can be read off the row
-it was reached from: the kit an option brings is reached through that
-option and nothing else, so it goes with it; and an option may be the
-last one in its set, which leaves a pick with nothing to offer.
-
-What the option *names* — the weapon, the wargear — is a separate thing
-from the option, and the first line says so, because a control beside a
-weapon's name reads as one that deletes weapons.
-{% endcomment %}
+{# Remove the option and attempt to delete its default set; preserve acquired copies. #}
 {% block head_title %}Withdraw {{ label }}{% endblock head_title %}
 {% block content %}
     <c-n26.form-page action="{% url 'authoring-option-remove' thing.pk %}"
@@ -34,11 +20,6 @@ weapon's name reads as one that deletes weapons.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        {% comment %}
-        What is true, and only what is true. Nothing already acquired
-        changes: an option is materialised at the moment of hiring and
-        nothing retracts an assignment.
-        {% endcomment %}
         <c-ui.alert variant="info" title="Nothing already hired changes">
             Anyone who took {{ label }} keeps what it brought them. This
             changes what the next hire may choose.

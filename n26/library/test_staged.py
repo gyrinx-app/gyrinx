@@ -1,9 +1,6 @@
-"""Staged content, as the library states it: the column, the queryset
-gate, who may see past it, which kinds it means anything for, and the
-verbs that move a row between staged and live.
+"""Verify staging fields, selectable querysets, access checks and authoring operations.
 
-The player-facing surfaces are pinned in ``n26/tests/sandbox/
-test_staged_content.py``; this is the contract those surfaces stand on.
+Player-facing integration coverage is in n26/tests/sandbox/test_staged_content.py.
 """
 
 import pytest
@@ -47,8 +44,7 @@ pytestmark = pytest.mark.django_db
 
 
 class TestTheQuerysetGate:
-    """``selectable`` is the discovery query, and staged rows are not
-    selectable unless the caller says the reader may see them."""
+    """Discovery excludes staged content unless the caller permits it."""
 
     @pytest.fixture
     def weapons(self, default_pack):

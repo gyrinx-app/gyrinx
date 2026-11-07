@@ -1,22 +1,7 @@
 {% load formkit react %}
 {% comment %}
-One bound field, dispatched onto the kit control its widget wants.
-
-The branches exist because cotton attributes are static per tag: a
-control that carries union markers (data-union-kind on the kind select,
-data-union-of + data-union-member on member pickers and their asks) is
-its own tag, so an unmarked control never grows empty marker
-attributes. The markers themselves come off the widget attrs the form
-layer set — the base layout's script and the tests read them wherever
-they land, so they must survive this dispatch byte-for-byte.
-
-Every branch stacks the field the same way: label, control, then the
-help underneath (description_trailing). Some pages sit these fields
-side by side in a grid, and help between the label and the control is
-as tall as its own sentence, so each control in the row starts at a
-different height.
-
-Takes `field` (a BoundField) and `form`.
+Render a BoundField using its widget and preserve union data attributes set by the form.
+Place help below controls so controls in adjacent grid columns align.
 {% endcomment %}
 {% with kind=field|widget_kind label=field.label|capfirst help=field.help_text %}
     {% if kind == "checkbox" %}
@@ -28,10 +13,7 @@ Takes `field` (a BoundField) and `form`.
                     :form="form"
                     name="{{ field.name }}"
                     for="{{ field.auto_id }}">
-            {# yesno, and a plain attribute rather than a : one: an #}
-            {# untouched field's value is None, which the switch prints #}
-            {# into JavaScript as `none` and throws on — and a : attribute #}
-            {# cannot carry a filter to fix it up. #}
+            {# Use yesno to encode None as a valid Boolean; bound Cotton attributes cannot apply this filter. #}
             <c-ui.switch label=""
                          name="{{ field.html_name }}"
                          id="{{ field.auto_id }}"
@@ -46,33 +28,15 @@ Takes `field` (a BoundField) and `form`.
                     name="{{ field.name }}"
                     for="{{ field.auto_id }}">
             {% comment %}
-            The bare control, as the select branch reaches for the native
-            select: the chrome is drawn above, and the wrapper would draw
-            it a second time. It is also the only way the control gets a
-            name — the wrapper declares `name` and never writes it out, so
-            a textarea drawn through it has no name and the browser
-            submits nothing for it. The field is then read as blank and an
-            author's help text is wiped by the next save of anything else
-            on the form.
-
-            default_if_none, never default: a stored 0 is falsy, and
-            `default` would draw an empty box for it.
-
-            The value sits flush against both tags. Whatever is between
-            them is the box's content, so a newline and an indent there
-            are text the author is handed back and can save into the
-            column — the browser only ever drops the first newline.
+Use the native textarea so its name is submitted without duplicate field wrappers.
+Keep default_if_none to preserve zero, and keep content flush with the tags to avoid saving indentation.
             {% endcomment %}
             {# djlint:off #}
             <c-ui.textarea.impl name="{{ field.html_name }}" id="{{ field.auto_id }}" height="xs">{{ field.value|default_if_none:'' }}</c-ui.textarea.impl>
             {# djlint:on #}
         </c-ui.field>
     {% elif kind == "file" %}
-        {% comment %}
-        React owns the native file control and its transient drag state.
-        Cotton keeps the label, help and server errors around it. The
-        surrounding Django form keeps multipart submission and the upload.
-        {% endcomment %}
+        {# React owns file selection and drag state; the Django form retains multipart upload and server errors. #}
         {% file_input_props field as file_input %}
         <c-ui.field data-field
                     label="{{ label }}{% if field.field.required %} *{% endif %}"
@@ -99,11 +63,7 @@ Takes `field` (a BoundField) and `form`.
                     {% include "authoring/_options.html" %}
                 </c-ui.select.native>
             {% elif field|widget_attr:"data-union-of" %}
-                {% comment %}
-                A member picker is the longest list an author meets — every
-                weapon, every piece of wargear — so it is the one the filter
-                box was built for. The wrapper leaves a short list alone.
-                {% endcomment %}
+                {# Filter long member option lists; leave short lists unchanged. #}
                 <c-n26.filter-select>
                     <c-ui.select.native name="{{ field.html_name }}"
                                         id="{{ field.auto_id }}"
@@ -114,10 +74,7 @@ Takes `field` (a BoundField) and `form`.
                     </c-ui.select.native>
                 </c-n26.filter-select>
             {% elif kind == "selectmultiple" %}
-                {% comment %}
-                multiple rides the attrs passthrough (size would shadow
-                the kit's size-class key); the browser draws the list box.
-                {% endcomment %}
+                {# Pass multiple through attrs; size is already a component styling argument. #}
                 <c-n26.filter-select>
                     <c-ui.select.native name="{{ field.html_name }}"
                                         id="{{ field.auto_id }}"
@@ -142,13 +99,7 @@ Takes `field` (a BoundField) and `form`.
                     :form="form"
                     name="{{ field.name }}"
                     for="{{ field.auto_id }}">
-            {% comment %}
-            default_if_none, never default: nought is a real value and a
-            falsy one, so `default` draws an empty box for a price of 0 —
-            and an empty number box comes back as no value at all, which
-            the column cannot hold. Only a value that is genuinely absent
-            draws blank.
-            {% endcomment %}
+            {# Use default_if_none to preserve a stored zero; an empty numeric control submits no value. #}
             {% if field|widget_attr:"data-union-of" %}
                 <c-ui.input type="{% if kind == 'number' %}number{% else %}text{% endif %}"
                             name="{{ field.html_name }}"

@@ -1,50 +1,16 @@
-"""What the Affiliation conversions left standing, and deleting it.
+"""Delete unused content from affiliation-to-slot conversions.
 
-Moving Outcast Affiliation, Chaos God and Variant onto slots and picks
-left their old machinery behind on purpose: a conversion proves that
-nothing a reader sees moves, and deleting library rows is a different
-job with a different risk. This is that job.
+Retain the Affiliation, Clan House, Chaos God and Variant slot systems.
+Consider emptied affiliation records, unused menus, detached offers and
+unreferenced hidden grant carriers for removal.
 
-What stands is a library of things nothing uses. The Affiliation kind
-rows the conversions emptied — their modifiers moved onto pickables, so
-each is a name and nothing else. The menus those kinds were chosen
-from, which no question now offers. The fossil offers the conversions
-refused to swap. The vestigial Hidden that granted a slot after the
-shared offer was swapped, that nobody holds and nothing is built with.
+Preserve content still carrying modifiers. Refuse referenced source records
+or active affiliation offers, which indicate a conversion is incomplete.
+Delete a menu only when all its entries and external uses are also removed.
+Delete modifier scopes and effects together, retaining shared grants.
 
-**Nothing here may change a page.** That is the whole test, and it is
-what makes deleting safe to do in bulk: if these rows really are unused,
-removing them is invisible, and if any of them is doing something the
-proof says so and the run unwinds.
-
-The slot types named Affiliation, Clan House, Chaos God and Variant —
-and every pickable, picklist and slot of theirs — stay. Those are the
-new system.
-
-Four rules keep the reading honest:
-
-* A kind row that still carries a modifier is doing something, whatever
-  its column says. It is left where it is and named on the page, rather
-  than deleted or made into a refusal.
-* A kind row anything still names cannot be deleted at all. Those
-  answers belong to a conversion that has not run, so this refuses and
-  says which, rather than running before its turn.
-* An Affiliation offer somebody still holds is the old question still
-  live on a card. Deleting emptied rows would take the answers out from
-  under it, so this refuses rather than leaving the offer and emptying
-  the menu.
-* A menu is deleted only when everything in it is going and nothing
-  outside what is going asks for it. A menu holding one live entry
-  keeps its shape and loses only the entries.
-* A marker that grants a slot, that nobody holds and nothing is built
-  with, is leftover conversion wiring. The grant stays if anything else
-  carries it — the real doors still need it. Markers a profile is built
-  with are not this.
-
-An effect and its modifier travel together. A modifier here is one
-scope and one effect, so removing the effect would leave a scope
-addressing nobody about nothing; the carrier it hangs on is kept unless
-it too exists solely for what is going.
+Capture sample gang pages before and after and roll back on any difference.
+Lock and rebuild the deletion plan before applying it.
 """
 
 from dataclasses import dataclass, field
@@ -52,9 +18,7 @@ from dataclasses import dataclass, field
 from django.conf import settings
 from django.db import transaction
 
-#: How many gangs the proof draws when nothing being deleted is held —
-#: a spread of pages, so a library-only write is still shown to leave
-#: every shape of gang unmoved.
+#: Sample this many gangs to verify unchanged pages when deleted content has no holders.
 PROVEN = 15
 
 #: Slot types the conversions created. They stay forever.
@@ -62,12 +26,12 @@ KEPT_SLOT_TYPE_NAMES = ("Affiliation", "Clan House", "Chaos God", "Variant")
 
 
 class Refused(Exception):
-    """The world is not the one the reading found."""
+    """The confirmed cleanup plan no longer matches the database."""
 
 
 @dataclass(frozen=True)
 class Fossils:
-    """Everything that would go, by kind of row."""
+    """Unused conversion content proposed for removal, with retained items and blockers."""
 
     kind_rows: tuple = ()
     entries: tuple = ()
@@ -684,13 +648,9 @@ def apply(fossils):
                 table = connection.ops.quote_name(OffersChoice._meta.db_table)
                 with connection.cursor() as cursor:
                     cursor.execute(f"LOCK TABLE {table} IN SHARE MODE")
-            # The plan was read before this transaction opened. Every
-            # row whose relations cascade is locked before the second
-            # reading, so a new entry, modifier attachment, or edited
-            # effect cannot ride the deletion down. Foreign-key checks
-            # take key-share locks on their targets, which these locks
-            # conflict with. Anything that moved before the locks were
-            # taken changes the second reading and refuses.
+            # Lock records with cascading relations before rebuilding the plan.
+            # These locks conflict with foreign-key key-share locks, preventing new
+            # references during deletion. The rebuilt plan rejects earlier changes.
             kind_rows = {}
             for model, pk in fossils.kind_rows:
                 kind_rows.setdefault(model, []).append(pk)
@@ -753,13 +713,9 @@ def apply(fossils):
             gangs = list(Gang.objects.filter(pk__in=fossils.gang_ids))
             before = {str(gang.pk): gang_state(gang) for gang in gangs}
 
-            # The order is what protects what. An offer names the menu
-            # section it asks from, and a grant names the marker it
-            # hands over, so both have to go before the things they
-            # name — and a modifier owns its scope and its effect, each
-            # of which takes the modifier with it, so what is deleted is
-            # the parts rather than the modifier that would leave them
-            # behind.
+            # Delete choice offers before their sections and grants before their targets.
+            # Delete scope and effect records to cascade their modifiers without leaving
+            # orphaned parts.
             _delete_parts_of(Modifier.objects.filter(pk__in=fossils.modifiers))
             CollectionEntry.objects.filter(pk__in=fossils.entries).delete()
             CollectionSection.objects.filter(pk__in=fossils.sections).delete()
@@ -787,9 +743,7 @@ def apply(fossils):
     except ConversionRefused as refused:
         raise Refused(str(refused)) from refused
     except ProtectedError as protected:
-        # The backstop behind the enumerated checks: whatever this names
-        # is a referent nobody listed, and the answer is a refusal in
-        # words rather than a traceback.
+        # Convert any unenumerated protected reference into a recorded refusal.
         raise Refused(
             "The deletion cannot run because these rows still refer to a row "
             "selected for deletion: "

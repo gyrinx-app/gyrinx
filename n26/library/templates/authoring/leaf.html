@@ -4,22 +4,9 @@
 {% block head_title %}
     {{ verbose_name_plural|capfirst }}
 {% endblock head_title %}
-{% comment %}
-No nav_heading: the bar's switcher already carries this kind's name as
-its leading link, and a heading repeating it would say the same word
-twice in a row.
-{% endcomment %}
 {% block content %}
     <c-n26.page-header title="{{ verbose_name_plural|capfirst }}">
-        {% comment %}
-        Against the heading rather than out in the actions: this control is
-        about the word it sits beside — another kind of content — while the
-        actions to the right are about the kind you are already on.
-
-        Named differently from the switcher in the bar above, which offers
-        the same list: two controls announced identically tell a reader who
-        cannot see where they sit nothing about either.
-        {% endcomment %}
+        {# Use a distinct accessible name from the navigation-bar kind switcher. #}
         <c-slot name="trailing">
             {% kinds_switcher kind menu_label="Switch to another kind of content" as header_kinds_ %}
             <c-n26.quick-switcher.of :switcher="header_kinds_" hotkey="r" />

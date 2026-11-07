@@ -85,8 +85,7 @@ def slot_type(default_pack):
 
 @pytest.fixture
 def leaders(slot_type, sets, skills, ranks):
-    """The five archetypes as they stand today: one pickable each,
-    carrying the gang's reading and the Champion's at once."""
+    """Build combined archetype pickables containing both gang and Champion modifiers."""
     made = {}
     for name, pk in ARCHETYPES:
         pickable = create_pickable(name, slot_type, qualifier="Archetype", id=pk)

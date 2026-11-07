@@ -1,14 +1,4 @@
 {% extends "authoring/base.html" %}
-{% comment %}
-A new profile for one weapon, at an address of its own — the shape
-of the page that corrects one, with nothing to explain yet: no about
-column, because there is no line for the compiler to read, and no
-switcher, because this is not one of the gun's lines.
-
-The weapon's page lists what it fires and leads here. Adding a line
-there would put a whole statline under a listing, beneath the weapon's
-own fields, on a page that is already long.
-{% endcomment %}
 {% block head_title %}
     New {{ verbose_name }}
 {% endblock head_title %}
@@ -34,22 +24,12 @@ own fields, on a page that is already long.
             {% for paragraph in part_help %}<p>{{ paragraph }}</p>{% endfor %}
         </c-n26.prose>
     {% endif %}
-    {% comment %}
-    The width sits on the fields rather than on the form, because a
-    statline is wider than a column of inputs wants to be: the
-    characteristics do not fit beside a name and a price, and boxed into
-    that width they would be a scrolling strip on a desktop.
-    {% endcomment %}
+    {# Limit ordinary fields without constraining the wider characteristic editor. #}
     <form method="post"
           {% if form.is_multipart %}enctype="multipart/form-data"{% endif %}
           class="mt-6 space-y-5">
         {% csrf_token %}
         <div class="max-w-xl space-y-5">{% include "authoring/_form.html" with form=form %}</div>
-        {% comment %}
-        Beside the form rather than in it, as on every creating page:
-        whether players see the line yet is not one of the facts that make
-        it.
-        {% endcomment %}
         <c-n26.form-section title="Who can see it"
                             class="max-w-xl rounded-box border border-box-border p-4">
             {% include "authoring/_form.html" with form=staged_form %}
@@ -65,8 +45,6 @@ own fields, on a page that is already long.
                 {{ weapon }} has no statline shape set, so its {{ verbose_name_plural }} carry no stats.
             </c-ui.description>
         {% endif %}
-        {# The way out leads back to the weapon, which is where the page #}
-        {# was reached from and where a line that lands is listed. #}
         <div class="max-w-xl">
             <c-n26.form-actions submit_label="Add {{ verbose_name }}" cancel_url="{{ back }}" />
         </div>

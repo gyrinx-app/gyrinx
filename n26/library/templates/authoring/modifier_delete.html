@@ -1,22 +1,5 @@
 {% extends "authoring/base.html" %}
-{% comment %}
-The question asked before a modifier is deleted, at an address of its
-own. A page rather than a prompt: it survives a reload, Back is a real
-answer, and it works with scripting switched off. Nothing here changes
-anything — the form's POST is the act, and following the link that
-leads here is not.
-
-Two shapes, because the two acts are not alike. A modifier nothing
-carries is a draft nobody has used, and the page says so plainly. One
-that several things carry takes behaviour away from all of them at once,
-and the page names them: a count says how bad, a list says whether this
-is the one the author meant.
-
-The footer is the shared pair, marked `danger` because this form ends by
-taking something away. The way out leads back to the modifier, since
-leaving is not a submission and a reader who clicks it should land where
-they were.
-{% endcomment %}
+{# List all carriers losing this modifier before accepting the deletion POST. #}
 {% block head_title %}Delete {{ thing.name }}{% endblock head_title %}
 {% block nav_heading %}Modifiers{% endblock nav_heading %}
 {% block nav_items %}
@@ -40,12 +23,6 @@ they were.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        {% comment %}
-        What is true, and only what is true: the modifier and the scope,
-        effect and condition rows it is made of are removed, and nothing
-        puts them back. It does not promise the carriers are otherwise
-        untouched in some larger sense — they simply stop doing this.
-        {% endcomment %}
         {% if carriers %}
             <c-ui.alert variant="warning" title="You cannot undo this">
                 {{ carrier_said }}, and deleting it takes the behaviour away from
