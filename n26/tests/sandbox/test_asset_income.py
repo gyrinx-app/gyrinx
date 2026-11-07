@@ -1,16 +1,9 @@
-"""An asset's income is a contribution to the system Income counter.
+"""Asset income contributes to the gang's computed Income counter.
 
-Income is not a figure on the asset. It is a counter every gang in a
-Territory campaign has at 0, like Reputation, and each asset adds its
-figure to it through a gang-scoped modifier for as long as the gang
-holds the asset. A gang's Income reading is therefore the sum of what it
-holds — its Settlement and every Territory — and it shows wherever
-counters show: the gang sheet's campaign block and the campaign page's
-gangs table. Nothing collects it yet.
-
-The forms keep a plain Income box. ``set_income`` writes the modifier
-behind it, and the readers take the figure back off the modifiers so a
-page prints what the author typed. See ``n26/library/income.py``.
+Held assets contribute through gang-scoped modifiers. The stored counter stays
+unchanged, while gang sheets and campaign tables display the computed total.
+``set_income`` writes the modifier used by authoring forms.
+See n26/library/income.py.
 """
 
 import pytest
@@ -71,8 +64,7 @@ def campaign(core):
 
 @pytest.fixture
 def gangs(gang_type, campaign):
-    """Two gangs at the table, so one's Income can be read against the
-    other's."""
+    """Create two campaign gangs to check that income stays with its holder."""
     made = []
     for name, owner in (("The Ashen Choir", "ash"), ("The Rust Kings", "rust")):
         gang = found_gang(name, gang_type, owner=User.objects.create_user(owner))
@@ -82,7 +74,7 @@ def gangs(gang_type, campaign):
 
 
 def reading(gang, name=INCOME):
-    """A campaign counter's reading off the gang sheet."""
+    """Read a campaign counter from the rendered gang sheet."""
     block = render_gang(gang).campaign
     return next(line.value for line in block.counters if line.name == name)
 
@@ -119,9 +111,7 @@ class TestTheSeed:
     def test_the_migration_files_a_propagation_pass_only_when_it_builds_income_in(
         self, default_pack
     ):
-        """A built-in written by the seed reaches only gangs that join
-        afterwards; the migration files the pass an authoring edit would,
-        and only on the run that built Income in — a re-run owes none."""
+        """Queue propagation only when the seed adds Income to the campaign built-ins."""
         from importlib import import_module
 
         from n26.core.models import BuiltInPropagationTask
@@ -173,7 +163,7 @@ class TestWritingIncome:
         set_income(ruins, 0)
         assert income_of(ruins) == 0
         assert not Modifier.objects.filter(pk=row.pk).exists()
-        # The parts go with it, so nothing unreachable is left behind.
+        # Remove the modifier's scope and effect as well as the modifier row.
         assert not type(scope).objects.filter(pk=scope.pk).exists()
         assert not type(effect).objects.filter(pk=effect.pk).exists()
 
@@ -251,8 +241,7 @@ class TestWhatAGangReads:
         assert income.counter_value.value == 0
 
     def test_a_settlement_with_income_gives_every_gang_its_figure(self, core, gangs):
-        """A possession is every gang's own, built into the type, so its
-        income reaches every gang through the gang's own assignment of it."""
+        """Each gang receives its own built-in Settlement assignment and income contribution."""
         settlement = Asset.objects.get(name="Settlement")
         set_income(settlement, 10)
         assert [reading(gang) for gang in gangs] == [20, 20]
@@ -270,9 +259,7 @@ class TestWhatAGangReads:
         ]
 
     def test_a_captured_gang_state_carries_the_figure(self, campaign, territory, gangs):
-        """The before/after capture a conversion checks itself against reads
-        the campaign block too, so a holding's figure is part of what it
-        proves unchanged."""
+        """Captured campaign state includes holding income and computed counter totals."""
         from n26.core.capture import gang_state
 
         ruins = create_asset("Old Ruins", territory, income=30)

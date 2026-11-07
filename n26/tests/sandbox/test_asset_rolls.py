@@ -1,27 +1,11 @@
-"""Rolling on an asset table in a campaign.
+"""Campaign asset-table rolls, table availability and territory setup. Pool rolls create
+unclaimed assets; starting rolls assign assets to a member gang or allocate existing
+pool assets when configured. Campaign-held tables supply pool options; gang-held tables
+supply starting options.
 
-The core rulebook's two rolls (design/house-and-territory-tables.md): the
-Arbitrator generates the campaign's pool of territories by rolling on the
-Territory table, three per gang, and the same territory may come up more
-than once; each gang's starting territory is rolled for the gang directly,
-on the Territory table or on a table of its own House. Both rolls read the
-same fact — who holds the table. The campaign holds the tables built into
-its type and its additions, and rolls its pool on those; a gang holds the
-tables on its card, stored or granted, and rolls its starting territory on
-those. The arbitrator opens a table to every gang by building it into the
-campaign's additions, and writes tables of their own into the campaign's
-pack.
-
-What this file holds still: a pool roll adds one unheld copy of what the
-roll lands on and one line in the log; a starting roll adds the copy held
-by the gang, with GAINED on the gang's ledger; an entered roll is checked
-against the die; a gap, a list without dice, and a table the roller does
-not hold are refused in words; opening a table widens the catalogue and
-closing narrows it again without taking anything back; a table the
-arbitrator writes reaches every member gang and no other campaign; the
-controls are the arbitrator's alone and take the asset type's own word;
-and the campaign page costs the same however many gangs and tables it
-has.
+Cover die validation, gaps, table opening and closure, campaign-owned tables, idempotent
+batches, duplicate avoidance, manual previews, permissions and query growth. Roll pages
+use the asset type’s labels.
 """
 
 import json
@@ -83,7 +67,7 @@ def sentences(acts):
 
 
 def _roll_props(body):
-    """The props the starting dialog's campaign-roll island mounts with."""
+    """Read props for the starting dialog’s campaign-roll island."""
     document = BeautifulSoup(body, "html.parser")
     host = document.select_one('[data-react-name="campaign-roll"]')
     return json.loads(document.find(id=host["data-react-props"]).string)
@@ -105,8 +89,7 @@ def propagating(db):
 
 @pytest.fixture
 def core(default_pack):
-    """The Territory campaign type as it ships, with the Territory Selection
-    Table built in: a D66 over eighteen territories, every roll covered."""
+    """Seed the Territory campaign with its complete D66 table of eighteen territories."""
     seed_territory_table(apps)
     return CampaignType.objects.get(name=CAMPAIGN_TYPE)
 
@@ -124,8 +107,7 @@ def selection_table(core):
 @pytest.fixture
 @library_setup
 def supertype(default_pack):
-    """The hidden Gang supertype slot, and Goliath and Escher as its
-    markers — the shape a Clan House gang type builds in."""
+    """A hidden Gang supertype slot with Goliath and Escher choices."""
     slot_type = create_slot_type(
         "Gang supertype", plural_name="Gang supertypes", allows_repeats=False
     )
@@ -142,14 +124,12 @@ def supertype(default_pack):
 @pytest.fixture
 @library_setup
 def journal(territory, supertype, default_pack):
-    """House of Chains: six Goliath territories on a D6 table, given to
-    every gang that has picked Goliath. In a system pack of its own, so
-    its territories are not the campaign's to add until the table is."""
+    """Six Goliath territories on a D6 table in a separate pack. The Goliath choice grants
+    access; opening the table also adds its assets to the campaign’s catalogue.
+    """
     _, houses = supertype
     pack = create_pack("House of Chains", slug="house-of-chains")
-    # A table in a pack of its own is given by no campaign type — the giver
-    # has to share the pack — so it is written bare and granted by the
-    # House pick alone.
+    # Keep the table in its own pack without given_by; the House choice grants it.
     table = AssetTable.objects.create(
         name="Goliath Territories", asset_type=territory, dice="d6", pack=pack
     )
@@ -193,8 +173,9 @@ def escher(supertype):
 
 @pytest.fixture
 def page_catalogue(default_pack):
-    """The real campaign type with one territory: enough for route and
-    form contracts that never inspect the shipped Territory Selection Table."""
+    """Use one territory with full D66 coverage for route and form tests that do not
+    inspect the seeded table.
+    """
     seed_core_campaign(apps)
     core = CampaignType.objects.get(name=CAMPAIGN_TYPE)
     territory = core.asset_types.get(label_singular="Territory")
@@ -243,13 +224,8 @@ def rolled_events(campaign):
     return list(campaign.events.filter(kind=CampaignEvent.Kind.ASSET_ROLLED))
 
 
-# --- The pool roll -----------------------------------------------------------
-
-
 class TestThePoolRoll:
-    """The arbitrator rolls on a table the campaign holds; what the roll
-    lands on joins the campaign, held by nobody, and the log says so in
-    one line."""
+    """A pool roll creates one unclaimed campaign asset and one roll-history entry."""
 
     def test_a_roll_adds_one_unheld_copy_and_one_line(
         self, campaign, selection_table, arbitrator
@@ -290,9 +266,10 @@ class TestThePoolRoll:
     def test_a_stop_inside_a_name_does_not_cut_the_log_line(
         self, campaign, territory, goliath, owner
     ):
-        """The manual-roll marker is taken off the note by name, so a gang
-        or a table with a full stop in its own name keeps its whole line."""
-        # The table first, so the gang holds it as it joins.
+        """Remove the manual-roll marker without splitting full stops inside table or gang
+        names.
+        """
+        # Create the table before joining so the gang receives it on acquisition.
         table = create_campaign_table(campaign, territory, "No. 2 Turf", dice="d3")
         ruins = _holding_assets(campaign).get(name="Old Ruins")
         add_asset_table_entry(table, ruins, roll_low=1, roll_high=3)
@@ -315,9 +292,7 @@ class TestThePoolRoll:
     def test_a_staged_entry_is_a_gap_for_a_reader_who_may_not_see_it(
         self, campaign, selection_table, arbitrator
     ):
-        """The roll is where a territory is newly chosen, so staged content
-        is held back there as at every discovery surface: the band reads as
-        a gap, and a reader who may see staged content lands on it."""
+        """Staged assets act as table gaps unless the actor can see staged content."""
         from n26.library.models import Asset
 
         farm = Asset.objects.get(name="Corpse Farm")
@@ -389,13 +364,10 @@ class TestThePoolRoll:
         assert list(tables_in_play(campaign)) == [AssetTable.objects.get(name=TABLE)]
 
 
-# --- The starting roll -------------------------------------------------------
-
-
 class TestTheStartingRoll:
-    """A gang rolls its starting territory on a table it holds. The House
-    table reaches a Goliath gang through its pick; an Escher gang gets it
-    only while the arbitrator has opened it to every gang."""
+    """Starting rolls use the gang’s available tables. House choices grant their table;
+    opening a table makes it available to other gangs.
+    """
 
     def test_a_goliath_gang_rolls_on_its_house_table(
         self, campaign, journal, slag_kings, owner
@@ -430,8 +402,8 @@ class TestTheStartingRoll:
         ):
             roll_asset(campaign, journal, gang=wild_cats, rolled=2)
 
-        # Opening builds the table into the campaign's additions; the gangs
-        # already playing are given it by the propagation pass that files.
+        # Opening adds a built-in membership; deliver its propagation task to existing
+        # campaign gangs.
         with task_queue.capture():
             open_table(campaign, journal)
         task_queue.deliver_all()
@@ -450,7 +422,7 @@ class TestTheStartingRoll:
         assert journal not in tables_held_by(wild_cats, campaign)
         with pytest.raises(Refusal, match="Wild Cats cannot roll for"):
             roll_asset(campaign, journal, gang=wild_cats, rolled=3)
-        # Nothing taken back: the territory it rolled is still held.
+        # Closing the table preserves already rolled holdings.
         roll.campaign_asset.refresh_from_db()
         assert roll.campaign_asset.holder.gang == wild_cats
         assert sentences(campaign_history(campaign))[-1] == (
@@ -488,12 +460,10 @@ class TestTheStartingRoll:
                 act.roll_asset(selection_table, membership=membership, rolled=11)
 
 
-# --- Opening a table widens the catalogue ------------------------------------
-
-
 class TestTheCatalogue:
-    """What the Add control offers: the campaign type's assets and the
-    campaign's own, plus every entry of every table the campaign holds."""
+    """The Add picker combines campaign-type assets, campaign-owned assets and entries from
+    available tables.
+    """
 
     def test_opening_a_table_makes_its_entries_addable_and_closing_narrows(
         self, campaign, journal, territory
@@ -515,9 +485,9 @@ class TestTheCatalogue:
     def test_an_opened_tables_entry_can_be_added_by_hand(
         self, client, campaign, journal, arbitrator
     ):
-        """The picker and the act read one rule: what the widened catalogue
-        offers, Add territory accepts, though the asset sits in a pack the
-        campaign does not otherwise see."""
+        """The Add view accepts assets exposed by an opened table even when they belong to
+        another pack.
+        """
         open_table(campaign, journal)
         vats = _holding_assets(campaign).get(name="Amneo-vats")
         client.force_login(arbitrator)
@@ -528,7 +498,6 @@ class TestTheCatalogue:
         assert response.status_code == 302
         assert CampaignAsset.objects.filter(campaign=campaign, asset=vats).exists()
 
-        # Closed again, the same asset is neither offered nor accepted.
         close_table(campaign, journal)
         response = client.post(
             reverse("n26-campaign-add-asset", args=[campaign.pk]),
@@ -567,9 +536,8 @@ class TestTheCatalogue:
         task_queue.deliver_all()
         assert journal in tables_held_by(wild_cats, campaign)
 
-        # Wild Cats was given the table through the member, so every copy
-        # names it as its provenance: closing archives rather than deletes,
-        # and reopening revives that same member.
+        # Materialised copies retain this built-in membership as provenance, so closure
+        # archives it and reopening reuses it.
         close_table(campaign, journal)
         first.refresh_from_db()
         assert first.archived
@@ -588,13 +556,10 @@ class TestTheCatalogue:
         assert open_table(campaign, journal).pk != first.pk
 
 
-# --- A table of the campaign's own -------------------------------------------
-
-
 class TestCreatingATable:
-    """A table the arbitrator writes lands in the campaign's pack, built
-    into the campaign's additions, and reaches every member gang and no
-    other campaign."""
+    """Campaign-created tables belong to its pack and additions, reaching its member gangs
+    without appearing in other campaigns.
+    """
 
     def test_it_lands_in_the_campaigns_pack_built_in_and_held_by_every_gang(
         self, campaign, territory, slag_kings, wild_cats, propagating, task_queue
@@ -632,9 +597,9 @@ class TestCreatingATable:
     def test_a_table_from_a_former_campaign_is_not_offered_in_the_next(
         self, campaign, territory, core, arbitrator, goliath, owner
     ):
-        """A gang keeps what a campaign gave it after it leaves, so the
-        last arbitrator's table is still on its card — but it is that
-        campaign's, and the next campaign never offers it."""
+        """A stored table from a previous campaign remains unavailable in the next
+        campaign.
+        """
         from n26.core.operations import operation
 
         turf = create_campaign_table(campaign, territory, "Dust Falls Turf", dice="d6")
@@ -677,19 +642,16 @@ class TestCreatingATable:
             act.add_table_entry(table, ruins, roll_low=1, roll_high=3)
         assert roll_asset(campaign, table, rolled=2).campaign_asset.asset == ruins
 
-        # Not the campaign's own: a system table is the book's.
+        # Only campaign-owned tables accept entry edits through this operation.
         with pytest.raises(ValueError, match="not one of"):
             with campaign_operation(campaign, actor=campaign.owner) as act:
                 act.add_table_entry(journal, ruins, roll_low=1)
 
 
-# --- The pages ---------------------------------------------------------------
-
-
 class TestThePages:
-    """Every control is the arbitrator's and takes the asset type's own
-    word; the dialogs offer only what can be rolled on; nothing new
-    reaches the gang sheet."""
+    """Arbitrator controls use asset-type labels and available tables. Roll controls remain
+    on campaign pages.
+    """
 
     def test_the_roll_control_appears_only_where_a_rolled_table_is_held(
         self, client, arbitrator, default_pack
@@ -709,9 +671,8 @@ class TestThePages:
         assert add.get_text(strip=True) == "Add rackets"
         assert client.get(add_href + "&source=custom").status_code == 200
 
-        # With a rolled table of Rackets the control appears, in the type's
-        # word; the three-per-gang line is the Territory rule and is not
-        # asserted of Rackets.
+        # Use the Racket label for its control without applying the Territory-specific
+        # three-per-gang suggestion.
         rackets = create_asset_table("Rackets", racket, dice="d6")
         add_asset_table_entry(
             rackets, create_asset("Toll", racket), roll_low=1, roll_high=6
@@ -777,15 +738,14 @@ class TestThePages:
         assert "Roll territories" in page
         assert f'name="table" value="{selection_table.pk}"' in page
 
-        # Over htmx the panel alone comes back, in its host.
         partial = client.get(address, HTTP_HX_REQUEST="true")
         body = partial.content.decode()
         assert 'id="n26-roll-dialog-host"' in body
         assert "hx-swap-oob" in body
         assert "<c-n26.view" not in body and "Gangs" not in body
         assert partial["HX-Replace-Url"] == address
-        # One table is a fact, not a choice: named with its die, no radio,
-        # and posted hidden.
+        # Submit a single available table as a hidden value while displaying its name
+        # and die.
         assert 'type="radio"' not in body
         assert "Territory Selection Table · D66" in BeautifulSoup(
             body, "html.parser"
@@ -924,8 +884,7 @@ class TestThePages:
         )
         assert "The tables Wild Cats holds" not in cats
 
-        # Two tables are radio cards, each named with its die; the range
-        # sentence under the own-roll field follows the selected one.
+        # Offer multiple tables as radio cards and provide the selected die’s range.
         assert kings.count('type="radio"') == 2
         assert "A D6 roll is 1 to 6." in kings
         assert "A D66 roll is 11 to 66." in kings
@@ -967,9 +926,9 @@ class TestThePages:
     def test_the_starting_dialog_draws_its_roll_and_buttons_in_one_island(
         self, client, campaign, territory, journal, slag_kings, wild_cats, arbitrator
     ):
-        """The island owns the table, the own-roll field and the panel's
-        Cancel and submit, since the submit's name follows what is typed.
-        The dialog draws no second footer around it."""
+        """The island owns table selection, the entered-roll field and both footer
+        controls. The dialog must not add a second footer.
+        """
         client.force_login(arbitrator)
         page = reverse("n26-campaign", args=[campaign.pk])
         body = client.get(
@@ -979,7 +938,7 @@ class TestThePages:
         props = _roll_props(body)
         assert props["inputId"] == "starting-roll"
         assert props["cancelUrl"] == page
-        # The dialog closes, rather than navigates, on a link to its own cancel address.
+        # A Cancel link targeting the dialog’s cancel URL closes it without navigation.
         assert f"cancelUrl: '{page}'" in body
         assert props["rolled"] == {
             "label": "Your own roll",
@@ -994,12 +953,12 @@ class TestThePages:
         }
         assert props["table"] == props["tables"][0]["value"]
 
-        # The kit button writes the caller's type before its own type="button";
-        # a browser keeps the first of a repeated attribute.
+        # The button component emits the supplied type first; this parser matches the
+        # browser’s first-attribute handling.
         document = BeautifulSoup(body, "html.parser", on_duplicate_attribute="ignore")
         dialog = document.find("dialog")
         host = dialog.select_one('[data-react-name="campaign-roll"]')
-        # Before the island mounts, and without a script, the act is Roll.
+        # The unmounted fallback submits Roll.
         assert [b.get_text(strip=True) for b in dialog.select("[type=submit]")] == [
             "Roll"
         ]
@@ -1058,8 +1017,8 @@ class TestThePages:
                 "rolled": "63",
             },
         )
-        # Without htmx the plain campaign page, no anchor: the message at
-        # its top is what the reader should see, not the gangs table.
+        # Plain requests redirect to the campaign page without an anchor so the message
+        # stays visible.
         assert response.status_code == 302
         assert response["Location"] == reverse("n26-campaign", args=[campaign.pk])
         (kept,) = CampaignAsset.objects.filter(campaign=campaign)
@@ -1078,7 +1037,6 @@ class TestThePages:
         page = client.get(response["Location"]).content.decode()
         assert "Rolled 4: Iron Forge assigned to Slag Kings." in page
 
-        # A roll the die cannot make comes back to the dialog with the reason.
         response = client.post(
             reverse("n26-campaign-roll-asset", args=[campaign.pk]),
             {
@@ -1094,8 +1052,7 @@ class TestThePages:
     def test_a_band_the_die_cannot_make_is_refused_on_the_tables_page(
         self, client, page_campaign, page_catalogue, arbitrator
     ):
-        """The band columns are small integers; a number nothing could roll
-        is refused in words on the form, never left for the database."""
+        """Reject unreachable roll bounds on the form before writing table entries."""
         campaign = page_campaign
         _, territory, _ = page_catalogue
         turf = create_campaign_table(campaign, territory, "Turf", dice="d6")
@@ -1121,10 +1078,9 @@ class TestThePages:
         slag_kings,
         arbitrator,
     ):
-        """The dialog posts over htmx. What comes back is the changed
-        sections out of band — figures, gangs, assets, log — the dialog
-        host emptied, the address put back to the plain page, and the
-        message as a toast. No redirect, no reload, no scroll."""
+        """Return updated campaign sections out of band, clear the dialog host, restore the
+        campaign URL and send a success toast.
+        """
         client.force_login(arbitrator)
         response = client.post(
             reverse("n26-campaign-roll-asset", args=[campaign.pk]),
@@ -1151,7 +1107,7 @@ class TestThePages:
             assert element.get("hx-swap-oob") == "true", host
         assert '<div id="n26-roll-dialog-host" hx-swap-oob="true"></div>' in body
         assert "<dialog" not in body
-        # The sections carry what the roll changed.
+
         assert "Old Ruins" in body
         assert (
             "rolled 63 from the Territory Selection Table: Old Ruins (manual roll)"
@@ -1188,8 +1144,9 @@ class TestThePages:
         wild_cats,
         arbitrator,
     ):
-        """The gangs table comes back whole, so each gang's React menu
-        host comes back with it, carrying its Remove from campaign link."""
+        """The refreshed campaign-gangs island receives each gang’s Remove from campaign
+        URL.
+        """
         client.force_login(arbitrator)
         response = client.post(
             reverse("n26-campaign-roll-asset", args=[campaign.pk]),
@@ -1216,10 +1173,9 @@ class TestThePages:
     def test_a_roll_for_a_type_that_has_gone_sends_the_page_over_htmx(
         self, client, page_campaign, arbitrator
     ):
-        """Over htmx a redirect's body is swallowed by hx-swap="none", so an
-        asset type the dialog named but that no longer resolves answers
-        with HX-Redirect and the browser goes to the page. Without htmx it
-        is the redirect it always was."""
+        """An invalid asset type returns HX-Redirect for HTMX requests because hx-swap=none
+        would discard an ordinary response body. Plain requests use a redirect.
+        """
         campaign = page_campaign
         client.force_login(arbitrator)
         address = reverse("n26-campaign-roll-asset", args=[campaign.pk])
@@ -1251,18 +1207,18 @@ class TestThePages:
         body = response.content.decode()
         host = body.split('id="n26-roll-dialog-host"')[1]
         assert host.lstrip().startswith('hx-swap-oob="true"')
-        # The open panel is deleted by id before the host arrives, so htmx
-        # has nothing to settle the new panel's attributes against.
+        # Delete the existing same-ID dialog before HTMX settles the replacement’s
+        # attributes.
         assert body.index(
             '<div id="n26-dialog" hx-swap-oob="delete"></div>'
         ) < body.index('id="n26-roll-dialog-host"')
         assert "<dialog" in body and "You cannot roll 7 on a D66." in body
-        # The typed roll is still in the field for the reader to fix.
+
         assert 'value="7"' in body
         assert "n26-campaign-assets" not in body
         assert not CampaignAsset.objects.filter(campaign=campaign).exists()
 
-        # A table not offered lands the same way, in the form's words.
+        # Unavailable-table errors return through the bound form.
         response = client.post(
             reverse("n26-campaign-roll-asset", args=[campaign.pk]),
             {"type": str(territory.pk), "table": str(journal.pk)},
@@ -1274,9 +1230,9 @@ class TestThePages:
     def test_the_cards_show_the_first_table_chosen_and_keep_the_posted_one(
         self, client, campaign, territory, journal, slag_kings, arbitrator
     ):
-        """Two tables: the first card is checked when the dialog opens, so
-        a roll posts with a table; after a refusal the card the reader
-        chose stays checked and the range sentence follows it."""
+        """Select the first available table initially, then preserve a valid submitted
+        table after refusal.
+        """
         client.force_login(arbitrator)
         address = reverse("n26-campaign", args=[campaign.pk])
         body = client.get(
@@ -1306,8 +1262,8 @@ class TestThePages:
         assert props["table"] == str(journal.pk)
         assert props["rolled"]["value"] == "9"
 
-        # A table that is not offered falls back to the first card, and what
-        # was typed reaches the island as text.
+        # An unavailable table falls back to the first option while preserving the
+        # entered roll as text.
         response = client.post(
             reverse("n26-campaign-roll-starting", args=[campaign.pk, slag_kings.pk]),
             {"type": str(territory.pk), "table": "nonsense", "rolled": "1'+x"},
@@ -1433,7 +1389,7 @@ class TestThePages:
         page = client.get(response["Location"]).content.decode()
         assert "3 of 3 rolls covered" in page
 
-        # A band running downwards lands on the form in words.
+        # Reject reversed roll bounds on the form.
         page = client.post(
             response["Location"],
             {"asset": str(ruins.pk), "roll_low": "3", "roll_high": "1"},
@@ -1459,9 +1415,9 @@ class TestThePages:
     def test_the_page_costs_the_same_however_many_gangs_and_tables(
         self, client, campaign, territory, journal, slag_kings, goliath, arbitrator
     ):
-        """One gang with a rolled territory, one open table and one of the
-        campaign's own to start from, so what is measured is the growth
-        and not the first of each kind."""
+        """Include each table source in the baseline so growth measures additional rows
+        rather than the first query for a new source.
+        """
         client.force_login(arbitrator)
         address = reverse("n26-campaign", args=[campaign.pk])
         roll_asset(campaign, journal, gang=slag_kings, rolled=6)
@@ -1484,8 +1440,7 @@ class TestThePages:
             body = client.get(address).content.decode()
 
         assert body.count("Roll starting territory") == 0
-        # No more than before: three more gangs, three more rolls and three
-        # more tables add nothing per gang or per table.
+
         assert len(more_queries.captured_queries) <= len(few.captured_queries)
         sheet = render_campaign(campaign)
         (table,) = sheet.assets
@@ -1501,19 +1456,15 @@ class TestThePages:
     def test_a_dialog_on_its_own_reads_nobodys_badge(
         self, client, campaign, territory, selection_table, arbitrator
     ):
-        """Fetched over htmx, a roll dialog names nobody — not the
-        arbitrator, not a gang's owner — so it is built without anybody's
-        badge data, which the page reads for the names it draws. The
-        dialog a refused roll comes back in is built the same way."""
+        """Roll-dialog responses omit user badge lookups, including after refused
+        submissions.
+        """
 
         def badge_reads(captured):
-            """Every read of profiles or of badge grants on their own — the
-            arbitrator's profile riding the campaign's fetch as a join is
-            not one — less the one the platform makes of the reader's own
-            profile for their time zone on a request whose session has
-            none: the request's, not the dialog's. A badge drawn lazily for
-            the arbitrator would be a read of their grants, and for a
-            gang's owner a read of another's profile."""
+            """Find standalone user-profile and badge-grant reads, excluding one
+            request-level lookup of the reader’s profile for timezone settings. A
+            profile joined into the campaign fetch does not count.
+            """
             reads = [
                 q["sql"]
                 for q in captured.captured_queries
