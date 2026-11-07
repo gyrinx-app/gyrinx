@@ -1,8 +1,4 @@
-"""A very basic text renderer.
-
-Exists so a human (or a test) can look at what the render structures hold.
-Layout is deliberately crude — this is a debugging tool, not a design.
-"""
+"""Render card display structures as plain text for inspection and tests."""
 
 from n26.core.render import build_ledger, render_gang
 from n26.core.rows import PartKind, choice_rows, part_text, row_text
