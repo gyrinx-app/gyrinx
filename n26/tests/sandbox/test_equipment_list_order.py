@@ -1,19 +1,6 @@
-"""Which of a fighter's equipment lists comes first, and the repair that
-sinks the variant lists.
-
-A fighter holds several lists at once: the one the house brings and the
-one a variant pick adds arrive by the same route — a grant a pick or a
-gang type carries — so nothing about how a list was come by says which
-is the gang's own. ``Collection.position`` does. Every list read off a
-card is sorted by it once, in ``n26.core.access``, so the fighter's
-Equip screen, the gang's own and the hire screen agree on which list
-comes first; the standard Trading Post is last whatever it carries.
-
-The repair (``n26.library.collection_positions``) reads every collection
-and how it reaches a card, and gives 100 to the lists reached only
-through picks that are not gang archetypes.
-
-Issue #2538.
+"""Collection.position orders equipment access consistently for gang, equip and hire pages,
+with the standard Trading Post last. The repair sets variant-only lists at position 0 to
+VARIANT_POSITION while preserving existing positions and other grant sources.
 """
 
 import pytest
@@ -64,8 +51,7 @@ def owner(db):
 
 @pytest.fixture
 def lists(db):
-    """Two equipment lists, each holding a piece of gear so a buying
-    screen offers it."""
+    """Stock both collections so buying pages offer them."""
     made = {}
     for key, name, gear in [
         ("house", "Escher Equipment List", "Mesh armour"),
@@ -79,9 +65,7 @@ def lists(db):
 
 @pytest.fixture
 def escher(lists):
-    """The house: a gang type that grants its list to the gang and to
-    every member — the route a house list takes in the shipped content,
-    and the same route a variant's list takes."""
+    """The gang type grants its list to the gang and every model."""
     gang_type = create_gang_type("Escher", starting_credits=1000)
     modifier(
         "Escher: the gang buys from the Escher list",
@@ -107,9 +91,7 @@ def sister(escher, person_type, make_statline):
 
 @pytest.fixture
 def variant(escher, lists):
-    """The question the house asks — which variant, or none — and the
-    one pick on offer, carrying the variant's list to the gang and to
-    every member."""
+    """An optional gang-level variant grants its collection to the gang and every model."""
     slot_type = create_slot_type("Variant", allows_repeats=False)
     corrupted = create_pickable("Chaos Corrupted", slot_type)
     picklist = create_picklist("Variants", slot_type, members=[corrupted])
@@ -154,7 +136,7 @@ def fighter(gang, sister):
 
 
 def take_the_variant(gang, pickable):
-    """Answer the gang's open question, as the picker's click does."""
+    """Answer the gang’s Variant slot on its stored grant anchor."""
     card = build_gang_card(gang, with_statlines=False)
     computed = compute_gang(
         card, build_modifier_index([node.assignable for node in card.all_nodes()])
@@ -175,8 +157,7 @@ def set_position(collection, position):
 
 
 class TestWhichListComesFirst:
-    """The lists a card reaches are sorted by position, lowest first;
-    a tie keeps the order the walk found them in."""
+    """Sort collections by ascending position, preserving traversal order on ties."""
 
     def test_the_variant_list_is_reached_the_same_way_as_the_house_list(
         self, gang, fighter, variant, lists
@@ -193,9 +174,7 @@ class TestWhichListComesFirst:
     def test_a_tie_keeps_the_order_the_walk_found_them_in(
         self, gang, sister, variant, lists
     ):
-        """Two lists at 0 stay in the walk's order — the card's own
-        built-in before the computed grant — even where a sort by name
-        would swap them, so the tie-break is the walk and not the name."""
+        """Equal positions preserve traversal order even when alphabetical order differs."""
         last_by_name = create_collection("Zeta Equipment List")
         add_entry(last_by_name, create_wargear("Zeta blade", price=20))
         add_built_in(sister, last_by_name)
@@ -228,8 +207,7 @@ class TestWhichListComesFirst:
     def test_a_built_in_list_still_comes_before_a_grant_on_a_tie(
         self, gang, sister, variant, lists, owner
     ):
-        """The walk's own order — the card's stored rows before the
-        computed grants — is what a tie falls back to."""
+        """Stored rows precede computed grants when positions match."""
         add_built_in(sister, lists["variant"])
         fighter = hire(gang, sister, "Vex")
 
@@ -261,8 +239,7 @@ class TestWhichListComesFirst:
 
 
 class TestTheScreensAgree:
-    """A fighter's Equip screen and the gang's own both open on the
-    first list and put the tabs in the same order."""
+    """Gang and model equipment pages use the same collection order and default selection."""
 
     def test_equip_opens_on_the_lowest_positioned_list(
         self, client, owner, gang, fighter, variant, lists
@@ -300,8 +277,9 @@ class TestTheScreensAgree:
 
 
 class TestTheTradingPostIsLast:
-    """The standard Trading Post is the last tab whether or not the
-    fighter holds it, and whatever position it carries."""
+    """The standard Trading Post remains last regardless of its position or whether the
+    fighter holds it.
+    """
 
     @pytest.fixture
     def post(self, default_pack):
@@ -339,17 +317,15 @@ class TestTheTradingPostIsLast:
 
 
 class TestTheOrderingRepair:
-    """The repair reads every collection and how each reaches a card,
-    and gives 100 to the ones reached only through picks that are not
-    gang archetypes."""
+    """Only unpositioned collections reached exclusively through non-archetype picks
+    receive VARIANT_POSITION.
+    """
 
     @pytest.fixture
     def library(self, escher, sister, variant, lists):
-        """Beside the house and the variant: an Outcast gang archetype's
-        list, a list a variant and an archetype both grant, a list an
-        author has already numbered, a menu nothing grants, a list the
-        variant hands over inside a hidden bundle, and a list inside a
-        bundle nothing hands over."""
+        """Include archetype, shared, pre-positioned, ungranted and hidden-bundle
+        collection routes.
+        """
         add_built_in(sister, lists["house"])
         bundle = create_hidden("Corruption bundle")
         modifier(
@@ -426,8 +402,7 @@ class TestTheOrderingRepair:
             "Corruption Bundle Equipment List",
             "Orphan Bundle Equipment List",
         }
-        # A carrier granting a list twice — to the gang and to every
-        # member — is one route, said once.
+        # Report one carrier route even when it targets both gang and models.
         assert by_name["Escher Equipment List"].granted == (
             "built into profile Gang Sister; granted by gang type Escher"
         )
@@ -444,10 +419,9 @@ class TestTheOrderingRepair:
     def test_a_route_through_a_hidden_bundle_is_followed_back_to_the_pick(
         self, library
     ):
-        """A pick that hands over a bundle whose modifier adds a list
-        reaches that list as surely as one that adds it outright; the
-        bundle is named on the way. A bundle nothing hands over stops
-        the route, and the page says so."""
+        """Trace a granted hidden carrier back to its originating pick; an ungranted
+        carrier provides no such route.
+        """
         by_name = {reading.name: reading for reading in find().readings}
 
         assert by_name["Corruption Bundle Equipment List"].granted == (
