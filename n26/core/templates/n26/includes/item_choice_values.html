@@ -1,0 +1,19 @@
+{% comment %}
+Values and per-source controls under one carried item's heading. Only the model
+editor changes an item choice; the roster can dismiss an open one.
+{% endcomment %}
+{% for part in row.parts %}
+    {% with choice=part.value %}
+        <span class="inline-flex items-center gap-0">
+            {{ choice.chosen|default:"—" }}
+            {% if can_change %}
+                <c-n26.model-card.mode when="edit">
+                    {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.is_resolved %}Change{% else %}Choose{% endif %}</c-ui.button>{% endif %}
+                </c-n26.model-card.mode>
+            {% endif %}
+            <c-n26.model-card.mode when="gang edit">
+                <c-n26.choice-dismiss :choice="choice" />
+            </c-n26.model-card.mode>
+        </span>{% if not forloop.last %}, {% endif %}
+    {% endwith %}
+{% endfor %}
