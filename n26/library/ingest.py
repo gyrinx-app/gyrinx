@@ -31,6 +31,7 @@ import csv
 import io
 import random
 import re
+import uuid
 from collections import Counter as TallyCounter
 from dataclasses import dataclass, field
 
@@ -438,7 +439,7 @@ def store_sheet(owner, sheet, upload):
         superseded = held.file.name
         held.filename = upload.name or f"{sheet}.csv"
         held.lines = len(rows)
-        held.file.save(f"{sheet}.csv", ContentFile(raw), save=False)
+        held.file.save(f"{sheet}-{uuid.uuid4().hex}.csv", ContentFile(raw), save=False)
         held.save()
         if superseded and superseded != held.file.name:
             transaction.on_commit(

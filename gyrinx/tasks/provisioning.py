@@ -26,6 +26,7 @@ from google.api_core.exceptions import Aborted, AlreadyExists, Conflict, NotFoun
 from google.cloud import pubsub_v1, scheduler_v1
 from google.protobuf import duration_pb2
 
+from gyrinx.tasks.config import expected_push_service_account
 from gyrinx.tasks.registry import get_all_tasks
 from gyrinx.tasks.route import TaskRoute
 from gyrinx.tracker import track
@@ -81,10 +82,10 @@ def provision_task_infrastructure():
     push_endpoint = f"{service_url}/tasks/pubsub/"
 
     # Service account for Pub/Sub to authenticate push requests
-    service_account = os.getenv(
-        "TASKS_SERVICE_ACCOUNT",
-        f"pubsub-invoker@{project_id}.iam.gserviceaccount.com",
-    )
+    service_account = expected_push_service_account()
+    if not service_account:
+        logger.error("No task push service account configured; skipping provisioning")
+        return
 
     publisher = pubsub_v1.PublisherClient()
     subscriber = pubsub_v1.SubscriberClient()

@@ -22,6 +22,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from gyrinx.tasks.backend import PubSubBackend
+from gyrinx.tasks.config import expected_push_service_account
 from gyrinx.tasks.executor import run_task
 from gyrinx.tasks.groups import group_status
 from gyrinx.tasks.registry import get_task
@@ -84,16 +85,19 @@ def _verify_oidc_token(request) -> bool:
             logger.error("CLOUD_RUN_SERVICE_URL not set, cannot verify token")
             return False
 
-        # Verify token signature and claims
+        expected_sa = expected_push_service_account()
+        if not expected_sa:
+            logger.error("No task push service account configured")
+            return False
+
+        # Verify token signature, audience and sender identity.
         claim = id_token.verify_oauth2_token(
             token,
             google_requests.Request(),
             audience=audience,
         )
 
-        # Optionally verify the service account email
-        expected_sa = os.getenv("TASKS_SERVICE_ACCOUNT")
-        if expected_sa and claim.get("email") != expected_sa:
+        if claim.get("email") != expected_sa:
             logger.warning(
                 f"Token email mismatch: expected {expected_sa}, got {claim.get('email')}"
             )
