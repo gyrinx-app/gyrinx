@@ -3506,8 +3506,8 @@ MERGEABLE_KINDS = frozenset({"weapon", "wargear", "weapon-accessory"})
 def thing_merge(request, kind, pk):
     """Preview a duplicate merge into the survivor selected by ``?into=``.
 
-    Queue the confirmed plan through the gang-by-gang runner and redirect to its
-    recorded outcome.
+    On confirmation, merge library-only plans synchronously and redirect to the
+    survivor. Queue plans that affect player data and redirect to their record.
     """
     from n26.library.merging import plan_merge
     from n26.maintenance import AnotherRunning, start_authoring_deletion
