@@ -887,7 +887,7 @@
 
     /*
      * Remove the first breadcrumb separator box so neither its margin nor the flex gap
-     * indents the trail. Keep this unlayered to override kit utilities.
+     * indents the trail.
      */
     nav[aria-label="Breadcrumb"] ol > li:first-child::before {
         display: none;
