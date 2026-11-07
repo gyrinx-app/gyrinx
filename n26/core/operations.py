@@ -1131,7 +1131,7 @@ class Operation:
             None, LedgerEvent.Kind.INCOME, credits_delta=-amount, note=note[:255]
         )
 
-    def adjust_credits(self, amount, note=""):
+    def adjust_credits(self, amount, note="", *, request_key=None):
         """Add credits (positive) or remove them (negative) by hand.
 
         ``settle`` refuses a removal that would leave a gang with a budget
@@ -1145,6 +1145,7 @@ class Operation:
             LedgerEvent.Kind.CREDITS_ADJUSTED,
             credits_delta=-amount,
             note=note.strip()[:255],
+            request_key=request_key,
         )
 
     def clean_house(self):
