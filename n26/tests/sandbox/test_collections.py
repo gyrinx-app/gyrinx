@@ -1,15 +1,6 @@
-"""Collections: equipment lists and trading posts, per design/collections.md.
-
-The load-bearing ideas under test:
-
-* reference price (credits + TP + exclusivity) is the item's own data —
-  every kind, no special cases;
-* a collection is itself an assignable, so *having* a list is an ordinary
-  assignment: built-ins, gang-hosted, or computed grant;
-* curated and derived collections browse to the same shape through the
-  same pricing function;
-* operations never consult collections — an entry pre-fills a purchase,
-  the get-out is its absence.
+"""Collections share browsing and pricing for explicit entries and selectors. Collection
+access uses assignments or computed grants; purchases retain their selected prices and
+source while direct purchases can use custom terms.
 """
 
 import pytest
@@ -41,9 +32,7 @@ pytestmark = pytest.mark.django_db
 
 
 def browse_the_post():
-    """The default Trading Post, authored once per test database (two
-    sweeps: every weapon, every wargear) — and bought on TRADING_POST terms,
-    because being a trading post is how you buy it, not what it is."""
+    """Reuse or create the default Trading Post and browse on TRADING_POST terms."""
     from n26.library.models import Collection
     from n26.tests.sandbox.actions import create_trading_post
 
@@ -77,11 +66,9 @@ def taxonomy(db):
 
 @pytest.fixture
 def catalogue(taxonomy):
-    """A few priced items with homes — a miniature reference library.
-
-    The guns carry TP prices (0 is a real price — free to order) because
-    being at the Trading Post *is* having one; the heirloom is Exclusive
-    and the sweep never sees it."""
+    """Categorised reference items with numeric Trade Point prices, plus an exclusive item
+    excluded from the Trading Post.
+    """
     autogun = create_weapon(
         "Autogun",
         profiles=[("Standard", 0)],
@@ -110,8 +97,9 @@ def catalogue(taxonomy):
 
 class TestReferencePricing:
     def test_every_kind_is_priced_and_starts_off_the_post(self, make_profile):
-        """Zero credits by default — and no TP at all: blank means not
-        offered at the Trading Post, which is different from TP 0."""
+        """Blank Trade Point price means unavailable at the Trading Post; zero is a valid
+        offered price.
+        """
         from n26.tests.sandbox.actions import create_skill, create_subtype
 
         for thing in (
@@ -132,14 +120,14 @@ class TestReferencePricing:
         assert str(price_of(catalogue["heirloom"])) == "40cr / TP E"
 
     def test_exclusive_with_a_tp_price_is_unauthorable(self, db):
-        """TP "E" and a TP price are contradictory facts — refused at the
-        database; is_exclusive wins if code ever has to choose."""
+        """Exclusive status and a numeric Trade Point price are mutually exclusive database
+        values.
+        """
         with pytest.raises(IntegrityError), transaction.atomic():
             create_wargear("Nonsense", trade_point_price=3, is_exclusive=True)
 
     def test_ammo_prices_its_own_row(self, taxonomy):
-        """The book prints per-profile creds and TP — warp rounds cost TP 4
-        on an autogun that costs TP 0."""
+        """Weapon profiles have independent credit and Trade Point prices."""
         gun = create_weapon(
             "Autogun",
             profiles=[("Standard", 0), ("Warp round", 10)],
@@ -156,7 +144,7 @@ class TestReferencePricing:
 
 class TestTheHomeCategory:
     def test_an_item_sorts_the_same_wherever_it_appears(self, catalogue):
-        """Two lists carry the autogun; both group it identically."""
+        """Both collections use the item’s own taxonomy."""
         first = create_collection("List A", entries=[catalogue["autogun"]])
         second = create_collection("List B", entries=[catalogue["autogun"]])
 
@@ -195,8 +183,7 @@ class TestCuratedPricing:
         assert (line.credits, line.trade_points) == (15, 0)
 
     def test_an_exclusive_item_may_be_listed(self, catalogue):
-        """Exclusive means "list only", not "nowhere" — the list is exactly
-        where it lives."""
+        """Exclusive items remain available through equipment lists."""
         house_list = create_collection("House List", entries=[catalogue["heirloom"]])
         (line,) = list(browse(house_list).all_lines())
         assert line.is_exclusive is True
@@ -216,8 +203,9 @@ class TestTheDerivedTradingPost:
         assert "House Heirloom Blade-Charm" not in names
 
     def test_both_species_browse_to_the_same_shape(self, catalogue):
-        """A UI drawing one can draw the other — same structure, no entry
-        required."""
+        """Explicit and selector-derived collections share a display structure; only
+        explicit lines have a CollectionEntry.
+        """
         curated = browse(create_collection("List", entries=[catalogue["autogun"]]))
         derived = browse_the_post()
 
@@ -230,13 +218,8 @@ class TestTheDerivedTradingPost:
         assert derived.all_lines().__next__().entry is None
 
     def test_grouping_follows_taxonomy_order(self, catalogue):
-        """Sections by their own position, categories by theirs.
-
-        Both sections here sit at position 0, which is what an untouched
-        one is, so their names break the tie — a section is placed by
-        ``Section.position`` and by nothing its categories happen to
-        say. Inside one, the categories keep the positions they were
-        given.
+        """Sections sort by their position, then name on ties; categories retain their own
+        order within each section.
         """
         view = browse_the_post()
         assert [section.name for section in view.sections] == [
@@ -275,8 +258,7 @@ class TestBuying:
         assert weapon.profiles
 
     def test_trade_points_are_recorded_when_spent(self, fighter, catalogue):
-        """The visit flow is deferred, so TP arrives explicitly — and is
-        remembered, which is what makes refunds computable later."""
+        """Direct purchases can explicitly record spent Trade Points for later refunds."""
         assignment = buy(fighter, thing=catalogue["mesh"], trade_points=1)
         assert assignment.ledger_entry.trade_points == 1
 
@@ -291,8 +273,7 @@ class TestBuying:
         assert_reconciled(gang)
 
     def test_the_get_out_is_the_same_call_with_no_entry(self, fighter, catalogue):
-        """ "Yeah but I want to buy something weird" — off-list, odd price.
-        Nothing checks; the ledger just remembers what happened."""
+        """A direct purchase accepts a custom price without recording a collection entry."""
         assignment = buy(fighter, thing=catalogue["heirloom"], paid=25)
 
         entry = assignment.ledger_entry
@@ -309,7 +290,7 @@ class TestBuying:
 
 
 class TestHavingAList:
-    """Having a list is an assignment — never a table of its own."""
+    """Stored assignments and computed grants provide collection access."""
 
     def test_the_profile_s_list_arrives_at_hire(self, gang, make_profile, catalogue):
         house_list = create_collection("Venator List", entries=[catalogue["autogun"]])
@@ -335,8 +316,7 @@ class TestHavingAList:
         assert access.source == str(gang)
 
     def test_a_computed_grant_appears_and_disappears(self, gang, fighter, catalogue):
-        """Tech Bazaar's standing Trading Post access: granted by a carried
-        thing, gone when it goes."""
+        """Collection access lasts while its granting carrier remains."""
         variant_post = create_collection("Bazaar Post", entries=[catalogue["mesh"]])
         charm = create_wargear("Bazaar Token")
         modifier(
@@ -383,12 +363,12 @@ class TestHavingAList:
 
 
 class TestRatingFollowsTheRule:
-    """A discount leaves the rating at full price; a list's
-    own price IS the price, so it is also the rating; and the number
-    written at purchase is pinned on that assignment forever."""
+    """Discounts reduce payment while preserving the list-price contribution. Collection
+    overrides define that contribution, which later catalogue repricing does not change.
+    """
 
     def test_a_discount_counts_at_full_rating(self, gang, fighter, catalogue):
-        """Paid 10 for a 15cr item on a deal — it is still a 15cr item."""
+        """The discount changes payment without reducing the list-price contribution."""
         assignment = buy(fighter, thing=catalogue["mesh"], paid=10, discount=5)
 
         entry = assignment.ledger_entry
@@ -402,7 +382,7 @@ class TestRatingFollowsTheRule:
         assert_reconciled(gang)
 
     def test_a_list_price_is_the_rating(self, gang, fighter, catalogue):
-        """Cheaper for this gang is not a discount — it is the price."""
+        """A collection override defines the purchase’s rating contribution."""
         house_list = create_collection(
             "House List", entries=[(catalogue["mesh"], {"price_override": 10})]
         )
@@ -414,7 +394,9 @@ class TestRatingFollowsTheRule:
         assert entry.rating_contribution == 10  # not the reference 15
 
     def test_the_price_is_pinned_forever(self, gang, fighter, catalogue):
-        """Repricing the list later never re-prices what was bought."""
+        """Later catalogue and collection repricing does not change the recorded
+        contribution.
+        """
         from n26.core.reconcile import repin_everything
 
         house_list = create_collection(
@@ -436,7 +418,7 @@ class TestRatingFollowsTheRule:
 
 
 class TestBuyingALine:
-    """What browsing produced is the purchase — nothing is disassembled."""
+    """Browsed lines retain the source and access-specific purchase terms."""
 
     def test_a_line_is_the_whole_purchase(self, fighter, catalogue):
         house_list = create_collection(
@@ -449,7 +431,7 @@ class TestBuyingALine:
         entry = assignment.ledger_entry
         assert entry.paid == 10
         assert entry.bought_from == line.entry
-        # The list shows a TP value but never charges it.
+        # List terms retain the reference Trade Point value without charging it.
         assert entry.trade_points == 0
 
     def test_a_post_line_charges_its_trade_points(self, fighter, catalogue):
@@ -464,7 +446,7 @@ class TestBuyingALine:
         assert entry.bought_from is None  # a derived collection has no rows
 
     def test_curated_and_derived_lines_buy_identically(self, fighter, catalogue):
-        """The interchangeability the CollectionView shape promises."""
+        """Both browse routes supply a credit price to the same purchase operation."""
         curated = create_collection("List", entries=[catalogue["autogun"]])
         for line in (
             next(iter(browse(curated).all_lines())),
@@ -483,9 +465,7 @@ class TestBuyingALine:
 
 
 class TestSelling:
-    """A sale is the third act, and none of the other two: the thing goes,
-    and half of what it is *worth* comes back — never half of what was paid
-    for it, because those two part company at the first discount."""
+    """Sale proceeds use the stored rating contribution rather than the amount paid."""
 
     def test_half_of_what_it_is_worth_lands_in_the_bank(self, gang, fighter, catalogue):
         from n26.tests.sandbox.actions import sell
@@ -498,8 +478,7 @@ class TestSelling:
 
         gang.refresh_from_db()
         assert gang.credits == 1000 - 55 - 20 + 10
-        # The gun stops counting the moment it is gone; the fighter is worth
-        # their hire and nothing else.
+        # The removed weapon no longer contributes to gang rating.
         assert gang.rating == 55
         assignment.refresh_from_db()
         assert assignment.archived is True
@@ -508,8 +487,7 @@ class TestSelling:
     def test_a_haggled_price_sells_for_half_of_the_full_one(
         self, gang, fighter, catalogue
     ):
-        """Bought at a discount, sold at half of what the gang owns. A sword
-        talked down to 60 is still a hundred credits of sword."""
+        """A discounted purchase still sells from its full recorded contribution."""
         from n26.tests.sandbox.actions import sell
 
         assignment = buy(fighter, thing=catalogue["autogun"], paid=12, discount=8)
@@ -523,9 +501,7 @@ class TestSelling:
         assert_reconciled(gang)
 
     def test_nothing_sells_for_less_than_five(self, gang, fighter):
-        """Half of a trinket is a rounding error, and nobody hands a knife
-        over for nothing. Half of 9 is 5 by rounding up; half of 8 is 5
-        because that is the floor."""
+        """Round half the contribution up, with a minimum sale value of five."""
         from n26.tests.sandbox.actions import sell
 
         for price, expected in ((9, 5), (8, 5), (1, 5)):
@@ -540,8 +516,7 @@ class TestSelling:
     def test_a_gun_is_sold_with_its_ammo_and_paid_for_both(
         self, gang, fighter, catalogue
     ):
-        """What goes with the gun counts towards what the gun fetches: a
-        buyer pays for the thing as it stands, sight and rounds included."""
+        """Sale value includes purchased child profiles."""
         from n26.library.models import WeaponProfile
         from n26.tests.sandbox.actions import buy_weapon_profile, sell
 
@@ -557,7 +532,7 @@ class TestSelling:
         gang.refresh_from_db()
         credits_before = gang.credits
 
-        # Half of 20 + 30, not half of the gun alone.
+        # Sale includes weapon and purchased-profile contributions.
         assert sell(weapon_assignment) == 25
 
         gang.refresh_from_db()
@@ -569,14 +544,8 @@ class TestSelling:
 
 
 class TestBuyingAManyProfiledGun:
-    """A gun whose ammo the list sells separately arrives without it.
-
-    Real ammo is priced by the list, not by the profile — the library
-    rows sit at 0 and each list's entry says what *it* charges — so
-    "free rides along" read off the profile's own price handed over
-    every ammo type on the book's shelf: bought through the Palanite
-    list, a launcher arrived with the choke gas the list charges 55
-    for, and paying anyway stacked a second copy.
+    """Profiles separately priced by a collection are not granted with its weapon, even
+    when their reference price is zero.
     """
 
     @pytest.fixture
@@ -595,7 +564,7 @@ class TestBuyingAManyProfiledGun:
 
     @pytest.fixture
     def enforcer_list(self, launcher, default_pack):
-        """The gun, and two of its ammo types priced as the list's own rows."""
+        """The weapon and two named profiles have separate collection entries."""
         choke = launcher.profiles.get(name="choke gas grenades")
         krak = launcher.profiles.get(name="krak grenades")
         return create_collection(
@@ -634,8 +603,7 @@ class TestBuyingAManyProfiledGun:
         line = self.gun_line(enforcer_list)
         gun = buy(fighter, line)
         choke = next(part for part in line.parts if "choke" in part.name)
-        # Onto the gun, as a purchase buys a part: a profile belongs to one
-        # particular weapon, not to the fighter carrying it.
+        # Purchase a profile on its weapon assignment.
         with operation(gang, actor=gang.owner) as op:
             op.buy(gun, choke)
 
@@ -650,9 +618,9 @@ class TestBuyingAManyProfiledGun:
     def test_a_hire_built_in_gun_still_comes_whole(
         self, gang, launcher, enforcer_list, make_profile
     ):
-        """No listing stands behind a hire's kit: the built-in launcher
-        means the loadout the content wrote, every zero-priced line
-        included."""
+        """Without a purchase collection, built-in weapons include all zero-reference-price
+        profiles.
+        """
         from n26.core.render import build_model_card
         from n26.tests.sandbox.actions import create_default_set
 
@@ -682,8 +650,7 @@ class TestBuyingAManyProfiledGun:
 
 class TestSellingKeepsItsStory:
     def test_the_ledger_says_sold_rather_than_refunded(self, gang, fighter, catalogue):
-        """A sale and a refund move credits the same way and mean different
-        things. The log has to be able to say which happened."""
+        """Sale history must remain distinguishable from a refund."""
         from n26.core.render_text import ledger_to_text
         from n26.tests.sandbox.actions import sell
 
@@ -696,8 +663,7 @@ class TestSellingKeepsItsStory:
         assert "Refunded" not in text
 
     def test_a_sale_is_not_a_refund_of_what_was_paid(self, gang, fighter, catalogue):
-        """The two acts on one item, side by side: the whole 20 comes back
-        from a refund and half of it from a sale."""
+        """Refund and sale return different amounts for the same purchase."""
         from n26.tests.sandbox.actions import refund, sell
 
         gang.refresh_from_db()
@@ -713,8 +679,7 @@ class TestSellingKeepsItsStory:
 
 
 class TestRefunds:
-    """Distinct acts: remove keeps the money spent; refund gives it back; a
-    sale returns half of what the thing is worth."""
+    """Refunds return recorded payments and remove the refunded subtree."""
 
     def test_a_refund_returns_the_money_and_the_rating(self, gang, fighter, catalogue):
         from n26.tests.sandbox.actions import refund
@@ -738,7 +703,7 @@ class TestRefunds:
     def test_a_refund_returns_what_was_paid_not_the_full_price(
         self, gang, fighter, catalogue
     ):
-        """Bought at a discount, refunded at what actually changed hands."""
+        """A refund returns the discounted amount paid."""
         from n26.tests.sandbox.actions import refund
 
         assignment = buy(fighter, thing=catalogue["mesh"], paid=10, discount=5)
@@ -790,14 +755,12 @@ class TestRefunds:
 
 
 class TestWhatATradingPostStocks:
-    """A trading post is a collection bought on TRADING_POST terms: selector
-    sweeps define what exists, entries customise prices, and everything
-    about charging belongs to the terms of the browse — not to the
-    collection, which only declares contents and prices."""
+    """Selectors and entries determine contents and prices; TRADING_POST browse terms
+    determine charging.
+    """
 
     def test_contents_are_defined_by_selectors_not_kinds_in_code(self, catalogue):
-        """A priced subtype exists; the default post's sweeps do not reach
-        it. Adding a sweep row — content, not code — puts it in the listing."""
+        """Adding a subtype selector includes priced subtypes without changing browse code."""
         from n26.library.models import CollectionSelector, Subtype
         from n26.tests.sandbox.actions import create_trading_post
 
@@ -824,8 +787,7 @@ class TestWhatATradingPostStocks:
         assert names == {"Autogun"}
 
     def test_an_entry_overrides_the_sweep_for_one_item(self, catalogue):
-        """The Nomad pattern: Imperial equipment appears via the sweep but
-        is harder to obtain than usual — one entry reprices it."""
+        """An explicit entry overrides the selected item’s Trade Point price."""
         from n26.tests.sandbox.actions import create_trading_post
 
         nomad_post = create_trading_post(
@@ -836,16 +798,15 @@ class TestWhatATradingPostStocks:
         lines = {
             line.name: line for line in browse(nomad_post, TRADING_POST).all_lines()
         }
-        # Swept in with everything else, but at the post's own TP price.
+        # The explicit entry overrides the selector’s reference price.
         assert lines["Autogun"].trade_points == 4
         assert lines["Autogun"].entry is not None
-        # The rest of the sweep is untouched, at reference prices.
+        # Other selected items retain reference prices.
         assert lines["Lasgun"].trade_points == 0
         assert lines["Lasgun"].entry is None
 
     def test_two_posts_are_two_collections(self, catalogue, gang, make_profile):
-        """Access falls out of the existing machinery: assign the Nomad
-        post to the nomad profile, and only its fighters see it."""
+        """Assigning a variant Trading Post to a profile provides its collection access."""
         from n26.tests.sandbox.actions import create_trading_post
 
         nomad_post = create_trading_post("Nomad Trading Post")
@@ -860,10 +821,9 @@ class TestWhatATradingPostStocks:
     def test_the_sweep_hides_exclusive_items_an_equipment_list_does_not(
         self, catalogue
     ):
-        """The whole separation in one test: ONE collection, two terms.
-        As a list, the sweep carries Exclusive items and nothing charges
-        Trade Points; as a trading trip, "E" is withheld and TP is
-        charged. Charging is not a concern of the collection."""
+        """The same collection includes exclusive items under list terms and excludes them
+        under Trading Post terms.
+        """
         from n26.library.models import Wargear
         from n26.tests.sandbox.actions import create_collection
 
@@ -920,10 +880,9 @@ class TestScaling:
     def test_marking_usability_costs_no_more_queries_as_restrictions_grow(
         self, taxonomy, person_type, make_profile
     ):
-        """A restricted line is noted by reading its use lists — all four
-        of them, on every kind that carries them. The lists load with the
-        listing, so a section of narrowed guns costs what an open one
-        does."""
+        """Prefetch usability restrictions with the listing so adding restricted items adds
+        no queries.
+        """
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -961,10 +920,7 @@ class TestScaling:
     def test_lines_that_come_with_kit_cost_no_more_queries_as_the_list_grows(
         self, taxonomy
     ):
-        """A line's advertised price composes its built-in kit's price
-        in. The kit's set loads with the listing, so a list of kitted
-        mounts prices the packages for the same queries as a list of
-        one — and each package really is priced as one."""
+        """Prefetched built-in sets contribute package prices without per-item queries."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -995,11 +951,10 @@ class TestScaling:
 
 
 class TestTradingPostMembership:
-    """The Trading Post's membership is *having a trade point price* —
-    a selector predicate, never a hand-kept list. Author a weapon with
-    a TP and it is simply there; blank TP means not offered; Exclusive
-    means equipment list only. And a weapon's TP-priced ammo rows ride
-    under the gun, the way the book's table prints them."""
+    """The standard Trading Post selects items with a numeric Trade Point price, including
+    zero, and excludes exclusive items. Eligible named profiles appear beneath their
+    weapon.
+    """
 
     @pytest.fixture
     def armoury(self, taxonomy):
@@ -1023,8 +978,9 @@ class TestTradingPostMembership:
         return {"boltgun": boltgun, "house_special": house_special}
 
     def test_membership_is_having_a_tp_price(self, catalogue, armoury):
-        """The needler has no TP — not offered — so the sweep never
-        carries it; everything with a TP (0 counts) is simply there."""
+        """The standard selectors include numeric Trade Point prices and exclude blank or
+        exclusive prices.
+        """
         from n26.tests.sandbox.actions import create_trading_post
 
         post = create_trading_post()
@@ -1036,17 +992,16 @@ class TestTradingPostMembership:
         assert "House Heirloom Blade-Charm" not in names  # Exclusive
 
     def test_tp_priced_ammo_rides_under_its_gun(self, catalogue, armoury):
-        """Nested lines: the kraken round (TP 5) is a part of the
-        boltgun's line; the house-cast slug has no TP and stays off."""
+        """Include the Trade Point-priced profile beneath its weapon, excluding the profile
+        with no Trade Point price.
+        """
         from n26.tests.sandbox.actions import create_trading_post
 
         post = create_trading_post()
         lines = {line.name: line for line in browse(post, TRADING_POST).all_lines()}
 
         (kraken,) = lines["Boltgun"].parts
-        # The bare name: a nested row draws under its gun, so the
-        # bracket annotation is the renderer's to drop — same rule as
-        # the model card's ammo rows.
+        # Nested profile lines need only their profile name.
         assert kraken.thing.name == "Kraken round"
         assert (kraken.credits, kraken.trade_points) == (15, 5)
         assert kraken.charges_trade_points is True
@@ -1055,16 +1010,9 @@ class TestTradingPostMembership:
     def test_the_whole_listing_is_a_fixed_number_of_queries(
         self, catalogue, armoury, django_assert_num_queries
     ):
-        """The prefetch strategy under test: the count follows the
-        post's *definition*, never its size. One for the selector rows,
-        one per sweep, one for the weapon sweep's nested profiles, three
-        use-restriction prefetches for each sweep whose kind can carry
-        them (an accessory cannot) and three more for the nested
-        profiles, which carry their own, one for the wargear sweep's options —
-        the one kind here that can offer alternatives at purchase — and
-        one for the entries. Nothing stocked offers any, so the group and
-        set rows behind an option are never asked for: an empty level
-        ends the chain."""
+        """Query count depends on selector and relation types rather than the number of
+        stocked items; empty option relations stop further prefetches.
+        """
         from n26.tests.sandbox.actions import create_trading_post
 
         post = create_trading_post()
@@ -1095,20 +1043,11 @@ class TestTradingPostMembership:
 
 
 class TestASectionIsDrawnOnce:
-    """A section holds all of its categories, in one place.
-
-    What a player saw: an equipment list whose sections interleave drew
-    "Ranged weapons", then "Close combat weapons", then "Ranged weapons"
-    again — the same heading two or three times down the page, each with
-    its own chevron, and only the first of them open. The Ash Waste
-    Nomads list made twelve headings out of three sections.
-    """
+    """Group all categories of a section together even when category positions interleave."""
 
     @pytest.fixture
     def interleaved(self, db):
-        """Two sections whose categories alternate by position — the
-        shape a real list has, because a category's position orders it
-        within the taxonomy and not within its section."""
+        """Category positions alternate between two sections."""
         return {
             "pistols": create_category("Ranged", "Pistols", position=0),
             "blades": create_category("Close combat", "Blades", position=1),
@@ -1157,9 +1096,7 @@ class TestASectionIsDrawnOnce:
         ]
 
     def test_sections_keep_taxonomy_order_and_name_breaks_a_tie(self, db):
-        """Every category in the maintainer's content sits at position 0,
-        so an untouched position is the common case and the order it
-        yields is alphabetical. A section that was given one still wins."""
+        """Section position precedes alphabetical tie-breaking."""
         late = create_category("Aftermath", "Scrap", position=0)
         early = create_category("Armoury", "Blades", position=0)
         first = create_category("Opening", "Kit", position=0)
@@ -1202,9 +1139,7 @@ class TestASectionIsDrawnOnce:
         ]
 
     def test_two_categories_sharing_a_name_stay_apart(self, db):
-        """A category name is only unique within its section — the
-        rulebook has Esoteric weapons under both Ranged and Close
-        combat, and folding them would put a pistol among the blades."""
+        """Same-named categories in different sections remain distinct."""
         ranged = create_category("Ranged", "Esoteric weapons", position=0)
         melee = create_category("Close combat", "Esoteric weapons", position=0)
         collection = create_collection(
@@ -1230,17 +1165,8 @@ class TestASectionIsDrawnOnce:
 
 
 class TestWhatACollectionPricesIn:
-    """A collection deals in the currency it chose its contents by.
-
-    Membership at a Trading Post *is* having a Trade Point price, so a
-    post talks in Trade Points. A list an author wrote out by hand
-    prices in credits, and the TP figure an item happens to carry
-    answers nothing a reader of that list can ask — nor does "E", which
-    is a Trade Point value and not a mark of its own.
-
-    The line keeps the item's real numbers throughout. What changes is
-    whether a surface should print them, which is why an authoring
-    preview can still show an author what the catalogue says.
+    """Trade Point selectors determine whether browse lines display Trade Points. The
+    underlying values remain available on other collection views.
     """
 
     def test_a_hand_written_list_does_not_deal_in_trade_points(self, catalogue):
@@ -1248,7 +1174,7 @@ class TestWhatACollectionPricesIn:
         (line,) = browse(house).all_lines()
 
         assert line.shows_trade_points is False
-        # The truth is still on the line for anything that asks.
+        # The underlying Trade Point price remains available.
         assert line.trade_points == 0
 
     def test_a_post_swept_by_trade_point_price_deals_in_them(self, catalogue):
@@ -1260,8 +1186,7 @@ class TestWhatACollectionPricesIn:
         assert lines["Autogun"].shows_trade_points is True
 
     def test_a_sweep_that_is_not_about_trade_points_does_not(self, catalogue):
-        """A collection of skills is swept, and swept by kind rather than
-        by price — nothing about it is a trading trip."""
+        """A kind-only selector does not imply Trade Point display."""
         from n26.library.models import Wargear
 
         everything = create_collection("Everything", contains=[Wargear])
@@ -1296,15 +1221,8 @@ class TestWhatACollectionPricesIn:
 
 
 class TestAmmoRidesUnderTheGun:
-    """A gun's ammo is part of the gun's line, on a curated equipment
-    list as much as on a swept trading post — but which ammo is the
-    collection's own question, answered the way it chose its contents.
-
-    A sweep catches what the criteria caught, of the rounds as much as
-    of the gun. A curated list carries what the author wrote down and
-    nothing else: a list shows only what it lists. Either way a blank
-    profile is never a part — it *is* the weapon's own, and it comes
-    with the gun.
+    """Curated entries and selector criteria determine the named profiles offered beneath a
+    weapon. An unnamed profile belongs to the weapon row instead.
     """
 
     @pytest.fixture
@@ -1342,26 +1260,25 @@ class TestAmmoRidesUnderTheGun:
         assert round_.credits == 10
 
     def test_a_round_the_list_never_named_is_not_offered(self, autogun):
-        """What a player saw: a house list naming a Grenade launcher and
-        nothing else offered every grenade the launcher can fire, none of
-        which the house sells."""
+        """An explicit weapon entry does not offer profiles absent from the collection."""
         house = create_collection("House List", entries=[autogun])
         (line,) = browse(house).all_lines()
 
         assert line.parts == ()
 
     def test_a_named_round_is_not_also_a_row_of_its_own(self, autogun, warp):
-        """Drawn twice, one thing has two prices on one page the moment
-        an author overrides either of them — and the reader cannot tell
-        which click they are about to make."""
+        """Offer named profiles only as nested weapon lines to avoid duplicate purchase
+        routes.
+        """
         house = create_collection("House List", entries=[autogun, warp])
         names = [line.name for line in browse(house).all_lines()]
 
         assert names == ["Autogun"]
 
     def test_a_free_mode_the_list_does_not_name_is_never_offered(self, autogun, warp):
-        """It rides along with the gun already, so a player who bought it
-        would be given a second copy of a profile they already have."""
+        """An unlisted default mode is included with the weapon rather than offered as
+        another purchase.
+        """
         house = create_collection("House List", entries=[autogun, warp])
         (line,) = browse(house).all_lines()
 
@@ -1370,10 +1287,7 @@ class TestAmmoRidesUnderTheGun:
     def test_a_list_may_sell_a_profile_that_costs_nothing_of_its_own(
         self, autogun, profiles
     ):
-        """A free profile the author wrote down at a price is the list
-        selling it at that price. Read the other way round — offered only
-        where the profile's own price is above zero — a house's own
-        priced ammo is drawn nowhere near its gun."""
+        """An explicit collection price can sell a profile whose reference price is zero."""
         from n26.library.models import WeaponProfile
 
         profiles(autogun, name="acid round", price=0)
@@ -1388,8 +1302,7 @@ class TestAmmoRidesUnderTheGun:
         assert round_.credits == 15
 
     def test_a_lists_own_price_does_not_reprice_the_ammo(self, autogun, warp):
-        """An entry's override replaces the gun's own price and nothing
-        else — the rule ``price_with(base=…)`` follows everywhere."""
+        """A weapon-price override leaves profile prices unchanged."""
         house = create_collection(
             "House List", entries=[(autogun, {"price_override": 15}), warp]
         )
@@ -1399,8 +1312,7 @@ class TestAmmoRidesUnderTheGun:
         assert line.parts[0].credits == 10
 
     def test_the_round_is_priced_by_the_entry_that_named_it(self, autogun, warp):
-        """One route to the price, so an author who reprices a round
-        reprices the one the reader clicks."""
+        """The nested profile retains its own collection entry and override."""
         house = create_collection(
             "House List", entries=[autogun, (warp, {"price_override": 25})]
         )
@@ -1411,8 +1323,7 @@ class TestAmmoRidesUnderTheGun:
         assert round_.entry is not None
 
     def test_a_longer_list_costs_no_more_queries_to_browse(self, taxonomy):
-        """The ammo prefetch follows the list's definition, not its
-        length: one query for every gun's profiles, however many guns."""
+        """Bulk profile prefetching keeps query count fixed as weapons grow."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -1445,13 +1356,8 @@ class TestAmmoRidesUnderTheGun:
 
 
 class TestWhatACollectionHolds:
-    """A collection says what it is by what is in it.
-
-    Surfaces ask that question to decide whether a collection belongs on
-    them at all — a screen for buying kit wants the ones with gear in
-    them, a screen for selecting skills the ones with skills. The question
-    is asked by family rather than by naming kinds, so a new sort of gear
-    puts its collections on the buying screen the day it exists.
+    """Family-based containment finds collections with matching entries or selectors
+    without listing individual model kinds.
     """
 
     def test_a_curated_list_of_gear_holds_gear(self):
@@ -1463,9 +1369,9 @@ class TestWhatACollectionHolds:
         assert [collection.name for collection in held] == ["House List"]
 
     def test_a_curated_list_of_skills_holds_none(self):
-        """The case the buying screen turns on: a fighter's skill sets
-        arrive on their card exactly as their equipment list does, so
-        only the contents tell the two apart."""
+        """Skill collections share assignment access with equipment lists but belong to a
+        different family.
+        """
         from n26.library.models import Collection, Family
         from n26.tests.sandbox.actions import create_skill
 
@@ -1477,8 +1383,7 @@ class TestWhatACollectionHolds:
         ]
 
     def test_a_sweep_counts_as_much_as_an_entry(self):
-        """A collection with no rows of its own still holds what it
-        sweeps in — the shape of the standard Trading Post."""
+        """Selectors count towards family containment even without explicit entries."""
         from n26.library.models import Collection, CollectionSelector, Family, Wargear
 
         post = create_collection("Trading Post")
@@ -1489,8 +1394,7 @@ class TestWhatACollectionHolds:
         ]
 
     def test_an_empty_collection_holds_nothing(self):
-        """Emptiness is an answer, not a special case: a collection with
-        neither entries nor sweeps is on no surface that asks."""
+        """Collections without entries or selectors match no family."""
         from n26.library.models import Collection, Family
 
         create_collection("Blank")
@@ -1499,8 +1403,7 @@ class TestWhatACollectionHolds:
         assert not Collection.objects.containing(Family.MODEL).exists()
 
     def test_asking_costs_one_query_however_much_is_held(self):
-        """The containment tests are subqueries, so the count follows the
-        question and never the contents."""
+        """Containment uses subqueries within one collection query."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
