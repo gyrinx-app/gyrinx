@@ -165,3 +165,18 @@ Read recovery storage again on persisted history restoration. A cached older
 form can predate a later unresolved save for the same task; refresh it rather
 than allowing it to replace that command's key or payload. Preserve an unsaved
 draft only when no command needs recovery.
+
+## Absolute edits
+
+Use Edit campaign holding (`n26/core/asset_edit.py`, `edit-holding`) as the
+absolute-edit example. Sign the subject, actor and starting state; compare current
+values and revision under the same lock as the write. A matching desired state
+is a no-op success; a stale different state returns a specific revision conflict
+with current facts. Keep the draft frozen until an explicit review action loads
+a fresh baseline. Never automatically overwrite a newer edit.
+
+A retained submission takes precedence over native POST props. Ignore errors or
+conflict metadata for another submission until retry resolves the retained one.
+Test simultaneous drafts, delayed old requests, same-value retries, blank versus
+zero, and reload recovery. Do not reuse a money-adjustment receipt for an absolute
+edit merely because the forms look similar.
