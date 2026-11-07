@@ -280,3 +280,23 @@ payments after hiding and restoring that entry. A selected profile must display
 its retained payment after a quote refresh. A follow-up confirmation without a
 rating checkbox preserves the carried rating policy. Native keyed adapters must
 also reach receipt replay before requiring a live assignment.
+
+For fighter Equip, compose `ui/ModelCard` within the shared `equip` owner.
+Project linked stored cards through `core/model_card_display.py`; keep previews
+read-only. Preserve independent task links and native dismiss forms without
+nesting forms: use `WorkflowLayout`, including `data-busy="off"`. Give repeated
+card controls stable assignment/choice keys so a refresh cannot reuse another
+item's menu state.
+
+Counter steps must preserve the native sequential queue. Give each intentional
+step a new key, retry the active step with its original key, and stop unsent
+steps with an explicit notice after refusal or uncertainty. Do not make rapid
+clicks disappear behind a pending modal. Test queue draining and interruption,
+draft preservation, replay after removal, model scope and the separate campaign
+arbitrator path. Distinguish receipt formats before reading result fields.
+
+Inventory navigation flags as well as visible tabs. Equip carries `dismissed`
+through display reads, commands, confirmations and onward control links. Test
+such flags on native and JSON adapters; a complete renderer can still lose
+navigation state if a retained scalar is missing. Add navigation-only fields as
+optional recovery inputs so older unresolved commands still restore.

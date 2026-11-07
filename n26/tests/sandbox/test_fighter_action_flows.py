@@ -173,6 +173,28 @@ class TestSuitEvolutionForms:
             with CaptureQueriesContext(connection) as queries:
                 response = client.get(url)
             assert response.status_code == 200
+            if screen == "n26-equip":
+                from n26.tests.test_react_helpers import equip_props
+
+                panels = equip_props(response)["model"]["panels"]
+                assert len(panels) == expected_panels
+                panel = next(
+                    panel for panel in panels if panel["key"] == str(hunt.action.pk)
+                )
+                assert panel["name"] == "Suit Evolution"
+                assert panel["timing"] == "After a cycle"
+                assert panel["prices"] == [
+                    {
+                        "label": "Kill Count",
+                        "available": "6",
+                        "price": "4",
+                        "remaining": "2",
+                    }
+                ]
+                assert panel["startHref"].startswith(
+                    reverse("n26-action-start", args=[hunt.fighter.pk, hunt.action.pk])
+                )
+                return len(queries)
             assert len(response.context["action_panels"]) == expected_panels
             panel = next(
                 panel
@@ -384,25 +406,49 @@ class TestSuitEvolutionForms:
         client.force_login(hunt.owner)
         back = reverse(screen, args=[hunt.fighter.pk])
         page = client.get(back)
-        assert page.context["action_panels"] == []
-        host = BeautifulSoup(page.content, "html.parser").find(id="n26-action-panels")
-        assert host is not None
-        assert not host.find("a")
+        if screen == "n26-equip":
+            from n26.tests.test_react_helpers import equip_props
+
+            assert equip_props(page)["model"]["panels"] == []
+        else:
+            assert page.context["action_panels"] == []
+            host = BeautifulSoup(page.content, "html.parser").find(
+                id="n26-action-panels"
+            )
+            assert host is not None
+            assert not host.find("a")
         assert not ActionAllowance.objects.filter(fighter=hunt.fighter).exists()
 
-        update = client.post(
-            reverse("n26-tally", args=[counted.pk]),
-            {"change": "1", "back": back},
-            HTTP_HX_REQUEST="true",
-        )
-        assert update.status_code == 200
-        actions = BeautifulSoup(update.content, "html.parser").find(
-            id="n26-action-panels"
-        )
-        assert actions["hx-swap-oob"] == "outerHTML"
-        assert actions.find("a", attrs={"aria-label": "Start Advancement flow"})
-        assert "1 use available" in actions.get_text(" ", strip=True)
-        assert not actions.find("a", attrs={"aria-label": "Start Maintenance flow"})
+        if screen == "n26-equip":
+            update = client.post(
+                reverse("n26-equip-fighter-command", args=[hunt.fighter.pk]),
+                {
+                    "action": "tally",
+                    "assignment": str(counted.pk),
+                    "change": "1",
+                    "request_key": str(uuid4()),
+                },
+            )
+            assert update.status_code == 200
+            panels = update.json()["page"]["model"]["panels"]
+            assert len(panels) == 1
+            assert panels[0]["name"] == "Advancement"
+            assert panels[0]["availableUses"] == 1
+            assert panels[0]["startHref"]
+        else:
+            update = client.post(
+                reverse("n26-tally", args=[counted.pk]),
+                {"change": "1", "back": back},
+                HTTP_HX_REQUEST="true",
+            )
+            assert update.status_code == 200
+            actions = BeautifulSoup(update.content, "html.parser").find(
+                id="n26-action-panels"
+            )
+            assert actions["hx-swap-oob"] == "outerHTML"
+            assert actions.find("a", attrs={"aria-label": "Start Advancement flow"})
+            assert "1 use available" in actions.get_text(" ", strip=True)
+            assert not actions.find("a", attrs={"aria-label": "Start Maintenance flow"})
         assert (
             ActionAllowance.objects.filter(
                 fighter=hunt.fighter, action=advancement, threshold=4

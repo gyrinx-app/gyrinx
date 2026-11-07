@@ -90,7 +90,7 @@ def choice_field(thing, group):
 
 def props(response):
     page = BeautifulSoup(response.content, "html.parser")
-    host = page.select_one('[data-react-name="equip-stash"]')
+    host = page.select_one('[data-react-name="equip"]')
     assert host is not None
     return json.loads(page.find(id=host["data-react-props"]).string)
 
@@ -477,9 +477,7 @@ class TestTheRail:
         assert page["displayHref"] == reverse("n26-equip-stash-display", args=[gang.pk])
         assert page["commandHref"] == reverse("n26-equip-stash-command", args=[gang.pk])
         assert "hx-post=" not in str(
-            BeautifulSoup(html, "html.parser").select_one(
-                '[data-react-name="equip-stash"]'
-            )
+            BeautifulSoup(html, "html.parser").select_one('[data-react-name="equip"]')
         )
 
 
@@ -664,7 +662,7 @@ class TestStashManagement:
         client.force_login(tester)
         body = client.get(equip_url(gang, house_list)).content.decode()
         host = BeautifulSoup(body, "html.parser").select_one(
-            '[data-react-name="equip-stash"]'
+            '[data-react-name="equip"]'
         )
         assert host is not None
         assert "x-data" not in str(host)
@@ -716,7 +714,7 @@ class TestStashManagement:
         assert row["purchase"] is None
         assert row["copies"][0]["id"] == str(bought.pk)
         host = BeautifulSoup(body, "html.parser").select_one(
-            '[data-react-name="equip-stash"]'
+            '[data-react-name="equip"]'
         )
         assert host is not None and "x-data" not in str(host)
 

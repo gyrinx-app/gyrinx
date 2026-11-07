@@ -91,6 +91,8 @@ export function Command({
     onPage,
     onDismiss,
     onFrozen,
+    onQueueBlocked,
+    queueNotice,
 }: {
     page: EquipProps;
     draft: EquipDraft | null;
@@ -98,6 +100,8 @@ export function Command({
     onPage: (page: EquipProps) => void;
     onDismiss: () => void;
     onFrozen: (frozen: boolean) => void;
+    onQueueBlocked: () => void;
+    queueNotice: string;
 }) {
     const element = useRef<HTMLFormElement>(null);
     const started = useRef(false);
@@ -110,7 +114,7 @@ export function Command({
         commandHref: page.commandHref,
         csrfToken: page.csrfToken,
         recoveryKey: page.recoveryKey,
-        optionalRecoveryFields: ["display_details"],
+        optionalRecoveryFields: ["display_details", "change", "dismissed"],
         interpret(status, data) {
             if (status === 200 && isEquipOutcome(data)) {
                 if (data.requestKey !== currentValues.current.request_key)
@@ -129,6 +133,7 @@ export function Command({
                         "personal_activity",
                         "display_name",
                         "display_details",
+                        "change",
                     ]);
                     if (
                         Object.entries(currentValues.current).some(
@@ -163,6 +168,10 @@ export function Command({
         onFrozen(frozen);
     }, [frozen, onFrozen]);
     useEffect(() => {
+        if (values.action === "tally" && (uncertain || form.hasErrors))
+            onQueueBlocked();
+    }, [values.action, uncertain, form.hasErrors, onQueueBlocked]);
+    useEffect(() => {
         if (draft?.auto && !started.current && !uncertain) {
             started.current = true;
             element.current?.requestSubmit();
@@ -182,6 +191,7 @@ export function Command({
             reassign: "Move",
             rechoose: "Change options",
             accessorise: "Add an accessory",
+            tally: "Change counter",
         }[values.action] || "Change";
     const selection = keys(values.selection);
     const difference =
@@ -221,6 +231,32 @@ export function Command({
                 `To: ${dialog.models.find((model) => model.key === values.miniature)?.name || "selected model"}`,
             );
     }
+    if (
+        values.action === "tally" &&
+        matchesDraft &&
+        !uncertain &&
+        !form.hasErrors
+    )
+        return (
+            <form
+                ref={element}
+                onSubmit={form.save}
+                data-equip-command
+                data-busy="off"
+            >
+                <input
+                    type="hidden"
+                    name="csrfmiddlewaretoken"
+                    value={page.csrfToken}
+                />
+                {Object.entries(values).map(([name, value]) => (
+                    <input key={name} type="hidden" name={name} value={value} />
+                ))}
+                <p role="status" className="text-sm text-muted">
+                    Saving counter change…
+                </p>
+            </form>
+        );
     return (
         <Dialog
             title={
@@ -276,6 +312,7 @@ export function Command({
                     />
                 </div>
             )}
+            {queueNotice && <p role="alert">{queueNotice}</p>}
             <fieldset disabled={frozen} className="min-w-0 space-y-4">
                 {recovered && (
                     <>
@@ -294,7 +331,10 @@ export function Command({
                                     strong: false,
                                 },
                                 {
-                                    label: "Equipment",
+                                    label:
+                                        values.action === "tally"
+                                            ? "Counter"
+                                            : "Equipment",
                                     value: values.display_name,
                                     sub: "",
                                     ruled: false,

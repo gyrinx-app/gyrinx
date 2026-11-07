@@ -230,8 +230,10 @@ export function EquipmentRow({
     disabled,
     draft,
     onDraftChange,
+    ownedLabel = "in stash",
 }: {
     entry: EquipmentEntry;
+    ownedLabel?: string;
     draft: EquipmentDraft;
     onDraftChange: (
         update: (previous: EquipmentDraft) => EquipmentDraft,
@@ -426,12 +428,12 @@ export function EquipmentRow({
                         <Button
                             size="sm"
                             onClick={onExpand}
-                            aria-label={`${expanded ? "Hide" : "Show"} ${entry.name} in stash (${entry.count})`}
+                            aria-label={`${expanded ? "Hide" : "Show"} ${entry.name} ${ownedLabel} (${entry.count})`}
                             className="inline-flex items-center gap-1.5"
                             aria-expanded={expanded}
                             aria-controls={id}
                         >
-                            {entry.count} in stash
+                            {entry.count} {ownedLabel}
                             <Icon
                                 name="chevron-down"
                                 className={`size-3 transition-transform ${expanded ? "rotate-180" : ""}`}
@@ -451,6 +453,7 @@ export function EquipmentRow({
                                                     <>
                                                         {" "}
                                                         <ButtonLink
+                                                            aria-label={`Add accessory to ${copy.name}`}
                                                             href={
                                                                 copy.accessorise
                                                                     .target

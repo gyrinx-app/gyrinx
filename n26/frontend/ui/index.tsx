@@ -958,10 +958,12 @@ export function Icon({
     name,
     className = "size-4",
     strokeWidth,
+    label,
 }: {
     name: keyof typeof cotton.icons;
     className?: string;
     strokeWidth?: number;
+    label?: string;
 }) {
     return (
         <svg
@@ -972,7 +974,9 @@ export function Icon({
             strokeWidth={strokeWidth ?? (name === "search" ? 1.5 : 2)}
             strokeLinecap="round"
             strokeLinejoin="round"
-            aria-hidden="true"
+            aria-hidden={label ? undefined : true}
+            role={label ? "img" : undefined}
+            aria-label={label}
         >
             {cotton.icons[name].map(({ tag, attrs }, key) =>
                 createElement(tag, { ...attrs, key }),
@@ -1412,47 +1416,98 @@ export {
     useCampaignDialogRequests,
 } from "./campaignNavigation";
 
-export function WorkflowPage({
-    title,
-    lead,
-    breadcrumb,
-    actions,
-    children,
-    footer,
-    headingRef,
-    ...form
-}: ComponentProps<"form"> & {
+type WorkflowContentsProps = {
     title: string;
     lead?: string;
     breadcrumb: ReactNode;
     actions?: ReactNode;
+    trailing?: ReactNode;
+    children: ReactNode;
     footer: ReactNode;
     headingRef?: Ref<HTMLHeadingElement>;
-}) {
+};
+function WorkflowContents({
+    title,
+    lead,
+    breadcrumb,
+    actions,
+    trailing,
+    children,
+    footer,
+    headingRef,
+}: WorkflowContentsProps) {
     const recipe = cotton.workflowPage;
     const h = recipe.header;
     return (
-        <form {...form} data-busy="off" className={recipe.root}>
+        <>
             <div className={h[0]}>
                 <div className={h[1]}>
                     <div className={h[2]}>{breadcrumb}</div>
                 </div>
                 <div className={h[3]}>
                     <div className={h[4]}>
-                        <h1
-                            ref={headingRef}
-                            tabIndex={headingRef ? -1 : undefined}
-                            className={h[5]}
-                        >
-                            {title}
-                        </h1>
+                        <div className="flex items-center gap-2">
+                            <h1
+                                ref={headingRef}
+                                tabIndex={headingRef ? -1 : undefined}
+                                className={h[5]}
+                            >
+                                {title}
+                            </h1>
+                            {trailing}
+                        </div>
                         {lead && <p className={h[6]}>{lead}</p>}
                     </div>
                     {actions && <div className={h[7]}>{actions}</div>}
                 </div>
             </div>
             {children}
-            <div className={recipe.footer}>{footer}</div>
+            {footer && <div className={recipe.footer}>{footer}</div>}
+        </>
+    );
+}
+export function WorkflowLayout({
+    fullWidth,
+    ...props
+}: WorkflowContentsProps & { fullWidth?: boolean }) {
+    return (
+        <div
+            data-busy="off"
+            className={
+                fullWidth
+                    ? cotton.workflowPage.wideRoot
+                    : cotton.workflowPage.root
+            }
+        >
+            <WorkflowContents {...props} />
+        </div>
+    );
+}
+export function WorkflowPage({
+    title,
+    lead,
+    breadcrumb,
+    actions,
+    trailing,
+    children,
+    footer,
+    headingRef,
+    ...form
+}: ComponentProps<"form"> & WorkflowContentsProps) {
+    return (
+        <form {...form} data-busy="off" className={cotton.workflowPage.root}>
+            <WorkflowContents
+                {...{
+                    title,
+                    lead,
+                    breadcrumb,
+                    actions,
+                    trailing,
+                    children,
+                    footer,
+                    headingRef,
+                }}
+            />
         </form>
     );
 }
@@ -1545,3 +1600,12 @@ export {
     type EquipmentPurchase,
     type EquipmentChoice,
 } from "./Equipment";
+
+export { ModelCard, type ModelCardData } from "./ModelCard";
+
+export {
+    EquipmentModel,
+    EquipmentBudget,
+    isEquipmentModel,
+    type EquipmentModelData,
+} from "./EquipmentModel";

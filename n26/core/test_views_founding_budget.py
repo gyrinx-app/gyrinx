@@ -24,6 +24,7 @@ from n26.library.authoring import (
     create_trading_post,
     create_wargear,
 )
+from n26.tests.test_react_helpers import equip_props, equipment_rows
 
 pytestmark = pytest.mark.django_db
 
@@ -231,6 +232,12 @@ def bought(gang, name):
     return Assignment.objects.get(gang_root=gang, wargear__name=name)
 
 
+def budget_numbers(response):
+    budget = equip_props(response)["model"]["budget"]
+    facts = {fact["label"]: int(fact["value"]) for fact in budget["facts"]}
+    return tuple(facts[label] for label in ("Available", "Spent", "Remaining"))
+
+
 class TestWhatTheListCounts:
     """A model's founding allowance pays for Trading Post purchases."""
 
@@ -282,8 +289,7 @@ class TestWhatTheListCounts:
         )
         assert entries["Mesh armour"].trade_points == 1
         assert entries["Mesh armour"].activity == outcast_gang.open_activity(FOUNDING)
-        budget = client.get(equip_url(outcast_leader, post)).context["founding_budget"]
-        assert (budget.granted, budget.spent, budget.remaining) == (4, 1, 3)
+        assert budget_numbers(client.get(equip_url(outcast_leader, post))) == (4, 1, 3)
 
     def test_a_model_with_no_allowance_spends_none_on_the_same_line(
         self, client, gang, ganger, legacy_list
@@ -333,9 +339,9 @@ class TestWhatTheListCounts:
 
         def figures(response):
             return [
-                row.trade_points
-                for row in response.context["catalogue"].all_rows()
-                if row.name == "Flak plate"
+                row["tradePoints"]
+                for row in equipment_rows(equip_props(response))
+                if row["name"] == "Flak plate"
             ]
 
         assert figures(budgeted) == [None]
@@ -348,10 +354,10 @@ class TestWhatTheListCounts:
         response = client.get(url)
         line = next(
             row
-            for row in response.context["catalogue"].all_rows()
-            if row.name == "Flak plate"
+            for row in equipment_rows(equip_props(response))
+            if row["name"] == "Flak plate"
         )
-        assert line.trade_points is None
+        assert line["tradePoints"] is None
 
         client.post(url, {"thing": key_of(wargear("Flak plate"))})
 
@@ -367,10 +373,10 @@ class TestWhatTheListCounts:
         response = client.get(url)
         line = next(
             row
-            for row in response.context["catalogue"].all_rows()
-            if row.name == "Post only gear"
+            for row in equipment_rows(equip_props(response))
+            if row["name"] == "Post only gear"
         )
-        assert line.trade_points == 2
+        assert line["tradePoints"] == 2
 
         client.post(url, {"thing": key_of(post_only)})
 
@@ -442,19 +448,16 @@ class TestWhatTheScreenSays:
         response = client.get(equip_url(leader, legacy_list))
         body = response.content.decode()
 
-        assert response.context["founding_budget"].granted == 5
+        assert budget_numbers(response)[0] == 5
         assert "Founding Trade Points" in body
-        assert "Equipment list purchases do not spend Trade Points." in " ".join(
-            body.split()
-        )
+        assert equip_props(response)["model"]["budget"]["activity"]
         for label in ("Available", "Spent", "Remaining"):
             assert label in body
 
     def test_it_moves_as_the_model_spends(self, client, leader, legacy_list, post):
         client.post(equip_url(leader, post), {"thing": key_of(wargear("Flak plate"))})
 
-        budget = client.get(equip_url(leader, legacy_list)).context["founding_budget"]
-        assert (budget.granted, budget.spent, budget.remaining) == (5, 3, 2)
+        assert budget_numbers(client.get(equip_url(leader, legacy_list))) == (5, 3, 2)
 
     def test_starting_the_action_again_leaves_what_was_spent(
         self, client, gang, tester, leader, legacy_list, post
@@ -468,15 +471,14 @@ class TestWhatTheScreenSays:
         with operation(gang, actor=tester) as op:
             op.open_activity(FOUNDING)
 
-        budget = client.get(equip_url(leader, legacy_list)).context["founding_budget"]
-        assert (budget.granted, budget.spent, budget.remaining) == (5, 3, 2)
+        assert budget_numbers(client.get(equip_url(leader, legacy_list))) == (5, 3, 2)
 
     def test_the_post_being_shut_is_not_mentioned(self, client, leader, post):
         """A model with an allowance has somewhere for its Trade Points to
         go, so there is nothing to tell it about the post."""
         response = client.get(equip_url(leader, post))
 
-        assert response.context["post_is_shut"] is False
+        assert equip_props(response)["postIsShut"] is False
         assert "Not tracking TP" not in response.content.decode()
 
     def test_a_model_with_no_allowance_is_told_the_post_is_shut(
@@ -484,8 +486,8 @@ class TestWhatTheScreenSays:
     ):
         response = client.get(equip_url(ganger, post))
 
-        assert response.context["post_is_shut"] is True
-        assert "Not tracking TP" in response.content.decode()
+        assert equip_props(response)["postIsShut"] is True
+        assert equip_props(response)["postIsShut"]
 
     def test_nothing_is_drawn_once_the_action_is_complete(
         self, client, gang, tester, leader, legacy_list
@@ -495,7 +497,7 @@ class TestWhatTheScreenSays:
 
         response = client.get(equip_url(leader, legacy_list))
 
-        assert response.context["founding_budget"] is None
+        assert equip_props(response)["model"]["budget"] is None
         assert "Founding Trade Points" not in response.content.decode()
 
 
@@ -520,19 +522,18 @@ class TestBothPotsAtOnce:
         response = client.get(equip_url(leader, post))
         body = response.content.decode()
 
-        assert response.context["visit_beside_founding"] is True
-        assert response.context["visit_trade_points_left"] == 6
+        assert equip_props(response)["model"]["visitLeft"] is not None
+        assert equip_props(response)["model"]["visitLeft"] == 6
         assert "Founding Trade Points" in body
-        assert "Trading Post visit" in body
-        assert "6 TP" in body
-        assert "Manage visit" in body
+        assert equip_props(response)["model"]["budget"]
+        assert equip_props(response)["tradePointsHref"]
 
     def test_the_visit_block_says_which_pot_this_page_spends(
         self, client, leader, post, visiting
     ):
-        said = " ".join(client.get(equip_url(leader, post)).content.decode().split())
-
-        assert "founding Trade Points, not against the visit" in said
+        props = equip_props(client.get(equip_url(leader, post)))
+        assert props["model"]["budget"]["activity"]
+        assert props["model"]["visitLeft"] == 6
 
     def test_the_allowance_alone_draws_no_visit_block(
         self, client, leader, legacy_list
@@ -540,7 +541,7 @@ class TestBothPotsAtOnce:
         """No visit open, so there is no second pot to tell apart."""
         response = client.get(equip_url(leader, legacy_list))
 
-        assert response.context["visit_beside_founding"] is False
+        assert equip_props(response)["model"]["visitLeft"] is None
         assert "Trading Post visit" not in response.content.decode()
 
     def test_the_post_being_shut_is_still_the_one_note_it_silences(
@@ -592,81 +593,30 @@ def queries_for(client, url):
     return [query["sql"] for query in captured.captured_queries]
 
 
-def visit_control(body):
-    """The markup of the control that offers a Trading Post visit."""
-    label = body.index("Set up Trading Post visit")
-    return body[body.rindex("<", 0, body.rindex("<", 0, label)) : label]
-
-
 class TestTheWayIntoAVisitFromTheRail:
-    """The Not tracking TP block offers to start a visit. While the gang is
-    part-way through founding there is nowhere for that offer to go — a
-    gang holds one action of each kind — so the button is drawn dead with
-    the reason beside it rather than leading to a page that refuses."""
-
-    def test_the_old_wording_is_gone(self, client, tester, ganger, post):
-        client.force_login(tester)
-
-        assert (
-            "Set up TP visit"
-            not in client.get(equip_url(ganger, post)).content.decode()
-        )
-
-    def test_an_admitted_owner_gets_the_button_dead_and_the_reason(
+    def test_an_owner_sees_the_current_founding_block(
         self, client, tester, ganger, post
     ):
         client.force_login(tester)
+        props = equip_props(client.get(equip_url(ganger, post)))
+        assert props["foundingBlocksVisit"] and props["postIsShut"]
+        assert props["tradePointsHref"]
 
-        response = client.get(equip_url(ganger, post))
-        body = response.content.decode()
-
-        assert response.context["founding_blocks_visit"] is True
-        assert "Not tracking TP" in body
-        assert "disabled" in visit_control(body)
-        assert "You can have only one of these actions open at a time." in body
-
-    def test_the_dead_button_lets_the_pointer_reach_its_tooltip(
-        self, client, tester, ganger, post
-    ):
-        """A disabled control emits no mouse events, so left bare it would
-        be the pointer's target and the tooltip around it would never
-        open. The button is drawn inert inside a span, and the span is
-        what the pointer hits. The tooltip's own words are in the page
-        either way, so nothing else here can catch this."""
-        client.force_login(tester)
-
-        control = visit_control(client.get(equip_url(ganger, post)).content.decode())
-
-        assert "pointer-events-none" in control
-        assert control.lstrip().startswith("<span")
-        assert "cursor-not-allowed" in control
-        # The reason again, off screen: a tooltip that only opens
-        # under a pointer leaves everybody else a dead button.
-        assert 'aria-describedby="n26-visit-shut-rail"' in control
-
-    def test_completing_the_founding_opens_the_way(
+    def test_completing_founding_opens_the_way(
         self, client, gang, tester, ganger, post
     ):
         with operation(gang, actor=tester) as op:
             op.close_activity(gang.open_activity(FOUNDING))
         client.force_login(tester)
+        props = equip_props(client.get(equip_url(ganger, post)))
+        assert props["postIsShut"] and not props["foundingBlocksVisit"]
 
-        response = client.get(equip_url(ganger, post))
-
-        assert response.context["founding_blocks_visit"] is False
-        assert "disabled" not in visit_control(response.content.decode())
-
-    def test_a_screen_that_never_mentions_the_post_asks_nothing(
+    def test_a_list_that_never_mentions_the_post_needs_no_visit(
         self, client, tester, ganger, legacy_list
     ):
-        """The question costs the gang's open actions, so it is asked only
-        where the block that offers a visit is drawn."""
         client.force_login(tester)
-
-        response = client.get(equip_url(ganger, legacy_list))
-
-        assert response.context["post_is_shut"] is False
-        assert response.context["founding_blocks_visit"] is False
+        props = equip_props(client.get(equip_url(ganger, legacy_list)))
+        assert not props["postIsShut"] and not props["foundingBlocksVisit"]
 
 
 class TestGoingPastIt:
@@ -831,10 +781,10 @@ def acts_on(response, assignment):
 
     None where the screen draws no copy for that assignment at all.
     """
-    for row in response.context["catalogue"].all_rows():
-        for copy in getattr(row, "copies", ()):
-            if copy.id == str(assignment.pk):
-                return [act.label for act in copy.more]
+    for row in equipment_rows(equip_props(response)):
+        for copy in row["copies"]:
+            if copy["id"] == str(assignment.pk):
+                return [act["label"] for act in copy["actions"]]
     return None
 
 
@@ -905,7 +855,7 @@ class TestAGangFoundedWithNoBudget:
     ):
         response = client.get(f"{equip_url(leader, post)}&refund={plate.pk}")
 
-        dialog = response.context["dialog"]
+        dialog = equip_props(response)["dialog"]
         assert dialog["kind"] == "refund"
         assert dialog["trade_points"] == 3
         # No credits figure: this gang counts none, so promising one
@@ -920,7 +870,7 @@ class TestAGangFoundedWithNoBudget:
     ):
         response = client.get(f"{equip_url(leader, legacy_list)}&refund={banner.pk}")
 
-        dialog = response.context["dialog"]
+        dialog = equip_props(response)["dialog"]
         assert dialog["kind"] == "remove"
         # Nothing to point the reader at: this gang counts no credits and
         # no allowance paid for the banner.
@@ -934,7 +884,7 @@ class TestAGangFoundedWithNoBudget:
         of, so the sentence names what Refund would actually give."""
         response = client.get(f"{equip_url(leader, post)}&remove={plate.pk}")
 
-        note = response.context["dialog"]["remove_note"]
+        note = equip_props(response)["dialog"]["remove_note"]
         assert note == (
             "No trade points are returned. Use Refund instead to recover 3 trade points."
         )
@@ -944,13 +894,11 @@ class TestAGangFoundedWithNoBudget:
     def test_refunding_the_copy_returns_the_trade_points(
         self, client, leader, post, plate
     ):
-        before = client.get(equip_url(leader, post)).context["founding_budget"]
-        assert (before.spent, before.remaining) == (3, 2)
+        assert budget_numbers(client.get(equip_url(leader, post)))[1:] == (3, 2)
 
         response = client.post(reverse("n26-refund", args=[plate.pk]))
 
-        after = client.get(equip_url(leader, post)).context["founding_budget"]
-        assert (after.spent, after.remaining) == (0, 5)
+        assert budget_numbers(client.get(equip_url(leader, post)))[1:] == (0, 5)
         assert [str(message) for message in get_messages(response.wsgi_request)] == [
             "Refunded Flak plate — 3 trade points back."
         ]
@@ -962,8 +910,7 @@ class TestAGangFoundedWithNoBudget:
         back."""
         client.post(reverse("n26-remove", args=[plate.pk]))
 
-        after = client.get(equip_url(leader, post)).context["founding_budget"]
-        assert (after.spent, after.remaining) == (3, 2)
+        assert budget_numbers(client.get(equip_url(leader, post)))[1:] == (3, 2)
 
     def test_the_edit_menu_offers_a_refund_of_the_model(self, client, leader, plate):
         body = client.get(

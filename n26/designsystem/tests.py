@@ -111,9 +111,14 @@ class TestModelPreviewGallery:
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
         hosts = soup.select('[data-react-name="model-preview"]')
+        stored = soup.select_one('[data-react-name="model-card-demo"]')
+        assert stored is not None
+        stored_props = json.loads(soup.find(id=stored["data-react-props"]).string)
+        assert stored_props["card"]["stored"]["id"] == "vesna-krail-edit"
+        assert stored_props["card"]["weapons"]
         assert len(hosts) == 3
         for reference, host in zip(
-            soup.select("[data-preview-reference]"), hosts, strict=True
+            soup.select("[data-preview-reference]")[:3], hosts, strict=True
         ):
             props = json.loads(soup.find(id=host["data-react-props"]).string)
             assert props["name"] in reference.get_text()

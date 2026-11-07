@@ -45,36 +45,10 @@ def places_switcher(context, here=""):
 def quick_switcher_props(
     switcher, align="start", min_width="16rem", hotkey="", trigger_words=""
 ):
-    """A ``Switcher`` as the quick-switcher island's props.
+    """Project the shared navigation structure for its React control."""
+    from n26.core.navigation import switcher_props
 
-    ``next`` is the offset the island asks the source for when the list
-    scrolls past what the page sent. The first page is ``SWITCHER_PAGE``
-    rows however many were rescued in front of it, so a switcher with
-    more always resumes there.
-    """
-    from n26.core.navigation import SWITCHER_PAGE
-
-    items = tuple(switcher.items)
-    return {
-        "label": switcher.label,
-        "href": switcher.href,
-        "heading": switcher.heading,
-        "menuLabel": switcher.menu_label,
-        "placeholder": switcher.placeholder,
-        "empty": switcher.empty,
-        "align": "end" if align == "end" else "start",
-        "minWidth": min_width,
-        "hotkey": hotkey,
-        "triggerWords": trigger_words,
-        "items": [
-            {"label": item.label, "href": item.href}
-            | ({"title": item.title} if item.title else {})
-            for item in items
-        ],
-        "current": next((item.href for item in items if item.current), ""),
-        "source": switcher.source,
-        "next": SWITCHER_PAGE if switcher.source and switcher.more else None,
-    }
+    return switcher_props(switcher, align, min_width, hotkey, trigger_words)
 
 
 @register.simple_tag

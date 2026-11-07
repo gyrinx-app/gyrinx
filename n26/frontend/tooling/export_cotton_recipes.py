@@ -599,6 +599,39 @@ def model_preview_recipe():
     }
 
 
+def model_card_recipe():
+    tabs = [
+        {"label": "Edit", "href": "/edit/", "current": False},
+        {"label": "Equip", "href": "/equip/", "current": True},
+    ]
+    source = '<c-n26.tab-links :tabs="tabs" :narrow_tabs="3" label="Model screens" />'
+    rendered = Template(CottonCompiler().process(source)).render(
+        Context({"tabs": tabs})
+    )
+    elements = Elements(rendered).elements
+    return {
+        "status": {
+            colour: classes(
+                f'<c-ui.badge color="{colour}" size="sm" href="/">Status</c-ui.badge>',
+                "a",
+            )[0]
+            for colour in ("ink", "amber", "red")
+        },
+        "panels": classes('<c-ui.card padding="none" />', "div")[0],
+        "foundingMark": classes("<c-n26.founding-mark />", "span")[0],
+        "tab": {
+            str(current).lower(): class_name(
+                next(
+                    attrs
+                    for tag, attrs in elements
+                    if tag == "a" and (attrs.get("aria-current") == "page") == current
+                )
+            )
+            for current in (False, True)
+        },
+    }
+
+
 def classes(source, *tags):
     return [class_name(attrs) for attrs in attributes(source, *tags)]
 
@@ -721,6 +754,7 @@ def workflow_page_recipe():
     )
     return {
         "root": class_name(form[0]),
+        "wideRoot": _without(class_name(form[0]), "max-w-3xl"),
         "footer": class_name(form[-2]),
         "header": header,
         "section": section,
@@ -1822,6 +1856,7 @@ def recipes():
         "textarea": classes("<c-ui.textarea />", "textarea")[0],
         "workflowPage": workflow_page_recipe(),
         "modelPreview": model_preview_recipe(),
+        "modelCard": model_card_recipe(),
         "gangFigures": gang_figures_recipe(),
         "hireCatalogue": hire_catalogue_recipe(),
         "equipment": equipment_recipe(),
@@ -1941,6 +1976,10 @@ def recipes():
                 "arrow-down",
                 "arrow-right",
                 "pencil",
+                "image",
+                "layers",
+                "flag",
+                "circle-fading-arrow-up",
                 "trash-2",
                 "printer",
             )

@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import type {
+    EquipmentModelData,
     EquipmentChoice,
     EquipmentEntry,
     GangFiguresData,
@@ -65,6 +66,7 @@ export type EquipQuestion = {
     } | null;
 };
 export type EquipProps = {
+    model?: EquipmentModelData | null;
     gangName: string;
     gangHref: string;
     owner: ComponentProps<typeof UserLink>;
@@ -126,6 +128,8 @@ export type EquipValues = {
     accessory: string;
     display_name: string;
     display_details: string;
+    change: string;
+    dismissed: string;
 };
 export type EquipOutcome = {
     requestKey: string;
@@ -150,7 +154,7 @@ export function blankValues(page: EquipProps): EquipValues {
         paid: "",
         rate: "",
         confirmed: "",
-        personal_activity: "",
+        personal_activity: page.model?.budget?.activity || "",
         selection: "[]",
         parts: "[]",
         request_key: page.requestKey,
@@ -161,6 +165,13 @@ export function blankValues(page: EquipProps): EquipValues {
         accessory: "",
         display_name: "",
         display_details: "[]",
+        change: "",
+        dismissed:
+            new URL(page.action, window.location.href).searchParams.get(
+                "dismissed",
+            ) === "show"
+                ? "show"
+                : "",
     };
 }
 export function panelDraft(page: EquipProps, dialog: EquipDialog): EquipDraft {

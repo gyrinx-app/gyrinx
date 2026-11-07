@@ -11,6 +11,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { Equip } from "./Equip";
 import { page, response, sell } from "./fixtures";
 import type { EquipQuestion } from "./types";
+import { model } from "../../test/modelCard";
 
 beforeEach(() => {
     sessionStorage.clear();
@@ -46,6 +47,198 @@ const completed = (requestKey: string) =>
 const completeFetch = (_href: unknown, options: { body: URLSearchParams }) =>
     Promise.resolve(completed(options.body.get("request_key")!));
 
+test("fighter categories start collapsed while unnamed equipment remains reachable", async () => {
+    render(<Equip {...page} model={model} />);
+    expect(screen.queryByRole("button", { name: "Buy Harness" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Expand all" }));
+    expect(screen.getByRole("button", { name: "Buy Harness" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Manage visit" })).toBeTruthy();
+    expect(
+        screen.getByText("The visit is open with", { exact: false })
+            .textContent,
+    ).toContain("9 TP");
+    expect(
+        screen
+            .getByRole("link", { name: "Equip" })
+            .getAttribute("aria-current"),
+    ).toBe("page");
+    expect(document.querySelector("form form")).toBeNull();
+});
+
+test("in-place counter changes use fresh keys and preserve an edited purchase through refresh", async () => {
+    const changed = {
+        ...model,
+        card: {
+            ...model.card,
+            details: [
+                {
+                    ...model.card.details[0],
+                    parts: [{ ...model.card.details[0].parts[0], value: 4 }],
+                },
+                model.card.details[1],
+            ],
+        },
+    };
+    const fetcher = vi.fn().mockImplementation((_href, options) =>
+        Promise.resolve(
+            response({
+                requestKey: options.body.get("request_key"),
+                outcome: "completed",
+                confirmation: null,
+                page: { ...page, model: changed },
+            }),
+        ),
+    );
+    vi.stubGlobal("fetch", fetcher);
+    render(<Equip {...page} model={model} />);
+    await userEvent.click(screen.getByRole("button", { name: "Expand all" }));
+    await userEvent.click(screen.getByRole("radio", { name: /Armed/ }));
+    await userEvent.click(
+        screen.getByRole("button", { name: "Add one to Ammo" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const first = new URLSearchParams(fetcher.mock.calls[0][1].body);
+    expect(Object.fromEntries(first)).toMatchObject({
+        action: "tally",
+        assignment: "ammo-counter",
+        change: "1",
+        personal_activity: "hire-action",
+    });
+    expect(
+        (screen.getByRole("radio", { name: /Armed/ }) as HTMLInputElement)
+            .checked,
+    ).toBe(true);
+    await userEvent.click(
+        screen.getByRole("button", { name: "Add one to Ammo" }),
+    );
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    expect(fetcher.mock.calls[1][1].body.get("request_key")).not.toBe(
+        first.get("request_key"),
+    );
+});
+
+test("an uncertain counter step survives reload with its original identity and fresh CSRF", async () => {
+    const fetcher = vi.fn().mockRejectedValue(new TypeError("lost response"));
+    vi.stubGlobal("fetch", fetcher);
+    const first = render(<Equip {...page} model={model} />);
+    await userEvent.click(
+        screen.getByRole("button", { name: "Add one to Ammo" }),
+    );
+    await screen.findByRole("button", { name: "Retry change" });
+    const original = new URLSearchParams(fetcher.mock.calls[0][1].body);
+    expect(
+        (
+            screen.getByRole("button", {
+                name: "Dismiss Skills",
+            }) as HTMLButtonElement
+        ).disabled,
+    ).toBe(true);
+    first.unmount();
+    fetcher.mockImplementation((_href, options) =>
+        Promise.resolve(
+            response({
+                requestKey: options.body.get("request_key"),
+                outcome: "completed",
+                confirmation: null,
+                page: { ...page, model },
+            }),
+        ),
+    );
+    render(
+        <Equip
+            {...page}
+            model={model}
+            csrfToken="rotated"
+            requestKey="new-page"
+        />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Retry change" }));
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    original.set("csrfmiddlewaretoken", "rotated");
+    expect([...fetcher.mock.calls[1][1].body]).toEqual([...original]);
+    await waitFor(() =>
+        expect(sessionStorage.getItem(page.recoveryKey)).toBeNull(),
+    );
+});
+
+test("rapid counter clicks queue distinct commands and uncertainty stops unsent steps", async () => {
+    let rejectFirst!: (reason: unknown) => void;
+    const fetcher = vi.fn().mockImplementation(
+        () =>
+            new Promise((_resolve, reject) => {
+                rejectFirst = reject;
+            }),
+    );
+    vi.stubGlobal("fetch", fetcher);
+    render(<Equip {...page} model={model} />);
+    const add = screen.getByRole("button", { name: "Add one to Ammo" });
+    await userEvent.click(add);
+    await userEvent.click(add);
+    await userEvent.click(add);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await act(async () => rejectFirst(new TypeError("lost")));
+    await screen.findByRole("button", { name: "Retry change" });
+    expect(
+        screen.getByText(/2 queued counter changes were not sent/),
+    ).toBeTruthy();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    fetcher.mockImplementation((_href, options) =>
+        Promise.resolve(
+            response({
+                requestKey: options.body.get("request_key"),
+                outcome: "completed",
+                confirmation: null,
+                page: { ...page, model },
+            }),
+        ),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Retry change" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(
+        screen.getByText(/2 queued counter changes were not sent/),
+    ).toBeTruthy();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+});
+
+test("each queued counter step drains only after the previous one is confirmed", async () => {
+    const resolvers: Array<(value: Response) => void> = [];
+    const fetcher = vi
+        .fn()
+        .mockImplementation(
+            () => new Promise<Response>((resolve) => resolvers.push(resolve)),
+        );
+    vi.stubGlobal("fetch", fetcher);
+    render(<Equip {...page} model={model} />);
+    const add = screen.getByRole("button", { name: "Add one to Ammo" });
+    await userEvent.click(add);
+    await userEvent.click(add);
+    await userEvent.click(add);
+    for (let index = 0; index < 3; index++) {
+        await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(index + 1));
+        const body = fetcher.mock.calls[index][1].body as URLSearchParams;
+        await act(async () =>
+            resolvers[index](
+                response({
+                    requestKey: body.get("request_key"),
+                    outcome: "completed",
+                    confirmation: null,
+                    page: { ...page, model },
+                }),
+            ),
+        );
+    }
+    expect(
+        new Set(
+            fetcher.mock.calls.map((call) => call[1].body.get("request_key")),
+        ).size,
+    ).toBe(3);
+    await waitFor(() =>
+        expect(screen.queryByText("Saving counter change…")).toBeNull(),
+    );
+});
+
 test("initial catalogue needs no request and Enter in search cannot buy", async () => {
     const fetcher = vi.fn();
     vi.stubGlobal("fetch", fetcher);
@@ -54,6 +247,32 @@ test("initial catalogue needs no request and Enter in search cannot buy", async 
     expect(screen.getByRole("button", { name: "Buy Harness" })).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(fetcher).not.toHaveBeenCalled();
+});
+
+test("commands preserve the dismissed-choice URL flag through an authoritative refresh", async () => {
+    const marked = {
+        ...page,
+        action: "/equip/?list=house&dismissed=show",
+        listingHref: "/equip/?list=house&dismissed=show",
+    };
+    const fetcher = vi.fn().mockImplementation((_href, options) =>
+        Promise.resolve(
+            response({
+                requestKey: options.body.get("request_key"),
+                outcome: "completed",
+                confirmation: null,
+                page: marked,
+            }),
+        ),
+    );
+    vi.stubGlobal("fetch", fetcher);
+    render(<Equip {...marked} />);
+    await userEvent.click(screen.getByRole("button", { name: "Buy Harness" }));
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    expect(fetcher.mock.calls[0][1].body.get("dismissed")).toBe("show");
+    await waitFor(() =>
+        expect(window.location.search).toContain("dismissed=show"),
+    );
 });
 
 test("a closed Trading Post has one visit action and an open visit has none", () => {
@@ -71,6 +290,43 @@ test("a closed Trading Post has one visit action and an open visit has none", ()
             name: /Trading Post visit|Track TP spend/,
         }),
     ).toBeNull();
+});
+
+test("founding blocks a new visit with a readable reason beside the disabled control", () => {
+    render(<Equip {...page} postIsShut foundingBlocksVisit />);
+    const button = screen.getByRole("button", {
+        name: "Set up Trading Post visit →",
+    }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(
+        document.getElementById(button.getAttribute("aria-describedby")!)
+            ?.textContent,
+    ).toContain("Complete Spend founding TP first.");
+    expect(
+        screen.queryByRole("link", { name: "Set up Trading Post visit →" }),
+    ).toBeNull();
+});
+
+test("detaching an accessory posts held and offers no model or weapon destination", async () => {
+    const fetcher = vi.fn().mockImplementation(completeFetch);
+    vi.stubGlobal("fetch", fetcher);
+    render(
+        <Equip
+            {...page}
+            model={model}
+            dialog={{
+                ...sell,
+                kind: "detach",
+                title: "Take Sight off Autogun?",
+                lead: "The model keeps it. Its rating does not change.",
+                submit_label: "Detach",
+            }}
+        />,
+    );
+    expect(screen.queryByRole("combobox")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Detach" }));
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    expect(fetcher.mock.calls[0][1].body.get("to")).toBe("held");
 });
 
 test("posts full displayed payment and stable options, then keeps filters after authoritative refresh", async () => {
@@ -267,6 +523,57 @@ test("a confirmation uses its own key and an explicitly unchecked rating value",
         confirmed: "1",
         rate: "",
     });
+});
+
+test("cancelling a card possession panel restores focus to its menu trigger", async () => {
+    const equipped = {
+        ...model,
+        card: {
+            ...model.card,
+            weapons: [
+                {
+                    name: "Autogun",
+                    key: "gun-copy",
+                    stats: [],
+                    traits: [],
+                    profiles: [],
+                    accessories: [],
+                    choices: [],
+                    actions: [
+                        {
+                            label: "Refund",
+                            target: "/equip/?list=house&refund=gun-copy",
+                            tone: "danger",
+                        },
+                    ],
+                },
+            ],
+        },
+    };
+    vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+            response({
+                page: {
+                    ...page,
+                    model: equipped,
+                    dialog: {
+                        ...sell,
+                        kind: "refund",
+                        title: "Refund Autogun?",
+                        submit_label: "Refund",
+                    },
+                },
+            }),
+        ),
+    );
+    render(<Equip {...page} model={equipped} />);
+    const trigger = screen.getByRole("button", { name: "More for Autogun" });
+    await userEvent.click(trigger);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Refund" }));
+    await screen.findByRole("dialog", { name: "Refund Autogun?" });
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
 });
 
 test("owned-panel navigation carries current section and expanded entry without a page reload", async () => {

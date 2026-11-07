@@ -206,9 +206,17 @@ def react_demo(request):
 @staff_member_required
 def react_model_preview(request):
     """Compare the two preview renderers using the same database-free cards."""
+    from dataclasses import replace
+
+    from n26.core.model_card_display import model_card_props
     from n26.core.model_preview import model_preview_props
 
     cards = sampledata.model_preview_cards()
+    stored = sampledata.model_card_editable()
+    stored.equipment = [
+        replace(line, id=f"gallery-gear-{index}")
+        for index, line in enumerate(stored.equipment)
+    ]
     return render(
         request,
         "designsystem/react_model_preview.html",
@@ -217,6 +225,12 @@ def react_model_preview(request):
             "examples": [
                 {"card": card, "props": model_preview_props(card)} for card in cards
             ],
+            "stored_card": stored,
+            "stored_props": {
+                "card": model_card_props(
+                    stored, rename_href="#rename", status_href="#status"
+                )
+            },
         },
     )
 

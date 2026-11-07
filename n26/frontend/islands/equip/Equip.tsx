@@ -17,7 +17,10 @@ import {
     EquipmentRail,
     GangFigures,
     UserLink,
-    WorkflowPage,
+    WorkflowLayout,
+    EquipmentModel,
+    EquipmentBudget,
+    QuickSwitcher,
     type EquipmentPurchase,
 } from "../../ui";
 import { Command } from "./Command";
@@ -54,6 +57,10 @@ export function Equip(initial: EquipProps) {
         () => new Set(initial.owned ? [initial.owned] : []),
     );
     const [frozen, setFrozen] = useState(false);
+    const [tallyMode, setTallyMode] = useState(false);
+    const tallyActive = useRef(false);
+    const tallyQueue = useRef<EquipDraft[]>([]);
+    const [queueNotice, setQueueNotice] = useState("");
     const [loading, setLoading] = useState(false);
     const [notice, setNotice] = useState("");
     const [retry, setRetry] = useState("");
@@ -62,6 +69,16 @@ export function Equip(initial: EquipProps) {
     const trigger = useRef<HTMLElement | null>(null);
     const heading = useRef<HTMLHeadingElement>(null);
     const returnFocus = useRef(false);
+    const stopTallyQueue = useCallback(() => {
+        tallyActive.current = false;
+        setTallyMode(false);
+        if (tallyQueue.current.length) {
+            setQueueNotice(
+                `${tallyQueue.current.length} queued counter ${tallyQueue.current.length === 1 ? "change was" : "changes were"} not sent. Resolve the earlier change before adding them again.`,
+            );
+            tallyQueue.current = [];
+        }
+    }, []);
     useEffect(() => {
         if (!returnFocus.current) return;
         returnFocus.current = false;
@@ -167,7 +184,7 @@ export function Equip(initial: EquipProps) {
         )
             return;
         event.preventDefault();
-        if (frozen || loading) return;
+        if (frozen || tallyActive.current || loading) return;
         const current = new URLSearchParams(window.location.search);
         for (const [name, value] of [
             ["section", current.get("section") || ""],
@@ -176,7 +193,11 @@ export function Equip(initial: EquipProps) {
             if (value) url.searchParams.set(name, value);
             else url.searchParams.delete(name);
         }
-        trigger.current = anchor;
+        const menu = anchor.closest('[role="menu"]');
+        trigger.current =
+            menu?.parentElement?.querySelector<HTMLButtonElement>(
+                'button[aria-haspopup="menu"]',
+            ) || anchor;
         void refreshPanel(url.href);
     }
     function navigationValues() {
@@ -194,7 +215,7 @@ export function Equip(initial: EquipProps) {
         selection: string[],
         parts: Array<{ key: string; paid: string }>,
     ) {
-        if (frozen || loading) return;
+        if (frozen || tallyActive.current || loading) return;
         trigger.current = document.activeElement as HTMLElement;
         const surcharge = purchase.choices
             .flatMap((group) => group.options)
@@ -230,6 +251,13 @@ export function Equip(initial: EquipProps) {
     }
     function settled(outcome: EquipOutcome) {
         setPage(outcome.page);
+        if (tallyActive.current && tallyQueue.current.length) {
+            setDraft(tallyQueue.current.shift()!);
+            setGeneration((value) => value + 1);
+            return;
+        }
+        tallyActive.current = false;
+        setTallyMode(false);
         setFrozen(false);
         setNotice("");
         if (outcome.confirmation) {
@@ -258,34 +286,105 @@ export function Equip(initial: EquipProps) {
     }
     function dismiss() {
         if (frozen) return;
+        returnFocus.current = true;
         setDraft(null);
         setGeneration((value) => value + 1);
         window.history.replaceState(window.history.state, "", page.listingHref);
     }
     return (
-        <div ref={root} onClick={open}>
-            <WorkflowPage
-                title="Equip"
+        <div
+            ref={root}
+            onClick={open}
+            onClickCapture={(event) => {
+                if (
+                    (frozen || tallyActive.current) &&
+                    (event.target as Element).closest("a[href]")
+                )
+                    event.preventDefault();
+            }}
+            onSubmitCapture={(event) => {
+                if (
+                    (frozen || tallyActive.current) &&
+                    !(event.target as Element).closest(
+                        "dialog, [data-equip-command]",
+                    )
+                )
+                    event.preventDefault();
+            }}
+        >
+            <WorkflowLayout
+                fullWidth={!!page.model}
+                title={page.model?.name || "Equip"}
+                trailing={
+                    page.model ? (
+                        <QuickSwitcher {...page.model.switcher} />
+                    ) : undefined
+                }
                 headingRef={heading}
-                lead="Buy equipment for the stash, manage it here or move it to a model."
+                lead={
+                    page.model?.role ||
+                    (page.model
+                        ? undefined
+                        : "Buy equipment for the stash, manage it here or move it to a model.")
+                }
                 breadcrumb={
                     <Breadcrumbs
                         items={[
                             { label: <UserLink {...page.owner} /> },
                             { label: page.gangName, href: page.gangHref },
-                            { label: "Equip" },
+                            { label: page.model?.name || "Equip" },
                         ]}
                     />
                 }
                 actions={<GangFigures data={page.figures} />}
                 footer={null}
-                onSubmit={(event) => event.preventDefault()}
             >
+                {page.model && (
+                    <EquipmentModel
+                        model={page.model}
+                        csrfToken={page.csrfToken}
+                        frozen={frozen || loading}
+                        countersFrozen={loading || (frozen && !tallyMode)}
+                        onTally={(assignment, change, name) => {
+                            if ((frozen && !tallyActive.current) || loading)
+                                return;
+                            trigger.current =
+                                document.activeElement as HTMLElement;
+                            const step: EquipDraft = {
+                                auto: true,
+                                question: null,
+                                dialog: null,
+                                values: {
+                                    ...navigationValues(),
+                                    action: "tally",
+                                    assignment,
+                                    change: String(change),
+                                    display_name: name,
+                                    display_details: JSON.stringify([
+                                        `Recorded counter change: ${change > 0 ? "+" : ""}${change}.`,
+                                    ]),
+                                },
+                            };
+                            if (tallyActive.current) {
+                                tallyQueue.current.push(step);
+                                return;
+                            }
+                            tallyActive.current = true;
+                            setTallyMode(true);
+                            setQueueNotice("");
+                            setDraft(step);
+                            setGeneration((value) => value + 1);
+                        }}
+                    />
+                )}
                 {page.messages.map((message, index) => (
                     <Alert key={`${generation}:${index}`} tone={message.tone}>
                         {message.text}
                     </Alert>
                 ))}
+                {queueNotice && !draft && (
+                    <Alert tone="warning">{queueNotice}</Alert>
+                )}
                 {notice && (
                     <Alert tone="error">
                         {notice}{" "}
@@ -306,6 +405,12 @@ export function Equip(initial: EquipProps) {
                 <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-[11rem_minmax(0,1fr)]">
                     <aside className="flex flex-col gap-4 self-start">
                         <EquipmentRail tabs={page.scopeTabs} />
+                        {page.model && (
+                            <EquipmentBudget
+                                model={page.model}
+                                tradePointsHref={page.tradePointsHref}
+                            />
+                        )}
                         {page.scope === "all" && (
                             <div className="self-start rounded-box border border-box-border p-3">
                                 <p className="text-sm font-medium">
@@ -360,6 +465,7 @@ export function Equip(initial: EquipProps) {
                         )}
                         {!page.postIsShut &&
                             !page.visitingTradingPost &&
+                            !page.model?.budget &&
                             page.tradePointsHref && (
                                 <ButtonLink
                                     href={page.tradePointsHref}
@@ -377,10 +483,13 @@ export function Equip(initial: EquipProps) {
                         plural="items"
                         sectionLabel="Equipment sections"
                         filters={page.scope !== "stash"}
+                        categoriesOpen={!page.model}
                         empty={
                             page.scope === "stash"
                                 ? "Nothing in the stash yet."
-                                : "No equipment lists yet. Choose Unrestricted to browse the library, or In stash to manage what the gang holds."
+                                : page.model
+                                  ? "No equipment lists yet. Choose Unrestricted to browse the library."
+                                  : "No equipment lists yet. Choose Unrestricted to browse the library, or In stash to manage what the gang holds."
                         }
                         renderEntry={(entry) => (
                             <EquipmentRow
@@ -424,12 +533,15 @@ export function Equip(initial: EquipProps) {
                                         ),
                                     }))
                                 }
+                                ownedLabel={
+                                    page.model ? "equipped" : "in stash"
+                                }
                                 onBuy={buy}
                             />
                         )}
                     />
                 </div>
-            </WorkflowPage>
+            </WorkflowLayout>
             <Command
                 key={generation}
                 page={page}
@@ -438,6 +550,8 @@ export function Equip(initial: EquipProps) {
                 onPage={setPage}
                 onDismiss={dismiss}
                 onFrozen={setFrozen}
+                onQueueBlocked={stopTallyQueue}
+                queueNotice={queueNotice}
             />
         </div>
     );

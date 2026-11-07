@@ -1,3 +1,4 @@
+import { isEquipmentModel } from "../../ui";
 import type { EquipOutcome, EquipProps, EquipQuestion } from "./types";
 const object = (value: unknown): value is Record<string, unknown> =>
     !!value && typeof value === "object" && !Array.isArray(value);
@@ -115,7 +116,13 @@ function entry(value: unknown): boolean {
     );
 }
 export function isEquipPage(value: unknown): value is EquipProps {
-    if (!object(value)) return false;
+    if (
+        !object(value) ||
+        (value.model !== undefined &&
+            value.model !== null &&
+            !isEquipmentModel(value.model))
+    )
+        return false;
     const texts = [
         "gangName",
         "gangHref",

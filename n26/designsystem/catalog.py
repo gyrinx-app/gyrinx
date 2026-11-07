@@ -1327,8 +1327,8 @@ GROUPS: list[Group] = [
                     'template change. :add is drawn only when layout="menu". '
                     "Use size sm on a listing line and xs on a model card. "
                     "Set :htmx only "
-                    "on a screen that hosts the update panels, as "
-                    "n26/includes/equip_hosts.html does; the included snippets "
+                    "on a screen that hosts the matching native update panels; "
+                    "the included snippets "
                     "read it from context."
                 ),
             ),

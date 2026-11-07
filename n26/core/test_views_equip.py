@@ -67,6 +67,21 @@ def key_of(thing):
     return f"{thing._meta.label_lower}:{thing.pk}"
 
 
+def page_of(response):
+    """Read the actual props delivered to the complete React owner."""
+    import json
+
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(response.content, "html.parser")
+    host = soup.select_one('[data-react-name="equip"]')
+    assert host is not None
+    assert not host.select("[data-react-name], [x-data], [hx-post], [hx-get]")
+    page = json.loads(soup.find(id=host["data-react-props"]).string)
+    assert page == response.context["equip_props"]
+    return page
+
+
 def test_the_page_wires_the_catalogue_controls_and_update_hosts(
     client, tester, fighter, house_list
 ):
@@ -75,43 +90,21 @@ def test_the_page_wires_the_catalogue_controls_and_update_hosts(
     create_trading_post()
     client.force_login(tester)
     response = client.get(equip_url(fighter, house_list))
-    body = response.content.decode()
-
     assert response.status_code == 200
-    assert response.context["dialog"] is None
+    page = page_of(response)
+    assert page["dialog"] is None
     assert set(rows_of(response)) == {"Knife", "Sword"}
-    assert rows_of(response)["Sword"].price == 35
-    assert 'data-busy-replaces="#equip-catalogue"' in body
-    assert 'id="equip-catalogue"' in body
-    assert "<template data-busy-wait>" in body
-    assert 'aria-label="Which list"' in body
-    assert 'role="tablist"' in body
-    assert 'x-show="!tabbed"' in body
-    assert body.count('type="submit"') == body.count('name="thing"')
-    assert "@keydown.enter.prevent" in body
-    assert body.count("--n26-sticky-top, 0px") == 1
-    inside = pinned_tags(body)
-    assert not any(tag.get("aria-label") == "Which list" for tag in inside)
-    assert any(tag.get("role") == "search" for tag in inside)
-    assert any(tag.get("role") == "tablist" for tag in inside)
-    assert not any(tag.get("name") == "thing" for tag in inside)
-    assert (
-        'x-show="countInSection(name) > 0 '
-        '&& (liveSections.length <= 2 || visibleSection === name)"'
-    ) in body
-    assert 'x-show="liveSections.length > 2"' in body
-    assert "`+${picker.liveSections.length - 1} more`" in body
-    assert "{ picker: $data }" in body
-    assert "picker.countInSection(label)" in body
-    assert "picker.visibleSection" in body
-    assert 'x-text="shown"' in body
-    assert "this.countInSection(this.visibleSection)" in body
-    assert 'x-show="shown !== total"' in body
-    assert "this.counts.sectionTotal[this.visibleSection]" in body
-    assert "n26/htmx_support.js" in body
-    assert '<meta name="n26-carry" content="section owned">' in body
-    for host_id in ("n26-dialog-host", "n26-accessorise-host", "n26-gang-wealth"):
-        assert f'id="{host_id}"' in body
+    assert rows_of(response)["Sword"]["purchase"]["price"] == 35
+    assert page["displayHref"] == reverse(
+        "n26-equip-fighter-display", args=[fighter.pk]
+    )
+    assert page["commandHref"] == reverse(
+        "n26-equip-fighter-command", args=[fighter.pk]
+    )
+    assert page["model"]["name"] == fighter.name
+    assert [tab["current"] for tab in page["model"]["tabs"]][:2] == [False, True]
+    assert page["csrfToken"] and page["requestKey"]
+    assert '<meta name="n26-carry"' not in response.content.decode()
 
 
 def test_a_buy_pays_the_servers_price_and_returns_to_its_list_and_section(
@@ -219,7 +212,7 @@ def test_each_list_is_a_tab_of_its_own(client, tester, fighter, house_list):
     create_trading_post()
 
     client.force_login(tester)
-    tabs = client.get(equip_url(fighter, house_list)).context["collection_tabs"]
+    tabs = page_of(client.get(equip_url(fighter, house_list)))["scopeTabs"]
     assert [tab["label"] for tab in tabs] == [
         "House List",
         "Trading Post",
@@ -272,7 +265,7 @@ def test_the_strip_holds_this_fighters_list_and_no_other_houses(
     assert Collection.objects.count() == 8
 
     client.force_login(tester)
-    tabs = client.get(equip_url(fighter)).context["collection_tabs"]
+    tabs = page_of(client.get(equip_url(fighter)))["scopeTabs"]
     assert [tab["label"] for tab in tabs] == [
         "Ironhead Squats",
         "Trading Post",
@@ -314,7 +307,7 @@ def test_a_collection_of_skills_is_no_tab_however_the_fighter_holds_it(
 
     client.force_login(tester)
     response = client.get(equip_url(fighter))
-    assert [tab["label"] for tab in response.context["collection_tabs"]] == [
+    assert [tab["label"] for tab in page_of(response)["scopeTabs"]] == [
         "Ironhead Squats",
         "Unrestricted",
     ]
@@ -330,20 +323,15 @@ def test_a_lone_list_is_still_a_choice_beside_the_library(
     search box still names the one they are on."""
     client.force_login(tester)
     response = client.get(equip_url(fighter))
-    html = response.content.decode()
-    assert [tab["label"] for tab in response.context["collection_tabs"]] == [
-        "House List",
-        "Unrestricted",
-    ]
-    assert "Search House List" in html
-    assert 'aria-label="Which list"' in html
+    page = page_of(response)
+    assert [tab["label"] for tab in page["scopeTabs"]] == ["House List", "Unrestricted"]
+    assert page["scopeLabel"] == "House List"
 
 
 def test_a_tab_drops_the_words_every_tab_shares(client, tester, gang, fighter):
     """Every row of the rail is a list to buy from, so a name that ends by
     saying so spends the rail's width on the one word they all have. The
     full name stays on the link for anyone who wants it."""
-    import re
 
     from n26.library.authoring import create_trading_post
 
@@ -355,13 +343,11 @@ def test_a_tab_drops_the_words_every_tab_shares(client, tester, gang, fighter):
     create_trading_post()
 
     client.force_login(tester)
-    body = client.get(equip_url(fighter, nomads)).content.decode()
-    assert re.search(r">\s*Ash Waste Nomads\s*<", body)
-    assert 'title="Ash Waste Nomads Equipment List"' in body
-    # And as an attribute rather than as words. A template tag written
-    # inside a component's attributes is not read as one: it lands in the
-    # page as text, where a search for the name above still finds it.
-    assert "{% if" not in body
+    response = client.get(equip_url(fighter, nomads))
+    tab = next(tab for tab in page_of(response)["scopeTabs"] if tab["current"])
+    assert tab["label"] == "Ash Waste Nomads"
+    assert tab["title"] == "Ash Waste Nomads Equipment List"
+    assert tab["href"] == f"?list={nomads.pk}"
 
 
 def test_two_names_that_shorten_alike_keep_their_full_names():
@@ -406,9 +392,14 @@ def test_the_strip_names_each_section_once(client, tester, gang, fighter):
     client.force_login(tester)
     response = client.get(equip_url(fighter, collection))
 
-    strip = response.context["sections"]
-    assert strip == ["Close combat", "Ranged"]
-    assert [s.name for s in response.context["catalogue"].sections] == strip
+    sections = page_of(response)["sections"]
+    assert [section["name"] for section in sections] == ["Close combat", "Ranged"]
+    assert {
+        entry["name"]
+        for section in sections
+        for category in section["categories"]
+        for entry in category["entries"]
+    } == {"Stub gun", "Knife", "Autogun"}
 
 
 def test_a_house_list_draws_no_trade_point_slider(
@@ -426,8 +417,8 @@ def test_a_house_list_draws_no_trade_point_slider(
     client.force_login(tester)
     response = client.get(equip_url(fighter, house_list))
 
-    assert response.context["has_trade_points"] is False
-    assert "Trade points" not in response.content.decode()
+    assert page_of(response)["hasTradePoints"] is False
+    assert all(entry["tradePoints"] is None for entry in rows_of(response).values())
 
 
 def test_the_trading_post_draws_one(client, tester, gang, fighter):
@@ -440,8 +431,8 @@ def test_the_trading_post_draws_one(client, tester, gang, fighter):
     client.force_login(tester)
     response = client.get(equip_url(fighter, post))
 
-    assert response.context["has_trade_points"] is True
-    assert response.context["tp_ceiling"] == 3
+    assert page_of(response)["hasTradePoints"] is True
+    assert page_of(response)["tradePointsCeiling"] == 3
 
 
 def test_only_the_chosen_lists_rows_are_on_the_page(
@@ -471,9 +462,6 @@ def test_a_category_named_with_an_ampersand_still_matches_the_filter(
     category counts zero, hides itself, and takes its rows off the page
     with it. So the name the picker reads must be the name the view sent,
     character for character."""
-    import json
-
-    from bs4 import BeautifulSoup
 
     from n26.library.models import Category, Section, Wargear
 
@@ -487,23 +475,14 @@ def test_a_category_named_with_an_ampersand_still_matches_the_filter(
 
     client.force_login(tester)
     response = client.get(equip_url(fighter, house_list))
-    body = response.content.decode()
-    assert "Armour & shields" in response.context["categories"]
-    # The rows still hand Alpine the name inside an attribute. The browser
-    # decodes &amp; once, so Alpine's category is "Armour & shields".
-    # Escaped twice, that copy would contain a literal "&amp;" and match
-    # nothing.
-    assert "Armour &amp; shields" in body
-    assert "&amp;amp;" not in body
-    # The filter menu's ticks are JSON, not attributes. They must be the
-    # same string Alpine decoded, or a tick matches no category and the
-    # rows vanish.
-    soup = BeautifulSoup(body, "html.parser")
-    host = soup.select_one("[data-react-name='filter-menu']")
-    props = json.loads(soup.find(id=host["data-react-props"]).string)
-    assert {"value": "Armour & shields", "label": "Armour & shields"} in props[
-        "options"
-    ]
+    page = page_of(response)
+    assert "Armour & shields" in page["categories"]
+    assert "Armour & shields" in page["categoryOptions"]
+    assert any(
+        category["name"] == "Armour & shields"
+        for section in page["sections"]
+        for category in section["categories"]
+    )
 
 
 def test_every_registration_name_is_a_known_category(
@@ -513,12 +492,13 @@ def test_every_registration_name_is_a_known_category(
     category registers under its section's name, possibly ""."""
     client.force_login(tester)
     response = client.get(equip_url(fighter))
+    page = page_of(response)
     registration_names = {
-        category.name or section.name
-        for section in response.context["catalogue"].sections
-        for category in section.categories
+        category["name"] or section["name"]
+        for section in page["sections"]
+        for category in section["categories"]
     }
-    assert registration_names <= set(response.context["categories"])
+    assert registration_names <= set(page["categories"])
 
 
 def test_a_homeless_line_gets_a_tab_of_its_own(client, tester, fighter, house_list):
@@ -538,16 +518,17 @@ def test_a_homeless_line_gets_a_tab_of_its_own(client, tester, fighter, house_li
 
     client.force_login(tester)
     response = client.get(equip_url(fighter, house_list))
-    assert response.context["sections"] == ["Armoury", UNCATEGORISED]
-
-    drawn = {section.name for section in response.context["catalogue"].sections}
-    assert drawn <= set(response.context["sections"])
+    page = page_of(response)
+    assert [section["name"] for section in page["sections"]] == [
+        "Armoury",
+        UNCATEGORISED,
+    ]
     registration_names = {
-        category.name or section.name
-        for section in response.context["catalogue"].sections
-        for category in section.categories
+        category["name"] or section["name"]
+        for section in page["sections"]
+        for category in section["categories"]
     }
-    assert registration_names <= set(response.context["categories"])
+    assert registration_names <= set(page["categories"])
 
 
 @pytest.fixture
@@ -587,22 +568,6 @@ def price_field(thing, index=None):
     return f"{scope}:price" if index is None else f"{scope}:parts:{index}:price"
 
 
-def price_box(body, name):
-    """The server-drawn price input and the props its island mounts with."""
-    import json
-
-    from bs4 import BeautifulSoup
-
-    soup = BeautifulSoup(body, "html.parser")
-    for host in soup.select('[data-react-name="equip-price"]'):
-        box = host.find("input", attrs={"name": name})
-        if box is None:
-            continue
-        props = json.loads(soup.find(id=host["data-react-props"]).string)
-        return box, props
-    raise AssertionError(name)
-
-
 def test_the_ammo_input_is_named_what_the_server_reads(
     client, tester, fighter, gun_list
 ):
@@ -614,22 +579,14 @@ def test_the_ammo_input_is_named_what_the_server_reads(
 
     autogun = Weapon.objects.get(name="Autogun")
     client.force_login(tester)
-    body = client.get(equip_url(fighter, gun_list)).content.decode()
-
-    assert f'name="{parts_field(autogun)}"' in body
-    assert 'value="0"' in body
-    # The round is priced in a box of its own, under the gun's: two
-    # charges on one click, so two numbers a reader can set.
-    assert f'name="{price_field(autogun, 0)}"' in body
-    round_box, round_props = price_box(body, price_field(autogun, 0))
-    assert round_box["value"] == "10"
-    assert round_props["quoted"] == 10
-    assert round_props["label"] == "warp round"
-    # The bare name: the row is drawn under the gun, which has already
-    # said which gun it is.
-    assert "warp round" in body
-    assert "fully automatic" not in body
-    assert 'x-data="{ quoted:' not in body
+    response = client.get(equip_url(fighter, gun_list))
+    purchase = rows_of(response)["Autogun"]["purchase"]
+    assert purchase["key"] == key_of(autogun)
+    (part,) = purchase["parts"]
+    assert part["name"] == "warp round"
+    assert part["price"] == 10
+    assert part["key"].startswith("library.weaponprofile:")
+    assert "fully automatic" not in str(purchase["parts"])
 
 
 def test_ticking_ammo_buys_it_onto_the_gun(client, tester, gang, fighter, gun_list):
@@ -743,25 +700,11 @@ def test_the_listing_quotes_its_price_in_a_box(client, tester, fighter, house_li
 
     sword = Wargear.objects.get(name="Sword")
     client.force_login(tester)
-    body = client.get(equip_url(fighter, house_list)).content.decode()
-
-    box, props = price_box(body, price_field(sword))
-    # The list's own price for the sword, which is what the purchase
-    # will charge if nobody touches it. The island reads the same quote.
-    assert box["value"] == "35"
-    assert box["min"] == "0"
-    assert box["max"] == "100000"
-    assert box["aria-label"] == "Price for Sword"
-    assert props == {
-        "field": price_field(sword),
-        "quoted": 35,
-        "label": "Sword",
-        "min": 0,
-        "max": 100000,
-        "id": "",
-    }
-    assert 'x-model.number="price"' not in body
-    assert 'x-data="{ quoted:' not in body
+    response = client.get(equip_url(fighter, house_list))
+    purchase = rows_of(response)["Sword"]["purchase"]
+    assert purchase["key"] == key_of(sword)
+    assert purchase["name"] == "Sword"
+    assert purchase["price"] == 35
 
 
 def test_a_typed_discount_charges_the_deal_and_pins_the_listing_rating(
@@ -901,13 +844,10 @@ def test_the_box_for_gear_priced_below_nothing_opens_at_its_own_price(
 
     brittle = Wargear.objects.get(name="Reduced bone density")
     client.force_login(tester)
-    body = client.get(equip_url(fighter, weakening_list)).content.decode()
-    box, props = price_box(body, price_field(brittle))
-    assert box["value"] == "-10"
-    assert box["min"] == "-10"
-    assert props["quoted"] == -10
-    assert props["min"] == -10
-    assert props["max"] == 100000
+    response = client.get(equip_url(fighter, weakening_list))
+    purchase = rows_of(response)["Reduced bone density"]["purchase"]
+    assert purchase["key"] == key_of(brittle)
+    assert purchase["price"] == -10
 
 
 def test_gear_priced_below_nothing_is_bought_at_its_quote(
@@ -1141,43 +1081,6 @@ def test_a_price_typed_on_an_unticked_round_charges_nothing(
     assert_reconciled(gang)
 
 
-def pinned_tags(body):
-    """Every tag inside the picker's one pinned box.
-
-    Walked rather than matched on the order things appear in the page: what
-    makes the bands stay on screen together is that they are *inside* that
-    box, and a test comparing positions would pass just as happily with one
-    of them left outside it.
-    """
-    from html.parser import HTMLParser
-
-    class Inside(HTMLParser):
-        def __init__(self):
-            super().__init__()
-            self.depth = 0
-            self.tags = []
-
-        def handle_starttag(self, tag, attrs):
-            found = dict(attrs)
-            if self.depth:
-                self.tags.append(found)
-                if tag == "div":
-                    self.depth += 1
-            # The box that reads the offset, not the page that sets it: the
-            # layout puts --n26-sticky-top on <body>, so matching the name
-            # alone starts the walk at the whole document.
-            elif "var(--n26-sticky-top" in (found.get("style") or ""):
-                self.depth = 1
-
-        def handle_endtag(self, tag):
-            if self.depth and tag == "div":
-                self.depth -= 1
-
-    reader = Inside()
-    reader.feed(body)
-    return reader.tags
-
-
 def test_a_section_the_strip_has_no_room_for_is_still_reachable(
     client, tester, fighter, house_list
 ):
@@ -1200,16 +1103,9 @@ def test_a_section_the_strip_has_no_room_for_is_still_reachable(
 
     client.force_login(tester)
     response = client.get(equip_url(fighter, house_list))
-    body = response.content.decode()
-    sections = response.context["sections"]
-    assert len(sections) == 2
-
-    rows = [tag for tag in pinned_tags(body) if tag.get("role") == "menuitem"]
-    assert rows
-    # Each section's name reaches its row through the row's own state, which
-    # is where the menu reads it back from when the row is clicked.
-    for section_name in sections:
-        assert any(section_name in (tag.get("x-data") or "") for tag in rows)
+    sections = page_of(response)["sections"]
+    assert [section["name"] for section in sections] == ["Armoury", "Kit"]
+    assert all(section["categories"] for section in sections)
 
 
 def test_two_sections_sharing_a_category_name_count_apart(
@@ -1235,11 +1131,16 @@ def test_two_sections_sharing_a_category_name_count_apart(
 
     client.force_login(tester)
     response = client.get(equip_url(fighter, collection))
-    body = response.content.decode()
-
-    assert response.context["categories"].count("Primitive weapons") == 1
-    assert body.count('x-text="countIn(sectionName, categoryName)"') == 2
-    assert "countIn(categoryName)" not in body
+    page = page_of(response)
+    assert page["categories"].count("Primitive weapons") == 1
+    assert {
+        section["name"]: [
+            entry["name"]
+            for category in section["categories"]
+            for entry in category["entries"]
+        ]
+        for section in page["sections"]
+    } == {"Close combat weapons": ["Fighting knife"], "Ranged weapons": ["Blunderbuss"]}
 
 
 def buy_one(gang, fighter, tester, thing, **kwargs):
@@ -1249,42 +1150,44 @@ def buy_one(gang, fighter, tester, thing, **kwargs):
 
 
 def rows_of(response):
-    """The catalogue's rows, by name. What the page was handed to draw."""
-    return {row.name: row for row in response.context["catalogue"].all_rows()}
+    return {
+        entry["name"]: entry
+        for section in page_of(response)["sections"]
+        for category in section["categories"]
+        for entry in category["entries"]
+    }
 
 
 def test_an_owned_row_counts_each_copy_keeps_buy_and_addresses_its_actions(
     client, tester, gang, fighter, house_list
 ):
-    from n26.core.listing import Listing, OwnedRow
     from n26.core.reconcile import assert_reconciled
     from n26.library.models import Wargear
 
     knife = Wargear.objects.get(name="Knife")
     client.force_login(tester)
-    rows = rows_of(client.get(equip_url(fighter, house_list)))
-    assert isinstance(rows["Knife"], Listing)
-    assert rows["Knife"].is_exclusive is False
-
+    row = rows_of(client.get(equip_url(fighter, house_list)))["Knife"]
+    assert row["count"] == 0 and row["exclusive"] is False
     first = buy_one(gang, fighter, tester, knife, paid=10)
     response = client.get(equip_url(fighter, house_list))
-    rows = rows_of(response)
-    assert isinstance(rows["Knife"], OwnedRow)
-    assert rows["Knife"].count == 1
-    for act in ("sell", "reassign", "refund", "remove"):
-        assert (
-            f"?list={house_list.pk}&amp;{act}={first.pk}" in response.content.decode()
+    row = rows_of(response)["Knife"]
+    assert row["count"] == 1
+    assert row["purchase"]["key"] == key_of(knife)
+    for action in ("sell", "reassign", "refund", "remove"):
+        assert any(
+            f"?list={house_list.pk}&{action}={first.pk}" in link["target"]
+            for link in row["copies"][0]["actions"]
         )
-
-    bought = client.post(equip_url(fighter, house_list), {"thing": key_of(knife)})
-    assert bought.status_code == 302
-    response = client.get(equip_url(fighter, house_list))
-    rows = rows_of(response)
-    assert rows["Knife"].count == 2
-    assert isinstance(rows["Sword"], Listing)
-    body = response.content.decode()
-    assert "2</span> equipped" in body
-    assert f'value="{key_of(knife)}"' in body
+    assert (
+        client.post(
+            equip_url(fighter, house_list), {"thing": key_of(knife)}
+        ).status_code
+        == 302
+    )
+    rows = rows_of(client.get(equip_url(fighter, house_list)))
+    assert rows["Knife"]["count"] == 2
+    assert rows["Sword"]["count"] == 0
+    assert len(rows["Knife"]["copies"]) == 2
     gang.refresh_from_db()
     assert_reconciled(gang)
 
@@ -1330,7 +1233,6 @@ def test_what_a_fighter_is_gets_no_controls(client, tester, gang, fighter, house
 def test_a_thing_taken_off_the_card_stops_being_counted(
     client, tester, gang, fighter, house_list
 ):
-    from n26.core.listing import Listing
     from n26.library.models import Wargear
 
     knife = Wargear.objects.get(name="Knife")
@@ -1340,7 +1242,7 @@ def test_a_thing_taken_off_the_card_stops_being_counted(
 
     client.force_login(tester)
     rows = rows_of(client.get(equip_url(fighter, house_list)))
-    assert isinstance(rows["Knife"], Listing)
+    assert rows["Knife"]["count"] == 0
 
 
 def test_a_sale_confirmation_states_its_arithmetic(
@@ -1354,17 +1256,15 @@ def test_a_sale_confirmation_states_its_arithmetic(
     sword = buy_one(gang, fighter, tester, Wargear.objects.get(name="Sword"), paid=35)
     client.force_login(tester)
     response = client.get(f"{equip_url(fighter, house_list)}&sell={sword.pk}")
-    body = response.content.decode()
-    copy = " ".join(body.split())
-
-    assert response.context["dialog"]["proceeds"] == 18
-    assert "Half of its 35¢ rating, rounded up — 18¢." in copy
+    dialog = page_of(response)["dialog"]
+    assert dialog["proceeds"] == 18
+    assert "Half of its 35¢ rating, rounded up — 18¢." in dialog["lead"]
     assert (
         "The equipment and any accessories sold with it are removed from the gang."
-        in copy
+        in dialog["lead"]
     )
-    assert "<dialog open" in body
-    assert reverse("n26-sell", args=[sword.pk]) in body
+    assert dialog["assignment"] == str(sword.pk)
+    assert dialog["kind"] == "sell"
 
 
 def test_a_sale_of_something_worth_almost_nothing_names_the_floor(
@@ -1374,11 +1274,11 @@ def test_a_sale_of_something_worth_almost_nothing_names_the_floor(
 
     trinket = buy_one(gang, fighter, tester, create_wargear("Charm", price=4), paid=4)
     client.force_login(tester)
-    body = client.get(
-        f"{equip_url(fighter, house_list)}&sell={trinket.pk}"
-    ).content.decode()
-
-    assert "5¢: half of its 4¢ rating is below the 5¢ minimum sale price." in body
+    response = client.get(f"{equip_url(fighter, house_list)}&sell={trinket.pk}")
+    assert (
+        "5¢: half of its 4¢ rating is below the 5¢ minimum sale price."
+        in page_of(response)["dialog"]["lead"]
+    )
 
 
 def test_a_move_offers_the_stash_and_the_roster(
@@ -1392,12 +1292,12 @@ def test_a_move_offers_the_stash_and_the_roster(
 
     client.force_login(tester)
     response = client.get(f"{equip_url(fighter, house_list)}&reassign={knife.pk}")
-    body = response.content.decode()
-
-    assert [model.name for model in response.context["dialog"]["models"]] == ["Nell"]
-    assert "Moving this equipment does not change its rating." in body
-    assert 'name="to" value="stash"' in body
-    assert 'name="miniature"' in body
+    dialog = page_of(response)["dialog"]
+    assert [model["name"] for model in dialog["models"]] == ["Nell"]
+    assert dialog["kind"] == "reassign"
+    assert dialog["lead"] == "Moving this equipment does not change its rating."
+    assert dialog["submit_label"] == "Move"
+    assert dialog["stash_host"] is False
 
 
 def test_a_move_with_nobody_else_on_the_roster_is_a_move_to_the_stash(
@@ -1410,11 +1310,10 @@ def test_a_move_with_nobody_else_on_the_roster_is_a_move_to_the_stash(
     knife = buy_one(gang, fighter, tester, Wargear.objects.get(name="Knife"), paid=10)
     client.force_login(tester)
     response = client.get(f"{equip_url(fighter, house_list)}&reassign={knife.pk}")
-    body = response.content.decode()
-
-    assert response.context["dialog"]["submit_label"] == "To the stash"
-    assert '<input type="hidden" name="to" value="stash">' in body
-    assert 'name="miniature"' not in body
+    dialog = page_of(response)["dialog"]
+    assert dialog["submit_label"] == "To the stash"
+    assert dialog["models"] == []
+    assert dialog["kind"] == "reassign"
 
 
 def test_a_removal_says_it_is_permanent(client, tester, gang, fighter, house_list):
@@ -1454,17 +1353,15 @@ def test_a_refund_names_what_was_paid_and_not_its_rating(
         discount=30,
     )
     client.force_login(tester)
-    body = client.get(
-        f"{equip_url(fighter, house_list)}&refund={knife.pk}"
-    ).content.decode()
-    copy = " ".join(body.split())
-
-    assert "You get 5¢ back — the amount paid, not its rating." in copy
+    response = client.get(f"{equip_url(fighter, house_list)}&refund={knife.pk}")
+    dialog = page_of(response)["dialog"]
+    assert "You get 5¢ back — the amount paid, not its rating." in dialog["lead"]
     assert (
         "The equipment and anything attached to it are removed from the gang. This undoes the purchase."
-        in copy
+        in dialog["lead"]
     )
-    assert reverse("n26-refund", args=[knife.pk]) in body
+    assert dialog["kind"] == "refund"
+    assert dialog["assignment"] == str(knife.pk)
 
 
 def test_a_dialog_naming_a_row_off_this_card_draws_nothing(
@@ -1489,7 +1386,7 @@ def test_a_dialog_naming_a_row_off_this_card_draws_nothing(
         f"{equip_url(fighter, house_list)}&sell={outsider.membership.pk}"
     )
     assert response.status_code == 200
-    assert response.context["dialog"] is None
+    assert page_of(response)["dialog"] is None
 
 
 def test_someone_elses_fighter_is_not_found(client, fighter):
@@ -1521,16 +1418,22 @@ def test_the_figures_and_the_roster_line_stand_above_the_catalogue(
         other = op.hire(profile, "Karn", paid=40)
 
     client.force_login(tester)
-    body = client.get(equip_url(fighter)).content.decode()
-    assert "Models in the gang" in body
-    assert "Roster breakdown: 2 models in the gang" in body
+    page = page_of(client.get(equip_url(fighter)))
     gang.refresh_from_db()
-    assert f">{gang.credits}\u00a2<" in body
-    # Karn links to his own equip screen, with his rating beside the name.
-    assert equip_url(other) in body
-    assert f"{other.rating}\u00a2" in body
-    # Vex is where the reader already is: named, marked, not a link.
-    assert 'aria-current="page"' in body
+    assert (
+        next(item for item in page["figures"]["items"] if item["short"] == "Cr")[
+            "value"
+        ]
+        == f"{gang.credits}¢"
+    )
+    assert page["figures"]["roster"]["count"] == 2
+    assert {model["name"] for model in page["figures"]["roster"]["models"]} == {
+        fighter.name,
+        other.name,
+    }
+    switcher = page["model"]["switcher"]
+    assert switcher["current"] == equip_url(fighter)
+    assert equip_url(other) in [item["href"] for item in switcher["items"]]
 
 
 def test_a_gang_with_no_budget_is_offered_no_refund(
@@ -1548,23 +1451,24 @@ def test_a_gang_with_no_budget_is_offered_no_refund(
     owned = Assignment.objects.get(
         miniature=fighter, parent__isnull=True, archived=False
     )
-    body = client.get(equip_url(fighter, house_list)).content.decode()
-    assert f"&amp;refund={owned.pk}" in body
-
+    assert any(
+        "refund=" in action["target"]
+        for action in rows_of(client.get(equip_url(fighter, house_list)))["Sword"][
+            "copies"
+        ][0]["actions"]
+    )
     gang.starting_credits = None
     gang.save(update_fields=["starting_credits"])
-    body = client.get(equip_url(fighter, house_list)).content.decode()
-    assert f"&amp;refund={owned.pk}" not in body
-    assert "Delete" in body
-
-    asked = client.get(
-        f"{equip_url(fighter, house_list)}&refund={owned.pk}"
-    ).content.decode()
-    assert "Delete" in asked
-    assert "Refund" not in asked
-    # Not "no credits are returned": this gang counts none either way, so
-    # the sentence says the plain thing instead of naming money.
-    assert "Removal does not refund the purchase." in asked
+    row = rows_of(client.get(equip_url(fighter, house_list)))["Sword"]
+    assert not any(
+        "refund=" in action["target"] for action in row["copies"][0]["actions"]
+    )
+    asked = page_of(client.get(f"{equip_url(fighter, house_list)}&refund={owned.pk}"))[
+        "dialog"
+    ]
+    assert asked["kind"] == "remove"
+    assert asked["submit_label"] == "Delete"
+    assert "Removal does not refund the purchase." in asked["lead"]
 
 
 @pytest.fixture
@@ -1589,39 +1493,9 @@ def owned_gun(client, tester, gang, fighter, gun_list):
 
 
 def panel_for(response, assignment):
-    """The accessory panel this page is carrying about one weapon."""
-    return next(
-        panel
-        for panel in response.context["accessorise"]
-        if panel["id"] == str(assignment.pk)
-    )
-
-
-def accessorise_link(body, label):
-    """The fallback link and the props the island opens the panel with."""
-    import json
-
-    from bs4 import BeautifulSoup
-
-    soup = BeautifulSoup(body, "html.parser")
-    for host in soup.select('[data-react-name="accessorise-link"]'):
-        link = host.find("a", attrs={"aria-label": label})
-        if link is None:
-            continue
-        props = json.loads(soup.find(id=host["data-react-props"]).string)
-        return link, props
-    raise AssertionError(label)
-
-
-def name_cell(body, label):
-    """Whatever is drawn alongside the control carrying ``label``.
-
-    Everything back to the last closed element, which is the run of
-    markup the control shares a line with — so a control that moved into
-    the acts on the right of the row would come back with the acts and
-    not with the words it is about.
-    """
-    return body[: body.index(f'aria-label="{label}"')].rsplit("</span>", 1)[-1]
+    panel = page_of(response)["dialog"]
+    assert panel is not None and panel["assignment"] == str(assignment.pk)
+    return panel
 
 
 class TestTheAccessoryDialog:
@@ -1635,11 +1509,14 @@ class TestTheAccessoryDialog:
         """Beside the name rather than among the acts: everything on the
         right of the row takes the gun away, and this adds to it."""
         client.force_login(tester)
-        body = client.get(equip_url(fighter, gun_list)).content.decode()
-
-        assert f"?list={gun_list.pk}&amp;accessorise={owned_gun.pk}" in body
-        assert 'aria-label="Add accessory to Autogun"' in body
-        assert "Autogun" in name_cell(body, "Add accessory to Autogun")
+        response = client.get(equip_url(fighter, gun_list))
+        copy = rows_of(response)["Autogun"]["copies"][0]
+        assert copy["id"] == str(owned_gun.pk)
+        assert (
+            f"?list={gun_list.pk}&accessorise={owned_gun.pk}"
+            in copy["accessorise"]["target"]
+        )
+        assert page_of(response)["dialog"] is None
 
     def test_the_click_opens_the_panel_the_page_is_already_holding(
         self, client, tester, fighter, gun_list, owned_gun, accessories
@@ -1647,14 +1524,17 @@ class TestTheAccessoryDialog:
         """The link and the click reach one state. The click does it
         without asking for a catalogue of several hundred rows again."""
         client.force_login(tester)
-        body = client.get(equip_url(fighter, gun_list)).content.decode()
-
-        assert f'id="n26-accessorise-{owned_gun.pk}"' in body
-        link, props = accessorise_link(body, "Add accessory to Autogun")
-        assert props["dialogId"] == f"n26-accessorise-{owned_gun.pk}"
-        assert props["href"] == link["href"]
-        assert f"accessorise={owned_gun.pk}" in props["href"]
-        assert "$dispatch('n26-dialog-open'" not in body
+        page = page_of(client.get(equip_url(fighter, gun_list)))
+        assert page["dialog"] is None
+        response = client.get(
+            reverse("n26-equip-fighter-display", args=[fighter.pk]),
+            {"list": str(gun_list.pk), "accessorise": str(owned_gun.pk)},
+        )
+        assert response.status_code == 200
+        panel = response.json()["page"]["dialog"]
+        assert panel["assignment"] == str(owned_gun.pk)
+        assert panel["kind"] == "accessorise"
+        assert panel["accessories"][0]["name"] == "Telescopic sight"
 
     def test_every_gun_carries_its_own_panel_on_a_plain_visit(
         self, client, tester, gang, fighter, gun_list, owned_gun, accessories
@@ -1668,17 +1548,18 @@ class TestTheAccessoryDialog:
 
         client.force_login(tester)
         response = client.get(equip_url(fighter, gun_list))
-        body = response.content.decode()
-
-        assert {panel["id"] for panel in response.context["accessorise"]} == {
-            str(owned_gun.pk),
-            str(second.pk),
-        }
-        assert not any(panel["open"] for panel in response.context["accessorise"])
-        # Closed, so no `open` attribute — a browser draws nothing until
-        # the click, and a reader with no script follows the link instead.
-        assert "<dialog open" not in body
-        assert body.count("Telescopic sight — 25¢") == 2
+        page = page_of(response)
+        assert page["dialog"] is None
+        copies = rows_of(response)["Autogun"]["copies"]
+        assert {copy["id"] for copy in copies} == {str(owned_gun.pk), str(second.pk)}
+        for copy in copies:
+            assert f"accessorise={copy['id']}" in copy["accessorise"]["target"]
+            loaded = client.get(
+                reverse("n26-equip-fighter-display", args=[fighter.pk]),
+                {"list": str(gun_list.pk), "accessorise": copy["id"]},
+            ).json()["page"]["dialog"]
+            assert loaded["assignment"] == copy["id"]
+            assert loaded["accessories"][0]["name"] == "Telescopic sight"
 
     def test_the_address_opens_it(
         self, client, tester, fighter, gun_list, owned_gun, accessories
@@ -1689,12 +1570,10 @@ class TestTheAccessoryDialog:
         response = client.get(
             f"{equip_url(fighter, gun_list)}&accessorise={owned_gun.pk}"
         )
-        body = response.content.decode()
-
-        assert panel_for(response, owned_gun)["open"] is True
-        assert "<dialog open" in body
-        assert reverse("n26-accessorise", args=[owned_gun.pk]) in body
-        assert "Add accessory" in body
+        panel = panel_for(response, owned_gun)
+        assert panel["open"] is True
+        assert panel["kind"] == "accessorise"
+        assert panel["submit_label"] == "Add accessory"
 
     def test_it_offers_what_fits_the_weapon_and_names_the_price(
         self, client, tester, fighter, gun_list, owned_gun, accessories
@@ -1709,7 +1588,7 @@ class TestTheAccessoryDialog:
         offered = panel_for(response, owned_gun)["accessories"]
         assert [row["name"] for row in offered] == ["Telescopic sight"]
         assert offered[0]["price"] == 25
-        assert "Telescopic sight — 25¢" in response.content.decode()
+        assert panel_for(response, owned_gun)["kind"] == "accessorise"
 
     def test_the_guns_cost_one_read_of_the_accessories_between_them(
         self, client, tester, gang, fighter, gun_list, owned_gun, accessories
@@ -1759,7 +1638,7 @@ class TestTheAccessoryDialog:
         with CaptureQueriesContext(connection) as captured:
             response = client.get(url)
 
-        assert response.context["accessorise"] == []
+        assert page_of(response)["dialog"] is None
         assert not [
             query
             for query in captured.captured_queries
@@ -1788,17 +1667,13 @@ class TestTheAccessoryDialog:
         """No accessories authored at all. A green button over an empty
         list would promise an act it could not do."""
         client.force_login(tester)
-        body = client.get(
+        response = client.get(
             f"{equip_url(fighter, gun_list)}&accessorise={owned_gun.pk}"
-        ).content.decode()
-
-        assert "Nothing in the library fits this weapon." in body
-        # The panel's own submit. The card above the listing still offers
-        # the way to the panel on every gun — that is the menu item, not
-        # the commit — so the check is on the panel's markup alone.
-        panel = body[body.index(f"n26-accessorise-{owned_gun.pk}") :]
-        panel = panel[: panel.index("</dialog>")]
-        assert "Add accessory" not in panel
+        )
+        panel = panel_for(response, owned_gun)
+        assert panel["lead"] == "Nothing in the library fits this weapon."
+        assert panel["submit_label"] == ""
+        assert panel["accessories"] == []
 
     def test_a_row_that_is_not_a_weapon_draws_no_dialog(
         self, client, tester, gang, fighter, house_list
@@ -1815,8 +1690,8 @@ class TestTheAccessoryDialog:
         response = client.get(
             f"{equip_url(fighter, house_list)}&accessorise={knife.pk}"
         )
-        assert response.context["dialog"] is None
-        assert response.context["accessorise"] == []
+        assert page_of(response)["dialog"] is None
+        assert page_of(response)["dialog"] is None
         assert "<dialog open" not in response.content.decode()
 
     def test_a_knife_is_offered_no_way_to_fit_one(
@@ -1840,12 +1715,14 @@ class TestTheAccessoryDialog:
     ):
         """Cancel comes back to the page as it was, and so does the answer."""
         client.force_login(tester)
-        body = client.get(
+        response = client.get(
             f"{equip_url(fighter, gun_list)}&section=Weapons&accessorise={owned_gun.pk}"
-        ).content.decode()
-
-        assert f'name="list" value="{gun_list.pk}"' in body
-        assert 'name="section" value="Weapons"' in body
+        )
+        page = page_of(response)
+        assert page["scope"] == str(gun_list.pk)
+        assert page["section"] == "Weapons"
+        assert page["dialog"]["assignment"] == str(owned_gun.pk)
+        assert "section=Weapons" in page["dialog"]["cancel_url"]
 
 
 class TestTheSellDialogWhenSomethingIsBoltedOn:
@@ -1858,8 +1735,8 @@ class TestTheSellDialogWhenSomethingIsBoltedOn:
         client.force_login(tester)
         response = client.get(f"{equip_url(fighter, gun_list)}&sell={owned_gun.pk}")
 
-        assert "keepable" not in response.context["dialog"]
-        assert "Stash the accessor" not in response.content.decode()
+        assert "keepable" not in page_of(response)["dialog"]
+        assert "Stash the accessory" not in str(page_of(response)["dialog"])
 
     def test_a_kitted_weapon_is_asked_which_sale_it_is(
         self, client, tester, gang, fighter, gun_list, owned_gun, accessories
@@ -1875,18 +1752,12 @@ class TestTheSellDialogWhenSomethingIsBoltedOn:
 
         client.force_login(tester)
         response = client.get(f"{equip_url(fighter, gun_list)}&sell={owned_gun.pk}")
-        dialog = response.context["dialog"]
-        body = response.content.decode()
-
+        dialog = page_of(response)["dialog"]
         assert dialog["keepable"] == "Telescopic sight"
-        # Twenty credits of gun halves to ten; the gun and its sight
-        # together are forty-five, which halves to twenty-three.
         assert dialog["proceeds"] == 10
-        assert "Stash the accessory" in body
-        assert "Sell the accessory too" in body
-        assert "23¢" in body
-        assert 'value="stash"' in body
-        assert 'value="sell"' in body
+        assert dialog["keep_label"] == "Stash the accessory"
+        assert dialog["sell_all_label"] == "Sell the accessory too"
+        assert "23¢" in dialog["sell_all_detail"]
 
 
 class TestBuyingWithoutRebuildingThePage:
@@ -1980,14 +1851,11 @@ class TestOpeningAConfirmationWithoutRebuildingThePage:
         client.force_login(tester)
         response = self.asked(client, fighter, gun_list, owned_gun)
         assert response.status_code == 200
-        body = response.content.decode()
-        assert "<html" not in body
-        assert "Sell Autogun?" in body
-        assert 'id="n26-dialog-host"' in body
-        assert 'hx-swap-oob="true"' in body
-        assert f"sell={owned_gun.pk}" in response["HX-Replace-Url"]
-        assert "clicked = true" in body
-        assert "hx-post" in body
+        assert response.content == b""
+        assert (
+            response["HX-Redirect"]
+            == equip_url(fighter, gun_list) + f"&sell={owned_gun.pk}"
+        )
 
     def test_asking_with_nothing_named_closes_whatever_was_open(
         self, client, tester, fighter, gun_list, owned_gun
@@ -1996,10 +1864,9 @@ class TestOpeningAConfirmationWithoutRebuildingThePage:
         response = client.get(
             equip_url(fighter, gun_list), headers={"HX-Request": "true"}
         )
-        body = response.content.decode()
-
-        assert 'id="n26-dialog-host"' in body
-        assert "Sell Autogun?" not in body
+        assert response.status_code == 200
+        assert response["HX-Redirect"] == equip_url(fighter, gun_list)
+        assert response.content == b""
 
     def test_without_the_header_the_whole_page_still_draws_the_panel(
         self, client, tester, fighter, gun_list, owned_gun
@@ -2143,15 +2010,12 @@ class TestOpeningTheCopiesOfAnOwnedRow:
         self, client, tester, fighter, gun_list, owned_gun
     ):
         client.force_login(tester)
-        body = client.get(equip_url(fighter, gun_list)).content.decode()
-
-        # Opened in the hand, and the address follows rather than leads.
-        assert "expanded = !expanded" in body
-        assert "history.replaceState" in body
-        # Both addresses, since the click may be going either way. The key
-        # carries a colon, which an address escapes.
-        plain = body.replace("&amp;", "&").replace("%3A", ":")
-        assert f"owned={key_of(owned_gun.assignable)}" in plain
+        page = page_of(client.get(equip_url(fighter, gun_list)))
+        assert page["owned"] == ""
+        row = rows_of(client.get(equip_url(fighter, gun_list)))["Autogun"]
+        assert row["count"] == 1
+        assert row["copies"][0]["id"] == str(owned_gun.pk)
+        assert row["expanded"] is False
 
     def test_it_is_still_a_link(self, client, tester, fighter, gun_list, owned_gun):
         """Without script the server renders the row open."""
@@ -2161,7 +2025,8 @@ class TestOpeningTheCopiesOfAnOwnedRow:
         )
 
         assert opened.status_code == 200
-        assert 'aria-expanded="true"' in opened.content.decode()
+        assert page_of(opened)["owned"] == key_of(owned_gun.assignable)
+        assert rows_of(opened)["Autogun"]["expanded"] is True
 
 
 class TestTheLibraryTab:
@@ -2198,12 +2063,12 @@ class TestTheLibraryTab:
         the way it is on any list: a note, never a missing row."""
         client.force_login(tester)
         response = client.get(f"{equip_url(fighter)}?list=all")
-        rows = {row.name: row for row in response.context["catalogue"].all_rows()}
+        rows = rows_of(response)
 
         assert "Knife" in rows
         assert "Mesh Armour" in rows
-        assert rows["Mesh Armour"].notes == ()
-        assert [note.text for note in rows["Autogun"].notes] == [
+        assert rows["Mesh Armour"]["purchase"]["notes"] == []
+        assert [note["text"] for note in rows["Autogun"]["purchase"]["notes"]] == [
             "usable by Walker only"
         ]
 
@@ -2220,11 +2085,11 @@ class TestTheLibraryTab:
         )
         client.force_login(tester)
         response = client.get(f"{equip_url(fighter)}?list=all")
-        rows = {row.name: row for row in response.context["catalogue"].all_rows()}
+        rows = rows_of(response)
 
-        assert rows["Grenade launcher"].notes == ()
-        (krak,) = rows["Grenade launcher"].options
-        assert [note.text for note in krak.notes] == ["usable by Walker only"]
+        assert rows["Grenade launcher"]["purchase"]["notes"] == []
+        (krak,) = rows["Grenade launcher"]["purchase"]["parts"]
+        assert [note["text"] for note in krak["notes"]] == ["usable by Walker only"]
         assert "usable by Walker only" in response.content.decode()
 
     def test_the_page_says_where_it_is(
@@ -2232,13 +2097,11 @@ class TestTheLibraryTab:
     ):
         client.force_login(tester)
         response = client.get(f"{equip_url(fighter)}?list=all")
-        html = response.content.decode()
-        tabs = response.context["collection_tabs"]
-
-        assert [tab["current"] for tab in tabs] == [False, True]
-        assert "Search all equipment" in html
-        assert "Every item in the library" in html
-        assert f"{equip_url(fighter)}?list=all" in html
+        page = page_of(response)
+        assert [tab["current"] for tab in page["scopeTabs"]] == [False, True]
+        assert page["scope"] == "all"
+        assert page["scopeLabel"] == "all equipment"
+        assert page["action"] == f"{equip_url(fighter)}?list=all"
 
     def test_buying_from_it_lands_on_the_fighter(
         self, client, tester, gang, fighter, house_list, library
@@ -2299,7 +2162,7 @@ class TestTheLibraryTab:
         lines = {str(line.thing): line for line in screen.view.all_lines()}
         client.force_login(tester)
         response = client.get(f"{equip_url(fighter)}?list=all")
-        rows = {row.name: row for row in response.context["catalogue"].all_rows()}
+        rows = rows_of(response)
 
         assert lines["Lho Sticks"].trade_points == 1
         assert lines["Lho Sticks"].shows_trade_points is True
@@ -2309,9 +2172,9 @@ class TestTheLibraryTab:
         assert lines["Mesh Armour"].shows_trade_points is False
         # And what the page draws says the same: a figure on the post's
         # line, none on the list's, and the slider to steer by it.
-        assert rows["Lho Sticks"].trade_points == 1
-        assert rows["Sword"].trade_points is None
-        assert response.context["has_trade_points"] is True
+        assert rows["Lho Sticks"]["tradePoints"] == 1
+        assert rows["Sword"]["tradePoints"] is None
+        assert page_of(response)["hasTradePoints"] is True
 
     def test_a_fighter_with_no_list_is_pointed_at_it(
         self, client, tester, fighter, library
@@ -2321,15 +2184,56 @@ class TestTheLibraryTab:
         a rail of one, so a reader on it can see where they are."""
         client.force_login(tester)
         empty = client.get(equip_url(fighter))
-        assert empty.context["catalogue"] is None
-        assert 'href="?list=all"' in empty.content.decode()
+        assert page_of(empty)["sections"] == []
+        assert page_of(empty)["scopeTabs"][-1]["href"] == "?list=all"
 
         response = client.get(f"{equip_url(fighter)}?list=all")
-        assert [tab["label"] for tab in response.context["collection_tabs"]] == [
+        assert [tab["label"] for tab in page_of(response)["scopeTabs"]] == [
             "Unrestricted"
         ]
-        assert 'aria-label="Which list"' in response.content.decode()
+        assert page_of(response)["scopeTabs"][0]["current"] is True
         assert "Mesh Armour" in response.content.decode()
+
+
+class TestSupplementaryPetsNavigation:
+    @pytest.mark.parametrize("with_house", [True, False])
+    def test_pets_follow_the_standard_post_without_becoming_the_default(
+        self, client, tester, fighter, gang, house_list, with_house
+    ):
+        from n26.library.authoring import create_trading_post
+
+        pets = create_collection(
+            "Supplementary Pets", entries=[create_wargear("Pet harness", price=5)]
+        )
+        post = create_trading_post()
+        with operation(gang, actor=tester) as op:
+            op.assign(pets, gang=gang)
+            if not with_house:
+                op.remove(Assignment.objects.get(gang_root=gang, collection=house_list))
+        client.force_login(tester)
+        props = page_of(client.get(equip_url(fighter)))
+        assert [tab["key"] for tab in props["scopeTabs"]] == [
+            *([str(house_list.pk)] if with_house else []),
+            str(post.pk),
+            str(pets.pk),
+            "all",
+        ]
+        assert props["scope"] == str(house_list.pk if with_house else post.pk)
+        selected = page_of(client.get(equip_url(fighter, pets)))
+        assert selected["scope"] == str(pets.pk)
+
+    def test_pets_remain_available_without_a_standard_post(
+        self, client, tester, fighter, gang
+    ):
+        pets = create_collection(
+            "Supplementary Pets", entries=[create_wargear("Pet harness", price=5)]
+        )
+        with operation(gang, actor=tester) as op:
+            op.assign(pets, gang=gang)
+        client.force_login(tester)
+        props = page_of(client.get(equip_url(fighter)))
+        assert props["scope"] == str(pets.pk)
+        assert [tab["key"] for tab in props["scopeTabs"]] == [str(pets.pk), "all"]
 
 
 class TestTheLibraryTabsQueryBudget:
@@ -2413,12 +2317,13 @@ class TestTheCardAboveTheListing:
     ):
         client.force_login(tester)
         response = client.get(equip_url(fighter, house_list))
-        body = response.content.decode()
-
-        card = body.index('id="n26-model-card-host"')
-        assert body.index("<h1") < card < body.index("This model")
-        # With its characteristics: the strip is what a card is read by.
-        assert [cell.short_name for cell in response.context["card"].statline.cells]
+        model = page_of(response)["model"]
+        assert model["name"] == fighter.name
+        assert model["card"]["name"] == fighter.name
+        assert [
+            cell["shortName"] for group in model["card"]["statGroups"] for cell in group
+        ]
+        assert next(tab for tab in model["tabs"] if tab["current"])["label"] == "Equip"
 
     def test_it_is_drawn_in_edit_mode_with_the_kit_acts_out(
         self, client, tester, gang, fighter, house_list
@@ -2430,12 +2335,24 @@ class TestTheCardAboveTheListing:
         with operation(gang, actor=tester) as op:
             op.buy(fighter, thing=Wargear.objects.get(name="Sword"), paid=35)
         client.force_login(tester)
-        body = client.get(equip_url(fighter, house_list)).content.decode()
-
-        card = body[body.index('id="n26-model-card-host"') :]
-        card = card[: card.index("This model")]
-        assert "More for Sword" in card
-        assert 'id="n26-status-dialog-host"' in body
+        response = client.get(equip_url(fighter, house_list))
+        model = page_of(response)["model"]
+        lines = [
+            line
+            for row in model["card"]["details"]
+            for part in row["parts"]
+            if part["kind"] == "gear"
+            for line in part["lines"]
+        ]
+        sword = next(line for line in lines if line["text"] == "Sword")
+        assert {action["label"] for action in sword["actions"]} >= {
+            "Sell",
+            "Reassign",
+            "Refund",
+            "Delete",
+        }
+        assert model["card"]["stored"]["statusHref"]
+        assert model["card"]["stored"]["renameHref"]
 
     def counter_on(self, gang, tester, fighter):
         """The fighter's XP counter, given once."""
