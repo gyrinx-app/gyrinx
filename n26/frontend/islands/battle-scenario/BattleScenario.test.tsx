@@ -408,3 +408,113 @@ it("keeps a saved battle's side jobs when generating again", async () => {
     expect(url.searchParams.get("side_job_2_pick")).toBe("general");
     expect(url.searchParams.get("side_jobs")).toBe("2");
 });
+
+it("keeps a retained side job visible when its set is unavailable for new selection", () => {
+    const archived = {
+        key: "retired-set",
+        name: "Retired",
+        label: "Retired side jobs",
+        entries: [
+            {
+                roll: 3,
+                name: "Retained result",
+                text: "An original retained result.",
+                image: "",
+            },
+        ],
+    };
+    const offered = {
+        ...archived,
+        key: "available",
+        name: "Available",
+        label: "Available side jobs",
+    };
+    render(
+        <BattleScenario
+            {...props}
+            rolls={{ crew: "2", side_job: "retired-set-3" }}
+            sideJobKeys={["side_job"]}
+            sideJobSets={[offered]}
+            referencedSideJobSets={[archived]}
+        />,
+    );
+    expect(screen.getAllByText("Retained result").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Hold Nothing Back").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByText("Full details"));
+    fireEvent.click(
+        screen.getByRole("button", { name: "Reroll Side job 1 (Retired)" }),
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole<HTMLSelectElement>("combobox").value).toBe(
+        "available",
+    );
+    expect(
+        within(dialog).queryByRole("option", { name: "Retired side jobs" }),
+    ).toBeNull();
+});
+
+it("keeps the selected replacement set on Generate again after rerolling a retired result", async () => {
+    const archived = {
+        key: "retired-set",
+        name: "Retired",
+        label: "Retired side jobs",
+        entries: [
+            {
+                roll: 3,
+                name: "Retained result",
+                text: "An original retained result.",
+                image: "",
+            },
+        ],
+    };
+    const offered = {
+        ...archived,
+        key: "available",
+        name: "Available",
+        label: "Available side jobs",
+    };
+    const request = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+            rolls: { side_job: "available-3" },
+            revision: 1,
+        }),
+    });
+    vi.stubGlobal("fetch", request);
+    render(
+        <BattleScenario
+            {...props}
+            save={{
+                action: "/save/",
+                csrfToken: "csrf",
+                campaign: "campaign",
+                battle: "battle",
+                revision: 0,
+                printUrl: "/print/",
+            }}
+            rolls={{ side_job: "retired-set-3" }}
+            sideJobKeys={["side_job"]}
+            sideJobSets={[offered]}
+            referencedSideJobSets={[archived]}
+        />,
+    );
+    expect(
+        screen.getByLabelText<HTMLSelectElement>("Side job 1 set").value,
+    ).toBe("retired-set");
+    fireEvent.click(screen.getByText("Full details"));
+    fireEvent.click(
+        screen.getByRole("button", { name: "Reroll Side job 1 (Retired)" }),
+    );
+    fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
+    await waitFor(() =>
+        expect(
+            screen.getByLabelText<HTMLSelectElement>("Side job 1 set").value,
+        ).toBe("available"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Generate again" }));
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+    expect(
+        (request.mock.calls[1][1].body as FormData).get("side_job_pick"),
+    ).toBe("available");
+});

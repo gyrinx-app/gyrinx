@@ -197,3 +197,49 @@ it("submits the selected set and named job through the native GET form", () => {
     expect(data.get("side_job_set")).toBe("escher");
     expect(data.get("side_job_pick")).toBe("escher-3");
 });
+
+it("shows a held unavailable set and lets the reader replace it for generation", () => {
+    const retired = {
+        key: "retired",
+        name: "Retired",
+        label: "Retired side jobs",
+        entries: [],
+    };
+    const { container } = render(
+        <form>
+            <ScenarioPicks
+                {...props}
+                sidePicks={["retired", "escher"]}
+                referencedSideJobSets={[retired]}
+            />
+        </form>,
+    );
+    expect(
+        new FormData(container.querySelector("form")!).get("side_job_pick"),
+    ).toBe("retired");
+    expect(screen.getByLabelText("Side job 1 set")).toHaveProperty(
+        "value",
+        "retired",
+    );
+    expect(
+        screen.getByRole("option", { name: "Retired side jobs (unavailable)" }),
+    ).toHaveProperty("disabled", true);
+    expect(screen.getByLabelText("Side job 2 set")).toHaveProperty(
+        "value",
+        "escher",
+    );
+    fireEvent.change(screen.getByLabelText("Side job 1 set"), {
+        target: { value: "general" },
+    });
+    expect(screen.getByLabelText("Side job 1")).toHaveProperty(
+        "disabled",
+        false,
+    );
+    expect(new URLSearchParams(location.search).get("side_job_pick")).toBe(
+        "general",
+    );
+    expect(screen.getByLabelText("Side job 2 set")).toHaveProperty(
+        "value",
+        "escher",
+    );
+});

@@ -24,7 +24,8 @@ developer can maintain or extend it. For what the feature does, see
   is more than one. **Generate again** keeps the choices and rolls the rest
   again.
 - **The content lives in the library and is read by core.**
-  `n26/library/scenario_tables.py` holds the fixed definitions.
+  `n26/library/models/scenario.py` holds authored tables and entries.
+  `n26/library/scenario_tables.py` loads them into a shared catalogue.
   `n26/core/scenarios.py` rolls, checks and describes scenarios.
 - **Only the table key and roll are stored.** For a side job, the value
   also names its set, such as `escher-3`. Battles and log notes never
@@ -38,7 +39,7 @@ developer can maintain or extend it. For what the feature does, see
 
 | File | Purpose |
 | --- | --- |
-| `n26/library/scenario_tables.py` | `ScenarioEntry`, `ScenarioTable`, `SideJobSet`, the tables and side job sets, `TABLES`, `SIDE_JOB_SETS` and `table(key)`. |
+| `n26/library/scenario_tables.py` | Immutable `ScenarioEntry`, `ScenarioTable` and `SideJobSet` display objects; `load_catalogue()` and request-local catalogue reuse. |
 | `n26/core/scenarios.py` | `ScenarioResult`, `roll`, `parse`, `results`, `rolls_of`, `describe`, and the log-note helpers. |
 | `n26/core/templates/n26/scenario_generator.html` | The generator page. |
 | `n26/core/templates/n26/save_scenario.html` | The **Save scenario** page. |
@@ -79,28 +80,35 @@ developer can maintain or extend it. For what the feature does, see
 Both routes require a signed-in user through `login_required`.
 Every redirect is built with `reverse(...)`.
 
-## The content: `n26/library/scenario_tables.py`
+## The shared content catalogue
 
-- `ScenarioEntry(roll, name, text, image="")`. Its `label` is the name
-  without a trailing colon or spaces, for use inside sentences. Text between
-  asterisks, such as `*only*`, is bold: `parts()` returns `(words, bold)`
-  pairs for templates and the React island, and `plain` is the text without
-  the asterisks.
-- `ScenarioTable(key, name, entries)`. `entry(roll)` returns the entry for
-  that roll, or `None`. `TABLES` holds Deployment, Objective and Crew.
-- `SideJobSet(key, name, entries)`, with `label` ("Escher side jobs") and
-  `entry(roll)`. `SIDE_JOB_SETS` holds General, Escher, Goliath and Orlock, in menu
-  order. `side_job_set(key)` finds one.
-- A scenario has up to `SIDE_JOB_LIMIT` (6) side jobs, stored under
-  `SIDE_JOB_KEYS`: `side_job`, `side_job_2` … `side_job_6`.
-  `side_job_table(place, found)` gives the table a result is drawn under,
-  named "Side job N".
-- The keys `deployment`, `objective`, `crew` and the side job keys, and the
-  set keys `general`, `escher`, `goliath` and `orlock`, appear in links and saved
-  battles, so do not change them. To add a set, add a `SideJobSet` to
-  `SIDE_JOB_SETS`.
-- Names and text can change freely. Older battles and log lines show the new
-  wording.
+`models/scenario.py` contains authored `ScenarioTable` and `ScenarioEntry` records.
+The migration transfers the seven original tables and 42 entries once, preserving
+their legacy aliases and static diagrams. Its frozen source is
+`migrations/0130_scenario_content_is_author_editable.py`; runtime content comes entirely from the database.
+
+`load_catalogue(include_staged=False)` reads tables and entries in two queries,
+returning immutable display objects. `request_catalogue(request)` reuses one
+catalogue through a view, its forms and props. Pass a catalogue into core scenario
+helpers to keep rolling, parsing and describing query-free. Campaign history loads
+one catalogue for all saved-scenario events.
+
+A catalogue distinguishes offered sets from referenced sets. New choices use
+complete, unarchived sets that are live or visible to the current staged-content
+reader. Known results resolve retired and staged sets too. Campaign operations
+validate eligibility again for new attachments and saves.
+
+`ScenarioEntry.label`, `parts()` and `plain` retain the existing text-formatting
+contract. `image_url` resolves either an authored storage upload or the original
+static diagram. Django and React consume this same address and alternative text.
+
+Staff use the Scenario tables listing and React-owned editor. Its native POST
+forms are generated from specs and write through the authoring verbs. A new set
+starts staged; publication validates all six entries, including bulk release.
+Entries share the table's release gate. Live corrections update saved results.
+Hard deletion is blocked because JSON, log notes and shared URLs are not foreign
+keys. Retire a side-job set instead. Primary roles and D6 result identities stay
+fixed; authored generator composition is outside this milestone.
 
 ## The logic: `n26/core/scenarios.py`
 

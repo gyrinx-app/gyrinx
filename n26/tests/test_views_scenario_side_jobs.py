@@ -15,7 +15,7 @@ from n26.core.forms import ScenarioGeneratorForm
 from n26.library.scenario_tables import side_job_set
 from n26.tests.sandbox.actions import found_campaign
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("scenario_content")]
 
 GENERATOR = "n26-generate-scenario"
 
