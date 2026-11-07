@@ -1,11 +1,6 @@
-"""A second pytest in one worktree shares test database names.
+"""Allow one pytest controller per worktree because concurrent sessions share database names.
 
-yew (4 Oct) and wren (27 Sep) on #lessons: a focused suite beside a full
-suite died during schema creation. The root conftest holds
-``logs/pytest.lock`` and the second process exits.
-
-Not marked core: that suite is capped. CI still runs this file when a
-pull request changes it, and the full suite runs it on every push.
+Keep this file outside the core suite, which has a size limit.
 """
 
 import os

@@ -1,9 +1,7 @@
-"""GitHub Actions job logs while a run is still in progress.
+"""Fetch and filter GitHub Actions job logs before the full run finishes.
 
-``gh run view --log-failed`` waits until every job finishes. Completed job
-logs are already on ``GET .../actions/jobs/JOB_ID/logs`` (jay on #lessons,
-25 Sep). These tests pin the FAILURES filter and the in-progress warning so
-agents do not tail Post job cleanup or stall on the CLI waiter.
+Use the completed job logs endpoint while sibling jobs are still active,
+and omit cleanup noise from failure excerpts.
 """
 
 from dataclasses import dataclass, field

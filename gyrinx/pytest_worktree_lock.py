@@ -1,13 +1,11 @@
-"""One pytest process per worktree.
+"""Hold one exclusive pytest-controller lock per worktree.
 
-Loaded with ``-p gyrinx.pytest_worktree_lock`` so the guard is not in the
-root conftest. A root conftest edit makes the required CI job run the
-whole suite.
+Separate invocations share test_<DB>_gwN database names and would collide
+during schema creation. Xdist workers use the controller's lock; the
+kernel releases it when the controller exits.
 
-xdist workers inside one invocation share ``test_<DB>_gwN`` on purpose.
-A second pytest process in the same checkout collides on those names
-during schema creation. The controller holds an exclusive lock for the
-session. The kernel drops it if that process dies.
+Load this as a pytest plugin rather than from root conftest.py: editing
+that conftest selects the whole suite for the required CI job.
 """
 
 import errno
