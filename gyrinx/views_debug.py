@@ -1,8 +1,4 @@
-"""Platform debug views: the test-plan browser and the design-system reference.
-
-Both are about the tooling, not the game. The edition's debug views (balance
-sheet, list actions, print lab) stay in n23.core.views.
-"""
+"""Development-only agent login, test-plan browsing and design-system examples."""
 
 from pathlib import Path
 
@@ -34,9 +30,7 @@ def debug_agent_login(request):
     try:
         user = ensure_debug_agent_user(request.GET.get("user", "agent"))
     except ValueError as error:
-        # Echo only the fixed refusals, the same text the agent_login_url
-        # command prints. Any other ValueError keeps its detail to itself.
-        # Return the module's own constant, not the exception's text.
+        # Expose only fixed agent-login refusals; keep unexpected ValueError details private.
         message = next(
             (refusal for refusal in REFUSALS if refusal == str(error)),
             "Could not start a debug agent session.",
@@ -55,11 +49,7 @@ def debug_agent_login(request):
 
 
 def get_available_plans():
-    """Get list of available test plans.
-
-    Returns a dict mapping filename to plan metadata including the file path.
-    This provides the canonical list of servable files.
-    """
+    """Return metadata and canonical paths for Markdown test plans in TEST_PLANS_DIR."""
     plans = {}
     if TEST_PLANS_DIR.exists():
         for f in sorted(TEST_PLANS_DIR.glob("*.md"), reverse=True):
@@ -91,28 +81,22 @@ def debug_test_plan_detail(request, filename):
     if not settings.DEBUG:
         raise Http404("Debug views are only available in development")
 
-    # Security: only serve files from the known list of available plans
-    # This prevents path traversal and arbitrary file access
+    # Restrict lookup to enumerated filenames to reject path traversal.
     plans = get_available_plans()
     if filename not in plans:
         raise Http404("Test plan not found")
 
-    # Read from the canonical path we enumerated, not from user input
+    # Read the enumerated canonical path instead of constructing one from request input.
     file_path = plans[filename]["path"]
     content = file_path.read_text(encoding="utf-8")
     return HttpResponse(content, content_type="text/plain; charset=utf-8")
 
 
 class _DesignSystemDemoForm(forms.Form):
-    """A throwaway form so the page can demo <c-form.field> against real
-    BoundFields. The component refuses to render anything else -- passing a
-    stringified widget is exactly the mistake that used to drop a field's
-    errors silently (#2001), so it raises instead."""
+    """Provide real BoundFields for form-component examples, including validation errors."""
 
-    # The Bootstrap class goes on the WIDGET, exactly as every real form in
-    # n23/core/forms/ does it. <c-form.field> renders the widget as the form
-    # declares it and deliberately does not inject form-control -- a form that
-    # omits the class renders an unstyled input, with or without the component.
+    # Put Bootstrap classes on demo widgets because the shared component preserves
+    # the form's declared widget classes.
     name = forms.CharField(
         label="Fighter name",
         initial="Stig the Miner",
@@ -144,8 +128,7 @@ class _DesignSystemDemoForm(forms.Form):
 
 
 def _design_system_demo_form(*, bound):
-    """Unbound for the happy path; deliberately invalid when bound, so the page
-    shows what a field with errors actually looks like."""
+    """Return a fresh form or an invalid bound form for the error-state example."""
     if not bound:
         return _DesignSystemDemoForm()
     form = _DesignSystemDemoForm(
@@ -182,14 +165,10 @@ def debug_design_system(request):
         "light",
         "dark",
     ]
-    # <c-btn variant="…"> takes the Bootstrap suffix verbatim, so these double as
-    # the component's variant vocabulary. "link" is button-only (there is no
-    # bg-link), which is why it is not in semantic_colours.
+    # Button variants use Bootstrap suffixes; link is excluded from background colours.
     button_variants = semantic_colours + ["link"]
     button_outline_variants = ["primary", "secondary", "success", "danger"]
-    # <c-badge state="…"> maps a domain state to a colour so call sites never
-    # pick one. Kept in step with the table in cotton/badge.html by
-    # test_cotton_badge.py::test_state_table_covers_model_choices.
+    # Keep demo states aligned with the Cotton badge mapping checked by test_cotton_badge.py.
     badge_states = [
         ("active", "Fighter alive and available"),
         ("recovery", "Fighter recovering from injury"),
@@ -202,9 +181,7 @@ def debug_design_system(request):
         ("locked", "Crew locked for battle"),
         ("in_progress", "Battle or campaign running"),
     ]
-    # Slot-free demo data for the <c-list> items-mode example.
     ds_skills = ["Nerves of Steel", "Spring Up"]
-    # Canonical icons from the design system spec
     common_icons = [
         ("bi-plus-lg", "Add"),
         ("bi-pencil", "Edit"),
@@ -219,7 +196,6 @@ def debug_design_system(request):
         ("bi-archive", "Archive"),
         ("bi-copy", "Clone"),
     ]
-    # Additional icons used in the app
     extra_icons = [
         ("bi-dash", "dash"),
         ("bi-person", "person"),
@@ -269,17 +245,15 @@ def debug_design_system(request):
         ),
     ]
 
-    # Mock campaign for breadcrumb demo (needs .id and .name)
+    # Supply the id and name required by breadcrumb examples.
     from types import SimpleNamespace
 
     ds_campaign = SimpleNamespace(
         id="00000000-0000-0000-0000-000000000000", name="Underhive Wars"
     )
 
-    # Mock owner for breadcrumb demo so the page renders logged-out too. The
-    # breadcrumb reverses {% url 'core:user' owner.username %} and displays
-    # str(owner); a fake object keeps the sample self-contained and avoids
-    # depending on request.user (AnonymousUser has no username when logged out).
+    # Use a self-contained owner with username and display text so breadcrumb
+    # examples render without an authenticated request user.
     class _DSUser:
         username = "underhive-boss"
 
