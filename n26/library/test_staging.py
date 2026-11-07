@@ -39,5 +39,6 @@ def test_direct_deletion_waits_for_commit_and_preserves_shared_legacy_bytes(
 
     with django_capture_on_commit_callbacks(execute=True):
         second.delete()
+        assert deleted == []
 
     assert deleted == [first.file.name]
