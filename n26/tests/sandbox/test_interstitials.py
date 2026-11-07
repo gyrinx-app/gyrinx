@@ -1,15 +1,7 @@
-"""The screen shown after an act, for what the act brought.
-
-An author attaches a screen to a slot. When founding a gang, hiring a
-model or making a pick puts that slot on a card, the reader is shown
-the screen — heading, words and the picker — before landing where they
-were going. Nothing is stored: the address names every question and
-where Continue leads, and the screen derives itself from it each time.
-
-What this file pins: which acts send the reader here and which never
-do; that the picker on this screen is the pick screen's own; how Skip
-and Continue behave; what a broken or borrowed address does; and that
-the printed sheet and the text card do not know the screen exists.
+"""Verify interstitial screens for slots granted by founding, hiring and picks. Questions
+and the continuation target are encoded in the URL, while picks use the normal domain
+operation. Cover redirects, skip behaviour, stale or invalid addresses, accessible
+labels and unchanged print/text output.
 """
 
 import re
@@ -53,11 +45,8 @@ from n26.tests.sandbox.actions import (
 
 pytestmark = pytest.mark.django_db
 
-#: The edition's core package, for the guards that read its source.
+
 CORE = Path(__file__).resolve().parents[2] / "core"
-
-
-# --- A gang type whose founding asks one question ---------------------------
 
 
 @pytest.fixture
@@ -77,8 +66,7 @@ def picklist(legacy, archetypes):
 
 @pytest.fixture
 def archetype_slot(legacy, picklist, gang_type):
-    """The gang's own question, built into the gang type: founding
-    brings it."""
+    """Gang-level slot granted at founding."""
     slot = create_slot("Archetype", legacy, picklist, assigned_to="gang")
     add_built_in(gang_type, slot)
     return slot
@@ -86,7 +74,7 @@ def archetype_slot(legacy, picklist, gang_type):
 
 @pytest.fixture
 def shown(archetype_slot):
-    """The screen attached to it. Not skippable."""
+    """Required screen attached to the gang archetype slot."""
     return create_interstitial(
         "Outcast archetype",
         title="Choose an archetype",
@@ -97,8 +85,7 @@ def shown(archetype_slot):
 
 @pytest.fixture
 def hunter(person_type, gang_type, legacy, picklist):
-    """A profile whose hire brings a question of the model's own, with a
-    skippable screen on it."""
+    """Hiring this profile grants a model-level slot with a skippable screen."""
     profile = create_profile("Hunter", person_type, gang_type, price=100)
     slot = create_slot("Hunter's path", legacy, picklist)
     add_built_in(profile, slot)
@@ -113,10 +100,9 @@ def hunter(person_type, gang_type, legacy, picklist):
 
 @pytest.fixture
 def founding_brings_a_model(gang_type, person_type, legacy, picklist):
-    """A gang type whose founding brings a model of its own, and that
-    model's question with a screen on it. Nothing in the library does
-    this today; the guard is what keeps it off the founding screen if
-    anything ever does."""
+    """Founding grants a model with its own interstitial slot. Use this shape to verify
+    that the founding screen includes only gang-level questions.
+    """
     profile = create_profile("Bodyguard", person_type, gang_type, price=0)
     slot = create_slot("Bodyguard's path", legacy, picklist)
     add_built_in(profile, slot)
@@ -144,7 +130,7 @@ def founding_post(gang_type, name="The Forgotten"):
 
 
 def found_through_the_page(client, owner, gang_type):
-    """Found through the page that founds one: the response, and the gang."""
+    """Return the founding response and the created gang."""
     from n26.core.models import Gang
 
     client.force_login(owner)
@@ -154,8 +140,9 @@ def found_through_the_page(client, owner, gang_type):
 
 
 def page(client, url):
-    """The page as a reader sees it: an apostrophe in a slot's label
-    arrives escaped, and every assertion here is about the words."""
+    """Decode HTML entities so assertions compare visible words, including apostrophes in
+    slot labels.
+    """
     return unescape(client.get(url).content.decode())
 
 
@@ -166,7 +153,7 @@ def asks_in(url):
 
 
 def sheet_slot(gang, label):
-    """One question's line off the gang sheet, the gang's own or a member's."""
+    """Find a named choice on the gang sheet or a model card."""
     sheet = render_gang(gang)
     for line in sheet.choices:
         if line.kind_label == label:
@@ -189,19 +176,15 @@ def pick_key(pickable):
 
 
 def skip_href(body):
-    """Where Skip leads, or "" where the screen draws none. Matched on
-    the control rather than on ">Skip<": a button draws its words on a
-    line of their own."""
+    """Return the Skip link target, or an empty string when absent. Allow whitespace around
+    its label because rendered controls can span lines.
+    """
     found = re.search(r'<a[^>]*href="([^"]*)"[^>]*>\s*Skip\s*</a>', body)
     return found.group(1).replace("&amp;", "&") if found else ""
 
 
-# --- Which acts send the reader here ----------------------------------------
-
-
 class TestFoundingAGang:
-    """Founding brings the gang type's slots. Where one carries a
-    screen, the founder lands on it, not on the sheet."""
+    """Founding redirects to screens attached to newly granted gang-level slots."""
 
     def test_it_lands_on_the_screen_when_a_slot_carries_one(
         self, client, owner, gang_type, shown
@@ -223,7 +206,7 @@ class TestFoundingAGang:
         assert "The archetype shapes the whole gang." in body
         assert "Archetype" in body and "The Forgotten" in body
         assert "Brawler" in body and "Gunslinger" in body
-        # The act's own confirmation draws at the top of this screen.
+
         assert "Founded The Forgotten." in body
 
     def test_no_continue_while_the_question_is_open(
@@ -239,7 +222,7 @@ class TestFoundingAGang:
                 1
             ]
         )
-        # Not skippable, so no Skip either.
+
         assert ">Skip<" not in body
 
     def test_founding_a_gang_whose_slots_carry_nothing_goes_straight_to_the_sheet(
@@ -252,11 +235,9 @@ class TestFoundingAGang:
     def test_a_founding_that_brings_a_model_asks_only_the_gangs_own(
         self, client, owner, gang_type, shown, founding_brings_a_model
     ):
-        """Founding is where somebody says what the gang is. A gang type
-        whose built-ins bring a model puts that model's question on its
-        card, and the screen after founding still asks about the gang
-        alone: the model's question belongs to the act that brings the
-        model, and stands unresolved on the card until then."""
+        """A granted model keeps its unresolved question on its card; founding asks only
+        gang-level questions.
+        """
         response, gang = found_through_the_page(client, owner, gang_type)
 
         path, asks, _ = asks_in(response["Location"])
@@ -274,8 +255,7 @@ class TestFoundingAGang:
 
 
 class TestHiringAModel:
-    """A hire brings the profile's slots and nothing else: the gang's
-    standing question is not asked again."""
+    """Hiring asks about the new model's slots without repeating existing gang questions."""
 
     @pytest.fixture
     def gang(self, owner, gang_type, shown):
@@ -312,8 +292,7 @@ class TestHiringAModel:
     def test_a_library_of_staged_screens_only_derives_nothing_for_an_ordinary_reader(
         self, owner, gang, hunter, shown
     ):
-        """A reader who may not see staged content is spared the gang's
-        derivation when every attached screen is on hold."""
+        """Avoid deriving the gang when every attached screen is hidden from the reader."""
         from unittest import mock
 
         from n26.library.models import Interstitial
@@ -330,8 +309,7 @@ class TestHiringAModel:
     def test_with_nothing_attached_in_the_library_an_act_pays_one_query(
         self, owner, gang, hunter
     ):
-        """The short-circuit: a library holding no live attachment costs
-        an act one query, whatever it brought."""
+        """Check for live attachments with one query before deriving arrival state."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -348,8 +326,7 @@ class TestHiringAModel:
 
 
 class TestWhatArrived:
-    """The mechanism: a slot arrives when the assignment it hangs from
-    was written by the act that just ran."""
+    """Detect slots granted by assignments written in the current operation."""
 
     def test_founding_names_the_gangs_own_slot(self, owner, gang_type, archetype_slot):
         with operation(_fresh_gang(owner, gang_type), actor=owner) as op:
@@ -362,10 +339,9 @@ class TestWhatArrived:
     def test_a_models_question_arrives_with_a_founding_and_hosts_narrows_it_away(
         self, owner, gang_type, shown, founding_brings_a_model
     ):
-        """The mechanism sees every card the act wrote to, the model it
-        brought included. ``hosts`` is what keeps the founding screen to
-        the gang's own questions, so the narrowing is stated where the
-        act opts in rather than hidden in what arrived."""
+        """arrived detects both gang and model slots; the founding caller explicitly
+        filters to the gang host.
+        """
         gang = _fresh_gang(owner, gang_type)
         with operation(gang, actor=owner) as op:
             op.found(gang_type)
@@ -391,8 +367,9 @@ class TestWhatArrived:
     def test_a_pick_that_brings_a_slot_names_it(
         self, owner, gang_type, archetype_slot, archetypes, legacy, picklist
     ):
-        """A pickable gives a further slot: the pick's own assignment is
-        what the new slot hangs from, so it arrives with the pick."""
+        """A slot granted by a pick belongs to the new pick assignment, so it is included
+        in that operation's arrivals.
+        """
         follow_up = create_slot("Brawler's creed", legacy, picklist, assigned_to="gang")
         modifier(
             "Brawler: asks a creed",
@@ -428,9 +405,7 @@ class TestWhatArrived:
     def test_an_archived_screen_still_shows_for_a_gang_holding_the_slot(
         self, owner, gang_type, archetype_slot, homebrew
     ):
-        """Archiving is a pack owner's soft delete: it stops a screen
-        being newly attached, never retracts one from a gang already
-        holding the slot — the same rule every pack's content follows."""
+        """Archiving the pack or screen does not retract an existing slot attachment."""
         packed = create_interstitial(
             "Packed away", slots=[archetype_slot], pack=homebrew
         )
@@ -461,9 +436,7 @@ class TestWhatArrived:
     def test_a_staged_attachment_keeps_its_screen_off_the_player_path(
         self, owner, gang_type, archetype_slot, shown
     ):
-        """An attachment on hold — the interstitial itself live — keeps
-        the screen off this slot for a reader who may not see staged
-        content, and shows it to one who may."""
+        """Attachment staging controls visibility even when the screen itself is live."""
         revise(shown.attachments.get(), staged=True)
         gang = _fresh_gang(owner, gang_type)
         with operation(gang, actor=owner) as op:
@@ -475,21 +448,21 @@ class TestWhatArrived:
         ]
 
     def test_purchases_and_clones_never_send_the_reader_here(self):
-        """The seam opts in per act: the founding, hire and pick views
-        call it, and the equip and cloning views do not."""
+        """Only founding, hiring and picking opt into arrival navigation; equipment and
+        clone flows do not.
+        """
         import inspect
         from importlib import import_module
 
-        # By module path: the views package re-exports a view named
-        # ``gangs``, which would shadow the module of the same name.
+        # Import the module explicitly because n26.core.views exports a gangs view with
+        # the same name.
         def module(name):
             return import_module(f"n26.core.views.{name}")
 
         for name, view in (
             ("gangs", "create_gang"),
             ("hire", "hire_fighter"),
-            # The pick view hands where a settled click lands to a helper
-            # of its own, and that is where its call lives.
+            # Pick navigation calls onward through _landing.
             ("choose", "_landing"),
         ):
             assert "onward(" in inspect.getsource(getattr(module(name), view)), view
@@ -499,7 +472,7 @@ class TestWhatArrived:
 
 
 def archetype_slot_of(gang):
-    """The gang type's own slot, read back off the gang."""
+
     from n26.library.models import Slot
 
     return Slot.objects.get(name="Archetype", assigned_to="gang")
@@ -517,12 +490,8 @@ def _fresh_gang(owner, gang_type):
     )
 
 
-# --- Picking on the screen ---------------------------------------------------
-
-
 class TestPickingOnTheScreen:
-    """The picker is the pick screen's own, drawn in place: a click
-    writes the same pick, says the same thing, and comes back here."""
+    """Embedded pickers use the normal pick operation and preserve interstitial navigation."""
 
     @pytest.fixture
     def landed(self, client, owner, gang_type, shown):
@@ -530,9 +499,7 @@ class TestPickingOnTheScreen:
         return gang, response["Location"]
 
     def test_continue_writes_the_answer_and_goes_on(self, client, landed, archetypes):
-        """Continue is what writes: the answer lands and the reader goes
-        where the act was going, rather than back to a question they
-        have just answered."""
+
         gang, here = landed
         key = sheet_slot(gang, "Archetype").key
 
@@ -611,9 +578,9 @@ class TestPickingOnTheScreen:
     def test_a_pick_on_the_pick_screen_reached_from_here_joins_the_address(
         self, client, landed, archetypes, legacy, picklist
     ):
-        """Following a question to its own page — for a roll — and picking
-        there lands back on this screen with what the pick brought added,
-        not on a second screen in front of the first."""
+        """After selecting on a separate picker page, merge newly granted questions into
+        the existing interstitial URL.
+        """
         gang, here = landed
         creed = create_slot("Brawler's creed", legacy, picklist, assigned_to="gang")
         modifier(
@@ -640,8 +607,7 @@ class TestPickingOnTheScreen:
     def test_a_worked_at_choice_on_the_pick_screen_still_shows_what_a_pick_brought(
         self, client, owner, gang_type, legacy, picklist, archetypes
     ):
-        """A choice of several comes back to its own page after each pick,
-        by way of the screen for anything that pick brought."""
+        """A multi-pick slot returns to its picker after each newly granted screen."""
         several = create_slot(
             "Paths", legacy, picklist, max_picks=2, assigned_to="gang"
         )
@@ -668,9 +634,9 @@ class TestPickingOnTheScreen:
     def test_a_worked_at_choice_opened_from_here_comes_back_here_with_what_it_brought(
         self, client, owner, gang_type, legacy, picklist, archetypes
     ):
-        """A choice of several, reached from this screen for its own page,
-        sends what a pick brought back to this screen rather than opening
-        a second one — and with nothing brought, comes back to itself."""
+        """A multi-pick slot opened from an interstitial adds new questions to that screen;
+        a pick with no arrivals stays on its picker.
+        """
         several = create_slot(
             "Paths", legacy, picklist, max_picks=2, assigned_to="gang"
         )
@@ -710,10 +676,9 @@ class TestPickingOnTheScreen:
     def test_a_worked_at_choice_stays_the_way_on_until_it_is_full(
         self, client, owner, gang_type, legacy, picklist, archetypes
     ):
-        """From the arrival screen, a choice of several: what an early pick
-        brings gets a screen whose Continue leads back to the picker for
-        the rest, and only the pick that fills the choice hands what it
-        brought on to the screen the reader came from."""
+        """While picks remain, new screens continue back to the picker. The final pick
+        returns new questions to the original arrival screen.
+        """
         several = create_slot(
             "Paths", legacy, picklist, max_picks=2, assigned_to="gang"
         )
@@ -757,10 +722,9 @@ class TestPickingOnTheScreen:
     def test_a_pick_that_takes_its_own_question_away_still_lands(
         self, client, owner, gang_type, legacy, picklist, archetypes
     ):
-        """A choice of several whose pick removes the very slot being
-        answered, and brings a screen: nothing is left to work at, so
-        what the pick brought joins the screen the reader came from
-        rather than the click failing after the pick was written."""
+        """A pick can remove its own slot. Return its newly granted screen without trying
+        to reopen the removed picker.
+        """
         several = create_slot(
             "Paths", legacy, picklist, max_picks=2, assigned_to="gang"
         )
@@ -815,8 +779,8 @@ class TestPickingOnTheScreen:
 
         response = client.post(here, {f"thing:{key}": pick_key(archetypes["Brawler"])})
 
-        # Continue writes and goes on, so what the pick brought is a
-        # screen of its own rather than the answered question redrawn.
+        # Continue has answered the original question; only newly granted questions
+        # belong on the next screen.
         _, asks, back = asks_in(response["Location"])
         assert asks == [sheet_slot(gang, "Brawler's creed").key]
         assert back == reverse("n26-gang", args=[gang.pk])
@@ -824,12 +788,10 @@ class TestPickingOnTheScreen:
         assert "Creed" in body and "Brawler's creed" in body
 
 
-# --- Skip and Continue ---------------------------------------------------------
-
-
 class TestSkipAndContinue:
-    """Continue writes every answer and goes on; Skip walks past the
-    whole screen, and is offered only where nothing is compulsory."""
+    """Continue submits answers; Skip writes nothing and is available only when the screen
+    has no required questions.
+    """
 
     @pytest.fixture
     def gang(self, owner, gang_type, shown):
@@ -838,9 +800,9 @@ class TestSkipAndContinue:
     def test_skip_is_offered_only_where_no_question_is_compulsory(
         self, client, owner, gang, hunter
     ):
-        """Skip goes past the whole screen writing nothing, so a screen
-        holding a question the author made compulsory offers none: the
-        archetype's screen is not skippable, the hunter's path is."""
+        """Skip bypasses every question on the screen, so any required question hides the
+        control.
+        """
         kal = hire(gang, hunter, "Kal", paid=100)
         archetype = sheet_slot(gang, "Archetype").key
         path = sheet_slot(gang, "Hunter's path").key
@@ -856,9 +818,7 @@ class TestSkipAndContinue:
     def test_a_skippable_question_never_holds_continue(
         self, client, owner, gang, hunter, archetypes
     ):
-        """A question the author let the reader skip does not stand in
-        the way: only the compulsory ones are named, and leaving the
-        skippable one blank is the way past it."""
+        """Only required questions appear in the prompt that blocks Continue."""
         hire(gang, hunter, "Kal", paid=100)
         archetype = sheet_slot(gang, "Archetype").key
         path = sheet_slot(gang, "Hunter's path").key
@@ -876,8 +836,7 @@ class TestSkipAndContinue:
     def test_continue_waits_for_every_pick_a_choice_asks_for(
         self, client, owner, gang_type, legacy, picklist, archetypes
     ):
-        """A choice asking for two picks is not settled by one: the line
-        still names it and Continue stays withheld until the second."""
+
         both = create_slot(
             "Paths", legacy, picklist, min_picks=2, max_picks=2, assigned_to="gang"
         )
@@ -939,8 +898,9 @@ class TestSkipAndContinue:
     def test_a_choice_with_nothing_to_offer_does_not_hold_the_reader(
         self, client, owner, gang, legacy
     ):
-        """A screen that withheld Continue over a choice nobody can make
-        would be policing; the card's own note still says it is open."""
+        """An empty picklist must not block Continue, even though the card still describes
+        an unresolved choice.
+        """
         empty = create_picklist("Nothing yet", legacy)
         bare = create_slot("Fate", legacy, empty, assigned_to="gang")
         create_interstitial("Fate", slots=[bare])
@@ -957,10 +917,9 @@ class TestSkipAndContinue:
     def test_a_block_with_no_question_of_its_own_draws_no_skip(
         self, client, owner, gang, archetype_slot
     ):
-        """Skip drops a block's own questions; a block whose every
-        question another block asks too has nothing to drop, and a Skip
-        leading back to the same screen would be a control that does
-        nothing."""
+        """A block whose questions all appear elsewhere cannot remove any question by
+        skipping. Hide the control rather than linking back to the same screen.
+        """
         create_interstitial("Also asked", slots=[archetype_slot], skippable=True)
         key = sheet_slot(gang, "Archetype").key
         client.force_login(owner)
@@ -973,8 +932,7 @@ class TestSkipAndContinue:
     def test_a_screen_asks_its_slots_in_the_order_the_author_gave_them(
         self, client, owner, gang, hunter, legacy, picklist
     ):
-        """One screen on two arriving slots asks in attachment order, not
-        in the order the address happens to name them."""
+        """Order questions by attachment position, independently of URL parameter order."""
         creed = create_slot("Creed", legacy, picklist, assigned_to="gang")
         with operation(gang, actor=owner) as op:
             op.assign(creed, gang=gang)
@@ -993,9 +951,9 @@ class TestSkipAndContinue:
     def test_slots_given_the_same_place_ask_by_name_however_the_address_names_them(
         self, client, owner, gang, legacy, picklist
     ):
-        """Two attachments at one position fall back to the slot's name,
-        as the attachments themselves are ordered — never to the order
-        the address happens to name them in."""
+        """Use slot name to break attachment-position ties, independently of URL parameter
+        order.
+        """
         creed = create_slot("Creed", legacy, picklist, assigned_to="gang")
         with operation(gang, actor=owner) as op:
             op.assign(creed, gang=gang)
@@ -1013,8 +971,7 @@ class TestSkipAndContinue:
     def test_skip_writes_nothing_at_all(
         self, client, owner, gang, archetype_slot, legacy, picklist, archetypes
     ):
-        """Skip is a link past the screen, not an answer to it: every
-        question it walks past stays exactly as open as it was."""
+
         creed = create_slot("Creed", legacy, picklist, assigned_to="gang")
         with operation(gang, actor=owner) as op:
             op.assign(creed, gang=gang)
@@ -1022,7 +979,6 @@ class TestSkipAndContinue:
         creed_key = sheet_slot(gang, "Creed").key
         client.force_login(owner)
 
-        # The creed alone: one block, and the author let it be skipped.
         body = page(client, screen_url(gang, [creed_key]))
 
         assert skip_href(body) == reverse("n26-gang", args=[gang.pk])
@@ -1039,9 +995,6 @@ class TestSkipAndContinue:
         response = client.get(screen_url(gang, [sheet_slot(gang, "Bare").key]))
 
         assert response["Location"] == reverse("n26-gang", args=[gang.pk])
-
-
-# --- The address --------------------------------------------------------------
 
 
 class TestTheAddress:
@@ -1076,9 +1029,9 @@ class TestTheAddress:
     def test_asking_more_costs_the_offers_and_not_another_derivation(
         self, client, owner, gang, hunter
     ):
-        """The gang is derived once for every address at once: asking four
-        questions costs the three extra offers — a few queries each —
-        and nothing like three more readings of the whole gang."""
+        """Derive the gang once for all requested slots. Additional questions may load
+        their offers but must not repeat the full derivation.
+        """
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -1134,9 +1087,9 @@ class TestTheAddress:
         assert len(_asks(query)) == MAX_ASKS == 20
 
     def test_more_than_a_screenful_waits_on_a_further_screen(self, gang):
-        """Nothing that arrived is dropped: the first screenful is asked
-        here, and Continue leads to a screen asking the rest, and only
-        then to where the act was going."""
+        """Chain overflow questions through the continuation URL before returning to the
+        original destination.
+        """
         keys = [f"gang:{i}:{i}" for i in range(25)] + ["gang:3:3"]
 
         path, asks, back = asks_in(screen_url(gang, keys, back="/n26/"))
@@ -1161,8 +1114,9 @@ class TestTheAddress:
     def test_a_carrier_spelled_as_a_uuid_is_the_same_question(
         self, client, owner, gang, hunter
     ):
-        """A ULID has a UUID spelling too, and an address using it names
-        the same row: the question draws, under the address as given."""
+        """Accept the UUID spelling of a ULID carrier and preserve that spelling in
+        submitted field names.
+        """
         kal = hire(gang, hunter, "Kal", paid=100)
         key = sheet_slot(gang, "Hunter's path").key
         where, anchor, offer = key.split(":")
@@ -1178,8 +1132,9 @@ class TestTheAddress:
     def test_a_post_naming_a_question_no_screen_draws_settles_nothing(
         self, client, owner, gang, person_type, gang_type, legacy, picklist, archetypes
     ):
-        """A valid address for a slot with no screen is not on this page,
-        however it got into the address: a post naming it is refused."""
+        """Reject submitted slots that are absent from the rendered screen, even when their
+        slot addresses are valid.
+        """
         plain = create_profile("Ganger", person_type, gang_type, price=50)
         add_built_in(plain, create_slot("Bare", legacy, picklist))
         hire(gang, plain, "Rat", paid=50)
@@ -1211,8 +1166,9 @@ class TestTheAddress:
     def test_the_nested_return_address_survives_the_pick_screens_round_trip(
         self, client, owner, gang, legacy, picklist, person_type, gang_type
     ):
-        """A roll table's question links out to the pick screen, carrying
-        this screen's whole address — asks and next — as its return."""
+        """Carry all questions and the continuation target through a separate roll picker's
+        return URL.
+        """
         table = create_picklist("Fates", legacy, dice="d6", roll_selects="band")
         fated = create_slot("Fate", legacy, table, assigned_to="gang")
         create_interstitial("Fate", slots=[fated])
@@ -1240,9 +1196,9 @@ class TestTheAddress:
 
 
 class TestReadingTheScreenAloud:
-    """Several questions share one page, so each picker is named by the
-    heading that asks it: a reader who hears the options hears which
-    question they answer, whichever kind of choice it is."""
+    """Give each embedded picker its own heading label so assistive technology can
+    distinguish questions.
+    """
 
     def test_each_picker_is_named_by_the_heading_that_asks_it(
         self, client, owner, gang_type, shown, legacy, picklist
@@ -1268,10 +1224,9 @@ class TestReadingTheScreenAloud:
     def test_a_question_under_two_screens_is_named_apart_under_each(
         self, client, owner, gang_type, shown, archetype_slot
     ):
-        """One slot two screens ask about is drawn under both, and each
-        drawing has a heading of its own for its own picker to name:
-        no id appears twice on the page, and every picker's label names
-        one heading."""
+        """Repeated slots need unique heading IDs for each rendered picker, with every
+        aria-labelledby reference resolving to its own heading.
+        """
         import re
 
         create_interstitial("Also asked", slots=[archetype_slot], skippable=True)
@@ -1292,12 +1247,10 @@ class TestReadingTheScreenAloud:
         assert sorted(named) == sorted(headings)
 
 
-# --- The structure ------------------------------------------------------------
-
-
 class TestWhatTheScreenSays:
-    """The structure names what is still to choose the way a sentence
-    would, so the line under a withheld Continue reads as one."""
+    """List outstanding questions as readable phrases, deduplicating shared slots and
+    disambiguating repeated labels by bearer.
+    """
 
     def screen(self, *labels, settled=()):
         from n26.core.render import (
@@ -1376,9 +1329,9 @@ class TestWhatTheScreenSays:
         )
 
     def test_a_question_two_blocks_ask_is_named_once(self):
-        """One slot two screens ask about is drawn under each, and one
-        pick settles both drawings: the line names it once rather than
-        telling the reader to choose the same thing twice."""
+        """One pick settles a slot shared by multiple blocks, so the outstanding-question
+        prompt names it once.
+        """
         from n26.core.render import (
             ArrivalBlock,
             ArrivalQuestion,
@@ -1416,12 +1369,10 @@ class TestWhatTheScreenSays:
         assert self.screen("Archetype", settled=("Archetype",)).may_continue is True
 
 
-# --- The other renderers know nothing of this ---------------------------------
-
-
 class TestTheOtherRenderers:
-    """The printed sheet and the text card read cards; a screen attached
-    to a slot changes nothing they say."""
+    """Attaching interstitial screens must leave captured gang state and text/print output
+    unchanged.
+    """
 
     def test_the_captured_sheet_and_the_text_card_do_not_change(
         self, owner, gang_type, archetype_slot
