@@ -1,14 +1,8 @@
-"""The preview endpoint: form state in, card state out.
+"""Accept staff-only POST preview state and return card data as JSON.
 
-The scratch-card UI becomes possible once an endpoint takes form state
-and gives back card state (design/authoring.md). This is that endpoint,
-deliberately thin — everything it does lives in :mod:`n26.core.preview`,
-and nothing it does survives the request: the preview rolls its own
-transaction back.
-
-It answers for the authoring pages, so it wants the same account they
-do: the state it is handed names library content, and the card it gives
-back is the whole of what they mean.
+n26.core.preview validates and derives the result inside a rolled-back
+transaction. Invalid JSON or preview state returns structured 400 errors.
+See design/authoring.md.
 """
 
 import json

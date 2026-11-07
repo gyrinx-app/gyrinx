@@ -1,16 +1,12 @@
-"""Who may act on what — the guards every player-facing view starts with.
+"""Resolve player resources with ownership, archive and identifier checks.
 
-Most scope to the owner and answer a stranger with 404 rather than 403:
-which gangs and fighters exist is not something to be probed for. The
-exceptions are the two read guards, ``_any_gang_or_404`` and
-``_any_campaign_or_404``: a roster and a campaign are things players
-send each other, so owner-scoping is the rule for acting on one and not
-for reading it. Those two also record whose content the page is showing
-(``n26.impersonation.note_page_subject``), because they are exactly the
-pages that open for somebody other than the owner — an admin reading one
-is offered a way straight into that account. All of them catch the
-ULIDField refusal, because a pk that is not a ULID is only ever a bad link
-and a 500 is the wrong answer to one.
+Write guards normally require the gang owner and return 404 for absent or
+unauthorised resources. Shareable gang and campaign reads resolve any owner;
+views apply their own authentication and action permissions.
+
+Shared read guards record the page subject for impersonation controls.
+Convert malformed ULID validation errors into 404 responses. Load relations
+needed by common headers and figure strips with the guarded resource.
 """
 
 from django.core.exceptions import ValidationError
@@ -22,12 +18,7 @@ from n26.impersonation import note_page_subject
 
 
 def own_address(request, url):
-    """``url`` if it is one of this site's own pages, else an empty string.
-
-    A return address arrives in the query and the form, so it is checked
-    against this request's host before anything redirects to it or
-    carries it on to the next page.
-    """
+    """Accept a return URL only when it matches this request's host and HTTPS requirement."""
     if url and url_has_allowed_host_and_scheme(
         url,
         allowed_hosts={request.get_host()},
@@ -38,20 +29,12 @@ def own_address(request, url):
 
 
 def _safe_redirect(request, url, fallback_url="/"):
-    """Redirect only to this request's host."""
+    """Redirect to a validated same-host URL, otherwise use the fallback."""
     return HttpResponseRedirect(own_address(request, url) or fallback_url)
 
 
 def may_mark_status(gang, user):
-    """Whether this reader is offered a model's status to set.
-
-    Where a model stands between battles is one feature: the badge and
-    the Mark as dialog that change it by hand, the ransom that is paid
-    for a held model, and Clean House, which clears every model In
-    Recovery at the end of the cycle. Every owner has all of it, and
-    nobody else does: a reader who does not own the gang sees each
-    status drawn as words.
-    """
+    """Allow manual model status controls only for the signed-in gang owner."""
     return user is not None and user.is_authenticated and gang.owner_id == user.pk
 
 
@@ -67,13 +50,10 @@ def link_model_cards(gang, cards, user):
 
 
 def status_href(gang, miniature, user=None, *, back="", ransom=True):
-    """Where a model's status badge leads: the sheet's Mark as… dialog, or
-    Pay ransom… while the model is held — the act the status wants next.
+    """Link to status editing or ransom payment when status controls are available.
 
-    Empty for a reader who is not offered the status at all, so the badge
-    draws as words. ``back`` names where the act lands afterwards ("edit"
-    for the model's own page); ``ransom=False`` asks for Mark as…
-    whatever the status.
+    ``ransom=False`` always selects status editing. ``back`` identifies the return
+    surface. Passing a non-owner user returns no link.
     """
     from django.urls import reverse
 
@@ -88,14 +68,7 @@ def status_href(gang, miniature, user=None, *, back="", ransom=True):
 
 
 def trade_points_href(gang, user):
-    """Where the Trade Points figure leads, or nowhere for a reader who
-    cannot change it.
-
-    A roster opens for whoever holds its address, so the figure strip is
-    drawn for people with no business on the gang's edit screens. A
-    number they cannot act on is a number, not a link: offering the door
-    and refusing them at it is worse than never offering.
-    """
+    """Link owners to relevant Trade Point controls; other readers receive no link."""
     from django.urls import reverse
 
     if user is None or not user.is_authenticated or gang.owner_id != user.pk:
@@ -108,11 +81,10 @@ def trade_points_href(gang, user):
 
 
 def credits_campaign(gang, user):
-    """The open campaign through which ``user`` may add or remove the
-    gang's credits, or None.
+    """Find an active campaign whose arbitrator may change this gang's credits.
 
-    The owner always may, so the campaign is only looked up for someone
-    else: the arbitrator of the campaign the gang is playing.
+    Return ``None`` for the gang owner because their access does not require a
+    campaign. Apply the campaign recording policy after resolving membership.
     """
     from n26.core.battle_permissions import may_record_gang
     from n26.core.models import CampaignMembership
@@ -137,12 +109,7 @@ def credits_campaign(gang, user):
 
 
 def credits_href(gang, user):
-    """Where the Credits figure leads, or nowhere.
-
-    A gang with unlimited credits has no figure to change, so it gets no
-    link. The arbitrator's check is a query, so only the owner's pages
-    call this; the campaign page links its own gangs table.
-    """
+    """Link the owner to credit editing only when the gang tracks credits."""
     from django.urls import reverse
 
     if gang.credits_unlimited:
@@ -153,14 +120,7 @@ def credits_href(gang, user):
 
 
 def link_campaign(block, user):
-    """Point a gang sheet's campaign block at the campaign's own pages,
-    or at nothing for a reader who cannot open them.
-
-    A roster opens for whoever holds its address, and the campaign pages
-    behind these two links are signed-in-only. A name somebody cannot open
-    is a name, not a link: offering the door and refusing them at it is
-    worse than never offering.
-    """
+    """Add campaign and asset links only for authenticated gang-sheet viewers."""
     from django.urls import reverse
 
     if block is None:
@@ -172,22 +132,14 @@ def link_campaign(block, user):
 
 
 def may_see_founding(gang, user):
-    """Whether this reader may use the gang's founding controls and Trade
-    Point budgets: its owner may, and nobody else.
-    """
+    """Allow founding controls and budgets only for the gang owner."""
     return user is not None and user.is_authenticated and gang.owner_id == user.pk
 
 
 def _own_gang_or_404(request, pk):
-    """The gang, if it is the viewer's to act on.
+    """Resolve a live gang owned by the viewer and convert invalid identifiers to 404.
 
-    A pk that is not a ULID reaches ``to_python`` and raises
-    ``ValidationError`` — a 500 for what is only ever a bad URL, so it is
-    caught here. Well-formed-but-absent already 404s on its own.
-
-    What the gang's open Visit Trading Post action brought comes with the
-    row: every screen holding the figure strip draws it, and a page that
-    only draws it should not pay a query to find out.
+    Load the owner, type and stash and annotate open-visit points for figure strips.
     """
     from n26.core.models import Gang
     from n26.core.models.gang import open_visit_points
@@ -206,19 +158,10 @@ def _own_gang_or_404(request, pk):
 
 
 def _any_gang_or_404(request, pk):
-    """The gang, whoever owns it — a roster anybody may read.
+    """Resolve any live gang for shareable reading and record its owner as page subject.
 
-    A gang sheet is shareable: the address one player sends another shows
-    the same roster to whoever opens it. What differs is what the page
-    lets them *do*, which the sheet decides by asking whether the reader
-    owns it — never by hiding the gang.
-
-    Archived rosters stay out: a gang its owner has put away is not
-    something a link should keep alive. A pk that is not a ULID is a bad
-    URL rather than a server error, as above.
-
-    The open visit's figure rides along, as above: a sheet draws it
-    whoever is reading.
+    Annotate open-visit points and load common header relations. Invalid identifiers
+    return 404; available controls are determined separately.
     """
     from n26.core.models import Gang
     from n26.core.models.gang import open_visit_points
@@ -238,29 +181,11 @@ def _any_gang_or_404(request, pk):
 
 
 def _any_campaign_or_404(request, pk, *, with_owner_badge=True):
-    """The campaign, whoever arbitrates it — a table its players may read.
+    """Resolve any live campaign and record its owner as page subject.
 
-    Not owner-scoped: the address an arbitrator sends round shows the same
-    campaign to everybody it reaches, and what differs is what the page
-    lets them *do*. Every control on it is the arbitrator's, and the page
-    decides that by asking who is reading, never by hiding the campaign.
-
-    How far the address reaches is decided above this, not here: the view
-    asks the reader to sign in. A roster reaches further — anybody at all
-    may read one.
-
-    Archived campaigns stay out, as archived rosters do: one its arbitrator
-    has put away is not something a link should keep alive. A pk that is
-    not a ULID is a bad URL rather than a server error.
-
-    Naming the arbitrator with their badge reads their profile and their
-    badge grants. The profile rides this fetch, a one-row join that costs
-    no query. ``with_owner_badge`` reads the grants with the campaign, one
-    prefetch query, so a page that names them draws nothing it has not
-    already read — the default, because nearly every screen under a
-    campaign names its arbitrator in the trail. A view that acts and
-    leaves, or draws a dialog that names nobody, passes ``False`` and pays
-    nothing; a page drawn after a fetch without it reads the grants alone.
+    Views enforce authentication. Load header relations and optionally prefetch
+    owner badge grants; command and dialog callers can disable that prefetch.
+    Invalid identifiers return 404.
     """
     from n26.core.models import Campaign
 
@@ -278,17 +203,9 @@ def _any_campaign_or_404(request, pk, *, with_owner_badge=True):
 
 
 def _own_campaign_or_404(request, pk, *, with_owner_badge=True):
-    """The campaign, if the viewer is its arbitrator.
+    """Resolve a live campaign owned by the viewer, returning 404 for invalid identifiers.
 
-    Owner-scoped where the page itself is not: reading a campaign is one
-    question and changing it is another, so the screens that set a campaign
-    up ask for its arbitrator by name rather than gating a control on a
-    page anybody may open.
-
-    The arbitrator's profile rides this fetch and ``with_owner_badge`` reads
-    their badge grants with it by default, as on ``_any_campaign_or_404``:
-    every screen an arbitrator opens names them in its trail. A view that
-    acts and leaves, or draws a dialog that names nobody, passes ``False``.
+    Load the owner's profile and optionally prefetch badge grants for the header.
     """
     from n26.core.models import Campaign
 
@@ -307,16 +224,10 @@ def _own_campaign_or_404(request, pk, *, with_owner_badge=True):
 
 
 def _campaign_counter_or_404(request, pk):
-    """A campaign's counter on a gang playing a campaign this reader
-    arbitrates, live and in a live gang — or one of the reader's own
-    assignments, as ``_own_assignment_or_404`` finds it.
+    """Resolve an owned assignment or a live counter caused by the viewer's campaign.
 
-    The one place somebody other than a gang's owner may change the
-    gang: the arbitrator moving a campaign counter — Reputation, Meat —
-    on any gang at their table. A counter is the campaign's where the
-    gang's carrier of the campaign's type or its additions caused it, and
-    only while that membership is open; the arbitrator has no say over
-    what a gang tracks for itself, nor over a gang that has left.
+    Arbitrator access requires an active membership whose campaign type or additions
+    caused the assignment. Exclude archived assignments and gangs.
     """
     from django.db.models import Q
 
@@ -351,17 +262,10 @@ def _campaign_counter_or_404(request, pk):
 
 
 def _own_assignment_or_404(request, pk):
-    """One of the viewer's own assignments, live and in a live gang.
+    """Resolve a live assignment through its gang_root ownership.
 
-    Scoped by ``gang_root``, which every assignment carries whatever it
-    hangs off — so a weapon on a fighter, a sight on that weapon and a
-    crate in the stash are all reached the same way, and none of them by
-    somebody else. Archived assignments are out: a thing already sold is not
-    something to sell again. That is a courtesy to a stale button, not
-    what keeps the gang from being charged twice — this runs before the
-    operation holds the gang's line, so two clicks can both pass it. The
-    operation reads the row again under the lock and stands down if it
-    has gone (``n26.core.operations._under_the_lock``).
+    This pre-operation check does not guarantee idempotency. Operations must reload
+    under the gang lock because concurrent submissions can both pass this guard.
     """
     from n26.core.models import Assignment
 
@@ -383,10 +287,11 @@ def _own_assignment_or_404(request, pk):
 
 
 def _own_miniature_or_404(request, pk):
-    """The fighter, if theirs to act on — the miniature-shaped twin of
-    ``_own_gang_or_404``, with the same bad-ULID guard. Archived
-    memberships and archived gangs are out: a dead fighter's Equip link
-    should go the way the fighter did."""
+    """Resolve a model in the viewer's live gang with a live membership.
+
+    Load header and pet-owner relations and open-visit points; return 404 for
+    invalid identifiers.
+    """
     from n26.core.models import Miniature
     from n26.core.models.gang import open_visit_points
 
@@ -396,12 +301,9 @@ def _own_miniature_or_404(request, pk):
                 "membership__gang__gang_type",
                 "membership__gang__owner",
                 "membership__gang__stash",
-                # The profile's rank rides along: every fighter screen
-                # names the model, and the header says the rank beside it.
+                # Load the profile category used to display rank in model headers.
                 "membership__profile__category",
-                # And the model whose purchase brought this one in — a
-                # pet's owner — which its card names; joined here so a
-                # pet's own page costs what any fighter's does.
+                # Load the model whose acquisition caused this pet for its owner display.
                 "membership__caused_by__miniature_root",
             ).annotate(open_visit_points=open_visit_points("membership__gang")),
             pk=pk,
@@ -411,8 +313,7 @@ def _own_miniature_or_404(request, pk):
         )
     except ValidationError:
         raise Http404("No such fighter") from None
-    # Asked for on the gang's behalf — a fighter's screens draw the
-    # gang's figures — so it is handed over to the gang that draws it.
+    # Cache the annotated open-visit points on the gang whose figures are rendered.
     miniature.gang.hold_open_visit(miniature.open_visit_points)
     return miniature
 
