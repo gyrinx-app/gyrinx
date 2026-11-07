@@ -1,10 +1,4 @@
-"""A focused number field must not take the wheel.
-
-Chrome changes the value when the pointer wheels over a focused
-``input type=number``. The guard listens on the document, so a shell
-that forgets the script leaves every number field on that shell exposed.
-Authoring extends the n26 app shell and inherits it from there.
-"""
+"""Load the number-input wheel guard in every page shell."""
 
 from pathlib import Path
 
@@ -30,8 +24,7 @@ def test_every_page_shell_loads_the_guard():
 
 
 def test_the_listener_can_cancel_the_wheel():
-    """A passive listener cannot cancel the event, and on Chrome the
-    listener's existence is what opts number fields into changing."""
+    """Register a non-passive wheel listener so preventDefault can cancel value changes."""
     found = finders.find(SCRIPT)
     assert found, f"{SCRIPT} is not where the static files are looked for"
     source = Path(found).read_text()

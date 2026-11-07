@@ -1,26 +1,8 @@
 {% comment %}
-    The edition pill: N23 and N26, the one you are in filled, the other a
-    link to its front page. Rendered with different responsive visibility
-    (`extra_classes`) depending on where in the bar it sits.
-
-    Which half is filled comes from `request.edition`, not from the address
-    this is drawn at. It belongs to the platform because it is drawn on the
-    pages both editions share — the inbox, the account settings — where the
-    address names no edition and the reader's last one is the answer.
-    `gyrinx.middleware.EditionMiddleware` works that out.
-
-    The hollow N23 half carries `?edition=n23`: it points at the site root,
-    which is the very address the middleware sends an n26 reader back to, so
-    the link has to say the reader means it. The filled half needs no such
-    thing — it leads to the edition they are already in.
-
-    Only for accounts that can follow the link: the other edition wants a
-    signed-in reader, so a visitor gets no pill at all rather than one whose
-    far half sends them to a sign-in page.
-
-    The filled segment is the cotton badge; the hollow one is a plain quiet
-    link, because the segment you are in is a fact and the other is the only
-    thing here to press.
+    Use request.edition so navigation also works on shared account pages.
+    Switching from N26 to the site root requires edition=n23 to override
+    the remembered preference; links within the current edition need no override.
+    Show the control only to signed-in readers.
 {% endcomment %}
 {% if user.is_authenticated %}
     <div class="align-items-center border border-secondary rounded-pill p-1 {{ extra_classes }}"
