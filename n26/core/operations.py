@@ -1155,8 +1155,9 @@ class Operation:
 
         Purchases made without an open visit remain permitted after confirmation
         and count against no activity. A closed visit differs from an open visit
-        with no remaining points. With no open visit, return None without writing.
-        The enclosing gang lock prevents duplicate closing events.
+        with no remaining points. Return the gang whether or not a visit was open.
+        With no open visit, write nothing. The enclosing gang lock prevents
+        duplicate closing events.
         """
         from n26.core.models import Activity
 
