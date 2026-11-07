@@ -1374,7 +1374,7 @@ export function WorkflowPage({
     ...form
 }: ComponentProps<"form"> & {
     title: string;
-    lead: string;
+    lead?: string;
     breadcrumb: ReactNode;
     actions?: ReactNode;
     footer: ReactNode;
@@ -1390,7 +1390,7 @@ export function WorkflowPage({
                 <div className={h[3]}>
                     <div className={h[4]}>
                         <h1 className={h[5]}>{title}</h1>
-                        <p className={h[6]}>{lead}</p>
+                        {lead && <p className={h[6]}>{lead}</p>}
                     </div>
                     {actions && <div className={h[7]}>{actions}</div>}
                 </div>

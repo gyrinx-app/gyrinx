@@ -94,10 +94,13 @@ must preserve the error's meaning and applicable action.
    Add the display contract and JSON command, then replace the complete form
    body with one React root. Preserve owner and arbitrator access, current
    balance on refusal, safe return navigation, analytics and success feedback.
-2. **Hire:** prepare the catalogue and lazy model-preview contracts, including
+2. **Independent edit forms:** use Edit campaign holding, then Edit campaign
+   asset type to prove the shared form primitives and conflict handling for
+   absolute edits. These complete tasks need no catalogue or model-card renderer.
+3. **Hire:** prepare the catalogue and lazy model-preview contracts, including
    safe rich-text display where needed. Migrate filters, option picks, preview,
    name and price confirmation, submission and onward navigation together.
-3. **Equip:** reuse the catalogue support. Include owned assignments, price
+4. **Equip:** reuse the catalogue support. Include owned assignments, price
    drafts, buy and sell confirmations, and updated holdings, credits and cards.
    Return display data for React-owned content instead of out-of-band HTML.
 
@@ -682,3 +685,36 @@ events must identify one durable command receipt and its canonical payload;
 do not assume an operation's grouping `batch` is unique. Prove simultaneous
 retries, lost responses, conflicting payloads, rollback, locked access checks and
 feedback before reusing this pattern for another write.
+
+### Absolute edits: Edit campaign holding
+
+`n26/core/asset_edit.py` shares the holding form, signed starting snapshot and
+locked command between native POST and the JSON command. The existing campaign
+operation still changes the name and income override. Blank income and `0`
+remain distinct, and replacing an override affects only that holding.
+
+Absolute edits need a different retry contract from credit adjustments. The
+signed snapshot identifies the actor, holding, starting values and modification
+time. Under the campaign lock, a submission matching current values succeeds
+without another write. Different values can be saved only from the same starting
+state; a stale snapshot returns `409` with `code: revision_conflict`, current
+name/income and no write. The comparison includes nested income values as well
+as the holding's modification time.
+
+Keep the conflicting draft visible and frozen. Show the current facts and offer
+**Review current asset**, which explicitly discards the retained draft and loads
+a fresh form. Do not silently replace its snapshot or add a save-anyway action.
+An older pending request cannot overwrite the reviewed edit: under the same
+lock it either matches current values and does nothing, or its revision is stale.
+Generic network, authentication and validation failures do not prove this and
+must retain an earlier uncertain submission.
+
+Bind failure metadata to the command it describes. When session storage contains
+a retained command, native POST errors or conflict props may concern an older
+submission. Restore the retained command and retry it before accepting those
+facts or offering an action that discards it.
+
+The holding form reuses the page, fields, currency suffix and HTTP transport from
+Manage credits. Keep its response interpretation local. Extract common form
+recovery behaviour once a third real consumer establishes the shared contract;
+the absolute-edit conflict decision must remain owned by its workflow.

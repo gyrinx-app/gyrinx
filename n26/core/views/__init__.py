@@ -28,7 +28,12 @@ from n26.core.views.battles import (
     record_battle_outcome,
     restore_battle,
 )
-from n26.core.views.campaign_assets import asset_detail, edit_asset, save_asset_boons
+from n26.core.views.campaign_assets import (
+    asset_detail,
+    edit_asset,
+    edit_asset_command,
+    save_asset_boons,
+)
 from n26.core.views.campaign_rolls import (
     campaign_roll,
     preview_pool_roll,
@@ -162,6 +167,7 @@ __all__ = [
     "accessorise_assignment",
     "asset_detail",
     "edit_asset",
+    "edit_asset_command",
     "save_asset_boons",
     "campaign",
     "campaign_log",
