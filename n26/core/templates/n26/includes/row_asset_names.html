@@ -1,0 +1,10 @@
+{% comment %}A campaign asset group, retaining its counted names and held-asset links.{% endcomment %}
+{% if part.value.names %}
+    {% if part.value.held %}
+        <c-n26.name-list :names="part.value.names"
+                         label="{{ part.value.label }}"
+                         href="{{ campaign.assets_href }}" />
+    {% else %}
+        <c-n26.name-list :names="part.value.names" label="{{ part.value.label }}" />
+    {% endif %}
+{% else %}None{% endif %}

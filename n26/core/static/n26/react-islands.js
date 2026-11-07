@@ -1,4 +1,4 @@
-// Django owns each host. React owns only the host's children.
+// Django manages each host element; React manages its children.
 const islands = new Map();
 
 export function mountWithin(scope, loadModule = (url) => import(url)) {
@@ -50,8 +50,7 @@ function release(node) {
     }
 }
 
-// Alpine x-if inserts a host only when a closed row opens. That is not an
-// htmx swap, so the first paint and htmx:load never see it.
+// Alpine x-if can insert island hosts outside the initial scan and htmx updates.
 export function watchInsertions(root) {
     const observer = new MutationObserver((records) => {
         for (const record of records) {

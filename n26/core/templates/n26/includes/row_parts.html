@@ -1,0 +1,51 @@
+{% load n26_rows %}
+{% comment %}
+Typed members of a composed row. Grouping happens in Python; every source keeps
+its own name, provenance and controls. slot_style retains the gang detail-list
+choice presentation. Card mode and htmx are supplied by the surrounding card.
+Keep each separator with its source so it cannot wrap onto a line on its own.
+{% endcomment %}
+{% visible_row_parts parts mode as displayed_parts %}
+{% for part in displayed_parts %}
+    {% if part.kind == "gear" %}
+        <div class="inline-block max-w-full align-baseline">
+            {% include "n26/includes/gear_lines.html" with lines=part.value has_actions=part.has_actions %}
+            {% if not forloop.last %}<span class="me-2">,</span>{% endif %}
+        </div>
+    {% elif part.kind == "asset_group" %}
+        <div class="inline-block max-w-full align-baseline">
+            {% include "n26/includes/row_asset_names.html" %}
+            {% if not forloop.last %}<span class="me-2">,</span>{% endif %}
+        </div>
+    {% else %}
+        <span class="inline-flex max-w-full items-baseline gap-0">
+            {% if part.kind == "names" %}
+                <span class="min-w-0">
+                    <c-n26.assignable-lines :lines="part.value" :ratings="False" />
+                </span>
+            {% elif part.kind == "counter" %}
+                {% if campaign_style %}
+                    {% include "n26/includes/campaign_counter_value.html" with counter=part.value redrawn=False steps=True %}
+                {% else %}
+                    <span class="tabular-nums">{{ part.value.value }}</span>
+                    {% if part.value.href %}
+                        <c-n26.counter-controls :counter="part.value" :htmx="htmx" />
+                    {% endif %}
+                {% endif %}
+            {% elif part.kind == "choice" %}
+                {% if campaign_style %}
+                    <span class="inline-flex min-w-0 items-center gap-2">
+                        {% include "n26/includes/campaign_choice_value.html" with choice=part.value %}
+                    </span>
+                {% elif slot_style %}
+                    {% include "n26/includes/slot_value.html" with choice=part.value %}
+                {% else %}
+                    {% include "n26/includes/row_choice.html" with choice=part.value named_prompt=part.named_prompt %}
+                {% endif %}
+            {% elif part.kind == "asset" %}
+                <span class="min-w-0 break-words">{{ part.value.name }}{% if part.value.income %}<span class="text-muted"> · income {{ part.value.income }}¢</span>{% endif %}</span>
+            {% endif %}
+            {% if not forloop.last %}<span class="me-2 shrink-0">,</span>{% endif %}
+        </span>
+    {% endif %}
+{% endfor %}

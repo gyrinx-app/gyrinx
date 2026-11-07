@@ -8,9 +8,8 @@ import {
     NativeSelect,
 } from "../../ui";
 
-// The generator's Reroll dialog for one side job. The address names the
-// side job, so the dialog opens when the page loads. Its form goes back to
-// the generator with the scenario and reroll_set, and the server rolls.
+// Open the URL-selected side job's reroll dialog on mount. Submit the
+// scenario and reroll_set to the server for rolling.
 export type ScenarioRerollProps = {
     title: string;
     action: string;
