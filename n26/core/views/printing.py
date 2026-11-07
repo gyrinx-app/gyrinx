@@ -1,15 +1,9 @@
-"""Choosing what goes on paper, and the paper itself.
+"""Configure and render printable gang sheets using n26.core.printing layouts.
 
-The layout decisions these draw on live in :mod:`n26.core.printing`;
-this is the pair of views around them.
-
-Reading a gang and saving a setup for it are two different permissions.
-Whoever can open the sheet can print it: players print rosters for each
-other, and the paper says nothing the sheet has not already shown. Saving
-a setup writes a row on somebody's gang, so that stays the owner's — a
-reader who does not own it picks what to print in the same boxes and
-carries the answer in the address instead. Signing in is the floor for
-both: a roster may be read by a visitor, and printed by a player.
+Signed-in readers may print any shareable gang. Only its owner may save a
+PrintConfig; other readers submit their selections through the print URL.
+Owner POSTs reuse named or unnamed configurations instead of adding a row
+for every print.
 """
 
 from django.contrib.auth.decorators import login_required
@@ -24,13 +18,10 @@ from n26.core.views.permissions import _any_gang_or_404, _own_gang_or_404
 
 
 class _Selection:
-    """An ad-hoc stand-in for an ``AssignmentSet`` at card-build time.
+    """Adapt weapon identifiers to the AssignmentSet selected_ids interface.
 
-    ``assemble`` asks a set one question — ``selected_ids()`` — so a print
-    config's ticked weapons can filter a card through the same seam that
-    drops an unselected weapon's children and keeps its modifiers off the
-    computed card. Filtering the rendered lines instead would leave a
-    hidden weapon's granted subtype printed on the sheet.
+    Filter before effect computation so excluded weapons and their dependent
+    grants cannot affect the printed card.
     """
 
     def __init__(self, ids):
@@ -41,10 +32,7 @@ class _Selection:
 
 
 def _roster(gang):
-    """The models a print covers — the same set the gang sheet draws,
-    in the same order: a print is the sheet on paper, and the two
-    disagreeing about who comes first would read as a bug on either.
-    """
+    """Use the gang sheet's roster and ordering for print cards."""
     from n26.core.render import roster
 
     return roster(gang)
@@ -59,17 +47,12 @@ def _print_rows(
     *,
     include_campaign=False,
 ):
-    """A print card per model: filtered, computed, columned.
+    """Build filtered and computed model cards with print detail columns.
 
-    ``gang_card`` is the gang already built — the same build the header
-    and stash blocks read, so a print derives the gang once however much
-    of it is ticked. ``weapon_ids`` of None means everything; a set means
-    only those weapon assignments show. Wargear always rides — the
-    selection is about which guns clutter the card, so every wargear row
-    of the gang's joins the selected set before it filters anything.
-    ``brought_in`` is what each purchase brought onto the roster
-    (``n26.core.render.brought_in_by``), read off the whole roster so a
-    pet left out of the print is still named on its owner's card.
+    Reuse gang_card and one modifier index. None weapon_ids includes all weapons;
+    a supplied set narrows weapon assignments while retaining wargear.
+    Read brought_in from the complete roster so omitted pets remain identified
+    on their owner's card.
     """
     from n26.core.card import build_card, build_modifier_index, carriers
     from n26.core.effects import compute, compute_gang
@@ -90,14 +73,11 @@ def _print_rows(
         ).values_list("pk", flat=True)
         selection = _Selection(set(weapon_ids) | set(wargear))
 
-    # The selection re-deals the cards from assignments already fetched,
-    # and one modifier index is shared by every card: a card build pays for its
-    # queries mostly in planning, so a print that built each model's card
-    # alone would cost seconds on a full roster.
+    # Reuse fetched assignments and one modifier index across all selected cards.
     cards = dict(gang_card.members_under(selection))
     for miniature in miniatures:
         if miniature.pk not in cards:
-            # A model with no fetched assignments still needs a card.
+            # Build an empty card when the gang derivation has no assignments for this model.
             cards[miniature.pk] = build_card(
                 miniature, with_statlines=True, assignment_set=selection
             )
@@ -112,8 +92,7 @@ def _print_rows(
         miniature.pk: compute(cards[miniature.pk], index) for miniature in miniatures
     }
     ranks = progression_summaries(cards, miniatures, computed)
-    # What the owner has dismissed stays off the paper too: one query
-    # for the whole print.
+    # Hide dismissed choices with one shared lookup for the print.
     dismissed = DismissedOffer.keys_for(gang)
     if campaign is not None:
         hide_dismissed_choices(dismissed, campaign.choices)
@@ -147,12 +126,12 @@ def _print_rows(
 
 
 def _config_for(request, gang):
-    """The print config the URL names, if it is this gang's own."""
+    """Resolve the URL-selected print config within this gang."""
     return _gang_config(gang, request.GET.get("config"))
 
 
 def _gang_config(gang, config_id):
-    """The print config ``config_id`` names, if it is ``gang``'s own."""
+    """Find a gang-owned print configuration, returning None for missing or invalid identifiers."""
     if not config_id:
         return None
     try:
@@ -162,11 +141,7 @@ def _gang_config(gang, config_id):
 
 
 def _ids(values):
-    """The values among ``values`` that are ids at all.
-
-    An address is a thing people edit, and one unreadable id should cost
-    that id rather than the whole print.
-    """
+    """Parse valid identifiers and discard malformed values individually."""
     kept = []
     for value in values:
         try:
@@ -177,17 +152,12 @@ def _ids(values):
 
 
 def _weapons_named(gang, values, models):
-    """The gang's own weapon assignments among ``values``, carried by ``models``.
-
-    Scoped to the gang, so an address naming somebody else's weapon adds
-    nothing to the paper. Scoped to the picked models too: a weapon whose
-    model is not picked is dropped, even when its id was posted.
-    """
+    """Resolve selected weapons belonging to this gang and the selected models."""
     return set(_picked_weapons(gang, values, models).values_list("pk", flat=True))
 
 
 def _picked_weapons(gang, values, models):
-    """The weapon assignments among ``values`` held by one of ``models``."""
+    """Filter weapon assignments by gang, selected identities and selected models."""
     from n26.core.models import Assignment
 
     return Assignment.objects.filter(
@@ -199,7 +169,7 @@ def _picked_weapons(gang, values, models):
 
 
 def _orientation(value):
-    """The paper orientation ``value`` names, portrait if it names none."""
+    """Validate paper orientation, defaulting to portrait."""
     from n26.core.models import PrintConfig
 
     if value in PrintConfig.Orientation.values:
@@ -208,26 +178,10 @@ def _orientation(value):
 
 
 def _what_to_print(request, gang, config):
-    """What the address asks for: which models, which weapons, which blocks,
-    and which way round the paper goes.
+    """Resolve a saved setup, explicit URL selection or whole-gang defaults, in that order.
 
-    Three answers, in the order the address settles them. A saved setup is
-    the whole of what it says. A pick of its own is the setup screen
-    submitted by someone with nowhere to save it — the same boxes, carried
-    as a query rather than a row. Neither is the plain print address, which
-    means the whole gang.
-
-    ``pick`` is what says the address carries a choice at all: without it,
-    an address that ticked nothing and one that asked for everything would
-    be the same address, and they mean opposite things.
-
-    Both are read as ids and answered in the shape their reader wants:
-    models as strings, matched against each model's id where the roster is
-    narrowed, weapons as ids themselves, because a card is filtered by the
-    assignments it holds. Reading both the same way is what stops the two
-    spellings of an id — the short one and the long one — meaning
-    different things in the one address. ``None`` in either place means no
-    narrowing.
+    The pick marker distinguishes an explicit empty selection from no filter.
+    Canonicalise model and assignment identifiers. None means unrestricted selection.
     """
     if config is not None:
         return (
@@ -254,13 +208,11 @@ def _what_to_print(request, gang, config):
     return None, None, True, True, True, _orientation(None)
 
 
-#: The hidden input the picker draws inside the form, both as server-drawn
-#: boxes and once mounted. A submission without it carried no picker at all
-#: (the island failed and its error box replaced the boxes), so its missing
-#: ``fighters`` and ``weapons`` say nothing about what was meant.
+#: The picker submits this marker in both server and island renderings.
+#: Missing selection fields without it indicate a failed picker, not an empty choice.
 PICKER_MARKER = "picker"
 
-#: Shown when a setup arrives without the picker: nothing was saved.
+#: Validation message for submissions missing the picker marker.
 PICKER_MISSING = (
     "The model list did not load, so nothing was saved. "
     "Check the models below and print again."
@@ -268,16 +220,10 @@ PICKER_MISSING = (
 
 
 def _print_picker(sheet, ticked_models, ticked_weapons, slot_budget, marker):
-    """The setup screen's model and weapon boxes, as the picker island's props.
+    """Build picker props with stored weapons and each model's weaponless base rating.
 
-    Each model carries its weaponless rating as ``baseRating``: the crew
-    total starts there and adds ticked weapons back in the browser, so an
-    unticked model adds nothing, weapons included, as it prints. The
-    totals are a preview; the print reckons its own.
-
-    Only stored weapons can be chosen. A computed line has no assignment
-    to key on, so it gets no box, though it still shows that the card has
-    weapons to count slots against.
+    The client adds selected weapons to the base for a preview total; printing
+    recomputes its own cards. Computed weapons have no selectable assignment ID.
     """
     return {
         "marker": marker,
@@ -318,12 +264,9 @@ def _print_picker(sheet, ticked_models, ticked_weapons, slot_budget, marker):
 
 
 def _picker_fallback(picker):
-    """The picker's boxes as the server draws them, before the island mounts.
+    """Build server controls and totals using the island's initial selection data.
 
-    The page's form posts these if it is submitted before the island
-    loads, or if it never does, so a saved setup is not emptied by a
-    submission that carried no boxes. Each card's slot count and the crew
-    total are the island's starting figures, reckoned the same way.
+    Preserve selections if the form submits before the island mounts.
     """
     budget = picker["slotBudget"]
     rows = []
@@ -339,27 +282,11 @@ def _picker_fallback(picker):
 
 @login_required
 def print_setup(request, pk):
-    """Choose what a print includes, before the paper is committed.
+    """Display shared print setups and save owner submissions.
 
-    GET lists the gang's saved configs — each a one-click print — above
-    the form for a new run: an optional name, the header, stash and notes
-    toggles, and every model with its weapons as checkboxes, all ticked
-    to start. Loading a saved config (?config=) pre-fills the form
-    instead, which is how one is edited.
-
-    POST writes a config and redirects to the print page carrying its
-    id. A named POST saves under that name; an unnamed one rewrites the
-    gang's single scratch config, so ad-hoc prints never pile up rows.
-    A POST without the picker's marker saves nothing and shows the form
-    again with an error: its missing boxes are not a choice to print no
-    models.
-
-    Two guards, because the screen and the act behind it are not the same
-    permission. Anyone signed in may read the setup — the gang's saved
-    setups included, each still one click to print. Only the owner may
-    POST, saving being a write on their gang; everyone else submits the
-    same boxes to the print page as a GET, which prints the pick without
-    keeping it.
+    Require the picker marker before saving so a failed island cannot clear
+    model and weapon selections. Match names case-insensitively; an empty name
+    reuses the scratch setup. Non-owners submit GET directly to print_gang.
     """
     from n26.core.models import Miniature, PrintConfig
 
@@ -371,9 +298,7 @@ def print_setup(request, pk):
         gang = _own_gang_or_404(request, pk)
         name = request.POST.get("name", "").strip()
         if not request.POST.get(PICKER_MARKER):
-            # Saving this would empty the setup's models and weapons.
-            # Shown again ticked as the setup the form was loaded from,
-            # which the name may no longer match, else as the one it names.
+            # A missing marker must not clear selections; restore the loaded or matching named setup.
             loaded = _gang_config(gang, request.POST.get("config"))
             if loaded is None and name:
                 loaded = gang.print_configs.filter(name__iexact=name).first()
@@ -388,10 +313,7 @@ def print_setup(request, pk):
         weapons = _picked_weapons(
             gang, request.POST.getlist("weapons"), request.POST.getlist("fighters")
         )
-        # Matched on the lowercased name, which is what the gang is
-        # unique over: saving "Roster" where the gang already holds
-        # "roster" would otherwise miss, insert, and trip the constraint
-        # rather than overwriting the setup the player meant.
+        # Match names case-insensitively to agree with the gang-scoped unique constraint.
         with transaction.atomic(), write_guard():
             config = PrintConfig.objects.filter(gang=gang, name__iexact=name).first()
             if config is None:
@@ -410,11 +332,10 @@ def print_setup(request, pk):
 
 
 def _setup_page(request, gang, loaded, error="", posted=None):
-    """The setup screen for ``gang``, pre-filled from ``loaded`` if set.
+    """Build setup props from a saved configuration or whole-gang defaults.
 
-    ``error`` is a non-field error drawn above the fields. ``posted`` is a
-    submission being shown again: its name, toggles and orientation win
-    over ``loaded``, so a retry keeps the owner's edits.
+    After an invalid submission, preserve posted name, toggles and orientation;
+    use the loaded configuration to restore model and weapon selections.
     """
     from django import forms
 
@@ -424,15 +345,11 @@ def _setup_page(request, gang, loaded, error="", posted=None):
     sheet = render_gang(gang)
     errors = None
     if error:
-        # An empty bound form carries the error to the form page's own
-        # non-field error slot.
+        # Use a bound form to render the non-field setup error.
         errors = forms.Form(data={})
         errors.is_valid()
         errors.add_error(None, error)
-    # The gang's named setups, whoever is reading: each is one click to
-    # print, and a reader printing for somebody else wants the setup that
-    # somebody else already settled on. The model count is counted in the
-    # same query, the row saying it being drawn once per setup.
+    # Expose named setups to all signed-in readers and annotate counts in the same query.
     saved = list(
         gang.print_configs.exclude(name="").annotate(model_count=Count("miniatures"))
     )
@@ -444,11 +361,10 @@ def _setup_page(request, gang, loaded, error="", posted=None):
             str(pk) for pk in loaded.assignments.values_list("pk", flat=True)
         }
     else:
-        # A fresh run prints everything: every box starts ticked.
+        # Default new selections to every model and stored weapon.
         ticked_models = {card.id for card in sheet.models}
         ticked_weapons = {weapon.id for card in sheet.models for weapon in card.weapons}
-    # Only the owner's POST checks the marker. A reader's pick is an
-    # address that saves nothing, and it stays as short as before.
+    # Require the marker only for owner writes; read-only selections use the URL.
     picker = _print_picker(
         sheet,
         ticked_models,
@@ -467,9 +383,8 @@ def _setup_page(request, gang, loaded, error="", posted=None):
             "print_fallback": _picker_fallback(picker),
             "setup_errors": errors,
             "saved": saved,
-            # Resolved here, not in the template: `loaded.include_header`
-            # on a None resolves to the empty string, which default_if_none
-            # does not catch — a template-side default silently unticks.
+            # Resolve optional setup defaults in Python; Django missing attributes become empty
+            # strings, which default_if_none cannot replace.
             **(
                 {
                     "setup_name": posted.get("name", "").strip(),
@@ -488,13 +403,9 @@ def _setup_page(request, gang, loaded, error="", posted=None):
                 }
             ),
             "yours": yours,
-            # The setup the boxes were ticked from, sent back with the
-            # owner's form so a failed save can show those ticks again.
+            # Carry the loaded setup identifier so a failed save can restore its selection.
             "loaded_config": str(loaded.pk) if yours and loaded else "",
-            # Where the boxes are submitted, and how. The owner's form
-            # saves a setup and prints it; a reader who cannot save sends
-            # the same boxes straight to the paper, as a query the address
-            # then holds — so their print can be reloaded and sent on.
+            # Owners POST to save; other readers GET the same selection directly as a printable URL.
             "form_action": reverse(
                 "n26-print-setup" if yours else "n26-print", args=[gang.pk]
             ),
@@ -514,16 +425,10 @@ def _setup_page(request, gang, loaded, error="", posted=None):
 
 @login_required
 def print_gang(request, pk):
-    """The gang on paper — the print target itself.
+    """Render a signed-in reader's selected gang cards as a standalone print document.
 
-    A bare document, like the lab's sheet: this URL is what a phone opens
-    and what turns into the PDF, so it carries no chrome to hide again
-    with print rules. What goes on it is what the address says — a saved
-    setup, a pick of its own, or the whole gang; see ``_what_to_print``.
-
-    Readable by whoever can read the gang, which is how one player prints
-    for another. Signing in is the floor, so the address is worth sending
-    to a person and not to a crawler.
+    Resolve the setup or URL selection, derive the gang once and record one
+    export event for the whole print.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.card import build_gang_card
@@ -540,12 +445,10 @@ def print_gang(request, pk):
         include_notes,
         orientation,
     ) = _what_to_print(request, gang, config)
-    # One derivation serves the whole page — the header's figures, the
-    # stash block and every model's card all read this build.
+    # Reuse one gang derivation for header figures, stash and model cards.
     gang_card = build_gang_card(gang)
     miniatures = _roster(gang)
-    # Off the whole roster, before the pick narrows it: a pet the print
-    # leaves out is still on its owner's line.
+    # Read pet-owner labels before filtering the roster for this print.
     brought = brought_in_by(miniatures)
     if wanted is not None:
         miniatures = [m for m in miniatures if str(m.pk) in wanted]
@@ -558,8 +461,7 @@ def print_gang(request, pk):
         include_campaign=include_header,
     )
 
-    # One event for the sheet, carrying how much of the gang it covers —
-    # a card per model would make a big roster look like heavy use.
+    # Record one export per sheet, including its card count, rather than one per model.
     record(
         request,
         N26Noun.PRINT_RUN,
@@ -584,7 +486,7 @@ def print_gang(request, pk):
             "include_notes": include_notes,
             "include_stash": include_stash,
             "orientation": orientation,
-            # Landscape fits a third card across at about portrait's width.
+            # Use three columns for landscape and two for portrait.
             "grid_columns": 3
             if orientation == PrintConfig.Orientation.LANDSCAPE
             else 2,
