@@ -11,14 +11,11 @@ _OPEN_VISIT_POINTS = "open_visit_points"
 
 
 def open_visit_points(gang="pk"):
-    """A subquery for the Trade Points the gang's open Visit Trading Post
-    activity brought, for annotating a queryset.
+    """Build a subquery for the open Trading Post visit's allocated Trade Points.
 
-    ``gang`` is the path from the queryset's model to the gang, so a
-    fighter queryset can annotate its gang's figure.
-
-    The figure is coalesced inside the subquery, so null means no open
-    visit and 0 means a visit that brought no points.
+    ``gang`` is the outer queryset's path to the gang. Coalesce inside the
+    subquery so None means no open visit and zero means an open visit with
+    no allocated points.
     """
     from n26.core.models import Activity
 
@@ -70,15 +67,12 @@ class Gang(Base, Owned, Archived, Rated):
         default="",
         help_text="Shown next to the gang's name wherever it is listed.",
     )
-    #: The owner's own words about the gang — table agreements, standing
-    #: reminders. Editor HTML, stored as written and sanitised on the way
-    #: out (n26.core.templatetags.richtext), so a tightened allowlist
-    #: reaches what was already saved.
+    #: Store editor HTML unchanged and sanitise through the richtext filter
+    #: when rendering, so allowlist updates also apply to saved content.
     notes = models.TextField(blank=True, default="")
     #: The gang's story. Same treatment as notes.
     lore = models.TextField(blank=True, default="")
-    #: A picture of the gang, in the site's media storage. Surfaces read
-    #: its URL and never the bytes.
+    #: Read the uploaded gang image through its media URL.
     image = models.ImageField(upload_to="gang-images/", blank=True, default="")
 
     #: Cache for ``open_activities``; None until it runs.
@@ -94,11 +88,7 @@ class Gang(Base, Owned, Archived, Rated):
         return self.name
 
     def recompute_rating(self):
-        """The rating of everything the gang owns, at any depth.
-
-        Archived assignments are excluded: a sold weapon stops counting,
-        but its ledger entry keeps the value it had.
-        """
+        """Sum live assignment ratings under the gang, excluding stashed equipment."""
         from n26.core.reconcile import sum_rating
 
         # The stash is excluded: rating is what the models are worth;
@@ -125,37 +115,25 @@ class Gang(Base, Owned, Archived, Rated):
 
     @property
     def trade_points_spent(self):
-        """Trade Points the open Visit Trading Post activity has spent.
+        """Sum Trade Point events attributed to the open Trading Post visit.
 
-        Summed from the ledger, not pinned like credits: Trade Points
-        belong to one visit, not to the gang, so there is no standing total
-        to keep. A refund during the visit returns its points.
-
-        Queried every time, not cached on the instance. Page query counts
-        are fixed and tested, and a cache would make the count depend on
-        how many times a page reads this.
+        Refunds return points to the original purchase activity. Query on every
+        access rather than caching the total, keeping reads current and page
+        query counts independent of previous property access.
         """
         from n26.core.reconcile import trade_points_spent
 
         return trade_points_spent(self)
 
     def open_activities(self):
-        """Open gang activities by kind, cached on the instance.
+        """Load open gang activities and relevant founding and hire-time history in one query.
 
-        One query loads the open activities, the first completed founding,
-        the latest founding activity and each model's latest hire-time
-        activity. Pages need several kinds at once (the gang sheet shows the
-        founding card and the visit's figure together), so one query
-        replaces one per kind.
+        Cache open activities by kind alongside the first completed founding,
+        latest founding and each model's latest hire-time activity. Join boundary
+        events for their recorded figures and dates.
 
-        The opening and closing events are joined in, because a visit's
-        Trade Points and its visitors are read from the opening event.
-
-        This is cached and ``trade_points_spent`` is not: spending changes
-        as a page acts, but which activities are open changes only when one
-        opens or closes. Every operation clears this cache when it starts
-        and when it settles, as do opening and closing an activity, so a
-        page reads current state afterwards.
+        Operations invalidate the cache at entry and settlement; activity opening
+        and closing also invalidate it. Spending totals are queried separately.
         """
         if self._open_activities is None:
             from django.db.models import Q, Subquery
@@ -197,22 +175,13 @@ class Gang(Base, Owned, Archived, Rated):
         return self._open_activities
 
     def forget_open_activities(self):
-        """Clear every cached read about open activities.
-
-        That covers the activities ``open_activities`` loaded and any
-        ``open_visit_points`` annotation. Call it wherever an activity opens
-        or closes, or wherever an earlier read may be stale.
-        """
+        """Clear cached activities, activity history and the annotated open-visit allocation."""
         self._open_activities = None
         self._activity_history = None
         self.__dict__.pop(_OPEN_VISIT_POINTS, None)
 
     def hold_open_visit(self, brought):
-        """Store an ``open_visit_points`` value annotated on another model.
-
-        A fighter page annotates the figure on the fighter and passes it
-        here, because the gang renders it.
-        """
+        """Cache an open-visit allocation annotated on another model for the gang display."""
         self.__dict__[_OPEN_VISIT_POINTS] = brought
 
     def refresh_from_db(self, *args, **kwargs):
@@ -247,8 +216,7 @@ class Gang(Base, Owned, Archived, Rated):
         )
 
     def latest_founding_activity(self):
-        """The latest founding activity, which a founding correction must
-        name before reopening it."""
+        """Return the latest founding activity, which a correction must identify before reopening."""
         from n26.core.models import Activity
 
         self.open_activities()
@@ -280,15 +248,10 @@ class Gang(Base, Owned, Archived, Rated):
 
     @property
     def open_visit_brought(self):
-        """Trade Points the open Visit Trading Post activity brought, or None
-        when no visit is open.
+        """Return the open visit's allocated Trade Points, or None when no visit is open.
 
-        0 is a real value: a visit that brought no points is still open,
-        and the gang can still buy at the Trading Post.
-
-        Uses the ``open_visit_points`` annotation when the queryset added
-        it, so a page that only shows the figure needs no extra query.
-        Otherwise it reads the activity.
+        An allocation of zero still represents an open visit. Use the queryset
+        annotation when present; otherwise load the activity.
         """
         if _OPEN_VISIT_POINTS in self.__dict__:
             return self.__dict__[_OPEN_VISIT_POINTS]
@@ -297,24 +260,18 @@ class Gang(Base, Owned, Archived, Rated):
 
     @property
     def visiting_trading_post(self):
-        """Whether a Visit Trading Post activity is open.
+        """Whether a Trading Post visit is open, including visits with no points.
 
-        The rules let a gang buy at the Trading Post only while a fighter
-        is visiting it, so an open visit with no points left still counts.
-
-        Nothing refuses a purchase on this. The equip pages read it to show
-        the gang's state, and a purchase with no activity open goes ahead
-        once the owner confirms it.
+        This is display state. Purchase views can accept a purchase without an
+        open visit after confirmation.
         """
         return self.open_visit_brought is not None
 
     @property
     def trade_points_left(self):
-        """Trade Points the open visit has left, or None when no visit is open.
+        """Return the open visit's remaining Trade Points, or None without a visit.
 
-        Goes negative when an owner confirms an overspend. Overspending
-        Trade Points is allowed after a confirmation; only overspending
-        credits is refused.
+        The balance can be negative after a confirmed overspend.
         """
         brought = self.open_visit_brought
         if brought is None:
@@ -323,13 +280,7 @@ class Gang(Base, Owned, Archived, Rated):
 
     @property
     def credits_unlimited(self):
-        """Whether the gang has no budget.
-
-        Without starting credits the gang buys freely and is measured by
-        its rating, so ``credits`` means nothing. Pages show no credits
-        figure instead of 0, which would read as a gang that has spent
-        everything.
-        """
+        """Whether the gang has no budget and pages should omit its pinned credits figure."""
         return self.starting_credits is None
 
     @property
