@@ -1,11 +1,4 @@
-"""The site remembers which edition a reader is in.
-
-Two editions, and a handful of pages both share — the inbox, the account
-settings, the site root. An edition page says which edition it is by its own
-address; a shared page cannot. So the last edition an address named is kept in a
-cookie: the root sends a signed-in reader back to it, and the edition pill on a
-shared page shows it.
-"""
+"""Edition cookies, root redirects and navigation on shared pages."""
 
 import pytest
 
@@ -36,10 +29,7 @@ def test_an_n26_address_is_remembered(client, user):
 
 
 def test_a_shared_page_leaves_the_memory_alone(client, user):
-    """The inbox and the account settings belong to neither edition. If
-    opening one moved the memory, every reader would be pinned to whichever
-    edition they happened to be in the first time they looked at their
-    account, and never moved again."""
+    """Shared pages preserve the remembered edition."""
     client.force_login(user)
     client.cookies[COOKIE_NAME] = "n26"
     response = client.get("/notifications/")
@@ -48,8 +38,7 @@ def test_a_shared_page_leaves_the_memory_alone(client, user):
 
 
 def test_the_memory_is_not_rewritten_when_it_already_says_so(client, user):
-    """Otherwise every page of the edition ships a Set-Cookie header saying
-    what the browser already knows."""
+    """Avoid redundant Set-Cookie headers when the edition already matches."""
     client.force_login(user)
     client.cookies[COOKIE_NAME] = "n23"
     assert COOKIE_NAME not in client.get("/").cookies
@@ -61,7 +50,7 @@ def test_the_root_sends_an_n26_reader_back_to_n26(client, user):
     response = client.get("/")
     assert response.status_code == 302
     assert response["Location"] == "/n26/"
-    # The root answers two different ways depending on the cookie.
+    # Root responses depend on the edition cookie.
     assert "Cookie" in response.get("Vary", "")
 
 
@@ -77,30 +66,24 @@ def test_a_reader_with_no_memory_gets_the_classic_app(client, user):
 
 
 def test_a_cookie_naming_no_edition_is_ignored(client, user):
-    """A stale or hand-edited value must not be able to send anyone
-    anywhere."""
+    """Ignore unknown edition cookies when choosing the root destination."""
     client.force_login(user)
     client.cookies[COOKIE_NAME] = "n99"
     assert client.get("/").status_code == 200
 
 
 def test_saying_so_explicitly_is_how_a_reader_leaves_n26(client, user):
-    """The way out of n26 is a link to the site root, which is the very
-    address the memory sends an n26 reader back from. The parameter is the
-    link saying the reader means it."""
+    """Use an explicit root choice to return from N26 to N23."""
     client.force_login(user)
     client.cookies[COOKIE_NAME] = "n26"
     response = client.get("/?edition=n23")
     assert response.status_code == 302
     assert remembered(response) == "n23"
-    # And it sticks: the next plain visit to the root stays there.
     assert client.get("/").status_code == 200
 
 
 def test_the_choice_does_not_stay_in_the_address(client, user):
-    """It is an instruction, and an instruction left in the address bar goes
-    into bookmarks and into anything shared from there — pinning the next
-    reader to somebody else's choice."""
+    """Remove the edition instruction before the URL can be bookmarked or shared."""
     client.force_login(user)
     client.cookies[COOKIE_NAME] = "n26"
     response = client.get("/?edition=n23")
@@ -116,9 +99,7 @@ def test_the_rest_of_the_address_survives_the_choice_being_taken_out(client, use
 
 
 def test_the_word_edition_is_only_the_sites_at_the_root(client, user):
-    """Anywhere else it belongs to whoever wrote that page — the analytics
-    dashboard filters its charts by an `edition` of its own, and a middleware
-    that swallowed the word would strip the filter off every link into it."""
+    """Interpret the edition parameter only at the site root, preserving page-specific uses elsewhere."""
     client.force_login(user)
     client.cookies[COOKIE_NAME] = "n26"
     response = client.get("/notifications/?edition=n23")
@@ -127,16 +108,14 @@ def test_the_word_edition_is_only_the_sites_at_the_root(client, user):
 
 
 def test_the_choice_lands_somewhere_rather_than_bouncing_for_ever(client, user):
-    """Following the redirect has to end on a page, not on another redirect
-    back to the choice."""
+    """An explicit edition choice must resolve without a redirect loop."""
     client.force_login(user)
     client.cookies[COOKIE_NAME] = "n26"
     assert client.get("/?edition=n23", follow=True).status_code == 200
 
 
 def test_a_visitor_is_neither_remembered_nor_redirected(client):
-    """The pill is a signed-in reader's control, so a visitor collects no
-    cookie they have no use for — and is never bounced by one."""
+    """Anonymous readers receive neither an edition cookie nor an edition redirect."""
     client.cookies[COOKIE_NAME] = "n26"
     response = client.get("/")
     assert response.status_code == 200
@@ -144,13 +123,11 @@ def test_a_visitor_is_neither_remembered_nor_redirected(client):
 
 
 def test_the_pill_on_a_shared_page_shows_the_remembered_edition(client, user):
-    """The inbox is drawn in the site's own chrome, which names no edition.
-    The pill is what says where the reader is, and the way back into it."""
+    """Use the remembered edition for navigation on shared pages."""
     client.force_login(user)
     client.cookies[COOKIE_NAME] = "n26"
     body = client.get("/notifications/").content.decode()
     assert 'aria-current="true">N26</a>' in body
-    # And the way out of n26 says the reader means it.
     assert 'href="/?edition=n23"' in body
 
 
@@ -158,7 +135,6 @@ def test_the_pill_on_a_shared_page_falls_back_to_the_classic_app(client, user):
     client.force_login(user)
     body = client.get("/notifications/").content.decode()
     assert 'aria-current="true">N23</a>' in body
-    # Already there, so the link to it carries no choice to make.
     assert 'href="/?edition=n23"' not in body
 
 
