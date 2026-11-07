@@ -1,16 +1,8 @@
-"""The scenario generator outside a campaign, from the N26 menu, for
-campaign and skirmish play alike. The campaign-specific generator is ``n26.core.views.campaigns.scenario_generator``; both draw
-the same tables and results.
+"""Standalone scenario generation, sharing and printing.
 
-Any signed-in reader may generate, share and print a scenario, because
-standalone generation saves nothing. Connecting a scenario to an existing
-battle is restricted to arbitrators.
-Creating a battle is offered to arbitrators and accepted players. Both
-actions ask for the campaign in a dialog on the generator page.
-
-The page's whole state is in the query string: each table's result under
-its key, each pick that is not a roll under ``<key>_pick``, and the open
-dialog, if any, under ``dialog``.
+Keep results, picks and open dialogs in the query string. Connecting a
+scenario to a battle requires its campaign arbitrator; accepted players
+may also create battles from a generated scenario.
 """
 
 from urllib.parse import urlencode
@@ -29,14 +21,13 @@ DIALOGS = (SAVE, RECORD)
 
 
 def _generator_url(query):
-    """The generator's address for a query, with the scenario in view."""
+    """Link to the generator with encoded state and the scenario anchor."""
     here = reverse("n26-generate-scenario")
     return f"{here}?{urlencode(query)}#scenario" if query else here
 
 
 def side_job_changes(request, form, here, extra=None):
-    """A redirect for native Add/Remove side job forms or Reroll, keeping
-    the scenario in view. None for any other request, such as Generate."""
+    """Handle side-job additions, removals and rerolls without regenerating the scenario."""
     from n26.core.scenarios import parse, rolls_of
 
     if "generate" in request.GET:
@@ -68,9 +59,7 @@ REROLL_REFUSED = (
 
 
 def rerolled_rolls(data, catalogue=None):
-    """The rolls of the scenario ``data`` holds with the side job
-    ``reroll`` names rolled again on the set ``reroll_set`` names, or None
-    when the scenario is wrong or has no such side job or set."""
+    """Reroll the named side job on the selected set, or return None for invalid input."""
     from n26.core.scenarios import parse, reroll_side_job
 
     found, wrong = parse(data, catalogue)
@@ -82,9 +71,7 @@ def rerolled_rolls(data, catalogue=None):
 
 
 def _rerolled(request, form, here, extra):
-    """A redirect to the scenario with the side job ``reroll`` names rolled
-    again on the set ``reroll_set`` names, and the rest kept. A side job or
-    set that is not there leaves the scenario as it was."""
+    """Redirect with one side job rerolled and the remaining picks and rolls preserved."""
     from n26.core.scenarios import parse, rolls_of
     from n26.library.scenario_tables import SIDE_JOB_KEYS
 
@@ -102,12 +89,9 @@ def _rerolled(request, form, here, extra):
 
 
 def reroll_dialog(request, here, rolls, extra=None):
-    """The ``scenario-reroll`` island's props when the address names a
-    side job of the scenario shown under ``reroll``, else None, and each
-    side job's Reroll link, by key.
+    """Build reroll links and dialog props for a valid selected side job.
 
-    The dialog asks which set to roll on. It submits the address's picks
-    and rolls back to ``here`` with ``reroll_set``, for ``side_job_changes``.
+    Carry current picks and rolls into the request handled by side_job_changes.
     """
     from n26.core.forms import ScenarioGeneratorForm
     from n26.core.scenarios import parse
@@ -146,7 +130,7 @@ def reroll_dialog(request, here, rolls, extra=None):
 
 
 def _picks(request):
-    """The non-default picks the address carries, so actions keep them."""
+    """Return valid non-default scenario picks from the query string."""
     from n26.core.forms import ScenarioGeneratorForm
 
     form = ScenarioGeneratorForm(request.GET, catalogue=request_catalogue(request))
@@ -154,9 +138,10 @@ def _picks(request):
 
 
 def _render_generator(request, *, dialog=None, dialog_form=None, data=None):
-    """Draw the generator for the scenario ``data`` names, with an action
-    dialog open when ``dialog`` is set. A dialog form posted with an error
-    is passed in bound, so the reader's entries are kept."""
+    """Render a scenario and an authorised action dialog.
+
+    A supplied bound dialog form reopens with its submitted values and errors.
+    """
     from n26.core.campaign_permissions import recording_campaigns
     from n26.core.forms import (
         ConnectScenarioToBattleForm,
@@ -184,9 +169,7 @@ def _render_generator(request, *, dialog=None, dialog_form=None, data=None):
     connecting_campaigns = campaigns.filter(owner=request.user)
     may_connect = bool(scenario) and connecting_campaigns.exists()
 
-    # A dialog posted with an error reopens whatever it was refused for, so
-    # the reader sees why; one asked for in the address opens only when
-    # there is a scenario and a campaign to use it in.
+    # Reopen a bound form with its errors; validate URL-requested dialogs against permissions.
     if dialog_form is None and (
         dialog not in DIALOGS or not (may_connect if dialog == SAVE else may_record)
     ):
@@ -282,14 +265,10 @@ def _render_generator(request, *, dialog=None, dialog_form=None, data=None):
 
 @login_required
 def generate_scenario(request):
-    """For each scenario table, roll a D6, leave it out, or use a named
-    entry, then see the scenario.
+    """Generate or reroll scenario components as JSON or shareable URL state.
 
-    Generate scenario (``?generate``) rolls once and redirects to an
-    address holding the result and the picks, so a reload or a shared link
-    shows the same scenario, and generating again keeps the picks and
-    rolls afresh. ``?dialog=save`` or ``?dialog=record`` opens the dialog
-    that asks which campaign the scenario is for.
+    Preserve explicit picks across generation. Save and record dialogs select
+    the campaign for the resulting scenario.
     """
     from n26.core.forms import ScenarioGeneratorForm
 
@@ -297,7 +276,7 @@ def generate_scenario(request):
     connection = {
         key: request.GET[key] for key in ("campaign", "battle") if request.GET.get(key)
     }
-    # The battle form's preview rerolls one side job here.
+    # The battle form requests a single side-job reroll as JSON.
     if "reroll_set" in request.GET and request.GET.get("format") == "json":
         rolls = rerolled_rolls(request.GET, request_catalogue(request))
         if rolls is None:
@@ -327,10 +306,10 @@ def generate_scenario(request):
 
 @login_required
 def save_scenario_to_campaign(request):
-    """Connect generated components to an existing battle.
+    """Attach scenario components to an existing battle on POST.
 
-    POST only, from the connection dialog or saved-battle island. The latter
-    sends table picks to generate and attach in one request. A dialog error redraws the generator with the dialog open and the entries kept.
+    Support generation or one side-job reroll in the same request. Return JSON
+    for battle islands or redisplay a refused generator dialog with its values.
     """
     from n26.core.campaign_permissions import recording_campaigns
     from n26.core.campaigns import campaign_operation
@@ -362,7 +341,6 @@ def save_scenario_to_campaign(request):
             data.pop(key, None)
         data.update(generator.generate())
     elif request.POST.get("reroll_set"):
-        # A battle's Reroll: one side job rolled again, the rest kept.
         rolls = rerolled_rolls(request.POST, request_catalogue(request))
         if rolls is None:
             return JsonResponse({"errors": [REROLL_REFUSED]}, status=400)
@@ -417,9 +395,7 @@ def save_scenario_to_campaign(request):
 
 @login_required
 def record_scenario_battle(request):
-    """Take the scenario to Record a battle in a campaign the reader
-    chooses. POST only, from the generator's Record a battle dialog; the
-    battle form carries the scenario on from there."""
+    """Redirect a valid scenario to the selected campaign's battle creation form."""
     from n26.core.campaign_permissions import recording_campaigns
     from n26.core.forms import ScenarioCampaignForm
 
@@ -442,8 +418,7 @@ def record_scenario_battle(request):
 
 
 def _print(request, back_url):
-    """The scenario the address names, on paper, with a way back to the
-    generator it came from. A missing or wrong scenario is not found."""
+    """Render a valid scenario with a caller-supplied return URL; reject missing results."""
     from n26.core.scenarios import parse
 
     scenario, wrong = parse(request.GET, request_catalogue(request))
@@ -458,9 +433,7 @@ def _print(request, back_url):
 
 @login_required
 def print_scenario(request):
-    """The scenario on paper: one card per component, in the order the
-    generator shows them, with the deployment map. A bare document, like
-    a gang's print, so what a phone opens is what turns into a PDF."""
+    """Print scenario components and deployment map with a return link to the generator."""
     from n26.core.scenarios import rolls_of
 
     return _print(
@@ -471,8 +444,7 @@ def print_scenario(request):
 
 @login_required
 def campaign_print_scenario(request, pk):
-    """The same print from a campaign's own generator, for whoever can read
-    the campaign. Back to scenario returns to that campaign's generator."""
+    """Print a campaign scenario for any reader allowed to view the campaign."""
     from n26.core.scenarios import rolls_of
     from n26.core.views.permissions import _any_campaign_or_404
 
