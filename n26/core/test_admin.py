@@ -89,8 +89,7 @@ def test_the_gang_change_page_opens(client, staff, gang):
     "model", [Assignment, LedgerEntry, LedgerEvent, Stash], ids=lambda m: m.__name__
 )
 def test_ledger_adjacent_models_refuse_writes(client, staff, gang, model):
-    """Player data is written by operations and nowhere else — the admin
-    add page for these is a door that must not open."""
+    """Admin creation must not bypass operation-managed ledger writes."""
     client.force_login(staff)
     url = reverse(f"admin:n26_{model._meta.model_name}_add")
     assert client.get(url).status_code == 403
@@ -108,9 +107,7 @@ def test_the_index_namespaces_the_editions(client, staff):
 
 
 def test_readonly_admin_is_what_the_registry_uses():
-    """The read-only guard is inheritance, so a new ledger-adjacent
-    registration gets it by subclassing rather than by remembering three
-    permission overrides."""
+    """Ledger-adjacent registrations inherit all read-only permission guards."""
     for model in (Assignment, LedgerEntry, LedgerEvent, Stash):
         assert isinstance(django_admin.site._registry[model], core_admin.ReadOnlyAdmin)
 

@@ -1,21 +1,7 @@
-"""Every Alpine directive in the edition must be an expression.
+"""Reject directive values that begin with unsupported statement keywords.
 
-Alpine compiles a directive's value into expression position — roughly
-``result = <what you wrote>``. Only two statement forms are special-cased
-and wrapped in a function first: one starting ``if (…)``, and one starting
-``let`` or ``const``. Anything else that opens with a statement keyword is
-a syntax error at compile time.
-
-That failure is silent everywhere a test can see. Alpine catches it,
-writes it to the browser console, and skips the directive — so the page
-still renders, the server still serves 200, and the behaviour the
-directive was carrying simply never happens. A dialog stays unpromoted, a
-row never registers, a watcher never runs, and nothing in the HTML says
-why.
-
-So it is checked here instead. A directive needing statements puts them in
-a method on ``x-data`` and calls it; that body is inside an object literal,
-which is an expression, and may contain anything.
+Django can render these attributes while the browser rejects their expressions.
+Place statement bodies in x-data methods and call those methods from directives.
 """
 
 import re
@@ -23,12 +9,11 @@ from pathlib import Path
 
 import n26
 
-# Alpine's own directive spellings, plus the shorthands. `:` is x-bind and
-# `@` is x-on; neither ever legitimately opens with a statement either.
+# Recognise x- directives and the : and @ shorthand attributes.
 DIRECTIVE = re.compile(r"""(?:^|\s)(x-[a-z:.-]+|[:@][\w:.-]+)=["']([^"']*)["']""")
 
-# Statement keywords Alpine does not wrap. `if`, `let` and `const` are
-# absent because Alpine handles those; the rest are syntax errors.
+# Exclude the if, let and const forms from the statement prefixes rejected by this
+# guard.
 STATEMENT = re.compile(
     r"^\s*(try|for|while|do|switch|throw|return|var|function|class|with)\b"
 )
@@ -37,7 +22,9 @@ TEMPLATES = sorted(Path(n26.__file__).parent.rglob("*.html"))
 
 
 def alpine_directives():
-    """Every (template, directive, value) triple the edition writes."""
+    """Yield template, directive and value triples matching recognised directive
+    attributes.
+    """
     for template in TEMPLATES:
         text = template.read_text()
         for name, value in DIRECTIVE.findall(text):
@@ -45,7 +32,7 @@ def alpine_directives():
 
 
 def test_there_are_directives_to_check():
-    """A guard that discovers nothing passes for the wrong reason."""
+    """Discover enough directives to prevent an empty scan from passing the guard."""
     assert len(list(alpine_directives())) > 50
 
 

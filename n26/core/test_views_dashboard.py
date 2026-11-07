@@ -1,10 +1,4 @@
-"""The home page's header: the marks beside the page's own action.
-
-Patreon and Discord are the only things on this screen that lead a reader off
-it, and the footer's copies are a scroll away — so these are about the pair up
-in the header: that they are there, that they say what they are, and that they
-sit on the correct side of the button at each width.
-"""
+"""Dashboard header links and responsive placement for Patreon and Discord."""
 
 import json
 
@@ -73,9 +67,7 @@ class TestTheMarksBesideTheAction:
         assert 'viewBox="0 0 1080 1080"' in header
 
     def test_the_marks_take_the_colour_of_the_text_around_them(self, header):
-        """Filled with currentColor and given no colour of their own, so
-        they follow the reader's theme rather than sitting in whatever
-        the brand's own artwork was painted."""
+        """Use currentColor so brand marks follow the surrounding theme colour."""
         assert 'fill="currentColor"' in header
         assert "#FFFFFF" not in header
 

@@ -49,8 +49,6 @@ def test_keyboard_and_link_selection_manage_focus():
     """
 
     with sync_playwright() as playwright:
-        # Prefer the installed Google Chrome: it updates itself, so it gets
-        # browser security fixes before Playwright bundles them.
         try:
             browser = playwright.chromium.launch(channel="chrome", headless=True)
         except Error:
