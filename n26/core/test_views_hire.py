@@ -168,12 +168,10 @@ def test_someone_elses_gang_serves_no_cards(client, gang, ganger):
 def test_the_other_scopes_are_offered_to_the_browser_early(
     client, tester, gang, ganger
 ):
-    """Each scope tab is a whole hire list built and priced, so the page
-    asks the browser to fetch the others on intent. Fetch, never render:
-    these documents run to megabytes, and a hidden built copy per tab
-    behind the visible page is a memory bill the reader never agreed to.
-    The rule names this strip's own nav and leaves out the current tab,
-    which is this page and already built."""
+    """Prefetch alternate scope documents on intent without rendering hidden copies.
+
+    Exclude the current tab, whose document is already loaded.
+    """
     client.force_login(tester)
     body = client.get(hire_url(gang)).content.decode()
     assert '<script type="speculationrules">' in body
@@ -253,11 +251,7 @@ def test_the_screen_offers_more_than_one_hire(client, tester, gang, ganger):
 def test_the_dialog_is_a_panel_a_reader_without_scripting_can_still_use(
     client, tester, gang, ganger
 ):
-    """Whether the dialog is open is the server's answer, so it arrives in
-    the HTML rather than behind a trigger. `static m-0` is how it draws
-    with no script running: a panel in the flow of the page, above the
-    list, which is the whole of the scriptless fallback.
-    """
+    """Render open dialog content in normal page flow for the no-script fallback."""
     client.force_login(tester)
     body = client.get(dialog_url(gang, ganger)).content.decode()
     assert "<dialog open" in body
@@ -378,9 +372,7 @@ def test_a_click_carries_the_ticked_option_into_the_dialogs_url(
 def test_a_name_the_field_refuses_comes_back_in_the_dialog(
     client, tester, gang, ganger, armament
 ):
-    """A rejected name must not cost the reader their selection: the dialog
-    is redrawn with the option still in its hidden fields, so the only
-    thing to do again is the one thing that was wrong."""
+    """Retain the selected hire option when name validation fails."""
     scoped = f"{slugify(str(ganger.pk))}:1"
     client.force_login(tester)
     response = client.post(
@@ -799,9 +791,7 @@ class TestRatingTheHire:
         assert "checked" in checkbox
 
     def test_the_offer_is_worded_for_both_readings(self, client, tester, gang, ganger):
-        """Both answers are spelled out, with the usual rating in figures —
-        a reader deciding what a fighter is worth should not have to work
-        out what the box does from its label alone."""
+        """Explain both rating choices with the usual rating shown numerically."""
         client.force_login(tester)
         body = client.get(dialog_url(gang, ganger)).content.decode()
         assert "rating matches the price you pay" in body
@@ -1006,8 +996,7 @@ class TestTheScopes:
         assert f'action="{hire_url(gang)}?list=supplementary"' in body
 
     def test_the_scope_needs_nothing_in_the_body(self, client, tester, gang, elsewhere):
-        """What the form actually sends: the scope rides the posted-to
-        URL, and every hop keeps it."""
+        """Preserve scope in the command URL throughout the submission flow."""
         supplementary, _ = elsewhere
         client.force_login(tester)
         clicked = client.post(
@@ -1026,9 +1015,7 @@ class TestTheScopes:
     def test_the_section_tab_rides_the_round_trip(
         self, client, tester, gang, elsewhere
     ):
-        """The picker's section tab is client state, posted along and
-        echoed back in the redirect — buying from the third tab lands
-        the reader back on the third tab."""
+        """Retain the selected section tab after hiring and redirecting."""
         supplementary, _ = elsewhere
         client.force_login(tester)
         clicked = client.post(

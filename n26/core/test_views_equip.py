@@ -657,8 +657,7 @@ def test_ticking_ammo_buys_it_onto_the_gun(client, tester, gang, fighter, gun_li
 
 
 def test_the_gun_alone_costs_what_it_says(client, tester, gang, fighter, gun_list):
-    """No box ticked, no surcharge — and the free mode still rides along
-    with the gun, unbought."""
+    """No optional selection adds a surcharge; included profiles remain attached."""
     from n26.core.reconcile import assert_reconciled
     from n26.library.models import Weapon, WeaponProfile
 
@@ -736,9 +735,7 @@ def test_ammo_ticked_on_one_row_does_not_ride_another_click(
 
 
 def test_the_listing_quotes_its_price_in_a_box(client, tester, fighter, house_list):
-    """A price a table can change is a box holding the listing's number,
-    not a printed figure — and the box the reader types in must be the
-    one the purchase reads back."""
+    """The editable quoted price is the field the purchase reads."""
     from n26.library.models import Wargear
 
     sword = Wargear.objects.get(name="Sword")
@@ -894,9 +891,7 @@ def weakening_list(gang, tester):
 def test_the_box_for_gear_priced_below_nothing_opens_at_its_own_price(
     client, tester, fighter, weakening_list
 ):
-    """A floor of zero on the box would have the browser refuse the form
-    before the server saw it, and the quote is the one figure a reader
-    must be able to submit untouched."""
+    """A negative quote must submit unchanged without browser minimum validation."""
     from n26.library.models import Wargear
 
     brittle = Wargear.objects.get(name="Reduced bone density")
@@ -946,9 +941,7 @@ def test_the_quote_stands_when_the_box_is_left_alone(
 def test_a_buyer_may_accept_less_of_the_discount_but_never_more(
     client, tester, gang, fighter, weakening_list
 ):
-    """Typing a higher figure than a below-zero quote is the buyer
-    forgoing part of what they were owed, which is theirs to do. A lower
-    one would have the gang paying itself credits no content grants."""
+    """Allow a higher payment than a negative quote, but reject a lower one."""
     from n26.core.models import Assignment
     from n26.core.reconcile import assert_reconciled
     from n26.library.models import Wargear
@@ -1346,9 +1339,7 @@ def test_a_thing_taken_off_the_card_stops_being_counted(
 def test_a_sale_confirmation_states_its_arithmetic(
     client, tester, gang, fighter, house_list
 ):
-    """The figure is worked out from rows the reader cannot see, and it is
-    money, so the dialog shows its working. Thirty-five halves to
-    seventeen and a half, and a sale rounds the player's way."""
+    """Show the sale rating and rounded-up half-value proceeds."""
     from n26.library.models import Wargear
 
     sword = buy_one(gang, fighter, tester, Wargear.objects.get(name="Sword"), paid=35)
@@ -1533,9 +1524,7 @@ def test_the_figures_and_the_roster_line_stand_above_the_catalogue(
 def test_a_gang_with_no_budget_is_offered_no_refund(
     client, tester, gang, fighter, house_list
 ):
-    """A gang founded without a budget never paid credits, so its owned rows
-    offer Remove alone — and a refund address, followed anyway, asks the
-    remove question rather than promising 0\u00a2 back."""
+    """Unlimited-budget gangs receive Remove controls when no credits are refundable."""
     from n26.library.models import Wargear
 
     sword = Wargear.objects.get(name="Sword")
@@ -1943,8 +1932,7 @@ class TestBuyingWithoutRebuildingThePage:
     def test_a_refusal_swaps_nothing_and_still_says_why(
         self, client, tester, gang, fighter, house_list
     ):
-        """Nothing on the page changed, so nothing is sent back to draw —
-        but the reason must not be swallowed along with it."""
+        """Validation failures display their reason without replacing unchanged page content."""
         import json
 
         from n26.library.authoring import create_wargear
@@ -1961,9 +1949,7 @@ class TestBuyingWithoutRebuildingThePage:
 
 
 class TestOpeningAConfirmationWithoutRebuildingThePage:
-    """Sell, Refund, Reassign, Delete and Change options each open a panel
-    the server draws. Asking for that panel alone leaves the catalogue
-    underneath exactly as the reader had it."""
+    """Server-rendered action panels preserve the catalogue beneath them."""
 
     def asked(self, client, fighter, gun_list, assignment, kind="sell"):
         return client.get(
@@ -2026,10 +2012,7 @@ class TestTheWiringEveryActLeansOn:
     absence looks like the acts themselves being broken."""
 
     def test_a_click_on_a_control_built_after_load_is_still_caught(self):
-        """The copies inside an opened row are built by Alpine after the
-        page loads, so htmx has never wired them; without the delegated
-        handler every act inside an opened row fetches the whole screen,
-        losing the reader's place."""
+        """Delegated handling covers controls created after htmx's initial wiring."""
         js = _support_js()
 
         assert 'event.target.closest("a[hx-get]")' in js
@@ -2047,13 +2030,11 @@ class TestTheWiringEveryActLeansOn:
         assert "detail.value" in js
 
     def test_a_swapped_in_noscript_is_emptied(self):
-        """A page's own parser treats a <noscript>'s contents as text, so
-        nothing in them applies. htmx builds a response with innerHTML,
-        where the parser has scripting disabled and those same contents
-        become real elements — a <style> written for a reader with no
-        script then comes alive on a page that has one, revealing every
-        box a picker keeps hidden and drawing a second copy of a menu's
-        rows."""
+        """Clear noscript bodies after htmx swaps a response.
+
+        Fragment parsing can activate styles that the original page parser treated
+        as text, exposing hidden controls or duplicate menu content.
+        """
         js = _support_js()
 
         assert 'addEventListener("htmx:afterSwap"' in js
@@ -2103,9 +2084,7 @@ class TestSellingWithoutRebuildingThePage:
     def test_the_row_comes_back_open_where_it_was_open(
         self, client, tester, fighter, gun_list, gang, tester_kit=None
     ):
-        """A row is opened in the hand, so the click is what says it was
-        open. Redrawn without that, it comes back shut — and the copies the
-        reader was working in vanish under the act they just asked for."""
+        """Carry the expanded state when redrawing a listing entry after a command."""
         from n26.library.models import Weapon
 
         autogun = Weapon.objects.get(name="Autogun")
@@ -2313,9 +2292,7 @@ class TestTheLibraryTab:
     def test_a_fighter_with_no_list_is_pointed_at_it(
         self, client, tester, fighter, library
     ):
-        """No list is nothing to browse, which is exactly who the library
-        is for: the empty page names the tab, and the tab draws alone —
-        a rail of one, so a reader on it can see where they are."""
+        """An empty equipment list links to the library tab and retains that tab."""
         client.force_login(tester)
         empty = client.get(equip_url(fighter))
         assert empty.context["catalogue"] is None
