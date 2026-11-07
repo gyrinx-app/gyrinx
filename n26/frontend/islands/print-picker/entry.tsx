@@ -2,11 +2,9 @@ import { mount as mountRoot } from "../../runtime/mount";
 import { PrintPicker, type PrintPickerProps } from "./PrintPicker";
 
 export function mount(element: HTMLElement, props: PrintPickerProps) {
-    // The server-drawn boxes can be ticked before this module loads, and
-    // the browser restores their state on Back. Start from what they show,
-    // or the island would put the ticks back and Print would save that.
-    // A weapon keeps its tick even if its box is disabled. If one of those
-    // boxes has focus, put it back on the replacement.
+    // Preserve selections and focus from before mounting, including
+    // back/forward restoration. Keep weapon selections even when their
+    // model disables them.
     const shown = (name: string) =>
         Object.fromEntries(
             Array.from(

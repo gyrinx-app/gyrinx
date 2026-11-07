@@ -1,15 +1,12 @@
-"""The theme class must also name a colour scheme.
-
-Browsers paint native scrollbars, form controls and selection colours from
-`color-scheme`, not from the `dark` class. The class re-themes tokens; without
-a matching scheme the chrome stays light on a dark page.
+"""Verify that theme classes declare matching colour-scheme values for native browser
+controls.
 """
 
 from pathlib import Path
 
 
 def stylesheet() -> str:
-    """The Tailwind input. The built file is generated and gitignored."""
+    """Read the Tailwind source; built stylesheets are generated and ignored."""
     return (Path(__file__).resolve().parent / "assets" / "app.css").read_text()
 
 

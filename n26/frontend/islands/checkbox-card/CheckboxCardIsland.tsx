@@ -18,11 +18,11 @@ export type CheckboxCardIslandProps = {
     className: string;
     /** A figure beside the label, as text. */
     meta: string;
-    /** The nested ticks, drawn here and inert while the card is clear. */
+    /** Nested checkbox options, inert while the card is unticked. */
     items: CheckboxCardItemProps[];
-    /** The server-drawn checkbox had focus when the island replaced it. */
+    /** Whether the native checkbox had focus before mount. */
     restoreFocus?: boolean;
-    /** The server-drawn nested tick that had focus, by name and value. */
+    /** Name and value of the nested checkbox focused before mount. */
     focusItem?: { name: string; value: string } | null;
 };
 
@@ -47,7 +47,8 @@ export function CheckboxCardIsland({
         if (restoreFocus) {
             card?.focus();
         } else if (focusItem) {
-            // An item is inert while the card is clear, so the card takes focus.
+            // The unticked card makes its nested controls inert, so focus
+            // its enabling checkbox.
             const item = initiallyChecked
                 ? Array.from(
                       frame.current?.querySelectorAll<HTMLInputElement>(
@@ -61,7 +62,7 @@ export function CheckboxCardIsland({
                 : undefined;
             (item ?? card)?.focus();
         }
-        // Focus moves once, as the island replaces the server-drawn card.
+        // Restore focus once when replacing the server-rendered controls.
     }, []);
     return (
         <div ref={frame} className="contents">

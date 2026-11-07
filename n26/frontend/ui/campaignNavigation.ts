@@ -81,7 +81,8 @@ export function guardDialogSubmission(
         (event) => {
             if (window.location.pathname + window.location.search !== view) {
                 event.preventDefault();
-                // A completed write needs fresh facts at the current view.
+                // Reload the current view after a write to display its
+                // updated data.
                 refresh();
             }
         },

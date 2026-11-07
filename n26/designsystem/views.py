@@ -1,9 +1,4 @@
-"""The gallery's pages.
-
-Every one is staff-only. The gallery is a workshop: it draws components
-that are still being argued over, beside sample data invented to stress
-them, and none of it is a page a player has any use for.
-"""
+"""Staff-only component gallery pages using synthetic data."""
 
 import json
 from pathlib import Path
@@ -45,8 +40,6 @@ def index(request):
         "designsystem/index.html",
         _base_context()
         | {
-            # The showcase needs the sample data the component demos use, plus a
-            # little rendered rich text.
             **sampledata.context(),
             "showcase_body": (
                 "<p>Working the eastern sumps out of a stripped rail yard. Two "
@@ -72,9 +65,7 @@ def component(request, slug):
     ordered = catalog.COMPONENTS
     position = ordered.index(found)
 
-    # TinyMCE is heavy, so its media only goes on pages that actually use it.
-    # Asking the demos rather than keeping a list means a rich-text example
-    # dropped into some other component's page brings the editor with it.
+    # Load TinyMCE only when a demo uses rich text, determined from the demo source.
     rich_text_form = RichTextForm()
     needs_rich_text = any("c-n26.rich-text" in demo.source for demo in found.demos)
     icon_context = {}
@@ -105,14 +96,13 @@ def component(request, slug):
             "component": found,
             "previous": ordered[position - 1] if position else None,
             "next": ordered[position + 1] if position + 1 < len(ordered) else None,
-            # Demos that document Django integration need the real objects: the
-            # pagination component's auto mode takes a Page, and the error and field
-            # components read errors off a bound form.
+            # Use real Django Page and bound form objects to exercise component
+            # integration.
             "page_obj": Paginator(range(96), 10).page(4),
             "signup_form": bound_signup_form(),
             **create_gang_context(),
-            # The editor demos need a form, and — separately — its media, which is
-            # what actually loads TinyMCE. See needs_rich_text below.
+            # Pass the form as well as its media so templates can render widgets and
+            # load TinyMCE.
             "rich_text_form": rich_text_form,
             "unsafe_html": UNSAFE_HTML,
             "model_card": sampledata.model_card(),
@@ -215,7 +205,7 @@ def react_demo(request):
 
 @staff_member_required
 def print_lab(request):
-    """Controls, a readout of the geometry, and a live preview of the sheet."""
+    """Show print controls, computed geometry and a sheet preview."""
     options = printlab.Options.from_request(request)
     return render(
         request,
@@ -226,8 +216,7 @@ def print_lab(request):
             "pages": printlab.PAGES,
             "orientations": printlab.ORIENTATIONS,
             "specimens": printlab.SPECIMENS,
-            # The preview iframe and the "open" links are the same URL, so what
-            # you are looking at is exactly what you would print.
+            # Use the same URL for the iframe preview and standalone print target.
             "sheet_url": f"{reverse('designsystem:print_sheet')}?{options.query}",
         },
     )
@@ -236,12 +225,8 @@ def print_lab(request):
 @staff_member_required
 @xframe_options_sameorigin
 def print_sheet(request):
-    """The sheet on its own — the actual print target.
-
-    Framing is allowed from the same origin so the lab can preview it live; the
-    project default is DENY. It is a plain page with no gallery chrome, because
-    this URL is also what a phone opens and what headless Chrome renders to PDF,
-    and anything the harness added would be in the artefact under test.
+    """Render the standalone print target. Allow same-origin framing for the lab preview
+    without including gallery navigation.
     """
     return render(
         request,
@@ -252,13 +237,7 @@ def print_sheet(request):
 
 @staff_member_required
 def sample_fragment(request):
-    """A fragment for the deferred component's demo to fetch.
-
-    The sample model card, served bare — no doctype, no shell — which is
-    the contract a deferred call site's endpoint has to meet. It exists
-    so the demo demonstrates a real fetch rather than describing one,
-    and it renders from sample data because every gallery page must.
-    """
+    """Serve the bare sample card fragment fetched by the deferred component demo."""
     return render(
         request,
         "n26/hire_card.html",
@@ -268,12 +247,8 @@ def sample_fragment(request):
 
 @staff_member_required
 def view_preview(request, slug):
-    """One view, at real width, with none of the gallery around it.
-
-    The component page cannot answer "does this fit a phone": it has a sidebar,
-    a heading set in a long monospace tag name and a code block, and at 390px
-    those decide the width before the view gets a say. Same stylesheet, same
-    demo, no chrome — so what renders here is what a phone would get.
+    """Render a component demo at full viewport width without gallery navigation or source
+    panels.
     """
     found = catalog.get(slug)
     if found is None or not found.demos:
@@ -300,8 +275,7 @@ def view_preview(request, slug):
             "model_card_header_long_owner": sampledata.model_card_header_long_owner(),
             "model_card_header_long_both": sampledata.model_card_header_long_both(),
             "model_card_header_badged": sampledata.model_card_header_badged(),
-            # The same test the component page makes: a view whose demo
-            # draws an editor brings TinyMCE with it, and only then.
+            # Load TinyMCE when this demo's source includes a rich-text component.
             "rich_text_form": RichTextForm(),
             "needs_rich_text": "c-n26.rich-text" in found.demos[0].source,
             **create_gang_context(),
@@ -310,14 +284,8 @@ def view_preview(request, slug):
     )
 
 
-#: The banner every shell page carries, so the region above the nav is drawn
-#: rather than assumed. Nothing here is stored: a real site banner is a model.
-#:
-#: The id has to be shaped like a real one. The shell builds the call to
-#: action's address from it, and that address accepts none but a UUID, so a
-#: word here is an address that cannot be built and every shell page raises.
-#: Nothing is stored under this id, so following it finds nothing, which is
-#: the right answer for a banner that is drawn to be looked at.
+#: Synthetic banner for shell previews. Its ID must be a UUID because the click-tracking
+#: URL validates that format; no corresponding database record is created.
 _SHELL_BANNER = {
     "id": "3f47d1a0-0000-4000-8000-000000000001",
     "colour": "info",
@@ -329,14 +297,7 @@ _SHELL_BANNER = {
 
 @staff_member_required
 def shell_home(request):
-    """The dashboard, in the shell it will actually live in.
-
-    Two jobs at once. A base template nothing inherits from is markup nobody has
-    compiled, so the shell needs something extending it; and a view only ever seen
-    on its own is a view nobody has seen next to a nav and a footer. Rendering a
-    real page here puts the banner, the nav, a message, the page and the footer in
-    one screen, which is the only place their spacing can be judged.
-    """
+    """Preview the dashboard together with the banner, navigation, messages and footer."""
     messages.info(request, "Messages land above the content, one alert each.")
     return render(
         request,
@@ -347,13 +308,7 @@ def shell_home(request):
 
 @staff_member_required
 def shell_new_gang(request):
-    """The create form, in the shell, and the only page here that posts.
-
-    Unbound every time: this writes nothing, so there is no submit to handle and
-    nothing to redisplay. The error state lives in the component's second demo,
-    where a bound form can be shown without pretending the gallery has a
-    database behind it.
-    """
+    """Preview the unbound create form inside the application shell without writing data."""
     return render(
         request,
         "designsystem/shell/new_gang.html",
@@ -367,21 +322,8 @@ def shell_new_gang(request):
 
 @staff_member_required
 def shell_hire(request):
-    """The hire screen, in the shell, and the long form to the create form's short one.
-
-    Unbound every time, like the other form page: the gallery writes nothing, so
-    there is no submit to handle. What it is here to show is the pattern under a
-    scroll — a sticky bar whose heading outlives the h1, and a form whose submit
-    is three hundred rows down rather than at the bottom.
-
-    A click is answered the way the real screen answers one — with this page's
-    URL naming the profile, and the dialog drawn over it — because the whole
-    point of the loop is that it happens without leaving the list, and a shell
-    that skipped it would be showing half of the pattern.
-
-    The message is pushed for the same reason the home page pushes one, and
-    proves the opposite thing: this screen takes its messages out of the
-    layout's slot and draws them inside the form, above the list.
+    """Preview the hire workflow, including URL-selected dialogs and form-local messages,
+    inside the application shell.
     """
     here = reverse("designsystem:shell_hire")
     if request.method == "POST":
@@ -403,13 +345,8 @@ def shell_hire(request):
 
 @staff_member_required
 def shell_next(request):
-    """The screen after an act, in the shell.
-
-    Three blocks — one open and unskippable, one chosen, one skippable —
-    so Skip, the withheld Continue and a chosen question are all on one
-    page at phone width. The message is pushed because the real screen
-    is where an act's confirmation lands. A click posts nowhere: the
-    gallery writes nothing, so the page comes back to itself.
+    """Preview compulsory, completed and optional follow-up choices at the same viewport
+    width.
     """
     here = reverse("designsystem:shell_next")
     if request.method == "POST":
@@ -430,12 +367,7 @@ def shell_next(request):
 
 @staff_member_required
 def shell_gang(request):
-    """One gang's sheet, in the shell.
-
-    No message pushed in. The home page proves that region draws; repeating it on
-    every page would say a gang sheet always opens with an alert, which is not
-    something the shell should be teaching by accident.
-    """
+    """Preview the gang sheet inside the application shell without adding a sample message."""
     return render(
         request,
         "designsystem/shell/gang.html",
@@ -450,12 +382,7 @@ def shell_gang(request):
 
 @staff_member_required
 def shell_campaign(request):
-    """One campaign's page, in the shell — the gang shell's sibling.
-
-    Whether the campaign sheet reads as the gang sheet's sibling can only be
-    judged with the same nav over both, which is what this page is for. No
-    message pushed in, for the reason the gang shell pushes none.
-    """
+    """Preview the campaign sheet inside the same shell as the gang sheet."""
     return render(
         request,
         "designsystem/shell/campaign.html",
@@ -470,16 +397,8 @@ def shell_campaign(request):
 
 @staff_member_required
 def shell_print(request):
-    """Printing a gang, from inside the application.
-
-    The lab drives the bare sheet and the proof script renders it; neither can
-    answer what happens when a real page in the real shell meets a printer. The
-    sheet is laid out in millimetres and the shell in a window, and the question
-    is whether the second leaves a mark on the first.
-
-    Same specimen and the same partial as the lab, so there is no fourth
-    composition to keep in step — and the same Options, so the query parameters
-    that drive the lab drive this too.
+    """Preview the real print composition inside the application shell using the lab's URL
+    options.
     """
     return render(
         request,
@@ -495,11 +414,8 @@ def shell_print(request):
 
 @staff_member_required
 def shell_shop(request):
-    """Buying equipment, in the shell.
-
-    The trading post is the longest list in the library and the one most likely to
-    fight its surroundings — a sticky filter bar under a sticky nav is two things
-    competing for the top of the window, and that only shows up here.
+    """Preview the equipment catalogue with its sticky filter bar beneath the sticky
+    application navigation.
     """
     return render(
         request,

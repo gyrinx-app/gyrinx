@@ -14,7 +14,10 @@ export type FilterMenuIslandProps = {
     width: number;
 };
 
-/** The cotton filter menu: OK tells the page, and a matching reset restores every tick. */
+/**
+ * Apply selected filters on OK and restore all options on a matching reset
+ * event.
+ */
 export function FilterMenuIsland({ name, ...props }: FilterMenuIslandProps) {
     const root = useRef<HTMLDivElement>(null);
     return (

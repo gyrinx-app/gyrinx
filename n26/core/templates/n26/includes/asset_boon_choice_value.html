@@ -1,0 +1,32 @@
+{% comment %}One asset choice with its own picker, dismissal and restore controls.{% endcomment %}
+{% if prominent_choices %}
+    <div class="flex min-w-0 flex-wrap items-center gap-2">
+        {% if choice.dismissed %}
+            <span class="text-sm">Dismissed</span>
+        {% elif choice.href %}
+            <c-ui.button size="md"
+                         variant="default"
+                         href="{{ choice.href }}"
+                         class="max-w-full whitespace-normal! text-left">{% if choice.is_resolved %}{{ choice.chosen }}{% elif choice.follows_status %}Resolve →{% else %}Choose{% endif %}</c-ui.button>
+        {% else %}
+            <span class="min-w-0 break-words text-sm">{% if choice.is_resolved %}{{ choice.chosen }}{% else %}—{% endif %}</span>
+        {% endif %}
+        <c-n26.choice-dismiss :choice="choice" />
+    </div>
+{% else %}
+    <div class="flex min-w-0 items-center justify-end gap-2 text-sm">
+        <span class="min-w-0 break-words text-right">{% if choice.dismissed %}Dismissed{% elif choice.is_resolved %}{{ choice.chosen }}{% else %}—{% endif %}</span>
+        <c-n26.choice-dismiss :choice="choice" />
+        {% if choice.href %}
+            <c-ui.button size="xs"
+                         variant="text"
+                         href="{{ choice.href }}"
+                         aria-label="Edit {{ choice.kind_label }} for {{ boon.name }}"
+                         class="shrink-0 py-0!">
+                <span class="n26-icon-inline">
+                    <c-n26.icon name="pencil" />
+                </span>
+            </c-ui.button>
+        {% endif %}
+    </div>
+{% endif %}
