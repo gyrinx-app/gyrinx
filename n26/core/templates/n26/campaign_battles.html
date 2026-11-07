@@ -1,13 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Every battle in the campaign that is not archived. The campaign's own page
-draws only the newest few; this is where the rest are read, with who took
-part, their players and gang types, and what was staked.
-
-Sorted and filtered by the address: the headings and the form are plain
-links and a GET form, so a view survives a reload and can be shared. Each
-battle links to its own page.
+List active campaign battles with URL-based filtering and sorting. Wide screens use
+columns; narrow screens render labelled cards.
 {% endcomment %}
 {% block head_title %}Battles · {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -64,10 +59,6 @@ battle links to its own page.
         </form>
         {% if lines %}
             <div class="border border-box-border bg-surface">
-                {% comment %}
-                Column headings on wide screens only; on a phone each battle
-                is a card with its own labels, and the form sorts.
-                {% endcomment %}
                 <div class="hidden gap-4 border-b border-box-border px-4 py-2 text-xs font-medium text-muted md:grid md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.8fr)_minmax(0,1fr)_minmax(0,1.2fr)_6.5rem]">
                     {% for heading in headings %}
                         <a href="{{ heading.href }}"
@@ -89,17 +80,14 @@ battle links to its own page.
                                 <c-n26.link href="{% url 'n26-battle' campaign.pk line.battle.pk %}"
                                             class="n26-row-link font-medium">{{ line.battle.title }}</c-n26.link>
                                 <p class="text-xs text-muted">
-                                    {% comment %}On a phone the date stays here; wider screens give it a column.{% endcomment %}
                                     <span class="md:hidden"><time class="tabular-nums"
       datetime="{{ line.battle.date|date:'Y-m-d' }}">{{ line.battle.date|date:"j M Y" }}</time> ·</span>
                                     {{ line.battle.result_label }}
                                 </p>
                             </div>
                             {% comment %}
-                            Gangs and their players share one block, a gang and
-                            its owner to a line, laid on the outer columns as a
-                            subgrid so each owner sits beside their gang. On a
-                            phone the owner follows the gang type instead.
+                            Use subgrid to align each gang with its owner on wider
+                            screens.
                             {% endcomment %}
                             <div class="min-w-0 md:col-span-2 md:grid md:grid-cols-subgrid">
                                 <p class="mb-1 text-xs font-medium text-muted md:hidden">Gangs</p>

@@ -1,8 +1,7 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Campaigns the reader arbitrates or plays in, with their type, status and participation counts.
-The shared record table supplies search; the campaign row also serves the home page.
+List the user's campaigns through the shared record table used by the dashboard.
 {% endcomment %}
 {% block head_title %}Campaigns{% endblock head_title %}
 {% block nav_switcher %}
@@ -20,9 +19,8 @@ The shared record table supplies search; the campaign row also serves the home p
             </c-slot>
         </c-n26.page-header>
         {% comment %}
-        Under the heading and above the reader's own campaigns: a question
-        waiting is what they came back for, but a page says what it is before
-        it says what is on it. The include is shared with the home page's tab.
+        Show pending invitations before the campaign listing using the dashboard's
+        shared include.
         {% endcomment %}
         {% include "n26/includes/campaign_invitations.html" with back=request.get_full_path %}
         <c-n26.record-table noun="campaigns"
@@ -49,15 +47,8 @@ The shared record table supplies search; the campaign row also serves the home p
             {% endfor %}
         </c-n26.record-table>
         {% comment %}
-        The same pager the gangs list draws, over the same addresses: turning
-        the page keeps whatever else was asked for rather than writing
-        ?page=2 alone. A gap in a long run is marked and not linked, because
-        there is no one page it leads to.
-
-        The ends are two cases rather than one with a computed `disabled`: a
-        component attribute takes a variable, not an expression, so a
-        comparison there evaluates to nothing and the control draws as a live
-        link with an empty address.
+        Preserve filters in view-built page URLs. Render disabled controls separately
+        because Cotton attributes cannot evaluate boolean expressions.
         {% endcomment %}
         {% if pages %}
             <div class="flex flex-wrap items-center justify-between gap-3">
