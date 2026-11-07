@@ -1,11 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Copying one gang under a new name. The form changes only the copy's name;
-the operation takes the rest from the source as one standing snapshot.
-
-The frame is the shared form page. Its green submit ends the act, while
-Cancel goes back to the source gang without writing anything.
+Clone the gang's standing state under a new name. Cancel returns to the source without
+writing.
 {% endcomment %}
 {% block head_title %}Clone {{ source.name }}{% endblock head_title %}
 {% block nav_switcher %}
