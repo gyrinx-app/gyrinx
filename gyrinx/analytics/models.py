@@ -17,7 +17,7 @@ from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)
 SENSITIVE_CONTEXT_KEY = re.compile(
-    r"(^|_)(password[0-9]*|passphrase|secret|token|session_key|session_id|authorization|cookie)($|_)",
+    r"password|passwd|passphrase|secret|token|session[_-]?key|session[_-]?id|authorization|cookie|api[_-]?key|credential|signature",
     re.IGNORECASE,
 )
 
