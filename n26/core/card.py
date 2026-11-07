@@ -1,23 +1,14 @@
-"""Model cards — a model's assignments, in memory, from a fixed fetch.
+"""Load model cards as assignment trees with a fixed query budget.
 
-A card is what a model looks like: its profile, its weapons, the ammo and
-accessories hung off them. Building one costs **one** assignment query, then a
-fixed set of narrow hydration passes (``hydrate_rows``) — narrow because
-Postgres plans a join across every content kind in tens of milliseconds
-and executes it in one, and the planning is paid on every query. The tree
-is not walked in the database; every assignment carries the model at the
-top of its chain, so they all come back flat and are reassembled here by
-parent.
+Fetch assignments flat using their denormalised roots, then assemble the
+parent tree in memory. ``hydrate_rows`` loads content in narrow passes:
+a join across every content kind adds substantial PostgreSQL planning time.
+Node properties read the loaded assignments without additional queries.
 
-The point of doing it this way is that the ergonomic reads — a node's
-rating, its children, its total with extras — are then plain Python on
-assignments already in memory, with no chance of a query hiding behind a
-property.
-Tests assert the query count so that stays true.
+Gang builds share hydration across all cards, keeping query count fixed
+as the roster and its equipment grow.
 """
 
-# Deferred annotations: Node refers to itself, and the host runs 3.12,
-# where class-body annotations still evaluate eagerly.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -28,50 +19,39 @@ from n26.core.models.assignment import ASSIGNABLE_FIELDS
 from n26.library.models.assignable import Family, Optioned
 from n26.library.models.modifier import GANG, MODEL
 
-#: The assignable kinds whose lines reach a card's Gear row, and so the
-#: ones a card asks for a category. Their hydration joins the category in
-#: rather than fetching it separately; see ``hydrate_rows``.
+#: Gear kinds whose display reads a category. Join the category during
+#: hydration to avoid queries while rendering.
 GEAR_WITH_A_CATEGORY = ("wargear", "weapon_accessory")
 
 
 @dataclass
 class Node:
-    """One line on a card, with whatever hangs off it.
+    """A stored or preview assignable and its child nodes.
 
-    A card is usually built from a player's assignments, but not always: a
-    hire preview is built from a profile's built-ins, where no assignment
-    exists yet. So a node describes itself — its identity, rating, cause and
-    role are its own fields — and ``assignment`` is present only when the
-    card came from stored assignments. Nothing downstream reaches through it.
+    Identity, rating, cause and role are available directly. ``assignment``
+    is present for stored cards and absent for library-only hire previews.
     """
 
     assignable: object
-    #: Identity within one card. An assignment's primary key when there is
-    #: one, otherwise a number handed out while building. Only ever compared
-    #: with other keys from the same card.
+    #: Assignment primary key, or a generated preview key. Compare only
+    #: within the same card.
     key: object
     children: list[Node] = field(default_factory=list)
     #: What this line contributes on its own.
     rating: int = 0
     #: The key of the node that brought this one, if any.
     caused_by_key: object = None
-    #: The key of the node whose choice this line settles — the slot's
-    #: own line. Set on a pick and on nothing else, so what answers a
-    #: choice is read rather than guessed from what kind of thing it is.
+    #: Source assignment key for this pick's choice.
     chosen_for_key: object = None
-    #: Which of that line's choices this settles: the slot itself. One
-    #: line may ask more than once — a thing giving two choices of one
-    #: slot type — and then this is what tells the answers apart.
+    #: Slot identity distinguishes multiple choices from the same source.
     chosen_for_slot_id: object = None
     chosen_for_status_revision: int | None = None
     #: A holding-origin choice names the holding and its ownership period,
     #: rather than an assignment that the gang does not own.
     chosen_for_holding_key: object = None
     chosen_for_holding_revision: int | None = None
-    #: The same, for the other way a choice is asked: the offer this pick
-    #: settles. Unset on a pick written before the question could be
-    #: named, and then what it answers is read from the offers' own
-    #: selectors instead.
+    #: Offer identity for a modifier-provided choice. Without it, resolve
+    #: by matching the selection against available offer selectors.
     chosen_for_offer_id: object = None
     #: The ledger's reason, for a line that has one.
     reason: str | None = None
@@ -80,33 +60,23 @@ class Node:
     is_profile: bool = False
     #: The one profile whose statline and type the card is drawn from.
     is_primary_profile: bool = False
-    #: Held by the *gang*, not this model: the gang type's founding and
-    #: whatever it brought. Such a node rides every member's card so that
-    #: gang-wide modifiers reach them and can be named as a source — but
-    #: it draws no line and adds no rating, because the model does not own
-    #: it. Scoped by host, where a ``Hidden`` is scoped by kind.
+    #: Gang-hosted node included on member cards so its modifiers can reach
+    #: them. It contributes no member line or rating. Unlike Hidden content,
+    #: its exclusion is determined by host rather than assignable kind.
     broadcast: bool = False
-    #: True when this line was worked out at read time and written
-    #: nowhere — equipment a modifier grants. Nothing paid for it, so it
-    #: is worth nothing and there is nothing to sell.
+    #: Computed equipment has no stored assignment, payment or sale action.
     computed: bool = False
     #: The immediate grant source may itself have no node on this card.
     granted_by: str | None = None
     granted_by_kind: str | None = None
-    #: True when a modifier has taken this line away
-    #: (``n26.core.effects``). The assignment stays exactly where it is
-    #: and stops being drawn, so removing whatever cancelled it brings the
-    #: line back on the next read. Only ever set on an assignment nobody
-    #: paid for, which is why a card's rating is the same either way.
+    #: A removal hides this unpaid assignment without changing storage.
+    #: Removing the source restores the line on the next computation.
     suppressed: bool = False
-    #: What a counter member opens at, on a card built from library alone
-    #: — a preview's Starting XP. A stored card ignores it: the value
-    #: lives on the assignment, and this is what the hire will write
-    #: there.
+    #: Counter opening value used by previews and written at hire.
+    #: Stored cards read the value from the assignment instead.
     opens_at: int = 0
-    #: When the line was written onto the card, for a stored one; None
-    #: for a line the library alone draws. Stat changes fold in this
-    #: order, and a limit that stops one decides what the rest are worth.
+    #: Acquisition time, or None for library-only nodes. Stat limits apply
+    #: in acquisition order, which can affect each change's contribution.
     acquired: object = None
     #: The stored assignment, when this card was built from stored ones.
     assignment: Assignment | None = None
@@ -117,19 +87,15 @@ class Node:
 
     @property
     def rating_with_extras(self):
-        """This line plus everything hung off it — a gun with its paid ammo."""
+        """This node's rating plus its descendants' ratings."""
         return self.rating + sum(child.rating_with_extras for child in self.children)
 
     @property
     def carries_money(self):
-        """Whether anything was paid for this line, or it is worth anything.
+        """Whether this node has payment or rating that prevents suppression.
 
-        The question a removal asks before it hides an assignment: free
-        kit and assignments something else brought carry nothing, and a
-        purchase carries either the credits paid for it or the worth it
-        added — a gift with a rating counts as bought, because the gang is
-        worth more for holding it. A card built from the library alone keeps
-        no ledger, so what the line is worth is all it can say.
+        Stored nodes use paid credits, Trade Points and rating contribution from
+        their ledger entry. Library-only previews use the node's rating.
         """
         entry = (
             getattr(self.assignment, "ledger_entry", None) if self.assignment else None
@@ -140,20 +106,11 @@ class Node:
 
     @property
     def paid_trade_points(self):
-        """Whether a founding allowance paid for this line.
+        """Whether this node or any descendant was bought with Trade Points.
 
-        The question a gang with no credit budget asks before offering a
-        refund. Credits mean nothing to such a gang, so what a refund
-        gives it back is its models' Trade Points and nothing else — and
-        a line none of them paid for has nothing to return.
-
-        Asked of everything hanging off the line too, because a refund
-        takes the whole of it: a gun bought in credits, carrying
-        ammunition an allowance paid for, still has points behind it.
-
-        Free, whatever it walks — the card is in memory and each entry
-        arrived with its assignment. A card built from the library alone
-        keeps no ledger and so has nothing to return.
+        Used to offer refunds to gangs without a credit budget. Entries are
+        already loaded, so traversing the subtree issues no queries. Library-only
+        previews have no recorded payment.
         """
         return any(_paid_trade_points(node) for node in self.walk())
 
@@ -207,51 +164,32 @@ class Card:
     #: Current and recorded hire contributions when a manual override remains.
     base_rating_override: tuple[int, int] | None = None
 
-    #: Equipment a modifier granted, with free profiles beneath
-    #: weapons. Filled in by
-    #: ``n26.core.effects.compute``, which clears and rebuilds the list on
-    #: every run — a card nobody has computed has none. Apart from
-    #: ``roots`` because ``roots`` are things the gang owns: these are
-    #: worth nothing, appear on no ledger, and cannot be sold, so
-    #: anything asking what a model *has* reads ``roots`` and anything
-    #: asking what a model's card *shows* reads both.
+    #: Computed equipment, including free weapon profiles. ``compute``
+    #: clears and rebuilds this output on each run. These nodes add no ledger
+    #: entry or rating. Possession readers use roots; display readers use both.
     granted: list[Node] = field(default_factory=list)
 
-    #: The characteristics this model's owner set by hand, keyed by the
-    #: statline cell each stands in. Loaded with the rest of the build,
-    #: because a render may not query. Empty on a card built without
-    #: statlines, and on one built from the library alone: a preview
-    #: depicts nobody, so there is nobody's settings to honour.
+    #: Owner overrides keyed by statline cell, loaded before rendering.
+    #: Empty when statlines are omitted or the card is a library-only preview.
     stat_overrides: dict = field(default_factory=dict)
 
-    #: The owner's own removals — assignments whose ``removes`` is set,
-    #: each naming a subtype or rule to take away. Machinery, never
-    #: lines: they are kept off the node tree so nothing walking the
-    #: card can mistake one for a held thing, and ``n26.core.effects``
-    #: reads them as unconditional removals.
+    #: Owner-authored removal assignments, excluded from the node tree.
+    #: ``effects`` applies them as unconditional removals.
     removals: list = field(default_factory=list)
 
-    #: The gang's own card, when this card belongs to one of its models.
-    #: The gang's own assignments already ride here as broadcast nodes;
-    #: what the gang holds by *grant* has no assignment to ride, so its
-    #: card comes along and ``n26.core.effects`` reads those acquisitions
-    #: off it. Built from assignments this build already fetched, so it
-    #: costs no query of its own.
+    #: The gang card supplies computed grants to member cards in addition
+    #: to the gang-hosted broadcast nodes. It uses already fetched assignments.
     gang_card: object = None
 
-    #: The campaign's assets the gang holds, dealt onto this card from
-    #: the gang's the way its assignments are dealt as broadcast nodes:
-    #: a held asset's modifiers scoped to models reach this model through
-    #: them, as the gang's guest. Never lines, never worth anything here.
+    #: Current campaign holdings whose model-scoped modifiers reach this
+    #: member. They add no equipment line or member rating.
     holdings: list = field(default_factory=list, repr=False)
     #: Batched cards carry two model facts without a separate roster query.
     #: A bound miniature supplies them instead, including preview projections.
     status: str | None = None
     status_revision: int = 0
 
-    #: What kind of thing this card belongs to. Scopes read it — an
-    #: unfiltered ``TargetsMiniature`` must not swallow a gang, nor
-    #: ``TargetsGang`` a model — so each card type says what it hosts.
+    #: The host kind distinguishes model and gang targets during scoping.
     host_kind = MODEL
 
     @property
@@ -285,27 +223,14 @@ class Card:
         return next((n for n in self.all_nodes() if n.name == name), None)
 
     def model_matchable(self):
-        """The model as selector food: its entry, its type, its subtypes
-        and the pickables it chose.
+        """Expose stored model facts to selectors before computed effects.
 
-        The **base** adapter: printed facts — stored assignments — only.
-        During ``compute`` each round layers what earlier rounds settled on
-        top of this (``n26.effects._Facts``), so a filtered scope sees
-        unconditional grants; ``usability_for`` layers the final state the
-        same way. Called bare, it answers from the assignments alone.
+        Include the primary profile and type, live subtypes, counters and picks.
+        Exclude suppressed nodes and orphan picks. Gang-held picks count as facts
+        about every member; other broadcast assignments do not.
 
-        A pick counts as a possession for the same reason a subtype
-        does: "(Gunner specialist only)" asks what this fighter *is*, and
-        what they chose says so — unless no slot stands behind the pick,
-        in which case nobody chose it and it says nothing about anyone.
-
-        **A pick the gang holds is this model's too.** Where a choice
-        says the gang carries the answer, the pick lands on the gang and
-        rides every member's card as a broadcast row — including the card
-        of the fighter who was asked. What the gang chose is a fact about
-        everyone in it ("models with the Cawdor legacy"), so a pick is
-        the one broadcast row that counts here. Nothing else is: a
-        gang-held gun is not this fighter's gun.
+        ``n26.core.effects._Facts`` adds earlier rounds' results during computation;
+        ``usability_for`` adds the final computed state for access checks.
         """
         from n26.core import select
         from n26.library.models import Counter, Pickable, Subtype
@@ -315,15 +240,12 @@ class Card:
         counts = []
         for node in self.all_nodes():
             if node.suppressed:
-                # Taken away, so no longer a fact about anyone: a rule
-                # reaching Leaders must not reach a fighter whose Leader
-                # assignment something cancelled.
+                # Suppressed assignments cannot satisfy model selectors.
                 continue
             if is_orphan_pick(node):
                 continue
             if node.broadcast and not isinstance(node.assignable, Pickable):
-                # The gang-hosted assignments ride the card for their
-                # effects; they are not facts about this model.
+                # Broadcast assignments supply effects without becoming model facts.
                 continue
             if node.is_primary_profile:
                 profile = node.assignable
@@ -356,54 +278,38 @@ class Card:
 
 @dataclass
 class GangCard:
-    """The gang's own card: what *it* holds, as first-class assignments.
+    """The gang's own assignments, stash and member cards.
 
-    The same assignments ride every member's card marked ``broadcast`` so
-    gang-wide modifiers reach the fighters; here they are the content.
-    Everything a test wants to say about the gang as a thing — its founding
-    assignment, its house list, its choice slots, its stash — asserts
-    against this structure and the ``ComputedGang`` built from it
-    (design/gang-sheet.md); renderables derive from those.
+    Gang-hosted assignments also appear as broadcast nodes on member cards
+    so their modifiers can affect fighters. ``ComputedGang`` and render
+    structures derive from this card. See ``design/gang-sheet.md``.
     """
 
     gang: object
     #: Gang-hosted assignment trees: the founding, the house list, rules,
     #: counters, choice slots and what was chosen for them.
     roots: list[Node] = field(default_factory=list)
-    #: Stash-hosted trees. On the card so the sheet can draw them,
-    #: but not in ``all_nodes()``: nothing in the stash is a fact about
-    #: the gang, and nothing in it computes (design/gang-sheet.md,
-    #: out of scope until something needs it).
+    #: Stash contents are available for display but excluded from all_nodes:
+    #: stored equipment contributes no gang facts or computed effects.
     stash_roots: list[Node] = field(default_factory=list)
     #: Every member's ``Card``, keyed by miniature id, from the same
     #: fetch family — so a whole sheet stays a fixed number of queries.
     members: dict = field(default_factory=dict)
-    #: Lines a modifier granted, as on a model's card. A gang is handed
-    #: nothing today — a granted weapon goes to whoever carries it — but
-    #: both card kinds are computed by one function, and one that read
-    #: its own grants on one card and not the other would be a trap.
+    #: Computed grant output, sharing the fighter card interface used by
+    #: ``compute``.
     granted: list[Node] = field(default_factory=list)
-    #: The flat assignments each member's card was dealt from, kept so a
-    #: selection can re-deal the cards without another fetch — see
-    #: ``members_under``.
+    #: Retain loaded assignments to rebuild selections without refetching.
+    #: See ``members_under``.
     member_rows: dict = field(default_factory=dict, repr=False)
-    #: The gang-hosted assignments that ride every member's card as
-    #: broadcast.
+    #: Gang-hosted assignments broadcast to every member.
     shared_rows: list = field(default_factory=list, repr=False)
-    #: What each member's owner set by hand, keyed by model id, so a
-    #: re-deal under a selection carries the settings without a second
-    #: fetch.
+    #: Owner overrides keyed by model ID, retained when rebuilding selections.
     stat_overrides: dict = field(default_factory=dict, repr=False)
-    #: What the gang holds by grant rather than by assignment, worked out
-    #: on the first compute of this card and kept: every member's card asks
-    #: the same question of the same assignments, so the answer is the same
-    #: for all of them. None until something asks.
+    #: Settled gang grants, cached on first computation and shared by all
+    #: member cards. None until computed.
     acquired: tuple | None = field(default=None, repr=False)
-    #: The campaign's assets this gang holds — the holdings assigned
-    #: to it and not yet taken away. Not nodes: a holding is written on
-    #: no assignment, draws no line among the gang's own and counts for
-    #: nothing, but ``n26.core.effects`` reads each one as a carrier of
-    #: its asset's modifiers while it is held.
+    #: Current campaign holdings. These are modifier carriers rather than
+    #: assignment nodes and contribute no gang rating.
     holdings: list = field(default_factory=list, repr=False)
 
     host_kind = GANG
@@ -413,11 +319,9 @@ class GangCard:
         return sum(node.rating_with_extras for node in self.stash_roots)
 
     def members_under(self, assignment_set):
-        """Every member's card re-dealt under a selection — in memory.
+        """Reassemble member cards under an equipment selection without refetching.
 
-        The assignments are already on this card; only the assembly differs, so
-        a print run's ticked weapons never pay for a second fetch. With
-        no selection the cards as dealt are the answer.
+        Return the existing cards when ``assignment_set`` is None.
         """
         if assignment_set is None:
             return self.members
@@ -457,11 +361,10 @@ class GangCard:
         )
 
     def model_matchable(self):
-        """The gang as selector food: everything it holds, plus counts.
+        """Expose the gang's held assignables and counter values to selectors.
 
-        Broader than a model's policy on purpose — a gang has no type or
-        subtypes, so its facts are simply its own assignments, which is what a
-        ``Has(house list)`` or a gang-level ``CounterAtLeast`` asks about.
+        Gang selectors use all live, non-orphan assignments rather than the
+        fighter-specific profile and subtype policy.
         """
         from n26.core import select
         from n26.library.models import Counter
@@ -512,12 +415,10 @@ def advancement_rated():
 
 
 def _flat_rows(*, with_status=False, **filters):
-    """The bare assignment fetch a card build starts from — one query.
+    """Fetch assignments and their ledger entries in one query.
 
-    Money rides the join: every build reads each assignment's ledger
-    entry. A batched card also joins its membership model for two status
-    facts. The assignable an assignment
-    names is loaded afterwards, in narrow passes — see ``hydrate_rows``.
+    Batch builds also join membership status. Load assignables separately
+    through ``hydrate_rows`` to avoid a wide join.
     """
     from django.db.models import Case, F, OuterRef, Subquery, Sum, When
     from django.db.models.functions import Coalesce
@@ -564,24 +465,16 @@ def rating_assignments(miniature):
 
 
 def hydrate_rows(rows, with_statlines=False, with_options=False):
-    """Load everything a card build reads off ``rows`` — narrow passes,
-    never a wide join.
+    """Load assignment content through narrow, batched prefetches.
 
-    Joined, the assignable kinds and their chains make a select so wide
-    that Postgres spends tens of milliseconds *planning* it and one
-    executing it — and with no prepared statements the planning is paid
-    on every query. As narrow prefetches each pass plans in microseconds,
-    a kind no assignment names never queries at all, and two lists of
-    assignments hydrated together pay once.
+    Each present assignable kind uses a separate query, avoiding PostgreSQL's
+    planning overhead for joins across every kind. Hydrate combined assignment
+    lists together so they share these passes.
 
-    ``with_statlines`` pulls each profile's characteristics along too,
-    which rendering needs and plain assignment work does not.
-
-    ``with_options`` pulls what each copy was bought with — the sets
-    recorded against it and the offer they were picked from. Only the
-    screens that name a copy's options ask for it: a printed sheet says
-    what a fighter carries and never how it was chosen, and would pay
-    these passes for an answer it does not print.
+    ``with_statlines`` loads characteristic values needed for rendering.
+    ``with_options`` loads selection records, their set IDs and option offers.
+    It does not preload the selected set objects. Printed sheets can omit
+    these queries.
     """
     from django.apps import apps
     from django.db.models import Prefetch, prefetch_related_objects
@@ -591,41 +484,29 @@ def hydrate_rows(rows, with_statlines=False, with_options=False):
         "profile_role",
         "counter_value",
         "profile__profile_type",
-        # A chosen-mode placement reads the chosen thing's category off
-        # the assignment already in memory — never by a query. A pick
-        # drawn on a card it did not land on names its slot type there,
-        # which is the same rule: compute may not query.
+        # Load chosen categories and slot types before query-free computation.
         "asset__asset_type",
         "asset__base_income_modifier",
         "pickable__category",
         "pickable__slot_type",
-        # Whether a slot type allows the same pickable twice is read
-        # while a card's notes are worked out, which may not query. The
-        # picklist behind the choice rides along for the picker, which
-        # reads it off the card it was built from.
+        # Choice notes read the slot type's repeat policy without querying.
+        # The picker also needs the preloaded picklist.
         "slot__slot_type",
         "slot__picklist",
         "action__usable_by_profile_types",
         "action__usable_by_subtypes",
         "action__usable_by_profiles",
-        # A profile's home is its gun's, so a scope narrowed to a
-        # category asks each profile for its weapon. Without this the
-        # asking is a query per profile, from inside compute.
+        # Weapon-scoped category selectors need each profile's weapon preloaded.
         "weapon_profile__weapon",
     ]
-    # A card asks a possession's category whether it draws a row of its
-    # own, and these two kinds are the ones that reach the Gear row —
-    # everything else is filed by its kind, drawn inside its weapon, or
-    # is the gang's and not the model's. Joined onto the kind's own pass
-    # rather than added as a path of its own: one FK to a small table
-    # is free here, where a second pass would be a query per card.
+    # These Gear kinds read category display settings. Join the category
+    # within their hydration pass instead of querying it per card.
     paths = [
         Prefetch(
             field,
             queryset=apps.get_model(ASSIGNABLE_FIELDS[field]).objects.select_related(
-                # The section rides along because heading order is the
-                # taxonomy's, and Category breaks a tie on its section's
-                # name. Reading that per group would be a query per group.
+                # Category ordering reads its section's name; preload sections to avoid
+                # one query per category.
                 "category__section",
             ),
         )
@@ -638,9 +519,8 @@ def hydrate_rows(rows, with_statlines=False, with_options=False):
             "profile__statline__stats__statline_type_stat__stat",
             "weapon_profile__statline__stats__statline_type_stat__stat",
             "weapon_profile__traits",
-            # The shape a statline is drawn to, which is the type's and not
-            # the stored values'. Without these, padding a statline short of
-            # a stat asks its type for the full set — a query per profile.
+            # Preload all type stats so incomplete statlines can be padded without
+            # querying per profile.
             "profile__profile_type__statline_type__stats__stat",
             "weapon_profile__weapon__statline_type__stats__stat",
         ]
@@ -651,18 +531,10 @@ def hydrate_rows(rows, with_statlines=False, with_options=False):
 
 
 def _option_offer_paths():
-    """The offer a copy's recorded options are named from, per kind.
+    """Discover option-offer prefetch paths from the library's families.
 
-    Asked of the library's own families rather than a list kept here, so
-    a kind of gear that gains options is described without a query per
-    copy the day it is authored. Only what a model *owns* is described,
-    which is the same question :func:`n26.core.owned.is_possession`
-    asks — a fighter's own entry offers options too, and nothing draws
-    them as kit.
-
-    The set each option brings is not pulled: naming an option reads the
-    key already on its own row, so the set itself would be a query for
-    something nobody looks at.
+    Only possession kinds need these paths. Selected set IDs are already
+    available on option records, so the sets themselves need no prefetch.
     """
     for name in ASSIGNABLE_FIELDS:
         kind = Assignment._meta.get_field(name).related_model
@@ -671,12 +543,10 @@ def _option_offer_paths():
 
 
 def set_by_hand(**filters):
-    """The characteristics owners have set themselves, by model and cell.
+    """Load characteristic overrides as ``{miniature ID: {cell ID: value}}``.
 
-    ``{model id: {statline cell id: value}}`` — one query for however
-    many models the filter reaches, so a whole gang's settings cost what
-    one model's does. A blank is not a setting: the cell falls back to
-    what the model's entry prints.
+    One query covers every matching model. Empty values fall back to the
+    profile's printed characteristic.
     """
     from n26.core.models import StatOverride
 
@@ -698,32 +568,26 @@ def card_rows(with_statlines=False, **filters):
 
 
 def gang_rows(gang):
-    """What the gang itself holds, bare: its founding, and what that
-    brought.
+    """Fetch gang-hosted assignments without hydrating them.
 
-    Hosted on the gang with no model of their own, so they belong to
-    every member's card and to none of their ratings. Hydrate with the
-    rest of the build's assignments — see ``hydrate_rows``.
+    Their modifiers can affect every member, but they contribute no member
+    rating. Hydrate them with the rest of the build's assignments.
     """
     if gang is None:
         return []
     return _flat_rows(
         gang_root=gang,
         miniature_root__isnull=True,
-        # The stash is the gang's too, but it is storage, not a fact
-        # about every member — nothing in it may broadcast onto cards.
+        # Stash equipment must not broadcast modifiers to member cards.
         stash_root__isnull=True,
     )
 
 
 def held_assets(gang):
-    """The campaign's assets this gang holds, in the campaign's order —
-    one query, with the asset and its asset type along, so what a holding
-    is called and what type it is are read off it without another.
+    """Load this gang's current campaign holdings and their content in one query.
 
-    Held means the holding membership is still open: a campaign asset
-    pointing at a membership that has closed is nobody's, whatever the
-    column says.
+    A holding counts only while its membership remains open, even if the
+    asset still references a closed membership.
     """
     from n26.core.models import CampaignAsset
 
@@ -779,12 +643,10 @@ def assemble(
     status=None,
     status_revision=0,
 ):
-    """Reassemble a flat list of assignments into a tree. No queries beyond
-    the set's selection, when one is given.
+    """Assemble loaded assignments into a card's parent tree.
 
-    With an ``assignment_set``, unselected equipment roots — and everything
-    beneath them — are left off the card. Non-equipment (the profile,
-    subtypes, skills, injuries) always rides.
+    An ``assignment_set`` may query its selection. Exclude unselected equipment
+    roots and their descendants; retain profiles, subtypes, skills and injuries.
     """
     holdings = list(gang_card.holdings) if gang_card is not None else []
     active = {
@@ -793,9 +655,8 @@ def assemble(
     }
     rows = [row for row in rows if row.pk in active]
     broadcast = [row for row in broadcast if row.pk in active]
-    # The owner's removals part company with the lines here, before any
-    # node exists to mistake for a held thing. A print selection cannot
-    # resurrect them: they are read off the full fetch, not the kept one.
+    # Extract removals before applying the equipment selection, which must
+    # not restore suppressed facts.
     removals = [row for row in rows if row.removes]
     kept = [row for row in rows if not row.removes]
     rows = kept
@@ -845,8 +706,7 @@ def assemble(
         removals=removals,
         holdings=holdings,
     )
-    # Only what the model owns. The gang-hosted assignments ride the card
-    # so their modifiers reach it; they are not part of what it is worth.
+    # Exclude broadcast gang assignments from member rating.
     card.full_rating = sum(
         row.ledger_entry.rating_contribution
         for row in rows
@@ -866,18 +726,12 @@ def assemble(
 def build_card(
     miniature, with_statlines=False, assignment_set=None, with_options=False
 ):
-    """A model's card: everything it owns, or one named selection.
+    """Build one model's card, optionally filtering its equipment selection.
 
-    Two assignment queries rather than one — the model's own, then the
-    gang's, which ride along so gang-wide modifiers reach this card —
-    hydrated together in one pass, and one more for the campaign's assets
-    the gang holds. A whole gang's worth still costs a fixed number — see
-    ``build_cards_for_gang``, where both come back in the same fetch.
-
-    The gang-hosted assignments are also assembled into the gang's own
-    card and carried on this one, so that what the gang holds by grant
-    reaches this model too. No further fetch: they are the ones already
-    in hand.
+    Fetch the model's assignments and the gang's assignments separately,
+    then hydrate them together. Load campaign holdings in another query.
+    Assemble the gang's own card from the same assignments so its computed
+    grants can affect the model without another fetch.
     """
     membership = miniature.membership if miniature is not None else None
     gang = membership.gang if membership else None
@@ -911,11 +765,11 @@ def build_card(
 
 
 def build_cards_for_gang(gang, with_statlines=True):
-    """Every model's card in the gang, keyed by model id — one flat fetch.
+    """Build member cards keyed by miniature ID from two assignment fetches.
 
-    The gang's own assignments come back in the same query (they share a
-    ``gang_root``) and are handed to every model's card rather than
-    thrown away, which is what makes the broadcast free here.
+    Fetch roster and gang-hosted assignments together, then stash assignments.
+    Hydrate the combined rows once. Gang-hosted rows become broadcast nodes
+    on every member card.
     """
     return build_gang_card(gang, with_statlines=with_statlines).members
 
@@ -936,25 +790,19 @@ def _forest(rows, holdings=()):
 
 
 def build_gang_card(gang, with_statlines=True, assignment_set=None):
-    """The gang's own card, its stash, and every member's card.
+    """Build the gang card, stash and member cards with shared hydration.
 
-    The same fetch family as ever: one assignment query for everything
-    hosted on the gang except the stash, plus one for its contents — kept
-    apart because the stash's assignments belong on no member's card and
-    nothing in them broadcasts (storage, not facts about anyone) — then
-    one shared hydration pass over both. One more for the campaign's
-    assets the gang holds, which are not assignments and ride no fetch of
-    them.
+    Fetch roster and gang-hosted assignments together, with stash contents
+    separate so stored equipment cannot broadcast modifiers to fighters.
+    Load campaign holdings separately because they are not assignments.
 
-    An ``assignment_set`` filters every member's card through the same
-    seam ``build_card`` uses — a selection of equipment roots that may
-    span the whole gang, as a print run's ticked weapons do.
+    ``assignment_set`` filters equipment roots through the same assembly
+    path as ``build_card`` and may span several models.
     """
     grouped = {}
     shared = []
     rows = _flat_rows(gang_root=gang, stash_root__isnull=True, with_status=True)
-    # The stash's assignments ride the same hydration pass as everyone's
-    # — a second pass would repeat every narrow query for a handful.
+    # Hydrate stash and roster assignments together to share narrow queries.
     stash_rows = _flat_rows(gang_root=gang, stash_root__isnull=False)
     hydrate_rows([*rows, *stash_rows], with_statlines=with_statlines)
     holdings = held_assets(gang)
@@ -976,15 +824,12 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
         member_rows=grouped,
         shared_rows=shared,
         holdings=holdings,
-        # One query for the whole roster's settings, dealt out below —
-        # asking model by model is how a gang's budget starts growing
-        # with the number of models in it.
+        # Load every model's overrides together to keep the query count fixed.
         stat_overrides=(
             set_by_hand(miniature__membership__gang=gang) if with_statlines else {}
         ),
     )
-    # Every member's card carries the gang's, so what the gang holds by
-    # grant is dealt onto all of them from one computation of it.
+    # All member cards share one computation of gang grants.
     statuses = {
         row.miniature_root_id: (row.member_status, row.member_status_revision)
         for row in rows
@@ -1007,19 +852,14 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
 
 
 def build_gang_cards(gangs, holdings):
-    """Every gang's own card at once — the gang-hosted rows and nothing
-    else, in a fixed number of queries however many gangs.
+    """Build gang-hosted cards for several gangs with a fixed query count.
 
-    What a campaign page asks of each gang is what the gang itself holds:
-    its counters and their readings, and what the campaign gave it. None
-    of that is on a member's card, so the members are not fetched — one
-    assignment query covers every gang, one hydration pass covers every
-    row, and ``compute`` runs on each card off one shared index.
+    Campaign tables need gang counters, grants and holdings without member
+    cards. Fetch all gang-hosted assignments together and share hydration and
+    the modifier index across their computations.
 
-    ``holdings`` are the campaign's assets, keyed by gang id, read by the
-    caller in one query for the whole campaign. A gang with none gets an
-    empty list, which is a card holding nothing rather than a card with
-    nothing looked up.
+    ``holdings`` maps gang IDs to assets already loaded by the caller.
+    An absent gang ID means that gang holds no assets.
     """
     by_gang = {gang.pk: gang for gang in gangs}
     if not by_gang:
@@ -1045,20 +885,14 @@ def build_gang_cards(gangs, holdings):
 
 
 def build_card_from_profile(profile, option=None, base=None):
-    """The card a hire *would* produce, built from library alone.
+    """Preview the card a hire would create, using library content only.
 
-    No gang, no model, no assignments: this is what a player sees while
-    deciding. It mirrors ``Operation.hire`` exactly — the built-ins, then
-    every set the selection takes (each one-of group's head unless named),
-    each member caused by the profile, weapons carrying their free
-    profiles and bundled ammo hanging off its weapon — so a preview and
-    the thing you get are the same card.
+    Mirror ``Operation.hire``: include built-ins and selected option sets,
+    using each one-of group's default when no selection is given. Attach
+    free weapon profiles and bundled ammunition to their weapons.
 
-    ``base`` replaces the profile's *own* price, which is what a
-    collection's override means: a list offering a Chaos Spawn at 90 has
-    not made its weapon swaps free. Everything the hire comes with keeps
-    its own price, so the card's rating composes exactly as it does at
-    reference.
+    ``base`` overrides only the profile's own price. Built-ins and selected
+    options retain their prices when computing the preview's rating.
     """
     from n26.library.models import Weapon, WeaponProfile
 
@@ -1074,11 +908,10 @@ def build_card_from_profile(profile, option=None, base=None):
         reason=Reason.BOUGHT,
     )
     roots = [root]
-    #: The gun each weapon member brings, by the member — an anchored
-    #: ammo line names its member, so twins stay distinct.
+    #: Weapon nodes keyed by set member, keeping identical weapons distinct
+    #: for anchored ammunition.
     member_guns = {}
-    #: The last-arrived gun of each weapon, for an ammo line that names
-    #: no member and rides whatever matching gun the hire brings.
+    #: Newest node per weapon type for ammunition without a member anchor.
     latest_guns = {}
     ammo = []
 
@@ -1086,9 +919,7 @@ def build_card_from_profile(profile, option=None, base=None):
         if default_set is None:
             continue
         for member in default_set.members.all():
-            # Skipped in Python so the hire list's prefetch of members
-            # stays warm: an archived member is a built-in an author has
-            # taken off, and the hire will not materialise it.
+            # Filter in memory to retain the hire list's prefetched members.
             if member.archived:
                 continue
             assignable = member.assignable
@@ -1102,8 +933,7 @@ def build_card_from_profile(profile, option=None, base=None):
                 key=next(counter),
                 caused_by_key=root.key,
                 reason=Reason.DEFAULT,
-                # A counter's opening value — Starting XP — so the preview
-                # says what the hire will write.
+                # Preview the counter value that hire will write.
                 opens_at=member.amount,
             )
             if isinstance(assignable, Weapon):
@@ -1122,8 +952,7 @@ def build_card_from_profile(profile, option=None, base=None):
                 latest_guns[assignable.pk] = node
             roots.append(node)
             if member.default_pickable_id is not None:
-                # A slot arriving already settled: the preview draws the
-                # starting pick the hire will write, not an open choice.
+                # Preview the starting pick that hire will write.
                 roots.append(
                     Node(
                         assignable=member.default_pickable,
@@ -1135,10 +964,8 @@ def build_card_from_profile(profile, option=None, base=None):
                     )
                 )
 
-    # Bundled ammo stacks under its weapon, wherever in the selection the
-    # weapon arrived — the same order of business as the hire itself: a
-    # member naming its gun lands on that member's own node, one naming
-    # none on the last-arrived gun of its weapon.
+    # Attach ammunition after all selected weapons exist. Prefer its named
+    # weapon member, otherwise the newest matching weapon.
     for member in ammo:
         weapon_profile = member.assignable
         if member.gun_member_id is not None:
@@ -1161,20 +988,17 @@ def build_card_from_profile(profile, option=None, base=None):
         )
 
     card = Card(miniature=None, roots=roots)
-    # Content prices the package outright; a hired card reaches the same
-    # number by summing ledger lines whose items are all free.
+    # The preview prices the package; a stored hire records that rating
+    # on its membership while included assignments remain free.
     card.full_rating = root.rating
     return card
 
 
 def build_modifier_index(assignables, max_depth=3):
-    """Load every modifier reachable from these assignables, and from what
-    they grant, and from what *those* grant.
+    """Load modifiers and recursively granted content before computation.
 
-    A fixed number of queries regardless of how many models or how much
-    kit: one narrow query per assignable kind per level, then one small
-    query per relation the modifiers' sentences read. ``compute`` then
-    runs entirely off this, touching the database not at all.
+    Each level uses one narrow query per assignable kind, plus queries for
+    relations used by modifiers. ``compute`` then runs without database access.
     """
     from django.db.models import Prefetch, prefetch_related_objects
 
@@ -1201,8 +1025,7 @@ def build_modifier_index(assignables, max_depth=3):
         "requires_companions__of",
         *(f"allows_at_most__{name}" for name in COUNTABLE_FIELDS),
         *(f"adds_assignable__{name}" for name in GRANTABLE_FIELDS),
-        # A granted slot's starting pick, dealt onto the card beside the
-        # slot — and a carrier in its own right, so it joins the frontier.
+        # A granted slot's starting pick is also a modifier carrier.
         "adds_assignable__with_pick",
         *(f"removes_assignable__{name}" for name in GRANTABLE_FIELDS),
         "changes_stat__stat",
@@ -1212,9 +1035,8 @@ def build_modifier_index(assignables, max_depth=3):
         "adds_assignable__asset__asset_type",
         "removes_assignable__asset__asset_type",
     )
-    #: Condition rows are reverse relations, so they cannot ride
-    #: select_related — without these a scope's narrowing costs a query
-    #: per card to learn who it reaches.
+    #: Reverse condition relations require prefetches; select_related
+    #: cannot load them for query-free scope evaluation.
     also_prefetch = (
         "hides_categories__categories",
         "targets_miniature__has_subtypes__subtypes",
@@ -1228,10 +1050,8 @@ def build_modifier_index(assignables, max_depth=3):
         "targets_miniature__has_status",
         "targets_gang__has_gang_pickable__pickables",
         "targets_weapons__has_traits__traits",
-        # A given slot draws a choice row worked out by ``compute``,
-        # which may not query, and its slot type decides what the row's
-        # notes may say. Its picklist rides along for the picker behind
-        # the row.
+        # Granted slots need their type and picklist loaded before computation
+        # and picker rendering.
         "adds_assignable__slot__slot_type",
         "adds_assignable__slot__picklist",
         "adds_assignable__action__usable_by_profile_types",
@@ -1239,9 +1059,7 @@ def build_modifier_index(assignables, max_depth=3):
         "adds_assignable__action__usable_by_profiles",
         "targets_weapons__in_categories__categories",
         "targets_weapons__is_one_of__weapons",
-        # A granted weapon is put on the card as lines, statlines and all,
-        # by ``compute``, which may not query. Its profiles and what
-        # they are printed with therefore have to be here.
+        # Load profiles and printed values for granted weapons before compute.
         "adds_assignable__weapon__profiles__traits",
         "adds_assignable__weapon__profiles__statline__stats__statline_type_stat__stat",
         "adds_assignable__weapon__statline_type__stats__stat",
@@ -1262,12 +1080,8 @@ def build_modifier_index(assignables, max_depth=3):
         if not by_model:
             break
 
-        # The attachment rows first — one narrow query per kind, onto the
-        # objects we already hold. What the modifiers' halves read is then
-        # hydrated once, over the modifiers of the whole level:
-        # a small query per path. Joining every path into each kind's
-        # fetch instead would make a many-join select whose *planning*
-        # costs more than all of these run in.
+        # Fetch attachments per kind, then hydrate modifiers across the whole
+        # level. Combining every path in one join increases planning overhead.
         for model, things in by_model.items():
             prefetch_related_objects(things, _modifiers_path(model))
             if hasattr(model, "income_override"):
@@ -1306,9 +1120,8 @@ def build_modifier_index(assignables, max_depth=3):
         granted = []
         for things in by_model.values():
             for thing in things:
-                # A carrier reached from two kinds must resolve to the one
-                # hydrated instance, or the other copy answers compute
-                # with the lazy queries it is forbidden to make.
+                # Reuse the fully hydrated instance when multiple kinds reach one
+                # carrier, preventing lazy queries during compute.
                 modifiers = [hydrated[m.pk] for m in _modifiers_of(thing)]
                 if getattr(thing, "income_override_id", None) and not getattr(
                     _modifier_carrier(thing), "base_income_modifier_id", None
@@ -1326,8 +1139,7 @@ def build_modifier_index(assignables, max_depth=3):
                     granted_thing = getattr(modifier.effect, "thing", None)
                     if granted_thing is not None:
                         granted.append(granted_thing)
-                    # The pick a granted slot arrives with runs its own
-                    # modifiers too; without this, they would never load.
+                    # Starting picks can carry modifiers and must enter the next frontier.
                     with_pick = getattr(modifier.effect, "with_pick", None)
                     if with_pick is not None:
                         granted.append(with_pick)
@@ -1364,13 +1176,10 @@ def _modifier_carrier(thing):
 
 
 def carriers(*cards):
-    """Everything the modifier index must hold to compute these cards.
+    """Collect assignables and campaign holdings whose modifiers affect these cards.
 
-    Each node's assignable, and the campaign's assets the gang holds —
-    read off a gang's own card, or off the gang card a member's card
-    carries, since what a holding gives the gang is dealt onto every
-    member as the gang's guest. An index built from the nodes alone would
-    run a holding's modifiers nowhere and say nothing about it.
+    Member cards include the gang card's holdings because their computed
+    grants may affect every member. Nodes alone omit those modifiers.
     """
     things = []
     for card in cards:

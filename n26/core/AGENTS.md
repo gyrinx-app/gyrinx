@@ -117,3 +117,9 @@ Unit tests of one module's contract sit next to the code
 (`n26/core/test_*.py` and `tests.py`, no `tests/` package). Anything
 that needs a gang and rulebook-shaped content belongs in
 `n26/tests/sandbox/` instead — see `n26/tests/AGENTS.md`.
+
+For absolute-edit snapshots, include constraints derived from related records,
+not just the edited row's modification time. Asset-type ownership can become
+fixed when an asset or table is created. Preserve the signed initial value of a
+disabled field so later locking cannot silently change the submitted intent.
+Check current authorization and scope under the write lock before no-op success.

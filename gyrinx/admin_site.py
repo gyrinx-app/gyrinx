@@ -1,18 +1,8 @@
-"""Admin site that hands authentication to django-allauth.
+"""Route admin authentication through allauth, including its MFA checks.
 
-Django's own admin login view authenticates against a username and password and
-nothing else. It knows nothing about allauth's login stages, so a staff account
-with TOTP configured could sign in at ``/admin/login/`` without ever being asked
-for a second factor — the app's front door is protected, the admin's is not.
-
-``GyrinxAdminSite`` closes that door. The admin login view never renders a form:
-it only redirects into the allauth flow, so every admin session is created by the
-same code path (and the same second-factor challenge) as every app session.
-
-On top of that, when ``ADMIN_REQUIRE_MFA`` is on, reaching the admin requires
-that the staff user actually *has* a second factor configured, and that the
-current session was authenticated with it. Users who fall short are sent to
-allauth to set up TOTP or to enter a code, rather than being locked out.
+The admin login redirects to allauth instead of accepting credentials itself.
+When ADMIN_REQUIRE_MFA applies, staff must configure a second factor and
+complete its challenge in the current session before accessing admin pages.
 """
 
 from functools import wraps
@@ -44,13 +34,10 @@ _UNSET = object()
 
 
 def admin_requires_mfa() -> bool:
-    """Whether the admin is gated on a completed second-factor challenge.
+    """Return the configured MFA requirement, defaulting to enabled outside DEBUG.
 
-    An explicit ``ADMIN_REQUIRE_MFA`` wins. Left unset, the gate follows
-    ``DEBUG``: on in production, off in local development, where each worktree
-    has its own database and requiring TOTP would mean a separate authenticator
-    per worktree. Note that this only relaxes the *second factor* — admin login
-    still goes through allauth everywhere.
+    Local worktrees may omit second-factor setup; admin login still uses
+    allauth in every environment.
     """
     configured = getattr(settings, "ADMIN_REQUIRE_MFA", None)
     if configured is not None:
@@ -59,12 +46,7 @@ def admin_requires_mfa() -> bool:
 
 
 def session_authenticated_with_mfa(request) -> bool:
-    """Whether this session completed an allauth MFA challenge.
-
-    allauth logs every authentication step it performs into the session, so this
-    is a statement about *this* session rather than about the user's settings —
-    a session created before the user enabled TOTP does not count.
-    """
+    """Return whether allauth recorded an MFA challenge for this user's session."""
     from allauth.account.authentication import get_authentication_records
 
     return any(
@@ -116,10 +98,9 @@ def admin_second_factor_required(user) -> bool:
 
 
 def is_admin_bound_request(request) -> bool:
-    """Whether this request is a step on the way into the admin.
+    """Return whether a validated next parameter points into the admin.
 
-    Reads the ``next`` target, so it holds for allauth's own pages while they
-    are standing between the visitor and an admin URL.
+    This also identifies allauth pages handling an admin-bound login.
     """
     if request is None:
         return False
@@ -139,13 +120,10 @@ def is_admin_bound_request(request) -> bool:
 
 
 def admin_gated_patterns(url_patterns):
-    """Put ``url_patterns`` behind the same gate as the admin's own views.
+    """Apply the admin's authentication checks to adjacent URL patterns.
 
-    ``AdminSite.admin_view`` protects everything routed through the site itself,
-    but admin-adjacent URLconfs (admindocs) are decorated with Django's
-    ``staff_member_required``, which only knows about ``is_staff``. Wrapping
-    their callbacks sends visitors through the admin login view instead, so
-    there is one place that decides who gets in.
+    Pages such as admindocs otherwise check only staff status and could omit
+    the admin's second-factor requirement.
     """
     from django.urls import URLPattern
 

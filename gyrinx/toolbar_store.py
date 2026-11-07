@@ -1,26 +1,8 @@
-"""
-A debug toolbar store that serializes each panel's data when it is read.
+"""Serialise Debug Toolbar panel snapshots when they are first read.
 
-The toolbar's ``MemoryStore`` turns every panel's data into JSON as the request
-ends, on every ``record_stats`` call, so that the History panel and the
-on-demand panel views can read it back later. Most of that data is never read.
-On a component-heavy page the Templates panel alone holds megabytes of
-formatted context, and encoding it took longer than rendering the page.
-
-This store takes a detached copy of the data when it is saved and serializes the
-copy the first time anything reads it, through the toolbar's own ``serialize``
-and ``deserialize``. The copy shares strings and numbers, which cannot change,
-and turns anything else JSON cannot hold into what the toolbar's encoder would
-have made of it at that moment, so every reader gets exactly what
-``MemoryStore`` would have given it, even if the recorded objects change later.
-Copying is cheap; encoding the long strings is what was slow. The page that was
-just rendered never reads its own entry: the toolbar draws it from the stats it
-holds in memory.
-
-It is development-only, and ``settings_dev`` selects it through the toolbar's
-``TOOLBAR_STORE_CLASS`` setting. It lives apart from ``gyrinx/toolbar_dev.py``
-because ``debug_toolbar.store`` imports a model, so it cannot be imported while
-apps are still loading.
+Detach mutable panel data when saved, converting unsupported values with the
+toolbar encoder. Later reads use its serialise and deserialise functions. A
+lock prevents an older encoding result from replacing a newer snapshot.
 """
 
 import threading

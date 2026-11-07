@@ -1,12 +1,7 @@
-"""Admin for notifications, including a broadcast (create-to-many) view.
+"""Platform admin screens and notification broadcast forms.
 
-Banner and ImpersonationLog are still registered from ``n23.core.admin``; only
-the notification admin has been brought over so far.
-
-Who a broadcast can be addressed to is not decided here: audiences come from
-``gyrinx.site.registry``, which the platform seeds with "all active users" and
-each edition extends with its own (see ``n23/core/admin/broadcast.py``). That
-is what keeps this module free of edition imports.
+Broadcast audiences register through gyrinx.site.registry, keeping edition
+models out of this module.
 """
 
 from django import forms
@@ -200,17 +195,10 @@ class ChangelogEntryAdmin(admin.ModelAdmin):
 
 
 class FeatureFlagForm(forms.ModelForm):
-    """The slug is typed, cleaned, and checked rather than chosen.
+    """Normalise a typed feature slug before checking uniqueness.
 
-    Any word can be a flag: a row whose slug no code asks for is inert —
-    nothing reads it — so a slug typed ahead of the code is harmless,
-    where a fixed list would demand a deploy before this page could name
-    the feature at all. What typing must not do is make two rows for one
-    feature or a slug code cannot ask for, so the value is slugified on
-    the way in and uniqueness is checked against the cleaned form.
-
-    Declared as a plain text field: the model field's own slug validation
-    would refuse dirty input before the cleaning here could tidy it.
+    A plain text field accepts input before slug cleaning. Unregistered slugs
+    may be stored but have no effect until code registers and uses them.
     """
 
     slug = forms.CharField(
@@ -235,15 +223,10 @@ class FeatureFlagForm(forms.ModelForm):
 
 @admin.register(FeatureFlag)
 class FeatureFlagAdmin(admin.ModelAdmin):
-    """Where a half-built feature is opened and shut.
+    """Edit feature access while keeping existing slugs read-only.
 
-    Which accounts may see an unfinished screen is a decision somebody makes
-    while the work is going on, not one to hold until a deploy — so it is a
-    page rather than a setting.
-
-    The slug is what code asks for, so it is settable when the row is
-    created and fixed afterwards: editing it later would not rename a
-    feature, it would turn one off and leave a second nobody reads.
+    Code identifies features by slug, so changing one would disable lookups
+    for that feature.
     """
 
     form = FeatureFlagForm
@@ -253,10 +236,7 @@ class FeatureFlagAdmin(admin.ModelAdmin):
     list_select_related = ["group"]
 
     def get_readonly_fields(self, request, obj=None):
-        # Added to whatever is already fixed rather than replacing it, so a
-        # field pinned on this class or a mixin later is not silently freed —
-        # and only where it is not already there, since a field named twice
-        # is drawn twice.
+        # Preserve inherited read-only fields and avoid displaying slug twice.
         fixed = list(super().get_readonly_fields(request, obj))
         if obj and "slug" not in fixed:
             fixed.append("slug")
