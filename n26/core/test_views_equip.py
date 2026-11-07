@@ -2196,6 +2196,61 @@ class TestTheLibraryTab:
 
 
 class TestSupplementaryPetsNavigation:
+    @pytest.mark.parametrize("json_command", [False, True])
+    def test_unrestricted_keeps_pet_list_terms_before_the_post(
+        self, client, tester, fighter, gang, json_command
+    ):
+        from uuid import uuid4
+
+        from n26.core.owned import thing_key
+        from n26.core.reconcile import assert_reconciled
+        from n26.library.authoring import create_trading_post
+        from n26.library.models import Wargear
+
+        harness = create_wargear("Pet harness", price=40, trade_point_price=3)
+        pets = create_collection(
+            "Supplementary Pets", entries=[(harness, {"price_override": 10})]
+        )
+        post = create_trading_post(contains=[Wargear])
+        with operation(gang, actor=tester) as op:
+            op.assign(pets, gang=gang)
+        client.force_login(tester)
+        props = page_of(client.get(f"{equip_url(fighter)}?list=all"))
+        assert [tab["key"] for tab in props["scopeTabs"]] == [
+            str(post.pk),
+            str(pets.pk),
+            "all",
+        ]
+        row = next(
+            row
+            for section in props["sections"]
+            for category in section["categories"]
+            for row in category["entries"]
+            if row["name"] == "Pet harness"
+        )
+        assert row["purchase"]["price"] == 10 and row["purchase"]["tradePoints"] is None
+        payload = {"thing": thing_key(harness), "confirmed": "1"}
+        at = f"{equip_url(fighter)}?list=all"
+        if json_command:
+            at = reverse("n26-equip-fighter-command", args=[fighter.pk])
+            payload.update(
+                action="buy",
+                request_key=str(uuid4()),
+                list="all",
+                selection="[]",
+                parts="[]",
+            )
+        response = client.post(at, payload)
+        assert response.status_code == (200 if json_command else 302)
+        if json_command:
+            assert response.json()["outcome"] == "completed"
+        holding = Assignment.objects.get(miniature_root=fighter, wargear=harness)
+        assert holding.ledger_entry.paid == 10
+        assert holding.ledger_entry.trade_points == 0
+        gang.refresh_from_db()
+        assert gang.credits == 90
+        assert_reconciled(gang)
+
     @pytest.mark.parametrize("with_house", [True, False])
     def test_pets_follow_the_standard_post_without_becoming_the_default(
         self, client, tester, fighter, gang, house_list, with_house

@@ -882,3 +882,11 @@ Include less visible navigation flags in the migration inventory. Equip carries
 though it does not restore dismissed choices on the Equip card. Test the native
 adapter and the JSON refresh together. Keep new navigation-only scalars optional
 when restoring older retained commands.
+
+Collection tab order and pricing priority are separate. Fighter Equip places
+Supplementary Pets after the Trading Post for navigation, while Unrestricted
+still uses held equipment-list terms before post terms. Test overlapping offers
+through native and JSON purchases. Preserve secondary form actions as explicit
+intents too: moving fighter equipment to the stash remains available when other
+models are offered. Prepare the chosen destination before submitting, so the
+hidden fields and retained command describe the same move.

@@ -54,8 +54,8 @@ def _tab_label(collection):
     return name[: -len(LIST_SUFFIX)].strip(" -–—:") or name
 
 
-def buyable_lists(held, *, supplementary_pets_after_post=False):
-    """Select held gear lists, then the standard post and optional supplementary pets.
+def buyable_lists(held):
+    """Select held gear lists, then the standard Trading Post.
 
     Collection assignments also include skill sets, so filter by content family.
     Resolve the standard post within the default pack; same-named custom posts
@@ -71,16 +71,11 @@ def buyable_lists(held, *, supplementary_pets_after_post=False):
         .values_list("pk", flat=True)
     )
     collections = [c for c in held if c.pk in buyable]
-    supplementary_pets = []
-    if supplementary_pets_after_post:
-        supplementary_pets = [c for c in collections if c.name == "Supplementary Pets"]
-        collections = [c for c in collections if c.name != "Supplementary Pets"]
     post = Collection.objects.filter(
         name=TRADING_POST_COLLECTION, pack=get_default_pack()
     ).first()
     if post is not None:
         collections = [c for c in collections if c.pk != post.pk] + [post]
-    collections.extend(supplementary_pets)
     return collections
 
 
@@ -168,8 +163,12 @@ def _screen(gang, miniature=None, list_param="", budgets=True, *, include_staged
                 access.collection
                 for access in collections_for(miniature, card=card, computed=computed)
             ],
-            supplementary_pets_after_post=True,
         )
+        pricing_collections = collections
+        # Tab order does not change which held list supplies an unrestricted price.
+        collections = [c for c in collections if c.name != "Supplementary Pets"] + [
+            c for c in collections if c.name == "Supplementary Pets"
+        ]
         if list_param == ALL_SCOPE:
             # Price unrestricted gear through held collections and retain model usability notes.
             chosen = None
@@ -181,7 +180,7 @@ def _screen(gang, miniature=None, list_param="", budgets=True, *, include_staged
                 ),
                 [
                     browse(collection, include_staged=include_staged)
-                    for collection in collections
+                    for collection in pricing_collections
                 ],
             )
         else:

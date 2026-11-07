@@ -300,3 +300,10 @@ through display reads, commands, confirmations and onward control links. Test
 such flags on native and JSON adapters; a complete renderer can still lose
 navigation state if a retained scalar is missing. Add navigation-only fields as
 optional recovery inputs so older unresolved commands still restore.
+
+Keep navigation order separate from quote precedence. A reordered collection
+rail must not change which held list prices Unrestricted purchases. Test an
+item present in both the moved list and the Trading Post through both command
+adapters. Inventory secondary submit actions too: fighter reassignment offers
+both another model and the stash. The retained payload must match the clicked
+destination before submission.

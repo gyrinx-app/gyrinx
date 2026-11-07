@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { fieldErrors } from "../../http/command";
 import {
     Button,
@@ -108,6 +108,9 @@ export function Command({
     const resolved = useRef<EquipOutcome | null>(null);
     const currentValues = useRef(draft?.values ?? blankValues(page));
     const id = useId();
+    const [destination, setDestination] = useState<"model" | "stash" | null>(
+        null,
+    );
     const form = useWorkflowForm({
         values: draft?.values ?? blankValues(page),
         errors: {},
@@ -163,6 +166,12 @@ export function Command({
         },
     });
     const { values, setValues, frozen, pending, uncertain } = form;
+    useEffect(() => {
+        if (destination && values.to === destination && !frozen) {
+            element.current?.requestSubmit();
+            setDestination(null);
+        }
+    }, [destination, values.to, frozen]);
     currentValues.current = values;
     useEffect(() => {
         onFrozen(frozen);
@@ -205,6 +214,15 @@ export function Command({
     const canSubmit = uncertain || !dialog || !!dialog.submit_label;
     const change = (name: keyof typeof values, value: string) =>
         setValues((previous) => ({ ...previous, [name]: value }));
+    const hasStashDestination =
+        dialog?.kind === "reassign" &&
+        !!page.model &&
+        !!dialog.models.length &&
+        !dialog.weapons?.length;
+    const submitTo = (to: "model" | "stash") => {
+        change("to", to);
+        setDestination(to);
+    };
     let details = keys(values.display_details);
     if (dialog) {
         details = [dialog.lead];
@@ -230,6 +248,8 @@ export function Command({
             details.push(
                 `To: ${dialog.models.find((model) => model.key === values.miniature)?.name || "selected model"}`,
             );
+        if (dialog.kind === "reassign" && values.to === "stash")
+            details.push("To: stash");
     }
     if (
         values.action === "tally" &&
@@ -269,7 +289,14 @@ export function Command({
                         `${values.action === "buy" ? "Buy" : "Change"} ${values.display_name}`
             }
             lead={question?.lead}
-            onSubmit={form.save}
+            onSubmit={(event) => {
+                if (hasStashDestination && !uncertain && !destination) {
+                    event.preventDefault();
+                    submitTo("model");
+                } else {
+                    void form.save(event);
+                }
+            }}
             pending={frozen}
             onDismiss={() => {
                 if (!frozen) onDismiss();
@@ -569,6 +596,11 @@ export function Command({
                 )}
             </fieldset>
             <FormActions>
+                {hasStashDestination && (
+                    <Button disabled={frozen} onClick={() => submitTo("stash")}>
+                        To the stash
+                    </Button>
+                )}
                 {canSubmit && (
                     <Button
                         type="submit"
