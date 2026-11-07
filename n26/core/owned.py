@@ -179,9 +179,10 @@ class OwnedPart:
     #: Whether this subtree used Trade Points. This determines refund
     #: availability when the gang has no credit budget.
     paid_trade_points: bool = False
-    #: Option-selection URL, available only when content offers a choice.
+    #: Detachment URL for an attached possession with no granting cause.
+    #: Weapon profiles and built-in parts have no detachment controls.
     detach_href: str = ""
-    #: Fitting URL for a loose accessory when the bearer carries a weapon.
+    #: Refitting URL when this part is detachable and another weapon is available.
     fit_href: str = ""
 
 
