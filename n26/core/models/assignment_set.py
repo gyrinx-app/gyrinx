@@ -1,12 +1,8 @@
-"""Assignment sets — a named selection of one model's equipment.
+"""Assignment sets select one model's equipment for a card.
 
-A model's equipment is bought once. A set chooses which weapons and wargear
-show on one card; every other assignment shows on every card. A card built
-without a set shows everything the model owns.
-
-Selectable kinds are weapons and wargear hosted on the model; a weapon's
-ammo follows the weapon. Sets change no stored rating and never go through
-``n26.operations``.
+Select model-hosted weapons and wargear; ammunition follows its weapon.
+Other assignments appear on every card. Without a set, show all equipment.
+Selections change no stored rating and use plain saves rather than operations.
 """
 
 from django.core.exceptions import ValidationError
