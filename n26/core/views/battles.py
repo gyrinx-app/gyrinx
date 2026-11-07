@@ -236,8 +236,7 @@ class BattleListLine:
 
 
 def _battle_lines(campaign):
-    """Each battle that is not archived, with its gangs, their starting
-    crew sizes and its stake, read in a fixed number of queries."""
+    """Load active battles with participant, crew-size and stake data in bulk."""
     # A pet saved as a crew member goes with its owner and is not counted,
     # as on the battle's own page.
     starting = Q(
@@ -250,8 +249,7 @@ def _battle_lines(campaign):
         .prefetch_related(
             Prefetch(
                 "gangs",
-                # The owner's profile and badges, so each Player link
-                # costs nothing more.
+                # Preload profile and grants for player badges.
                 queryset=Gang.objects.select_related(
                     "gang_type", "owner__profile"
                 ).prefetch_related("owner__badge_grants"),
@@ -282,9 +280,10 @@ def _battle_lines(campaign):
 
 
 def _sorted_battle_lines(lines, sort):
-    """``lines`` in the order ``sort`` names. A battle missing the value
-    sorted on, such as one with no stake, goes last either way; ties keep
-    the newest battle first."""
+    """Sort by the selected column, keeping missing values last in either direction.
+
+    Preserve input order for ties.
+    """
     key = sort.lstrip("-")
     reverse = sort.startswith("-")
     value = {
@@ -301,9 +300,7 @@ def _sorted_battle_lines(lines, sort):
 
 @login_required
 def campaign_battles(request, pk):
-    """Every battle in the campaign that is not archived, with who took
-    part, their players and gang types, and what was staked. Sorted and
-    filtered by the address, so a view can be shared."""
+    """List active campaign battles with URL-based sorting and gang filters."""
     from n26.core.forms import CampaignBattlesForm
 
     campaign = _any_campaign_or_404(request, pk)
@@ -327,8 +324,7 @@ def campaign_battles(request, pk):
             for line in lines
             if any(str(entry.gang.pk) == gang for entry in line.gangs)
         ]
-    # Each heading sorts by its column in its usual first order; a second
-    # click reverses it. The gang filter is kept.
+    # Toggle the selected column's direction while preserving the gang filter.
     headings = []
     for first, label in (
         ("scenario", "Battle"),
@@ -400,11 +396,9 @@ def restore_battle(request, pk, battle_pk):
 
 @login_required
 def record_battle_outcome(request, pk, battle_pk):
-    """The outcome of a battle with none, recorded by a player who fought
-    it or by the arbitrator.
+    """Record an unrecorded battle's outcome and winners.
 
-    Only the outcome and winners are offered. A reader who may not record
-    it, or a battle whose outcome is already in, gets a 404.
+    Require permission as a participating player or the campaign arbitrator.
     """
     campaign = _any_campaign_or_404(
         request, pk, with_owner_badge=request.method == "GET"
