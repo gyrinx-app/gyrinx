@@ -32,12 +32,8 @@ class GangType(Content, Assignable):
 
     family = Family.GANG
 
-    # The drawing is a file in the site's own storage and the row keeps its
-    # address, so a badge can be uploaded here or pointed at where it already
-    # sits. Drawn inline rather than as an image, which is what lets it take
-    # the colour of the text beside it — and that means the server reads the
-    # bytes, so an address is only ever resolved against this site's storage
-    # and never fetched from wherever it points (library/artwork.py).
+    # Store an SVG address and render its bytes inline to inherit the text colour.
+    # Resolve only against site storage; never fetch arbitrary URLs (library/artwork.py).
     icon_url = models.CharField(
         max_length=500,
         blank=True,
@@ -94,11 +90,8 @@ class GangType(Content, Assignable):
 
     @property
     def artwork(self):
-        """The badge's SVG source, for a surface to clean and draw inline.
+        """Read SVG source through edition storage, returning empty text when unavailable.
 
-        The one accessor every surface reads, so none of them has to know
-        that an address is involved. Empty for a type with no badge and for
-        one whose address no longer names anything — both draw as nothing at
-        all rather than as a gap in a column of names.
+        Rendering surfaces must sanitise the source before displaying it inline.
         """
         return read_artwork(self.icon_url)

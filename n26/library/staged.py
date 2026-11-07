@@ -1,35 +1,13 @@
-"""Content that is staged — written, but not yet put live — and who sees it.
+"""Control discovery of staged library content.
 
-Not the uploaded sheets waiting to be imported (``models/staging.py``):
-those are files, and this is content that already exists as rows.
+Staff and users allowed by the ``staged-content`` flag can discover staged
+content through the ordinary founding, hiring and equipment surfaces.
+Existing assignments render for every viewer, including staged content;
+shared rosters must not change with the viewer's permissions.
 
-An author writes a new gang over days — its type, its fighters, the lists
-they buy from — and players must not meet it half-built. The author,
-though, must meet it exactly as players will: on the create-gang cards, the
-hire screen, the equipment lists. That is the only test of content that
-counts, and it is why a staged row is not simply hidden. It is held back
-from every surface where a player adds to a gang, and shown on those same
-surfaces to whoever may see it.
-
-Two rules keep this small (design/collections.md, "Hiding content from
-some viewers"):
-
-* **The gate is where things are chosen, never where they are drawn.** A
-  card, a sheet, a ledger line renders whatever it holds. Once a staged
-  thing is on a gang — an author's test gang, or a live profile whose
-  built-ins bring it — it draws for everyone, because a roster is a thing
-  players send each other and what it shows cannot depend on who is
-  looking.
-* **Staging holds back new things; it does not hold back changes.** A
-  change to a row that is already live is live at once. What staging adds
-  is a place to leave new content until it is ready, and one act that
-  releases an author's explicit selection together.
-
-Who sees staged content: staff, because the authoring pages are theirs;
-and whoever the ``staged-content`` flag is open to, so a release can be
-rehearsed with a group of players before it is made. Opening that flag to
-everyone is a rehearsal with a way back; putting the rows live is the
-release.
+Staging applies to newly discoverable content. Editing live content changes
+it immediately. Uploaded CSV files in ``models/staging.py`` are separate
+from staged content. See design/collections.md.
 """
 
 from functools import cache
@@ -41,16 +19,10 @@ _KEPT_ON_USER = "_sees_staged"
 
 
 def sees_staged(user) -> bool:
-    """Whether this reader is shown staged content where players add to a gang.
+    """Check staged-content access and cache the result on the user for this request.
 
-    Anonymous readers never are: every such surface wants a signed-in
-    owner anyway, and a roster — the one page a stranger reads — draws
-    what it holds regardless.
-
-    One screen asks this several times — for the listing, for each dialog
-    on it, for the click it checks — and the flag cannot change between
-    them, so it is read once and kept on the user for the request,
-    the way Django keeps the permissions it has looked up.
+    Anonymous users have no discovery access. Existing roster content remains
+    visible independently of this check.
     """
     if user is None or not user.is_authenticated:
         return False
@@ -65,9 +37,7 @@ def sees_staged(user) -> bool:
 
 @cache
 def content_kinds():
-    """Every concrete kind built on ``Content``, in the order an author reads
-    them — the tables that carry a ``staged`` column. Fixed once the app has
-    started, so it is worked out once."""
+    """Cache concrete Content subclasses carrying the staged field, in authoring order."""
     from django.apps import apps
 
     from n26.library.models import Content
@@ -81,26 +51,12 @@ def content_kinds():
 
 
 def stageable_kinds():
-    """The kinds a player is offered somewhere, so staging one means something.
+    """Discover kinds exposed by player selection surfaces.
 
-    Read off the places that offer them rather than listed again here: the
-    types a gang or a campaign is founded on, what a collection may list,
-    what a choice may offer, what a picklist holds, what a model's edit
-    page offers to tick, and the assets a campaign hands out. A kind that
-    becomes offerable becomes stageable with nothing to remember.
-
-    The lines that do the offering count too — a collection's entries and a
-    picklist's members. A line is what puts a live thing in front of a
-    player, so a new line on a live list is held back the way a new thing
-    is, and an import stages the lines it writes along with the things.
-
-    An interstitial is a screen a player is shown, and its attachment is
-    the line that puts it in front of them, so both count for the same
-    reason: an author drafts one against a live slot without players
-    seeing it until it is put live.
-
-    Everything else — a category, a modifier, a statline — is reached
-    through one of these and needs no gate of its own.
+    Include collection entries and picklist members because a new membership
+    can expose existing content. Include interstitials and their attachments
+    because they introduce new screens. Supporting categories, modifiers and
+    statlines are reached through discoverable content and need no separate gate.
     """
     from django.apps import apps
 
@@ -160,20 +116,16 @@ def staged_count():
 
 
 def staged_rows():
-    """Every staged authoring row, kind by kind.
+    """List staged authoring content by kind, excluding campaign packs.
 
-    Every kind is asked, not only the stageable ones, so a row staged some
-    other way is never invisible to the people who can put it live. Campaign
-    packs remain outside this staff workflow. A kind with nothing staged is
-    left out. One query per kind, however many rows.
+    Include all Content kinds so records staged outside normal workflows remain
+    reachable. Omit empty kinds; issue one query per kind.
     """
     from n26.library.references import forward_relations
 
     found = []
     for model in content_kinds():
-        # Each row is named and described on the page, and a line names the
-        # list and the thing it joins — loaded with the row, so a page of a
-        # hundred staged lines costs the same handful of queries as one.
+        # Load relations used by staged entry labels together to avoid per-entry queries.
         rows = list(
             model.objects.outside_campaign_packs()
             .filter(staged=True)
