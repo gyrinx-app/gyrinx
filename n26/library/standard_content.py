@@ -794,7 +794,9 @@ def _affiliation_profiles(gang_type, ranks):
 def _check_founding_budgets():
     """Check exact profile membership using the same predicates as creation.
 
-    Added, reranked or deleted profiles make the seed incomplete until refreshed.
+    Added or reranked profiles can require a refresh. Deleting a profile can
+    leave membership correct; deleting the last profile can leave an obsolete
+    modifier that must be removed.
     Missing authored affiliations are excluded from completeness requirements.
     """
     from n26.library.models import GangType
