@@ -1,6 +1,4 @@
-"""
-Tests for task registry.
-"""
+"""Task lookup and enumeration through the registered route list."""
 
 from unittest.mock import patch
 
@@ -21,19 +19,19 @@ def other_task():
 
 
 def test_get_task_returns_none_for_unknown():
-    """get_task returns None for unknown task names."""
+
     result = get_task("nonexistent_task_xyz")
     assert result is None
 
 
 def test_get_all_tasks_returns_list():
-    """get_all_tasks returns a list."""
+
     result = get_all_tasks()
     assert isinstance(result, list)
 
 
 def test_get_task_with_registered_task():
-    """get_task returns the route for registered tasks."""
+
     routes = [TaskRoute(sample_task), TaskRoute(other_task)]
     with patch("gyrinx.tasks.registry._tasks", routes):
         result = get_task("sample_task")
@@ -46,7 +44,7 @@ def test_get_task_with_registered_task():
 
 
 def test_get_all_tasks_with_registered_tasks():
-    """get_all_tasks returns all registered tasks."""
+
     routes = [TaskRoute(sample_task), TaskRoute(other_task)]
     with patch("gyrinx.tasks.registry._tasks", routes):
         result = get_all_tasks()
