@@ -1,56 +1,13 @@
-"""Selecting a skill — the standing half of the skills surface.
+"""Select skills and powers through a model's placed grids or checkbox editor.
 
-A founding pick is a question somebody asked ("a Leader starts with a
-Primary skill") and it is chosen for at its own address. This is the other
-half: what a fighter may select at any time, which nobody asked and which
-is not a question at all — it is their **grid**, the placements their
-profile and subtypes carry, read as a list.
+The dedicated skills page limits offers to placed tiers. The edit-page offer
+includes every skill and power set, grouped into placed or already-held sets
+and the remaining options. These partitions affect presentation only.
 
-So the address names a fighter rather than a slot::
-
-    /fighters/<model>/skills/?list=<collection>
-
-and the screen is the same shape the choose page draws: the fighter's
-own view of a collection, resectioned by their placements, with the
-unplaced tier dropped — a skill nobody placed for them is not theirs to
-select, however visible it is on a browse (``n26.core.browse`` keeps it
-there deliberately, and the roll-anything pick wants exactly that).
-
-A fighter whose grid places nothing gets the screen anyway, saying
-there is nothing for them to select. The grid is the access and an
-unauthored one is a content gap, but the address names a fighter rather
-than the gap: it is theirs whether or not anybody has graded them, so
-the switcher on the next fighter's screen can offer it without knowing
-which of them have a grid.
-
-What clicking writes is usually ``Operation.select``: free, recorded, and
-caused by nothing, so what a fighter earned survives the assignment that
-opened the set up to them.
-
-If the card is still asking for a starting skill, and the thing selected
-is on that question's Choose list, the click is that answer — written the
-way Choose writes it. A Secondary skill is not a Primary skill, so it
-stays a standing selection and the question stays open. Otherwise the
-card would keep asking beside a skill the owner just picked from the
-list, and a later Choose would hand out a second starting skill.
-
-A listing is offered a second way, as a box to tick on the fighter's own
-edit page (``skills_offer`` and ``apply_ticks``). One screen selects a
-thing at a time and the other settles the whole list at once, and the
-two draw different lists: this screen keeps to the fighter's own
-placements, while the edit page offers every set the library holds.
-
-The difference is in what each offers, not in what either may write:
-both make the same assignment, at no price and caused by nothing, and a
-skill selected on one is indistinguishable from the same skill selected
-on the other. What separates them is who is reading. This screen is the
-fighter's own view — theirs, tier by tier, one click at a time — and
-offering every set here would bury the two that are actually theirs
-under every set that is not. The edit page is where an owner settles
-what a model is, beside the boxes for their subtypes and special rules,
-and there the answer to "may I take a skill from another house's tree"
-is yes: the game allows it, and a skill already held from such a set can
-be cleared nowhere else.
+Normally selections are free assignments with no cause. When a selected skill
+matches an unresolved starting-skill offer, settle that offer instead so it
+stops requesting a duplicate starting skill. Removing its answer reopens it.
+Computed grants remain fixed because no stored assignment can be removed.
 """
 
 import dataclasses
@@ -65,17 +22,10 @@ from n26.library.staged import sees_staged
 
 
 def link_skills(*cards, among=None):
-    """Point every card's Skills control at the fighter's checkbox editor.
+    """Link placed card skill grids to the model's checkbox editor.
 
-    One query for a whole roster, and none per card: which collections
-    hold what a model selects is asked once, and each card already knows
-    which collections its own grid reaches. A card depicting nobody — a
-    hire preview, a gallery sample — keeps an empty href and draws no
-    control, which is what a print sheet wants too.
-
-    ``among`` is that answer, where the caller has already asked for it —
-    a page drawing a listing of the same collections has, and asking
-    twice on one request would be the same query twice.
+    Read selectable collections once for all cards, or reuse ``among``.
+    Preview cards without model identifiers remain unlinked.
     """
     from n26.core.access import model_collections
 
@@ -91,20 +41,12 @@ def link_skills(*cards, among=None):
 
 
 def _key(thing):
-    """How a pick list keys its options: the table and the key, because a
-    bare primary key is ambiguous across the assignable tables."""
+    """Identify content by model label and primary key across assignable tables."""
     return f"{thing._meta.label_lower}:{thing.pk}"
 
 
 def _rows_on(card):
-    """The stored assignment behind each thing this model holds, keyed the
-    way a pick list keys its options — so a tick list can find what a
-    cleared box refers to.
-
-    The model's own assignments only: what the gang holds rides every member's
-    card and is not one fighter's to give up, and a line something has
-    taken away is not held at all.
-    """
+    """Index unsuppressed, non-broadcast root assignments by content identity."""
     rows = {}
     for node in card.roots:
         if node.broadcast or node.suppressed or node.assignment is None:
@@ -114,12 +56,7 @@ def _rows_on(card):
 
 
 def _grants_on(computed):
-    """What a modifier gives this model and what gives it — skills and
-    powers alike, keyed the same way.
-
-    Nothing stored is behind these, so a surface offering things to tick
-    draws them fixed rather than as boxes an owner could clear.
-    """
+    """Index computed skill and power grants with their granting sources."""
     return {
         _key(contribution.thing): contribution.source
         for contribution in (*computed.skills, *computed.powers)
@@ -128,46 +65,25 @@ def _grants_on(computed):
 
 @dataclasses.dataclass(frozen=True)
 class SkillsOffer:
-    """One derivation, in the three shapes the edit page draws it in.
+    """One complete offer and its presentation partitions.
 
-    ``everything`` is the whole of it and the only one a save is applied
-    against. ``own`` and ``rest`` are the same options partitioned for
-    reading, so which tab a click came from can never decide what it is
-    allowed to do.
+    Apply saves against ``everything``; ``own`` and ``rest`` only organise display.
     """
 
-    #: Every set, grouped, tier by tier — the All sets tab.
+    #: Complete grouped offer used for saving and the All sets tab.
     everything: object
-    #: The sets this model's placements name, plus any they already hold
-    #: something in, so a skill from elsewhere can be cleared without
-    #: going looking for it.
+    #: Placed or already-held sets, including skills from outside the model's grid.
     own: object
-    #: The other sets' options, flat, for the panel that searches them.
+    #: Flattened remaining options for search.
     rest: list
 
 
 def _sets_on_offer(card, computed, among=None, *, include_staged=False):
-    """Every set a model could hold something from, one group each, said
-    with whether their placements name the tier it sits in.
+    """Browse all skill and power collections, retaining fallback tiers.
 
-    Every collection holding what a model is, resectioned by their
-    placements and kept whole: the fallback tier the unplaced gather
-    under stays on the listing, because a set nobody placed for them is
-    still a set they may take from.
-
-    That is not free. A screen keeping to the placements browses only
-    the collections those reach; this one browses all of them, and each
-    is a fixed handful of queries — so a model placed into one of two
-    collections pays for the second as well. The price buys the panel
-    that searches what the first tab does not draw, which has to know
-    the whole library to offer it.
-
-    Built a section at a time so each group knows which tier it came
-    from. A one-section view is not tiered and ``offer_from_view`` writes
-    no caption for it, so the caption is put back here where the whole
-    listing spans more than one — the reader is being told Primary from
-    Secondary, and that is a fact about the listing rather than about the
-    slice it is being built in.
+    Mark tiers reached by placements and preserve section captions when the
+    collection has several tiers. Query each collection independently so the
+    editor can also offer unplaced sets.
     """
     from n26.core.access import model_collections
     from n26.core.browse import (
@@ -190,12 +106,8 @@ def _sets_on_offer(card, computed, among=None, *, include_staged=False):
         placed = {placement.section.name for placement in placements.values()}
         listed = with_use_notes(
             regrouped_by_placement(
-                # Skills and powers, and nothing else a model can be.
-                # Subtypes are of the same family and a collection may
-                # perfectly well hold them, but they are the edits box's
-                # to settle: were one on this list, a save that did not
-                # tick it would take it away — by the wrong write, and
-                # from a box the owner was not looking at.
+                # Exclude subtypes because their checkbox editor uses a different write path.
+                # Including them here could remove subtypes absent from this form's submitted skills.
                 narrow(
                     browse(collection, EQUIPMENT_LIST, include_staged=include_staged),
                     kinds=(Skill, Power),
@@ -222,30 +134,11 @@ def _sets_on_offer(card, computed, among=None, *, include_staged=False):
 
 
 def skills_offer(card, computed, among=None, *, include_staged=False):
-    """What this model may hold, as a list to tick rather than to click.
+    """Build the complete checkbox offer and its placed, held and remaining partitions.
 
-    Every set the library holds for a model, skills and powers alike —
-    not only the ones their placements reach. A set nobody placed for
-    them is still a set the game has, and an owner reaching for one is
-    doing something the rules allow; the placements say which are
-    *theirs*, which is worth drawing, and not much more.
-
-    So the tiers are drawn as the placements name them, and everything
-    unplaced keeps the heading the browse filed it under — the
-    collection's own default section, or "Other" last of all.
-
-    Ticked where the model already holds the thing, by any route. What a
-    modifier grants says what grants it and is fixed: no assignment is
-    behind it, so there is nothing a click here could take away.
-
-    The partition is a reading aid, never a permission: a set the model
-    holds something in is drawn among their own so it can be cleared
-    where they will look for it, and everything else is on the same
-    listing one tab or one search away.
-
-    ``among`` is the collections to read, for a caller that has already
-    asked which they are — the same answer :func:`link_skills` wants,
-    and one query rather than two where a page needs both.
+    Existing picks are checked; computed grants are fixed. Keep sets containing
+    held skills in the main partition so their assignments can be cleared.
+    Reuse ``among`` when the caller already loaded selectable collections.
     """
     from n26.core.render import ChoiceOffer
 
@@ -266,11 +159,9 @@ def skills_offer(card, computed, among=None, *, include_staged=False):
 
 
 def _offered_keys(slot, computed, *, include_staged=False):
-    """What the Choose page lists for this question, keyed as the tick
-    list keys its options.
+    """Index exactly the content listed by Choose for a starting-skill offer.
 
-    That list is the match: a Secondary skill is not a Primary skill,
-    even though both are skills and both appear on the edit page.
+    A skill from another tier cannot settle the offer merely because its kind matches.
     """
     from n26.core.browse import offered_by
 
@@ -285,13 +176,7 @@ def _offered_keys(slot, computed, *, include_staged=False):
 
 
 def _open_questions(computed):
-    """Founding questions this card still asks, with what Choose lists
-    for each.
-
-    A slot of pickables is not one of these: this surface never writes
-    those. Only a modifier's offer is — the Leader's starting skill, a
-    Haunt's first power.
-    """
+    """Find unresolved modifier offers, excluding slot-pickable choices."""
     return [
         slot
         for slot in computed.choices
@@ -300,7 +185,7 @@ def _open_questions(computed):
 
 
 def _answered_by(computed):
-    """Which held thing currently answers which founding question."""
+    """Map assigned content to the starting-skill offers it currently answers."""
     found = {}
     for slot in computed.choices:
         if slot.offer is None:
@@ -313,7 +198,7 @@ def _answered_by(computed):
 
 
 def _question_for(thing, questions, lists):
-    """The first open question whose Choose list names this thing."""
+    """Find the first unresolved offer whose current Choose list includes the content."""
     key = _key(thing)
     for slot in questions:
         if key in lists[id(slot)]:
@@ -322,14 +207,9 @@ def _question_for(thing, questions, lists):
 
 
 def _answer_with(op, miniature, thing, questions, lists):
-    """Write ``thing`` as the answer to an open founding question if it
-    is on that question's Choose list, otherwise as a standing selection.
+    """Settle a matching starting-skill offer, otherwise make a standing selection.
 
-    A tick on the edit page and a click on the skills screen are the
-    same write. Selecting a second skill, or a skill the Choose page
-    would not have listed, stays a standing selection — caused by
-    nothing, surviving a profile swap — because it is not the starting
-    pick.
+    Require an assignment anchor; broadcast anchors also identify the target model.
     """
     slot = _question_for(thing, questions, lists)
     if slot is None:
@@ -345,30 +225,14 @@ def _answer_with(op, miniature, thing, questions, lists):
 
 
 def apply_ticks(op, miniature, card, computed, ticked, *, include_staged=False):
-    """Make what a model holds match what was ticked, and say what moved.
+    """Make stored skill selections match the complete current checkbox offer.
 
-    The listing is derived again here rather than trusted from the page,
-    so a stale form or a hand-made click can only name things that are on
-    the list now. That listing is the whole of it, never the half a tab
-    is showing: both tabs draw the same options and the panel searches
-    the rest of them, so which one a save came from settles nothing and
-    is not asked. What follows is that a form submitted from a page
-    drawn long ago clears whatever has been selected since, across the
-    whole library rather than one corner of it.
+    Rebuild the offer server-side. A stale submission can clear newer selections
+    across the whole offer, independently of its displayed tab. Ignore fixed grants
+    on both sides of the comparison.
 
-    A newly ticked thing is selected — free, and caused by nothing, the
-    same write the skills screen makes — unless the card is still asking
-    for a starting skill and this thing is on that question's Choose
-    list. Then the tick is that answer, written the way Choose writes
-    it, so the question leaves the card rather than sitting beside the
-    skill as if nobody had picked. A Secondary skill cannot answer
-    "Primary skill". Clearing the skill that answered a question opens
-    it again; a replacement ticked in the same save answers it afresh
-    if it is on the list.
-
-    Granted things are on neither side of the difference, because a
-    fixed box submits nothing and reading its silence as a clearing
-    would take away the assignment of anything a modifier also grants.
+    Remove old selections first so a reopened starting-skill offer can receive a
+    replacement in the same operation. Use standing selection when no offer matches.
     """
     offer = skills_offer(card, computed, include_staged=include_staged).everything
     rows = _rows_on(card)
@@ -380,16 +244,13 @@ def apply_ticks(op, miniature, card, computed, ticked, *, include_staged=False):
     }
     answered = _answered_by(computed)
 
-    # One entry per thing: two collections may both list a skill, and a
-    # second sighting of a ticked one must not select it twice.
+    # Deduplicate skill identities shared by multiple collections before selecting.
     options = {}
     for group in offer.groups:
         for option in group.options:
             options.setdefault(option.key, option)
 
-    # Removals first: clearing the skill that answered a question opens
-    # it again, so a replacement ticked in the same save can answer it
-    # rather than land as a second starting skill beside a fresh Choose.
+    # Clear old answers before selecting replacements so a reopened offer can be settled.
     selected, cleared = [], []
     for key, option in options.items():
         if key in granted or key in ticked or key not in rows:
@@ -413,9 +274,7 @@ def apply_ticks(op, miniature, card, computed, ticked, *, include_staged=False):
 
 
 def _known_on(card):
-    """What this model already has, keyed the way a pick list keys its
-    options — so a listing can say "already known" rather than let
-    somebody select the same skill twice in silence."""
+    """Index stored non-broadcast card roots for duplicate marking."""
     return {
         f"{node.assignable._meta.label_lower}:{node.assignable.pk}"
         for node in card.roots
@@ -424,12 +283,7 @@ def _known_on(card):
 
 
 def _marked(offer, known):
-    """The same offer, with the things this model already has said so.
-
-    Said, never dropped: a known skill keeps its place in the listing so
-    the reader can see it is covered, and the mark is why the POST's
-    refusal of a second copy never surprises anyone.
-    """
+    """Annotate known skills without removing them from the offer."""
     for group in offer.groups:
         group.options = [
             option
@@ -445,20 +299,11 @@ def _marked(offer, known):
 
 @login_required
 def skills(request, pk):
-    """What this fighter may select, and the click that selects it.
+    """List placed skill tiers and select one submitted content identity at no charge.
 
-    GET asks and writes nothing. POST names one thing from the list the
-    server has just re-derived — never a price, and never a free-text
-    identity — and writes it as the fighter's own, at no charge.
-
-    Nothing is removed from the listing: a skill the fighter's Type may
-    not use keeps its place with a note on it, exactly as it does on the
-    equip page, and a skill they already have is marked rather than
-    hidden.
-    The one click refused is a second copy of something they hold — by
-    any route, a grant and a settled choice included — because a
-    duplicate skill means nothing and a card reading "Marksman,
-    Marksman" is a bug however honestly it got there.
+    Rebuild offers server-side and reject stale identities or known root assignments.
+    Keep usability notes visible. A model with no placed collections receives an
+    empty page rather than an unavailable route.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.access import selectable_for
@@ -479,30 +324,21 @@ def skills(request, pk):
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.gang
-    # Whether this reader is offered staged skills, on the listing and on
-    # the click that selects from it alike.
+    # Use the same staged-content access for display and submitted selection.
     shown = sees_staged(request.user)
 
-    # One card build serves the whole page: the grid that decides which
-    # collections are theirs, and how usable each line is, are both read
-    # off the same computed card.
+    # Reuse one computed card for placement and usability reads.
     card = build_card(miniature)
     index = build_modifier_index(carriers(card))
     computed = compute(card, index)
 
     back = reverse("n26-gang", args=[gang.pk])
-    # The model's own page is the way out, because it is the only screen
-    # the skills control is drawn on: a reader who cancels, or who selects
-    # something, is put back where they clicked rather than a level above
-    # it. The gang is still the breadcrumb's parent, one step further up.
+    # Cancel and successful selection return to the model edit page that opened this screen.
     their_page = reverse("n26-edit-fighter", args=[miniature.pk])
 
     collections = selectable_for(computed)
     if not collections:
-        # Nobody has graded this fighter in a category, so there is
-        # nothing they could select — a gap in the content, and a page
-        # that says so. Refusing instead would put a dead row in the
-        # switcher every other fighter's skills screen draws.
+        # Keep an empty state for models without a grid so sibling navigation remains valid.
         return render(
             request,
             "n26/skills.html",
@@ -513,10 +349,7 @@ def skills(request, pk):
                 "action": request.path,
                 "back": back,
                 "their_page": their_page,
-                # No act and no way out at the foot of the page: there is
-                # nothing to submit, and a lone Cancel under a page that
-                # asked nothing cancels nothing. The breadcrumb is the
-                # way back, to the model and to the gang beyond them.
+                # Omit form actions when there is no selectable content; breadcrumbs provide navigation.
                 "submit_label": "",
                 "cancel_url": "",
                 "pick_lead": "",
@@ -538,10 +371,7 @@ def skills(request, pk):
             ),
             usability_for(computed),
         ),
-        # Only the tiers their grid names. The browse keeps every
-        # unplaced category under the fallback so nothing is hidden from
-        # a reader buying from a list; here the tiers *are* the offer, and
-        # another house's sets are not this fighter's to select.
+        # Limit this screen to placed tiers; the checkbox editor separately offers unplaced sets.
         sections=[placement.section.name for placement in placements.values()],
     )
     offer = _marked(offer_from_view(listed, label=str(chosen)), _known_on(card))
@@ -559,15 +389,10 @@ def skills(request, pk):
             None,
         )
         if picked is None:
-            # Not on this list — a stale page, or a click with nothing
-            # selected. The list itself is the reply either way.
+            # Reject stale or empty selections and redisplay the current offer.
             messages.error(request, "That is not one of the things available to pick.")
             return redirect(here)
-        # A skill the model already has, by any route — selected, granted,
-        # or chosen for a founding choice. A second copy means nothing
-        # in the game and reads as a bug on the card, so this is refused
-        # like a stale click rather than left to the owner: it is not a
-        # judgement about the rules, there is simply nothing it could add.
+        # Reject content already represented by a known non-broadcast root.
         if picked.key in _known_on(card):
             messages.error(request, f"{miniature.name} already has {picked.name}.")
             return redirect(here)
@@ -609,14 +434,9 @@ def skills(request, pk):
             "their_page": their_page,
             "submit_label": "Select",
             "cancel_url": their_page,
-            # Which collection, when a fighter's grid reaches more than
-            # one. Drawn as tabs only then: with a single collection
-            # there is nothing to choose, and the heading names it.
+            # Show collection tabs only when the grid reaches more than one collection.
             "collection_tabs": collection_tabs(collections, chosen),
-            # Not "lead". A cotton slot is a context variable, and any
-            # component on the page with a slot of that name — the site
-            # footer's columns have one — draws whatever the page
-            # happens to have under it.
+            # Use a distinct slot name: Cotton slots share context names with unrelated page components.
             "pick_lead": (f"Select skills for {miniature.name}."),
         },
     )
