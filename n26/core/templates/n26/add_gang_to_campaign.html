@@ -1,18 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation react %}
 {% comment %}
-Putting a gang into a campaign, picked from the ones at its table.
-
-The arbitrator draws on every gang belonging to somebody who has accepted a
-place, and their own; a player draws on their own. One list serves both, and a
-control disappears where it has nothing to narrow — one player's gangs need no
-question about which player.
-
-Newest first, by the last thing the ledger recorded against each gang: the one
-somebody is looking for is nearly always the one they were last working on.
-
-Gangs already in a campaign are hidden to start with rather than left out, so
-a reader who cannot find one is told where it went.
+Arbitrators may add eligible players' gangs or their own; players may add their own
+gangs. Initially hide gangs already in campaigns while retaining them for filtering.
 {% endcomment %}
 {% block head_title %}Add a gang to {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -44,10 +34,8 @@ a reader who cannot find one is told where it went.
             <p class="text-sm text-muted">The campaign's joining budget is {{ campaign.budget }}¢. Adding a gang does not change its credits budget.</p>
         {% endif %}
         {% comment %}
-        The list submits by its own buttons and draws no widget for the field,
-        so the field's own error has nowhere else to appear. It is reachable
-        only by sending a key the list did not offer, and a page that answered
-        that by redrawing itself and saying nothing would look broken.
+        Display the field error explicitly because the selectable entries submit buttons
+        instead of a field widget.
         {% endcomment %}
         <c-ui.error name="gang" :form="form" />
         {% if nothing_to_offer %}
@@ -62,9 +50,7 @@ a reader who cannot find one is told where it went.
             </c-ui.alert>
         {% else %}
             {% comment %}
-            The campaign-gang-picker island draws the filters and narrows the
-            rows. Until it mounts, and without a script, this is every row,
-            and each row's Add submits the form either way.
+            Keep all native Add buttons available before the filtering island mounts.
             {% endcomment %}
             {% react_host "campaign-gang-picker" picker class="flex flex-col gap-3" %}
                 <p class="text-sm text-muted">
@@ -93,10 +79,8 @@ a reader who cannot find one is told where it went.
                                 {% endif %}
                             </div>
                             {% comment %}
-                            The badge is wrapped rather than given a class:
-                            it declares none, so one passed in is written
-                            before its own and the browser keeps the first,
-                            dropping every style it came with.
+                            Wrap the badge to apply layout classes because it does not
+                            declare a class prop.
                             {% endcomment %}
                             {% if gang.playing %}
                                 <span class="shrink-0">
@@ -107,10 +91,7 @@ a reader who cannot find one is told where it went.
                             {% endif %}
                             <span class="shrink-0 text-sm tabular-nums text-muted">{{ gang.wealth }}¢</span>
                             {% comment %}
-                            One button per row rather than a picker and a
-                            submit below it: the act is adding this gang, and
-                            splitting it into choosing and confirming asks
-                            twice for one answer.
+                            Each entry submits its gang identity directly.
                             {% endcomment %}
                             {% if not gang.playing %}
                                 <c-ui.button type="submit"

@@ -1,10 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Declaring a new asset type for one campaign. The asset type lands on the
-campaign's own campaign type, so the shared type is untouched and no other
-campaign sees it. Native radios for the ownership, as the campaign type cards
-are, so the form posts with no script and a redisplay keeps the pick.
+Add an asset type to the campaign's own campaign type without changing the shared
+definition. Native ownership radios preserve selection after validation errors.
 {% endcomment %}
 {% block head_title %}Add an asset type to {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
