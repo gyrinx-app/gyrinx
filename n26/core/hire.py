@@ -42,6 +42,8 @@ class HireOption:
     default_set: object = None
     #: View-supplied preview URL for this option, empty for inline cards.
     card_url: str = ""
+    #: Library option identity, independent of its position in a group.
+    option_key: str = ""
 
 
 @dataclass
@@ -232,6 +234,7 @@ def build_hire_entry(profile, index=None, with_cards=True, base=None, entry=None
                 total_price=cards[option.default_set.pk].full_rating,
                 is_default=(one_of and position == 0),
                 default_set=option.default_set,
+                option_key=str(option.pk),
                 card=drawn(cards[option.default_set.pk]),
             )
             for position, option in enumerate(offered)

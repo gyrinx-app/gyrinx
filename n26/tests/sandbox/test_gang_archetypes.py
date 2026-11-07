@@ -18,7 +18,7 @@ from django.urls import reverse
 from n26.core.access import collections_for, gang_collections
 from n26.core.card import build_gang_card, build_modifier_index
 from n26.core.effects import compute_gang
-from n26.core.hire import collection_offers, gang_scope_sections
+from n26.core.hire_display import HireCatalogue, catalogue_data
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_gang, roster
 from n26.core.render_text import render_gang_sheet
@@ -279,38 +279,40 @@ def screen(client, gang, owner):
 
 
 def hire_list_for(gang):
-    """Prepare the same gang-scope entries the hire view gives its template."""
-    carried = [access.collection for access in gang_collections(gang)]
-    return gang_scope_sections(
-        collection_offers(carried), gang.gang_type, carried, with_cards=False
-    )
+    """Prepare the catalogue facts delivered by the Hire owner."""
+    return catalogue_data(HireCatalogue(gang, gang.owner, "gang"))["sections"]
 
 
 def offered(hire_list):
-    """Every fighter the screen offers, by the heading it is filed under."""
     return {
-        (section.name, category.name): [entry.name for entry in category.entries]
+        (section["name"], category["name"]): [
+            entry["name"] for entry in category["entries"]
+        ]
         for section in hire_list
-        for category in section.categories
+        for category in section["categories"]
     }
 
 
 def offered_names(hire_list):
     return sorted(
-        entry.name for section in hire_list for entry in section.all_entries()
+        entry["name"]
+        for section in hire_list
+        for category in section["categories"]
+        for entry in category["entries"]
     )
 
 
 def sections_of(hire_list):
-    return [section.name for section in hire_list]
+    return [section["name"] for section in hire_list]
 
 
 def row(hire_list, name):
     return next(
         entry
         for section in hire_list
-        for entry in section.all_entries()
-        if entry.name == name
+        for category in section["categories"]
+        for entry in category["entries"]
+        if entry["name"] == name
     )
 
 
@@ -354,16 +356,22 @@ class TestTheListAGangCarries:
         self, client, owner, gang, house_list, profiles
     ):
         response = screen(client, gang, owner)
-        assert offered_names(response.context["hire_list"]) == sorted(HOUSE_LIST)
-        assert offered(response.context["hire_list"]) == {
+        assert offered_names(response.context["hire_props"]["sections"]) == sorted(
+            HOUSE_LIST
+        )
+        assert offered(response.context["hire_props"]["sections"]) == {
             ("Gang List", "Leader"): ["Queen"],
             ("Gang List", "Champion"): ["Death-Maiden", "Matriarch"],
             ("Gang List", "Ganger"): ["Gang Sister"],
         }
-        assert "Escher Gang List" not in sections_of(response.context["hire_list"])
+        assert "Escher Gang List" not in sections_of(
+            response.context["hire_props"]["sections"]
+        )
         assert "Escher Gang List" not in response.content.decode()
         # Chem Wytch is authored under Escher, but is not on its house list.
-        assert "Chem Wytch" not in offered_names(response.context["hire_list"])
+        assert "Chem Wytch" not in offered_names(
+            response.context["hire_props"]["sections"]
+        )
 
         sheet = render_gang(gang)
         names = [line.name for line in sheet.rows]
@@ -375,7 +383,7 @@ class TestTheListAGangCarries:
         for entry in house_list.entries.all():
             entry.archive()
         response = screen(client, gang, owner)
-        assert offered_names(response.context["hire_list"]) == []
+        assert offered_names(response.context["hire_props"]["sections"]) == []
         assert "Chem Wytch" not in response.content.decode()
 
     def test_a_gang_type_with_no_list_of_its_own_offers_its_profiles(
@@ -386,7 +394,7 @@ class TestTheListAGangCarries:
         hires from its gang type's fighter entries."""
         plain = found_gang("The Unwritten", escher, owner=owner, budget=1000)
         response = screen(client, plain, owner)
-        assert offered_names(response.context["hire_list"]) == sorted(
+        assert offered_names(response.context["hire_props"]["sections"]) == sorted(
             name for name, _, _ in ESCHER
         )
 
@@ -400,7 +408,7 @@ class TestAnArchetypeSwapsTheList:
         take_the_archetype(gang, chem_cults)
         client.force_login(owner)
         response = screen(client, gang, owner)
-        key = row(response.context["hire_list"], "Chem Wytch").key
+        key = row(response.context["hire_props"]["sections"], "Chem Wytch")["key"]
 
         client.post(
             hire_url(gang),
@@ -420,20 +428,24 @@ class TestAnArchetypeSwapsTheList:
     ):
         take_the_archetype(gang, chem_cults)
         response = screen(client, gang, owner)
-        assert offered_names(response.context["hire_list"]) == sorted(CHEM_LIST)
-        assert offered(response.context["hire_list"]) == {
+        assert offered_names(response.context["hire_props"]["sections"]) == sorted(
+            CHEM_LIST
+        )
+        assert offered(response.context["hire_props"]["sections"]) == {
             ("Gang List", "Champion"): ["Death-Maiden"],
             # Cheapest first: a Gang Sister is 55 and a Chem Wytch 60.
             ("Gang List", "Ganger"): ["Gang Sister", "Chem Wytch"],
         }
-        assert "Chem Cults Gang List" not in sections_of(response.context["hire_list"])
+        assert "Chem Cults Gang List" not in sections_of(
+            response.context["hire_props"]["sections"]
+        )
         assert (
-            row(response.context["hire_list"], "Death-Maiden").base_price
+            row(response.context["hire_props"]["sections"], "Death-Maiden")["basePrice"]
             == CHEM_MAIDEN_PRICE
         )
-        assert f"{CHEM_MAIDEN_PRICE}¢" in response.content.decode()
+        assert response.context["hire_props"]["priceCeiling"] >= CHEM_MAIDEN_PRICE
 
-        key = row(response.context["hire_list"], "Death-Maiden").key
+        key = row(response.context["hire_props"]["sections"], "Death-Maiden")["key"]
 
         response = client.post(
             hire_url(gang),
@@ -453,7 +465,9 @@ class TestAnArchetypeSwapsTheList:
         """The archetype is written and unpicked, so the gang hires and
         buys as any gang of its house does."""
         response = screen(client, gang, owner)
-        assert offered_names(response.context["hire_list"]) == sorted(HOUSE_LIST)
+        assert offered_names(response.context["hire_props"]["sections"]) == sorted(
+            HOUSE_LIST
+        )
 
         queen = hire(gang, profiles["Queen"], "Yara", paid=145)
         assert lists_for(queen) == ["Escher Equipment List"]
@@ -476,11 +490,14 @@ class TestTwoListsAtOnce:
         assign(chem_list, gang=gang)
 
         response = screen(client, gang, owner)
-        assert sections_of(response.context["hire_list"]) == [
+        assert sections_of(response.context["hire_props"]["sections"]) == [
             "Escher Gang List",
             "Chem Cults Gang List",
         ]
-        assert row(response.context["hire_list"], "Chem Wytch").base_price == 60
+        assert (
+            row(response.context["hire_props"]["sections"], "Chem Wytch")["basePrice"]
+            == 60
+        )
 
     @pytest.mark.parametrize("entry_state", ["archived", "staged"])
     def test_an_empty_second_list_still_uses_collection_headings(
@@ -523,7 +540,7 @@ class TestWhatElseAGangIsOffered:
 
         hire_list = hire_list_for(gang)
         assert sections_of(hire_list)[-1] == "Genestealer Cult Corrupted"
-        assert row(hire_list, "Chem Wytch").base_price == 200
+        assert row(hire_list, "Chem Wytch")["basePrice"] == 200
         # And the gang's own list is untouched beneath it.
         assert offered(hire_list)[("Gang List", "Leader")] == ["Queen"]
 
@@ -598,7 +615,10 @@ class TestWhatTheScreenCosts:
         with CaptureQueriesContext(connection) as long:
             response = client.get(hire_url(gang))
 
-        assert len(offered_names(response.context["hire_list"])) == len(HOUSE_LIST) + 6
+        assert (
+            len(offered_names(response.context["hire_props"]["sections"]))
+            == len(HOUSE_LIST) + 6
+        )
         assert len(long) == len(short)
 
 
@@ -626,7 +646,7 @@ class TestAListNobodyMaySeeIsNotTheList:
     ):
         gang = self.rehearsal(escher, profiles, owner)
         response = screen(client, gang, owner)
-        assert offered_names(response.context["hire_list"]) == sorted(
+        assert offered_names(response.context["hire_props"]["sections"]) == sorted(
             name for name, _, _ in ESCHER
         )
 
@@ -636,14 +656,16 @@ class TestAListNobodyMaySeeIsNotTheList:
         staff = User.objects.create_user("author", is_staff=True)
         gang = self.rehearsal(escher, profiles, staff)
         response = screen(client, gang, staff)
-        assert offered_names(response.context["hire_list"]) == sorted(HOUSE_LIST)
+        assert offered_names(response.context["hire_props"]["sections"]) == sorted(
+            HOUSE_LIST
+        )
 
     def test_an_archived_list_is_not_the_list_either(
         self, client, owner, gang, house_list
     ):
         house_list.archive()
         response = screen(client, gang, owner)
-        assert offered_names(response.context["hire_list"]) == sorted(
+        assert offered_names(response.context["hire_props"]["sections"]) == sorted(
             name for name, _, _ in ESCHER
         )
 
@@ -709,17 +731,20 @@ class TestSectionsThatShareAName:
         hire_list = hire_list_for(gang)
         names = sections_of(hire_list)
         assert names == ["Gang List", "Hangers-on"], names
-        merged = next(section for section in hire_list if section.name == "Hangers-on")
-        headings = [category.name for category in merged.categories]
+        merged = next(
+            section for section in hire_list if section["name"] == "Hangers-on"
+        )
+        headings = [category["name"] for category in merged["categories"]]
         assert len(headings) == len(set(headings)), headings
         # One heading, both the list's fighter and the collection's.
         assert sorted(
-            entry.name
+            entry["name"]
             for section in hire_list
-            if section.name == "Hangers-on"
-            for entry in section.all_entries()
+            if section["name"] == "Hangers-on"
+            for category in section["categories"]
+            for entry in category["entries"]
         ) == ["Hired gun", "Shivver"]
-        assert row(hire_list, "Hired gun").base_price == 200
+        assert row(hire_list, "Hired gun")["basePrice"] == 200
 
 
 class TestTheGangSheetDrawsNoLineForTheList:

@@ -326,6 +326,12 @@ urlpatterns = [
     # After gangs/new/, which would otherwise resolve "new" as an id.
     path("gangs/<str:pk>/", views.gang_sheet, name="n26-gang"),
     path("gangs/<str:pk>/hire/", views.hire_fighter, name="n26-hire-fighter"),
+    path("gangs/<str:pk>/hire/command/", views.hire_command, name="n26-hire-command"),
+    path(
+        "gangs/<str:pk>/hire/preview/<str:profile>/",
+        views.hire_preview,
+        name="n26-hire-preview",
+    ),
     # The gang's own equip page: what is bought here goes to the stash,
     # where a fighter's equip page buys onto the fighter.
     path("gangs/<str:pk>/equip/", views.equip_gang, name="n26-equip-gang"),

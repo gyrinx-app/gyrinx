@@ -17,7 +17,23 @@ class UnavailableHire(Exception):
     """The submitted offer or option cannot be resolved."""
 
 
+class SelectionField(forms.JSONField):
+    default_error_messages = {"invalid": "Choose the model options again."}
+
+    def validate(self, value):
+        super().validate(value)
+        if value is None:
+            return
+        if (
+            not isinstance(value, list)
+            or any(not isinstance(key, str) or not key for key in value)
+            or len(value) != len(set(value))
+        ):
+            raise forms.ValidationError("Choose the model options again.")
+
+
 class HireSubmissionForm(HireFighterForm):
+    selection = SelectionField(required=False, widget=forms.HiddenInput)
     request_key = forms.UUIDField(
         widget=forms.HiddenInput,
         error_messages={
@@ -86,31 +102,53 @@ def chosen_sets(picks):
     return [pick.option.default_set for pick in picks if pick.option.default_set]
 
 
+def resolve_sets(profile, keys):
+    """Resolve stable option identities, never their changing group positions."""
+    offered = {
+        str(option.pk): option.default_set
+        for option in profile.options.select_related("default_set")
+    }
+    try:
+        return [offered[key] for key in keys or []]
+    except KeyError:
+        raise UnavailableHire("No such option") from None
+
+
 def base_price(entry):
     return entry.price_override if entry is not None else None
 
 
 def quote(profile, picks, entry):
+    return quote_sets(profile, chosen_sets(picks), entry)
+
+
+def quote_sets(profile, selection, entry):
     try:
-        return profile.price_with(chosen_sets(picks), base=base_price(entry))
+        return profile.price_with(selection, base=base_price(entry))
     except ValueError:
         raise UnavailableHire("No such option") from None
 
 
-def command_payload(data, name):
+def command_payload(data, name, selection=None):
     """Retain submitted intent independently of later catalogue changes.
 
     Blank payment remains different from zero. UI destinations and credentials
-    do not identify the acquisition; option fields keep their submitted indices.
+    do not identify the acquisition. Legacy option fields retain their indices;
+    stable selections retain the library option identifiers.
     """
     raw = data.get("profile", "")
     prefix = f"{slugify(raw)}:"
-    return {
-        "version": 1,
+    payload = {
         "profile": raw,
         "name": name,
         "paid": data.get("paid", "").strip(),
         "rateAtPaid": data.get("rate") == "paid",
+    }
+    if "selection" in data:
+        return {**payload, "version": 2, "selection": sorted(selection or [])}
+    return {
+        **payload,
+        "version": 1,
         "options": {
             field: sorted(value for value in data.getlist(field) if value != "")
             for field in sorted(data)
@@ -162,7 +200,9 @@ def change(gang, user, data):
     if not result.form.is_valid():
         return result
     key = result.form.cleaned_data["request_key"]
-    payload = command_payload(data, result.form.cleaned_data["name"])
+    payload = command_payload(
+        data, result.form.cleaned_data["name"], result.form.cleaned_data["selection"]
+    )
     try:
         with operation(gang, actor=user) as op:
             gang.refresh_from_db()
@@ -194,20 +234,25 @@ def change(gang, user, data):
                         None, "This profile is no longer available. Choose another."
                     )
                     return result
-                picks = resolve_picks(
-                    data,
-                    profile,
-                    build_hire_entry(profile, with_cards=False),
-                    key=data.get("profile"),
-                )
-                quoted = quote(profile, picks, offered)
+                if "selection" in data:
+                    taken = resolve_sets(profile, result.form.cleaned_data["selection"])
+                else:
+                    taken = chosen_sets(
+                        resolve_picks(
+                            data,
+                            profile,
+                            build_hire_entry(profile, with_cards=False),
+                            key=data.get("profile"),
+                        )
+                    )
+                quoted = quote_sets(profile, taken, offered)
                 paid = price_typed(data, "paid", quoted, profile.name)
                 rate_at_paid = payload["rateAtPaid"]
                 try:
                     miniature = op.hire(
                         profile,
                         result.form.cleaned_data["name"] or profile.name,
-                        option=chosen_sets(picks),
+                        option=taken,
                         paid=paid,
                         list_price=paid if rate_at_paid else quoted,
                         discount=0 if rate_at_paid else quoted - paid,

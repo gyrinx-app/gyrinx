@@ -227,3 +227,17 @@ must leave no receipt. Retain the written assignment IDs needed to rederive
 onward choice screens; do not store an arbitrary client return URL as a result.
 Keep native form keys required and stable across validation errors. Update real
 POST payloads in tests explicitly, and separately prove missing-key rejection.
+
+For Hire catalogue controls, submit library Option row IDs in `selection`, not
+option positions or default-set IDs. Distinct options can share a default set;
+reordering a catalogue must not change an unsaved choice. Preserve legacy receipt
+payloads when adding a new input format. After a rolled-back operation, reload
+and reauthorise the gang before projecting current figures.
+
+Every retained scalar must be present in the submitted form. A controlled,
+non-posting checkbox can use one hidden field containing either its value or an
+empty string; an omitted unchecked field cannot restore a complete draft.
+`useWorkflowForm.recoverAt` keeps an explicit recovery navigation's draft and
+uses fresh page CSRF on return. Known rejections remain editable; a rejected retry
+does not resolve an earlier uncertain save. Preserve the raw URLSearchParams
+storage format so cached clients can still recover pending commands.

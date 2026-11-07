@@ -40,6 +40,101 @@ export type ModelPreviewProps = {
     weapons: Weapon[];
 };
 
+function object(value: unknown): value is Record<string, unknown> {
+    return !!value && typeof value === "object" && !Array.isArray(value);
+}
+function strings(value: unknown): value is string[] {
+    return (
+        Array.isArray(value) && value.every((item) => typeof item === "string")
+    );
+}
+function list(value: unknown, valid: (item: unknown) => boolean) {
+    return Array.isArray(value) && value.every(valid);
+}
+function number(value: unknown): value is number {
+    return typeof value === "number" && Number.isFinite(value);
+}
+function stat(value: unknown): boolean {
+    return (
+        object(value) &&
+        typeof value.shortName === "string" &&
+        typeof value.fullName === "string" &&
+        typeof value.value === "string" &&
+        typeof value.explanation === "string" &&
+        typeof value.highlighted === "boolean" &&
+        typeof value.firstOfGroup === "boolean"
+    );
+}
+function itemChoice(value: unknown): boolean {
+    return (
+        object(value) &&
+        typeof value.label === "string" &&
+        strings(value.values)
+    );
+}
+function line(value: unknown): boolean {
+    return (
+        object(value) &&
+        typeof value.text === "string" &&
+        typeof value.explanation === "string" &&
+        list(value.choices, itemChoice)
+    );
+}
+function part(value: unknown): boolean {
+    if (!object(value)) return false;
+    if (value.kind === "names" || value.kind === "gear")
+        return list(value.lines, line);
+    if (value.kind === "counter") return number(value.value);
+    return (
+        value.kind === "choice" &&
+        typeof value.prompt === "string" &&
+        (value.chosen === null || typeof value.chosen === "string")
+    );
+}
+function weapon(value: unknown): boolean {
+    return (
+        object(value) &&
+        typeof value.name === "string" &&
+        list(value.stats, stat) &&
+        list(value.traits, line) &&
+        list(
+            value.profiles,
+            (profile) =>
+                object(profile) &&
+                typeof profile.name === "string" &&
+                list(profile.stats, stat) &&
+                list(profile.traits, line),
+        ) &&
+        list(value.accessories, line) &&
+        list(value.choices, itemChoice)
+    );
+}
+
+/** Reject malformed read responses before they enter the preview renderer. */
+export function isModelPreview(value: unknown): value is ModelPreviewProps {
+    return (
+        object(value) &&
+        typeof value.name === "string" &&
+        number(value.rating) &&
+        typeof value.profileName === "string" &&
+        typeof value.ownerLine === "string" &&
+        typeof value.typeLine === "string" &&
+        number(value.xp) &&
+        (typeof value.xpTarget === "string" || number(value.xpTarget)) &&
+        list(value.statGroups, (group) => list(group, stat)) &&
+        number(value.typeSpan) &&
+        list(
+            value.details,
+            (detail) =>
+                object(detail) &&
+                typeof detail.label === "string" &&
+                list(detail.parts, part),
+        ) &&
+        list(value.weaponColumns, stat) &&
+        list(value.weapons, weapon)
+    );
+}
+
 const recipe = cotton.modelPreview;
 
 function Information({

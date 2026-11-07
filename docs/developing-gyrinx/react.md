@@ -759,3 +759,32 @@ then produces a conflict with current facts and a review action.
 Keep Inherent and Transferable as the model's displayed ownership terms. Reuse
 form labels and help from Python. Current authorization and campaign scope are
 checked before accepting a no-op, as well as before changing a value.
+
+### Hire catalogue and command recovery
+
+The Hire page mounts `islands/hire` once. Its catalogue, filters, options, lazy
+model previews, gang figures and confirmation share that owner. Scope links and
+confirmation URLs use ordinary navigation; section tabs update the URL and read
+browser history. The header's gang switcher remains independent page chrome.
+`core/hire_display.py` prepares explicit catalogue and figure data. Preview reads
+return `core/model_preview.py` data; they never insert an HTML fragment.
+
+Option selections use library Option IDs. Positions can change between opening a
+confirmation and saving it, and separate options can refer to the same default
+set. The shared Hire command accepts this stable format alongside existing native
+index submissions and saved receipts. Both HTTP adapters use that command and its
+result to decide feedback and any remaining arrival screens. A failed operation
+can leave attempted totals on the Python instance even after database rollback;
+reload the authorised gang before returning current figures.
+
+The confirmation keeps one hidden scalar for rating mode, including an empty
+value when unticked. Retained forms need every expected scalar to restore the
+whole draft. Credentials are separate: session storage never retains CSRF tokens,
+and a retry uses the token from the current page.
+
+An explicit Reload page or Sign in again action preserves the draft through
+`useWorkflowForm.recoverAt`. A request rejected before saving restores an editable
+draft. A request whose outcome is unknown restores the exact frozen command and
+key, even if a later retry was rejected. Only a confirmed result resolves that
+uncertainty. Retained data remains URLSearchParams, compatible with cached clients;
+the private rejected-draft marker is stripped before posting.

@@ -39,6 +39,266 @@ def class_name(attrs):
     return " ".join(attrs.get("class", "").split())
 
 
+def tooltip_recipe():
+    source = (
+        '<c-ui.tooltip><button type="button">Info</button>'
+        '<c-slot name="content">Help</c-slot></c-ui.tooltip>'
+    )
+    rendered = Template(CottonCompiler().process(source)).render(Context())
+    panels = [
+        attrs
+        for tag, attrs in Elements(rendered).elements
+        if tag == "div" and attrs.get("role") == "tooltip"
+    ]
+    if len(panels) != 1:
+        raise ValueError("Cotton tooltip panel changed")
+    return {"panel": _without(class_name(panels[0]), "absolute")}
+
+
+def gang_figures_recipe():
+    from types import SimpleNamespace
+
+    from n26.core.render import RosterGroup, RosterLine, RosterSummary
+
+    summary = RosterSummary(
+        groups=[RosterGroup(profile="Ganger", category="Fighter", count=1)],
+        models=[RosterLine(name="Vex", rating=60)],
+        count=1,
+        rating=60,
+    )
+    sheet = SimpleNamespace(
+        trade_points_left=0,
+        visiting_trading_post=False,
+        rating=60,
+        credits=40,
+        stash_rating=0,
+        wealth=100,
+        credits_unlimited=False,
+    )
+    rendered = Template(
+        CottonCompiler().process(
+            '<c-n26.gang-figures :gang="sheet" :summary="summary" />'
+        )
+    ).render(Context({"sheet": sheet, "summary": summary}))
+    elements = Elements(rendered).elements
+
+    def find(tag, *tokens, without=(), role=None):
+        found = {
+            class_name(attrs)
+            for name, attrs in elements
+            if name == tag
+            and set(tokens) <= set(attrs.get("class", "").split())
+            and not set(without) & set(attrs.get("class", "").split())
+            and (role is None or attrs.get("role") == role)
+        }
+        if len(found) != 1:
+            raise ValueError(f"Gang figures recipe changed: {tag}, {tokens}: {found}")
+        return found.pop()
+
+    tab = next(
+        attrs
+        for tag, attrs in elements
+        if tag == "button" and "isActive(tab.name)" in attrs.get(":class", "")
+    )
+    active = re.search(r"'([^']+)'\s*:\s*isActive", tab[":class"])
+    inactive = re.search(r"'([^']+)'\s*:\s*!isActive", tab[":class"])
+    if active is None or inactive is None:
+        raise ValueError("Roster tab states changed")
+    # Both short tab labels fit the roster panel at every width.
+    tab_list = _without(
+        find("div", "hidden", "flex-wrap", "gap-x-1"), "hidden", "sm:flex"
+    )
+    return {
+        "root": find("div", "flex", "items-center", "gap-3"),
+        "wealth": find("div", "border-l", "border-box-border"),
+        "scroll": find("div", "overflow-x-auto"),
+        "list": find("dl"),
+        "figure": find(
+            "div", "flex-col", "items-center", "px-3", without=("border-r",)
+        ),
+        "firstFigure": find("div", "flex-col", "items-center", "border-r"),
+        "label": find("dt"),
+        "value": find("dd", "tabular-nums"),
+        "absent": find("dd", "text-muted"),
+        "rosterBody": find("div", "px-3", "py-2"),
+        "tabList": f"{tab_list} flex",
+        "tab": class_name(tab),
+        "tabActive": active[1],
+        "tabInactive": inactive[1],
+        "tabPanel": find("div", role="tabpanel"),
+        "table": find("table"),
+        "name": find("td", "pr-3", "text-ink-900"),
+        "category": find("td", "pr-3", "text-muted"),
+        "number": find("td", "py-0.5", "text-right"),
+        "totalRow": find("tr", "border-t", "font-semibold"),
+        "totalLabel": find("td", "pt-1", without=("text-right",)),
+        "totalNumber": find("td", "pt-1", "text-right"),
+    }
+
+
+def hire_catalogue_recipe():
+    from types import SimpleNamespace
+
+    from n26.core.hire import HireEntry, HireGroup, HireOption
+
+    profile = SimpleNamespace(
+        pk="profile", name="Ganger", profile_type=SimpleNamespace(name="Fighter")
+    )
+    entry = HireEntry(
+        profile=profile,
+        card_url="/preview/",
+        groups=[
+            HireGroup(
+                "one",
+                [
+                    HireOption(
+                        "Plain",
+                        0,
+                        60,
+                        True,
+                        None,
+                        default_set=SimpleNamespace(pk="plain"),
+                        card_url="/preview/",
+                    ),
+                    HireOption(
+                        "Equipped",
+                        25,
+                        85,
+                        False,
+                        None,
+                        default_set=SimpleNamespace(pk="equipped"),
+                        card_url="/preview/",
+                    ),
+                ],
+            ),
+            HireGroup(
+                "any",
+                [
+                    HireOption(
+                        "Extra",
+                        10,
+                        70,
+                        False,
+                        None,
+                        default_set=SimpleNamespace(pk="extra"),
+                    )
+                ],
+            ),
+        ],
+    )
+    source = (
+        '<c-n26.profile-picker :categories="categories" :sections="sections">'
+        '<c-n26.collection-picker.section name="Fighters">'
+        '<c-n26.collection-picker.category name="Gangers">'
+        '<c-n26.profile-picker.row :entry="entry" value="profile" />'
+        "</c-n26.collection-picker.category></c-n26.collection-picker.section>"
+        "</c-n26.profile-picker>"
+    )
+    rendered = Template(CottonCompiler().process(source)).render(
+        Context(
+            {
+                "entry": entry,
+                "categories": ["Gangers"],
+                "sections": ["Fighters"],
+            }
+        )
+    )
+    elements = Elements(rendered).elements
+
+    def find(tag, *tokens, role=None, without=()):
+        found = {
+            class_name(attrs)
+            for name, attrs in elements
+            if name == tag
+            and set(tokens) <= set(attrs.get("class", "").split())
+            and not set(without) & set(attrs.get("class", "").split())
+            and (role is None or attrs.get("role") == role)
+        }
+        if len(found) != 1:
+            raise ValueError(f"Hire catalogue recipe changed: {tag}, {tokens}: {found}")
+        return found.pop()
+
+    tab = next(
+        attrs
+        for tag, attrs in elements
+        if tag == "button" and attrs.get("role") == "tab"
+    )
+    states = re.search(r"\?\s*'([^']+)'\s*:\s*'([^']+)'", tab.get(":class", ""))
+    if states is None:
+        raise ValueError("Collection picker tab states changed")
+    scope_source = (
+        '<c-n26.tab-links :tabs="tabs" label="Who can be hired" :narrow_tabs="3" />'
+    )
+    scope_elements = Elements(
+        Template(CottonCompiler().process(scope_source)).render(
+            Context(
+                {
+                    "tabs": [
+                        {"label": "Gang list", "href": "/", "current": True},
+                        {"label": "All profiles", "href": "/all/", "current": False},
+                    ],
+                }
+            )
+        )
+    ).elements
+
+    def scope_link(current):
+        found = {
+            class_name(attrs)
+            for tag, attrs in scope_elements
+            if tag == "a"
+            and (attrs.get("aria-current") == "page") == current
+            and "px-3" in attrs.get("class", "").split()
+        }
+        if len(found) != 1:
+            raise ValueError("Scope link classes changed")
+        return found.pop()
+
+    return {
+        "sticky": find("div", "sticky", "z-20"),
+        "summary": find("div", "min-h-6", "gap-x-3"),
+        "summaryCount": find("span", "font-semibold", "tabular-nums"),
+        "summaryActions": find("span", "ml-auto", "gap-3"),
+        "filterButton": find(
+            "button", "rounded", "text-accent-text", "hover:underline"
+        ),
+        "wideTabs": find("div", "hidden", "flex-wrap", role="tablist"),
+        "narrowTabs": find("div", "sm:hidden", role="tablist"),
+        "tab": class_name(tab),
+        "tabActive": states[1],
+        "tabInactive": states[2],
+        "tabCount": find("span", "rounded-full", "px-1.5", "tabular-nums"),
+        "tabEnd": find("span", "order-last", "flex-1", "border-b-2"),
+        "moreSections": find("span", "order-last", "shrink-0", "border-b-2"),
+        "empty": find("div", "py-10", "text-center"),
+        "category": find("button", "min-h-9", "w-full", "py-1"),
+        "categoryName": find("span", "flex-1", "uppercase"),
+        "categoryCount": find("span", "shrink-0", "tabular-nums", "text-muted"),
+        "gutter": find("span", "n26-cp-gutter"),
+        "row": find("div", "min-h-11", "px-1", "py-1"),
+        "rowHeader": find("div", "min-h-9", "flex", "gap-2"),
+        "nameBlock": find("span", "flex", "min-w-0", "flex-1"),
+        "rail": find("span", "n26-cp-rail"),
+        "name": find("span", "min-w-0", "font-semibold", "sm:truncate"),
+        "disclosure": find("button", "shrink-0", "rounded-control", "text-xs"),
+        "price": find("div", "n26-cp-price"),
+        "inset": find("div", "n26-cp-inset"),
+        "optionLabel": find("label", "min-h-9", "rounded-control"),
+        "optionInput": find("input", "size-4", "focus-ring"),
+        "optionName": find("span", "min-w-0", "text-sm", "sm:truncate"),
+        "optionPrice": find(
+            "span", "shrink-0", "text-xs", "text-muted", without=("tabular-nums",)
+        ),
+        "groupHeader": find("div", "min-h-8", "border-t"),
+        "groupName": find(
+            "span", "text-xs", "font-semibold", "uppercase", without=("flex-1",)
+        ),
+        "details": find("div", "pb-2", "pt-1"),
+        "scopeActive": f"{_without(scope_link(True), 'px-3')} px-2 sm:px-3",
+        "scopeInactive": f"{_without(scope_link(False), 'px-3')} px-2 sm:px-3",
+    }
+
+
 def model_preview_recipe():
     from n26.core.render import (
         AssignableLine,
@@ -1377,6 +1637,9 @@ def recipes():
         "textarea": classes("<c-ui.textarea />", "textarea")[0],
         "workflowPage": workflow_page_recipe(),
         "modelPreview": model_preview_recipe(),
+        "gangFigures": gang_figures_recipe(),
+        "hireCatalogue": hire_catalogue_recipe(),
+        "tooltip": tooltip_recipe(),
         "nameList": name_list_recipe(),
         "nativeSelect": native_select_recipe(),
         "nativeSelectSmall": native_select_recipe("sm"),
@@ -1473,6 +1736,8 @@ def recipes():
                 "share-2",
                 "x",
                 "chevron-down",
+                "chevron-right",
+                "users",
                 "ellipsis-vertical",
                 "info",
                 "check",

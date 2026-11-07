@@ -203,14 +203,7 @@ class BaseRatingForm(forms.Form):
 
 
 class HireFighterForm(forms.Form):
-    """The one real field on the hire screen.
-
-    Which profile — and which of its options — is not a field here: every
-    Hire button in the picker is the form's submit, carrying the profile,
-    and the option inputs are scoped per-row by the picker itself. The
-    view reads those directly, because their names are composed from the
-    rows on the page rather than declared anywhere a Form could know.
-    """
+    """The optional display name for a hired model."""
 
     name = forms.CharField(
         max_length=200,
