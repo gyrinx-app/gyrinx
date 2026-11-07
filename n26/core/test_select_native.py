@@ -1,9 +1,4 @@
-"""How a native select shows its options.
-
-A one-of-many menu colours options inside an optgroup, not only the
-select's direct children. A multiple select is a list, so the chosen row
-is marked on its own.
-"""
+"""Native selects retain multiple-selection styling and colours for grouped options."""
 
 from pathlib import Path
 
@@ -12,18 +7,12 @@ from django_cotton.compiler_regex import CottonCompiler
 
 
 def render(source: str, **context) -> str:
-    """Compile a call site the way the template loader would, then render it.
-
-    Cotton's `<c-…>` tags are rewritten by a loader, so a template built from a
-    string never sees them. Running the compiler by hand is what lets a test
-    write the call site it is testing.
-    """
+    """Compile Cotton tags before rendering an inline template."""
     return Template(CottonCompiler().process(source)).render(Context(context))
 
 
 class TestAMultipleSelectShowsWhatIsChosen:
-    """A short list stays a native <select multiple>. The chosen row
-    has to carry a mark the unchosen rows do not."""
+    """Multiple selects retain native list styling and selected-option markup."""
 
     def test_a_list_is_not_drawn_as_a_dropdown(self):
         html = render(
@@ -57,8 +46,7 @@ class TestAMultipleSelectShowsWhatIsChosen:
 
 
 class TestAGroupedMenuKeepsItsTextReadable:
-    """Lasting-injury results are options inside an optgroup. The menu
-    colours have to reach those rows and the group label."""
+    """Apply menu colours to optgroup labels and their nested options."""
 
     def test_menu_colours_cover_grouped_options(self):
         css = (

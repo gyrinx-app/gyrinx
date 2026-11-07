@@ -24,7 +24,7 @@ def render(source: str, **context) -> str:
 
 
 class TestThePair:
-    """A form ends with the way out and the act, in that order."""
+    """Form actions place Cancel before Submit."""
 
     def test_both_are_drawn_when_the_way_out_has_somewhere_to_lead(self):
         html = render(
@@ -37,10 +37,7 @@ class TestThePair:
         assert "Hire" in html
 
     def test_the_way_out_comes_first(self):
-        """Right-aligned as a pair, the act last: a reader running down the
-        fields meets the alternative on the way to the one they want, and
-        buttons that swap places between screens have to be read before
-        they are clicked."""
+        """Keep the action pair right-aligned with Submit last across forms."""
         html = render('<c-n26.form-actions submit_label="Save" cancel_url="/back/" />')
 
         assert html.index("Cancel") < html.index("Save")

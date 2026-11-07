@@ -1,9 +1,4 @@
-"""What a menu of links hands its React island, and what it draws first.
-
-No database: the props and the wrapper are decided from the items and the
-call site alone. The props are read back from the host's JSON script, the way
-the island reads them.
-"""
+"""Action-menu props and fallback markup preserve link order, labels and styling."""
 
 import json
 import re
@@ -21,7 +16,7 @@ from n26.core.templatetags.action_menu import action_menu_props, link_actions
 
 
 def render(source: str, **context) -> str:
-    """Compile a call site the way the template loader would, then render it."""
+    """Compile Cotton tags before rendering an inline template."""
     return Template(CottonCompiler().process(source)).render(Context(context))
 
 
@@ -149,8 +144,9 @@ class TestTheProps:
         assert props["items"][0]["label"] == "Fish &amp; chips"
 
     def test_the_props_never_carry_an_aria_label(self):
-        """Pages count the button's aria-label. A second copy in the JSON
-        would double it."""
+        """Keep aria-label out of JSON so counting rendered button labels remains
+        unambiguous.
+        """
         props = action_menu_props([link("Sell", "/s")], "Actions for Respirator")
         assert "aria-label" not in json.dumps(props)
 
@@ -261,7 +257,6 @@ class TestTheWrapper:
         assert button["title"] == "Actions for Respirator"
         assert button["aria-haspopup"] == "menu"
         assert button["aria-expanded"] == "false"
-        # Dots and a chevron, as the island draws them.
         assert len(button.find_all("svg")) == 2
         assert html.count('aria-label="Actions for Respirator"') == 1
 
@@ -293,8 +288,9 @@ class TestTheWrapper:
         assert html.strip() == ""
 
     def test_one_outer_element_holds_the_scripts(self):
-        """In a button group the wrapper is the group's child, so the
-        preloads and scripts must sit inside it."""
+        """Keep preloads and prop scripts inside one wrapper when the menu is placed
+        in a button group.
+        """
         html = render(
             '<c-n26.action-menu :items="items" label="Actions" />',
             items=[link("View", "/v")],
@@ -329,8 +325,9 @@ class TestTheWrapper:
         assert not noscript.select("[aria-hidden]")
 
     def test_the_scriptless_links_stay_in_the_tab_order(self):
-        """With no script nothing handles a menu's keys, so the list is
-        plain links: no menu roles, and none taken out of the tab order."""
+        """Without JavaScript keyboard handling, fallback links need native focus
+        order and no menu roles.
+        """
         html = render(
             '<c-n26.action-menu :items="items" label="More actions" :scriptless="True" />',
             items=[link("Notes", "/n"), link("Delete gang", "/d", DANGER)],
@@ -353,8 +350,7 @@ class TestTheWrapper:
         assert separator.find_next_sibling("li").get_text(strip=True) == "Delete"
 
     def test_the_scriptless_list_looks_like_the_island(self):
-        """The list copies the classes the island takes from the kit
-        dropdown. This keeps the two from drifting apart."""
+        """Use the shared menu recipe for fallback link, label and separator classes."""
         from n26.frontend.tooling.export_cotton_recipes import action_menu_recipe
 
         recipe = action_menu_recipe()
@@ -374,9 +370,7 @@ class TestTheWrapper:
 
 
 def test_a_button_group_keeps_props_scripts_hidden():
-    """The group's equal-height rule sets display on its wrappers' children.
-    A props script is one of those children, and without the exclusion the
-    page would show its JSON as text."""
+    """Button-group layout rules must exclude prop scripts so JSON stays hidden."""
     css = (Path(__file__).parents[2] / "n26/designsystem/assets/app.css").read_text()
     css = " ".join(css.split())
     assert (
@@ -386,14 +380,12 @@ def test_a_button_group_keeps_props_scripts_hidden():
 
 
 def test_a_button_group_leaves_the_scriptless_list_alone():
-    """The group squares and rounds the corners of its buttons and links.
-    The scriptless list's links are not the group's, so every corner rule
-    skips them, as it skips a dropdown's open menu."""
+    """Exclude fallback-list links from button-group corner and interaction rules."""
     css = (Path(__file__).parents[2] / "n26/designsystem/assets/app.css").read_text()
-    # Prettier may break a long :not( ) across lines.
+    # Normalise formatter whitespace before inspecting CSS selectors.
     css = re.sub(r"\(\s+", "(", re.sub(r"\s+\)", ")", " ".join(css.split())))
-    # One :not() with both, so the exclusion adds no specificity: the reset
-    # must not outrank the rounding on a group's first and last child.
+    # Keep both exclusions in one :not() so the reset does not gain specificity over
+    # corner rules.
     exempt = ':not([role="menu"] *, [data-action-menu-list] *)'
     for rule in (
         ".n26-button-group :is(button, a)" + exempt + " {",
