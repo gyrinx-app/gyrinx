@@ -39,6 +39,39 @@ def class_name(attrs):
     return " ".join(attrs.get("class", "").split())
 
 
+def alert_recipe():
+    variants = {}
+    for tone in ("info", "success", "warning", "error"):
+        source = (
+            f'<c-ui.alert variant="{tone}" :dismissible="True">Message</c-ui.alert>'
+        )
+        rendered = Template(CottonCompiler().process(source)).render(Context())
+        elements = Elements(rendered).elements
+        divs = [attrs for tag, attrs in elements if tag == "div"]
+        svgs = [attrs for tag, attrs in elements if tag == "svg"]
+        paths = [attrs for tag, attrs in elements if tag == "path"]
+        buttons = [attrs for tag, attrs in elements if tag == "button"]
+        if (
+            len(divs) != 3
+            or len(svgs) != 2
+            or len(paths) != 2
+            or len(buttons) != 1
+            or divs[0].get("role") != "alert"
+        ):
+            raise ValueError("Cotton alert structure changed")
+        variants[tone] = {
+            "root": class_name(divs[0]),
+            "content": class_name(divs[1]),
+            "body": class_name(divs[2]),
+            "icon": class_name(svgs[0]),
+            "path": paths[0]["d"],
+            "dismiss": class_name(buttons[0]),
+            "close": class_name(svgs[1]),
+            "closePath": paths[1]["d"],
+        }
+    return variants
+
+
 def tooltip_recipe():
     source = (
         '<c-ui.tooltip><button type="button">Info</button>'
@@ -1631,6 +1664,7 @@ def recipes():
         "buttonLinkBySize": button_link_by_size_recipes,
         "checkboxCard": checkbox_card_recipe(),
         "callout": callout_recipe(),
+        "alert": alert_recipe(),
         "radioCards": radio_cards_recipe(),
         "radioOption": radio_option_recipe(),
         "input": input_recipe(),

@@ -241,3 +241,8 @@ empty string; an omitted unchecked field cannot restore a complete draft.
 uses fresh page CSRF on return. Known rejections remain editable; a rejected retry
 does not resolve an earlier uncertain save. Preserve the raw URLSearchParams
 storage format so cached clients can still recover pending commands.
+
+Preserve a native confirmation's populated payment. An untouched React form must
+post the displayed amount, rather than blank input that may resolve to a higher
+quote after a catalogue edit. Keep deliberate blank and zero payments distinct.
+Preserve queued messages' severity and dismissal alongside their text.

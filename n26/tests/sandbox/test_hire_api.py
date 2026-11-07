@@ -203,3 +203,24 @@ class TestAccessAndProjection:
         assert "max-age=300" in response["Cache-Control"]
         assert response.json()["preview"]["name"] == "Ganger"
         assert "library_author_help" not in response.content.decode()
+
+
+@pytest.mark.parametrize("transport", ["html", "json"])
+def test_an_untouched_confirmation_keeps_its_displayed_payment_after_a_price_change(
+    client, owner, gang, profile, transport
+):
+    client.force_login(owner)
+    confirmation = props(
+        client.get(address(gang, "n26-hire-fighter"), {"hire": str(profile.pk)})
+    )
+    assert confirmation["values"]["paid"] == confirmation["values"]["quoted"] == "60"
+    revise(profile, price=80)
+    name = "n26-hire-fighter" if transport == "html" else "n26-hire-command"
+    response = client.post(address(gang, name), confirmation["values"])
+    assert response.status_code == (302 if transport == "html" else 200)
+    receipt = HireReceipt.objects.get(gang=gang)
+    assert receipt.paid == 60
+    gang.refresh_from_db()
+    assert gang.credits == 40
+    assert gang.rating == 60
+    assert_reconciled(gang)

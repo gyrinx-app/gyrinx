@@ -190,7 +190,11 @@ def _props(request, gang, catalogue, form, back, confirmation, notice=""):
         "profile": confirmed.get("key", data.get("profile", data.get("hire", ""))),
         "selection": dumps(confirmed.get("selection", [])),
         "name": str(form["name"].value() or ""),
-        "paid": data.get("paid", ""),
+        "paid": data.get("paid", "")
+        if request.method == "POST"
+        else str(confirmed["quote"])
+        if confirmation
+        else "",
         "rate": data.get("rate", "") if request.method == "POST" else "paid",
         "request_key": str(form["request_key"].value() or uuid4()),
         "profile_name": confirmed.get("profileName", ""),
@@ -213,7 +217,12 @@ def _props(request, gang, catalogue, form, back, confirmation, notice=""):
         "confirmation": confirmation is not None,
         "notice": notice,
         "messages": [
-            {"text": str(message), "tone": message.level_tag}
+            {
+                "text": str(message),
+                "tone": message.level_tag
+                if message.level_tag in {"success", "error", "warning"}
+                else "info",
+            }
             for message in messages.get_messages(request)
         ],
         "csrfToken": get_token(request),

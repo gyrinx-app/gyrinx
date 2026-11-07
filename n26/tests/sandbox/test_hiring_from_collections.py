@@ -353,7 +353,7 @@ class TestTheCollectionsPriceIsThePrice:
         assert delivered["confirmation"]
         assert delivered["values"]["profile_name"] == "Genestealer Aberrant"
         assert delivered["values"]["quoted"] == "120"
-        assert delivered["values"]["paid"] == ""
+        assert delivered["values"]["paid"] == "120"
 
     def test_hiring_through_the_section_charges_the_collections_price(
         self, client, owner, corrupted_gang

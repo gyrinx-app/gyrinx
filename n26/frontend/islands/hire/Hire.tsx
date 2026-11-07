@@ -1,6 +1,6 @@
 import {
     Breadcrumbs,
-    Callout,
+    Alert,
     GangFigures,
     UserLink,
     WorkflowPage,
@@ -30,9 +30,11 @@ export function Hire(props: HireProps) {
                 onSubmit={(event) => event.preventDefault()}
             >
                 <GangFigures data={figures} />
-                {props.notice && <Callout>{props.notice}</Callout>}
+                {props.notice && <Alert tone="warning">{props.notice}</Alert>}
                 {props.messages.map((message, index) => (
-                    <Callout key={index}>{message.text}</Callout>
+                    <Alert key={index} tone={message.tone}>
+                        {message.text}
+                    </Alert>
                 ))}
                 <Catalogue {...props} />
             </WorkflowPage>
