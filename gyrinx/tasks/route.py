@@ -1,8 +1,4 @@
-"""
-Task route configuration.
-
-Defines the TaskRoute class used to register tasks with their configuration.
-"""
+"""Task routing, retry settings and optional schedules."""
 
 import re
 import zoneinfo
@@ -11,22 +7,15 @@ from dataclasses import dataclass
 
 from django.conf import settings
 
-# Cron expression validation
-# Standard cron: 5 fields (minute, hour, day-of-month, month, day-of-week)
-# Each field can be: *, number, range (1-5), step (*/5), list (1,3,5), or combo
+# Five numeric cron fields support wildcards, ranges, lists and steps.
 CRON_FIELD_PATTERN = r"(\*|[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*)(\/[0-9]+)?"
 CRON_PATTERN = re.compile(rf"^{CRON_FIELD_PATTERN}(\s+{CRON_FIELD_PATTERN}){{4}}$")
 
 
 def validate_cron_expression(schedule: str) -> None:
-    """
-    Validate a cron expression format.
+    """Validate five-field numeric cron syntax, raising ValueError on a format mismatch.
 
-    Args:
-        schedule: Cron expression string (5 fields)
-
-    Raises:
-        ValueError: If the cron expression is invalid
+    This checks syntax, not each field's permitted numeric range.
     """
     if not CRON_PATTERN.match(schedule):
         raise ValueError(
@@ -37,15 +26,7 @@ def validate_cron_expression(schedule: str) -> None:
 
 
 def validate_timezone(timezone: str) -> None:
-    """
-    Validate a timezone string against the IANA timezone database.
-
-    Args:
-        timezone: Timezone string (e.g., 'UTC', 'Europe/London')
-
-    Raises:
-        ValueError: If the timezone is not valid
-    """
+    """Resolve an IANA timezone, raising ValueError if the zone is unknown."""
     try:
         zoneinfo.ZoneInfo(timezone)
     except zoneinfo.ZoneInfoNotFoundError:
@@ -65,31 +46,11 @@ class PausedTaskConsumer:
 
 @dataclass
 class TaskRoute:
-    """
-    Configuration for a registered task.
+    """Routing and delivery configuration for a task.
 
-    Args:
-        func: The task function (decorated with Django's @task) or raw function
-        ack_deadline: Seconds before Pub/Sub retries if no ack (10-600, default 300)
-        min_retry_delay: Minimum retry backoff in seconds (default 10)
-        max_retry_delay: Maximum retry backoff in seconds (default 600)
-        schedule: Optional cron expression for scheduled execution (e.g., "0 3 * * *")
-        schedule_timezone: Timezone for the schedule (default "UTC")
-        exclusive_write: Drain write_scope before delivery and hold exclusive
-            admission across the task's transactions (default False)
-
-    Example:
-        # On-demand only
-        TaskRoute(send_welcome_email)
-
-        # On-demand with custom retry
-        TaskRoute(generate_report, ack_deadline=600, min_retry_delay=30)
-
-        # Scheduled (runs daily at 3am UTC)
-        TaskRoute(cleanup_old_data, schedule="0 3 * * *")
-
-        # Scheduled with timezone
-        TaskRoute(send_daily_report, schedule="0 9 * * *", schedule_timezone="Europe/London")
+    Use schedule and schedule_timezone for periodic delivery. A paused_consumer
+    or exclusive_write requires write_scope. Exclusive delivery drains that
+    scope and holds admission across the task's transactions.
     """
 
     func: Callable
@@ -103,7 +64,7 @@ class TaskRoute:
     exclusive_write: bool = False
 
     def __post_init__(self):
-        """Validate configuration after initialization."""
+        """Validate schedules and require a scope for write-admission options."""
         if self.schedule is not None:
             validate_cron_expression(self.schedule)
             validate_timezone(self.schedule_timezone)
@@ -114,9 +75,7 @@ class TaskRoute:
 
     @property
     def _underlying_func(self) -> Callable:
-        """Get the underlying function, unwrapping Django Task objects if needed."""
-        # Django's @task decorator wraps functions in a Task object
-        # which has a .func attribute containing the original function
+        """Unwrap a Django Task to its function, or return a raw function unchanged."""
         if hasattr(self.func, "func"):
             return self.func.func
         return self.func
@@ -134,28 +93,15 @@ class TaskRoute:
 
     @property
     def topic_name(self) -> str:
-        """
-        Pub/Sub topic name with environment prefix.
-
-        Format: {env}--gyrinx.tasks--{full.module.path}
-        Example: prod--gyrinx.tasks--n23.core.tasks.send_welcome_email
-        """
+        """Build the Pub/Sub topic as {environment}--gyrinx.tasks--{function path}."""
         env = getattr(settings, "TASKS_ENVIRONMENT", "dev")
         return f"{env}--gyrinx.tasks--{self.path}"
 
     @property
     def scheduler_job_name(self) -> str:
-        """
-        Cloud Scheduler job name with environment prefix.
+        """Build the environment-prefixed Scheduler job name with dots replaced by hyphens.
 
-        Format: {env}--gyrinx-scheduler--{task-path-with-hyphens}
-        Example: prod--gyrinx-scheduler--gyrinx-core-tasks-cleanup_old_data
-
-        Cloud Scheduler job names only allow [a-zA-Z0-9_-], so dots are
-        replaced with hyphens.
-
-        Raises:
-            ValueError: If the task has no schedule configured.
+        Raise ValueError when the route has no schedule.
         """
         if not self.schedule:
             raise ValueError(f"Task {self.name} has no schedule configured")
