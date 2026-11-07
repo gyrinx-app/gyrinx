@@ -98,9 +98,7 @@ class Event(AppBase):
         max_length=50, choices=EventVerb.choices, help_text="The action being performed"
     )
 
-    # Which product the action happened in. Derived from the noun rather than
-    # passed in — see gyrinx.analytics.nouns — so every row carries one and no
-    # call site can forget it.
+    # Derive the edition from the registered noun when saving.
     edition = models.CharField(
         max_length=20,
         choices=Edition.choices,
@@ -165,19 +163,16 @@ class Event(AppBase):
         return f"{self.owner} {self.verb} {self.noun} at {self.created}"
 
     def save(self, *args, **kwargs):
-        """Override save to also log the event to the log stream."""
-        # Derived here rather than in log_event so that anything writing an
-        # Event — a signal, a test, a shell — gets the dimension filled in.
-        # An explicit edition is left alone.
+        """Derive a missing or unknown edition, save the event and attempt stream logging."""
+        # Derive missing editions on every save, including direct model writes.
+        # Preserve an explicit, known edition.
         if not self.edition or self.edition == Edition.UNKNOWN:
             self.edition = edition_for_noun(self.noun)
 
         super().save(*args, **kwargs)
 
         try:
-            # Track user event. The event name needs no edition prefix: a noun
-            # belongs to one edition only, so "event_create_gang" and
-            # "event_create_list" can never be the same product's line.
+            # Nouns belong to one edition, so event names need no edition prefix.
             track(
                 f"event_{self.verb}_{self.noun}",
                 n=1,
@@ -196,16 +191,12 @@ class Event(AppBase):
                 context=self.context,
             )
         except Exception:
-            # If logging fails, don't crash - just log the error
+            # Preserve the stored event if stream logging fails.
             logger.exception("Failed to log event to stream")
 
 
 def ensure_json_serializable(data):
-    """
-    Recursively ensure all data is JSON serializable.
-
-    Converts non-serializable objects to strings or other JSON-safe types.
-    """
+    """Convert containers recursively, enums to values and unsupported objects to strings."""
     if isinstance(data, dict):
         return {k: ensure_json_serializable(v) for k, v in data.items()}
     elif isinstance(data, (list, tuple)):
@@ -213,57 +204,37 @@ def ensure_json_serializable(data):
     elif isinstance(data, (str, int, float, bool, type(None))):
         return data
     elif isinstance(data, Enum):
-        # For Enums, use their value
         return data.value
     else:
-        # For any other type, convert to string representation
         try:
-            # Try to serialize to JSON first to check if it's already serializable
             json.dumps(data)
             return data
         except TypeError, ValueError:
-            # If not serializable, convert to string
             return str(data)
 
 
 def get_client_ip(request):
-    """
-    Extract the client's real IP address from the request.
+    """Read the first X-Forwarded-For address, then X-Real-IP or REMOTE_ADDR.
 
-    When running behind a proxy or load balancer (like Google Cloud Run),
-    the real client IP is passed in headers like X-Forwarded-For.
-
-    Args:
-        request: Django HttpRequest object
-
-    Returns:
-        str: The client's IP address, or None if not available
+    Return None without a request. Header values are not validated here.
     """
     if not request:
         return None
 
-    # Check X-Forwarded-For header first
     x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
     if x_forwarded_for:
-        # X-Forwarded-For can contain multiple IPs: "client-ip, proxy1, proxy2"
-        # The first IP is the original client
         ip = x_forwarded_for.split(",")[0].strip()
         return ip
 
-    # Check X-Real-IP header (used by some proxies)
     x_real_ip = request.META.get("HTTP_X_REAL_IP")
     if x_real_ip:
         return x_real_ip.strip()
 
-    # Fall back to REMOTE_ADDR if no proxy headers are present
     return request.META.get("REMOTE_ADDR")
 
 
-# Matches the crawlers seen in practice (Amazonbot, Googlebot, bingbot,
-# Bytespider, Google-Read-Aloud, ...) plus the generic self-identifying
-# patterns. Deliberately broad: "bot" also matches e.g. Cubot phone UAs, but
-# losing a stray device is cheaper than counting crawlers as engagement —
-# 2026-07-28 showed crawler traffic outnumbering humans on fighter pages.
+# Use broad crawler patterns to exclude automated traffic from engagement.
+# Some device names may also match the bot pattern.
 BOT_USER_AGENT_RE = re.compile(
     r"bot|crawler|spider|slurp|read-aloud|bingpreview|facebookexternalhit",
     re.IGNORECASE,
@@ -279,43 +250,16 @@ def is_bot_request(request):
 def log_event(
     user, noun, verb, object=None, request=None, ip_address=None, field=None, **context
 ):
-    """
-    Utility function to easily log events throughout the application.
+    """Record a non-crawler event and return it, or None on failure.
 
-    The edition is not an argument. It follows from the noun — see
-    ``gyrinx.analytics.nouns`` — so a caller cannot record an action against
-    the wrong product by forgetting to say which one it was in.
-
-    Args:
-        user: The User performing the action
-        noun: a noun registered by an edition, saying what's being acted upon
-        verb: EventVerb choice representing the action
-        object: Optional Django model instance being acted upon
-        request: Optional HttpRequest object to extract session ID and IP address
-        ip_address: Optional IP address (overrides request extraction)
-        field: Optional EventField choice for UPDATE events
-        **context: Additional context data to store in the JSON field
-
-    Returns:
-        Event: The created Event instance, or None if an error occurred
-
-    Example:
-        log_event(
-            user=request.user,
-            noun=EventNoun.LIST,  # from the edition's own noun set
-            verb=EventVerb.CREATE,
-            object=list_instance,
-            request=request,
-            list_name=list_instance.name,
-            fighter_count=list_instance.fighters.count()
-        )
+    Derive its edition from the registered noun. Read session and IP data from
+    the optional request, honour an explicit IP and convert context to JSON-safe
+    values. Convert UUID-backed object keys through to_uuid when available.
     """
     try:
-        # Crawlers are traffic, not engagement — don't record them as events.
         if request is not None and is_bot_request(request):
             return None
 
-        # Extract session ID from request if available
         session_id = None
         if (
             request
@@ -324,7 +268,6 @@ def log_event(
         ):
             session_id = request.session.session_key
 
-        # Extract IP address from request if not explicitly provided
         if not ip_address and request:
             ip_address = get_client_ip(request)
 
@@ -339,9 +282,7 @@ def log_event(
         }
 
         if object:
-            # The column is a uuid. A primary key that is the same 128 bits
-            # under another name knows how to say so, and saying so is what
-            # lets an edition whose keys are not uuids be pointed at at all.
+            # Convert UUID-backed keys before writing the UUID relation column.
             object_id = object.pk
             as_uuid = getattr(object_id, "to_uuid", None)
             event_data["object_id"] = object_id if as_uuid is None else as_uuid()
@@ -349,7 +290,6 @@ def log_event(
 
         return Event.objects.create(**event_data)
     except Exception as e:
-        # Log the error but don't crash the application
         logger.error(
             f"Failed to log event: {noun} {verb}",
             exc_info=True,

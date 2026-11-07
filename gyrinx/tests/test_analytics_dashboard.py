@@ -1,9 +1,6 @@
-"""The admin analytics dashboard, and the growth chart it builds from the registry.
+"""Analytics dashboard and registered cumulative growth series.
 
-The chart's lines are contributed by the edition (``n23/core/admin/analytics.py``)
-through ``gyrinx.analytics.registry``. Registration failures are silent — the
-page still renders, just with an empty chart — so these tests assert the data
-actually plots, not merely that the page returns 200.
+Check plotted data as well as HTTP success so missing registrations fail.
 """
 
 import json
@@ -82,7 +79,7 @@ def test_series_values_accumulate_and_never_fall(client, dashboard_admin, make_l
 
 @pytest.mark.django_db
 def test_daily_counts_by_date_groups_by_creation_day(make_campaign):
-    """The helper editions build their series from."""
+    """Group edition model counts by creation date."""
     from datetime import timedelta
 
     from django.utils import timezone
@@ -101,8 +98,7 @@ def test_daily_counts_by_date_groups_by_creation_day(make_campaign):
 
 @pytest.mark.django_db
 def test_picking_an_edition_leaves_only_that_editions_lines(client, dashboard_admin):
-    """Two products on one chart: whichever one you asked for is the one you
-    get, because adding their lines together would describe neither."""
+    """Filter registered series by the selected edition."""
     client.force_login(dashboard_admin)
     resp = client.get(reverse("admin:analytics_dashboard") + "?edition=n26")
 
@@ -122,7 +118,7 @@ def test_an_edition_nobody_has_heard_of_shows_everything(client, dashboard_admin
 
 @pytest.mark.django_db
 def test_registering_a_key_twice_replaces_rather_than_duplicates():
-    """Re-registration overrides in place — a series can't be double-plotted."""
+    """Replace an existing series without adding another chart line."""
     before = len(growth_series())
     series = GrowthSeries(
         key="test_dupe",
