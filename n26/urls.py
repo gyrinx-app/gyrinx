@@ -190,6 +190,11 @@ urlpatterns = [
         name="n26-campaign-asset-edit",
     ),
     path(
+        "campaigns/<str:pk>/assets/<str:asset_pk>/edit/change/",
+        views.edit_asset_command,
+        name="n26-campaign-asset-edit-command",
+    ),
+    path(
         "campaigns/<str:pk>/assets/<str:asset_pk>/assign/",
         views.assign_asset,
         name="n26-campaign-asset-assign",
@@ -222,6 +227,11 @@ urlpatterns = [
         "campaigns/<str:pk>/assets/types/<str:asset_type_pk>/edit/",
         views.edit_asset_type,
         name="n26-campaign-edit-asset-type",
+    ),
+    path(
+        "campaigns/<str:pk>/assets/types/<str:asset_type_pk>/edit/change/",
+        views.edit_asset_type_command,
+        name="n26-campaign-edit-asset-type-command",
     ),
     path(
         "campaigns/<str:pk>/assets/new/",
@@ -340,6 +350,11 @@ urlpatterns = [
     path("gangs/<str:pk>/clone/", views.clone_gang, name="n26-clone-gang"),
     path("gangs/<str:pk>/history/", views.gang_history, name="n26-gang-history"),
     path("gangs/<str:pk>/credits/", views.gang_credits, name="n26-gang-credits"),
+    path(
+        "gangs/<str:pk>/credits/change/",
+        views.gang_credits_command,
+        name="n26-gang-credits-command",
+    ),
     path("gangs/<str:pk>/lore/", views.gang_lore, name="n26-gang-lore"),
     path("gangs/<str:pk>/notes/", views.gang_notes, name="n26-gang-notes"),
     # What the gang takes to a trading post. Its own page rather than a

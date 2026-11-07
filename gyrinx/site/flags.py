@@ -1,20 +1,8 @@
-"""Which accounts may reach a feature that is still being built.
+"""Feature access checks shared by both editions.
 
-A feature under construction is gated rather than held back: its code ships
-like any other, but only the accounts named on its flag can open it, so half
-a screen is never a stranger's first impression of it.
-
-This is the site's, not an edition's. Gating half-built work is a property of
-shipping software rather than of any one game, so one table serves both
-editions: one admin page, one answer to "what is gated right now", and no
-second implementation to drift from this one. What an edition owns is which
-features it has — so an edition *registers* its slugs here, the way it claims
-its event nouns, and the platform never names them.
-
-A gated view answers a reader who may not see it with **404, never 403**:
-which features are being built is not something to be probed for. Signing in
-is required even where the ungated page would not ask — being sent to a login
-page would itself say that something is there.
+Editions register their feature slugs at startup. FeatureFlag stores access
+settings in the platform. Missing records disable a feature; unknown slugs
+raise ValueError. Denied requests return 404 to avoid disclosing gated URLs.
 """
 
 from functools import wraps
@@ -27,26 +15,20 @@ _known: set[str] = set()
 
 
 def register_flags(*slugs) -> None:
-    """Claim slugs for gating. Registering the same one twice does nothing.
-
-    An edition calls this as it starts, so a guard written against a slug
-    nobody registered is a mistake that surfaces at once rather than a page
-    that quietly protects nothing.
-    """
+    """Register edition feature slugs at startup; duplicate registrations are harmless."""
     _known.update(slugs)
 
 
 def known_flags() -> frozenset:
-    """Every registered slug, for a caller offering them as a choice."""
+    """Return the registered slugs for feature choices."""
     return frozenset(_known)
 
 
 def enabled(slug, user) -> bool:
-    """Whether this account may reach the named feature.
+    """Return whether the user may access the feature.
 
-    A slug nobody registered raises: that is a mistake in the code, not
-    something a reader can cause. A registered slug with no row is off, so a
-    feature reaches nobody until somebody opens it.
+    Raise ValueError for an unregistered slug. A missing flag record disables
+    the feature.
     """
     from gyrinx.site.models import FeatureFlag
 
@@ -60,19 +42,17 @@ def enabled(slug, user) -> bool:
 
 
 def switched_on(slug) -> bool:
-    """Whether the named feature is on at all — the question background
-    work asks, having no account to ask about.
+    """Return whether feature availability is ALLOWLIST or EVERYONE.
 
-    Any availability but off counts: a feature open to even one account
-    needs the machinery behind it running. A slug with no row is off,
-    and an unregistered one raises, exactly as ``enabled`` answers.
+    Background jobs use the configured state without checking group membership.
+    Missing records disable the feature; unregistered slugs raise ValueError.
     """
     from gyrinx.site.models import Availability, FeatureFlag
 
     if slug not in _known:
         raise ValueError(f"No such feature flag: {slug!r}")
 
-    # Named open states only, so a word nothing can read fails shut.
+    # Unknown availability values must not enable background work.
     return FeatureFlag.objects.filter(
         slug=slug,
         availability__in=[Availability.ALLOWLIST, Availability.EVERYONE],
@@ -80,16 +60,11 @@ def switched_on(slug) -> bool:
 
 
 def requires_flag(slug):
-    """Guard a view with a feature flag, answering 404 where it is closed.
+    """Return a view decorator that raises Http404 when access is denied.
 
-    Sits outside ``login_required`` where a view has both, so a visitor to a
-    gated address is told the page is not there rather than being sent to
-    sign in and learning that it is.
-
-    The slug is checked as the guard is applied, not as a request arrives: a
-    mistyped one is a mistake in the code, and failing here says so at once.
-    Left to the request, the same typo is a page that serves errors to
-    whoever finds it first.
+    Place outside login_required so denied anonymous requests also return 404.
+    Validate the slug when applying the decorator to catch registration errors
+    before handling requests.
     """
     if slug not in _known:
         raise ValueError(f"No such feature flag: {slug!r}")

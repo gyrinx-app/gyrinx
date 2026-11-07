@@ -1,13 +1,10 @@
-"""Render structures — what a card and a gang look like, as plain data.
+"""Build plain display data for model cards, gangs and campaigns.
 
-Nothing here knows about HTML, templates or terminals. These are dataclasses
-a renderer consumes: the text renderer in ``n26.core.render_text`` is one, a web
-template would be another. Building them is pure reading, so they are easy
-to assert against in tests without rendering anything.
-
-Query budget is the point. Building a whole gang's worth of cards is a fixed
-number of queries regardless of how many models or how much kit — see
-``render_gang`` and the assertions in ``tests/sandbox/test_render.py``.
+Dataclasses contain display facts. Notes and lore may retain untrusted stored
+HTML and need sanitising when rendered on web pages. Web templates and
+``n26.core.render_text`` consume the same structures. Gang rendering uses
+a fixed query count as its roster and equipment grow; see ``render_gang``
+and ``n26/tests/sandbox/test_render.py``.
 """
 
 from dataclasses import dataclass, field, replace
@@ -66,37 +63,19 @@ from n26.library.models import (
 )
 from n26.library.standard_content import XP_COUNTER
 
-#: The kinds that draw no line of their own. A hidden carrier by
-#: definition; a slot because its line *is* its choice row; a pick
-#: because it appears as that row's answer — which holds only where
-#: that row is drawn on the same card, so ``_speaks_for_itself`` below
-#: reads the one case where it is not. Their effects still show, named
-#: in whatever they changed. An asset table because holding one is a
-#: fact the campaign's roll controls read, not something a sheet says.
+#: Kinds represented through choices or effects rather than independent
+#: card lines. Picks whose source is on another card are handled by
+#: _speaks_for_itself.
 DRAWS_NO_LINE = (Hidden, Slot, Pickable, AssetTable, Action, RankTable)
 
 
 def _speaks_for_itself(node, asked_here):
-    """A pick whose question this card never asks, which must draw its
-    own line rather than appear nowhere at all.
+    """Whether a pick needs its own line because its choice originates elsewhere.
 
-    A pick is normally drawn as its choice's answer, so it draws no line
-    of its own — but that assumes the question is asked *here*. It need
-    not be: a question asked of one holder may be answered onto another
-    (the Leader is asked the gang's legacy, and the gang holds it),
-    and then the card holding the answer has no choice row to hang it
-    under.
-
-    The test is the question's own line, not whether a choice row was
-    drawn: a hidden choice asks nothing and still speaks for its answer,
-    which is the whole of what hidden means. So a pick is left to the
-    ordinary rule wherever the assignment it answers stands on this
-    card, drawn or silent, and draws its own line only where that
-    assignment is somewhere else entirely.
-
-    A pick with no choice behind it at all is a third case and keeps
-    drawing nothing: nobody was offered it, so it says nothing about its
-    holder (``effects.is_orphan_pick``).
+    Picks normally appear in their source choice's line. A pick held on
+    a different card needs an independent line. Test source presence rather
+    than visible choice rows: hidden choices still account for their picks.
+    Orphan picks have no valid source and remain hidden.
     """
     return isinstance(node.assignable, Pickable) and (
         (node.chosen_for_key is not None and node.chosen_for_key not in asked_here)
@@ -116,11 +95,9 @@ WEAPON_SLOTS_PER_CARD = 3
 
 @dataclass(frozen=True)
 class Provenance:
-    """Where a thing on a card came from.
+    """The source and acquisition reason for a displayed assignable.
 
-    Every assignable a card shows carries one — that is the rule. It is
-    data for a renderer to use (a tooltip, a picker link, a "default"
-    badge), never something a renderer is obliged to print.
+    Renderers may use this for annotations, badges or picker links.
     """
 
     #: The name of what brought it: "Mounted", "Specialist", "Khimerix".
@@ -151,12 +128,10 @@ class Provenance:
 
 
 class SlotMarked:
-    """A line that draws the book's asterisk after a two-slot weapon's name.
+    """Shared weapon-slot annotation for card lines.
 
-    ``slots`` is the library's number for a weapon and 1 for anything
-    else — the number that draws no mark — so one template composes a
-    weapon's line, a wargear's and a skill's the same way: the name,
-    then ``slot_mark``, then whatever count follows.
+    Weapons supply their slot count. Other kinds use one, which produces
+    no asterisk.
     """
 
     @property
@@ -189,34 +164,18 @@ def tier_mark(choices):
 
 @dataclass(frozen=True)
 class AssignableLine(SlotMarked):
-    """One assignable drawn on a card: its name, and where it came from.
+    """An assignable's name, provenance, rating contribution and available actions.
 
-    ``rating`` is what the line contributed to the model's rating, and
-    zero is drawn as nothing — right for skills, traits and everything
-    granted, where there is no figure to state, and for gear it means
-    only lines that moved the rating carry a number.
+    ``id`` addresses a stored possession and is empty for computed grants,
+    previews and non-equipment. Views fill ``sell`` and ``more`` with permitted
+    actions; see ``n26.core.views.owned.link_possession_actions``.
 
-    ``id`` is the assignment's pk when this line draws a stored
-    possession — what a control acting on it names. Empty on a granted
-    line, a hire preview, and everything that is not kit. ``sell`` and
-    ``more`` are filled in by whoever knows the URL space; see
-    ``n26.core.views.owned.link_possession_actions``. Empty is a name
-    with nothing to click, which is what a gang sheet, a print sheet
-    and a hire preview all want.
+    ``count`` combines identical lines. Combined lines have no assignment ID
+    because an action could not identify a single copy. ``brought_in`` lists
+    named living pets created by this equipment, excluding unnamed and dead pets.
 
-    ``count`` is how many identical lines this one stands for — see
-    :func:`collapse`. Above one, a renderer writes the count after the
-    name (``count_mark``), and the line names no assignment: a control
-    acting on one of three could not say which.
-
-    ``brought_in`` names the models this kit brought onto the roster —
-    a pet, as its owner named it; two where the kit carries two such
-    effects — written after the name in brackets (``brought_mark``), so
-    the line reads "Phyrr Cat (Fang)". Empty for kit that brought
-    nothing; a pet its owner has not named yet, or one that has died,
-    is left out of it: the line is what the model carries, and a dead
-    pet is not that any more. A renderer writes the marks in one order
-    everywhere: the name, the slot mark, the chosen tier, the pets, then the count.
+    Render annotations in order: name, weapon-slot mark, selected tier, pets,
+    then repeat count. Zero rating contributions display no number.
     """
 
     name: str
@@ -267,35 +226,19 @@ class AssignableLine(SlotMarked):
 
 @dataclass
 class CounterLine:
-    """One counter a model keeps, drawn on its card.
+    """A displayed counter value and optional update control.
 
-    A counter is a running number rather than a possession, so it draws
-    its own line and never appears among the kit — but it *is* an
-    assignment underneath, and ``assignment_id`` is what a control that
-    changes it posts to. Empty where the card depicts nobody (a hire
-    preview, a gallery sample).
-
-    ``href`` is where a change is posted, filled in by whoever knows the
-    URL space — like a choice's own href, and empty by default. A line
-    with none draws as a fact with nothing to click, which is what a
-    print sheet, a hire preview and any reader who does not own the gang
-    all want.
-
-    ``back`` is the screen the control belongs to, carried so a reader
-    with no scripting lands on it rather than on the address the act
-    posts to. Filled in beside the href, because the same caller knows
-    both — and it cannot be read off the request, which for a card
-    redrawn after an act is the act's own address.
+    ``assignment_id`` addresses a stored counter and is empty on previews.
+    Views fill ``href`` with an authorised command URL and ``back`` with
+    the page containing the control. The command request itself cannot supply
+    that return page when redrawing a card after a write.
     """
 
     name: str
     value: int
-    #: The half of ``value`` that is written down — what a tally moves
-    #: and what it floors at. Contributions make up the rest, and they
-    #: cannot be tallied away, so a control offering to take one off
-    #: asks this rather than the whole reading: a counter standing at 2
-    #: purely by contribution has nothing to take off, and offering it
-    #: would write a ledger event saying nothing happened.
+    #: Stored counter value, or its opening value on a preview, excluding
+    #: modifier contributions. Update controls use this value because tallying
+    #: cannot remove a computed contribution.
     tallied: int = 0
     assignment_id: str = ""
     href: str = ""
@@ -304,19 +247,12 @@ class CounterLine:
     #: and so does every counter on the model's edit page. Empty leaves
     #: the one-point buttons.
     adjust_href: str = ""
-    #: Whether this is the XP counter, decided where the counter itself is
-    #: to hand rather than re-derived from ``name`` — which is what a
-    #: reader sees, and carries the counter's annotation with it, so an
-    #: annotated XP would stop being recognised as XP.
+    #: Identify XP by its content object; display names may include annotations.
     is_xp: bool = False
-    #: Whether the counter is one a reader is shown. A counter marked
-    #: undrawn stays on the card so conditions can check it, and is
-    #: kept out of every drawing of it — ``counter_lines`` is what
-    #: leaves it out.
+    #: Author-controlled visibility. Hidden counters still satisfy conditions
+    #: but counter_lines excludes them from display.
     drawn: bool = True
-    #: Where the counter came from, where something brought it — a
-    #: campaign type giving every member gang Reputation. Empty for a
-    #: counter assigned directly, which is what a model's own reads as.
+    #: Grant source, empty for directly assigned counters.
     provenance: Provenance = field(default_factory=Provenance)
     is_income: bool = False
     income_sources: list[IncomeSource] = field(default_factory=list)
@@ -354,11 +290,7 @@ class StatCell:
 
     @property
     def changed_by(self):
-        """The sources the tooltip lists, repeats stacked as Name (xn).
-
-        Each change still stands on ``modified_by`` — a second Hand
-        Injury is a second change. This is only how the sentence reads.
-        """
+        """Tooltip source names grouped as Name (xn), preserving repeated-source counts."""
         labels = []
         for change in self.modified_by:
             name = change.source or "a modifier"
@@ -369,11 +301,9 @@ class StatCell:
 
     @property
     def held_note(self):
-        """The sentence the tooltip adds for a cell held at a limit.
+        """Describe a limiting bound using the stat's improvement direction.
 
-        Said in the stat's own direction rather than as "minimum" or
-        "maximum": a Save held at 6+ shows the largest number on the
-        row, and calling that its minimum would read as the wrong way.
+        For target numbers such as Save, a larger numeral is a worse characteristic.
         """
         return HELD_NOTES.get(self.held_at, "")
 
@@ -387,18 +317,10 @@ HELD_NOTES = {
 
 @dataclass
 class EditableStatCell:
-    """One characteristic as a box an author types in.
+    """A characteristic input sharing its display facts with ``StatCell``.
 
-    The reading half of this is ``StatCell``, and the two carry the same
-    display facts on purpose: an editor that placed its dividers or its
-    tint differently from the card would be showing a different statline
-    from the one being edited.
-
-    ``value`` is the stored string, which is already canonical — a
-    Movement of four is held as ``4"`` — so what the author sees back is
-    what a card prints. ``name`` is the input's name in the form that
-    submits it, and ``error`` is the refusal to show against this box,
-    empty when there is none.
+    ``value`` is the canonical stored string, such as ``4"`` for Movement.
+    ``name`` identifies the form input; ``error`` contains its validation message.
     """
 
     short_name: str
@@ -430,21 +352,11 @@ class Statline:
 
 @dataclass
 class WeaponProfileLine:
-    """One of a weapon's profiles: what it added, and how it shoots.
+    """A weapon profile's characteristics and recorded rating contribution.
 
-    ``rating`` is what this line contributed to the model's rating — as
-    every number on a card is — and not what the thing is worth. Three
-    different situations all read 0: the mandatory first profile, which
-    genuinely comes free with the weapon; an ammo type bundled into a
-    hire, whose 50 credits are inside the package price on the fighter's
-    line; and an owner's hand-set gift. A renderer therefore must not call a
-    zero "free" — it cannot tell those apart, and the second one is a
-    priced item the player paid for.
-
-    Named for ``n26.library.WeaponProfile`` in full, because "profile" alone
-    means the fighter entry everywhere else: a plain ``ProfileLine`` would
-    read as a line for a ``n26.library.Profile``, which is what a Legacy
-    profile will want when it gets one.
+    Zero contribution does not imply a free profile. Its price may be included
+    in the hire package, or an owner may have assigned it without payment.
+    Use the full WeaponProfile name to distinguish it from fighter profiles.
     """
 
     #: Blank for the weapon's own line, which is most of them: the book
@@ -480,10 +392,7 @@ class WeaponProfileLine:
 class WeaponLine(SlotMarked):
     name: str
     base_rating: int
-    #: The assignment's pk, as a string, when this line draws a stored
-    #: weapon — what a selection UI keys its checkboxes on. Empty on a
-    #: hire preview, whose weapons exist on no ledger and cannot be
-    #: selected for anything.
+    #: Stored weapon assignment ID for selection controls, empty on previews.
     id: str = ""
     #: Weapon slots this takes on a card — the library's own number:
     #: 1 for most, 2 for asterisked weapons, 0 for grenades.
@@ -492,10 +401,7 @@ class WeaponLine(SlotMarked):
     #: Accessories hung off this weapon — a sight, suspensors.
     accessories: list[AssignableLine] = field(default_factory=list)
     provenance: Provenance = field(default_factory=Provenance)
-    #: Sell and the rest of what can happen to this weapon, filled in
-    #: by whoever knows the URL space — see
-    #: ``n26.core.views.owned.link_possession_actions``. Empty is a
-    #: name with nothing to click.
+    #: Views fill permitted weapon actions; see link_possession_actions.
     sell: object = None
     more: tuple = ()
     #: The way to bolt something onto this weapon. Only a stored
@@ -535,12 +441,11 @@ class WeaponLine(SlotMarked):
 
     @property
     def total_brought_in(self):
-        """Every model this weapon's line brought, its profiles' and its
-        fittings' included — what goes where the weapon goes, as
-        ``total_rating`` counts what rides on it. For a picker that
-        ticks the whole assignment at once, and so has one label for
-        what the card draws on several rows; a profile assigned straight
-        to the model names its pet on its own row, and here."""
+        """Named pets created by this weapon, its profiles and its accessories.
+
+        Selection controls use the combined list because they select the weapon's
+        entire subtree.
+        """
         return (
             *self.brought_in,
             *(name for profile in self.profiles for name in profile.brought_in),
@@ -553,12 +458,9 @@ class WeaponLine(SlotMarked):
 
     @property
     def extras_rating(self):
-        """What rides on the weapon: its paid profiles and its accessories.
+        """Total rating from the weapon's paid profiles and accessories.
 
-        Both go where the weapon goes — selling it sells them — so both
-        belong in what the weapon is worth. A screen that counted only
-        the profiles would leave a sight's price attributed to the
-        fighter with no line of theirs to account for it.
+        Both accompany a sale and belong in the weapon's displayed total.
         """
         return sum(profile.rating for profile in self.profiles) + sum(
             accessory.rating for accessory in self.accessories
@@ -570,58 +472,31 @@ class WeaponLine(SlotMarked):
 
     @property
     def own_line(self):
-        """The profile that *is* the weapon — the unnamed one, or None.
+        """Find the weapon's unique unnamed profile, independent of display position.
 
-        Its stats belong on the weapon's own row, because the book prints
-        an Autogun's first line as "Autogun". A weapon may have at most one
-        (a database constraint refuses the second: two would print as the
-        weapon twice with no way to tell them apart), so ``next`` is a
-        lookup and not a choice between candidates.
-
-        Searched rather than taken from position 0: the unnamed line is
-        conventionally first but nothing guarantees it, and a renderer that
-        assumes so prints the weapon's name on an ammo type's stats.
+        Its stats appear on the weapon's main line. A database constraint prevents
+        multiple unnamed profiles for one weapon.
         """
         return next((p for p in self.profiles if not p.name), None)
 
     @property
     def own_stats(self):
-        """The characteristics the weapon's own row carries, if any.
+        """Return the weapon's main-line stats when they contain displayable values.
 
-        Having an unnamed profile and having stats to print on the
-        weapon's line are two different facts, and a combi-weapon is
-        where they part company: it carries an unnamed profile that is
-        the weapon's identity — "Combi-weapon (laspistol/meltagun)" —
-        and does its shooting entirely through the named profiles
-        beneath, so the weapon's own row has nothing to put in the stat
-        columns.
-
-        A renderer asks this rather than asking whether an own line
-        exists, because what it needs to know is whether the name shares
-        the row with anything: alone on it, the name takes the whole
-        width instead of being squeezed into the first column while the
-        rest of the row stands empty.
+        Combi-weapons may have an unnamed identity profile with no characteristics;
+        their named profiles supply the stat rows.
         """
         own = self.own_line
         return own.statline.cells if own is not None else []
 
     @property
     def named_profiles(self):
-        """The profiles that get a row beneath the weapon — the named ones.
-
-        With ``own_line`` this is the whole layout rule, kept here so the
-        card on screen, the card on paper and the card as text derive it
-        rather than each deciding it. They had drifted once already.
-        """
+        """Profiles with names, displayed beneath the weapon's main line."""
         return [p for p in self.profiles if p.name]
 
     @property
     def accessories_have_actions(self):
-        """Whether any accessory has something to click.
-
-        A stacked list keeps each menu beside the assignment it changes;
-        the compact comma-separated run has nowhere to put one.
-        """
+        """Whether accessories need individual controls instead of compact display."""
         return any(line.sell for line in self.accessories)
 
 
@@ -634,12 +509,10 @@ GANG_SLOT_HOST = _GANG_SLOT_HOST
 
 @dataclass
 class ChoiceLine:
-    """A choice, drawn as its own row like any other assignable.
+    """A displayed choice and its current selection.
 
-    Resolved, it reads as the chosen thing's row; unresolved is information,
-    not an error — we inform, we do not police. Its provenance (what offered
-    the choice) tells two slots of the same kind apart, and is where the
-    picker link a real UI will hang — but a renderer does not show it.
+    An unresolved choice provides information without blocking play. Provenance
+    distinguishes choices of the same kind and identifies their source.
     """
 
     kind_label: str
@@ -652,10 +525,7 @@ class ChoiceLine:
     #: stored assignments: a preview depicts nobody, so it has no slot to
     #: choose for.
     key: str = ""
-    #: Where a Choose control leads. Filled in by whoever knows the URL
-    #: space, because this module knows what a slot *is* and not where a
-    #: picker lives. Empty draws the prompt as plain text, which is what a
-    #: print sheet and a gallery sample want.
+    #: Picker URL filled by the view. Empty means a non-interactive prompt.
     href: str = ""
     #: Whether the choice will take another pick. A choice that holds one
     #: is full the moment it is resolved; one worked at a pick at a time
@@ -680,11 +550,8 @@ class ChoiceLine:
     #: and the gang's Dismissed choices tab offer Restore instead of Choose.
     dismissed: bool = False
     allow_dismissal: bool = True
-    #: Where dismissing this offer posts to, and where restoring it does.
-    #: Filled in by whoever knows the URL space, as ``href`` is, and only
-    #: for the owner: an open offer carries the first, a dismissed one
-    #: the second, and a line with either draws the control. Empty draws
-    #: nothing, which is what every other reader and a print sheet want.
+    #: Owner-only dismiss and restore command URLs, filled by the view.
+    #: Empty URLs produce no control.
     dismiss_href: str = ""
     restore_href: str = ""
     #: The screen to land on once either act is done, carried in the form
@@ -718,9 +585,7 @@ class Choosable:
     #: ahead of the name so a player finds their roll by scanning.
     band: str = ""
     thing: object = None
-    #: True for a thing the surface opens on already marked: what a slot
-    #: already holds, or — where a list is ticked rather than picked — one
-    #: the model already has.
+    #: Initially selected because the choice or model already holds it.
     is_current: bool = False
     #: Remarks about picking this one — "usable by Walkers only". Said,
     #: never enforced; the list is an offer, not a rule.
@@ -797,17 +662,10 @@ class ChoosableGroup:
 
 @dataclass
 class ChoiceOffer:
-    """A slot and what may be chosen for it — the pick screen, as data.
+    """A choice's options in the shared picker display structure.
 
-    One structure whatever the offer names, which is the point: a skill, an
-    pick and an affiliation differ in the rows they list and in
-    nothing else, so one page draws all three.
-
-    A choice holding several picks is settled a pick at a time —
-    ``takes_several`` — and each option carries its own control saying
-    what a click on it does. One that holds a single pick is the older
-    shape: the whole list is settled in a single go, and settling it
-    again replaces what was chosen.
+    Multi-pick choices add or remove individual options through their controls.
+    Single-pick choices submit a selection that replaces the previous pick.
     """
 
     label: str
@@ -824,15 +682,11 @@ class ChoiceOffer:
 
 @dataclass(frozen=True)
 class ArrivalQuestion:
-    """One slot that just arrived, as the screen after an act draws it:
-    whose question it is, what it asks, and the picker for it.
+    """A newly available choice, its recipient and its picker.
 
-    ``settled`` is whether the reader may carry on past it: the choice
-    holds every pick it asks for, asks for none, or has nothing to offer
-    this reader — a screen must not stand in the way of a choice nobody
-    can make.
-    ``offer`` is the same structure the pick screen draws, so the two
-    cannot list different things.
+    ``settled`` permits continuation when enough picks exist, no picks are
+    required, or no options are available. ``offer`` uses the same structure
+    as the standalone picker.
     """
 
     #: The address the pick screen reads — ``card:carrier:offer``.
@@ -854,39 +708,30 @@ class ArrivalQuestion:
 
     @property
     def heading_id(self):
-        """The id the heading carries, which the picker under it is
-        labelled by: several questions share one page, and a reader who
-        hears the options has to hear which question they answer. Made
-        from the address and the block, so it is one per drawing of the
-        question however the page is ordered."""
+        """A stable heading ID linking the picker to its question's label.
+
+        Combine choice address and block identity to distinguish repeated drawings.
+        """
         block = f"{self.under}-" if self.under else ""
         return f"ask-{block}" + self.key.replace(":", "-")
 
     @property
     def field_name(self):
-        """What this question's radios are named. One form carries the
-        whole screen, so every question needs a name of its own or the
-        browser would hold one selection across the lot. The address is
-        what makes it unique, and what the view reads it back by."""
+        """A unique radio group name per choice in the shared arrival form."""
         return f"thing:{self.key}"
 
     @property
     def remove_name(self):
-        """What a take-back on this question submits under. Named like
-        the picker for the same reason: one form carries the page, so a
-        click has to say which question it answered."""
+        """The submission field identifying this choice's remove control."""
         return f"remove:{self.key}"
 
 
 @dataclass(frozen=True)
 class ArrivalBlock:
-    """One screen an author attached to the slots that arrived: its
-    heading and words, then each arriving slot's question beneath.
+    """Authored guidance and the newly available choices it groups.
 
-    A block attached to several arriving slots draws once with every one
-    of them under it. ``skippable`` is what the author said: a reader
-    may carry on past it without picking, so its questions never hold
-    Continue.
+    A block attached to several choices appears once. ``skippable`` permits
+    continuation without resolving those choices.
     """
 
     heading: str
@@ -901,39 +746,29 @@ class ArrivalBlock:
 
 @dataclass(frozen=True)
 class ArrivalScreen:
-    """Everything the screen after an act says: the blocks, and where
-    Continue leads. Derived from the address every time; nothing about
-    it is stored."""
+    """Arrival guidance blocks and the continuation URL, rebuilt from the request."""
 
     blocks: tuple[ArrivalBlock, ...]
     next_url: str
 
     @property
     def may_continue(self):
-        """Whether the reader may carry on: every question the author
-        made compulsory is settled — it holds every pick it asks for,
-        asks for none, or has nothing to offer. A question on a
-        skippable block never holds anybody: leaving it blank is the
-        way past it, and Continue writes whatever was picked."""
+        """Whether every compulsory choice is settled or has no available options.
+
+        Choices in skippable blocks do not prevent continuation.
+        """
         return all(block.settled for block in self.blocks if not block.skippable)
 
     @property
     def skip_url(self):
-        """Where Skip leads: on past the whole screen, writing nothing.
-        Offered only where no question is compulsory — a Skip that
-        walked past a choice the author made compulsory would make the
-        word meaningless."""
+        """The continuation URL when every block is skippable, without saving choices."""
         return self.next_url if all(block.skippable for block in self.blocks) else ""
 
     @property
     def outstanding(self):
-        """The questions still open, in the order drawn, each named by
-        its label — and by whose it is where two share a label, so
-        "Primary skill for Kal" and "Primary skill for Vex" read apart.
+        """Unresolved compulsory choices in display order, deduplicated by address.
 
-        Each question once, by its address: a slot two screens ask about
-        is drawn under each of them, and one pick settles every drawing,
-        so the line that names what is left to choose names it once.
+        Include recipient names when labels alone cannot distinguish them.
         """
         open_questions = []
         named = set()
@@ -1017,14 +852,10 @@ class RollResult:
 
 
 def lift_landing(offer, landed, threshold=False):
-    """The same offer with the rows a roll landed on lifted to the top.
+    """Move rolled option keys to a leading group, retaining every other result.
 
-    ``landed`` is the set of option keys the roll reached. Those rows come
-    first under a heading of their own and the rest of the table follows
-    under another, so a reader finds the result without scanning and
-    still sees every row — the rules substitute results, and the list
-    informs rather than polices. An offer nothing landed on is returned
-    as it was.
+    Keep alternatives available because rules may substitute results. Return
+    the original offer when no option matches the roll.
     """
     first, rest = [], []
     for group in offer.groups:
@@ -1065,16 +896,9 @@ def lift_landing(offer, landed, threshold=False):
 
 @dataclass
 class GearGroup:
-    """Gear filed under a category that draws its own row on a card.
+    """Possessions whose category requests a separate card heading.
 
-    The Gear row is where a possession goes unless its category asks for
-    a heading of its own — a Goliath's Gene-smithing upgrades read as
-    what the model *is*, not as kit they happen to be carrying, and a
-    reader scanning for them should not have to find them among the
-    grenades.
-
-    Not frozen: the actions on its lines are filled in afterwards by
-    whoever knows the URL space, exactly as the Gear row's are.
+    Views fill line actions after construction, so this structure remains mutable.
     """
 
     name: str
@@ -1082,13 +906,7 @@ class GearGroup:
 
     @property
     def has_actions(self):
-        """Whether any line here has somewhere to click.
-
-        The same question ``ModelCard.equipment_has_actions`` asks of the
-        Gear row, and asked per group: a card drawn for its owner gets a
-        line each with its own menu, and every other surface gets the
-        compact run.
-        """
+        """Whether this group needs per-assignment controls instead of compact display."""
         return any(line.sell or line.choices for line in self.lines)
 
 
@@ -1113,11 +931,7 @@ class ModelCard:
     name: str
     rating: int
     statline: Statline
-    #: The miniature's pk, as a string, when this card draws a *stored*
-    #: model — what a renderer builds links from (Equip, Delete). Empty on
-    #: a hire preview or a gallery sample, which depict nobody: a card is
-    #: the same structure either way, and "" is how it says "nowhere to
-    #: link to".
+    #: Stored model ID for links, empty on hire previews and gallery samples.
     id: str = ""
     #: Offered only on the owner's Edit page, including partial redraws.
     base_rating_href: str = ""
@@ -1159,8 +973,7 @@ class ModelCard:
         default_factory=list,
         metadata={"row_label": "Rules", "row_kind": "names", "row_always": False},
     )
-    #: Wyrd powers the model knows. Not skills — but placed and picked
-    #: through the same sections; drawn as their own row.
+    #: Powers share section placement with skills but display separately.
     powers: list[AssignableLine] = field(
         default_factory=list,
         metadata={"row_label": "Powers", "row_kind": "names", "row_always": False},
@@ -1186,15 +999,9 @@ class ModelCard:
     #: Every one of them, XP included; ``counter_lines`` is what to draw.
     counters: list[CounterLine] = field(default_factory=list)
     choices: list[ChoiceLine] = field(default_factory=list)
-    #: Open questions filed into the card's own rows, kept apart from
-    #: the general run. They are drawn in the Skills and Powers rows,
-    #: beside what the model already knows, because those are the rows a
-    #: reader looks at to find out what this fighter can do — a founding
-    #: pick left in the general run of slots is an obligation filed
-    #: under the same heading as their legacy. ``question_row`` says
-    #: which questions qualify. A slot already chosen for is not here:
-    #: the thing chosen is a skill or a power, and it sits in its row
-    #: with the others.
+    #: Unresolved choices displayed beside existing Skills or Powers, as
+    #: selected by question_row. Resolved choices appear through their selected
+    #: assignables instead.
     skill_choices: list[ChoiceLine] = field(default_factory=list)
     power_choices: list[ChoiceLine] = field(default_factory=list)
 
@@ -1205,11 +1012,7 @@ class ModelCard:
     #: rows named here have one. ``question_row`` routes against this,
     #: and a guard test holds it to rows that really exist.
     QUESTION_BUCKETS = {"skills": "skill_choices", "powers": "power_choices"}
-    #: Where the way into the skills screen leads, or empty when there is
-    #: nowhere to send anyone. Filled in by whoever knows the URL space,
-    #: like a choice's own href — this module knows what a grid *is* and
-    #: not where a browsing screen lives. Empty draws no control, which
-    #: is what a print sheet and a hire preview want.
+    #: Skills listing URL supplied by the view, empty where no control applies.
     skills_href: str = ""
     #: Owner-only equipment-card management. Empty on previews and prints.
     model_cards_href: str = ""
@@ -1229,11 +1032,8 @@ class ModelCard:
             "row_hidden": "Dismissed offers have separate restore controls outside the visible card rows."
         },
     )
-    #: The collections this model's grid places a category into, by id.
-    #: Standing access, computed rather than assigned: it is what a
-    #: screen for selecting is built on, and asking which of these hold
-    #: what a model *is* costs one query for a whole roster rather than
-    #: one per card.
+    #: Collection IDs reached through the model's computed category placements.
+    #: Batch readers can resolve selectable content once for the roster.
     placed_in: tuple[str, ...] = ()
     effects: list[EffectLine] = field(default_factory=list)
     #: What the app has to say about this card — a limit the model is
@@ -1246,11 +1046,7 @@ class ModelCard:
     #: two cards. None and empty for a model hired in its own right.
     owned_by: str | None = None
     owned_by_id: str = ""
-    #: Where the owner's name leads — the owner's card, on a sheet that
-    #: draws it. Filled in by whoever draws the sheet, like a choice's
-    #: own href: this module knows who the owner is and not where their
-    #: card is. Empty draws the name as words, which is what the model's
-    #: own page, a print, and a sheet the owner has left all want.
+    #: Owner card URL supplied by the view. Empty renders an unlinked name.
     owner_href: str = ""
     #: Whether the purchase that brought this model in sits in the
     #: stash: a pet bought there has no owner, and the card says where
@@ -1297,19 +1093,10 @@ class ModelCard:
 
     @property
     def questions(self):
-        """Every question still open on this card, in one run.
+        """Return every choice on this card, including choices nested in named rows.
 
-        Where a question is drawn is a surface's business: on screen the
-        ones filed to a row go in the Skills or Powers row, beside what
-        the fighter already knows. A renderer with no rows to fold them
-        into — the text card, the printed one — draws the lot, because a
-        choice still to be made is worth a line on paper and none of them
-        should go missing for want of somewhere to put it.
-
-        Not all of them can be settled here: a pick the gang holds and
-        this card draws is a fact with no address, so whatever turns
-        these into controls reads the address on the line rather than
-        assuming one.
+        Print and text renderers use the complete list. Only choices with an
+        address can become controls.
         """
         return [*self.row_questions, *self.item_questions]
 
@@ -1320,13 +1107,10 @@ class ModelCard:
         return [*self.choices, *self.skill_choices, *self.power_choices]
 
     def question_lists(self):
-        """The lists the card's questions live in — the lists themselves,
-        for something that takes lines off a card.
+        """Return each mutable choice list, including item and named-row choices.
 
-        ``questions`` is a reading of them; this hands over the lists so
-        a line can be removed from wherever it is filed without the
-        caller knowing which rows a card keeps. Every list is named here
-        or a dismissed offer would stay drawn in the one it is filed in.
+        Linking and dismissal update these lists directly so no display location
+        is omitted.
         """
         return [
             self.choices,
@@ -1358,17 +1142,10 @@ class ModelCard:
 
     @property
     def weapon_columns(self):
-        """The stat columns a weapon table draws, as cells to read names off.
+        """Return headings from the first profile with characteristic cells.
 
-        One shape for the whole table: every weapon on a card is drawn to
-        the same columns, so a renderer needs a single row of headings and
-        a single count to span a nameless row across.
-
-        The first profile that has any characteristics, rather than the
-        first profile there is. A combi-weapon's own line carries the
-        weapon's identity and no numbers, and asking that one for the
-        columns gives a table of headings that is empty while every row
-        beneath it still prints its stats.
+        All weapons share these columns. Skip empty identity profiles, including
+        those used by combi-weapons.
         """
         for weapon in self.weapons:
             for profile in weapon.profiles:
@@ -1378,14 +1155,10 @@ class ModelCard:
 
     @property
     def owner_line(self):
-        """What the card says under the profile name about who holds the
-        kit that brought this model in: "Owned by Yolanda", "In the
-        stash", or nothing for a model hired in its own right.
+        """Describe the model holding the equipment that created this pet.
 
-        One sentence for every renderer, so the sheet, the print and
-        the text card cannot say it three ways. A sheet that can link
-        the owner's card draws the name as the link and the rest as
-        words.
+        Return Owned by followed by the name, In the stash, or empty for a model
+        hired independently.
         """
         if self.owned_by:
             return f"{self.owner_prefix} {self.owned_by}"
@@ -1395,10 +1168,7 @@ class ModelCard:
 
     @property
     def owner_prefix(self):
-        """The words before the owner's name in ``owner_line`` — what a
-        renderer that draws the name as a link writes on its own, so
-        the sentence is the same one whether or not the name is a link.
-        Empty for a model nobody's purchase brought in."""
+        """The unlinked prefix before the owner's name, empty for independent hires."""
         return OWNED_BY if self.owned_by else ""
 
     @property
@@ -1422,19 +1192,11 @@ class ModelCard:
 
     @property
     def counter_lines(self):
-        """The counters to draw — every one a reader is shown, bar an XP
-        nobody can move.
+        """Return visible counters, omitting XP unless its line has an update control.
 
-        XP has a cell in the statline already, and the cell is the better
-        reading: it carries the target beside the value. The line earns
-        its place only by being where the number is changed, so on a
-        screen that offers no control — a gang sheet, a print sheet, a
-        hire preview — it would say the same number twice and is left
-        out. Every other counter has no cell and draws either way.
-
-        A counter the author marked undrawn is left out of all of them:
-        it stays on the card so conditions can check it, and is not
-        something a reader is meant to see or change.
+        XP already appears in the statline. Other visible counters need their
+        own lines even without controls. Author-hidden counters remain available
+        to computation but never appear here.
         """
         return [
             line
@@ -1444,13 +1206,7 @@ class ModelCard:
 
     @property
     def equipment_has_actions(self):
-        """Whether any gear line has something to click.
-
-        A stacked list keeps each menu beside the assignment it changes;
-        a comma-separated run has nowhere to put one. Asked of the lines
-        themselves, so a gang sheet, a print sheet and a hire preview —
-        none of which fill the acts in — keep the compact drawing.
-        """
+        """Whether equipment needs per-assignment controls instead of compact display."""
         return any(line.sell or line.choices for line in self.equipment)
 
 
@@ -1466,10 +1222,7 @@ class StashLine(SlotMarked):
     #: mid-sentence: a renderer using it as a heading capitalises it.
     kind: str = ""
     provenance: Provenance = field(default_factory=Provenance)
-    #: The assignment's pk, as a string — what a control acting on this
-    #: line names. The stash holds stored assignments and nothing
-    #: computed, so every line drawn one to an assignment has one; a
-    #: line standing for several (``count``) names none.
+    #: Stored assignment ID for controls, empty when several copies are collapsed.
     id: str = ""
     #: The content this is one of, as ``n26.core.owned.thing_key``
     #: writes it; what :func:`collapse` stacks identical lines by.
@@ -1480,14 +1233,10 @@ class StashLine(SlotMarked):
     count: int = 1
     #: An accessory moves onto a weapon rather than a model.
     is_accessory: bool = False
-    #: Whether a founding allowance paid for this line or anything hung
-    #: off it. A gang with no credit budget refunds nothing else, so this
-    #: is what says whether the act is worth offering there.
+    #: Whether this line or its descendants used Trade Points. Gangs without
+    #: a credit budget use this to decide whether a refund returns anything.
     paid_trade_points: bool = False
-    #: What can happen to this line, each a link to a dialog on the page
-    #: that drew it — see ``n26.core.views.owned.link_stash_actions``.
-    #: Empty is a name with nothing to click, which is what a print-out
-    #: and a reader who does not own the gang want.
+    #: View-supplied stash actions; see link_stash_actions. Empty means no controls.
     menu: tuple = ()
     #: Weapon slots this takes on a card — the library's number for a
     #: weapon, 1 for anything else — so the stash marks a two-slot
@@ -1511,25 +1260,13 @@ class StashLine(SlotMarked):
 
 @dataclass(frozen=True)
 class CampaignAssetLine:
-    """One asset the gang has from its campaign, before display grouping.
+    """A campaign holding or possession with its authored type and effective income.
 
-    The individual name and income stay available for campaign tables and
-    comparison captures.
-
-    ``type_label`` is the campaign type's own word for the class of thing
-    — "Settlement", "Territory" — as the author wrote it, so it reads as
-    a row label. Where the thing the campaign gave is not an asset at
-    all, it is that kind's own name ("Special rule"): the same fact,
-    taken from the model rather than from an asset type.
-
-    ``income`` is the asset's effective contribution to the gang's Income
-    counter, including its current selections; the gang's credits do not
-    move for it. ``provenance`` names the carrier that brought a
-    possession, and is empty on a holding — a holding's source is the
-    campaign, and the block is already drawn under the campaign's name.
-    ``campaign_asset_id`` names the campaign's asset, set on a holding
-    and empty on a possession, so a renderer can tell the two apart and
-    link a holding to the campaign's assets.
+    ``type_label`` uses the campaign asset type's label, or the assignable
+    kind for non-assets. ``income`` includes current selections without moving
+    credits. ``provenance`` names a possession's carrier; holdings are already
+    shown within their source campaign's block. ``campaign_asset_id`` identifies
+    a holding and is empty for possessions.
     """
 
     type_label: str
@@ -1725,26 +1462,11 @@ def holding_boons(computed, holding, choices=()):
 
 @dataclass
 class CampaignBlock:
-    """What the gang has because it is in a campaign, under the campaign's
-    name.
+    """Campaign-provided assignments, choices, counters and holdings for a gang.
 
-    Everything in ``lines`` is caused by one of the membership's two
-    carriers — the campaign's shared type and its additions — and names
-    that carrier as its source, the way any granted line does. The
-    choices come from those same carriers. The counters carry their
-    standing values, and are drawn as ordinary counter rows so a
-    campaign's Reputation reads as any counter the gang
-    keeps. Nothing here is the gang's own: it arrived with the campaign
-    and leaves with it, which is why the sheet keeps it apart from the
-    gang's own rows and counters.
-
-    ``holdings`` are the campaign's assets the gang holds — held, never
-    owned, and worth nothing to the gang's rating. They take the
-    same row shape as a possession, because a reader asking what this
-    gang has from the campaign is asking one question. What holding one
-    does for the gang lands where any modifier's work does: a Reputation
-    contribution in the counter's reading here, a rule among the gang's
-    rules, each credited to the campaign's asset.
+    Assignments descend from the membership's shared type or additions carrier
+    and leave when the membership closes. Holdings contribute no gang rating.
+    Their modifiers appear with other computed facts, credited to the asset.
     """
 
     name: str
@@ -1754,11 +1476,8 @@ class CampaignBlock:
     holdings: list[CampaignAssetLine] = field(default_factory=list)
     choices: list[ChoiceLine] = field(default_factory=list)
     boon_assets: list[AssetBoonLine] = field(default_factory=list)
-    #: Where the campaign's name and its holdings lead — the campaign
-    #: page, and its assets section — filled in by whoever knows both the
-    #: URL space and who may open them, as a counter's own href is. Empty
-    #: draws plain text, which is what a visitor who is not signed in gets:
-    #: the page behind these would only send them to sign in.
+    #: Authorised campaign and holdings URLs supplied by the view.
+    #: Empty values render unlinked text.
     href: str = ""
     assets_href: str = ""
     #: Available types remain visible even when this gang holds none.
@@ -1811,13 +1530,10 @@ class CampaignBlock:
 
 @dataclass
 class GangSheet:
-    """The whole gang, derived — never assembled by hand.
+    """Gang display data derived from ``GangCard`` and ``ComputedGang``.
 
-    Everything here comes from ``GangCard`` and ``ComputedGang``
-    (design/gang-sheet.md): the gang's own rows, its choice slots, its
-    counters, the stash's contents, and every member's card. Tests that care
-    what the gang *is* assert on those structures; this is what a
-    renderer draws.
+    Include gang assignments, choices, counters, stash contents and member
+    cards. See ``design/gang-sheet.md`` for the display structures.
     """
 
     name: str
@@ -1889,18 +1605,11 @@ class GangSheet:
 
     @property
     def questions(self):
-        """Every question this sheet draws, including its campaign's.
-
-        Named to match a card's, so anything that has business with a
-        holder's open questions — pointing them at their pickers, counting
-        them — asks the two shapes the same way and cannot be told about
-        one list and not another.
-        """
+        """Return gang and campaign choices through the shared holder interface."""
         return [choice for choices in self.question_lists() for choice in choices]
 
     def question_lists(self):
-        """The lists holding the gang and campaign questions, for linking
-        and dismissal — see ``ModelCard.question_lists``."""
+        """Return gang and campaign choice lists for linking and dismissal."""
         lists = [self.choices]
         if self.campaign is not None:
             lists.append(self.campaign.choices)
@@ -1913,18 +1622,11 @@ class GangSheet:
 
 @dataclass
 class CampaignGangLine:
-    """One gang at the campaign's table, as the gangs table draws it.
+    """A campaign table entry with gang totals and ordered counter or asset values.
 
-    The money figures are the gang's pinned totals, read off its row. The
-    counters and the assets are the campaign's, in the order the sheet's
-    ``counter_columns`` and ``asset_types`` name them, so a renderer lays
-    each value under its heading by position and never by name. A counter
-    the gang does not carry reads ``None``, which is drawn as a dash: a
-    blank cell in a column of numbers reads as a number that failed to
-    arrive. A counter the gang does carry is the whole ``CounterLine``,
-    with the assignment behind it, so the table can offer the control
-    that moves it to a reader who may — the addresses are the view's to
-    fill, as on a card.
+    Position values under ``counter_columns`` and ``asset_types`` rather than
+    matching names. A missing counter is None and displays as a dash. Existing
+    counters retain their assignment identity for view-supplied controls.
     """
 
     gang_id: str
@@ -2099,8 +1801,7 @@ class CampaignAssetEntry:
     #: Whether the reader owns the holding gang, which is what lets them
     #: hand the asset over.
     holder_yours: bool = False
-    #: Where each act on this asset is asked. Empty is no control: the
-    #: view fills them for the reader who may act and nobody else.
+    #: View-supplied action URLs, empty for inaccessible actions.
     assign_href: str = ""
     edit_href: str = ""
     unassign_href: str = ""
@@ -2130,17 +1831,14 @@ class CampaignAssetTable:
     label: str
     plural: str
     entries: list[CampaignAssetEntry] = field(default_factory=list)
-    #: Where an asset of this type is added to the campaign, and where a
-    #: new asset of this type is written into the campaign's pack. Empty
-    #: for a reader who may not.
+    #: URLs to add an asset or author a new one, empty without permission.
     add_href: str = ""
     create_href: str = ""
     #: The rolled tables of this type the campaign itself holds — built
     #: into its type or its additions — which is what the pool is rolled
     #: on. Empty where nothing of this type is rolled for.
     tables: list[HeldTable] = field(default_factory=list)
-    #: Where the pool roll is asked. Empty for a reader who may not, and
-    #: where there is no rolled table to roll on.
+    #: Pool-roll URL, empty without permission or a rollable table.
     roll_href: str = ""
     setup_hint: str = ""
     inventory_view: dict = field(default_factory=dict)
@@ -2160,22 +1858,12 @@ class CampaignAssetTable:
 
 @dataclass
 class CampaignSheet:
-    """The whole campaign, derived — the gang sheet's sibling.
+    """Campaign display data built by ``render_campaign`` with a fixed query count.
 
-    Built by ``render_campaign`` in a fixed number of queries however many
-    gangs are at the table. Tests that care what the campaign *is*
-    assert on this; the template draws it.
-
-    ``counter_columns`` are the campaign's counters in the order the
-    gangs table shows them: Reputation first, then the rest by name. A
-    counter is the campaign's where a member gang's card credits it to
-    the campaign — which every counter the type or the arbitrator builds
-    in is. ``label_columns`` are the labels the arbitrator asks every
-    gang to pick, in the order they were added; a gang's pick for each is
-    on its line. ``asset_types`` are every asset type the campaign deals in, the
-    shared type's first, then the arbitrator's own, each in its authored
-    position; ``assets`` are the Holding ones among them with the
-    campaign's assets under each.
+    ``counter_columns`` orders campaign-sourced counters with Reputation first,
+    then by name. ``label_columns`` retains the order labels were added.
+    ``asset_types`` places shared content before additions, preserving authored
+    positions. ``assets`` groups the campaign's Holding assets by type.
     """
 
     name: str
@@ -2200,8 +1888,7 @@ class CampaignSheet:
     asset_types: list[AssetTypeColumn] = field(default_factory=list)
     assets: list[CampaignAssetTable] = field(default_factory=list)
     battles_fought: int = 0
-    #: Where the arbitrator adds an asset type, a counter and a label.
-    #: Empty for a reader who may not, as every address here is.
+    #: URLs to add campaign asset types, counters and labels, empty without permission.
     add_asset_type_href: str = ""
     add_counter_href: str = ""
     add_label_href: str = ""
@@ -2283,20 +1970,14 @@ class CampaignSheet:
 
 
 def apply_changes(stat, raw, changes):
-    """Fold stat changes onto a printed value, using the stat's own rules.
+    """Apply sets, then shifts in carrier acquisition order, respecting stat limits.
 
-    Sets land first. Shifts then fold one at a time, in the order their
-    carriers were acquired, each stopping at the stat's limits
-    (``Stat.shift``): a characteristic is never worsened past its
-    minimum or improved past its maximum, and the part of a change that
-    would take it there is disregarded rather than carried over — so a
-    fighter with three Spinal Injuries stands at Strength 1, and a bionic
-    fitted afterwards lifts them to 2. Values that are not plain numbers
-    — ``S`` for the wielder's Strength, ``E`` for engaged-only range — are
-    immune: there is nothing sensible to add to them.
+    Clamp each shift separately through ``Stat.shift``. A later improvement
+    can therefore apply after earlier penalties reached the floor. Non-numeric
+    values such as S and E remain unchanged.
 
-    Returns the value, where it came from, and which limit it was held at
-    (``"minimum"``, ``"maximum"`` or ``""``).
+    Return the resulting value, sources and limiting bound: minimum, maximum
+    or empty.
     """
     if not changes:
         return raw, [], ""
@@ -2344,17 +2025,10 @@ def apply_changes(stat, raw, changes):
 
 
 def _none_of_it(stat, raw):
-    """Zero, where a dash on this stat means none of the quantity — else None.
+    """Interpret a dash as zero only for quantities that can meaningfully be absent.
 
-    A weapon's Armour Piercing of "-" is no armour piercing, which is
-    zero, so a rule that improves it by one gives -1. Counting the dash
-    is the whole of what makes such a rule reach the guns it is written
-    for: the book prints "-" on exactly the plain weapons a house's
-    improvement is worth having on.
-
-    A distance and a roll target are not quantities that can be zero. A
-    melee weapon's Long Range and a fighter's absent Save are the thing
-    not happening at all, and no shift brings either into existence.
+    Armour Piercing uses zero, so a shift can improve a printed dash to -1.
+    Absent distances and roll targets remain None; a shift cannot create them.
     """
     countable = not (stat.is_inches or stat.is_target or stat.is_modifier)
     if countable and str(raw).strip() in ("", EMPTY_VALUE):
@@ -2369,25 +2043,11 @@ SET_BY_THE_OWNER = Provenance(source="the owner")
 
 
 def build_statline(owner, changes_for=None, stat_overrides=None):
-    """The characteristics of a fighter profile or a weapon profile.
+    """Format characteristic cells in the statline type's full display order.
 
-    Values are formatted by each stat's own rules — 4 becomes 4" for a
-    distance, 3 becomes 3+ for a roll target — and anything that isn't a
-    plain number passes through, which is what lets a weapon's range read
-    ``E`` or ``T`` and its Strength read ``S+3``.
-
-    The shape comes from the statline *type*, not from the values stored
-    against it: a statline holding four of its five stats is a full row
-    with one dash in it, and never four cells that slide the numbers
-    under the wrong headings. Nothing stops content arriving that way —
-    the completeness check lives in ``clean()``, which importers and the
-    authoring verbs do not call.
-
-    ``stat_overrides`` are the values one model's owner set by hand,
-    keyed by the cell each stands in. Each replaces the printed value as
-    the base a cell is drawn from, so a rule that improves the
-    characteristic improves what was set rather than what the entry
-    prints, and the cell says the owner is among the reasons it differs.
+    Pad missing values with dashes so remaining cells stay under their headings.
+    Use each stat's formatter, preserving non-numeric values such as E or S+3.
+    ``stat_overrides`` replaces printed bases by cell before modifiers apply.
     """
     statline = getattr(owner, "statline", None) if owner is not None else None
     stat_overrides = stat_overrides or {}
@@ -2424,11 +2084,9 @@ def build_statline(owner, changes_for=None, stat_overrides=None):
 
 
 def _shape_of(owner, statline):
-    """The stats a statline is supposed to carry, in display order.
+    """Return the statline type's characteristics in display order.
 
-    A weapon may have no statline type at all, in which case there is no
-    shape to hold the values to and the stored ones are all there is —
-    and where there are none of those either, there is no row to draw.
+    Without a type, use stored values; without either, return no cells.
     """
     statline_type = owner.statline_type
     if statline_type is None:
@@ -2447,13 +2105,7 @@ def _computed_provenance(contribution):
 
 
 def slot_key(slot, host):
-    """What addresses one computed slot, or empty when nothing does.
-
-    A slot hangs off an assignment, so a card built from a profile's
-    default equipment has no row to choose against — the offer is real,
-    the address is not, and an empty key is how a line says there is
-    nowhere to send a reader.
-    """
+    """Return the address of a stored choice, or empty for an unaddressable preview."""
     if slot.holding is not None and slot.identity is not None and host:
         from n26.core.models.dismissed_offer import holding_slot_key
 
@@ -2504,24 +2156,11 @@ def _drawn_line(drawn):
 
 
 def question_row(slot):
-    """Which of the card's named rows draws this question — or None for
-    a row of its own.
+    """Choose the named card row for a choice, or None for a separate row.
 
-    The label decides, and the rule is what an author would guess:
-    a question labelled "Skills" or "Powers" sits in that row, beside
-    what the fighter already has; a question labelled anything else —
-    "Bonecrusher Wyrd Powers", "Favoured affiliation" — is its own row,
-    headed by exactly what was written. Unlabelled, the kind stands in:
-    its declared ``card_row``, so a skill question sits with the skills
-    and a power question with the powers with nothing said here.
-
-    Only the rows in ``ModelCard.QUESTION_BUCKETS`` qualify — a row has
-    to draw questions to take one, and a subtype's row is a type line
-    with nowhere to put a button, so a subtype question stays a row of
-    its own however its kind files its lines.
-
-    Casefolded, because the row headings are prose and a label is typed
-    by hand — "powers" and "Powers" are the same intent.
+    Match explicit labels case-insensitively to ``ModelCard.QUESTION_BUCKETS``.
+    Unlabelled choices use their kind's ``card_row``. Other labels retain
+    their own heading, and rows outside QUESTION_BUCKETS cannot host controls.
     """
     if slot.offer is None:
         return None
@@ -2539,15 +2178,10 @@ def id_of(slot):
 
 
 def weapon_home(slot, weapons_by_key):
-    """The weapon line a question is drawn under, or None for a row of the
-    card's own.
+    """Find the weapon display line containing this choice, or None.
 
-    A slot built into a weapon is materialised beside the model and
-    caused by the weapon's assignment, so the slot node's cause is the
-    weapon's key; an offer a weapon's own modifier makes anchors on the
-    weapon itself. Either way the question belongs to that weapon, and a
-    card draws it there — the tier beside the launchers it is on — rather
-    than as a row about the model.
+    Built-in slots name the weapon as their cause; modifier offers anchor
+    directly on it. Both belong beneath that weapon's line.
     """
     anchor = slot.anchor
     if anchor is None:
@@ -2570,12 +2204,10 @@ def is_lasting_effect(slot):
 
 
 def hide_open_lasting_effects(holder):
-    """Take the lasting-effect choices with nothing chosen off a card.
+    """Omit unresolved lasting-effect choices from roster and print displays.
 
-    Most models carry one, so on a roster an empty one is a row on
-    nearly every card saying nothing. A choice holding a result stays: that is
-    an injury the model has. The model's own screens draw the open
-    choice, which is where one is recorded.
+    Retain recorded injuries. Model editing screens keep the open choice
+    so owners can record new results.
     """
     for lines in holder.question_lists():
         lines[:] = [
@@ -2598,12 +2230,10 @@ def gear_home(slot, gear_by_key):
 
 
 def choice_lines(computed, host=""):
-    """A computed card's choice slots as lines a renderer draws.
+    """Build display lines for computed choices under an explicit host.
 
-    ``host`` is what the slots are addressed under — a model's id, or
-    ``GANG_SLOT_HOST`` for the gang's own. Passed rather than derived
-    because the same slot may sit on a member's card and on the gang's,
-    and which one a reader clicked decides whose choice it is.
+    ``host`` is a model ID or ``GANG_SLOT_HOST``. Callers choose it because
+    a source can appear on both a member card and the gang card.
     """
     if not computed:
         return []
@@ -2615,26 +2245,14 @@ def choice_lines(computed, host=""):
 
 
 def hide_dismissed(keys, holder, *, reveal=False, removed=None):
-    """Take the offers the owner has dismissed off a card or a sheet, and
-    say how many there were.
+    """Hide eligible dismissed choices in every choice list on a card or sheet.
 
-    ``keys`` is what the gang has dismissed (``DismissedOffer.keys_for``);
-    ``holder`` is a ModelCard or a GangSheet, changed in place. Every
-    list the holder files a question in is read, so a dismissed offer
-    goes whether it sits among the choices, in the Skills row or under a
-    weapon. Only an open line goes: an offer holding a pick draws that
-    pick whatever a stale row says, since what was chosen is a fact about
-    the gang and a dismissal is not — and one full with nothing chosen
-    (authored to take no picks) stays too, because no screen offers to
-    dismiss or restore such a line, so a row for it — written before the
-    content changed — would hide it for good.
+    ``keys`` contains the gang's dismissed addresses. Modify ``holder`` in
+    place and return the count. Only open choices requiring a selection can
+    be hidden; preserve current picks and choices configured to take none.
 
-    ``reveal`` keeps the lines and marks them dismissed instead, which is
-    the screen where the owner is shown what they put away and offered
-    it back. The count is the same either way, so a control can say how
-    many there are to show before any are drawn.
-
-    ``removed`` collects the hidden lines for separate Restore controls.
+    ``reveal`` retains eligible lines marked dismissed for restoration controls.
+    ``removed`` optionally collects hidden lines for separate Restore controls.
     """
     return sum(
         hide_dismissed_choices(keys, lines, reveal=reveal, removed=removed)
@@ -2697,28 +2315,15 @@ def build_choice_offers(slots, computed, *, include_staged=False):
 
 
 def build_choice_offer(slot, computed, *, include_staged=False, _catalogues=None):
-    """What may be chosen for one slot, in the one shape a picker draws.
+    """Flatten a choice's available options into the common picker structure.
 
-    The offer decides the list; this only flattens it. A slot narrowed to
-    a tier draws the browsable view the fighter already buys from, so
-    its categories become the headings and the fighter's own placements
-    have already shaped it. An unnarrowed slot has no collection and
-    draws the whole kind, which is one heading-less group. Neither
-    branch knows what kind of thing is being picked — that is what lets a
-    skill, a pick and an affiliation share a screen.
+    A tier-narrowed offer preserves collection categories and fighter placements;
+    an unrestricted offer uses one unheaded group. Mark forbidden repeats
+    without withholding them.
 
-    Where the slot type takes one pickable once, the ones this holder
-    has already spent elsewhere are marked. Marked, not withheld: the
-    list informs, the click still works, and the card says so
-    afterwards.
-
-    A choice holding more than one pick is settled a pick at a time:
-    everything it holds is drawn chosen and carries the control that
-    takes that one back, and everything else carries the control that
-    adds it — until the choice is full, when the rest stop being offered.
-    Swapping the earliest for whatever was clicked is the behaviour of a
-    choice that holds exactly one, and only of that. A choice that holds
-    none offers nothing at all.
+    Multi-pick choices retain each chosen option's remove control and offer
+    additions until full. Single-pick choices replace their existing pick.
+    A choice configured to take no picks offers no additions.
     """
     from n26.core.browse import CollectionView, Listed, offered_by
 
@@ -2738,10 +2343,8 @@ def build_choice_offer(slot, computed, *, include_staged=False, _catalogues=None
         )
 
     several = slot.max_picks > 1
-    # Where the slot type allows repeats, a held pick is still on offer:
-    # a second Eye Injury is a second Eye Injury, so a held row carries
-    # both controls until the choice is full, when only the way back is
-    # left. Elsewhere a held pick offers only its way back.
+    # Repeatable held options retain Add and Remove until full. Other held
+    # options offer only Remove.
     repeats = slot.slot is not None and slot.slot.slot_type.allows_repeats
     held = {option_key(pick.assignable) for pick in slot.picks}
     taken = _taken_elsewhere(slot, computed)
@@ -2751,8 +2354,7 @@ def build_choice_offer(slot, computed, *, include_staged=False, _catalogues=None
         name = item.name if isinstance(item, Listed) else None
         key = option_key(thing)
         if several and key not in held and slot.is_full:
-            # Full: the way to something else is to take one back, not to
-            # push one out unasked.
+            # A full multi-pick choice requires an explicit removal before adding.
             continue
         if not several:
             control = ""
@@ -2817,27 +2419,15 @@ def build_choice_offer(slot, computed, *, include_staged=False, _catalogues=None
 
 
 def offer_from_view(view, *, label, chosen=None, current=None, held=(), granted=None):
-    """A browsed collection, flattened into the shape a picker draws.
+    """Flatten a browsed collection into picker option groups.
 
-    The half of a pick screen that has nothing to do with slots: a
-    ``CollectionView`` goes in and groups of options come out, so
-    choosing within one tier and browsing everything a fighter may select
-    are two callers of one structure rather than two screens that look
-    alike.
-
-    ``current`` marks the thing already chosen, where something is; a
-    listing nobody asked a question about has none.
-
-    ``held`` names by key what the model already has, so a surface that
-    ticks rather than picks opens on the truth rather than on nothing.
-    ``granted`` maps a key to what grants it, for the ones no stored
-    assignment is behind: they are held too, and a surface must not offer
-    to take away something that would come straight back.
+    ``current`` identifies a choice's selected option. ``held`` identifies
+    existing model possessions for checkbox lists. ``granted`` maps computed
+    possessions to their source, preventing controls from removing a fact
+    that would be granted again on the next read.
     """
-    # Which tier a set sits in is worth saying only where the list spans
-    # several: a question narrowed to one has named it in the page's own
-    # heading, and captioning every group would print that word down the
-    # whole page.
+    # Show tier captions only when the list spans several tiers; a narrowed
+    # list already names its tier in the heading.
     tiered = len(view.sections) > 1
     groups = [
         # The category is the useful heading — the skill set, the power
@@ -2866,14 +2456,10 @@ def offer_from_view(view, *, label, chosen=None, current=None, held=(), granted=
 
 
 def _taken_elsewhere(slot, computed):
-    """What this holder has already picked for another choice of the same
-    slot type, keyed the way the picker keys its options.
+    """Map picks held for other choices of this slot type to option keys.
 
-    Only where the slot type takes one pickable once: where it allows
-    repeats, picking the same thing twice is the content working as
-    written and there is nothing to say. The choice being made is left
-    out of its own answer — what is already picked *here* is marked as
-    the current pick, which is a different fact.
+    Only slot types forbidding repeats need this map. Exclude the current
+    choice, whose selected state is represented separately.
     """
     if slot.slot is None or slot.slot.slot_type.allows_repeats:
         return {}
@@ -2896,12 +2482,9 @@ NONE_KEY = "none"
 
 
 def option_key(thing):
-    """How a picker names one option in a form.
+    """Identify a submitted option by model label and primary key.
 
-    The model's label and its primary key, the same pair the equipment
-    listing keys its Buy buttons on: a bare key is ambiguous across the
-    assignable tables. Public because whoever reads a click back has to
-    key what is held the same way the page keyed what it drew.
+    Primary keys alone can collide across assignable tables.
     """
     return f"{thing._meta.label_lower}:{thing.pk}"
 
@@ -2944,17 +2527,10 @@ STACKED_ROWS = ("skills", "rules", "powers")
 
 
 def identity(line):
-    """What makes two lines the same line, for :func:`collapse`.
+    """Return the content, provenance and rating used to group identical lines.
 
-    The content, where it came from and what it is pinned at. Provenance
-    is in it because one bought and one granted are two different
-    facts, and a line saying "from Mounted" of both would lie about the
-    bought one; the rating because a stash line says what one of them
-    is worth, and two bought at different prices are not worth one
-    figure. The name of what the kit brought is in it too: two collars
-    each with a named pet on the roster are two lines, "Phyrr Cat
-    (Fang)" and "Phyrr Cat (Claw)", never "Phyrr Cat (x2)". None for a
-    line with no content key: it stands alone.
+    Pet names also distinguish lines. Return None when no content key exists,
+    leaving that line separate.
     """
     if not line.key or getattr(line, "choices", None):
         return None
@@ -2962,16 +2538,12 @@ def identity(line):
 
 
 def collapse(lines, key=identity):
-    """Draw identical lines once, with a count.
+    """Combine identical lines at their first position and record their count.
 
-    ``key`` says what identical means, and returns None for a line that
-    stands on its own whatever else is alike. The first of each keeps
-    its place in the order given, and carries the count; every later
-    match is folded into it. A line standing for more than one names
-    no assignment (``id``), since a control acting on one of three
-    could not say which — so it is only ever done where lines carry no
-    acts: the gang sheet, print, the text card, a hire preview. The
-    model's own page keeps one line per assignment.
+    Keep lines separate when ``key(line)`` returns None. Clear assignment IDs
+    on combined lines because controls cannot address an individual copy.
+    Use only for displays without per-assignment actions; model editing
+    retains separate lines.
     """
     kept = []
     at = {}
@@ -2988,25 +2560,12 @@ def collapse(lines, key=identity):
 
 
 def brought_in_by(members):
-    """What each purchase on the roster brought in, by the purchase.
+    """Map equipment assignment IDs to the named living pets they created.
 
-    A map from the pk of the assignment that caused a model's membership
-    — the collar — to the names of the models it brought, as their owner
-    named them; what a kit line writes after its name (``brought_mark``).
-    A list, because one piece of kit may carry several model-adding
-    effects and every model they hire names the same purchase. Built
-    once from the roster, whose members arrive with the cause already
-    joined, so a whole gang's worth costs no query.
-
-    Every collar on the roster is in the map, because being in it is
-    what keeps a line from stacking: two collars are two pets, whatever
-    the pets are called. A pet its owner has not named yet is left out
-    of the names — its name is still its profile's, and "Phyrr Cat
-    (Phyrr Cat)" says nothing the bare line does not — and so is a dead
-    one, since the line is what the model carries and a dead pet is not
-    that any more. Keyed by the pk written as a string, and read the
-    same way, so a node's key and a membership's cause agree however
-    either is typed.
+    Use the roster's joined causes without querying. Include every causal
+    equipment ID even when no pet name is displayed, keeping distinct collars
+    from collapsing. Exclude profile-default names and dead pets from the names.
+    Normalise assignment keys to strings.
     """
     brought = {}
     for member in members:
@@ -3022,10 +2581,10 @@ def brought_in_by(members):
 
 
 def _brought_in_of(node, brought_in):
-    """The names of the models this line's kit brought, off the map
-    :func:`brought_in_by` builds — or nothing. The whole of the line is
-    asked, since the purchase a pet names may be a hidden part riding
-    under the visible kit."""
+    """Find pet names caused by this line or any of its descendants.
+
+    A hidden component may be the membership's recorded cause.
+    """
     if not brought_in:
         return ()
     return tuple(
@@ -3034,11 +2593,10 @@ def _brought_in_of(node, brought_in):
 
 
 def _brought_in_by_one(miniature):
-    """The same map, for the models one model's purchases brought in.
+    """Load pets created by one model's equipment in one query.
 
-    One query, for a card built on its own — the model's own page —
-    where no roster is to hand. Asked only of a card whose kit brings a
-    model (``_brings_a_model``), so every other card costs nothing more.
+    Used for standalone cards without a roster, only when _brings_a_model
+    finds a model-creating effect.
     """
     from n26.core.models import Miniature
 
@@ -3063,15 +2621,10 @@ def _brings(computed):
 
 
 def _brings_a_model(computed):
-    """Whether this model's own kit brings a model onto the roster.
+    """Whether this model's own equipment has an effect that creates a model.
 
-    Narrower than :func:`_brings` twice over: a stored effect may move
-    a counter or set a status instead, and a card carrying one of those
-    has no pet to look up; and what the gang holds rides every member's
-    card — as a broadcast row or as a guest — without being any
-    member's own, the same distinction ``effects.compute`` draws when
-    it notes a stored effect, so a gang-held collar's pet is nobody's
-    to look up either.
+    Exclude other stored effects and gang-owned broadcast or echoed sources,
+    which cannot identify this fighter's pet purchases.
     """
     if not computed:
         return False
@@ -3095,37 +2648,21 @@ def build_model_card(
     rank_summaries=None,
     open_lasting_effects=False,
 ):
-    """Everything needed to draw one model's card.
+    """Build one model's display card from its assignments and optional computation.
 
-    Pass ``computed`` (from ``n26.effects.compute``) to fold in what
-    modifiers say — granted subtypes and skills, added weapon traits,
-    shifted characteristics, forbidden combinations. Without it the card
-    shows only what is literally assigned. Pass ``assignment_set`` to show
-    one named selection instead of everything the model owns.
+    ``computed`` supplies modifier results; without it, display stored facts
+    only. ``assignment_set`` narrows the equipment selection.
 
-    ``budget`` is this model's founding allowance
-    (``n26.core.founding.FoundingBudget``) where its books give it one and
-    the gang is still being founded. Handed in rather than read here: what
-    has been spent is one sum for the whole roster, and a card that asked
-    for its own would be a query a fighter.
+    ``budget`` and ``rank_summaries`` may be supplied from roster-wide reads.
+    Without rank summaries, a ranked standalone card reads its effective tables
+    and thresholds in two library queries. Pass ``()`` to omit rank display.
 
-    ``collapse_repeats`` is passed through to ``card_to_model_card``: off
-    for the model's own page, whose kit lines carry acts.
+    ``collapse_repeats`` controls grouping in ``card_to_model_card``.
+    ``brought_in`` supplies the roster's pet map; without it, only cards with
+    model-creating effects perform a standalone pet lookup.
 
-    ``brought_in`` is :func:`brought_in_by`'s map, handed in by a caller
-    holding the roster so a sheet's cards pay nothing for it. Left out,
-    a card whose kit brings something looks its own up in one query,
-    and every other card looks up nothing.
-
-    ``rank_summaries`` comes from one batch read when drawing a roster. When
-    omitted, a standalone card reads its effective tables and thresholds in
-    two library queries if it has ranks. Pass ``()`` when rank display is
-    intentionally excluded, such as an effect-only comparison.
-
-    ``open_lasting_effects`` keeps a lasting-effect choice that holds
-    nothing yet. Only the model's own screens ask for it: that is where
-    an injury is recorded, and everywhere else it would be an empty row
-    on every card.
+    ``open_lasting_effects`` retains unresolved injury choices for model-editing
+    screens. Other surfaces omit these empty choice lines.
     """
     if card is None:
         card = build_card(miniature, with_statlines=True, assignment_set=assignment_set)
@@ -3152,9 +2689,7 @@ def build_model_card(
         notes=miniature.notes,
         lore=miniature.lore,
         image_url=(miniature.image.url if miniature.image else ""),
-        # Off the card, never off the model: what an owner set is loaded
-        # by the build (``n26.core.card.set_by_hand``), because drawing
-        # a card may not query.
+        # Use overrides already loaded by card.set_by_hand; rendering must not query.
         stat_overrides=card.stat_overrides,
         trade_points_left=budget.remaining if budget is not None else None,
         founding_budget=budget is not None,
@@ -3210,27 +2745,14 @@ def card_to_model_card(
     status="",
     collapse_repeats=True,
 ):
-    """Turn a card into the structure a renderer draws.
+    """Build display data from a stored card or library-only preview.
 
-    Everything about *who* the card is for arrives as arguments, so this
-    works the same whether the card came from a player's assignments or
-    from a profile's default equipment in a hire preview.
+    Identity arrives as arguments. ``xp`` supplies a fallback only when no XP
+    counter exists. ``stat_overrides`` contains this model's manual values.
 
-    ``xp`` is what to show when the card holds no XP counter; a card that
-    holds one shows its value instead, so the cell moves with every tally.
-
-    ``stat_overrides`` are the characteristics this model's owner set by
-    hand — none on a preview, which depicts nobody and so has nobody's
-    settings to honour.
-
-    ``collapse_repeats`` draws identical gear, skills, rules and powers
-    once with a count (:func:`collapse`). Off for the model's own page,
-    where each kit line carries acts that name one assignment.
-
-    ``brought_in`` maps the pk of a purchase to the name of the model it
-    brought onto the roster (:func:`brought_in_by`); a kit line whose
-    assignment — or anything under it — is in the map carries that name.
-    None is a card with nothing to say about it, as a preview has.
+    ``collapse_repeats`` groups identical lines; disable it where controls
+    address individual assignments. ``brought_in`` maps purchase IDs to the
+    names of pets created by those assignments or their descendants.
     """
     primary = None
     brought_in = brought_in or {}
@@ -3298,9 +2820,8 @@ def card_to_model_card(
         return thing_key(node.assignable)
 
     def brought_in_of(node):
-        # The purchase the pet's membership names may be the line itself
-        # or a hidden part riding under it, so the whole of the line is
-        # asked — the same walk that keeps such a line from stacking.
+        # Search descendants too: a pet's cause may be a hidden component of
+        # this visible equipment line.
         return _brought_in_of(node, brought_in)
 
     # A line's cause is almost always another line on the same card — the
@@ -3349,13 +2870,8 @@ def card_to_model_card(
         accessory_nodes = [
             child for child in node.children if not child.is_weapon_profile
         ]
-        # What the weapon brought is asked of the whole of its line, as
-        # a gear line asks — the purchase a pet names may be a hidden
-        # part under the weapon — except what is said on a line of its
-        # own beneath: a fitting and a named profile each name their own
-        # pet, so the weapon does not name it twice. The unnamed profile
-        # shares the weapon's row, so its pets are the weapon's. A
-        # profile assigned straight to a model is its own named line.
+        # Include pets created by the weapon and its unnamed profile. Accessories
+        # and named profiles display their own pets, so exclude them here.
         named_profile_nodes = [
             child for child in profile_nodes if child.assignable.name
         ]
@@ -3421,9 +2937,7 @@ def card_to_model_card(
             brought_in=brought,
         )
 
-    # What the model owns, and then what a modifier handed it. A granted
-    # line is drawn like any other — a weapon with its profiles — and
-    # tells itself apart by its provenance, which says it was computed.
+    # Display stored and computed equipment with their respective provenance.
     for node in (*card.roots, *card.granted):
         if node.key in chosen_keys:
             # A chosen thing is drawn as its choice's row, not as a loose
@@ -3511,9 +3025,7 @@ def card_to_model_card(
             if is_xp:
                 counted_xp = standing
         elif node.is_profile:
-            # A Legacy profile rides the card but is not drawn from: it is
-            # not equipment either, so it falls off here until Legacy gets
-            # its own line.
+            # Legacy profiles affect the card but have no equipment display line.
             if node.is_primary_profile:
                 primary = thing
         else:
@@ -3743,8 +3255,7 @@ def card_to_model_card(
         owned_by=owned_by,
         owned_by_id=owned_by_id,
         in_stash=in_stash,
-        # XP first, then the rest in the order the card holds them: it is
-        # the one every model keeps and the one a reader looks for.
+        # Display XP first, retaining card order for other counters.
         counters=sorted(counters, key=lambda line: not line.is_xp),
         xp=xp if counted_xp is None else counted_xp,
         xp_target=xp_target,
@@ -4255,14 +3766,10 @@ def _mustered(members, recategorised=None):
     by_pk = {member.pk: member for member in members}
 
     def rank(member):
-        """Where this model's rank sorts. Vehicles after every fighter —
-        their Type decides that, not their category's position, which
-        numbers them within their own section and would otherwise
-        collide with a fighter rank's. Within a Type, the category's
-        position alone, one ladder across sections: ranked by the
-        section first, a supplementary Hanger-on could only ever sort
-        where its whole section sorts. Uncategorised after everything
-        placed."""
+        """Sort fighters before vehicles, then by category position across sections.
+
+        Uncategorised models follow categorised models.
+        """
         profile = member.membership.profile if member.membership else None
         vehicle = profile is not None and profile.profile_type.name == "Vehicle"
         category = recategorised.get(member.pk) or (
@@ -4307,12 +3814,9 @@ class RosterLine:
 
 @dataclass
 class RosterSummary:
-    """The roster reduced to its arithmetic — what a reader tallies.
+    """Profile counts by rank and each model's pinned rating.
 
-    Two readings of the same list: which profiles at which ranks and how
-    many of each, and every model with its pinned rating. Both keep the
-    roster's own order — a group sits where its first member does, so a
-    pet's row follows its keeper's the way the gang list prints them.
+    Preserve roster order and place each group at its first member's position.
     """
 
     groups: list[RosterGroup]
@@ -4410,8 +3914,7 @@ def stash_lines(gang_card, collapse_repeats=True, brought_in=None):
             key="" if stands_alone(node) else thing_key(node.assignable),
         )
         for node in gang_card.stash_roots
-        # No row of its own is the kind's whole contract — a chosen
-        # option's Hidden carrier rides the stash invisibly.
+        # Hidden carriers affect stash content without drawing a line.
         if not isinstance(node.assignable, DRAWS_NO_LINE)
     ]
     return collapse(lines) if collapse_repeats else lines
@@ -4420,18 +3923,14 @@ def stash_lines(gang_card, collapse_repeats=True, brought_in=None):
 def render_gang(
     gang, with_effects=True, *, card=None, for_owner=False, collapse_repeats=True
 ):
-    """A whole gang sheet. A fixed number of queries, whatever its size.
+    """Build the gang sheet with a fixed query count as its roster grows.
 
-    ``for_owner`` says the sheet is being drawn for the person who owns
-    the gang, and is what puts the owner-only figures on it — what each
-    model has left of its founding Trade Points. Off by default, so a
-    reader who does not own the gang, a print run and a text card neither
-    show the figure nor pay the reads it takes to work out.
+    ``for_owner`` includes model-specific founding Trade Point balances. Public,
+    print and text displays omit those values and their database reads.
 
-    ``collapse_repeats`` draws identical stash lines once with a count.
-    Off for the owner's own sheet, whose stash lines each carry a menu
-    naming one assignment. The model cards stack their repeats either
-    way: a sheet's cards carry no kit acts.
+    ``collapse_repeats`` groups identical stash lines. Disable it where stash
+    controls address individual assignments. Model cards group repeats in both
+    cases because roster cards have no per-equipment actions.
     """
     from n26.core.card import build_gang_card, build_modifier_index, carriers
     from n26.core.effects import compute, compute_gang, counter_readings
@@ -4519,11 +4018,8 @@ def render_gang(
             for line in _orphan_asset_choices(gang_computed, origins)
             if line.asset_key in boon_keys
         )
-    # What each model still has of the Trade Points its books give it to
-    # spend as it joins. Off the fold that has just been worked out, plus
-    # one sum of what the whole roster has spent — never a query a
-    # fighter — and nothing at all for a gang whose books grant none, or
-    # for a reader the figure is not for.
+    # For owners, combine computed founding allowances with one roster-wide
+    # spending aggregate. Omit these reads when no allowance applies.
     grants = (
         grants_by_model(computed, models=models) if with_effects and for_owner else {}
     )
@@ -4564,9 +4060,7 @@ def render_gang(
         rows=gang_rows,
         rules=gang_rules,
         choices=choices,
-        # Only the ones a reader is shown: a counter the author marked
-        # undrawn is there for conditions to check. What the campaign
-        # brought has already been taken out, to be drawn under its name.
+        # Omit hidden counters and those already displayed in the campaign block.
         counters=[reading for reading in readings if reading.thing.drawn],
         campaign=campaign,
         stash=stash_lines(
@@ -4615,12 +4109,9 @@ LEADING_COUNTER = "Reputation"
 
 
 def load_owner_badges(*people):
-    """Read what naming these people with their badges needs — the profile
-    and the badge grants — in two queries, for people fetched without them.
+    """Load profiles and badge grants for these owners in two queries.
 
-    For the path that fetched a campaign and built its sheet for a dialog,
-    which names nobody, and then found the dialog could not be drawn and
-    has to serve the whole page after all. Nobody is skipped.
+    Used when a roll-only dialog falls back to the full campaign page.
     """
     from django.db.models import prefetch_related_objects
 
@@ -4630,23 +4121,15 @@ def load_owner_badges(*people):
 
 
 def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
-    """A whole campaign sheet. A fixed number of queries, whatever its size.
+    """Build a campaign sheet with a fixed query count as membership grows.
 
-    Every gang at the table is read at once: one query for the gang-hosted
-    assignments of all of them, one hydration pass, one modifier index,
-    then a query-free compute per gang — so a campaign of twelve gangs
-    costs what a campaign of one does. The campaign's assets ride one
-    query with their library assets' modifiers along, since the assets
-    table says what each does in words.
+    Load gang-hosted assignments in one batch, share hydration and the modifier
+    index, then compute each gang without queries. Load campaign assets and
+    their content modifiers together.
 
-    ``viewer`` decides which gangs and holdings are the reader's own; the
-    addresses of the controls that follow from that are the view's to
-    fill, because they belong to the URL space and to who may open them.
-
-    ``with_owner_badges`` reads each gang owner's profile and badge grants
-    along with the gangs, for a sheet whose gangs table will be drawn. A
-    sheet built only for a roll dialog names no owner and leaves
-    them out.
+    ``viewer`` determines ownership; views fill authorised action URLs.
+    ``with_owner_badges`` loads owner profiles and badges for the gangs table;
+    roll-only dialogs can omit those reads.
     """
     from django.db.models import Prefetch
 
@@ -4726,8 +4209,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     # Tables given through a member the arbitrator has since closed stay
     # on the gangs and are not offered: one query for every card at once.
     withdrawn = withdrawn_members(*cards.values())
-    # A staged table is offered to roll on only to a reader who may see
-    # staged content: the roll is where a Territory is newly chosen.
+    # Only viewers allowed staged content may acquire a result from its table.
     shown_staged = sees_staged(viewer)
     for membership in memberships:
         card = cards[membership.gang_id]
