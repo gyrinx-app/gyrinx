@@ -40,7 +40,7 @@ class ActionAllowanceQuerySet(models.QuerySet):
         return self.annotate(progression_value=models.Subquery(values))
 
     def eligible(self):
-        """Earned uses whose original rank threshold is still met."""
+        """Return active earned uses whose original rank threshold, if any, is still met."""
         return (
             self.with_progression_value()
             .filter(is_active=True)
