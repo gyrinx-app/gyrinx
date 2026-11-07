@@ -1,10 +1,5 @@
-"""The reach prose: what a piece of content does, and how anyone gets it.
-
-Every sentence here is pinned to its exact wording, so a change to the
-voice is a change somebody made on purpose. The setups are the rulebook's
-own — the Master of Whispers, a corrupted gang, a line one house's
-equipment list restricts — because a voice is only right if it is right
-about those.
+"""Exact generated descriptions cover modifier reach, acquisition routes and owned
+assignments. Keep asserted wording explicit so intended prose changes remain reviewable.
 """
 
 import pytest
@@ -90,17 +85,12 @@ def escher(default_pack):
 
 @pytest.fixture
 def buffs_weapons(backstab):
-    """One modifier — the same row, whoever ends up carrying it."""
+    """One shared modifier attached to different carrier kinds."""
     return modifier("Backstab", targets_weapons(), ef_adds(backstab))
 
 
 class TestWhoTheSentenceIsAbout:
-    """The same modifier reads three ways, and the carrier decides which.
-
-    Nothing about the modifier changes: what changes is who holds it, so
-    the subject is worked out from the carriage rather than written down
-    anywhere on the row.
-    """
+    """Derive the sentence subject from the carrier without changing the modifier."""
 
     def test_a_subtype_speaks_of_anyone_with_that_subtype(self, buffs_weapons, mounted):
         attach_modifiers_to(mounted, [buffs_weapons])
@@ -153,8 +143,7 @@ class TestWhoTheSentenceIsAbout:
 
 
 class TestTheArticleFollowsTheName:
-    """The article bends to the name after it — "an Ambot", "a Mounted".
-    The names are the book's, and plenty of them open with a vowel."""
+    """Choose an indefinite article for the displayed name."""
 
     def test_a_subtype_opening_with_a_vowel_reads_an(self, buffs_weapons, default_pack):
         ambot = create_subtype("Ambot")
@@ -180,7 +169,7 @@ class TestTheArticleFollowsTheName:
 
 
 class TestOneRankNamed:
-    """One rank named is one subject, and its verb agrees."""
+    """A single named rank takes a singular verb."""
 
     def test_a_single_rank_reads_singular(self, escher, backstab, default_pack):
         champion = create_subtype("Champion")
@@ -201,7 +190,7 @@ class TestOneRankNamed:
 
 
 class TestATypeAndARankLeftOut:
-    """Two things left out share one "except"."""
+    """Combine type and rank exclusions under one except clause."""
 
     def test_neither_vehicles_nor_champions(
         self, escher, backstab, vehicle_type, default_pack
@@ -227,8 +216,7 @@ class TestATypeAndARankLeftOut:
 
 
 class TestARankLeftOut:
-    """A row that names the ranks it does not reach reads "except", never
-    as if it reached those ranks alone."""
+    """Negated rank conditions describe excluded ranks."""
 
     def test_everyone_but_champions(self, escher, backstab, default_pack):
         champion = create_subtype("Champion")
@@ -249,8 +237,7 @@ class TestARankLeftOut:
 
 
 class TestNarrowingsCompose:
-    """Two narrowings on one scope are both said, in an order that keeps
-    each attached to the right thing."""
+    """Combine scope conditions without attaching qualifiers to the wrong subject."""
 
     @pytest.fixture
     def cawdor(self, default_pack):
@@ -320,10 +307,7 @@ class TestNarrowingsCompose:
     def test_a_qualified_subject_owns_its_counter_reading_too(
         self, escher, cawdor, default_pack
     ):
-        """The shape a Trading Post visit contribution takes: a figure
-        added to a reading, for some of the models rather than all of
-        them. Said the short way round the sentence would drop the
-        narrowing and promise everyone the figure."""
+        """The counter-reading subject must retain its pick condition."""
         counter = create_counter("Trading Post visit contribution", drawn=False)
         assert self.carried(
             escher,
@@ -348,8 +332,9 @@ class TestNarrowingsCompose:
     def test_a_pronouns_narrowings_lead_the_sentence(
         self, backstab, cawdor, default_pack
     ):
-        """ "They with Cawdor" is no sentence; a bearer-reach modifier on
-        a rule says its narrowing first and drops the closing "while"."""
+        """Pronoun subjects place pick conditions first and omit a duplicate closing while
+        clause.
+        """
         rule = create_rule("Veterans")
         attach_modifiers_to(
             rule,
@@ -393,9 +378,7 @@ class TestNarrowingsCompose:
 
 
 class TestATypeNarrowsTheSubject:
-    """A model's Type is the one narrowing a gang-wide reach can say in
-    the model's own word: a grant to every vehicle in the gang says
-    "every vehicle", not the gang-wide "every fighter"."""
+    """Use the profile type named by the scope in its generated subject."""
 
     @pytest.fixture
     def damage(self, default_pack):
@@ -437,8 +420,7 @@ class TestATypeNarrowsTheSubject:
 
 
 class TestAPickNarrowsTheSubject:
-    """A model that must hold a pick is said with the pick beside it:
-    "with" the pick, or "without" it when the row leaves holders out."""
+    """Describe positive and negated pick conditions as with or without the named pick."""
 
     @pytest.fixture
     def cawdor(self, default_pack):
@@ -465,8 +447,7 @@ class TestAPickNarrowsTheSubject:
         ]
 
     def test_several_picks_read_as_any_of_them(self, escher, cawdor, backstab):
-        """A row naming two picks reaches a model holding either, and the
-        sentence must not read as though it needs both."""
+        """Multiple values in one pick condition mean either value rather than both."""
         delaque = create_pickable("Delaque", cawdor.slot_type)
         attach_modifiers_to(
             escher,
@@ -501,13 +482,7 @@ class TestAPickNarrowsTheSubject:
 
 
 class TestTheMasterOfWhispers:
-    """One power from a family, as a Primary pick — a rule doing three
-    things, said as a paragraph.
-
-    The three modifiers are one setup, and the order they are said in is
-    the order the rules run them: what is given settles before anything
-    that could depend on it.
-    """
+    """Describe the subtype grant, category placement and power choice as an ordered setup."""
 
     @pytest.fixture
     def whispers(self, default_pack):
@@ -562,8 +537,7 @@ class TestTheMasterOfWhispers:
         assert all(label == "library.modifier" for label, _ in keys)
 
     def test_a_view_decorates_by_key_and_never_by_reading_the_words(self, master):
-        """The compiler leaves the address blank; a view fills it in from
-        the identity, which is why the identity is there."""
+        """Views derive links from stable row keys; prose generation leaves href blank."""
         said = prose_for(master).does[0]
 
         assert said.href == ""
@@ -584,8 +558,7 @@ class TestTheMasterOfWhispers:
         ]
 
     def test_a_choice_nothing_offers_yet_is_still_a_way_in(self, whispers):
-        """Written in the composer, before anything carries it: the kind is
-        already enough to say a power could be chosen for it."""
+        """An unattached offer can still describe its eligible kind."""
         from n26.library.models import Power
 
         modifier("A loose offer", targets_model(), ef_offers_choice(Power))
@@ -597,12 +570,7 @@ class TestTheMasterOfWhispers:
 
 
 class TestACorruptedGang:
-    """What an affiliation hands a gang, said in the gang's own terms.
-
-    Everything a corruption does rides the chosen affiliation as
-    ordinary modifiers, all of them aimed at the gang — so every
-    sentence is about the gang, whoever made the pick.
-    """
+    """Gang-scoped modifiers use the gang as their sentence subject."""
 
     @pytest.fixture
     def corruption(self, escher, person_type):
@@ -682,8 +650,7 @@ class TestACorruptedGang:
 
 
 class TestChainsAndBundles:
-    """A grant that hands over something which itself hands over
-    something — the reader should not have to open two pages."""
+    """Include a granted carrier’s own grants in the description."""
 
     def test_a_granted_thing_that_itself_grants_says_so(self, mounted, default_pack):
         nerves = create_skill("Nerves of Steel")
@@ -722,14 +689,10 @@ class TestChainsAndBundles:
 
 
 class TestConditions:
-    """How a scope's narrowing reads: ranks replace the subject, a
-    threshold opens the sentence, a weapon filter joins the noun."""
+    """Render rank, threshold and weapon conditions in their respective sentence clauses."""
 
     def test_a_rank_condition_names_the_ranks(self, default_pack):
-        """The ranks come in the library's own order — by name, as every
-        other sentence naming a set of subtypes says them — so a
-        modifier's name and its reach sentence cannot list them
-        differently."""
+        """Sort subtype names consistently with other generated modifier descriptions."""
         leader = create_subtype("Leader")
         champion = create_subtype("Champion")
         nerves = create_skill("Nerves of Steel")
@@ -790,8 +753,7 @@ class TestConditions:
 
 
 class TestWhatIsWrittenOnce:
-    """The stored effects run at purchase rather than on every read, and
-    the sentence has to say which of them comes back."""
+    """Distinguish one-time stored changes from reversible computed grants."""
 
     def test_moving_a_counter_says_the_ledger_keeps_it(self, default_pack):
         xp = create_counter("XP")
@@ -841,8 +803,7 @@ class TestWhatIsWrittenOnce:
 
 
 class TestWhereAThingIsSold:
-    """Two routes to being sold: a list that names it, and a sweep that
-    catches it."""
+    """Describe explicit collection entries and selector-derived availability."""
 
     @pytest.fixture
     def saw(self, default_pack):
@@ -870,8 +831,7 @@ class TestWhereAThingIsSold:
         ]
 
     def test_the_hint_behind_a_line_says_both_halves_of_the_price(self, saw):
-        """What a listing's own words leave out: whether the Trading Post
-        sells it, and for how many trade points."""
+        """Hints include both credit and Trade Point prices."""
         goliath = create_collection("Goliath Equipment List")
         add_entry(goliath, saw, price_override=35, trade_point_override=2)
 
@@ -913,8 +873,7 @@ class TestWhereAThingIsSold:
         ]
 
     def test_a_list_that_both_names_it_and_sweeps_it_speaks_once(self, saw):
-        """The price the list's own line states is the one a buyer is
-        asked for, so the sweep behind it says nothing further."""
+        """The explicit entry replaces the same collection’s selector description."""
         from n26.library.models import CollectionSelector, Weapon
 
         post = create_collection("Trading Post")
@@ -926,8 +885,7 @@ class TestWhereAThingIsSold:
         ]
 
     def test_a_different_list_sweeping_it_in_still_speaks(self, saw):
-        """Only the list that named it goes quiet: a second list sweeping
-        the same kind is a route of its own."""
+        """A selector in another collection remains an independent availability route."""
         from n26.library.models import CollectionSelector, Weapon
 
         goliath = create_collection("Goliath Equipment List")
@@ -942,13 +900,7 @@ class TestWhereAThingIsSold:
 
 
 class TestWhatMayBeChosenForAnOfferedChoice:
-    """A choice drawn from a tier is settled by what that tier's
-    collection holds, and only those things say they may be chosen.
-
-    Nothing else can be picked: a narrowed choice offers the collection
-    browsed and resectioned for that model, so a power no collection
-    holds is on nobody's list however many choices of Power exist.
-    """
+    """A section-limited offer describes only items belonging to that section’s collection."""
 
     @pytest.fixture
     def whispers(self, default_pack):
@@ -1009,8 +961,9 @@ class TestWhatMayBeChosenForAnOfferedChoice:
         ]
 
     def test_a_power_on_another_list_entirely_cannot_be_chosen(self, master, whispers):
-        """Being sold somewhere is not being in the tier the choice draws
-        from — the offer names one collection's section, not the world."""
+        """Availability in another collection does not satisfy this offer’s section
+        restriction.
+        """
         whisper = create_power("Crawling Doom", category=whispers)
         add_entry(create_collection("Wyrd Compendium"), whisper)
 
@@ -1020,7 +973,7 @@ class TestWhatMayBeChosenForAnOfferedChoice:
 
 
 class TestBuiltInAndOptional:
-    """The two ways a set of defaults hands something over."""
+    """Describe built-in and selected-option acquisition routes."""
 
     def test_a_built_in_names_what_comes_with_it(self, escher, person_type):
         knife = create_weapon("Stub knife")
@@ -1053,12 +1006,7 @@ class TestBuiltInAndOptional:
 
 
 class TestASlotTypeExplained:
-    """A slot and its pickables, explained: what a choice asks for, what
-    picklists a pickable is on, and which slots could settle on it.
-
-    A pickable is only ever reached through a choice, so the routes into
-    one are the picklists that hold it and the slots that draw on those.
-    """
+    """Describe slot requirements, picklist membership, default picks and possible choices."""
 
     @pytest.fixture
     def legacy(self, default_pack):
@@ -1138,8 +1086,7 @@ class TestASlotTypeExplained:
         ]
 
     def test_a_pickable_no_list_holds_is_reached_by_nothing(self, cawdor, choice):
-        """A choice names a picklist, so a pickable nobody listed is on
-        no route at all — an owner may still hand it over."""
+        """Removing picklist membership removes the documented choice routes."""
         from n26.library.models import PicklistMember
 
         PicklistMember.objects.all().delete()
@@ -1178,7 +1125,7 @@ class TestASlotTypeExplained:
 
 
 class TestWhatIsAssignedToIt:
-    """The player side: what would be disturbed if this went."""
+    """Count owned assignments and distinct gangs separately from content references."""
 
     @pytest.fixture
     def knife(self, escher, person_type, django_user_model):
@@ -1209,8 +1156,7 @@ class TestWhatIsAssignedToIt:
 
 
 class TestAssignmentsAreNotReferences:
-    """A gang holding the thing is a tally, never a sentence: the
-    references say how anyone comes to have it, not who does."""
+    """Owned assignments contribute counts without adding content-reference sentences."""
 
     def test_holding_it_adds_no_sentence(self, escher, django_user_model):
         owner = django_user_model.objects.create_user("rin")
@@ -1225,7 +1171,7 @@ class TestAssignmentsAreNotReferences:
 
 
 class TestTheRemainingEffects:
-    """The renderers the setups above do not reach, each said once."""
+    """Cover effect descriptions absent from the preceding fixtures."""
 
     def test_a_stat_change_names_the_characteristic(self, fighter_stats):
         rule = create_rule("Eye Injury")
@@ -1302,10 +1248,9 @@ class TestTheRemainingEffects:
         ]
 
     def test_a_drawn_pick_says_whose_cards_list_it(self, default_pack):
-        """The exception rides the subject, so what the sentence owns is
-        said the long way round — "the card of every fighter except…"
-        rather than a possessive that would hand the card to the rank
-        the scope steps around."""
+        """Keep the excluded rank outside the possessive subject when describing affected
+        cards.
+        """
         champion = create_subtype("Champion")
         archetype = create_pickable("Brawler", create_slot_type("Archetype"))
         attach_modifiers_to(
@@ -1326,21 +1271,13 @@ class TestTheRemainingEffects:
 
 
 class TestTheQueryCountStaysFlat:
-    """Building one thing's prose is a fixed number of queries.
-
-    The point of the budget is not the number but its flatness: a rule
-    ten things reference must be read at the price of a rule one thing
-    references, or the page about a much-used row would be the slow one.
-
-    What the budget *is* made of is the kinds involved, not the rows: a
-    scope or an effect nothing uses is never fetched at all, so the first
-    modifier of some shape costs a little more than the tenth. The rule
-    below carries one of each shape the tests then add more of.
+    """Adding references or modifiers of existing kinds must not add queries. Keep relation
+    kinds constant because new kinds can require additional prefetches.
     """
 
     @pytest.fixture
     def much_used(self, escher, backstab):
-        """One rule, referenced from every direction there is."""
+        """Cover the reference and modifier kinds expanded by the growth tests."""
         skill = create_skill("Nerves of Steel")
         rule = create_rule("Combat Chems Stash")
         attach_modifiers_to(
@@ -1355,10 +1292,7 @@ class TestTheQueryCountStaysFlat:
         attach_modifiers_to(
             giver, [modifier("Chem-stash: the rule", targets_model(), ef_adds(rule))]
         )
-        # The content-type rows a sweep and an offer look up are cached for
-        # the life of the process, so the first prose read anywhere pays for
-        # them. Read once here, or the budget below would be one query
-        # larger whenever this test happened to run first.
+        # Warm process-wide ContentType caches before measuring query growth.
         prose_for(rule)
         return rule
 
@@ -1413,8 +1347,7 @@ class TestTheQueryCountStaysFlat:
     def test_narrowed_scopes_cost_no_query_per_row(
         self, escher, backstab, default_pack
     ):
-        """A condition row's names are many-to-many, and each was a query
-        of its own on every sentence until the prefetch reached them."""
+        """Prefetch many-to-many condition names across all modifier rows."""
         champion = create_subtype("Champion")
         slot_type = create_slot_type("Gang Legacy", plural_name="Gang Legacies")
         cawdor = create_pickable("Cawdor", slot_type)
@@ -1436,27 +1369,17 @@ class TestTheQueryCountStaysFlat:
         assert self._budget(rule) == budget
 
     def test_the_budget_is_what_it_is(self, much_used, django_assert_num_queries):
-        """Pinned so that a new sweep is a decision somebody made.
-
-        Most of the number is the price of assignables having no shared
-        table: "what carries this modifier" and "what holds this set" are
-        each one query per kind, and there are twenty-odd kinds. One
-        query is the reference scan finding the propagation tasks filed
-        against a set — a real edge into the model graph, seen by
-        discovery like any other. Actions and rank tables add the four
-        assignable reference reads that let their grants and removals be
-        described. And one query per condition kind a model scope can
-        carry, read whether or not the row has any. Promotion gates add
-        one reference scan for promotions requiring the rule.
+        """Cap total queries in addition to checking growth; reference and condition kinds
+        account for fixed scans.
         """
         with django_assert_num_queries(74):
             prose_for(much_used)
 
 
 class TestEveryEffectScopeAndNarrowingCanBeSaid:
-    """Discovering guards: an effect with no renderer, a scope with no
-    subject, or a narrowing with no words is one the reach column would
-    drop without a word."""
+    """Discover missing renderers so effects, scope subjects and conditions cannot silently
+    disappear from descriptions.
+    """
 
     def test_there_is_something_to_check(self):
         from n26.library.models.modifier import EFFECT_FIELDS
@@ -1510,8 +1433,7 @@ class TestEveryEffectScopeAndNarrowingCanBeSaid:
 
 
 class TestTheDeletePageAndTheProseAgree:
-    """Both read the same edges through one reader, so neither can name
-    a set of things the other does not."""
+    """Deletion protection and prose use the same reference reader."""
 
     def test_what_protects_a_row_is_what_the_prose_explains(self, escher, person_type):
         knife = create_weapon("Stub knife")
@@ -1548,8 +1470,7 @@ class TestTheDeletePageAndTheProseAgree:
         assert "n26.assignment" in protectors
 
     def test_a_weapons_own_profiles_do_not_protect_it(self, default_pack):
-        """A part of the thing is not a reference to it: deleting a
-        weapon takes its lines with it."""
+        """Owned profiles cascade with their weapon rather than preventing its deletion."""
         from n26.library.authoring import add_weapon_profile
 
         knife = create_weapon("Stub knife")
