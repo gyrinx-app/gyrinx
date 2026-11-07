@@ -230,9 +230,9 @@ class CounterLine:
 
     name: str
     value: int
-    #: Stored counter value and minimum, excluding modifier contributions.
-    #: Update controls use these values because tallying cannot remove a
-    #: computed contribution.
+    #: Stored counter value, or its opening value on a preview, excluding
+    #: modifier contributions. Update controls use this value because tallying
+    #: cannot remove a computed contribution.
     tallied: int = 0
     assignment_id: str = ""
     href: str = ""
