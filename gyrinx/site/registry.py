@@ -1,15 +1,8 @@
-"""Extension point: who a notification broadcast can be addressed to.
+"""Broadcast audience registration shared by both editions.
 
-The broadcast page is platform furniture, but most useful audiences are
-edition-shaped ("everyone in this campaign"). Rather than have the platform
-import edition models to offer them, each audience is registered here: a label
-for the dropdown, an optional extra form field to qualify it, and a callable
-that turns the submitted form data into a queryset of users.
-
-The platform contributes "All active users" at the bottom of this module, so it
-is always first in the dropdown no matter when editions register theirs — they
-have to import this module to register, which runs that line first. Editions
-register from their admin package (see ``n23/core/admin/broadcast.py``).
+Editions register labels, optional form fields and recipient querysets from
+their admin packages. This avoids platform imports of edition models. The
+all-active-users audience registers at import time and appears first.
 """
 
 from collections.abc import Callable, Mapping
@@ -31,12 +24,11 @@ User = get_user_model()
 
 @dataclass(frozen=True)
 class BroadcastAudience:
-    """One option in the broadcast form's "audience" dropdown.
+    """A broadcast audience and its recipient lookup.
 
-    ``recipients`` receives the form's ``cleaned_data`` and returns the users to
-    notify. An audience that needs qualifying — which campaign? — declares
-    ``field_name`` plus a ``field`` factory; the form adds that field, and
-    requires it only when this audience is the one selected.
+    recipients receives cleaned_data and returns a user queryset. Optional
+    field_name and field provide a qualifying input, required only when this
+    audience is selected.
     """
 
     key: str

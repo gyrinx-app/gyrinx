@@ -116,19 +116,14 @@ def run_task(
     track_extra: dict | None = None,
     emit_signals: bool = True,
 ):
-    """Run ``func(*args, **kwargs)`` with full task lifecycle signalling.
+    """Run func with task lifecycle signals and return (ok, return_value, error).
 
-    Fires ``task_started`` before and ``task_finished`` after. Returns a
-    ``(ok, return_value, error)`` tuple. A task raising is *not* propagated —
-    it becomes ``ok=False`` with the exception in ``error`` — so every transport
-    can apply its own retry/ack policy uniformly.
+    Task exceptions return ok=False and the exception instead of propagating,
+    allowing each transport to apply its retry policy.
 
-    ``emit_signals=False`` runs the function without firing the lifecycle
-    signals or touching the ``TaskExecution`` record. The local backend uses
-    this for *duplicate* deliveries (at-least-once redelivery of an already
-    completed task): the business logic runs again — which is exactly what
-    idempotency needs to survive — but the canonical outcome record is left
-    alone rather than being illegally resurrected out of its terminal state.
+    With emit_signals=False, run the function without changing TaskExecution.
+    Local duplicate deliveries use this to preserve an existing successful
+    result while exercising the task's idempotency.
     """
     sender = sender or TaskExecutionSender
     extra = dict(track_extra or {})

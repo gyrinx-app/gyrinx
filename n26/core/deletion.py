@@ -1,31 +1,21 @@
-"""Deleting a gang or a campaign for good.
+"""Permanently delete gangs and campaigns selected for content cleanup.
 
-Nowhere else in this edition deletes player data: a player's Delete
-gang archives, because a gang somebody played is history, and history
-stays true whether or not the roster is on show. The one gang that is
-not history is the one an author founded to check content that was not
-yet live — hired from, equipped, and then archived, still holding every
-row it touched and so still protecting them. Deleting that content means
-deleting the gang, and this is where that happens.
+Player-facing gang deletion archives data. Author-created test gangs can
+still protect staged content after archival, so library deletion may need
+to destroy them and their dependants.
 
-Both verbs are plain deletes that rely on what the database already
-cascades, and they exist so the one place that decides *which* gangs may
-go (``n26.library.deletion``) is not the place that knows what hangs off
-one. What hangs off a gang is proved rather than listed: a test builds
-the fullest gang the verbs can and asserts every table returns to its
-prior count.
+``n26.library.deletion`` decides which objects qualify. These functions
+perform database cascades; tests build representative complete graphs and
+verify dependent table counts.
 """
 
 
 def destroy_gang(gang):
-    """Delete a gang and everything that is only there because of it.
+    """Delete the gang and its dependent player data through database cascades.
 
-    The database cascades the lot: every assignment rooted on the gang,
-    the models those brought in (a model's membership is one such
-    assignment), the stash, the actions, the ledger, the saved print
-    layouts, the campaign memberships and the battle lines naming it.
-    A payment another gang made to this one keeps its line with the
-    counterpart emptied, which is what that column says it does.
+    Includes assignments, roster models, stash, activities, ledger, print layouts,
+    memberships and battle entries. Other gangs' payments retain their events
+    with the deleted counterpart cleared.
     """
     from django.db import transaction
 
@@ -39,21 +29,18 @@ def destroy_gang(gang):
     )
     with transaction.atomic(), write_guard():
         gang.delete()
-        # A model lives only through its membership, so none can survive the
-        # gang. Checked because a model nothing reaches would be a row
-        # nobody could ever delete.
+        # Roster models must cascade with their memberships; unreachable survivors
+        # would prevent complete cleanup.
         left = Miniature.objects.filter(pk__in=models_in).count()
         if left:
             raise RuntimeError(f"{left} models survived deleting {gang.name}")
 
 
 def destroy_campaign(campaign):
-    """Delete a campaign. The memberships, log, assets, battles and
-    invitations cascade with it.
+    """Delete a campaign and its memberships, events, assets, battles and invitations.
 
-    What the campaign owned — its additions type, its pack and whatever
-    the arbitrator created in that pack — is library content, and stays
-    for the caller to delete once the campaign no longer protects it.
+    Its additions type and pack remain library content for the caller to
+    delete after their campaign protection is removed.
     """
     from django.db import transaction
 

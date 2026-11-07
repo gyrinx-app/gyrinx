@@ -20,13 +20,10 @@ logger = logging.getLogger(__name__)
 
 
 class AnalyticsAdminSite(admin.site.__class__):
-    """Custom admin site with analytics dashboard.
+    """Add analytics routes while preserving the installed admin class.
 
-    Extends whatever class ``admin.site`` is currently using rather than
-    ``admin.AdminSite`` directly, so it composes with the site installed by
-    ``gyrinx.admin_site`` (which routes admin login through allauth) instead of
-    replacing it. ``gyrinx.maintenance`` then stacks on top of this — see
-    ``gyrinx/maintenance/admin.py``.
+    Inherit the active class to retain allauth authentication. Maintenance
+    admin must extend this class afterwards to retain both route sets.
     """
 
     def get_urls(self):
@@ -54,10 +51,8 @@ class AnalyticsAdminSite(admin.site.__class__):
         days = scale_map.get(time_scale, 30)
         start_date = timezone.now() - timedelta(days=days)
 
-        # Which product to look at. Two editions run side by side, so their
-        # activity has to be readable apart: added together, one growing while
-        # the other shrinks looks like a flat site. An unrecognised value falls
-        # back to showing everything.
+        # An unknown edition filter shows all series. Keep edition-specific datasets
+        # separate so activity in one edition does not obscure changes in another.
         wanted = request.GET.get("edition", "")
         edition = wanted if wanted in Edition.values else None
 
@@ -212,15 +207,10 @@ class AnalyticsAdminSite(admin.site.__class__):
         }
 
     def get_cumulative_creation_data(self, start_date, edition=None):
-        """Cumulative creation counts, one line per registered growth series.
+        """Return cumulative daily counts for the registered series in the edition.
 
-        What gets counted is the edition's business — the platform only knows
-        how to accumulate. See ``gyrinx.analytics.registry``; with nothing
-        registered the chart renders empty rather than failing.
-
-        Every line says which edition it belongs to, so picking one leaves
-        only that product's lines. Nothing is summed across editions here:
-        each line stays its own.
+        Each edition supplies its own daily count queries. An empty registry
+        produces no datasets.
         """
         series = growth_series(edition)
         counts_by_series = [s.daily_counts(start_date) for s in series]

@@ -1,5 +1,6 @@
 """Clickable holding details retain the campaign gate and action permissions."""
 
+import json
 from datetime import date
 from importlib import import_module
 from urllib.parse import parse_qs, urlsplit
@@ -738,9 +739,14 @@ def test_editing_base_income_keeps_boons_and_other_holdings(client, inline_boons
     arbitrator, _, campaign, holding, _, _, other = inline_boons
     before = editor_payload(client, campaign, holding)
     client.force_login(arbitrator)
+    edit_url = reverse("n26-campaign-asset-edit", args=[campaign.pk, holding.pk])
+    page = BeautifulSoup(client.get(edit_url).content, "html.parser")
+    host = page.select_one('[data-react-name="edit-holding"]')
+    assert host is not None, "The Edit holding React mount is missing"
+    form = json.loads(page.find(id=host["data-react-props"]).string)
     response = client.post(
-        reverse("n26-campaign-asset-edit", args=[campaign.pk, holding.pk]),
-        {"name": "Sump ruins", "income": "80"},
+        edit_url,
+        {"name": "Sump ruins", "income": "80", "snapshot": form["values"]["snapshot"]},
     )
     assert response.status_code == 302
     assert client.get(address(campaign, holding)).context["details"].income == 83

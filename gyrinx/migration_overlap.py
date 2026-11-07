@@ -1,16 +1,9 @@
-"""Find migrations on two branches that touch the same thing.
+"""Report potentially conflicting migration operations on two branches.
 
-Two migrations written on separate branches know nothing of each other. Most
-pairs are fine: each adds its own field or model, and the order they are
-applied in cannot matter. The pairs that can go wrong touch the same model or
-field, or one of them runs code against data the other changes. This module
-reads the operations of both sets and reports those pairs, so the author hears
-about it while the pull request is open rather than when a deploy fails.
-
-It is a static reading of ``operations``, not a proof: it names the model and
-field an operation declares, and for ``RunPython`` the models its source
-fetches with ``get_model``. Code that reaches a model some other way is
-reported as touching its whole app, which errs towards a warning.
+Compare declared model and field changes. For RunPython, inspect get_model
+calls in the source; if their targets cannot be inferred, conservatively
+report a possible app-wide overlap. This is a static warning, not a proof
+that migrations can run safely in either order.
 """
 
 from __future__ import annotations

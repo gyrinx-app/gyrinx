@@ -1,8 +1,4 @@
-"""Site-level platform models: the banner, the impersonation log, the
-per-user notification inbox (with the small ``notify*`` creation service that
-sits beside it), and the feature flags that say who may reach work still
-being built.
-"""
+"""Shared models for write pauses, banners, impersonation, notifications and feature flags."""
 
 import logging
 import uuid
@@ -24,10 +20,7 @@ from gyrinx.site import icons as banner_icons
 
 logger = logging.getLogger(__name__)
 
-# Cache keys/timeout for the live banner, one per edition — each side of the
-# site shows its own banner, so each caches its own answer. Defined beside the
-# model rather than in the context processor that reads it, so the platform
-# owns its own constants.
+# Banner visibility differs by edition, so each edition needs a separate cache entry.
 BANNER_CACHE_KEYS = {
     "n23": "site_banner_live:n23",
     "n26": "site_banner_live:n26",
@@ -134,13 +127,10 @@ class Banner(AppBase):
 
     @property
     def bootstrap_icon(self) -> str:
-        """The Bootstrap Icons class for this banner, or "" for no icon.
+        """Return the Bootstrap Icons class, or an empty string if none is selected.
 
-        A property rather than a template filter because Bootstrap is the
-        platform's own stack, not an edition's: platform templates can ask the
-        model directly. n26 does not get an equivalent — it resolves the same
-        key through its own filter, so that this model never has to know an
-        edition's icon names.
+        N26 resolves the shared key through its own template filter, keeping
+        edition icon names outside this model.
         """
         return banner_icons.bootstrap_class(self.icon)
 
@@ -227,16 +217,8 @@ class ImpersonationLog(AppBase):
         return f"{self.owner} → {self.target} ({state})"
 
 
-#
-# Notifications: per-recipient inbox rows plus a small creation service.
-#
-# The model follows the fan-out approach — one row per recipient — so read/unread,
-# archive and delete state is independent per user. The ``notify*`` functions mirror
-# the ergonomics of :func:`gyrinx.analytics.models.log_event`: they are module-level
-# helpers that live beside the model, never raise (they log and return ``None``/``0``
-# instead), and work with no request and no acting user, so background jobs and data
-# migrations can call them safely.
-#
+# Each recipient has independent read, archive and delete state. Notification
+# creation helpers accept background calls without a request or acting user.
 
 
 class NotificationType(models.TextChoices):
@@ -296,19 +278,12 @@ class NotificationManager(HistoryAwareManager):
 
 
 class Notification(AppBase):
-    """A single notification in one recipient's inbox.
+    """A notification for one recipient, stored as owner.
 
-    ``owner`` (from :class:`gyrinx.models.Owned`) **is** the recipient — the person
-    whose inbox this row lives in, and the row it should cascade-delete with on
-    account deletion. ``sender`` is the actor who caused it, and is null for
-    background/system notifications (surfaced as a Gyrinx "system" indicator in the UI).
-
-    Note: this model deliberately does **not** declare ``history = HistoricalRecords()``.
-    These are high-volume, per-recipient, disposable fan-out rows and every
-    read/archive toggle is a ``save()``; recording history would double write volume
-    and bloat the historical table for no audit value (the *cause* of a notification
-    is already audited via ``Event``/``Backfill``). ``HistoryMixin`` helpers all guard
-    on ``hasattr(self, "history")``, so omitting it is safe.
+    Deleting the recipient deletes the notification. A null sender represents
+    a system notification. No history table is kept: these disposable inbox
+    records change on each read or archive action, while Event and Backfill
+    record the originating actions.
     """
 
     sender = models.ForeignKey(
@@ -336,16 +311,9 @@ class Notification(AppBase):
         help_text="Soft-delete timestamp. Deleted rows disappear from every inbox view.",
     )
 
-    # What the notification is about, and the wider context it belongs to, as
-    # generic relations: `target` is the subject (a gang, say) and `scope` is the
-    # container it sits in (that gang's campaign). Either may be null.
-    #
-    # Generic rather than fixed FKs because this model lives on the platform,
-    # which cannot hold a ForeignKey to an edition table — see #2093. Deletion
-    # leaves a dangling id rather than nulling the column, which is the same end
-    # state the old SET_NULL gave us (the inbox text survives, the link stops
-    # resolving); primary keys are UUIDs, so a dangling id can never be recycled
-    # onto some other object.
+    # Generic relations avoid platform ForeignKeys to edition models. The target
+    # identifies the subject; scope identifies its container, such as a campaign.
+    # Deleted objects leave their UUIDs stored, preserving inbox text without a link.
     target_content_type = models.ForeignKey(
         ContentType,
         on_delete=models.SET_NULL,
@@ -429,16 +397,11 @@ class Notification(AppBase):
 
     @property
     def target_url(self):
-        """URL of the related object, if any, for the inbox row title link.
+        """Return the first available URL from the target or scope.
 
-        Asks the object where it lives rather than reversing a URL name here, so
-        this works for anything an edition might point a notification at.
-        Returns "" when there is no target, when the target has been deleted, or
-        when its model does not define ``get_absolute_url``. It also returns ""
-        for a prefetched row whose model renders its key differently from the
-        uuid column it is stored in, since the prefetch cannot pair the two —
-        which is why a surface deciding whether to *offer* a link asks the
-        stored key rather than this.
+        Skip missing objects and objects without get_absolute_url. Return an
+        empty string if neither can supply a URL. Prefetching UUID-backed keys
+        with a different Python representation may leave either relation empty.
         """
         for obj in (self.target, self.scope):
             if obj is None:
@@ -486,19 +449,11 @@ class Notification(AppBase):
 
 
 def _generic_key(obj):
-    """The content type and object id for a generic link.
+    """Return a content type and UUID for a generic relation.
 
-    The id columns are ``uuid``, and an edition may key its rows with
-    something that is a UUID underneath while rendering as something else — a
-    ULID is the same 128 bits in a different alphabet. Handing the field that
-    object raises, and because :func:`notify` swallows its own errors the
-    notification is simply lost. Worse, inside a transaction the failed
-    statement has already poisoned it, so the act being announced rolls back
-    too.
-
-    So the key is coerced here rather than left to the field: anything that
-    knows how to become a UUID is asked to, and anything that does not is
-    linked to nothing rather than losing the caller their notification.
+    Convert UUID-compatible keys before writing them to UUID columns. Invalid
+    keys leave the notification unlinked, avoiding a database error that
+    could invalidate the caller's transaction.
     """
     if obj is None:
         return None, None
@@ -709,13 +664,10 @@ def notify_many(
 
 
 class ChangelogEntryTag(Base):
-    """A label an entry can carry — an edition ("N23", "N26"), say.
+    """An admin-managed tag shared by changelog entries.
 
-    A lookup table rather than a choices field so tags can be added in the
-    admin without a deploy. Entries wear any number of them. Plain ``Base``
-    rather than ``AppBase`` — like :class:`~gyrinx.pages.models.FlatPageVisibility`,
-    a site-wide lookup row has no meaningful owner, and an owner FK's CASCADE
-    would delete shared tags with the staff account that created them.
+    Tags have no owner because deleting a staff account must not delete
+    shared classifications.
     """
 
     class Colour(models.TextChoices):
@@ -800,14 +752,7 @@ class ChangelogEntry(AppBase):
 
 
 class Availability(models.TextChoices):
-    """How widely a feature is open.
-
-    Three states rather than a tick box, because "nobody", "a few people"
-    and "everybody" are three different answers and the middle one is the
-    whole point of gating something. Off wins over the group, which is what
-    makes it the control to reach for when a half-built screen starts
-    writing bad rows.
-    """
+    """Feature access levels. OFF denies access even to allowlisted users."""
 
     OFF = "off", "Off — nobody, whatever the group says"
     ALLOWLIST = "allowlist", "Allowlist — whoever is in the group"
@@ -815,19 +760,11 @@ class Availability(models.TextChoices):
 
 
 class FeatureFlag(Base):
-    """A feature still being built, and who may reach it.
+    """Admin-managed access settings for a registered feature slug.
 
-    A row per feature, edited in the admin, so opening one to another player
-    is a change somebody makes on a page rather than a deploy. The two ways
-    to move are deliberately different acts: change ``availability`` to open
-    or shut the feature as a whole, or leave it on the allowlist and add
-    people to the group one at a time.
-
-    ``slug`` is what code asks for and never changes; ``name`` is what the
-    admin reads. A slug with no row is off, so a feature reaches nobody until
-    somebody opens it. Which slugs exist is an edition's knowledge, claimed
-    through ``gyrinx.site.flags.register_flags``; this table holds the state,
-    not the vocabulary.
+    Availability controls access for all signed-in users or for a selected
+    group. A missing record disables the feature. Editions register the
+    slugs in gyrinx.site.flags; the platform stores their access settings.
     """
 
     slug = models.SlugField(
@@ -867,10 +804,7 @@ class FeatureFlag(Base):
         verbose_name_plural = "feature flags"
         ordering = ["name"]
         constraints = [
-            # Choices are model-level validation and nothing more: a raw
-            # write, a data migration or a shell can store any string. What
-            # this row says is who reaches a feature, so the database refuses
-            # a word nothing can read rather than leaving it to be guessed.
+            # Enforce availability values for writes that bypass model validation.
             models.CheckConstraint(
                 condition=models.Q(availability__in=Availability.values),
                 name="site_feature_flag_availability_known",
@@ -881,15 +815,10 @@ class FeatureFlag(Base):
         return f"{self.name} ({self.get_availability_display()})"
 
     def open_to(self, user):
-        """Whether this account may reach the feature.
+        """Return whether a signed-in user may access the feature.
 
-        A visitor never qualifies, even where the feature is open to
-        everyone: a page nobody is supposed to know about should not
-        announce itself to someone who is not signed in.
-
-        There is no bypass for staff or superusers. An account that should
-        see a gated feature goes in the group, so what a person can reach is
-        one question with one answer rather than two rules that drift.
+        Staff and superusers have no bypass. Unknown availability values deny
+        access, including to members of the selected group.
         """
         if self.availability == Availability.OFF:
             return False
@@ -898,10 +827,7 @@ class FeatureFlag(Base):
         if self.availability == Availability.EVERYONE:
             return True
         if self.availability != Availability.ALLOWLIST:
-            # A word nothing here recognises. Falling through to the group
-            # check would let a member of any attached group in on the
-            # strength of a value no code wrote — so an unreadable state is
-            # shut, the same as off.
+            # Reject unknown values before checking group membership.
             return False
         if self.group_id is None:
             return False
