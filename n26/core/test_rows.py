@@ -8,6 +8,8 @@ from django_cotton.compiler_regex import CottonCompiler
 from n26.core.printing import detail_groups
 from n26.core.render import (
     AssignableLine,
+    CampaignAssetLine,
+    CampaignBlock,
     ChoiceLine,
     CounterLine,
     GangSheet,
@@ -270,19 +272,141 @@ class TestOwnersAndSurfaces:
         assert "Ash" in html.get_text()
         assert not html.select("a, form, button")
 
+    def test_campaign_rows_share_headings_without_losing_dialog_or_counter_controls(
+        self,
+    ):
+        campaign = CampaignBlock(
+            name="Campaign",
+            campaign_id="campaign",
+            assets_href="/assets/",
+            choices=[
+                ChoiceLine(
+                    "Standing",
+                    "Outlaw",
+                    href="/standing/",
+                    dismiss_href="/dismiss/",
+                    back="/gang/",
+                )
+            ],
+            counters=[
+                CounterLine(
+                    name=" standing ",
+                    value=7,
+                    tallied=7,
+                    href="/counter/",
+                    assignment_id="counter",
+                )
+            ],
+            lines=[
+                CampaignAssetLine("Standing", "Cooperative"),
+                CampaignAssetLine(
+                    "Territory",
+                    "Depot",
+                    type_plural="Standing",
+                    asset_type_id="territory",
+                    campaign_asset_id="holding",
+                ),
+            ],
+        )
+        (row,) = campaign.detail_rows
+        assert row.label == "Standing"
+        assert row_text(row) == "Outlaw, 7, Cooperative, Depot"
+        html = BeautifulSoup(
+            Template(
+                CottonCompiler().process(
+                    '<c-n26.campaign-block :campaign="campaign" />'
+                )
+            ).render(Context({"campaign": campaign})),
+            "html.parser",
+        )
+        assert len(html.select("dt")) == 1
+        assert html.find("a", href="/standing/")["hx-get"] == "/standing/"
+        assert html.find("form", action="/counter/")
+        assert html.find("form", action="/dismiss/")
+        assert html.find(id="n26-counter-counter")
+        assert html.find("a", href="/assets/")
+        assert [(group.label, group.text) for group in detail_groups(campaign)] == [
+            ("Standing", "Outlaw, 7, Cooperative, Depot")
+        ]
+        sheet = GangSheet("Gang", "House", 0, 0, 0, campaign=campaign)
+        assert (
+            "Standing:\n    - Outlaw\n    - 7\n    - Cooperative\n    - Depot"
+            in render_gang_sheet(sheet)
+        )
+
+    def test_a_campaign_xp_counter_stays_visible_without_a_model_statline(self):
+        campaign = CampaignBlock(
+            "Campaign", "campaign", counters=[CounterLine("XP", 3, is_xp=True)]
+        )
+        assert [(group.label, group.text) for group in detail_groups(campaign)] == [
+            ("XP", "3")
+        ]
+
+    def test_asset_owned_campaign_choices_keep_their_exact_copy_as_owner(self):
+        campaign = CampaignBlock(
+            "Campaign",
+            "campaign",
+            choices=[
+                ChoiceLine(
+                    "Legacy", "Red", asset_key="holding:1", asset_name="Old Ruins"
+                ),
+                ChoiceLine(
+                    "Legacy", "Blue", asset_key="holding:2", asset_name="Old Ruins"
+                ),
+                ChoiceLine(
+                    "Legacy", "Green", asset_key="holding:1", asset_name="Old Ruins"
+                ),
+            ],
+        )
+        assert campaign.detail_rows == []
+        rows = campaign.owned_choice_rows
+        assert len(rows) == 2
+        assert rows[0].owner != rows[1].owner
+        assert [row_text(row) for row in rows] == ["Red, Green", "Blue"]
+        assert [group.text for group in detail_groups(campaign)] == [
+            "Red, Green",
+            "Blue",
+        ]
+
     @pytest.mark.parametrize("kind", list(PartKind))
     def test_every_part_kind_has_html_print_and_text_support(self, kind):
-        card = card_with(
-            **{
-                PartKind.NAMES: {"rules": [AssignableLine("Sentinel")]},
-                PartKind.GEAR: {
-                    "gear_groups": [GearGroup("Kit", [AssignableLine("Sentinel")])]
-                },
-                PartKind.COUNTER: {"counters": [CounterLine(name="Sentinel", value=7)]},
-                PartKind.CHOICE: {"choices": [ChoiceLine("Legacy", "Sentinel")]},
-            }[kind]
-        )
+        if kind in (PartKind.ASSET, PartKind.ASSET_GROUP):
+            source = CampaignBlock(
+                "Campaign",
+                "campaign",
+                lines=[
+                    CampaignAssetLine(
+                        "Sites",
+                        "Sentinel",
+                        type_plural="Sites" if kind == PartKind.ASSET_GROUP else "",
+                        asset_type_id="sites",
+                    )
+                ],
+            )
+            html = Template(
+                CottonCompiler().process(
+                    '<c-n26.campaign-block :campaign="campaign" />'
+                )
+            ).render(Context({"campaign": source}))
+            text = render_gang_sheet(
+                GangSheet("Gang", "House", 0, 0, 0, campaign=source)
+            )
+        else:
+            source = card_with(
+                **{
+                    PartKind.NAMES: {"rules": [AssignableLine("Sentinel")]},
+                    PartKind.GEAR: {
+                        "gear_groups": [GearGroup("Kit", [AssignableLine("Sentinel")])]
+                    },
+                    PartKind.COUNTER: {
+                        "counters": [CounterLine(name="Sentinel", value=7)]
+                    },
+                    PartKind.CHOICE: {"choices": [ChoiceLine("Legacy", "Sentinel")]},
+                }[kind]
+            )
+            html = str(card_html(source))
+            text = "\n".join(render_model_card(source))
         expected = "7" if kind == PartKind.COUNTER else "Sentinel"
-        assert expected in card_html(card).get_text()
-        assert any(expected in group.text for group in detail_groups(card))
-        assert expected in "\n".join(render_model_card(card))
+        assert expected in html
+        assert any(expected in group.text for group in detail_groups(source))
+        assert expected in text

@@ -42,7 +42,7 @@ from n26.core.models.ledger import Reason
 from n26.core.owned import thing_key
 from n26.core.progression import RankSummary, progression_summaries
 from n26.core.rating import RatingReceipt, build_rating_receipt
-from n26.core.rows import choice_rows, holder_rows
+from n26.core.rows import campaign_owned_rows, campaign_rows, choice_rows, holder_rows
 from n26.core.status import Status, status_colour
 from n26.core.status import label_for as status_label
 from n26.library.models import (
@@ -1754,6 +1754,14 @@ class CampaignBlock:
     assets_href: str = ""
     #: Available types remain visible even when this gang holds none.
     asset_types: list[tuple[str, str]] = field(default_factory=list)
+
+    @property
+    def detail_rows(self):
+        return campaign_rows(self)
+
+    @property
+    def owned_choice_rows(self):
+        return campaign_owned_rows(self)
 
     @property
     def asset_groups(self):

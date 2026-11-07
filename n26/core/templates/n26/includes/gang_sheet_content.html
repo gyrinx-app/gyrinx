@@ -100,7 +100,7 @@
                 <c-n26.detail-list>
                     {% for row in sheet.detail_rows %}
                         <c-n26.detail-list.row label="{{ row.label }}" :editable="False">
-                            {% include "n26/includes/row_parts.html" with parts=row.parts slot_style=True %}
+                            {% include "n26/includes/row_parts.html" with parts=row.parts campaign_style=False slot_style=True %}
                         </c-n26.detail-list.row>
                     {% endfor %}
                     {% comment %}

@@ -1,6 +1,6 @@
 # Card detail rows
 
-Model cards and the gang sheet compose labelled facts through
+Model cards, gang-sheet details and campaign cards compose labelled facts through
 `n26.core.rows.compose_rows`. HTML, print and text consume that projection.
 Composition runs after the view links controls and hides dismissed offers;
 `detail_rows` is a property, so it cannot retain an earlier visibility state.
@@ -11,14 +11,15 @@ One display owner gets one row for each heading. Matching collapses whitespace
 and ignores case. It does not pluralise or infer meaning from a slot type.
 The first contribution supplies the heading's spelling and position.
 
-A row contains typed parts: names, gear, counters and choices. The parts retain
+A row contains typed parts: names, gear, counters, choices and campaign assets. The parts retain
 the original display objects. Two choices still have two keys and two controls.
 Two counters still have two readings. Equal values remain present. Item stacking
 and gameplay effect stacking are separate operations.
 
 A carried copy is its own display owner. Choices on two identically named weapons
 or pieces of gear stay beneath their respective copies. A model's own choice
-cannot combine with a choice carried by its gear.
+cannot combine with a choice carried by its gear. A campaign asset’s choices
+similarly stay under that held or owned copy.
 
 Authors need no grouping setting. Give choices the same displayed label when
 they should share a heading. For example, recruitment, advancement and battle

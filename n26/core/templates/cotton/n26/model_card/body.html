@@ -24,7 +24,7 @@ Trait lines under a named weapon profile start with an empty cell so they sit un
         {% for row in card.detail_rows %}
             <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ row.label }}{% if row.edit_href %}{% include "n26/includes/row_edit.html" %}{% endif %}</dt>
             <dd class="min-w-0 text-ink-900 dark:text-ink-100">
-                {% include "n26/includes/row_parts.html" with parts=row.parts slot_style=False %}
+                {% include "n26/includes/row_parts.html" with parts=row.parts campaign_style=False slot_style=False %}
             </dd>
         {% endfor %}
 

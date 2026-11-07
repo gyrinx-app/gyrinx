@@ -15,6 +15,8 @@ class PartKind(StrEnum):
     GEAR = "gear"
     COUNTER = "counter"
     CHOICE = "choice"
+    ASSET = "asset"
+    ASSET_GROUP = "asset_group"
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,10 @@ class DetailRow:
     parts: list[RowPart] = field(default_factory=list)
     separation: Separation | None = None
     edit_href: str = ""
+
+    @property
+    def has_asset_groups(self):
+        return any(part.kind == PartKind.ASSET_GROUP for part in self.parts)
 
 
 def normalized_heading(label: str) -> str:
@@ -147,6 +153,43 @@ def holder_rows(holder, *, owner):
     return rows
 
 
+def campaign_rows(campaign):
+    owner = ("campaign", campaign.campaign_id)
+    return compose_rows(
+        [
+            *(
+                Contribution(owner, choice.kind_label, RowPart(PartKind.CHOICE, choice))
+                for choice in campaign.other_choices
+            ),
+            *(
+                Contribution(owner, counter.name, RowPart(PartKind.COUNTER, counter))
+                for counter in campaign.counters
+            ),
+            *(
+                Contribution(owner, line.type_label, RowPart(PartKind.ASSET, line))
+                for line in campaign.other_lines
+            ),
+            *(
+                Contribution(owner, group.label, RowPart(PartKind.ASSET_GROUP, group))
+                for group in campaign.asset_groups
+            ),
+        ]
+    )
+
+
+def campaign_owned_rows(campaign):
+    # An asset's choices belong to that held or owned copy, not the campaign.
+    return compose_rows(
+        Contribution(
+            ("asset", choice.asset_key or id(choice)),
+            f"{choice.asset_name or choice.holding_name} — {choice.kind_label}",
+            RowPart(PartKind.CHOICE, choice),
+        )
+        for choice in campaign.choices
+        if choice.asset_key or choice.holding_name
+    )
+
+
 def part_text(part, *, prompts=False):
     """Read-only words for print and text; interactive controls stay on the part."""
     match part.kind:
@@ -157,6 +200,10 @@ def part_text(part, *, prompts=False):
             )
         case PartKind.COUNTER:
             return str(part.value.value)
+        case PartKind.ASSET:
+            return part.value.name
+        case PartKind.ASSET_GROUP:
+            return ", ".join(name.text for name in part.value.names) or "None"
         case PartKind.CHOICE:
             choice = part.value
             text = choice.chosen if choice.is_resolved else "—"
@@ -171,10 +218,17 @@ def part_text(part, *, prompts=False):
     raise ValueError(f"Unsupported row part: {part.kind!r}")
 
 
-def row_text(row, *, prompts=False, skip_xp=True):
-    return ", ".join(
-        text
+def readable_parts(row, *, skip_xp=True):
+    return [
+        part
         for part in row.parts
         if not (skip_xp and part.kind == PartKind.COUNTER and part.value.is_xp)
-        if (text := part_text(part, prompts=prompts))
+        if part_text(part)
+    ]
+
+
+def row_text(row, *, prompts=False, skip_xp=True):
+    return ", ".join(
+        part_text(part, prompts=prompts)
+        for part in readable_parts(row, skip_xp=skip_xp)
     )

@@ -18,10 +18,10 @@ grouped, which is all a column is.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
-from n26.core.rows import row_text
+from n26.core.rows import readable_parts, row_text
 
 
 class HasHeight(Protocol):
@@ -47,6 +47,7 @@ class DetailGroup:
     #: Measured from the rendered output rather than derived, because the
     #: alternative is modelling a font.
     chars_per_line: int = 30
+    parts: tuple = field(default=(), compare=False, repr=False)
 
     @property
     def height(self) -> int:
@@ -56,7 +57,11 @@ class DetailGroup:
 def _item_choices(lines) -> list[DetailGroup]:
     """A carried item's non-tier questions, labelled with the item that carries them."""
     return [
-        DetailGroup(f"{line.name} — {row.label}", row_text(row))
+        DetailGroup(
+            f"{line.name} — {row.label}",
+            row_text(row),
+            parts=tuple(readable_parts(row)),
+        )
         for line in lines
         for row in line.other_choice_rows
     ]
@@ -88,12 +93,24 @@ def detail_groups(card) -> list[DetailGroup]:
     something such as Clean House, can contradict it.
     """
     groups = [
-        DetailGroup(row.label, text)
+        DetailGroup(
+            row.label,
+            text,
+            parts=tuple(readable_parts(row, skip_xp=hasattr(card, "statline"))),
+        )
         for row in card.detail_rows
-        if (text := row_text(row))
+        if (text := row_text(row, skip_xp=hasattr(card, "statline")))
     ]
-    groups.extend(_item_choices(card.equipment))
-    for group in card.gear_groups:
+    groups.extend(
+        DetailGroup(
+            row.label,
+            row_text(row, skip_xp=False),
+            parts=tuple(readable_parts(row, skip_xp=False)),
+        )
+        for row in getattr(card, "owned_choice_rows", ())
+    )
+    groups.extend(_item_choices(getattr(card, "equipment", ())))
+    for group in getattr(card, "gear_groups", ()):
         groups.extend(_item_choices(group.lines))
     return groups
 

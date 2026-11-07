@@ -5,7 +5,7 @@ Layout is deliberately crude — this is a debugging tool, not a design.
 """
 
 from n26.core.render import build_ledger, render_gang
-from n26.core.rows import choice_rows, row_text
+from n26.core.rows import PartKind, choice_rows, part_text, row_text
 
 
 def render_statline(statline, indent="  "):
@@ -139,15 +139,19 @@ def render_gang_sheet(sheet):
     if sheet.campaign:
         campaign = sheet.campaign
         lines.append(f"Campaign: {campaign.name}")
-        for group in campaign.asset_groups:
-            lines.append(f"  {group.label}:" + ("" if group.names else " None"))
-            lines.extend(f"    - {item.text}" for item in group.names)
-        for line in campaign.other_lines:
-            lines.append(f"  {line.type_label}: {line.name}")
-        for counter in campaign.counters:
-            lines.append(f"  {counter.name}: {counter.value}")
-        for choice in campaign.choices:
-            lines.append(f"  {choice.kind_label}: {choice.chosen or '—'}")
+        for row in [*campaign.detail_rows, *campaign.owned_choice_rows]:
+            if row.has_asset_groups and any(
+                part.kind == PartKind.ASSET_GROUP and part.value.names
+                for part in row.parts
+            ):
+                lines.append(f"  {row.label}:")
+                for part in row.parts:
+                    if part.kind == PartKind.ASSET_GROUP and part.value.names:
+                        lines.extend(f"    - {name.text}" for name in part.value.names)
+                    else:
+                        lines.append(f"    - {part_text(part)}")
+            else:
+                lines.append(f"  {row.label}: {row_text(row, skip_xp=False)}")
     if sheet.stash:
         lines.append(f"Stash — {sheet.stash_rating}cr")
         for line in sheet.stash:
