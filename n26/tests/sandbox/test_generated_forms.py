@@ -1,22 +1,6 @@
-"""Spec-generated forms and the modifier composer.
-
-Step 2 of design/authoring-build-plan.md. The tests hold the form layer
-to the same standard as the specs beneath it:
-
-* a valid composer submit produces **exactly the example object's
-  rows** — "Brawler leader: combat primary", all three, auto-named for
-  the carrier they were composed on;
-* refusals are **words at form level**: a section of the wrong
-  collection, an effect that cannot apply to a scope — never a
-  database constraint error after rows exist;
-* ``make_reusable`` decides what an unnamed modifier is called, and
-  ``attach_modifiers_to`` hangs it on carriers later;
-* the union picker creates name-only leaves inline, with the copyright
-  guardrail as its help.
-
-Form data everywhere is what a real POST would carry — prefixed panes
-(``who-``, ``what-``), a management-formed ``conditions-`` formset —
-because the preview endpoint (step 3) will take exactly this shape.
+"""Specs generate authoring forms and modifier-composer panes. Validate compiled rows,
+model-compatible scope/effect pairs, sourced field limits, inline creation and reusable
+modifier naming using POST-shaped payloads.
 """
 
 import inspect
@@ -70,8 +54,7 @@ def skills_and_powers(default_pack):
 
 
 class TestTheTablesDontDrift:
-    """The form layer's two lookup tables, checked against the model
-    layer and the registry they mirror — never trusted."""
+    """Form lookup tables must match model acceptance and the spec registry."""
 
     def test_scope_produces_matches_possible_kinds(self, default_pack):
         from n26.library.models.modifier import _possible_kinds
@@ -87,11 +70,9 @@ class TestTheTablesDontDrift:
         assert set(EFFECT_MODELS) == effect_verbs
 
     def test_effect_targets_match_the_models(self):
-        """EFFECT_CAN_TARGET mirrors each effect model's ``accepts()``.
-        ef_adds and ef_removes are stated by hand — a bare instance
-        cannot show the trait path onto a weapon's line — so they are
-        checked as the union of a bare instance and a trait-shaped one
-        (``trait_id`` set raw: accepts reads the id, no row needed)."""
+        """Check each effect’s accepted target kinds. For add/remove effects, combine bare,
+        trait and rule instances because their assigned kind changes acceptance.
+        """
         from n26.library.forms import EFFECT_CAN_TARGET, EFFECT_MODELS, _model_class
 
         effect_verbs = {name for name in specs() if name.startswith(("ef_", "op_"))}
@@ -101,9 +82,7 @@ class TestTheTablesDontDrift:
             model = _model_class(EFFECT_MODELS[verb])
             instances = [model()]
             if verb in ("ef_adds", "ef_removes"):
-                # The thing decides where these may land — a trait onto
-                # a weapon's line, a rule onto the gang — so the union
-                # is taken over one instance per shape.
+                # Target acceptance depends on the assigned kind.
                 instances.extend([model(trait_id=1), model(rule_id=1)])
             for kind in ("model", "weapon_profile", "gang"):
                 allowed = any(instance.accepts(kind) for instance in instances)
@@ -114,11 +93,9 @@ class TestTheTablesDontDrift:
                 )
 
     def test_no_two_kind_choices_read_alike(self):
-        """Labels default to the model's verbose name, and two verbs may
-        write one model — so without a stated label the picker shows one
-        choice twice, and an author cannot tell which row carries which
-        fields. A verb that collides must state its own label on its
-        spec."""
+        """Verbs sharing a model need distinct picker labels to identify their different
+        parameters.
+        """
         from n26.library.forms import _effect_choices, _scope_choices
 
         for choices in (_scope_choices(), _effect_choices()):
@@ -184,8 +161,7 @@ class TestGeneratedForms:
         assert str(effect) == "puts the chosen set under Primary (Skills & Powers)"
 
     def test_the_wrong_collections_section_refuses_in_words(self, skills_and_powers):
-        """The plan's example error, verbatim in shape: the section
-        belongs to another collection than the one being worked in."""
+        """Reject a section belonging to a different collection during form validation."""
         collection, tiers = skills_and_powers
         archetypes = create_collection("Archetypes")
         pick = section_of(archetypes, "Pick", 0)
@@ -234,7 +210,7 @@ class TestTheUnionPicker:
         assert str(form.compile()) == "adds Mounted"
 
     def test_naming_a_new_rule_creates_it_at_compile(self, default_pack):
-        """The create-inline, with the copyright guardrail as its help."""
+        """Inline rule creation retains the shared name-only help text."""
         from n26.library.models import Rule
 
         form_class = generate_form(specs()["ef_adds"])
@@ -250,10 +226,9 @@ class TestTheUnionPicker:
         assert Rule.objects.filter(name="Cult of Personality").exists()
 
     def test_a_named_rule_puts_its_bracket_in_the_annotation(self, default_pack):
-        """A rule's annotation is part of its identity, so a bracket the
-        author typed must land there. Otherwise this makes a rule *named*
-        "Leash (3")" that prints exactly like the real one, matches
-        nothing, and quietly doubles it."""
+        """Split a typed annotation from the rule name so inline creation uses the same
+        identity as existing rows.
+        """
         from n26.library.models import Rule
 
         form = generate_form(specs()["ef_adds"])(
@@ -264,11 +239,10 @@ class TestTheUnionPicker:
 
         rule = Rule.objects.get(name="Leash")
         assert rule.annotation == '3"'
-        assert str(rule) == 'Leash (3")'  # prints as the book writes it
+        assert str(rule) == 'Leash (3")'
 
     def test_the_form_and_the_importer_read_a_name_the_same_way(self, default_pack):
-        """The two writers of content must agree, or each makes rows the
-        other cannot find."""
+        """Forms and ingestion must split names and annotations consistently."""
         from n26.library.authoring import split_annotation
         from n26.library.ingest import _name_and_annotation
 
@@ -297,30 +271,26 @@ class TestTheUnionPicker:
         ]
 
     def test_the_labels_never_show_the_field_stem(self, default_pack):
-        """The names carry the spec field's stem so several unions can
-        share a form; the words never do — Django's generated labels
-        would read "Thing new subtype"."""
+        """Union field names include a spec-field prefix; display labels omit it."""
         form = generate_form(specs()["add_built_in"])()
         assert form.fields["thing_kind"].label == "Kind"
         assert form.fields["thing_subtype"].label == "Subtype"
         assert form.fields["thing_wargear"].label == "Wargear"
         assert form.fields["thing_new_subtype"].label == "New subtype"
-        # The kind dropdown speaks the same way, keeping raw values.
+        # The dropdown labels are readable while values retain kind keys.
         assert ("wargear", "wargear") in form.fields["thing_kind"].choices
 
     def test_the_picker_never_offers_a_weapon_profile(self, default_pack):
-        """An extra profile means nothing apart from its gun, so it is
-        built in from a weapon member's own row and the generic picker
-        never offers one cold."""
+        """Weapon profiles require a parent weapon member and are not standalone union
+        choices.
+        """
         form = generate_form(specs()["add_built_in"])()
         assert "thing_weapon_profile" not in form.fields
         kinds = [kind for kind, _ in form.fields["thing_kind"].choices]
         assert "weapon_profile" not in kinds
 
     def test_every_control_says_which_kind_it_belongs_to(self, default_pack):
-        """The markers base.html's script reads to show only the chosen
-        kind's picker. Hints, not structure: strip the script and every
-        control shows, and the form still works."""
+        """Union controls carry kind markers for selective display."""
         form = generate_form(specs()["add_built_in"])()
         assert "data-union-kind" in str(form["thing_kind"])
         assert 'data-union-member="collection"' in str(form["thing_collection"])
@@ -330,7 +300,7 @@ class TestTheUnionPicker:
 
 class TestTheComposer:
     def brawler_leader_data(self, leader, combat_category, primary):
-        """The submit that is the plan's worked example."""
+        """POST payload for a Leader-scoped Combat-to-Primary placement."""
         return {
             "scope_kind": "targets_model",
             "effect_kind": "ef_places",
@@ -342,10 +312,9 @@ class TestTheComposer:
     def test_a_valid_submit_is_exactly_the_example_objects_rows(
         self, skills_and_powers
     ):
-        """Brawler leader: combat primary — WHO, WHAT and glue, one
-        submit. Composed on a carrier and not marked reusable, so the
-        carrier leads the auto-name; the scope narrows to one rank, so
-        that rank stays in it and the sentence follows both."""
+        """Compile scope, condition and effect rows, attach the modifier and name it from
+        carrier plus scope.
+        """
         from n26.library.models import HasSubtypes, Modifier
 
         collection, tiers = skills_and_powers
@@ -372,12 +341,8 @@ class TestTheComposer:
         assert Modifier.objects.count() == 1
 
     def test_two_ranks_placing_one_category_are_told_apart(self, skills_and_powers):
-        """A grid hangs a row per rank off one archetype, and ranks share
-        cells — both of these put Combat under Primary. What the scope
-        narrows to is the only thing between the two rows, so it stays in
-        the name. Drop it and they are both called the same thing, and
-        the second is refused by the unique-name constraint rather than
-        merely reading oddly.
+        """Include rank conditions in generated names so otherwise identical placements
+        remain distinct.
         """
         collection, tiers = skills_and_powers
         combat = create_category("Skills", "Combat")
@@ -414,8 +379,7 @@ class TestTheComposer:
         assert form.save().name == "Brawler leader: combat primary"
 
     def test_incompatible_who_and_what_is_a_form_error_in_words(self, default_pack):
-        """A trait aimed at a model — the models' own refusal, surfaced
-        before any row exists."""
+        """Reject a trait effect aimed at a model before saving any rows."""
         from n26.library.models import Modifier, TargetsMiniature
 
         backstab = create_trait("Backstab")
@@ -432,15 +396,14 @@ class TestTheComposer:
         (error,) = form.non_field_errors()
         assert "cannot apply" in error
         assert Modifier.objects.count() == 0
-        assert TargetsMiniature.objects.count() == 0  # nothing written
+        assert TargetsMiniature.objects.count() == 0
 
     def test_make_reusable_names_it_generically_and_attaches_anyway(
         self, skills_and_powers
     ):
-        """Reusable is a claim about the name, not about where the row
-        goes. It attaches to the carrier it was composed on like any
-        other, and is named for what it does so it still reads true on
-        the next carrier it is given to."""
+        """Reusable naming omits the carrier while retaining attachment to the current
+        carrier.
+        """
         from n26.library.authoring import attach_modifiers_to
 
         collection, tiers = skills_and_powers
@@ -457,7 +420,7 @@ class TestTheComposer:
 
         assert list(brawler.modifiers.all()) == [row]
         assert "Brawler" not in row.name
-        # And it still goes on as many others as an author wants.
+        # The same modifier can attach to another carrier.
         attach_modifiers_to(crusher, [row])
         assert list(crusher.modifiers.all()) == [row]
 
@@ -473,14 +436,11 @@ class TestTheComposer:
         row = form.save()
 
         assert list(brawler.modifiers.all()) == [row]
-        # The carrier leads. What the scope narrows to follows it, being
-        # the only thing between this row and the same placement made for
-        # another rank.
+        # Scope conditions distinguish generated names for otherwise equal placements.
         assert row.name.startswith("Brawler, Outcast Leader models: ")
 
     def test_pane_errors_surface_on_the_composer(self, default_pack):
-        """A missing WHAT field is said as words on the one form the
-        admin is looking at."""
+        """Missing effect fields appear as composer errors."""
         form = ModifierComposerForm(
             {
                 "scope_kind": "targets_model",
@@ -494,7 +454,7 @@ class TestTheComposer:
 
 
 class TestEverySpecGeneratesAForm:
-    """The step's own discovering sweep: no spec may be form-hostile."""
+    """Every registered spec must produce an instantiable form with valid fields."""
 
     @pytest.mark.parametrize("name", sorted(specs()), ids=str)
     def test_the_form_class_builds_and_instantiates(self, name):
@@ -511,9 +471,9 @@ class TestEverySpecGeneratesAForm:
 
     @pytest.mark.parametrize("name", sorted(specs()), ids=str)
     def test_every_sourced_text_field_carries_its_columns_limit(self, name):
-        """An overlong value must be this field's own refusal, never the
-        database refusing the INSERT as a 500. The limit is the source
-        column's, resolved rather than restated, so the two cannot drift."""
+        """Use the source model’s max_length so overlong values fail form validation before
+        database insertion.
+        """
         from n26.library.specs import Text
 
         spec = specs()[name]
@@ -529,8 +489,7 @@ class TestEverySpecGeneratesAForm:
             )
 
     def test_an_overlong_qualifier_is_words_not_a_500(self):
-        """The regression, by name: a qualifier past its column redisplays
-        with the limit named instead of reaching the database."""
+        """Overlong qualifiers redisplay as field errors."""
         form = generate_form(specs()["add_weapon_profile"])(
             data={"name": "hotshot", "price": "5", "qualifier": "q" * 101}
         )
@@ -539,9 +498,7 @@ class TestEverySpecGeneratesAForm:
 
 
 class TestALongConditionStillComposes:
-    """A condition naming a crowd must not write a name no column holds:
-    the crowd is said by its size, and a derived name fits by
-    construction."""
+    """Summarise large conditions so generated names fit their model column."""
 
     def test_many_profiles_summarise_rather_than_enumerate(self, db, default_pack):
         from n26.library.authoring import (
