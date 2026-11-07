@@ -102,8 +102,7 @@ def test_production_storage_preserves_vite_module_urls(tmp_path):
 
 @override_settings(STATIC_URL="static/")
 def test_a_host_draws_its_body_until_the_island_replaces_it(monkeypatch):
-    """The body is the page's own markup, escaped as it was rendered, and
-    is the whole of what a reader without JavaScript sees."""
+    """Preserve escaped fallback markup until React replaces the host body."""
     monkeypatch.setattr(
         react,
         "_manifest",
