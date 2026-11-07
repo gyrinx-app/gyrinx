@@ -1,22 +1,6 @@
-"""The Enforcer Haunt: a chosen *type*, as a Subtype.
-
-Psyrender and Bonecrusher are Subtypes — the Haunt selects one of
-several types, and Subtype is the system's word for exactly that. The
-pick is then a
-matchable fact ("all Psyrender models…" is expressible), it reads in
-the type line, and the payload rides the subtype as ordinary modifiers:
-
-* "may gain additional Psyrender Wyrd Powers as if they were Primary
-  skills" — ``places(psyrender family, Primary)``, the Psy-Gheist
-  pattern verbatim;
-* "knows one Psyrender Wyrd Power of the player's choice" — a chained
-  ``OffersChoice(Power, from_section=Primary)`` **whose pick list falls
-  out of the placement just made**: the fighter's Primary tier *is*
-  that family.
-
-The only code this took was ``OFFERABLE_KINDS += ("subtype",)`` and a
-render decision: a chosen subtype still joins the type line — the
-slot shows the resolution, the type line stays honest.
+"""Verify a chosen Enforcer Haunt subtype that places its power family in the Primary
+section and offers a further power choice. The selected subtype remains available to
+selectors and the type line, while the chosen power appears once in the Powers row.
 """
 
 import pytest
@@ -78,8 +62,9 @@ def powers_collection(families):
 
 @pytest.fixture
 def wyrd_types(families, powers_collection):
-    """Psyrender and Bonecrusher: each a Subtype carrying its placement
-    and its chained power pick."""
+    """Subtypes that place their power category and offer a chained choice from the
+    resulting Primary section.
+    """
     _, tiers = powers_collection
     made = {}
     for key, name in [("psyrender", "Psyrender"), ("bonecrusher", "Bonecrusher")]:
@@ -146,7 +131,7 @@ class TestTheHaunt:
         computed = computed_for(morrow)
         asked = slot(computed, "Sanctioned wyrd type")
         assert asked is not None and not asked.is_resolved
-        # And no power question yet: it belongs to the type not yet chosen.
+        # The power choice is granted by the selected subtype.
         assert slot(computed, "Primary power") is None
 
     def test_the_pick_list_is_the_two_types(self, morrow):
@@ -162,7 +147,7 @@ class TestTheHaunt:
     ):
         anchor = morrow.assignments.get(profile__isnull=False)
         chosen = choose(anchor, wyrd_types["psyrender"])
-        assert chosen.miniature == morrow  # the type is the fighter's own
+        assert chosen.miniature == morrow
 
         computed = computed_for(morrow)
         collection, _ = powers_collection
@@ -172,7 +157,7 @@ class TestTheHaunt:
 
         chained = slot(computed, "Primary power")
         assert chained is not None and not chained.is_resolved
-        # The pick list fell out of the placement: Primary IS Psyrender.
+        # The selected subtype places only Psyrender powers in Primary.
         offerable = offered_by(chained, computed)
         assert {line.name for line in offerable.all_lines()} == {
             "Mind Flense",
@@ -180,9 +165,9 @@ class TestTheHaunt:
         }
 
     def test_knowing_the_power(self, morrow, wyrd_types):
-        """Drawn once, in the Powers row: a power question folds away
-        once chosen for and the pick sits with the powers, exactly as a
-        settled skill question becomes a skill."""
+        """A resolved power choice becomes a power row without duplicating the choice
+        control.
+        """
         anchor = morrow.assignments.get(profile__isnull=False)
         choose(anchor, wyrd_types["psyrender"])
         type_row = morrow.assignments.get(subtype__name="Psyrender")
@@ -191,11 +176,10 @@ class TestTheHaunt:
         card = build_model_card(morrow, computed=computed_for(morrow))
         assert card.power_choices == []
         assert not any(c.kind_label == "Primary power" for c in card.choices)
-        assert [p.name for p in card.powers] == ["Mind Flense"]  # and only once
+        assert [p.name for p in card.powers] == ["Mind Flense"]
 
     def test_the_type_line_stays_honest(self, morrow, wyrd_types):
-        """The chosen subtype is drawn as its choice's line AND joins
-        the type line — it is still a subtype, and rules match on it."""
+        """Show the chosen subtype in both the settled choice and model type line."""
         anchor = morrow.assignments.get(profile__isnull=False)
         choose(anchor, wyrd_types["psyrender"])
 
