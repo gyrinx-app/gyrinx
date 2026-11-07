@@ -1,0 +1,298 @@
+# How React workflows fit into N26
+
+Django owns routes, access and business rules. React owns an independent
+interaction or a complete task inside a Django page. Manage credits, Edit
+campaign holding and Edit campaign asset type show the complete-task pattern.
+The shared page shell and navigation continue to use Django and Cotton.
+
+This guide follows those implementations through the codebase. Code snippets
+are shortened unless described as complete. The [migration plan](react.md)
+defines parity checks, migration order and when to defer a conversion.
+
+## Follow one request
+
+```mermaid
+flowchart TD
+    Browser[Open a Django URL] --> View[Django view: access and initial data]
+    View --> Shell[Django and Cotton: shell and navigation]
+    Shell --> React[One React root: task heading, form, errors and actions]
+    React --> Command[POST a task-specific command endpoint]
+    Command --> Workflow[Shared Python workflow: validation and concurrency]
+    Workflow --> Operation[Domain operation: transaction, writes and events]
+    Command --> Result[JSON: errors, current facts or nextUrl]
+    Result --> React
+    React --> Navigation[Ordinary navigation to another Django page]
+```
+
+The boundary follows the task: its inputs, mutable figures, confirmations and
+failure states have one React owner. Independent shared navigation stays outside
+that root. Moving to another task uses an ordinary link; no client-side router
+is required.
+
+## Find the code
+
+Manage credits has this structure:
+
+```text
+n26/
+├── core/
+│   ├── credits.py                         # Shared workflow and display data
+│   ├── forms.py                           # Django validation
+│   ├── views/credits.py                   # HTML and JSON HTTP adapters
+│   └── templates/n26/gang_credits.html     # Shell and React mount
+├── frontend/
+│   ├── islands/manage-credits/
+│   │   ├── entry.tsx                      # Public mount function
+│   │   ├── ManageCredits.tsx              # Feature UI and response handling
+│   │   └── ManageCredits.test.tsx
+│   ├── ui/
+│   │   ├── index.tsx                      # Public design components
+│   │   └── useWorkflowForm.ts             # Save and recovery lifecycle
+│   └── http/command.ts                    # HTTP transport
+└── urls.py                                # Page and command routes
+```
+
+The other complete forms use the same infrastructure. These paths are relative
+to `n26/`:
+
+| Task | Shared Python workflow | HTTP adapters | React island |
+| --- | --- | --- | --- |
+| Manage credits | `core/credits.py` | `core/views/credits.py` | `manage-credits` |
+| Edit campaign holding | `core/asset_edit.py` | `core/views/campaign_assets.py` | `edit-holding` |
+| Edit campaign asset type | `core/asset_type_edit.py` | `core/views/asset_types.py` | `edit-asset-type` |
+
+An island may import shared UI, transport and runtime modules. It does not
+import another island's entry point. Compose reusable components within the
+task's root.
+
+## Cross the Django-to-React boundary
+
+The [Manage credits template](../../n26/core/templates/n26/gang_credits.html)
+extends the existing layout, keeps its navigation blocks and mounts the form:
+
+```django
+{% extends "n26/layouts/base.html" %}
+{% load navigation react %}
+
+{% block content %}
+    {% react_island "manage-credits" credits_props %}
+{% endblock %}
+```
+
+The [view](../../n26/core/views/credits.py) prepares plain display data: gang name
+and balance, choices, field values and errors, server-generated URLs, a CSRF
+token and a recovery-storage key scoped to the actor and task. ORM objects do
+not cross this boundary. Form values have this shape:
+
+```json
+{
+  "direction": "add",
+  "amount": "",
+  "note": "",
+  "request_key": "a-server-generated-UUID"
+}
+```
+
+The `react_island` tag safely embeds props using Django's JSON escaping and
+loads the built entry and its dependencies. React receives initial facts without
+fetching them again. Add a read endpoint only when the task needs a later
+refresh or lazy data.
+
+React owns every child of its host. The host sets `x-ignore` and `hx-disable`
+so Alpine and htmx cannot alter those children. Do not nest another island or
+move server-rendered nodes into the root. An island inside an externally swapped
+region must use the shared mount/disposal lifecycle.
+
+The complete `entry.tsx` is small:
+
+```tsx
+import { mount as mountRoot } from "../../runtime/mount";
+import { ManageCredits, type ManageCreditsProps } from "./ManageCredits";
+
+export function mount(element: HTMLElement, props: ManageCreditsProps) {
+    return mountRoot(element, ManageCredits, props);
+}
+```
+
+The runtime returns a disposer. Vite discovers island entry files; the Django
+tag resolves the matching name through its build manifest. No feature registry
+needs updating.
+
+## Keep endpoints narrow and behaviour shared
+
+Manage credits uses these routes:
+
+| Request | Purpose |
+| --- | --- |
+| `GET /n26/gangs/<id>/credits/` | Render the shell and initial React props |
+| `POST /n26/gangs/<id>/credits/` | Accept a conventional form submission |
+| `POST /n26/gangs/<id>/credits/change/` | Accept React's command and return JSON |
+
+The React request is form encoded and uses same-origin session and CSRF
+protections. The response is JSON. Python supplies the endpoint URLs.
+
+Both POST adapters call the same workflow function. Their essential structure is:
+
+```python
+# Conventional POST adapter
+result = credits.change(gang, request.user, request.POST)
+if result.saved:
+    _feedback(request, gang, result)
+    return redirect(back)
+# Otherwise render props with the form errors.
+```
+
+```python
+# JSON command adapter
+result = credits.change(gang, request.user, request.POST)
+if result.saved:
+    _feedback(request, gang, result)
+    return JsonResponse({"nextUrl": back})
+return JsonResponse(
+    {"errors": dict(result.form.errors), "balance": gang.credits},
+    status=409 if result.conflict else 422,
+)
+```
+
+The adapters also check authentication and access and validate return URLs; those
+steps are omitted above. Manage credits returns `200` for a saved adjustment or
+confirmed matching replay, `422` for validation or business-rule refusal, and
+`409` for conflicting key reuse. Sign-in, CSRF and access failures use `401`,
+`403` and `404` respectively.
+
+These page bodies currently require JavaScript. Retaining a conventional POST
+contract does not provide a second server-rendered form when JavaScript is
+disabled. The `react_island` host displays loading and no-JavaScript messages.
+
+The shared Python workflow validates the Django form, enters the existing
+operation boundary, rechecks permission under the lock and applies or recognises
+the command:
+
+```text
+credits.change(gang, user, data)
+  → validate CreditsForm
+  → enter operation(gang, actor=user)
+  → recheck current permission
+  → find a ledger receipt for request_key
+  → compare a replay's actor and business input, or apply the adjustment
+  → return form errors or a saved result
+```
+
+HTTP adapters own response formats, safe return navigation, feedback and
+analytics. The workflow and operation own the action's meaning and effects.
+Calling the same low-level operation from two views is insufficient if they
+still duplicate validation, permissions or selection rules.
+
+## Write feature code as a form
+
+[ManageCredits.tsx](../../n26/frontend/islands/manage-credits/ManageCredits.tsx)
+imports its controller and design components from `../../ui`. An amount field
+looks like this, with the currency suffix omitted:
+
+```tsx
+<Field
+    label="Credits *"
+    htmlFor="credits-amount"
+    errors={form.errors.amount}
+>
+    <Input
+        name="amount"
+        type="number"
+        min="1"
+        required
+        value={form.values.amount}
+        onChange={(event) =>
+            form.setValues({ ...form.values, amount: event.target.value })
+        }
+    />
+</Field>
+```
+
+`WorkflowPage` renders a native form with the task heading, breadcrumbs, actions
+and footer. Inputs retain their `name` attributes so the controller can read
+normal form data. A disabled fieldset freezes the draft during pending or
+unresolved saves. The submit button offers Save, Saving… or Retry save according
+to the controller's state.
+
+## Share the lifecycle, keep command meaning local
+
+The three forms share [useWorkflowForm](../../n26/frontend/ui/useWorkflowForm.ts).
+Its responsibilities are separate from the server's retry guarantees:
+
+| Concern | Owner |
+| --- | --- |
+| Pending state, frozen inputs and error-summary focus | `useWorkflowForm` |
+| Retaining unresolved business input across reload | `useWorkflowForm` |
+| Navigation warnings and history restoration | `useWorkflowForm` |
+| Session credentials, CSRF and unreadable/network responses | `http/command.ts` |
+| Meaning of a successful or conflicting response | Feature component |
+| Whether a repeated command can write again | Python workflow and database |
+
+The feature supplies `interpret(status, data)`. It validates the response shape
+and returns `saved`, `invalid` or `conflict`. An unrecognised response leaves the
+write unconfirmed.
+
+An uncertain save retains its exact business input before sending, freezes
+editing and offers a retry. Reload uses fresh credentials with the retained
+input; CSRF tokens are never stored with it. A rejected retry cannot establish
+whether an earlier request committed.
+
+The server's retry contract depends on the action:
+
+| Action | Contract |
+| --- | --- |
+| Add or remove credits | A durable request key identifies an adjustment. A matching replay succeeds without a second ledger event. |
+| Edit holding or asset type | Compare a signed starting state under the lock. Matching desired values succeed without another write; a stale different edit requires review. |
+
+An absolute-edit conflict returns `code: revision_conflict` and current facts.
+React shows them beside the frozen draft and offers an explicit Review action
+to load a fresh baseline. The controller cannot infer that meaning from HTTP
+409 alone: a credits key refusal does not resolve an uncertain adjustment.
+
+Asset type editing also signs whether ownership was initially locked. Related
+assets or tables can change that constraint without updating the type's
+modification timestamp. The command checks that derived constraint under the
+lock before accepting the edit.
+
+## Use the design library through React adapters
+
+```mermaid
+flowchart LR
+    Cotton[Cotton component templates] --> Export[Build-time recipe exporter]
+    Export --> Generated[Generated class and style recipes]
+    Generated --> UI[Typed React adapters in ui/]
+    UI --> Feature[Feature JSX]
+    CSS[Shared Tailwind stylesheet and tokens] --> UI
+    CSS --> Server[Server-rendered Cotton]
+```
+
+Features use the public adapters:
+
+```tsx
+<Button type="submit" variant="success">Save</Button>
+<Input name="note" value={value} onChange={onChange} />
+```
+
+The adapter renders native elements using presentation recipes extracted from
+Cotton at build time. The Button adapter applies `recipe[variant]` to a native
+`<button>`. Cotton remains the styling source; React implements state, behaviour
+and accessibility.
+
+Do not render `<c-ui.button>` in JSX, copy long Cotton class strings into a
+feature, or import generated recipes directly from an island. Extend the Cotton
+primitive, recipe exporter and typed adapter when a variant is missing. Features
+use the common stylesheet; the template loader does not load island CSS chunks.
+
+## Repeat the unit of migration
+
+1. Define the complete task and protect its existing behaviour with tests.
+2. Extract or confirm one shared Python workflow, including all entry points.
+3. Prepare initial display data and add the command/read endpoints needed.
+4. Replace the complete task body with one React root using existing adapters.
+5. Verify server parity, recovery, conflicts, permissions and real browser use.
+6. Remove the superseded renderer and update guidance from the lessons.
+
+Feature-specific work should concentrate on fields, layout, display data and
+domain response handling. Mounting, styling, transport and recovery already
+have established homes. See the [migration plan](react.md) for required checks
+and the prerequisites for more complex tasks such as Hire and Equip.

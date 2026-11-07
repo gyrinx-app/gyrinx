@@ -1,5 +1,6 @@
 """An arbitrator can change one holding without changing another copy."""
 
+import json
 from uuid import uuid4
 
 import pytest
@@ -51,6 +52,20 @@ def url(campaign, holding):
 
 def detail(campaign, holding):
     return reverse("n26-campaign-asset", args=[campaign.pk, holding.pk])
+
+
+def props(response):
+    page = BeautifulSoup(response.content, "html.parser")
+    host = page.select_one('[data-react-name="edit-holding"]')
+    assert host is not None, "The Edit holding React mount is missing"
+    return json.loads(page.find(id=host["data-react-props"]).string)
+
+
+def submit(client, target, data):
+    page = client.get(target)
+    if page.status_code == 200:
+        data = {"snapshot": props(page)["values"]["snapshot"], **data}
+    return client.post(target, data)
 
 
 def test_editing_one_of_a_batch_keeps_the_other_holdings_override(campaign, holding):
@@ -172,18 +187,19 @@ def test_form_is_prefilled_and_preserves_zero(client, campaign, holding):
     client.force_login(campaign.owner)
     response = client.get(url(campaign, holding))
     assert response.status_code == 200
-    soup = BeautifulSoup(response.content, "html.parser")
-    assert soup.select_one('input[name="name"]')["value"] == "Sump ruins"
-    assert soup.select_one('input[name="income"]')["value"] == "0"
-    assert "Catalogue entry: Old Ruins" in soup.get_text()
-    assert "Boon contributions still apply." in soup.get_text()
+    data = props(response)
+    assert data["values"]["name"] == "Sump ruins"
+    assert data["values"]["income"] == "0"
+    assert data["catalogueName"] == "Old Ruins" and data["catalogueIncome"] == 30
+    assert "Boon contributions still apply." in data["fields"]["income"]["help"]
 
 
 def test_saving_returns_to_detail_and_keeps_table_preferences(
     client, campaign, holding
 ):
     client.force_login(campaign.owner)
-    response = client.post(
+    response = submit(
+        client,
         url(campaign, holding) + "?asset_sort=income&asset_group=none",
         {"name": "Sump ruins", "income": "0"},
     )
@@ -213,11 +229,13 @@ def test_cancel_returns_to_the_origin(client, campaign, holding, origin):
 def test_invalid_posts_redisplay_without_writing(client, campaign, holding, income):
     client.force_login(campaign.owner)
     before = CampaignEvent.objects.count()
-    response = client.post(url(campaign, holding), {"name": "Sump", "income": income})
+    response = submit(
+        client, url(campaign, holding), {"name": "Sump", "income": income}
+    )
     assert response.status_code == 200
     assert "income" in response.context["form"].errors
     for error in response.context["form"].errors["income"]:
-        assert error in BeautifulSoup(response.content, "html.parser").get_text()
+        assert error in props(response)["errors"]["income"]
     assert CampaignEvent.objects.count() == before
     holding.refresh_from_db()
     assert holding.name == ""
@@ -225,11 +243,11 @@ def test_invalid_posts_redisplay_without_writing(client, campaign, holding, inco
 
 def test_a_name_that_is_too_long_shows_its_error(client, campaign, holding):
     client.force_login(campaign.owner)
-    response = client.post(url(campaign, holding), {"name": "x" * 201, "income": ""})
+    response = submit(client, url(campaign, holding), {"name": "x" * 201, "income": ""})
     assert response.status_code == 200
     assert "name" in response.context["form"].errors
     for error in response.context["form"].errors["name"]:
-        assert error in BeautifulSoup(response.content, "html.parser").get_text()
+        assert error in props(response)["errors"]["name"]
     holding.refresh_from_db()
     assert holding.name == ""
 
@@ -237,7 +255,7 @@ def test_a_name_that_is_too_long_shows_its_error(client, campaign, holding):
 def test_other_users_cannot_get_or_post_the_form(client, campaign, holding):
     client.force_login(User.objects.create_user("player"))
     assert client.get(url(campaign, holding)).status_code == 404
-    assert client.post(url(campaign, holding), {"name": "Sump"}).status_code == 404
+    assert submit(client, url(campaign, holding), {"name": "Sump"}).status_code == 404
     client.logout()
     assert client.get(url(campaign, holding)).status_code == 302
 
@@ -245,7 +263,7 @@ def test_other_users_cannot_get_or_post_the_form(client, campaign, holding):
 def test_foreign_holding_and_csrf_are_checked(campaign, holding):
     client = Client(enforce_csrf_checks=True)
     client.force_login(campaign.owner)
-    refused = client.post(url(campaign, holding), {"name": "Sump"})
+    refused = submit(client, url(campaign, holding), {"name": "Sump"})
     assert refused.status_code == 302 and refused.url == "/"
     holding.refresh_from_db()
     assert holding.name == ""
@@ -265,3 +283,213 @@ def test_edit_page_queries_do_not_grow_with_the_inventory(client, campaign, hold
         assert client.get(url(campaign, holding)).status_code == 200
     assert len(small) == len(large)
     assert CampaignAsset.objects.filter(campaign=campaign).count() == 9
+
+
+def workflow_data(holding, user, **changes):
+    from n26.core.asset_edit import initial_form
+
+    holding.refresh_from_db()
+    return {**initial_form(holding, user).initial, **changes}
+
+
+def test_workflow_replays_an_absolute_edit_without_another_event(campaign, holding):
+    from n26.core.asset_edit import change
+
+    data = workflow_data(holding, campaign.owner, name="Sump ruins", income="0")
+    before = CampaignEvent.objects.count()
+    first = change(campaign, holding, campaign.owner, data)
+    retry = change(campaign, holding, campaign.owner, data)
+    assert first.saved and first.applied
+    assert retry.saved and not retry.applied
+    assert first.message == retry.message == "Asset saved."
+    assert CampaignEvent.objects.count() == before + 1
+    holding.refresh_from_db()
+    assert holding.income_override.contributes_to_counter.amount == 0
+
+
+def test_old_workflow_requests_cannot_overwrite_a_newer_edit_after_conflict(
+    campaign, holding
+):
+    from n26.core.asset_edit import change
+
+    old = workflow_data(holding, campaign.owner, name="First edit", income="40")
+    assert change(campaign, holding, campaign.owner, old).saved
+    edit(campaign, holding, name="Newer edit", income=60)
+    before = CampaignEvent.objects.count()
+    conflict = change(campaign, holding, campaign.owner, old)
+    assert conflict.conflict and not conflict.saved
+    assert conflict.current == {"name": "Newer edit", "income": 60}
+    assert CampaignEvent.objects.count() == before
+    reviewed = workflow_data(holding, campaign.owner, name="Reviewed edit", income="70")
+    assert change(campaign, holding, campaign.owner, reviewed).saved
+    delayed = change(campaign, holding, campaign.owner, old)
+    assert delayed.conflict and not delayed.saved
+    holding.refresh_from_db()
+    assert holding.name == "Reviewed edit"
+    assert holding.income_override.contributes_to_counter.amount == 70
+
+
+def test_a_stale_workflow_already_matching_current_values_succeeds_without_writes(
+    campaign, holding
+):
+    from n26.core.asset_edit import change
+
+    old = workflow_data(holding, campaign.owner, name="Sump ruins", income="0")
+    edit(campaign, holding, name="Sump ruins", income=0)
+    before = CampaignEvent.objects.count(), Modifier.objects.count()
+    result = change(campaign, holding, campaign.owner, old)
+    assert result.saved and not result.applied
+    assert (CampaignEvent.objects.count(), Modifier.objects.count()) == before
+
+
+def test_workflow_snapshots_cannot_be_used_for_another_holding(campaign, holding):
+    from n26.core.asset_edit import change
+
+    with campaign_operation(campaign, actor=campaign.owner) as op:
+        other = op.add_asset(holding.asset)
+    data = workflow_data(other, campaign.owner, name="Wrong asset", income="0")
+    before = CampaignEvent.objects.count()
+    result = change(campaign, holding, campaign.owner, data)
+    assert not result.saved and result.form.non_field_errors()
+    assert CampaignEvent.objects.count() == before
+
+
+def test_workflow_rejects_tampered_snapshots_without_writing(campaign, holding):
+    from n26.core.asset_edit import change
+
+    data = workflow_data(holding, campaign.owner, name="Sump ruins", income="0")
+    data["snapshot"] += "tampered"
+    before = CampaignEvent.objects.count()
+    result = change(campaign, holding, campaign.owner, data)
+    assert not result.saved and "snapshot" in result.form.errors
+    assert CampaignEvent.objects.count() == before
+
+
+@pytest.mark.parametrize("transport", ["html", "json"])
+@pytest.mark.parametrize("income", ["", "0", "50", "bad", "-1"])
+def test_holding_transports_share_validation_and_effects(
+    client, campaign, holding, transport, income
+):
+    client.force_login(campaign.owner)
+    data = workflow_data(holding, campaign.owner, name="Sump ruins", income=income)
+    target = (
+        url(campaign, holding)
+        if transport == "html"
+        else reverse("n26-campaign-asset-edit-command", args=[campaign.pk, holding.pk])
+    )
+    before = CampaignEvent.objects.count()
+    response = client.post(target + "?asset_sort=income&asset_group=none", data)
+    valid = income not in {"bad", "-1"}
+    assert response.status_code == (
+        (302 if valid else 200) if transport == "html" else (200 if valid else 422)
+    )
+    holding.refresh_from_db()
+    assert holding.name == ("Sump ruins" if valid else "")
+    assert CampaignEvent.objects.count() == before + int(valid)
+    if valid:
+        assert (
+            response.url if transport == "html" else response.json()["nextUrl"]
+        ) == detail(campaign, holding) + "?asset_sort=income&asset_group=none"
+        assert (
+            holding.income_override.contributes_to_counter.amount
+            if holding.income_override_id
+            else None
+        ) == (None if income == "" else int(income))
+    else:
+        assert "income" in (
+            response.context["form"].errors
+            if transport == "html"
+            else response.json()["errors"]
+        )
+
+
+def test_json_conflicts_preserve_newer_values_and_return_current_facts(
+    client, campaign, holding
+):
+    client.force_login(campaign.owner)
+    data = workflow_data(holding, campaign.owner, name="Old draft", income="0")
+    edit(campaign, holding, name="Newer edit", income=60)
+    before = CampaignEvent.objects.count()
+    target = reverse("n26-campaign-asset-edit-command", args=[campaign.pk, holding.pk])
+    response = client.post(target, data)
+    assert response.status_code == 409
+    assert response.json()["code"] == "revision_conflict"
+    assert response.json()["current"] == {"name": "Newer edit", "income": 60}
+    assert CampaignEvent.objects.count() == before
+
+
+def test_json_holding_command_requires_authentication_and_csrf(
+    client, campaign, holding
+):
+    target = reverse("n26-campaign-asset-edit-command", args=[campaign.pk, holding.pk])
+    assert client.post(target, {}).status_code == 401
+    client.force_login(campaign.owner)
+    assert client.get(target).status_code == 405
+    protected = Client(enforce_csrf_checks=True)
+    protected.force_login(campaign.owner)
+    assert (
+        protected.post(
+            target,
+            workflow_data(holding, campaign.owner, name="Sump", income="0"),
+            HTTP_ACCEPT="application/json",
+        ).status_code
+        == 403
+    )
+    client.force_login(User.objects.create_user("holding-stranger"))
+    assert client.post(target, {}).status_code == 404
+
+
+def test_workflow_noop_checks_current_arbitrator_before_replay(campaign, holding):
+    from n26.core.asset_edit import change
+
+    data = workflow_data(holding, campaign.owner, name="Sump", income="0")
+    assert change(campaign, holding, campaign.owner, data).saved
+    old_owner = campaign.owner
+    campaign.owner = User.objects.create_user("new-arbitrator")
+    campaign.save(update_fields=["owner"])
+    result = change(campaign, holding, old_owner, data)
+    assert not result.saved and result.form.non_field_errors()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_simultaneous_different_holding_drafts_cannot_overwrite_each_other(
+    campaign, holding
+):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from django.db import close_old_connections, connections
+
+    from n26.core.asset_edit import change
+    from n26.core.models import Campaign
+
+    original = workflow_data(holding, campaign.owner)
+    ready = Barrier(2)
+
+    def save(name):
+        close_old_connections()
+        try:
+            own_campaign = Campaign.objects.get(pk=campaign.pk)
+            own_holding = CampaignAsset.objects.get(pk=holding.pk)
+            user = User.objects.get(pk=campaign.owner_id)
+            ready.wait(timeout=10)
+            result = change(
+                own_campaign,
+                own_holding,
+                user,
+                {**original, "name": name, "income": "0"},
+            )
+            return result.saved, result.conflict
+        finally:
+            connections.close_all()
+
+    before = CampaignEvent.objects.filter(kind=CampaignEvent.Kind.ASSET_EDITED).count()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(save, ["First draft", "Second draft"]))
+    assert sorted(outcomes) == [(False, True), (True, False)]
+    assert (
+        CampaignEvent.objects.filter(kind=CampaignEvent.Kind.ASSET_EDITED).count()
+        == before + 1
+    )
+    holding.refresh_from_db()
+    assert holding.name in {"First draft", "Second draft"}

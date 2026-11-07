@@ -1,21 +1,12 @@
-"""Where you are, and the short ways out of it.
+"""Build drawer destinations and sibling switchers as plain display data.
 
-Two things the chrome around a page needs and the page itself does not: the
-reader's own gangs, which the drawer lists, and — on any screen that is *one
-of* something — the siblings that screen has, which the bar offers as a
-switcher.
+Each surface supplies its destinations; the switcher shares a shape and
+page size. Include the current destination in the initial list even when
+its normal position falls on a later page.
 
-A switcher is built as a plain structure here and drawn by
-``<c-n26.quick-switcher.of>``; nothing in this module knows any HTML. Where
-the siblings come from differs per surface (your gangs, the kinds of content,
-the items of one kind), so each surface builds its own list and what they share
-is the shape, the page size, and one rule: the thing you are on is in the list
-from the moment it opens.
-
-Every sibling is reachable from a switcher. The page sends the first ``SWITCHER_PAGE`` rows and the address of the rest
-(``Switcher.source``); the control fetches further pages as the list scrolls,
-and asks the server when the reader searches, because a name that was never
-sent cannot be matched in the browser.
+Load the first SWITCHER_PAGE destinations and a source URL. The control
+requests later pages while scrolling and searches on the server so it
+can find destinations not yet loaded.
 """
 
 from dataclasses import dataclass
@@ -24,8 +15,7 @@ from dataclasses import dataclass
 #: fetch as the list scrolls.
 SWITCHER_PAGE = 30
 
-#: How many of the reader's gangs the drawer lists. The drawer is not
-#: paged; its Gangs place is the full list.
+#: Maximum drawer gang links; the Gangs destination lists the rest.
 DRAWER_GANGS = 10
 
 
@@ -46,20 +36,14 @@ class SwitcherItem:
 
 @dataclass(frozen=True)
 class Switcher:
-    """A switcher, ready to draw: what you are on, and where else you could be.
+    """Current destination, accessible label and paginated sibling destinations.
 
-    ``label`` empty is the chevron-only variant, for a surface that has
-    already named the current thing a line away. Which variant a surface
-    wants is settled where the switcher is built, not where it is drawn.
+    An empty ``label`` displays only the chevron. Give ``menu_label`` a
+    unique accessible name among the page's switchers.
 
-    ``menu_label`` is the chevron's accessible name and must differ from
-    every other switcher's on the page: two controls both called "Switch"
-    tell a reader who cannot see where they sit nothing at all.
-
-    ``items`` is the first page. ``source`` is where the rest are read
-    from (``switcher_rows``), and ``more`` says whether there is a rest
-    at all. A switcher without a source holds its whole list in ``items``
-    and is searched in the browser.
+    ``items`` contains the initial page; ``source`` supplies subsequent pages
+    and ``more`` indicates availability. Without a source, search the complete
+    items list in the browser.
     """
 
     heading: str
@@ -74,15 +58,9 @@ class Switcher:
 
 
 def with_current(items, current):
-    """The destinations a switcher draws first, with the current one in them.
+    """Prepend the current destination if absent from the first page.
 
-    The first page answers "the first page", not "the first page
-    including this one": a gang named late in the alphabet is on a later
-    page, and a switcher that opens without the page it is sitting on
-    tells the reader they are nowhere. Prepended rather than sorted in,
-    because a row that was fetched and a row that was rescued are not in
-    one order anyway; the control drops the same row when its own page
-    arrives later.
+    The control deduplicates it when its normal page arrives later.
     """
     items = tuple(items)
     if current is None:
@@ -298,25 +276,12 @@ def gang_item(row, current=None):
 
 
 def gang_switcher(request, gang, named=True, menu_label="Switch to another gang"):
-    """The switcher on any screen that belongs to one gang.
+    """Build the gang switcher for a gang or one of its fighter screens.
 
-    A fighter's screens use it in the bar too, naming the gang rather
-    than the fighter: what a player wants from the bar halfway through
-    equipping someone is the way to their other gang, and the fighter is
-    named by the page's own heading directly below.
-
-    ``named`` draws the gang's name as the leading link. The bar wants
-    that; a heading that is already the gang's name does not, and passes
-    False for the chevron on its own.
-
-    ``menu_label`` is the chevron's accessible name, and a page drawing
-    this twice must give the second one its own: two controls announced
-    identically tell a reader who cannot see where they sit nothing about
-    either.
-
-    A gang sheet is readable by anyone, so the gang being looked at may
-    not be the reader's. It is still the row marked current; the rest are
-    the reader's own.
+    ``named`` includes the gang name; False displays only the chevron.
+    ``menu_label`` must distinguish repeated switchers on the same page.
+    The current gang remains included when public; other destinations are
+    the viewer's own gangs.
     """
     rows, more = _first_gangs(request)
     here = gang_item(gang, gang)
@@ -333,13 +298,8 @@ def gang_switcher(request, gang, named=True, menu_label="Switch to another gang"
     )
 
 
-#: The screens a fighter has an address of their own for, and what the
-#: switcher's chevron is called on each. A route absent from this map has
-#: no counterpart for another fighter — a choice slot names one card and
-#: one question, not a person — so its switcher leads to the kit screen,
-#: the page every fighter has. Adding a per-fighter screen means adding a
-#: line here; leaving it out costs a page its own destinations rather
-#: than breaking it.
+#: Per-fighter routes and accessible switcher names. Unmapped routes fall
+#: back to equipment, which every fighter has.
 FIGHTER_SCREENS = {
     "n26-edit-fighter": "Edit another model",
     "n26-equip": "Equip another fighter",
@@ -406,24 +366,11 @@ def fighter_item(row, route, current=None):
 
 
 def fighter_switcher(gang, miniature, route=FIGHTER_FALLBACK):
-    """The gang's other fighters, from the screen of one of them.
+    """Offer this gang's fighters on the corresponding fighter screen.
 
-    Every destination is the screen this is drawn on, for a different
-    fighter: what a player wants after kitting one out is the next one,
-    and without this the way there is back to the sheet and in again. So
-    ``route`` is the screen being drawn — a name in ``FIGHTER_SCREENS``
-    — and anything else lands on the kit screen instead.
-
-    The chevron's name follows the destination, because a page draws a
-    gang switcher beside this one and two controls announced identically
-    tell a reader who cannot see where they sit nothing about either.
-
-    Scoped to the gang by the query rather than by anything a caller
-    passes — a switcher that could name someone else's fighter would be a
-    way of finding out that they exist.
-
-    One query for the first page, whatever the size of the roster; the
-    rest are fetched by the control as the list scrolls.
+    Accept routes in FIGHTER_SCREENS, otherwise use the equipment screen.
+    Scope the queryset to this gang to prevent disclosure of other fighters.
+    Load one initial page; the control fetches more while scrolling.
     """
     if route not in FIGHTER_SCREENS:
         route = FIGHTER_FALLBACK

@@ -1,27 +1,12 @@
-"""A gang's history and a campaign's, told plainly.
+"""Build player-facing gang and campaign history from ledger events.
 
-Reads the ledger's events and turns them into something a player can
-read: one act per line, in their own words — hired, bought, renamed,
-took away, put back. The machinery underneath stays underneath: nothing
-here says "assignment" or "batch", a bookkeeping row a player never saw
-is never shown, and a weapon's own profile folds into the weapon
-rather than earning a line of its own.
+Return plain ``Act`` dataclasses for views to filter, group and render.
+Events from one operation share a batch. Group related edits into one
+history line, and nest grants or cascading removals beneath their source.
 
-Structures before renderers: the view gets a flat list of acts as plain
-dataclasses, filters and groups them, and the template draws the result.
-
-Three readings are not literal:
-
-* Events written by one operation share a mark, and marked neighbours
-  that all edit what one model is are told as a single act — a reset
-  that archived six records is one line with six sub-lines, not six.
-* A granted thing folds under the act that caused it: a hire reads as
-  "hired Krago" with what came with him listed beneath, not as seven
-  lines of equal weight.
-* Archiving a taken-away subtype *restores* the subtype, so that event
-  reads "put Mounted back", never "removed Mounted" — the record is of
-  the undoing, and the plain kind would say the opposite of what
-  happened.
+Translate removal assignments into the change the player saw: archiving
+an assignment that removes Mounted restores Mounted. Hide internal
+carriers and fold a weapon's included profiles into its weapon line.
 """
 
 from dataclasses import dataclass, field
@@ -80,8 +65,7 @@ class Span:
 
 @dataclass(frozen=True)
 class Sub:
-    """One line folded under an act: a thing that came with it, went
-    with it, or moved in the same breath."""
+    """A related acquisition, removal or movement nested beneath a history entry."""
 
     name: str
     kind: str = ""
@@ -89,23 +73,18 @@ class Sub:
 
     @property
     def detail(self):
-        """What follows the name, ready to draw — either part may be
-        empty, and a rider whose kind the page never names shows only
-        which way it went."""
+        """Combine the non-empty kind and note after the nested entry's name."""
         return ", ".join(part for part in (self.kind, self.note) if part)
 
 
 @dataclass
 class Act:
-    """One thing done to the gang, in the player's words.
+    """A history entry with display text, balance movements and filter identities.
 
-    ``credits`` and ``rating`` carry the player's reading of the money:
-    negative credits left the pot, positive came back. ``trade_points``
-    reads the same way, and is its own figure rather than more money: it
-    belongs to a Visit Trading Post action and dies with it. ``actor`` is the
-    subject the sentence starts with, or empty where nobody in
-    particular did it. ``category`` and ``miniature_pk`` exist for the
-    page's filters; ``search`` is every word worth matching against.
+    Negative credits or Trade Points represent spending; positive values
+    represent returns. ``actor`` is the sentence's subject, or empty when
+    no person is named. ``category`` and model identities support filtering;
+    ``search`` combines searchable text.
     """
 
     when: object
@@ -115,17 +94,15 @@ class Act:
     trade_points: int = 0
     rating: int = 0
     note: str = ""
-    #: The person ``actor`` names, for a page that draws the name with the
-    #: badge they hold. None where nobody did it, and None where the actor
-    #: is the reader — ``actor`` says "You" then, and a badge after "You"
-    #: would be the reader's own, which the chrome already shows.
+    #: Actor whose profile and badge accompany the name. None for unnamed
+    #: actors and for the viewer, whose display name is You.
     actor_user: object | None = None
     subs: list[Sub] = field(default_factory=list)
     category: str = "kit"
     miniature_pk: str = ""
     miniature_name: str = ""
-    #: Whose act it was, where the reader holds more than one gang's. A gang's
-    #: own history leaves these empty: there is only ever the one.
+    #: Gang identity for entries displayed alongside other gangs. Empty in
+    #: a single gang's history.
     gang_pk: str = ""
     gang_name: str = ""
     #: Filter identity for ownership acts, whose sentence omits the actor.
@@ -152,32 +129,24 @@ _COUNTER_MACHINERY = {Kind.COUNTER_OPENED, Kind.COUNTER_CHECKPOINTED}
 
 
 def build(gang, viewer=None):
-    """Every act in this gang's history, oldest first.
+    """Return this gang's complete history, oldest first.
 
-    ``viewer`` names who is reading: their own acts say "You", anyone
-    else's say the actor's name. A fixed number of queries whatever the
-    length — the events, their records, the living — and nothing per
-    row.
+    Use You for the viewer's actions and names for other actors. Batch all
+    related reads so query count does not grow per event.
     """
     return _acts_from(_events(gang), viewer, alive=_alive(gang))
 
 
 def latest(gang, limit=5, viewer=None):
-    """The gang's last few acts, newest first.
+    """Return the gang's most recent entries, newest first.
 
-    The whole history is not read to print five lines of it: the last
-    stretch of events is, and the acts those events make up. An act whose
-    events straddle the far end of that stretch would be told short,
-    which is why the window is many times the number of acts asked for
-    and why what comes back is taken from the near end.
+    Read a bounded event window larger than the requested entry count because
+    one operation may contain many events. Take entries from its recent end
+    to avoid incomplete older groups. Omit model links to avoid a roster lookup.
 
-    Models are named here rather than linked. This is the way through to
-    the history page, which links them, and asking which of them are
-    still on the roster is a query a snapshot need not spend.
-
-    Two queries, and a third only where the stretch holds a propagated
-    grant: the events, the records they name, and what those grants are
-    now part of.
+    Load events and their referenced assignments. Additional conditional reads
+    resolve propagated grant sources, roll slots and referenced rolls outside
+    the event window.
     """
     acts = _acts_from(_events(gang, window=SNAPSHOT_WINDOW), viewer, alive=frozenset())
     return list(reversed(acts))[:limit]
@@ -236,10 +205,10 @@ def _acts_from(events, viewer, *, alive):
 
 
 def _comes_with_sources(events, rows):
-    """For each propagated grant, the name of what it is now part of:
-    the carrier its copy materialised for — the hired profile, the
-    founding gang type — read fresh, as every name here is. One query,
-    and only on histories that hold such a grant at all."""
+    """Load current source names for materialised catch-up grants in one query.
+
+    Skip the query when no such grants occur in the supplied events.
+    """
     carrier_ids = {
         rows[e.assignment_id].materialised_for_id
         for e in events
@@ -316,12 +285,9 @@ def _stood_at(e):
 
 
 def _name_the_rolls(events, rows):
-    """Put the slot on each roll event and the roll on each pick that
-    came from one — two reads, and only on histories holding a roll.
+    """Load slots for roll events and recorded rolls for selections.
 
-    Joined here rather than on every event and every record, because a
-    roll is rare beside the run of purchases and grants, and the history
-    is read whole on every page.
+    Use separate conditional reads because most history events involve no roll.
     """
     from n26.library.models import Slot
 
@@ -341,11 +307,7 @@ def _name_the_rolls(events, rows):
 
 
 def _clusters(events):
-    """Consecutive events sharing a mark, as one group each.
-
-    An unmarked event is a group of one: without the mark there is no
-    saying what else was part of its act, so nothing is guessed.
-    """
+    """Group adjacent events with the same batch; leave unbatched events separate."""
     grouped = []
     for e in events:
         if grouped and e.batch is not None and grouped[-1][0].batch == e.batch:
@@ -356,20 +318,13 @@ def _clusters(events):
 
 
 def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
-    """Turn one operation's events into acts, folding what folds.
+    """Build entries for one batch, nesting dependent events beneath their sources.
 
-    A rider folds under the act of the thing it rode: a grant under
-    what caused it, a cascaded removal, refund or sale under the thing
-    that took its subtree with it. The ridden thing's event arrives in
-    the same operation, written first but told last — so a rider waits
-    until the cluster's acts exist, and only one whose ride never earns
-    an act stands alone.
-
-    An unmarked grant may also fold under an act clusters back, through
-    its recorded cause: without the mark, its own group of one says
-    nothing about whose act it was. A *marked* grant never reaches back
-    — one that arrives without its cause (a choice settled later) is
-    its own act, on its own day.
+    Build source entries before attaching grants and cascading removals,
+    refunds or sales. A dependent event remains separate if its source has
+    no entry. Unbatched grants may attach by cause to an earlier source entry;
+    batched cause-based grants stay within their batch. A pick may instead
+    attach to a loaded roll entry from another batch on the same day.
     """
     # Each clone writes its openings before its standalone event. Group by
     # that boundary so companions stay included and later moves of copied
@@ -386,12 +341,8 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
             clone_totals[event.pk] = (clone_credits, clone_rating)
             clone_credits = clone_rating = 0
     here = {e.assignment_id for e in cluster if e.assignment_id is not None}
-    # A campaign's types arrive on the gang in the act of joining it. They
-    # have no cause of their own to ride, so they ride the joining, and
-    # what they bring rides them: one act, "added the gang to Dust Falls",
-    # with the types and their built-ins beneath it. Leaving takes them
-    # away the same way: "took the gang out of Dust Falls", with what went
-    # beneath it.
+    # Nest campaign type grants and their built-ins under the joining
+    # event. Nest their removals under the departure event.
     joined = any(e.kind == Kind.JOINED_CAMPAIGN for e in cluster)
     left = any(e.kind == Kind.LEFT_CAMPAIGN for e in cluster)
     # A label removed or restored with its pick says the pick: "removed
@@ -431,11 +382,8 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
             and row is not None
             and row.campaign_type_id is not None
         ):
-            # A campaign type only ever arrives with the joining and goes
-            # with the leaving. Told apart from them — the act outside the
-            # window being read — the record has no act to ride and draws
-            # no line, since a line of its own would name a type no page
-            # names.
+            # Suppress campaign carrier events when their join or departure lies
+            # outside the loaded window; their internal type has no standalone label.
             if e.kind == Kind.GRANTED and joined:
                 waiting.append((e, row, _THE_JOINING))
             elif e.kind == Kind.REMOVED and left:
@@ -453,8 +401,8 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
                     continue
         standing.append((e, row))
 
-    #: This cluster's act per record, so a rider folds under what its
-    #: thing did *here* — never under the act that first acquired it.
+    #: Map records to this batch's entries so dependants attach to the
+    #: current change rather than an earlier acquisition.
     local = {}
     caught_up = [(e, row) for e, row in standing if e.kind == Kind.CAUGHT_UP]
     if caught_up:
@@ -497,18 +445,15 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
             elif e.kind == Kind.ROLLED:
                 act_of[_roll_key(e.pk)] = act
 
-    # Ridden things come before their riders in the log, so a chain
-    # settles in one pass: each rider finds its ride already mapped.
-    # A rider's own money lands on the act it folds under — one sale,
-    # one line, the whole of what moved.
+    # Sources precede dependants, allowing one attachment pass. Add each
+    # dependant's balance movement to its containing entry.
     for e, row, ride in waiting:
         home = local.get(ride)
         if home is None:
             acts.append(_one_act(e, row, viewer, alive))
             continue
-        # The campaign's own type wears the campaign's name and no page
-        # names it, so it folds under the joining without a line of its
-        # own; the shared type still says what the campaign is played as.
+        # The additions carrier uses the campaign's name and needs no sub-line.
+        # Keep the shared campaign type's label beneath the joining entry.
         own_type = e.campaign is not None and (
             row.campaign_type_id == e.campaign.additions_id
         )
@@ -523,14 +468,10 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
 
 
 def _caught_up_acts(caught_up, sources, alive):
-    """Propagated grants, folded per source, with nobody as the actor.
+    """Group propagated grants by source without naming a person as actor.
 
-    What changed is the thing's kit, not any one model's fortunes, so
-    several models' gains in one pass read as one line about the thing
-    with a sub-line each — and a lone gain reads as that model's, with
-    the source clause saying why it appeared. The actor stays empty:
-    nobody in particular did it, and inventing a speaker would put a
-    name on an act no person performed.
+    Several recipients produce one source entry with a sub-entry per model.
+    A single recipient produces a model entry naming the grant's source.
     """
     by_source = {}
     for e, row in caught_up:
@@ -586,9 +527,8 @@ def _caught_up_acts(caught_up, sources, alive):
             )
 
 
-#: The key under which a cluster's joining act is filed, so the campaign
-#: types granted in the same act can find it the way a rider finds its
-#: ride. Never an assignment's key, which is what every other entry is.
+#: Batch-local joining key for campaign type attachment, distinct from
+#: assignment keys.
 _THE_JOINING = object()
 #: The same for the leaving, which the campaign types removed with it ride.
 _THE_LEAVING = object()
@@ -616,18 +556,11 @@ def _rides(e, row):
 
 
 def _machinery(e, row):
-    """True for records a player never saw a thing for.
+    """Whether an event concerns content omitted from player history.
 
-    A bookkeeping carrier has no name a player recognises; a weapon's
-    own profile folds into the weapon wordlessly. A *paid* profile is
-    the exception in every event it has — bought in the story, it must
-    also leave in it — so the test is what its record says was ever
-    priced, not what this one event moved.
-
-    A hidden slot asks nothing and draws nothing, and the pick that
-    settles it is a classification, never a choice the player saw — the
-    Gang supertype built into a Clan House gang type — so neither the
-    slot nor its pick is told.
+    Hide internal carriers, included weapon profiles, hidden slots and their
+    classification picks. A profile ever priced separately remains visible
+    for both acquisition and removal events.
     """
     if e.kind in _COUNTER_MACHINERY:
         return True
@@ -650,9 +583,11 @@ def _machinery(e, row):
 
 
 def _settles_a_hidden_slot(pick):
-    """Whether this pick settles a hidden slot: the slot it names, or,
-    for a pick written before picks named their slot, the slot of the
-    assignment it was chosen for. Both are loaded with the record."""
+    """Whether this pick resolves a hidden slot.
+
+    Use its explicit slot or fall back to its source assignment's slot;
+    both are loaded with the record.
+    """
     slot = pick.chosen_for_slot
     if slot is None and pick.chosen_for is not None:
         slot = pick.chosen_for.slot
@@ -660,11 +595,10 @@ def _settles_a_hidden_slot(pick):
 
 
 def _one_edit_of_what_a_model_is(standing):
-    """True when one operation's records are all the owner's own edits
-    of one model's subtypes and rules — the shape a section save or
-    reset writes. The reason is required: choices and grants can move
-    the same kinds in one breath, and those are not the owner saying
-    what a model is."""
+    """Whether the batch contains only one model's owner-authored subtype or rule edits.
+
+    Require the owner-edit reason to distinguish these from grants and choices.
+    """
     if len(standing) < 2:
         return False
     models = set()
@@ -712,7 +646,7 @@ def _clean_house_as_one(standing, viewer, alive):
 
 
 def _edits_as_one(standing, viewer, alive):
-    """Several same-breath edits of what one model is, as one line."""
+    """Combine a batch of one model's subtype and rule edits into one entry."""
     first, first_row = standing[0]
     model = first_row.miniature_root or first_row.miniature
     verb = "reset" if all(e.kind == Kind.REMOVED for e, _ in standing) else "changed"
@@ -788,12 +722,10 @@ def _movement(note):
 
 
 def _tell(e, row, alive):
-    """The sentence for one event, and which filter bucket it sits in.
+    """Return an event's sentence fragments and filter category.
 
-    Spans start lowercase: the actor's name goes in front of them,
-    except a grant about a model, which names the model as the subject
-    and carries no actor. The words are chosen so that a reader who
-    knows nothing of how the app stores things reads only what happened.
+    Start fragments lowercase because the actor precedes them. Model grants
+    instead use the receiving model as subject and leave the actor empty.
     """
     thing = Span(_name(row)) if row else Span("something")
     kind = Span(_kindword(row)) if row else Span("")
@@ -976,11 +908,8 @@ def _tell(e, row, alive):
                 return (Span(f"cloned the gang from {source}"),), "gang"
             return (Span("cloned the gang"),), "gang"
         case Kind.JOINED_CAMPAIGN | Kind.LEFT_CAMPAIGN:
-            # The arbitrator is the actor, so the verb is theirs: a gang
-            # does not join itself, and "joined" would read as the person who
-            # did the adding joining. Which gang goes unsaid — a gang's own
-            # history is already about it, and a campaign's log says whose
-            # every act was beside the sentence.
+            # The actor added the gang; Joined would incorrectly describe the
+            # actor as joining. The enclosing history already identifies the gang.
             where = e.campaign.name if e.campaign else "a campaign"
             if e.kind == Kind.JOINED_CAMPAIGN:
                 return (Span(f"added the gang to {where}"),), "gang"
@@ -1029,11 +958,8 @@ def _tell(e, row, alive):
                 *_for(model, at),
             ), "model" if model is not None else "gang"
         case Kind.VISITED_TRADING_POST:
-            # What raised their figure rides the note, so the line says
-            # what they added rather than what they happen to be now. A
-            # bare figure lands there where several things raised it, and
-            # "sent Rasp as 3" is no sentence — the line then says only
-            # that they went.
+            # Use the recorded source of contributed Trade Points when available.
+            # A bare total does not describe the fighter's rank.
             went_as = f" as {e.note}" if e.note and not e.note.isdigit() else ""
             return (
                 Span("sent "),
@@ -1217,11 +1143,8 @@ def _for(model, at, word="for"):
     return (Span(f" {word} "), at)
 
 
-#: Kinds whose note is a record for the code rather than words for a
-#: reader — the figure a visit brought, the word that says one closed,
-#: the rank a fighter went as, what a tally moved and why. The sentence
-#: has already said all of them, and printing the note under it puts
-#: bookkeeping on the page.
+#: Structured notes already represented in the main sentence must not
+#: also appear as raw bookkeeping beneath it.
 _NOTE_IS_MACHINERY = {
     Kind.CLONED,
     Kind.STATUS_SET,
@@ -1287,17 +1210,10 @@ def _name(row):
 
 
 def _kindword(row):
-    """What sort of thing this is, in the library's own word — empty
-    for the kinds a player's page never names.
+    """Return the public kind label, using a pick's slot type when needed.
 
-    A pick is one of those: "pickable" is plumbing, and no player has
-    ever seen the word. What they know it as is the sort of question it
-    answered — a Gang Legacy, a Path — so the slot's type says it
-    instead. The type rather than the slot's own label, because a label
-    names one question among several ("Skill Tree 2") where a kind word
-    names what sort of thing arrived — and without this a story that
-    read "Sniper, specialisation" before that question moved onto a slot
-    would afterwards read only "Sniper".
+    Slot types name categories such as Gang Legacy or Path. Slot labels
+    identify individual choices and are unsuitable as kind labels.
     """
     thing = row.assignable if row else None
     if thing is None:
@@ -1343,17 +1259,10 @@ def asset_ownership_history(campaign_asset):
 
 
 def campaign_history(campaign, viewer=None, limit=None):
-    """Every act in this campaign's history, oldest first.
+    """Merge campaign events and member gangs' events, oldest first.
 
-    The same shape a gang's history has, so a page that can draw one can draw
-    the other. Acts come from more than one place — the campaign's own, and
-    what the gangs in it did while they were in it — so each source is read on
-    its own and the results merged in time order. Merging is what keeps the
-    log one story rather than several lists side by side.
-
-    ``limit`` keeps the most recent acts and drops the rest. Each source is
-    asked for its own newest that many, and the merge cuts again, so the
-    answer is the newest across all of them however they are spread.
+    ``limit`` retains the newest entries. Read up to that limit from each
+    source, merge in time order, then trim the combined result.
     """
     dated = [
         *_campaign_own_acts(campaign, viewer, limit),
@@ -1366,20 +1275,12 @@ def campaign_history(campaign, viewer=None, limit=None):
 
 
 def load_actor_badges(acts):
-    """Read what naming a page of acts' actors with their badges needs — the
-    profile and the badge grants — where a page of acts still lacks it.
+    """Load profiles and badge grants for the final displayed set of actors.
 
-    The grants never ride the sources' own reads: a prefetch is a second
-    statement over the rows the first returned, and ``campaign_history``
-    reads each source one page at a time and nothing else. The profile
-    rides a bounded read, where it widens only the page's rows, and is left
-    off an unbounded one — the log page reads the whole history before
-    paging it, and a join there would widen every event's row for the
-    fifty shown. So the grants, and the profile where it did not ride, are
-    read here, for the acts a caller has settled on — after the merge,
-    after any paging — keyed on those acts' actors and never on the
-    history behind them. A profile already read is not read again. Acts
-    that name nobody, or the reader, carry no person and cost nothing.
+    Bounded history queries may already join profiles; unbounded queries
+    omit them to avoid widening every event before pagination. Load missing
+    profiles and badge grants after merging and paging, keyed by the displayed
+    actors. Entries naming no actor or the viewer require no badge reads.
     """
     from django.db.models import prefetch_related_objects
 
@@ -1407,12 +1308,10 @@ def _joining_companions():
 
 
 def _archiving_companions():
-    """Each gang's removal or restoration when the arbitrator archives or
-    unarchives a counter or label shares that act's mark; only the act
-    itself is a campaign act.
+    """Find gang events sharing a campaign counter or label archive batch.
 
-    The gang's own history keeps its line, which says what it lost or
-    got back.
+    Only the campaign event appears in the campaign history. Gang histories
+    retain their own removal or restoration entries.
     """
     from django.db.models import Exists, OuterRef
 
@@ -1431,13 +1330,10 @@ def _archiving_companions():
 
 
 def campaign_history_size(campaign):
-    """How many acts the history holds, without building any of them.
+    """Estimate displayed campaign entries without building their display structures.
 
-    Counted by record, less the records that never stand as acts of their
-    own: a grant riding what caused it, and a campaign type riding the
-    joining that put it on the gang. What is left is close to the number
-    of lines the full history draws, which is what a reader comparing
-    "N earlier acts not shown" against the page expects it to mean.
+    Exclude grants nested under source entries and campaign type grants nested
+    under joining events, so the count approximates visible history lines.
     """
     from django.db.models import Exists, OuterRef, Q
 
@@ -1464,11 +1360,8 @@ def campaign_history_size(campaign):
 
 def _campaign_own_acts(campaign, viewer, limit=None):
     """What the arbitrator changed about the campaign itself, one act each."""
-    # Naming the actor with their badge reads their profile and their
-    # grants. The profile rides a bounded read, which is a page; an
-    # unbounded read is the whole history, paged afterwards, and the join
-    # would widen every row for the page's worth drawn. What a page still
-    # lacks, ``load_actor_badges`` reads once it is cut.
+    # Join profiles only for bounded reads. Unbounded histories load the
+    # final page's missing profiles and badge grants through load_actor_badges.
     events = campaign.events.select_related(
         "actor",
         "battle",
@@ -1492,17 +1385,10 @@ def _campaign_own_acts(campaign, viewer, limit=None):
 
 
 def _gang_acts_in_campaign(campaign, viewer, limit=None):
-    """What the gangs in this campaign did while they were in it.
+    """Build member gang events recorded during this campaign's memberships.
 
-    Their own ledger events, which name the campaign because the operation
-    that wrote them read the gang's membership. One record, two readers: the
-    same act appears here and in the gang's own history, and neither is a copy
-    of the other — which is why they are told by the same machinery, folding
-    what folds, so a hire is one line with its kit beneath it in both places.
-
-    Acts are gathered a gang at a time. A mark belongs to one operation and an
-    operation is one gang's, so nothing clusters across a boundary anyway, and
-    grouping first keeps one gang's riders from folding under another's act.
+    Use the gang history renderer so grouping and dependent entries match.
+    Process each gang separately to prevent cross-gang batch attachment.
     """
     from n26.core.models import LedgerEvent, Miniature
 
@@ -1510,10 +1396,8 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
         LedgerEvent.objects.filter(campaign=campaign)
         .exclude(_joining_companions())
         .exclude(_archiving_companions())
-        # A clone's assignment-level openings are ledger machinery. Its one
-        # standalone event already holds the visible act and its totals, so
-        # letting the openings consume a page would make one large clone hide
-        # the acts immediately before it.
+        # Exclude clone ledger openings from pagination. The standalone clone
+        # event already records the visible change and presentation totals.
         .exclude(kind=LedgerEvent.Kind.CLONED, assignment__isnull=False)
         .exclude(kind=Kind.RATING_SET, note__startswith=CLONED_RATING_NOTE_PREFIX)
         # An opening establishes a counter's ledger. It is not a campaign
@@ -1587,14 +1471,10 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
 
 
 def _holding_acts(events):
-    """The campaign's assets moving between its gangs, one act each.
+    """Build one ownership entry per asset transfer, oldest first.
 
-    "Old Ruins went to Ash Vipers" for an asset assigned, "Ash Vipers lost
-    Old Ruins" for one unassigned, and "Old Ruins went from Ash Vipers to
-    Hammerfall" for one handed over — the LOST and the GAINED that share a
-    mark, told once. Nobody is named as the actor: the sentence is about
-    what the asset did, and who moved it is in each gang's own history.
-    ``events`` are oldest first, and the acts come out the same way.
+    Combine LOST and GAINED events sharing a batch. Describe the asset and
+    its gangs without naming an actor; each gang's history names the person.
     """
     by_mark = {}
     for e in events:
@@ -1654,8 +1534,10 @@ def _scenario_href(campaign_id, rolls):
 
 
 def _tell_campaign(e):
-    """One campaign event as a sentence, lowercase because the actor's name
-    comes first. Money is never mentioned: nothing here moves any."""
+    """Build lowercase fragments for a campaign event following its actor.
+
+    Campaign events describe no credit movement.
+    """
     kinds = CampaignEvent.Kind
     match e.kind:
         case kinds.CREATED:
@@ -1694,10 +1576,8 @@ def _tell_campaign(e):
             | kinds.PLAYER_REMOVED
             | kinds.PLAYER_LEFT
         ):
-            # An answer or a leaving is the player's own act, so the actor's
-            # name already leads the sentence and naming them again would say
-            # it twice. Asking and removing are the arbitrator's, and there
-            # the sentence has to say who it was about.
+            # Acceptance and departure already name the player as actor. Invitations
+            # and removals need the affected player's name after the arbitrator.
             who = e.about_user.username if e.about_user_id else "somebody"
             match e.kind:
                 case kinds.INVITED:
@@ -1796,8 +1676,7 @@ def _tell_campaign(e):
             )
             return (Span(f"restored the battle: {e.note}", href),), "campaign"
         case kinds.ASSET_ADDED:
-            # The note is the asset's name at the time. One removed since is
-            # still named, which is what a log is for.
+            # Use the recorded name even if the asset has since been deleted.
             what = f"the asset {e.note}" if e.note else "an asset"
             return (Span(f"added {what}"),), "campaign"
         case kinds.ASSET_REMOVED:
@@ -1806,13 +1685,9 @@ def _tell_campaign(e):
         case kinds.ASSET_EDITED:
             return (Span(f"edited an asset: {e.note}"),), "campaign"
         case kinds.ASSET_ROLLED:
-            # The note is the whole sentence — "Rolled 34 from the Territory
-            # Selection Table: Old Ruins." — written to stand on its own,
-            # with the manual-roll marker as a second sentence after it.
-            # Here the actor's name leads, so it loses its capital and its
-            # stop, and a manual roll is marked in brackets after it. The
-            # marker is taken off the end by name: a gang or a table called
-            # "Dr. Skabb's" has a stop of its own inside the sentence.
+            # The note stores a complete sentence plus an optional manual-roll marker.
+            # Remove only that trailing marker, then lowercase the sentence after the
+            # actor. Internal full stops can belong to authored table or gang names.
             from n26.core.operations import ROLL_ENTERED, ROLL_ENTERED_BEFORE
 
             said, manual = e.note, False

@@ -17,7 +17,7 @@ n26/frontend/
 │       ├── <Feature>.tsx      # Feature component and prop types
 │       └── <Feature>.test.tsx # Behaviour tests beside the feature
 ├── runtime/                   # Generic island mounting and lifecycle code
-├── http/                      # Shared JSON transport, when introduced by a consumer
+├── http/                      # Shared form-encoded JSON transport
 ├── ui/                        # Shared Cotton-derived React primitives
 ├── generated/                 # Ignored output produced by the tooling
 ├── tooling/                   # Build-time exporters and migration inventories
@@ -42,8 +42,8 @@ at the root instead of copying them.
   extracted when Hire and Equip use the same contract. Put transport in `http/`
   and shared presentation in `ui/`; keep workflow-specific rules in the island.
 - `http` is for session credentials, CSRF and response/error handling. It must
-  not depend on feature props, Django routes or domain calculations. This is a
-  planned location, not an existing transport implementation.
+  not depend on feature props, Django routes or domain calculations. Use
+  `command.ts` for the shared request and field-error envelope.
 - `ui` is the public design-system adapter boundary. Islands import from
   `../../ui`, not from `generated` or an adapter's internal file.
 - `runtime` mounts React islands. It must not depend on feature props,
@@ -76,3 +76,37 @@ discovery excludes the gitignored Vite output, `generated/`, `node_modules`,
 `staticfiles`, and `logs`, so an editable install does not keep those
 directories. Do not
 run `npm audit fix` unless the task is the audit itself.
+
+## Saving workflow forms
+
+The shared `http/command.ts` posts form data with same-origin credentials and a
+CSRF token. It distinguishes rejected requests from writes whose outcome is
+unknown. Keep domain response parsing and draft state in the island. After an
+unknown outcome, retain the exact payload and request key and prevent editing
+until retry resolves the save. Protect navigation while pending or uncertain,
+and clear the warning before confirmed-success navigation. Manage credits is
+the first consumer; its tests cover lost responses and rejected retries.
+Retain unresolved input across reloads, scoped to actor and workflow. Restore
+the command key and business values using fresh page credentials; do not persist
+CSRF tokens. Test reauthentication, which rotates the token, before promising
+recovery from session expiry.
+`WorkflowPage` sets `data-busy="off"` so the shared busy-link handler cannot
+mutate React-owned controls or leave a cancelled navigation disabled.
+Check restoration from the back-forward cache after success. Refresh completed
+forms whose command identity was consumed; preserve unsaved drafts and retain
+the original identity of unresolved saves.
+
+For absolute-edit conflicts, show current facts alongside the frozen draft and
+require an explicit review action before loading a new baseline. Recovery input
+can differ from the native POST that produced page props: do not apply that
+POST's conflict/errors to a different retained command. Keep workflow-specific
+conflict decisions outside shared HTTP transport.
+
+## Shared workflow form controller
+
+`ui/useWorkflowForm.ts` now serves Manage credits, Edit holding and Edit asset
+type. Import it from `../../ui`. It owns pending/recovery state, focus and
+navigation guards; the island interprets each domain response. Only a specific,
+validated revision conflict may enable review of a newer baseline. A general
+409 or validation refusal cannot resolve an earlier uncertain write. Run all
+three consumers' tests when changing this shared lifecycle.

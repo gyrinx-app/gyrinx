@@ -1,27 +1,15 @@
-"""What an act just brought, and where the reader goes next.
+"""Find choices introduced by an operation and build their follow-up navigation.
 
-A slot is computed, never stored, so "this slot just arrived" is a fact
-about an act rather than a row: a slot arrives when the assignment it
-hangs from — its anchor — was written by the operation that just ran.
-``Operation.written`` holds those ids, and ``arrived`` walks the gang's
-cards once and keeps the choice slots anchored on one of them.
+Slots are computed, so identify arrivals through the stored anchor IDs in
+``Operation.written``. ``arrived`` examines the gang's cards for matching
+choices. A newly satisfied condition on an older anchor is not an arrival.
 
-An author may attach a screen — an interstitial — to a slot. When any
-arriving slot carries one, ``onward`` sends the reader to the
-``n26-next`` screen with every such slot named in the address, and to
-wherever the act was going otherwise. Three acts ask: founding a gang,
-hiring a model, and making a pick. A purchase and a clone never do,
-however many slots they bring — each view opts in, so nothing here
-decides. Nothing is stored: the screen derives itself from the address
-each time it is opened.
+Founding, hiring and choosing views opt into authored follow-up screens;
+purchases and clones do not. ``onward`` encodes arriving choices and the
+continuation URL in the n26-next address. The screen is rederived from
+that address without storing navigation state.
 
-A library with nothing attached pays one query per act for this and
-nothing more.
-
-A slot whose anchor predates the act — one made live because a
-condition turned true — is not an arrival. Nothing in the library does
-that today, and the gang sheet's own note about an unresolved slot still
-says so.
+When existence checks find no applicable screens, skip card derivation.
 """
 
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -30,19 +18,17 @@ from django.urls import reverse
 
 from n26.library.staged import sees_staged
 
-#: The most questions one screen asks. A founding can bring more than a
-#: reader can take in at once; the rest wait on a screen of their own,
-#: reached by Continue, so nothing that arrived is dropped.
+#: Maximum choices per follow-up screen. Remaining choices continue on
+#: a chained screen.
 MAX_ASKS = 20
 
 
 def any_interstitials(*, include_staged=True):
-    """Whether any interstitial is attached to any slot: the one query an
-    act pays when the library holds none. Archived ones count, on the
-    same terms ``interstitials_on`` reads them; staged ones count only
-    for a reader who may see staged content, so a library holding
-    nothing but staged screens is as cheap for everyone else as an
-    empty one."""
+    """Check for any attached follow-up screen before deriving cards.
+
+    Archived screens count. Staged screens count only for viewers permitted
+    to see them, avoiding unnecessary derivation for other viewers.
+    """
     from n26.library.models import InterstitialSlot
 
     rows = InterstitialSlot.objects.all()
@@ -82,19 +68,11 @@ def arrived(gang, written):
 
 
 def interstitials_on(slot_pks, *, include_staged=False):
-    """``{slot pk: [attachment, …]}`` for the slots that carry one, each
-    attachment with its ``interstitial`` and its ``position`` — the
-    order the author gave the slots under that screen — the lists in
-    the interstitials' own order.
+    """Map slot IDs to ordered screen attachments and their interstitials.
 
-    The player-side read, on the terms ``Slot.interstitials(
-    include_archived=True)`` states: archiving is a pack owner's soft
-    delete and never retracts content from a gang already holding the
-    slot, so archived interstitials, attachments and packs all count.
-    Staged ones are left out unless the reader may see staged content —
-    staged is not yet live, which is a different thing from withdrawn.
-    No pack narrowing: a slot the gang holds is already in play,
-    whichever pack the screen attached to it belongs to.
+    Include archived screens, attachments and packs for slots already held.
+    Exclude staged content unless permitted. Do not narrow packs: the held
+    slot can use a screen attached from another pack.
     """
     from n26.library.models import InterstitialSlot
 
@@ -145,14 +123,10 @@ def asking(gang, written, *, include_staged=False, hosts=None):
 
 
 def next_url(gang, keys, back):
-    """The screen's address: every question it asks, each once, and where
-    Continue leads. Encoded once here, so an address nested inside
-    another is carried whole.
+    """Encode unique choice addresses and their continuation URL.
 
-    More than ``MAX_ASKS`` questions are split: the first screenful is
-    asked here, and the rest become a further screen that ``next``
-    leads to — so Continue walks the reader through everything that
-    arrived, and no question is quietly dropped.
+    Split more than MAX_ASKS choices across chained screens without dropping
+    any. Encode nested continuation URLs once.
     """
     asked = []
     for key in keys:
@@ -185,21 +159,16 @@ def _already_asking(gang, back):
 
 
 def arriving(request, gang, op, *, hosts=None):
-    """The addresses of what the act just brought that asks for a
-    screen — unresolved, taking a pick, carrying a live interstitial —
-    or nothing. ``hosts`` narrows to the cards named, as ``asking``
-    states.
+    """Return arriving unresolved choices with visible follow-up screens.
 
-    The gates come first: a library with nothing attached costs one
-    query and no derivation, and one holding only staged screens costs
-    a reader who may not see them the same.
+    ``hosts`` narrows the cards as described by ``asking``. Check screen
+    existence before deriving cards, including staged visibility.
     """
     if not op.written or not any_interstitials():
         return []
     shown = sees_staged(request.user)
     if not shown and not any_interstitials(include_staged=False):
-        # Only staged screens, and a reader who may not see them: no
-        # need to derive the gang to find out nothing will draw.
+        # Skip card derivation when every attached screen is hidden by staging.
         return []
     return asking(gang, op.written, include_staged=shown, hosts=hosts)
 
@@ -220,10 +189,9 @@ def toward(gang, keys, back):
 
 
 def onward(request, gang, op, back, *, hosts=None):
-    """Where the reader goes after an act: the screen for what just
-    arrived when any of it carries an interstitial, else ``back``.
+    """Return the arriving choices' follow-up URL, or ``back`` when none apply.
 
-    ``hosts`` narrows to the cards named, as ``asking`` states.
+    ``hosts`` narrows the cards as described by ``asking``.
     """
     keys = arriving(request, gang, op, hosts=hosts)
     if not keys:
