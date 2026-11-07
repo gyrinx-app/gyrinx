@@ -12,7 +12,6 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(db):
-    """The signed-in person these tests look at the app as."""
     return User.objects.create_user("player")
 
 
@@ -25,7 +24,7 @@ def gang(gang_type, tester):
 
 @pytest.fixture
 def roster(gang, make_profile, make_statline, tester):
-    """Two models; only Vex has anything written."""
+    """Two models, with lore recorded only for Vex."""
     profile = make_profile("Ganger", price=0)
     make_statline(profile)
     with operation(gang, actor=tester) as op:
@@ -47,8 +46,8 @@ class TestReadingTheLore:
         assert "Nobody knows where Vex came from" in body
 
     def test_a_model_with_nothing_written_is_left_off(self, client, gang, roster):
-        # The roster tally in the header names every model; what a bare
-        # model must not get is a section of its own.
+        # Check entry markers because the header roster tally names models without lore
+        # too.
         body = client.get(lore_url(gang)).content.decode()
         assert 'data-lore-entry="Vex"' in body
         assert 'data-lore-entry="Sull"' not in body
@@ -69,16 +68,16 @@ class TestTheEditAffordance:
         vex, _ = roster
         client.force_login(tester)
         body = client.get(lore_url(gang)).content.decode()
-        # To the tab the lore is written on, not the edit page's front.
+        # Link directly to the notes tab used to edit this content.
         assert reverse("n26-edit-gang", args=[gang.pk]) + "?tab=notes" in body
         assert reverse("n26-edit-fighter", args=[vex.pk]) in body
 
     def test_empty_gang_lore_names_the_gap_as_gang_wide(
         self, client, tester, gang, make_profile, make_statline
     ):
-        """A gang with no lore of its own can still show a model's
-        story. The empty line must name that gap, not read as if
-        nothing is written at all."""
+        """Name the gang-wide lore gap explicitly because model-level lore can still
+        be present.
+        """
         profile = make_profile("Ganger", price=0)
         make_statline(profile)
         with operation(gang, actor=tester) as op:

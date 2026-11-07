@@ -1,9 +1,8 @@
-"""Editing a standing gang: name, colour, and the credits budget.
+"""Gang editing updates names, colours and credit budgets.
 
-The budget edit is where the money model shows. Its floor is the gang's
-wealth, what a raised budget leaves over lands in credits — the budget
-less everything actually spent — and a budget set to exactly the gang's
-wealth leaves exactly 0¢ in hand.
+Changed budgets cannot be below current wealth. Recompute credits from the new
+budget and recorded spend; setting a budget equal to spent value leaves no
+credits.
 """
 
 import pytest
@@ -19,14 +18,12 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(db):
-    """The signed-in person these tests look at the app as."""
     return User.objects.create_user("player")
 
 
 @pytest.fixture
 def gang(tester, gang_type):
-    """Founded without a budget — the founding default, and the gang most
-    likely to be handed one later, when a campaign fixes it."""
+    """A gang with no founding budget and zero tracked credits."""
     return Gang.objects.create(
         name="The Ashen Choir",
         owner=tester,
@@ -38,7 +35,7 @@ def gang(tester, gang_type):
 
 @pytest.fixture
 def worth_eighty(tester, gang, make_profile, make_statline):
-    """The gang with 80¢ of model on its books."""
+    """A gang holding a model rated at 80 credits."""
     profile = make_profile("Ganger", price=80)
     make_statline(profile)
     with operation(gang, actor=tester) as op:
@@ -67,12 +64,9 @@ class TestThePage:
         body = client.get(edit_url(gang)).content.decode()
         assert 'value="The Ashen Choir"' in body
         assert 'value="1000"' in body
-        # The type is a fact, not a field: stated, never offered.
+        # Gang type is fixed at founding and must not become an editable field.
         assert "Fixed at founding." in body
         assert 'name="gang_type"' not in body
-        # The heading is just the name of the act. Help about required
-        # fields, or about what a tab is for, would sit above the strip
-        # and change as the reader moved — the tab already says that.
         assert "Required fields are marked" not in body
         assert "Gang name (required)" in body
         assert "Gang name *" not in body
@@ -85,8 +79,9 @@ class TestThePage:
 
 class TestRenaming:
     def test_a_colour_outside_the_palette_is_refused(self, client, tester, gang):
-        """The picker offers only the palette, so only a hand-made request
-        can send anything else. It is not saved."""
+        """Validate colour choices on submission even when the request bypasses the
+        palette picker.
+        """
         client.force_login(tester)
         response = client.post(
             edit_url(gang),
@@ -107,7 +102,6 @@ class TestRenaming:
         gang.refresh_from_db()
         assert gang.name == "The Rust Sermon"
         assert gang.colour == "amber"
-        # No budget was set, so none appears.
         assert gang.starting_credits is None
         assert gang.credits == 0
 
@@ -131,8 +125,6 @@ class TestTheBudget:
     def test_a_budget_of_exactly_wealth_leaves_exactly_nothing(
         self, client, tester, worth_eighty
     ):
-        """ "I spent all my money": the budget is what the gang is worth,
-        and the credit limit is exactly 0."""
         gang = worth_eighty
         client.force_login(tester)
         client.post(edit_url(gang), {"name": gang.name, "starting_credits": "80"})
@@ -150,9 +142,8 @@ class TestTheBudget:
         response = client.post(
             edit_url(gang), {"name": "Sneaky Rename", "starting_credits": "79"}
         )
-        # Redisplayed with the refusal, and the gang untouched — the name
-        # does not save while the budget is refused, because a form is
-        # one answer.
+        # Reject the entire form when budget validation fails, including unrelated name
+        # changes.
         assert response.status_code == 200
         assert "worth 80¢" in response.content.decode()
         gang.refresh_from_db()
@@ -169,16 +160,14 @@ class TestTheBudget:
         client.post(edit_url(gang), {"name": gang.name, "starting_credits": ""})
         gang.refresh_from_db()
         assert gang.credits_unlimited
-        # No budget: nothing to count down from, pinned to 0 and drawn
-        # as "no answer" rather than as a figure.
+        # Unlimited credits use a stored zero rather than a remaining-budget figure.
         assert gang.credits == 0
         assert_reconciled(gang)
 
     def test_raising_an_existing_budget_raises_the_cash(
         self, client, tester, worth_eighty
     ):
-        """The identity every screen shows holds through the edit:
-        credits are the budget less everything spent."""
+        """Recompute available credits as the budget less recorded spend."""
         gang = worth_eighty
         client.force_login(tester)
         client.post(edit_url(gang), {"name": gang.name, "starting_credits": "100"})
@@ -189,9 +178,9 @@ class TestTheBudget:
         assert_reconciled(gang)
 
     def test_an_untouched_budget_never_blocks_a_rename(self):
-        """Discounted buys and granted content can push a gang's worth
-        past its budget; the floor binds the change, not the standing
-        state, so a rename with the budget left alone must clean."""
+        """Apply the wealth floor only when changing the budget, so unrelated edits
+        can preserve an existing lower budget.
+        """
         from types import SimpleNamespace
 
         from n26.core.forms import EditGangForm
@@ -239,8 +228,9 @@ def png_upload(name="banner.png"):
 
 
 class TestNotesLoreAndPicture:
-    """The gang's own written fields and picture. Notes and lore each
-    save as their own act, so one cannot throw the other away."""
+    """Notes, lore and pictures save independently without clearing fields absent
+    from that form.
+    """
 
     def test_notes_and_lore_save_and_are_recorded(self, client, tester, gang):
         client.force_login(tester)
@@ -315,10 +305,8 @@ class TestNotesLoreAndPicture:
         assert "Meet at the sump gate" in notes_tab
         assert "What the gang says about itself." not in notes_tab
         assert "Required fields are marked" not in notes_tab
-        # The tab strip on both, saying which is current.
         assert "?tab=notes" in general
         assert 'aria-current="page"' in notes_tab
-        # Each box is its own form, posting in place.
         assert "Save notes" in notes_tab
         assert "Save lore" in notes_tab
         assert "Save notes and lore" not in notes_tab
@@ -368,7 +356,7 @@ class TestNotesLoreAndPicture:
         assert gang.image.name.startswith("gang-images/")
         held = gang.image.name
 
-        # A save of the gang's own form never touches the picture.
+        # Submitting general gang fields must preserve the separately managed picture.
         client.post(edit_url(gang), {"name": gang.name})
         gang.refresh_from_db()
         assert gang.image.name == held
@@ -381,9 +369,9 @@ class TestNotesLoreAndPicture:
         assert recorded.filter(kind=LedgerEvent.Kind.IMAGE_CLEARED).count() == 1
 
     def test_the_crop_dialog_is_told_the_servers_own_shape(self, client, tester, gang):
-        """The shape and cap on the file input are str() of the constants
-        the server crops with, so the dialog and the store cannot come
-        apart."""
+        """Use the server's crop ratio and size-cap constants in the upload dialog
+        attributes.
+        """
         from n26.core.images import LANDSCAPE, MAX_PX
 
         client.force_login(tester)
