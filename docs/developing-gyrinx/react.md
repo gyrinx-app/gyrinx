@@ -6,6 +6,9 @@ including its reads, commands, confirmations and failure paths. Cotton continues
 to render the surrounding shell. React regions are client-rendered, not hydrated
 or server-rendered.
 
+For a code walkthrough of the Django boundary, command endpoints, shared form
+lifecycle and design adapters, read [How React workflows fit into N26](react-workflow-anatomy.md).
+
 The next migration unit is a complete workflow with explicit display data and
 command endpoints. Start with Manage credits, then Hire and Equip. Keep small
 islands for interactions that already have an independent owner. Build each
@@ -110,9 +113,9 @@ its value is the repeatable pattern. More complex workflows may need preparatory
 component or extraction PRs. Each prerequisite must have a named consumer and its
 own verification.
 
-With the first workflow command, establish a small shared request and error
-convention using a real caller. Put generic transport helpers in `n26/frontend/http/`, the
-planned location described in [frontend instructions](../../n26/frontend/AGENTS.md).
+Workflow commands use the shared request and error convention in
+`n26/frontend/http/command.ts`. Keep generic transport in `http/` as described
+in [frontend instructions](../../n26/frontend/AGENTS.md).
 Keep workflow-specific response interpretation in the island. Cover session
 expiry, CSRF failure, field and non-field errors, stale reads, network failure
 and pending state. Distinguish a rejected
@@ -715,6 +718,32 @@ submission. Restore the retained command and retry it before accepting those
 facts or offering an action that discards it.
 
 The holding form reuses the page, fields, currency suffix and HTTP transport from
-Manage credits. Keep its response interpretation local. Extract common form
-recovery behaviour once a third real consumer establishes the shared contract;
-the absolute-edit conflict decision must remain owned by its workflow.
+Manage credits. Their response interpretation stays local. With Edit asset type
+as the third consumer, `useWorkflowForm` shares recovery behaviour; the
+absolute-edit conflict decision remains owned by its workflow.
+
+### Shared form recovery and Edit asset type
+
+Manage credits, Edit holding and Edit asset type share
+`n26/frontend/ui/useWorkflowForm.ts`, exported through `ui`. It handles pending
+state, retained scalar form data, fresh CSRF credentials, navigation warnings,
+error-summary focus and completed forms restored from browser history. Generic
+HTTP and error-envelope parsing stay in `http/command.ts`.
+
+Each island interprets its own response. A credits key conflict is a rejected
+request, which cannot resolve an earlier uncertain write. A holding or asset-type
+revision conflict proves the old snapshot cannot overwrite current values and
+permits an explicit review action. The shared hook does not infer that distinction
+from an HTTP status alone. Existing interaction tests remain beside all three
+consumers, including the financial retry cases.
+
+Edit asset type also signs the initial ownership lock state. Adding an asset or
+table can fix ownership without changing the asset type's modification time.
+Include that derived constraint in the locked comparison. Validate disabled
+ownership against its signed starting value; using a newly disabled field could
+silently ignore a selection made while ownership was editable. A new constraint
+then produces a conflict with current facts and a review action.
+
+Keep Inherent and Transferable as the model's displayed ownership terms. Reuse
+form labels and help from Python. Current authorization and campaign scope are
+checked before accepting a no-op, as well as before changing a value.

@@ -15,6 +15,7 @@ what makes it a move rather than a change.
 from n26.core.views.action_flows import action_by_hand, action_flow, action_start
 from n26.core.views.api import preview_view
 from n26.core.views.arrivals import gang_next
+from n26.core.views.asset_types import edit_asset_type, edit_asset_type_command
 from n26.core.views.assignment_sets import (
     edit_model_card,
     model_cards,
@@ -58,7 +59,6 @@ from n26.core.views.campaigns import (
     campaign_tables,
     campaigns,
     create_campaign,
-    edit_asset_type,
     edit_campaign,
     leave_campaign,
     new_asset,
@@ -195,6 +195,7 @@ __all__ = [
     "add_counter",
     "add_asset_type",
     "edit_asset_type",
+    "edit_asset_type_command",
     "add_label",
     "archive_addition",
     "unarchive_addition",

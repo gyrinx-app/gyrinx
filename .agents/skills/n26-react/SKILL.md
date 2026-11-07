@@ -180,3 +180,24 @@ conflict metadata for another submission until retry resolves the retained one.
 Test simultaneous drafts, delayed old requests, same-value retries, blank versus
 zero, and reload recovery. Do not reuse a money-adjustment receipt for an absolute
 edit merely because the forms look similar.
+
+## Reuse the established form lifecycle
+
+Manage credits, Edit holding and Edit asset type use `useWorkflowForm`, exported
+from `ui`. Keep pending state, retained input, fresh CSRF, focus and navigation
+handling there. Each island still validates and interprets its server response.
+Never treat every 409 as a confirmed revision conflict: a credits key refusal
+cannot resolve a lost adjustment response. Run all three forms' tests after a
+shared lifecycle change.
+
+For Edit asset type, the signed snapshot also contains whether ownership was
+locked. Related assets or tables can change this constraint without updating the
+type row. Validate a disabled field against its signed starting value, then
+compare current state under the lock. Return current facts and require review
+when a new constraint changes the submitted intent. Preserve Inherent and
+Transferable, the displayed labels from the model.
+
+Signed snapshots can outlive a deployment. Validate their shape as well as their
+signature and return a form error for unsupported input. Keep retry formats
+compatible with retained commands; a validation refusal cannot resolve an
+earlier uncertain write.
