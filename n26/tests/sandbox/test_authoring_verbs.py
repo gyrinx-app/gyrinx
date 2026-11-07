@@ -1,16 +1,6 @@
-"""The authoring grammar — the verbs the admin's forms compile to.
-
-Step 0 of design/authoring-build-plan.md:
-conditions *nest* inside scope verbs instead of exploding into keyword
-arguments, effect verbs carry a prefix saying when they happen (``ef_``
-at read, ``op_`` at purchase), and modifiers attach via ``attach_to`` /
-``attach_modifiers_to``. The example suites still speak the old sandbox
-names — thin aliases in ``tests.sandbox.actions`` — so this file covers
-what only the new grammar says.
-
-Conditions are **rows** (``HasSubtypes``, ``CounterAtLeast``): a new way
-of narrowing is a new small model FK'ing the scope, never a new column
-on it. A boot check (n26.E003/E004) keeps the scope's fold honest.
+"""Verify the authoring API used by admin forms: nested scope conditions, reusable modifier
+attachments and weapon-profile naming. Conditions are related rows rather than extra
+scope columns; see n26/design/authoring-build-plan.md.
 """
 
 import pytest
@@ -51,8 +41,8 @@ class TestConditionsNest:
         (threshold_row,) = CounterAtLeast.objects.filter(scope=scope)
         assert threshold_row.counter == xp
         assert threshold_row.at_least == 75
-        # The folded sentence — what plan traces and auto-names compose.
-        # Subtypes read in their own Meta order (by name), as before.
+        # Format scope conditions using subtype name order for traces and generated
+        # modifier names.
         assert str(scope) == "Champion or Leader models, at XP 75+"
 
     def test_an_unconditioned_scope_reads_as_the_model(self, default_pack):
@@ -92,8 +82,9 @@ class TestConditionsNest:
 
 class TestGlue:
     def test_attach_modifiers_to_shares_one_rule_between_carriers(self, default_pack):
-        """Written once, attachable to many carriers — the reusable
-        modifier the composer's ``make_reusable`` flag names."""
+        """Share one modifier across multiple carriers rather than copying its scope and
+        effect.
+        """
         mounted = create_subtype("Mounted")
         reusable = modifier("Grants Mounted", targets_model(), ef_adds(mounted))
         cutter = create_rule("Cutter Rig")
@@ -118,8 +109,9 @@ class TestGlue:
 
 
 class TestAWeaponsOwnLineNamesItself:
-    """A profile's annotation defaults to its weapon's name, so the
-    column must take any name the name column took."""
+    """A weapon profile defaults its annotation to the weapon name, so both fields must
+    accept the same length.
+    """
 
     def test_a_long_weapon_name_fits_its_profiles_annotation(self):
         from n26.library.authoring import add_weapon_profile, create_weapon

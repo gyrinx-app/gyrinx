@@ -1,17 +1,5 @@
-"""Foundations: the things content is built from, and the seeds.
-
-Stats, statline shapes and profile types are nobody's authoring
-decision — the rulebook fixes them, and nothing else can be built
-until they exist. So they are created from a page rather than typed, and
-these tests hold the seeds to what makes buttons safer than a data
-migration:
-
-* a seed says honestly whether it has been created, including *partly*;
-* creating twice is harmless, so a half-built library can be topped up;
-* creating shares definitions with nothing invented — a weapon's
-  Strength is the fighter's Strength, matched not duplicated;
-* what a seed creates is what the whole app already expects, so a card
-  rendered on seeded content reads exactly as a card on fixtures.
+"""Foundation seeds report missing, incomplete and complete state; safely top up partial
+content; share stat definitions; and produce content usable by authoring and rendering.
 """
 
 import pytest
@@ -73,8 +61,7 @@ class TestTheSeedsThemselves:
         assert {model: model.objects.count() for model in counts} == counts
 
     def test_a_half_built_library_is_topped_up(self, default_pack):
-        """The case a data migration handles badly: some of it is
-        already there, by hand or from an earlier run."""
+        """Preserve existing definitions while completing the seed."""
         from n26.library.authoring import create_stat
 
         create_stat("M", "Movement", is_inches=True)
@@ -89,9 +76,7 @@ class TestTheSeedsThemselves:
     def test_a_characteristic_made_without_limits_is_given_the_books(
         self, default_pack
     ):
-        """A Strength made by hand, or by the weapon shape seeded first,
-        has no limits of its own; the model characteristics seed fills
-        them in rather than leaving a shared definition unbounded."""
+        """The model-characteristics seed fills missing shared-stat limits."""
         from n26.library.authoring import create_stat
 
         create_stat("S", "Strength")
@@ -120,7 +105,7 @@ class TestWhatTheSeedsCreate:
         assert printed[:3] == ["M", "WS", "BS"]
         assert printed[-4:] == ["Ld", "Cl", "Wil", "Int"]
 
-        # The head stats are plain numbers, never roll targets.
+        # Psychology characteristics use plain numbers.
         for short in ("Ld", "Cl", "Wil", "Int"):
             assert not Stat.objects.get(short_name=short).is_target
 
@@ -129,27 +114,23 @@ class TestWhatTheSeedsCreate:
 
         fighter = ProfileType.objects.get(name="Fighter")
         vehicle = ProfileType.objects.get(name="Vehicle")
-        # One shape serves both; the Type line tells them apart.
+        # Both profile types share the model statline.
         assert fighter.statline_type == vehicle.statline_type
 
     def test_the_weapon_shape_reuses_the_fighters_strength(self, default_pack):
-        """Stat definitions are shared across statline types by design,
-        so creating both must not fork Strength in two."""
+        """Model and weapon statlines share one Strength definition."""
         STANDARD_CONTENT["model-characteristics"].create()
         STANDARD_CONTENT["weapon-characteristics"].create()
 
         assert Stat.objects.filter(full_name="Strength").count() == 1
         weapon = StatlineType.objects.get(name=WEAPON_STATLINE)
         printed = [t.short_name for t in weapon.stats.all()]
-        # One shared row, two headings: the shape says how it prints the
-        # column where the book disagrees with the characteristic's own
-        # abbreviation.
+        # The weapon statline displays shared Strength as Str rather than S.
         assert printed == ["SR", "LR", "Str", "AP", "L"]
         assert weapon.stats.get(stat__full_name="Strength").stat.short_name == "S"
 
     def test_either_shape_may_be_seeded_first(self, default_pack):
-        """Whichever comes second finds Strength already defined, and
-        must still head its own column its own way."""
+        """Seed order must preserve shared definitions and statline-specific headings."""
         STANDARD_CONTENT["weapon-characteristics"].create()
         STANDARD_CONTENT["model-characteristics"].create()
 
@@ -166,8 +147,7 @@ class TestWhatTheSeedsCreate:
         assert {"Walker", "Wheeled", "Skimmer"} <= names  # vehicles too
 
     def test_the_gang_types_arrive_named_and_nothing_more(self, default_pack):
-        """Names only — profiles, lists and rules are authored onto
-        these rows later, so a fresh one carries no numbers."""
+        """Gang-type seeds create names without authored budgets, profiles or rules."""
         from n26.library.models import GangType
 
         STANDARD_CONTENT["gang-types"].create()
@@ -213,8 +193,7 @@ class TestThePage:
         )
 
     def test_it_shows_the_types_it_created(self, author, client, default_pack):
-        """They cannot be authored, so this is the only place an author
-        sees that they are there — and that there are only two."""
+        """Foundations lists the two seeded profile types."""
         STANDARD_CONTENT["model-characteristics"].create()
         body = client.get("/n26/authoring/foundations/").content.decode()
         assert "Fighter" in body and "Vehicle" in body
@@ -227,7 +206,7 @@ class TestThePage:
 
 
 class TestTheFoundationPages:
-    """Each foundation kind is an ordinary page, like every other kind."""
+    """Foundation pages expose stat and statline authoring."""
 
     def test_a_stat_has_its_own_page(self, author, client, default_pack):
         client.post(
@@ -237,9 +216,9 @@ class TestTheFoundationPages:
         assert Stat.objects.get(full_name="Heat").short_name == "Ht"
 
     def test_a_type_cannot_be_invented(self, author, client, default_pack):
-        """A model's Type is Fighter or Vehicle and nothing else, so
-        there is no page that would offer a third. Ganger and Champion
-        are Subtypes; a sentry gun is a Vehicle."""
+        """Profile types are limited to Fighter and Vehicle; no authoring page creates
+        another.
+        """
         assert client.get("/n26/authoring/profile-type/").status_code == 404
         assert set(ProfileType.objects.values_list("name", flat=True)) == set()
 
@@ -252,9 +231,7 @@ class TestTheFoundationPages:
     def test_a_statline_shape_is_built_a_stat_at_a_time_in_order(
         self, author, client, default_pack
     ):
-        """Print order is the whole point of a shape, and a multi-select
-        cannot express it — so the shape is created bare and its stats
-        are added one by one, each landing at the end."""
+        """Add statline columns individually, appending them in display order."""
         response = client.post("/n26/authoring/statline-type/new/", {"name": "Vehicle"})
         shape = StatlineType.objects.get(name="Vehicle")
         assert response["Location"] == f"/n26/authoring/statline-type/{shape.pk}/"
@@ -272,9 +249,9 @@ class TestTheFoundationPages:
     def test_the_shape_shows_its_columns_as_it_prints_them(
         self, author, client, default_pack
     ):
-        """The two display flags are the only things about a row a
-        reader cannot infer, so the table says them — and does not
-        prefix every row with the shape's own name."""
+        """Display each column’s group-start and highlight flags without repeating the
+        statline name.
+        """
         from n26.library.authoring import create_stat
 
         client.post("/n26/authoring/statline-type/new/", {"name": "Model"})
@@ -299,9 +276,7 @@ class TestTheFoundationPages:
         assert "Model — Ld" not in body  # no redundant prefix
 
     def test_a_shape_can_head_a_column_its_own_way(self, author, client, default_pack):
-        """A weapon table prints the model's Strength as Str. The row is
-        still named for the characteristic, so the page says the
-        renaming rather than leaving a reader to wonder."""
+        """Statline-specific headings override display without changing the shared Stat."""
         from n26.library.authoring import create_stat
 
         client.post("/n26/authoring/statline-type/new/", {"name": "Weapon"})
@@ -362,7 +337,9 @@ class TestSeededContentIsUsable:
     def test_a_weapon_authored_on_seeded_stats_renders(
         self, author, client, default_pack
     ):
-        """End to end from nothing: create, author a weapon, read the card."""
+        """Seed characteristics, author a weapon through pages and render it on a hired
+        fighter.
+        """
         from n26.core.render import render_gang
         from n26.library.authoring import create_profile, create_trait, set_statline
         from n26.library.models import Weapon
@@ -398,7 +375,7 @@ class TestSeededContentIsUsable:
             },
         )
 
-        # A fighter on the seeded shape, holding the authored weapon.
+        # Use the seeded fighter statline with the authored weapon.
         from n26.library.models import GangType
 
         gang_type = GangType.objects.create(name="Escher")
@@ -441,8 +418,9 @@ class TestSeededContentIsUsable:
 
 
 class TestTheSkills:
-    """Every skill the core rules name, in its set and at the number it
-    is rolled on. Names only — what a skill does is the book's."""
+    """Seed skill names, categories and roll positions without modelling their rulebook
+    effects.
+    """
 
     def test_the_six_sets_and_the_inherent_one(self, default_pack):
         from n26.library.models import Category, Section
@@ -473,7 +451,7 @@ class TestTheSkills:
         assert catfall.position == 1  # rolled on a 1
         assert Skill.objects.get(name="Sprint").position == 6
 
-        # A set reads back in the order the table prints it.
+        # Skill positions preserve roll-table order.
         agility = Skill.objects.filter(category__name="Agility").order_by("position")
         assert [skill.name for skill in agility] == [
             "Catfall",
@@ -485,8 +463,7 @@ class TestTheSkills:
         ]
 
     def test_the_inherent_skills_are_rolled_for_on_no_table(self, default_pack):
-        """A rule grants them, so they carry no D6 number — Immovable
-        Brutes grants Juggernaut."""
+        """Inherent skills have no D6 position."""
         from n26.library.models import Skill
 
         STANDARD_CONTENT["skills"].create()
@@ -507,12 +484,12 @@ class TestTheSkills:
         item = STANDARD_CONTENT["skills"]
         assert item.status() == "missing"
 
-        create_skill("Catfall")  # someone got there first
+        create_skill("Catfall")  # Existing partial content.
         assert item.status() == "incomplete"
 
         item.create()
         assert item.status() == "complete"
-        item.create()  # twice is harmless
+        item.create()
         assert item.status() == "complete"
 
 
