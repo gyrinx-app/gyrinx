@@ -50,6 +50,9 @@ beforeEach(() => {
     sessionStorage.clear();
     HTMLDialogElement.prototype.showModal = function () {
         this.open = true;
+        this.querySelector<HTMLInputElement>(
+            'input:not([type="hidden"])',
+        )?.focus();
     };
     HTMLDialogElement.prototype.close = function () {
         this.open = false;
@@ -207,4 +210,35 @@ test("malformed success data cannot release an unresolved command", async () => 
     await screen.findByRole("button", { name: "Retry hire" });
     expect(navigate).not.toHaveBeenCalled();
     expect(sessionStorage.getItem(props.recoveryKey)).not.toBeNull();
+});
+
+test("opens the confirmation with name focus, rating help and a working Escape destination", () => {
+    const navigate = vi.fn();
+    render(
+        <Confirmation
+            {...props}
+            values={{ ...props.values, paid: "85" }}
+            onFigures={vi.fn()}
+            onNavigate={navigate}
+        />,
+    );
+    expect(document.activeElement).toBe(
+        screen.getByRole("textbox", { name: "Name" }),
+    );
+    expect(
+        (screen.getByRole("spinbutton", { name: "Price" }) as HTMLInputElement)
+            .max,
+    ).toBe("100000");
+    const rating = screen.getByRole("checkbox", {
+        name: "Match rating to price",
+    });
+    expect(
+        document.getElementById(rating.getAttribute("aria-describedby")!)
+            ?.textContent,
+    ).toContain("quoted rating of 85¢");
+    fireEvent(
+        screen.getByRole("dialog"),
+        new Event("cancel", { cancelable: true }),
+    );
+    expect(navigate).toHaveBeenCalledWith(props.back);
 });

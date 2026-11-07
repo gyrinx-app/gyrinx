@@ -18,4 +18,10 @@ The Hire owner draws workflow messages beside the catalogue.
 {% endblock messages %}
 {% block content %}
     {% react_island "hire" hire_props %}
+    <script type="speculationrules">
+        {"prefetch": [{
+            "where": {"selector_matches": "nav[data-speculate='who-can-be-hired'] a:not([aria-current])"},
+            "eagerness": "moderate"
+        }]}
+    </script>
 {% endblock content %}

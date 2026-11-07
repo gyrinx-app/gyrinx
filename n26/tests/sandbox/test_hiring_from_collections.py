@@ -488,9 +488,7 @@ class TestAForgedPriceTag:
         client.force_login(owner)
         key = f"{aberrant.pk}-{forged.pk}"
         stale = client.get(f"{hire_url(gang)}?hire={key}")
-        assert stale.status_code == 200
-        assert not stale.context["hire_props"]["confirmation"]
-        assert stale.context["hire_props"]["notice"]
+        assert stale.status_code == 404
         assert click(client, gang, key).status_code == 404
         assert hire_through(client, gang, key, name="Sneaky").status_code == 404
         assert not Miniature.objects.filter(membership__gang=gang).exists()

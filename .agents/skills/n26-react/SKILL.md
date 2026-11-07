@@ -246,3 +246,8 @@ Preserve a native confirmation's populated payment. An untouched React form must
 post the displayed amount, rather than blank input that may resolve to a higher
 quote after a catalogue edit. Keep deliberate blank and zero payments distinct.
 Preserve queued messages' severity and dismissal alongside their text.
+
+Search the whole edition for workflow callers and tests before deleting a shared
+helper. Page contracts also live in colocated `core/test_*.py` modules. Move
+remaining consumers onto the shared parser rather than another view's private
+helper, and preserve browser navigation hints alongside visible controls.

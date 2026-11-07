@@ -451,7 +451,11 @@ export function HireCatalogue(
     }
     return (
         <div>
-            <nav aria-label="Who can be hired" className="mb-4 flex flex-wrap">
+            <nav
+                aria-label="Who can be hired"
+                data-speculate="who-can-be-hired"
+                className="mb-4 flex flex-wrap"
+            >
                 {props.scopeTabs.map((tab) => (
                     <a
                         key={tab.key}

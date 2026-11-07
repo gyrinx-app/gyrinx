@@ -11,6 +11,7 @@ from django.http import Http404, JsonResponse
 from django.middleware.csrf import get_token
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils.text import slugify
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
@@ -277,12 +278,26 @@ def hire_fighter(request, pk):
             else:
                 notice = "This profile is no longer available. Choose another."
         except ValidationError, UnavailableHire:
-            if request.method == "POST" and "profile" not in data:
+            if "selection" not in data:
                 raise Http404("No such option") from None
             notice = "These model options are no longer available. Choose them again."
     if request.method == "POST" and "profile" not in data and confirmation:
-        query = {"hire": key, "selection": dumps(confirmation["selection"])}
-        return redirect(back + ("&" if "?" in back else "?") + urlencode(query))
+        query = [("hire", key)]
+        if "selection" in data:
+            query.append(("selection", dumps(confirmation["selection"])))
+        else:
+            # Cached native forms keep their indexed confirmation URLs.
+            prefix = f"{slugify(key)}:"
+            query.extend(
+                (name, value)
+                for name in data
+                if name.startswith(prefix)
+                for value in data.getlist(name)
+                if value
+            )
+        return redirect(
+            back + ("&" if "?" in back else "?") + urlencode(query, safe=":")
+        )
     return render(
         request,
         "n26/hire_fighter.html",
