@@ -1994,7 +1994,7 @@ class TestKindHelp:
 
 @pytest.fixture
 def weapon_statline_type(make_stat):
-    """The shape the rulebook's weapon tables print: SR LR Str AP L."""
+    """Weapon characteristics SR, LR, Str, AP and L, reusing shared stat definitions."""
     from n26.library.models import Stat, StatlineType, StatlineTypeStat
 
     statline_type = StatlineType.objects.create(name="Weapon")
@@ -2006,8 +2006,8 @@ def weapon_statline_type(make_stat):
         ("L", "Lethality", {}),
     ]
     for position, (short, full, flags) in enumerate(definitions):
-        # Stat definitions are shared across statline types by design:
-        # a weapon's Strength is the fighter's Strength.
+        # Reuse stat definitions across statline types, including fighter and weapon
+        # Strength.
         stat = Stat.objects.filter(full_name=full).first() or make_stat(
             short, full, **flags
         )
@@ -2018,9 +2018,9 @@ def weapon_statline_type(make_stat):
 
 
 class TestWeapons:
-    """A weapon is the first thing with parts: the gun, then its
-    profiles. Built here exactly as the book's table prints it —
-    Autogun, then its warp round at +10."""
+    """Weapons and their profiles are authored through pages, then rendered on model
+    cards.
+    """
 
     def make_autogun(self, client, weapon_statline_type):
         response = client.post(
@@ -2038,8 +2038,7 @@ class TestWeapons:
         return response, Weapon.objects.get(name="Autogun")
 
     def add_line(self, client, weapon, **payload):
-        """One profile, added the way an author adds one — on the
-        page the weapon's own leads to."""
+        """Submit a weapon profile through its creation page."""
         return client.post(
             f"/n26/authoring/weapons/{weapon.pk}/add-profile/",
             {"trade_point_price": "0", **payload},
@@ -2054,8 +2053,6 @@ class TestWeapons:
         assert autogun.price == 20
         assert autogun.statline_type == weapon_statline_type
 
-        # A bare weapon is a legitimate mid-authoring state; the page
-        # says what's missing rather than refusing to exist.
         body = client.get(response["Location"]).content.decode()
         assert "None yet" in body
 
@@ -2066,8 +2063,8 @@ class TestWeapons:
         body = client.get(
             f"/n26/authoring/weapons/{autogun.pk}/add-profile/"
         ).content.decode()
-        # One input per stat of *this weapon's* shape, headed as the
-        # book prints it — no spec could have known these field names.
+        # Characteristic fields follow this weapon's statline type rather than fixed
+        # spec fields.
         for short, field in (
             ("SR", "short_range"),
             ("LR", "long_range"),
@@ -2076,18 +2073,15 @@ class TestWeapons:
             ("L", "lethality"),
         ):
             assert f'name="{field}"' in body
-            # The boxes are a statline strip, so each characteristic is
-            # named by the column heading above its box.
             assert re.search(rf">\s*{re.escape(short)}\s*</th>", body)
-        assert 'placeholder="4&quot;"' in body  # the stat's own example
+        assert 'placeholder="4&quot;"' in body
 
     def test_a_renamed_column_is_renamed_wherever_the_page_prints_it(
         self, author, client, default_pack, make_stat
     ):
-        """A weapon shape built on the model's own Strength row heads
-        the column Str. The boxes that type a line and the line the
-        weapon's page lists both read it off the shape, so neither shows
-        the S the characteristic itself carries."""
+        """Use the statline type's label override in both the editor and the weapon-
+        profile summary.
+        """
         from n26.library.authoring import (
             add_stat_to_statline_type,
             create_statline_type,
@@ -2103,11 +2097,11 @@ class TestWeapons:
         editor = client.get(
             f"/n26/authoring/weapons/{autogun.pk}/add-profile/"
         ).content.decode()
-        assert re.search(r">\s*Str\s*</th>", editor)  # the box's heading
+        assert re.search(r">\s*Str\s*</th>", editor)
         assert not re.search(r">\s*S\s*</th>", editor)
 
         body = client.get(f"/n26/authoring/weapon/{autogun.pk}/").content.decode()
-        assert "Str 3" in body  # the line the weapon lists
+        assert "Str 3" in body
         assert "S 3" not in body
 
     def test_adding_the_mandatory_profile_with_its_stats_and_traits(
@@ -2135,15 +2129,14 @@ class TestWeapons:
 
         profile = WeaponProfile.objects.get(weapon=autogun, name="Standard")
         assert profile.is_free
-        assert profile.annotation == "Autogun"  # what a card prints in brackets
+        assert profile.annotation == "Autogun"
         assert profile.trait_names == ["Rapid Fire (1)"]
         values = {
             stat.statline_type_stat.short_name: stat.value
             for stat in profile.statline.stats.all()
         }
-        # Stored as the stat says it reads: an author types 8 for a
-        # range and it lands as 8", so every surface agrees without
-        # each one remembering to format.
+        # Normalise values when storing them so display surfaces share the stat's
+        # formatting.
         assert values == {
             "SR": '8"',
             "LR": '24"',
@@ -2155,7 +2148,6 @@ class TestWeapons:
     def test_a_second_profile_is_the_paid_ammo_line(
         self, author, client, default_pack, weapon_statline_type
     ):
-        """'- warp round … +10' — its own row, priced, ordered after."""
         from n26.library.authoring import create_trait
         from n26.library.models import WeaponProfile
 
@@ -2191,8 +2183,6 @@ class TestWeapons:
         gang_type,
         fighter_type,
     ):
-        """The point of all of it: a fighter given this weapon shows the
-        authored line on their card."""
         from django.contrib.auth.models import User
 
         from n26.core.render import build_model_card
@@ -2236,14 +2226,13 @@ class TestWeapons:
         print("\n" + text)
         assert "Autogun" in text
         assert "Rapid Fire (1)" in text
-        assert '8"' in text  # the short range, formatted by the stat
+        assert '8"' in text
 
 
 class TestWeaponAccessories:
-    """An accessory is its own kind: it bolts onto a weapon rather than
-    being carried, and the bracket saying what it fits — '(Las Weapons
-    Only)', '(Weapons Marked With * Only)' — would be nonsense on a
-    suit of armour."""
+    """Accessory forms specify compatible weapon categories or asterisked weapons;
+    wargear forms omit those fields.
+    """
 
     def test_authoring_the_bracket(self, author, client, default_pack):
         from n26.library.authoring import create_category
@@ -2278,8 +2267,6 @@ class TestWeaponAccessories:
         assert WeaponAccessory.objects.get(name="Suspensors").fits_asterisked
 
     def test_wargear_carries_no_bracket(self, author, client, default_pack):
-        """The fields that made this its own kind are gone from the one
-        it used to hide in."""
         from n26.library.forms import generate_form
 
         form = generate_form(specs()["create_wargear"])()
@@ -2288,18 +2275,20 @@ class TestWeaponAccessories:
 
 
 def row_printing(body, words):
-    """The one table row that prints these words, markup and all."""
+    """Return the unique table row containing the requested text, including its
+    markup.
+    """
     printing = [row for row in re.findall(r"<tr\b.*?</tr>", body, re.S) if words in row]
     assert len(printing) == 1, f"{len(printing)} rows print {words!r}"
     return printing[0]
 
 
-# The bar's quick switcher is an island on every page; the page's own is any other.
+# Exclude shared navigation islands when selecting the page-specific island.
 PAGE_ISLAND = "[data-react-module]:not([data-react-name='quick-switcher']):not([data-react-name='account-menu'])"
 
 
 def form_switches(body):
-    """Every form switch the page handed to React, in document order."""
+    """Decode React form-switch props in document order."""
     soup = BeautifulSoup(body, "html.parser")
     return [
         json.loads(soup.find(id=host["data-react-props"]).string)
@@ -2314,7 +2303,9 @@ def form_switch(body, name):
 
 
 def island_props(body, module=None, name=None):
-    """Decode the initial data the page's React island receives."""
+    """Decode props for the first matching page island, excluding shared navigation
+    islands.
+    """
     soup = BeautifulSoup(body, "html.parser")
     hosts = soup.select(PAGE_ISLAND)
     for host in hosts:
@@ -2327,13 +2318,12 @@ def island_props(body, module=None, name=None):
 
 
 def island_rows(body):
-    """Decode the rows a React authoring list receives."""
+    """Read authoring-list records from the page island props."""
     return island_props(body)["rows"]
 
 
 def cells_of(row):
-    """A row's cells, in the order they are read. A box to tick is a
-    control rather than something read, so it is left out."""
+    """Read table cells in document order, excluding cells containing checkboxes."""
     return [
         cell
         for cell in re.findall(r"<td\b.*?</td>", row, re.S)
@@ -2342,20 +2332,19 @@ def cells_of(row):
 
 
 def words_in(markup):
-    """What a reader sees, with the markup and the spacing taken out."""
+    """Strip markup, unescape HTML entities and normalise whitespace."""
     return " ".join(unescape(re.sub(r"<[^>]+>", " ", markup)).split())
 
 
 def link_words(markup):
-    """The words the first link here carries — what a reader clicks."""
+    """Read the text of the first link."""
     return words_in(re.search(r"<a\b[^>]*>(.*?)</a>", markup, re.S).group(1))
 
 
 class TestTheQualifier:
-    """Two things may print the same name — the books give Delaque's
-    and Goliath's beasts the same Ferocious jaws, with different
-    profiles, and both must exist. The qualifier tells them apart for
-    authors and is never seen by a player."""
+    """Qualifiers distinguish same-named content for authors without changing its
+    player-facing name.
+    """
 
     def test_two_weapons_may_share_a_printed_name(self, author, client, default_pack):
         from n26.library.models import Weapon
@@ -2374,9 +2363,7 @@ class TestTheQualifier:
 
         both = Weapon.objects.filter(name="Ferocious jaws")
         assert both.count() == 2
-        # Both print the same, as the books do.
         assert {str(weapon) for weapon in both} == {"Ferocious jaws"}
-        # And an author can still tell them apart.
         assert {weapon.authoring_label for weapon in both} == {
             "Ferocious jaws — Sumpkroc",
             "Ferocious jaws — Psychoteric Wyrm",
@@ -2399,8 +2386,6 @@ class TestTheQualifier:
     def test_pickers_show_it_so_an_author_can_choose(
         self, author, client, default_pack
     ):
-        """A picker labelled only with what a card shows would offer the
-        same row twice."""
         from n26.library.authoring import create_subtype
         from n26.library.forms import generate_form
 
@@ -2414,8 +2399,6 @@ class TestTheQualifier:
     def test_a_listing_links_the_name_and_says_the_qualifier_beside_it(
         self, author, client, default_pack
     ):
-        """The link is the thing itself. An author following a name is
-        going to the jaws, not to the beast they were told apart by."""
         from n26.library.authoring import create_weapon
 
         for qualifier in ("Sumpkroc", "Psychoteric Wyrm"):
@@ -2431,8 +2414,9 @@ class TestTheQualifier:
     def test_the_link_still_carries_the_bracket_a_card_prints(
         self, author, client, default_pack
     ):
-        """The annotation is part of what the thing is called, so it
-        rides inside the link; only the qualifier is left outside."""
+        """Keep the player-facing annotation inside the link and the author-only
+        qualifier outside it.
+        """
         from n26.library.authoring import create_wargear
 
         create_wargear("Ammo", annotation="5+", qualifier="Goliath")
@@ -2444,8 +2428,6 @@ class TestTheQualifier:
         assert row["qualifier"] == "Goliath"
 
     def test_the_search_still_finds_a_row_by_it(self, author, client, default_pack):
-        """Told apart by the qualifier, an author looks for it by the
-        qualifier."""
         from n26.library.authoring import create_weapon
 
         create_weapon("Ferocious jaws", qualifier="Sumpkroc")
@@ -2457,8 +2439,6 @@ class TestTheQualifier:
     def test_a_carrier_table_splits_it_from_the_name_too(
         self, author, client, default_pack
     ):
-        """A modifier's page names what carries it, and those names are
-        read the same way as a listing's."""
         from n26.library.authoring import (
             attach_modifiers_to,
             create_subtype,
@@ -2484,8 +2464,9 @@ class TestTheQualifier:
     def test_a_carried_weapon_profile_links_to_its_own_page(
         self, author, client, default_pack
     ):
-        """A weapon profile is not a kind with a listing of its own, but it
-        has a page, and a modifier's carrier table should lead there."""
+        """A weapon profile has a detail page even though it has no standalone kind
+        listing.
+        """
         from n26.library.authoring import (
             add_weapon_profile,
             attach_modifiers_to,
@@ -2507,8 +2488,9 @@ class TestTheQualifier:
         assert f'href="/n26/authoring/weapon-profiles/{line.pk}/"' in body
 
     def test_it_is_distinguished_from_the_annotation(self):
-        """Two fields beside a name with opposite visibility is a trap,
-        so each says which it is."""
+        """Field help must distinguish an author-only qualifier from a player-facing
+        annotation.
+        """
         from n26.library.models import Weapon
 
         qualifier = str(Weapon._meta.get_field("qualifier").help_text)
@@ -2519,9 +2501,9 @@ class TestTheQualifier:
 
 
 class TestAWeaponsOwnLine:
-    """Most profiles have no name. The book prints the Autogun's first
-    line as "Autogun" and names only what hangs beneath it — "- warp
-    round" — so a blank name means "this is the weapon's line"."""
+    """An unnamed weapon profile represents the weapon itself; named profiles render
+    as additional lines.
+    """
 
     def make_autogun(self, client, weapon_statline_type):
         client.post(
@@ -2551,7 +2533,7 @@ class TestAWeaponsOwnLine:
         body = client.get(
             f"/n26/authoring/weapons/{autogun.pk}/add-profile/"
         ).content.decode()
-        # Requiredness is read off the verb, so this is the real check.
+        # Form requiredness derives from the authoring verb.
         from n26.library.forms import generate_form
 
         form = generate_form(specs()["add_weapon_profile"])()
@@ -2578,14 +2560,11 @@ class TestAWeaponsOwnLine:
 
         profile = WeaponProfile.objects.get(weapon=autogun)
         assert profile.name == ""
-        assert str(profile) == "Autogun"  # not " (Autogun)"
+        assert str(profile) == "Autogun"
 
     def test_the_page_shows_what_was_typed(
         self, author, client, default_pack, weapon_statline_type
     ):
-        """The authoring page must show a profile back, or an author
-        cannot check it — and an unnamed line must not read as a row
-        with a missing name."""
         from n26.library.authoring import create_trait
         from n26.library.models import WeaponProfile
 
@@ -2602,17 +2581,13 @@ class TestAWeaponsOwnLine:
         )
 
         body = client.get(f"/n26/authoring/weapon/{autogun.pk}/").content.decode()
-        # The row is found by where its name leads, the name itself being
-        # a link to the line's own page.
         line = WeaponProfile.objects.get(weapon=autogun)
         opens = f'href="/n26/authoring/weapon-profiles/{line.pk}/"'
         assert opens in body
         row = body.split(opens, 1)[1].split("</tr>", 1)[0]
-        # Labelled with the weapon and saying why — never a blank cell,
-        # which would read as a name someone forgot.
         assert "Autogun" in row
-        assert "own line" in row  # apostrophe is escaped in the markup
-        assert "SR 8&quot;" in row  # the stats, as they will print
+        assert "own line" in row
+        assert "SR 8&quot;" in row
         assert "LR 24&quot;" in row
         assert "Str 3" in row
         assert "Rapid Fire (1)" in row
@@ -2631,9 +2606,8 @@ class TestAWeaponsOwnLine:
             short_range="8",
         )
         body = client.get(f"/n26/authoring/weapon/{autogun.pk}/").content.decode()
-        # The row itself, not the field help — which also mentions the
-        # weapon's own line, since that is what leaving the name blank
-        # means.
+        # Inspect the profile record because field help also mentions the weapon's own
+        # line.
         from n26.library.models import WeaponProfile
 
         line = WeaponProfile.objects.get(weapon=autogun)
@@ -2696,7 +2670,8 @@ class TestAWeaponsOwnLine:
         )
         fighter = hire(gang, ganger, "Yolanda", paid=50)
         held = give_weapon(fighter, autogun, paid=20)
-        # The gun's own line comes with it; paid ammo is bought.
+        # The unnamed profile arrives with the weapon; additional ammunition is
+        # purchased.
         from n26.library.models import WeaponProfile
 
         buy_weapon_profile(
@@ -2707,14 +2682,13 @@ class TestAWeaponsOwnLine:
         text = "\n".join(render_model_card(card))
         print("\n" + text)
         lines = [line.strip() for line in text.splitlines()]
-        # The unnamed line *is* the weapon, so it reads on the weapon's
-        # own row rather than repeating the name beneath it.
+        # Render the unnamed profile on the weapon's line without repeating its name
+        # below.
         own = next(line for line in lines if line.startswith("Autogun"))
         assert "Rapid Fire (1)" in own
-        assert "30cr" in own  # the money stays
+        assert "30cr" in own
         assert not any(line.startswith("- Autogun") for line in lines)
-        # The named line hangs beneath, with its own name alone — the
-        # weapon in brackets belongs to a listing, not to its own card.
+        # Additional profiles omit the weapon annotation when nested on its card.
         named = next(line for line in lines if line.startswith("- Warp round"))
         assert named.startswith("- Warp round (+10cr)")
         assert "Cursed" in named
@@ -2722,10 +2696,9 @@ class TestAWeaponsOwnLine:
 
 
 class TestCorrectingAWeaponProfile:
-    """A weapon profile is corrected on a page of its own, reached from
-    weapon's. The row on the weapon's page says what the line is; putting
-    the whole of it — the stats in their boxes, the traits as a set —
-    into that row would leave nowhere to read the weapon."""
+    """Weapon profiles have separate edit pages for names, prices, characteristics
+    and traits.
+    """
 
     def make_autogun(self, client, weapon_statline_type):
         client.post(
@@ -2743,7 +2716,7 @@ class TestCorrectingAWeaponProfile:
         return Weapon.objects.get(name="Autogun")
 
     def add_line(self, client, weapon, **payload):
-        """One profile, added the way an author adds one."""
+        """Create a weapon profile through its page and return the saved profile."""
         from n26.library.models import WeaponProfile
 
         client.post(
@@ -2777,7 +2750,6 @@ class TestCorrectingAWeaponProfile:
         assert 'value="Warp round"' in body
         assert re.search(r'name="edit-price"[^>]*value="10"', body)
         assert re.search(r'name="statline-short_range"[^>]*value="8&quot;"', body)
-        # The way back to the rest of the gun's lines.
         assert f'href="/n26/authoring/weapon/{autogun.pk}/"' in body
 
     def test_a_change_to_the_name_and_the_price_is_saved(
@@ -2802,9 +2774,9 @@ class TestCorrectingAWeaponProfile:
     def test_the_characteristics_are_rewritten_and_one_can_be_emptied(
         self, author, client, default_pack, weapon_statline_type
     ):
-        """An author who typed a Strength into the wrong box must be able
-        to empty it again. Adding a line means nothing by a blank box;
-        correcting one means "this line has no such characteristic"."""
+        """Unlike blank values during creation, blank values during editing clear
+        existing characteristics.
+        """
         autogun = self.make_autogun(client, weapon_statline_type)
         own = self.add_line(
             client, autogun, short_range="8", long_range="24", strength="3"
@@ -2825,8 +2797,6 @@ class TestCorrectingAWeaponProfile:
             stat.statline_type_stat.short_name: stat.value
             for stat in own.statline.stats.all()
         }
-        # Stored as the stat says it reads — an author types 6 for a
-        # range and it lands as 6".
         assert values["SR"] == '6"'
         assert values["LR"] == '18"'
         assert values["Str"] == ""
@@ -2834,8 +2804,9 @@ class TestCorrectingAWeaponProfile:
     def test_the_traits_typed_are_the_traits_it_has(
         self, author, client, default_pack, weapon_statline_type
     ):
-        """A set is replaced, never added to: a line corrected from Rapid
-        Fire (1) to Rapid Fire (2) would otherwise print both for good."""
+        """Replace the trait set so changing a trait does not retain its previous
+        version.
+        """
         from n26.library.authoring import create_trait
 
         autogun = self.make_autogun(client, weapon_statline_type)
@@ -2854,9 +2825,6 @@ class TestCorrectingAWeaponProfile:
     def test_the_bracket_a_named_line_prints_can_be_corrected(
         self, author, client, default_pack, weapon_statline_type
     ):
-        """A line added under a weapon takes the weapon's name as its
-        bracket. An ingest that got that wrong is fixed here, without
-        anyone touching the weapon."""
         autogun = self.make_autogun(client, weapon_statline_type)
         warp = self.add_line(client, autogun, name="Warp round", price="10")
         assert warp.annotation == "Autogun"
@@ -2877,9 +2845,7 @@ class TestCorrectingAWeaponProfile:
     def test_a_second_nameless_line_is_refused_in_words(
         self, author, client, default_pack, weapon_statline_type
     ):
-        """A weapon has one line that *is* the weapon. Emptying a second
-        line's name would print the gun twice with no way to tell them
-        apart, so the page says so rather than falling over."""
+        """Only one unnamed profile may represent the weapon itself."""
         autogun = self.make_autogun(client, weapon_statline_type)
         self.add_line(client, autogun)
         warp = self.add_line(client, autogun, name="Warp round", price="10")
@@ -2889,19 +2855,19 @@ class TestCorrectingAWeaponProfile:
             {"edit-name": "", "edit-price": "10"},
         )
 
-        assert response.status_code == 200  # back on the page, not a 500
+        assert response.status_code == 200
         assert (
             "This weapon already has its own unnamed line" in response.content.decode()
         )
         warp.refresh_from_db()
-        assert warp.name == "Warp round"  # and nothing was written
+        assert warp.name == "Warp round"
 
     def test_an_exclusive_line_with_a_trade_point_price_is_refused_in_words(
         self, author, client, default_pack, weapon_statline_type
     ):
-        """Exclusive means never offered at the Trading Post, and a Trade
-        Point price means offered there — the database refuses the pair,
-        and the page must say which pair it was, not blame the name."""
+        """Report incompatible exclusivity and Trading Post pricing without blaming
+        the name.
+        """
         autogun = self.make_autogun(client, weapon_statline_type)
         warp = self.add_line(client, autogun, name="Warp round", price="10")
 
@@ -2945,8 +2911,7 @@ class TestCorrectingAWeaponProfile:
 
 
 class TestTheWeaponProfilePageIsStaffed:
-    """The same door the weapon's own page has: staff, or the sign-in
-    page — whoever you are already signed in as."""
+    """Weapon-profile editing requires staff access, including for signed-in users."""
 
     @pytest.fixture
     def line(self, default_pack):
@@ -2974,10 +2939,9 @@ def autogun(author, default_pack, weapon_statline_type):
 
 
 class TestAddingAWeaponProfile:
-    """A line is added at an address of its own, reached from the
-    weapon's page. It is a form and a whole statline both, and the
-    weapon's own fields sit above them on that page — a listing with all
-    of that under it leaves nowhere to read the weapon."""
+    """A separate creation page adds a weapon profile with its characteristics and
+    traits.
+    """
 
     def address(self, weapon):
         return f"/n26/authoring/weapons/{weapon.pk}/add-profile/"
@@ -2989,7 +2953,6 @@ class TestAddingAWeaponProfile:
 
         assert self.address(autogun) in body
         assert "Add weapon profile" in body
-        # No form here: neither the line's own fields nor its stats.
         assert 'name="short_range"' not in body
         assert "Add a weapon profile" not in body
 
@@ -3019,22 +2982,21 @@ class TestAddingAWeaponProfile:
 
         line = WeaponProfile.objects.get(weapon=autogun, name="Warp round")
         assert (line.price, line.trade_point_price) == (10, 4)
-        assert line.annotation == "Autogun"  # what a card prints in brackets
+        assert line.annotation == "Autogun"
         assert line.trait_names == ["Rapid Fire (1)"]
         assert {
             stat.statline_type_stat.short_name: stat.value
             for stat in line.statline.stats.all()
         } == {"SR": '8"', "LR": '24"', "Str": "3", "AP": "-", "L": "1"}
 
-        # And the weapon's page says what landed.
         body = client.get(added["Location"]).content.decode()
         assert "Added Warp round." in body
         assert f'href="/n26/authoring/weapon-profiles/{line.pk}/"' in body
 
     def test_untyped_characteristics_are_recorded_as_nothing(self, autogun, client):
-        """Adding means nothing by an empty box. A line typed with every
-        characteristic blank is a line with no statline, not a statline
-        of blanks — which is what correcting one would mean."""
+        """Blank characteristics during creation omit the statline; blank
+        characteristics during editing clear stored values.
+        """
         from n26.library.models import WeaponProfile
 
         client.post(self.address(autogun), {"name": "Silent", "price": "0"})
@@ -3043,9 +3005,6 @@ class TestAddingAWeaponProfile:
         assert getattr(line, "statline", None) is None
 
     def test_a_second_nameless_line_is_refused_in_words(self, autogun, client):
-        """A weapon has one line that *is* the weapon. A second nameless
-        one would print the gun twice with no way to tell them apart, so
-        the page says so rather than falling over."""
         from n26.library.authoring import add_weapon_profile
         from n26.library.models import WeaponProfile
 
@@ -3053,7 +3012,7 @@ class TestAddingAWeaponProfile:
 
         refused = client.post(self.address(autogun), {"price": "0"})
 
-        assert refused.status_code == 200  # back on the page, not a 500
+        assert refused.status_code == 200
         assert (
             "This weapon already has its own unnamed line" in refused.content.decode()
         )
@@ -3062,10 +3021,9 @@ class TestAddingAWeaponProfile:
     def test_an_exclusive_line_with_a_trade_point_price_is_refused_in_words(
         self, autogun, client
     ):
-        """Exclusive means never offered at the Trading Post, and a Trade
-        Point price means offered there — the database refuses the pair,
-        and the page that adds a line must say which pair it was in the
-        same words as the page that corrects one."""
+        """Creation and editing must report the same incompatibility between
+        exclusivity and Trading Post pricing.
+        """
         from n26.library.models import WeaponProfile
 
         refused = client.post(
@@ -3087,9 +3045,6 @@ class TestAddingAWeaponProfile:
     def test_a_weapon_with_no_shape_says_so_instead_of_drawing_boxes(
         self, author, client, default_pack
     ):
-        """A weapon whose statline type was never set has nothing to
-        type characteristics into. The page says why rather than drawing
-        an empty strip, and a line can still be added without them."""
         from n26.library.authoring import create_weapon
         from n26.library.models import WeaponProfile
 
@@ -3111,9 +3066,6 @@ class TestAddingAWeaponProfile:
     def test_another_kinds_page_keeps_its_own_add_form(
         self, author, client, default_pack, make_stat
     ):
-        """Only the weapon's parts moved. A statline shape still grows a
-        column in a form under its listing, where a column is a name and
-        two switches and nothing more."""
         from n26.library.authoring import create_statline_type
 
         shape = create_statline_type("Weapon")
@@ -3126,15 +3078,13 @@ class TestAddingAWeaponProfile:
 
 
 class TestRemovingAWeaponProfile:
-    """A line is taken off from the weapon's page, where the rest of them
-    are: what removing one means is read against the lines it leaves
-    behind, not from inside one of them. Deleting is for the unused, as
-    it is for anything else in the library — a line somebody's gang
-    holds, or one a hire comes with, is refused in words."""
+    """Unused weapon profiles can be deleted with their statlines; built-ins and gang
+    assignments prevent deletion.
+    """
 
     @pytest.fixture
     def own(self, autogun):
-        """The weapon's own line — the one with no name."""
+        """The unnamed weapon profile, with range and strength values."""
         from n26.library.authoring import add_weapon_profile, set_statline
 
         line = add_weapon_profile(autogun)
@@ -3180,8 +3130,6 @@ class TestRemovingAWeaponProfile:
         assert done["Location"] == f"/n26/authoring/weapon/{autogun.pk}/"
         assert not WeaponProfile.objects.filter(pk=own.pk).exists()
         assert not Statline.objects.filter(pk=statline.pk).exists()
-        # A weapon with no lines at all is a legitimate mid-authoring
-        # state, so the page it lands on says so rather than refusing.
         body = client.get(done["Location"]).content.decode()
         assert "Deleted Autogun." in body
         assert "None yet" in body
@@ -3189,14 +3137,8 @@ class TestRemovingAWeaponProfile:
     def test_a_line_a_hire_comes_with_is_refused_in_words(
         self, autogun, warp, client, default_pack, gang_type, fighter_type
     ):
-        """An ammo line named as a built-in — a launcher's gas rounds
-        arriving with the fighter that carries it — protects the line it
-        names.
-
-        The refusal names the *set*, which is where an author has to go
-        to undo it. A built-in says itself as the thing it holds, so a
-        page naming built-ins plainly would print the line's own name
-        twice and point nowhere.
+        """Name the referencing built-in set so an author can remove that dependency
+        before deleting the profile.
         """
         from n26.library.authoring import add_built_in, create_profile
         from n26.library.models import WeaponProfile
@@ -3244,8 +3186,7 @@ class TestRemovingAWeaponProfile:
 
         assert refused.redirect_chain[-1][0] == self.address(warp)
         assert "still in use" in body
-        # A paid line is history: the refusal names the gang and the
-        # fighter, and says what was paid for.
+        # Protect purchased profiles and identify the gang and model that hold them.
         assert "paid for" in body
         assert "The Armed" in body
         assert "Yolanda" in body
@@ -3259,8 +3200,9 @@ class TestRemovingAWeaponProfile:
 
 
 class TestTheWeaponProfileActPagesAreStaffed:
-    """The same door the rest of the authoring surface has: staff, or
-    the sign-in page — and a post gets no further than a read."""
+    """Weapon-profile creation and deletion require staff access for GET and POST
+    requests.
+    """
 
     @pytest.fixture
     def line(self, default_pack):
@@ -3300,11 +3242,9 @@ class TestTheWeaponProfileActPagesAreStaffed:
 
 
 class TestListingsSayWhatARowIs:
-    """A name alone is not enough to check content by: a skill needs its
-    set, a priced thing its price, and a skill tree the set it stands
-    for — which is the whole of what a tree is. Whatever the kind says
-    about itself, the author's own note about the row is read beside
-    it."""
+    """Listings show kind-specific details and separate author help, including
+    searchable notes.
+    """
 
     def test_a_skill_shows_its_set_and_its_number(self, author, client, default_pack):
         from n26.library.standard_content import STANDARD_CONTENT
@@ -3316,7 +3256,6 @@ class TestListingsSayWhatARowIs:
         assert "rolled on a 1" in body
 
     def test_an_inherent_skill_shows_no_number(self, author, client, default_pack):
-        """A rule grants it, so it is rolled for on no table."""
         from n26.library.standard_content import STANDARD_CONTENT
 
         STANDARD_CONTENT["skills"].create()
@@ -3345,8 +3284,6 @@ class TestListingsSayWhatARowIs:
     def test_a_row_carries_the_note_its_author_wrote(
         self, author, client, default_pack
     ):
-        """The words are for whoever wields this while building other
-        content, so they belong where content is being checked over."""
         from n26.library.authoring import create_wargear
 
         create_wargear(
@@ -3364,8 +3301,6 @@ class TestListingsSayWhatARowIs:
     def test_a_row_with_no_note_says_only_what_the_kind_says(
         self, author, client, default_pack
     ):
-        """Most rows have none written, and an empty note must not leave
-        a separator dangling after the price."""
         from n26.library.authoring import create_wargear
 
         create_wargear("Mesh armour", price=15)
@@ -3377,8 +3312,6 @@ class TestListingsSayWhatARowIs:
         assert row["help"] == ""
 
     def test_the_search_finds_a_row_by_the_note(self, author, client, default_pack):
-        """A note is often the only place a word an author remembers was
-        ever written."""
         from n26.library.authoring import create_wargear
 
         create_wargear(
@@ -3392,8 +3325,6 @@ class TestListingsSayWhatARowIs:
         assert "repricing" in island_rows(body)[0]["search"]
 
     def test_a_carrier_table_carries_the_note_too(self, author, client, default_pack):
-        """The page asking whether to change a shared modifier is one of
-        the places the note was written for."""
         from n26.library.authoring import (
             attach_modifiers_to,
             create_subtype,
@@ -3420,10 +3351,9 @@ class TestListingsSayWhatARowIs:
 
 
 class TestTheGangSurface:
-    """The straight line to a fighter entry: a gang type, a profile on
-    its list, a named equipment list, the list granted to the profile —
-    and the profile's page saying what it may use. Every step through
-    the pages, as an author would take it."""
+    """Gang types, profiles and their built-ins can be created through authoring
+    pages.
+    """
 
     def make_ganger(self, client, person_type):
         from n26.library.models import GangType, Profile
@@ -3466,8 +3396,6 @@ class TestTheGangSurface:
         assert ganger.price == 50
         assert ganger.profile_type == person_type
 
-        # A profile with nothing granted yet is a legitimate state; the
-        # page says so rather than refusing to exist.
         body = client.get(response["Location"]).content.decode()
         assert "None yet" in body
 
@@ -3492,19 +3420,15 @@ class TestTheGangSurface:
         )
         assert response.status_code == 302
 
-        # The grant is a built-in: the set was founded for the profile,
-        # and the member names the list.
         ganger.refresh_from_db()
         member = ganger.built_in_members.get()
         assert member.assignable == escher_list
 
-        # The profile's page says what it may use…
         body = client.get(f"/n26/authoring/profile/{ganger.pk}/").content.decode()
         assert "Comes with" in body
         assert "House Escher Equipment List" in body
         assert "a list it may use" in body
 
-        # …and so does its row in the listing.
         listing = client.get("/n26/authoring/profile/").content.decode()
         assert "uses House Escher Equipment List" in listing
         assert "Escher" in listing
@@ -3512,8 +3436,6 @@ class TestTheGangSurface:
     def test_a_counter_built_in_keeps_its_opening_value(
         self, author, client, default_pack, person_type
     ):
-        """The other union arm the PoC needs working: Starting XP as a
-        counter member with an amount."""
         from n26.library.authoring import create_counter
 
         _, ganger = self.make_ganger(client, person_type)
@@ -3537,7 +3459,6 @@ class TestTheGangSurface:
         assert "opening value 6" in body
 
     def test_the_grant_needs_a_pick(self, author, client, default_pack, person_type):
-        """A kind chosen with nothing picked refuses in words."""
         _, ganger = self.make_ganger(client, person_type)
         response = client.post(
             f"/n26/authoring/profile/{ganger.pk}/",
@@ -3550,9 +3471,6 @@ class TestTheGangSurface:
     def test_the_page_carries_the_union_toggle(
         self, author, client, default_pack, person_type
     ):
-        """The kind select and its members are marked, and the script
-        that reads the markers ships with the page — the pair that lets
-        the browser show only the chosen kind's picker."""
         _, ganger = self.make_ganger(client, person_type)
         body = client.get(f"/n26/authoring/profile/{ganger.pk}/").content.decode()
         assert "data-union-kind" in body
@@ -3580,9 +3498,6 @@ class TestTheGangSurface:
     def test_a_profile_with_its_built_ins_in_one_submit(
         self, author, client, default_pack, person_type, gang_type
     ):
-        """The quick build-out: create the Ganger, its Starting XP, its
-        list access and both its subtypes in a single POST, and land on
-        a detail page already saying all of it."""
         from n26.library.authoring import (
             create_collection,
             create_counter,
@@ -3631,8 +3546,7 @@ class TestTheGangSurface:
 
 
 class TestDeletingAThing:
-    """Deleting is for the unused: an untouched row leaves the library
-    for good; a row anything relies on is refused in words."""
+    """Delete unused content while preserving dependencies and reusable modifiers."""
 
     def test_an_unused_affiliation_is_deleted_for_good(
         self, author, client, default_pack
@@ -3687,8 +3601,8 @@ class TestDeletingAThing:
         done = client.post(f"/n26/authoring/rule/{rule.pk}/delete/")
         assert done.status_code == 302
         assert not Rule.objects.filter(pk=rule.pk).exists()
-        # Reusable rows shared with other carriers are not this row's
-        # to take.
+        # Deleting a carrier must preserve modifiers that can be shared with other
+        # carriers.
         assert Modifier.objects.filter(name="Grants a skill").exists()
 
     def test_the_detail_page_offers_the_way_there(self, author, client, default_pack):
@@ -3700,14 +3614,8 @@ class TestDeletingAThing:
 
 
 class TestOfferingAChoice:
-    """A profile hired one way, turned into a profile with choices — all
-    of it through the pages.
-
-    The author's whole vocabulary here is a name, a price, what it
-    brings and which set of options it joins. They never meet a set of
-    default assignments: the verb founds one and names it for itself,
-    because two profiles may both offer "As standard" while a set name
-    may appear only once in a pack.
+    """Profile options use default sets with unique pack-level names and independent
+    player-facing labels.
     """
 
     @pytest.fixture
@@ -3749,15 +3657,13 @@ class TestOfferingAChoice:
         assert option.name == "with a long rifle"
         assert option.default_set.price == 35
         assert [m.assignable for m in option.default_set.members.all()] == [rifle]
-        # The set's name is the author's business and the option's is the
-        # player's, so the two are allowed to differ — and do.
+        # Default-set names serve authors; option labels serve players and need not
+        # match.
         assert option.default_set.name != option.name
 
     def test_a_second_thing_joins_the_option_through_its_set(
         self, author, client, profile
     ):
-        """An option that brings a breath *and* a set of talons is one
-        option with two things in it."""
         from n26.library.authoring import add_default_member, create_weapon
 
         breath = create_weapon("Gaseous eruption breath", profiles=[("Spray", 0)])
@@ -3777,22 +3683,20 @@ class TestOfferingAChoice:
         assert "Gaseous eruption breath, Razor-sharp talons" in body
 
     def test_an_option_may_bring_nothing(self, author, client, profile):
-        """The head of a pick-one set is often "as standard": the choice
-        is the other ones, and this is what taking none of them means."""
         response = self.add_option(client, profile, name="As standard", price="0")
         assert response.status_code == 302
 
         option = profile.options.get()
         assert option.name == "As standard"
         assert not option.default_set.members.exists()
-        # The Brings cell says so in one word.
         assert ">nothing<" in client.get(self.page(client, profile)).content.decode()
 
     def test_two_profiles_may_both_offer_as_standard(
         self, author, client, profile, person_type, gang_type
     ):
-        """The collision the derived set name exists for. Set names are
-        unique within a pack; the wording a player reads is not."""
+        """Default-set names are unique within a pack; player-facing option names may
+        repeat across profiles.
+        """
         from n26.library.authoring import create_profile
 
         other = create_profile("Juve", person_type, gang_type, price=25)
@@ -3809,7 +3713,7 @@ class TestOfferingAChoice:
 
         (group, options), *rest = profile.grouped_offers()
         assert group is None and not rest
-        # The first added is the head, which is what a hire takes unasked.
+        # The first option is the group's default selection.
         assert [option.name for option in options] == [
             "As standard",
             "with a long rifle",
@@ -3845,9 +3749,7 @@ class TestOfferingAChoice:
     def test_an_add_control_pins_the_set_it_was_clicked_on(
         self, author, client, profile
     ):
-        """Each set's add control carries the set in the URL, and the
-        form says in words where the option will land — there is no
-        picker to get wrong."""
+        """Carry the selected option group in the URL and name it on the form."""
         from n26.library.authoring import create_option_group
 
         grenades = create_option_group(profile, "Extra grenades", choose="any")
@@ -3866,9 +3768,9 @@ class TestOfferingAChoice:
     def test_a_forged_set_from_another_profile_is_refused(
         self, author, client, profile, person_type, gang_type
     ):
-        """A set belongs to the thing that offers it. The page never
-        offers another profile's sets, and the form refuses one
-        submitted anyway."""
+        """Validate group ownership even when a submission bypasses the offered
+        choices.
+        """
         from n26.library.authoring import create_option_group, create_profile
 
         mine = create_option_group(profile, "Melee weapons")
@@ -3909,22 +3811,19 @@ class TestOfferingAChoice:
         body = asked.content.decode()
         assert "Stop offering with a long rifle?" in body
         assert "Long rifle" in body
-        # Asking changes nothing.
         assert profile.options.exists()
 
         done = client.post(f"/n26/authoring/options/{option.pk}/remove/")
         assert done["Location"] == self.page(client, profile)
         assert not profile.options.exists()
-        # The bag gathered for that one option goes with it; the weapon
-        # it named stays in the library.
+        # Remove the option's generated default set while preserving the referenced
+        # weapon.
         assert not DefaultAssignmentSet.objects.filter(pk=gathered).exists()
         rifle.refresh_from_db()
 
     def test_an_option_grows_a_second_item_through_its_own_page(
         self, author, client, profile
     ):
-        """The swap that hands over two items — "a claw and a baton" —
-        is one option bringing both, grown one item at a time."""
         from n26.library.authoring import create_weapon
 
         create_weapon("Shock baton", profiles=[("Standard", 0)])
@@ -3959,8 +3858,6 @@ class TestOfferingAChoice:
         assert "Assault claw, Shock baton" in body
 
     def test_a_set_may_offer_one_or_none(self, author, client, profile):
-        """The book's "may take one of the following": exclusive
-        alternatives, none of them forced."""
         from n26.library.models import OptionGroup
 
         response = client.post(
@@ -4000,8 +3897,6 @@ class TestOfferingAChoice:
     def test_what_was_authored_here_is_what_a_hire_screen_offers(
         self, author, client, profile
     ):
-        """The end of the chain: authored through the pages, read back
-        through the structure a player's screen is drawn from."""
         from n26.core.hire import build_hire_entry
         from n26.library.authoring import create_option_group, create_wargear
 
@@ -4033,15 +3928,13 @@ class TestOfferingAChoice:
         assert [option.name for option in entry.groups[1].options] == [
             "Choke gas grenades"
         ]
-        # Prices sum rather than every combination being written out.
         assert entry.groups[1].options[0].total_price == 105
 
 
 class TestTheCollectionPage:
-    """A collection's page is a preview: the definition (sweeps and
-    entries), and what it means right now — the same browse structure
-    the player-side listing draws, so what an author sees is what a
-    gang will get."""
+    """Collection details show definitions and previews built from the player-facing
+    browse structure.
+    """
 
     def test_creating_a_collection_lands_on_its_page(
         self, author, client, default_pack
@@ -4060,8 +3953,6 @@ class TestTheCollectionPage:
     def test_a_collection_is_given_its_position_on_the_page(
         self, author, client, default_pack
     ):
-        """The number that orders a fighter's lists on Equip is asked
-        for beside the name, with the model's own words, and written."""
         from n26.library.models import Collection
 
         page = client.get("/n26/authoring/collection/new/").content.decode()
@@ -4085,8 +3976,6 @@ class TestTheCollectionPage:
     def test_a_negative_position_is_refused_in_words(
         self, author, client, default_pack
     ):
-        """The column refuses negatives, so the form must first: a
-        number below every list would open Equip on it."""
         from n26.library.models import Collection
 
         response = client.post(
@@ -4100,9 +3989,6 @@ class TestTheCollectionPage:
     def test_the_trading_post_previews_its_membership(
         self, author, client, default_pack
     ):
-        """The criteria case: the page shows the sweeps and what they
-        sweep in today — TP-priced guns with their ammo nested, the
-        unoffered needler nowhere."""
         from n26.library.authoring import (
             add_weapon_profile,
             create_category,
@@ -4123,21 +4009,18 @@ class TestTheCollectionPage:
         assert "every weapon with a TP price" in body
         assert "every wargear with a TP price" in body
         assert "Boltgun" in body
-        assert "Kraken round" in body  # nested under its gun
-        # Nowhere but the add-entry picker, which offers the whole
-        # library by design — the *preview* must not have swept it in.
+        assert "Kraken round" in body
+        # Exclude select options because the entry picker intentionally offers content
+        # outside the preview.
         import re
 
         outside_pickers = re.sub(r"<select[\s\S]*?</select>", "", body)
         assert "House-pattern needler" not in outside_pickers
-        assert "Ranged Weapons" in body  # sectioned like the book
+        assert "Ranged Weapons" in body
 
     def test_an_entry_is_added_priced_and_removed_through_the_page(
         self, author, client, default_pack
     ):
-        """Curation without a spreadsheet: the page lists the row at the
-        collection's own price, and stops listing it without touching
-        the thing named."""
         from n26.library.authoring import create_collection, create_wargear
         from n26.library.models import CollectionEntry, Wargear
 
@@ -4189,9 +4072,7 @@ class TestTheCollectionPage:
     def test_the_preview_files_the_unplaced_under_the_default_section(
         self, author, client, default_pack
     ):
-        """The schema's promise, kept on the page: unplaced categories
-        fall into the default section, so a pick list of homeless
-        things prints under its own heading, never "(no section)"."""
+        """Place uncategorised entries under the collection's default section."""
         from n26.library.authoring import (
             add_section,
             create_affiliation,
@@ -4210,9 +4091,6 @@ class TestTheCollectionPage:
     def test_a_menu_asks_for_no_prices_and_prints_none(
         self, author, client, default_pack
     ):
-        """A collection that prices nothing — a pick list behind a
-        choice — asks its author for nothing but the item, and its
-        preview prints no money."""
         from n26.library.authoring import create_affiliation, create_collection
         from n26.library.models import CollectionEntry
 
@@ -4233,7 +4111,6 @@ class TestTheCollectionPage:
         assert "credits" not in headings
         assert "asks for nothing but the item" in body
 
-        # And adding through the narrowed form still works.
         made = client.post(
             page,
             {
@@ -4266,18 +4143,16 @@ class TestTheCollectionPage:
         assert saved.status_code == 302
         listing.refresh_from_db()
         assert listing.name == "House Escher Armoury"
-        # The unchecked box: an edit that says nothing about prices
-        # turns them off, as a checkbox submits.
+        # An omitted pricing checkbox on an edit disables entry pricing.
         assert listing.prices_its_entries is False
         assert Collection.objects.filter(name="House Escher Armoury").exists()
 
     def test_the_affiliation_pick_list_is_buildable_end_to_end(
         self, author, client, default_pack, gang_type, owner
     ):
-        """The whole guide, through the pages: a slot type, its
-        pickables, a picklist, a slot granted by a hidden built into the
-        gang type — and then a player's picker offering exactly the two
-        answers."""
+        """Create a gang-level choice through authoring pages and verify the player
+        picker offers both authored options.
+        """
         from n26.core.render import render_gang
         from n26.library.models import Hidden, Pickable, Picklist, Slot, SlotType
         from n26.tests.sandbox.actions import found_gang
@@ -4359,8 +4234,6 @@ class TestTheCollectionPage:
         assert "Clan House Outcast" in picker
 
     def test_membership_by_criteria_updates_itself(self, author, client, default_pack):
-        """Author a weapon through the pages and it is simply there —
-        no entry rows, nothing to maintain."""
         from n26.library.models import Collection
         from n26.library.standard_content import STANDARD_CONTENT
 
@@ -4392,9 +4265,9 @@ class TestTheCollectionPage:
         body = client.get(
             f"/n26/authoring/collection/{house_list.pk}/"
         ).content.decode()
-        assert "10cr here" in body  # the entry's own price, in the definition
-        assert "priced by this list" in body  # and marked in the preview
-        assert ">E<" in body  # the heirloom's TP cell
+        assert "10cr here" in body
+        assert "priced by this list" in body
+        assert ">E<" in body
 
 
 class TestTheModifierSection:
