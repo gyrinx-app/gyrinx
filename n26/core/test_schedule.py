@@ -401,7 +401,7 @@ class TestTransitions:
 
     def test_a_finished_campaign_cannot_advance(self, ids):
         schedule = s.finish(configured(ids), now=LATER).schedule
-        with pytest.raises(s.ScheduleError):
+        with pytest.raises(s.ScheduleError, match="campaign has finished"):
             s.advance(schedule, now=LATER)
 
     @pytest.mark.parametrize("now", [None, datetime(2026, 11, 7)])

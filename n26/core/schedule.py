@@ -611,6 +611,8 @@ def apply_template(
 
 
 def preview_advance(schedule: Schedule) -> TransitionPreview:
+    if schedule.status == "post_campaign":
+        raise ScheduleError("This campaign has finished. Its cycle cannot advance.")
     if schedule.status != "in_progress":
         raise ScheduleError("Start the campaign before advancing its cycle.")
     current = schedule.current
