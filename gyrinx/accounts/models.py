@@ -31,15 +31,10 @@ class PatreonStatus(models.TextChoices):
 
 
 class Badge(Base, Archived):
-    """A badge somebody created in the admin, for granting to people.
+    """An admin-created badge whose eligibility comes from BadgeGrant records.
 
-    The counterpart to the badges defined in ``gyrinx.badges``: those are held
-    by whoever the live rules say holds them, these are held by whoever has been
-    given one. Artwork is uploaded rather than committed, so it is untrusted and
-    is cleaned on the way out every time it is drawn.
-
-    Archiving retires a badge without deleting the history of who held it: it
-    leaves the pickers and the pages at once, and its grants stop counting.
+    Uploaded artwork is untrusted and is sanitised when rendered. Archiving
+    removes eligibility without deleting grant history.
     """
 
     slug = models.SlugField(
@@ -110,7 +105,7 @@ class Badge(Base, Archived):
             )
 
     def as_def(self) -> BadgeDef:
-        """This row as the shape the render path reads every badge as."""
+        """Return the immutable display definition for this badge."""
         return BadgeDef(
             slug=self.slug,
             title=self.title,
@@ -123,12 +118,11 @@ class Badge(Base, Archived):
 
 
 class BadgeGrant(Base):
-    """A record that somebody — or everybody — has been given a badge.
+    """Grant a badge to one user or to all users.
 
-    Deleting a grant is how one is taken back, and the history table keeps the
-    record of it having existed. Nothing else needs doing on the way out: a
-    profile still naming a badge it no longer holds falls through to whatever
-    the person does hold, because eligibility is worked out on read.
+    Deleting a grant revokes eligibility and preserves its history. Display
+    selection is resolved on read, so a stored ineligible slug falls back to
+    another eligible badge.
     """
 
     class Audience(models.TextChoices):
@@ -216,11 +210,7 @@ class BadgeGrant(Base):
 @receiver(post_save, sender=BadgeGrant)
 @receiver(post_delete, sender=BadgeGrant)
 def _clear_badge_cache(sender, **kwargs):
-    """Keep the cached badge table honest.
-
-    Every page that draws a username reads that cache, so a stale entry is
-    visible everywhere at once — cheap to rebuild, and rebuilt on any write.
-    """
+    """Invalidate the local badge cache after badge or grant writes."""
     invalidate_granted_badges()
 
 
@@ -279,9 +269,7 @@ class UserProfile(Base):
         "account page.",
     )
 
-    # Both tables are pinned to their original names. This model moved from the
-    # `core` app to `accounts`, and the whole point is that no table is renamed
-    # and no row is copied — 2,803 profiles stay exactly where they are.
+    # Keep the existing data and history tables when using the accounts app label.
     history = HistoricalRecords(table_name="core_historicaluserprofile")
 
     class Meta:
@@ -297,14 +285,8 @@ class UserProfile(Base):
         self.tos_agreed_at = timezone.now()
         self.save()
 
-    # --- Supporter badges ---
-    #
-    # Eligibility is derived live from the user's state, never stored as a grant,
-    # so former/declined supporters (and ex-staff) automatically lose their
-    # badges. Patreon badges gate on ``patreon_status == ACTIVE``: a lapsed
-    # supporter can carry a stale ``patreon_tier`` (the webhook doesn't always
-    # clear it), so we never trust the stored tier on its own. The staff badge
-    # gates on ``User.is_staff``.
+    # Derive supporter eligibility from current account state. A stored Patreon
+    # tier may remain after membership lapses, so it also requires ACTIVE status.
 
     @property
     def current_tier_rank(self) -> int:

@@ -68,17 +68,11 @@ def compute_backoff(route, attempts: int) -> timedelta:
 
 
 def _reset_execution_for_attempt(task_id: str) -> None:
-    """Return a ``TaskExecution`` to READY so a *retry* can transition it cleanly.
+    """Reset an unfinished local execution to READY before retrying it.
 
-    ``TaskExecution`` models one execution with sticky terminal states; a retry is
-    a fresh execution of the same logical task. Rather than widen the prod state
-    machine, the local worker resets the row here (bypassing the state machine on
-    purpose) before re-running, so ``task_started``'s READY→RUNNING stays valid.
-    Local/observability-only; prod never calls this.
-
-    SUCCESSFUL is excluded: if a worker crashed after ``run_task`` succeeded but
-    before ``qt.delete()``, the lease lapses and the row is reclaimed — we must not
-    resurrect the completed record back to READY (and re-run erasing the success).
+    Bypass terminal-state validation so task_started can enter RUNNING. Keep
+    SUCCESSFUL unchanged if a task completed before its queue record was
+    deleted. This helper is used only by the local worker.
     """
     from gyrinx.tasks.models import TaskExecution
 
@@ -262,11 +256,10 @@ def _deliver_admitted(qt, *, route, func, force_fail, drop, fault, sender):
 
 
 class TaskWorkerPool:
-    """A pool of daemon threads that poll the durable queue and deliver tasks.
+    """Daemon threads that poll and deliver the development task queue.
 
-    Used only under the dev server. Threads are daemons: a runserver autoreload
-    kills them, but the durable rows survive and are reclaimed once their lease
-    lapses — so an interrupted task is redelivered rather than lost.
+    Queue records survive autoreloads; interrupted deliveries become eligible
+    again when their leases expire.
     """
 
     def __init__(
@@ -319,12 +312,8 @@ class TaskWorkerPool:
         still_alive = [t for t in self._threads if t.is_alive()]
         self._threads.clear()
         self._started = False
-        # Only reset to a restartable state if the workers actually exited: then
-        # ensure_started() can start fresh threads without _loop() seeing a stale
-        # _stop and exiting immediately. If a join timed out (a long-running
-        # delivery), leave _stop set so the lingering threads still wind down —
-        # clearing it would let them keep running alongside a restarted pool and
-        # double-deliver.
+        # Clear the stop event only after every worker exits. A timed-out join must
+        # leave it set, preventing old threads from continuing beside a restarted pool.
         if not still_alive:
             self._stop.clear()
             self._wake.clear()
