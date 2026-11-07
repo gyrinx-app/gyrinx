@@ -1,12 +1,8 @@
-"""Taking a built-in off a carrier, and how a grant remembers its origin.
+"""Removing a built-in preserves the provenance of existing granted copies.
 
-An author removing a built-in changes what future acquisitions come
-with; what fighters already hold stands untouched. That only works if
-the membership row survives the removal, so removal archives it — and
-every copy a member materialises names that member and the carrier it
-came for (``materialised_from`` / ``materialised_for``), which is how a
-later reader tells a built-in's copy from an owner's own purchase of
-the same thing.
+Future acquisitions omit the removed member. Materialised copies keep their
+``materialised_from`` member and ``materialised_for`` carrier, so referenced
+members are archived instead of deleted.
 """
 
 import pytest
@@ -59,7 +55,7 @@ def ganger(person_type, gang_type, default_pack):
 
 
 def member_named(carrier, name):
-    """The built-in membership whose thing prints ``name``."""
+    """Find a built-in member by its displayed assignable name."""
     return next(
         member
         for member in carrier.built_ins.members.all()
@@ -78,7 +74,7 @@ def held_names(miniature):
 
 
 class TestRemovingABuiltIn:
-    """Removal is archival: the future changes, the past stands."""
+    """Removing a built-in changes future acquisitions and preserves existing copies."""
 
     def test_what_a_fighter_already_holds_stands(self, gang, ganger):
         fighter = hire(gang, ganger, "Ana", paid=50)
@@ -109,10 +105,10 @@ class TestRemovingABuiltIn:
         assert_reconciled(gang)
 
     def test_a_copy_with_no_link_no_longer_keeps_the_membership(self, gang, ganger):
-        """Provenance answers for every kind the estate tags, so a copy
-        stripped of its link reads as the owner's own and the membership
-        goes completely — only ammo, which is never tagged, still keeps
-        its member archived on the strength of an unlinked line."""
+        """Unlinked non-ammo copies do not keep an unused built-in member archived.
+
+        Ammo retains a separate fallback for copies without provenance.
+        """
         hire(gang, ganger, "Ana", paid=50)
         member = member_named(ganger, "Stub gun")
         for row in Assignment.objects.filter(materialised_from=member):
@@ -126,9 +122,7 @@ class TestRemovingABuiltIn:
         assert_reconciled(gang)
 
     def test_a_member_nothing_materialised_from_goes_completely(self, ganger):
-        """Archival exists for the copies that name a member; with none,
-        an archived member would only linger invisibly, holding its
-        assignable under PROTECT with no page left to show why."""
+        """Delete unused members instead of retaining invisible PROTECT references."""
         member = member_named(ganger, "Stub gun")
         thing = member.assignable
         remove_default_member(member)
@@ -160,8 +154,7 @@ class TestRemovingABuiltIn:
         assert_reconciled(gang)
 
     def test_only_the_named_guns_lines_go_with_it(self, gang, ganger):
-        """What goes with a gun is what names it — its twin of the same
-        weapon keeps its own lines."""
+        """Remove only the ammo members linked to this copy of the weapon."""
         launcher = create_weapon("Launcher", profiles=[("Frag", 0)])
         smoke = WeaponProfile.objects.create(
             name="Smoke", weapon=launcher, price=10, position=1
@@ -268,8 +261,7 @@ class TestProvenance:
                         paid=0,
                     )
 
-        # An archived copy stands aside: the owner parted with the
-        # thing, and a deliberate re-grant is a fresh live copy.
+        # Archived copies do not prevent a fresh live grant for the same member.
         remove(copy)
         with operation(gang, actor=gang.owner) as op:
             op.assign(
@@ -321,9 +313,7 @@ def weapon_names(miniature):
 
 
 class TestRechooseFindsGrantsByProvenance:
-    """A swap unwinds the departing set whether its copies carry
-    provenance (written at hire) or carry none (found by their ledger
-    shape)."""
+    """Replacing an option removes the departing set's provenance-linked copies."""
 
     def sets_of(self, profile):
         return {
@@ -349,9 +339,7 @@ class TestRechooseFindsGrantsByProvenance:
         assert_reconciled(gang)
 
     def test_copies_without_provenance_are_the_owners_and_stay(self, gang, chooser):
-        """An unlinked copy of anything but ammo is never seized: the
-        unwind takes only what provenance names, so a copy stripped of
-        its link stays with the owner when the set is chosen away."""
+        """Preserve unlinked non-ammo copies when replacing the option that granted them."""
         fighter = hire_with_option(gang, chooser, "Ana")
         for row in Assignment.objects.filter(
             miniature_root=fighter, materialised_from__isnull=False
@@ -366,8 +354,7 @@ class TestRechooseFindsGrantsByProvenance:
         assert_reconciled(gang)
 
     def test_an_archived_members_copy_still_leaves_with_its_set(self, gang, chooser):
-        """An author's removal never strands a copy: rechoosing away
-        from the set still takes what the archived member materialised."""
+        """Archived members still identify their copies when replacing an option."""
         fancy = self.sets_of(chooser)["Fancy kit"]
         fighter = hire_with_option(gang, chooser, "Ana", option=fancy)
         member = fancy.members.get()
@@ -384,8 +371,7 @@ class TestRechooseFindsGrantsByProvenance:
 
 class TestTheMemberRowOutlivesItsSetsUses:
     def test_a_materialised_member_cannot_be_hard_deleted(self, gang, ganger):
-        """PROTECT is what lets provenance point at members forever;
-        the authoring path archives instead and never trips this."""
+        """PROTECT preserves the member referenced by materialised copies; authoring archives it."""
         hire(gang, ganger, "Ana", paid=50)
         member = member_named(ganger, "Stub gun")
 
@@ -397,8 +383,7 @@ class TestTheMemberRowOutlivesItsSetsUses:
 
 
 class TestTheRemovePage:
-    """The authoring page's removal archives, and a removed member's
-    address has nothing left to ask about."""
+    """Removal archives referenced members and their remove URLs then return 404."""
 
     @pytest.fixture
     def author(self, client):
@@ -442,6 +427,5 @@ class TestArchivedMembersAndNewGrants:
         with operation(gang, actor=gang.owner) as op:
             op.rechoose(fighter.membership, option=sets["Fancy kit"])
 
-        # The set still swaps in — it simply brings nothing now.
         assert weapon_names(fighter) == []
         assert_reconciled(gang)

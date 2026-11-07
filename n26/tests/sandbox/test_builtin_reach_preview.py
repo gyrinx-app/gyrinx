@@ -1,13 +1,7 @@
-"""An author sees how far a built-in change travels before committing.
-
-The reach of an addition — how many live uses of the set exist, in how
-many gangs — is counted by the same carrier resolution the propagation
-pass walks, so the number the author reads is the number of uses a pass
-then visits. The pages that add a member say it in a sentence whose
-promise follows the feature flag: reach within seconds while passes
-run, a plain "when it is switched on" while they stand down, and its
-own quiet sentence when nothing holds the set at all. The preview is
-informative only — the pass recomputes when it runs.
+"""Verify the estimated reach shown before built-in edits and imports. Count eligible live
+uses through propagation's carrier resolution, excluding archived gangs and removed
+uses. Wording reflects the propagation flag and zero-holder case; execution recalculates
+current reach rather than trusting the preview.
 """
 
 import pytest
@@ -41,8 +35,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def flag(db):
-    """Passes run only while the flag is open; the wording tests that
-    want the within-seconds promise request this row."""
+    """Enable propagation for tests expecting the immediate-delivery wording."""
     return FeatureFlag.objects.create(
         slug=BUILT_IN_PROPAGATION,
         name="Built-in propagation",
@@ -71,8 +64,7 @@ def ganger(person_type, gang_type, default_pack):
 
 @pytest.fixture
 def foundation(default_pack):
-    """The seed rows the sheets resolve against, planted the way the
-    Foundations page plants them."""
+    """Seed the standard content required by uploaded sheets."""
     from n26.library.standard_content import STANDARD_CONTENT
 
     for item in STANDARD_CONTENT.values():
@@ -88,8 +80,7 @@ def comes_with_section(page):
 
 
 class TestTheReachPlanner:
-    """The counts are the carriers a pass visits: holders' live uses
-    and option selectors, outside archived gangs, nothing else."""
+    """Count live carrier uses and selected options in unarchived gangs."""
 
     def test_the_counts_agree_with_what_a_pass_then_touches(
         self, ganger, gang_type, player, default_pack, task_queue, flag
@@ -148,8 +139,7 @@ class TestTheReachPlanner:
     def test_an_owners_removal_of_the_thing_is_not_a_use(
         self, ganger, gang_type, player, default_pack
     ):
-        """A removes assignment is the owner striking the thing off, so
-        nothing rides it — a pass skips it and the count does too."""
+        """Exclude removal assignments because they are not live carriers of the content."""
         cursed = create_rule("Cursed")
         add_built_in(cursed, create_rule("Curse Mark"))
         gang = found_gang("The Bad Girls", gang_type, owner=player, budget=1000)
@@ -167,8 +157,9 @@ class TestTheReachPlanner:
     def test_a_thing_with_no_set_yet_counts_its_own_uses(
         self, person_type, gang_type, player, default_pack
     ):
-        """The first built-in founds the set on the thing, so before it
-        exists the reach is the thing's own live uses."""
+        """Before a built-in set exists, estimate reach from live uses of the carrier that
+        will receive it.
+        """
         bare = create_profile("Plain Hand", person_type, gang_type, price=50)
         gang = found_gang("The Bad Girls", gang_type, owner=player, budget=1000)
         hire(gang, bare, "Ana", paid=50)
@@ -195,8 +186,7 @@ class TestTheReachPlanner:
 
 
 class TestTheAuthoringPagesSayIt:
-    """Each page that adds a member carries the sentence, rendered
-    server-side, its promise following the feature flag."""
+    """Render reach estimates with wording appropriate to the propagation flag."""
 
     def test_the_comes_with_form_says_the_reach(
         self, client, author, ganger, gang_type, player, default_pack, flag
@@ -321,9 +311,7 @@ class TestTheAuthoringPagesSayIt:
         assert said in page.content.decode()
 
 
-#: The profiles sheet with one line grown: Way-Brethren gains the
-#: Witch special rule the pack already holds, so a re-upload plans one
-#: set update whose only difference is the added member.
+#: Add an existing Witch rule to Way-Brethren so re-uploading plans one added set member.
 def grown_profiles_csv():
     from n26.tests.sandbox.test_ingest import PROFILES_CSV
 
@@ -333,8 +321,7 @@ def grown_profiles_csv():
 
 
 class TestTheIngestPreviewSaysIt:
-    """The real upload renders the reach sentence and follows the flag;
-    plans without added members on standing sets need no reach query."""
+    """Only plans adding members to existing sets need reach queries or estimates."""
 
     def test_the_reach_line_reflects_standing_uses_and_the_feature_flag(
         self, client, author, foundation, player, default_pack
@@ -397,9 +384,9 @@ class TestTheIngestPreviewSaysIt:
 
 
 class TestRemovalSaysWhatKeepsIt:
-    """Taking a built-in off a set does not take it off anything that
-    already has it, and the page says so with the count — an author who
-    has watched an addition travel would otherwise expect the reverse."""
+    """Removing a built-in member preserves existing assignments; report how many copies
+    will remain.
+    """
 
     def test_the_page_counts_the_copies_that_keep_it(
         self, client, author, player, gang_type, ganger

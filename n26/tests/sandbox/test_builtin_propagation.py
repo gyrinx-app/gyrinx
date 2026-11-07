@@ -1,19 +1,9 @@
-"""An author's addition reaches the gangs already holding the thing.
+"""Verify durable propagation of built-in additions to existing gangs. File work in the
+authoring transaction and publish after commit; duplicate delivery must not create extra
+grants.
 
-Adding a member to a set of defaults files a durable
-``BuiltInPropagationTask`` in the edit's own transaction and publishes
-a message after commit; the pass reconciles every gang holding the
-set. The promises proved here: a rolled-back edit files nothing;
-filing is append-only, so every edit gets a row and a pass of its own
-— even one landing while another pass is running; delivery is
-at-least-once, so a duplicate stands down and grants nothing twice; a
-lost message leaves a PENDING row the scheduled sweep drains; a set
-reaches every holder and an option set only its selectors; what a gang
-already holds — or its owner parted with — is left alone; the history
-tells a propagated grant in the equip screen's own words, with nobody
-as the actor; and the running side sits behind a feature flag that
-loses no work while shut. Delivery chaos is scripted through the
-manual task queue.
+Exercise lost-message recovery, shared holders, selected options, owner removals,
+actorless history and paused execution through the manual task queue.
 """
 
 from datetime import timedelta
@@ -46,8 +36,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture(autouse=True)
 def flag(db):
-    """The running side sits behind a feature flag; open it for the
-    whole suite. The kill-switch tests shut this row themselves."""
+    """Enable propagation for this suite; individual disabled-state tests change the flag."""
     return FeatureFlag.objects.create(
         slug=BUILT_IN_PROPAGATION,
         name="Built-in propagation",
@@ -67,8 +56,7 @@ def gang(gang_type, player):
 
 @pytest.fixture
 def drain(task_queue):
-    """Run everything a piece of authoring files, so the next edit
-    under test starts from finished passes rather than standing ones."""
+    """Deliver setup propagation tasks before the next authoring change under test."""
 
     def _drain(build):
         with task_queue.capture():
@@ -81,7 +69,7 @@ def drain(task_queue):
 
 @pytest.fixture
 def ganger(person_type, gang_type, default_pack, drain):
-    """A profile with one built-in rule, its founding passes settled."""
+    """Profile with one built-in rule and completed setup propagation."""
 
     def _build():
         profile = create_profile("Ganger", person_type, gang_type, price=50)
@@ -100,9 +88,9 @@ def statuses():
 
 
 def run_sweep(task_queue, monkeypatch, at_once=True):
-    """Invoke the sweep the way dev and tests must — directly, since the
-    local backend fires no schedules — with its patience removed so a
-    just-filed row counts as stale."""
+    """Invoke the sweep directly because the local backend does not run schedules.
+    Optionally make newly filed work immediately eligible for republication.
+    """
     if at_once:
         monkeypatch.setattr(propagation, "REPUBLISH_AFTER", timedelta(0))
     with task_queue.capture():
@@ -110,9 +98,9 @@ def run_sweep(task_queue, monkeypatch, at_once=True):
 
 
 class TestTheFilingRidesTheEdit:
-    """Filing happens in the authoring transaction, append-only: an
-    edit that commits gets a row and a pass of its own, and one that
-    rolls back files nothing."""
+    """Persist a distinct propagation task per committed edit and none for rolled-back
+    changes.
+    """
 
     def test_a_rolled_back_edit_files_nothing_and_sends_nothing(
         self, gang, person_type, gang_type, default_pack, task_queue
@@ -158,9 +146,9 @@ class TestTheFilingRidesTheEdit:
     def test_every_edit_files_its_own_row_and_every_row_is_run(
         self, gang, ganger, default_pack, task_queue
     ):
-        """Two edits never share a row: each files its own, the first
-        pass grants everything the library holds by then, and the
-        second finishes as a no-op rather than being folded away."""
+        """Retain both edit records even when the first pass grants all current members and
+        the second has no remaining work.
+        """
         fighter = hire(gang, ganger, "Ana", paid=50)
         before = BuiltInPropagationTask.objects.count()
 
@@ -184,9 +172,7 @@ class TestTheFilingRidesTheEdit:
 
 
 class TestDeliveryChaos:
-    """Delivery is at-least-once and the publish is fire-and-forget: a
-    duplicate loses the claim and stands down; a lost message leaves a
-    PENDING row the sweep re-publishes."""
+    """Ignore duplicate claims and recover lost publication from durable pending work."""
 
     def test_a_duplicate_delivery_stands_down_and_grants_nothing_twice(
         self, gang, ganger, default_pack, task_queue
@@ -242,8 +228,9 @@ class TestDeliveryChaos:
 
 
 class TestReach:
-    """A pass finds every gang holding the set — however many things
-    hold it — and an option set reaches only the carriers that chose it."""
+    """Reach every holder of a shared set, restricting option-set updates to models that
+    selected that option.
+    """
 
     def test_a_set_shared_by_two_profiles_reaches_every_holder(
         self, gang_type, person_type, player, default_pack, task_queue, drain
@@ -305,9 +292,9 @@ class TestReach:
 
 
 class TestSettledGangsAreUntouched:
-    """A pass creates only what provenance says is missing: a gang that
-    already holds the member gains nothing and hears nothing, and what
-    an owner archived is never handed back."""
+    """Grant only missing provenance-linked assignments, preserving existing assignments
+    and owner removals.
+    """
 
     def test_a_redundant_pass_writes_no_assignment_and_no_event(
         self, gang, ganger, default_pack, task_queue
@@ -362,9 +349,9 @@ class TestSettledGangsAreUntouched:
 
 
 class TestTheHistoryTellsIt:
-    """A propagated grant is its own kind of act: told in the equip
-    screen's "comes with" words, with nobody as the actor, and one
-    pass's gains for a gang folded into one line."""
+    """Record actorless propagated grants, grouping changes from one source into one
+    history entry.
+    """
 
     def test_a_lone_gain_names_the_model_and_the_source(
         self, gang, ganger, default_pack, task_queue
@@ -424,10 +411,9 @@ class TestTheHistoryTellsIt:
 
 
 class TestAnEditLandingMidPass:
-    """An edit is never lost to a pass already in flight. A running
-    pass reads the library when it runs, so it can miss an edit that
-    lands after that read — but the edit filed its own row, whose pass
-    publishes only after the edit commits and so always sees it."""
+    """Each concurrent edit files independent work, so a change missed by an active pass
+    remains pending for another pass.
+    """
 
     def test_it_files_its_own_row_and_both_passes_end_done(
         self, gang, ganger, default_pack, task_queue, monkeypatch
@@ -448,8 +434,8 @@ class TestAnEditLandingMidPass:
             first_member = add_built_in(ganger, create_rule("First Wind"))
         task_queue.deliver_all()
 
-        # The first pass granted its member and ended DONE having never
-        # seen the later edit; that edit's own row still stands.
+        # The first delivery completed before the second edit; its independent task
+        # remains pending.
         assert Assignment.objects.filter(
             materialised_from=first_member, materialised_for=fighter.membership
         ).exists()
@@ -470,10 +456,9 @@ class TestAnEditLandingMidPass:
 
 
 class TestTheFeatureFlagIsTheKillSwitch:
-    """Shut, the running side stands down and the filing does not:
-    every edit still files its row, a delivery leaves it PENDING, and
-    the sweep neither republishes nor refiles — so the backlog keeps,
-    and the first sweep after the flag opens drains it all."""
+    """File work while execution is disabled without delivering or republishing it.
+    Re-enabling execution allows the sweep to process the backlog.
+    """
 
     def test_shut_an_edit_files_a_row_a_delivery_leaves_pending(
         self, gang, ganger, default_pack, task_queue, flag
@@ -506,8 +491,8 @@ class TestTheFeatureFlagIsTheKillSwitch:
             member = add_built_in(ganger, create_rule("First Wind"))
             failed = propagation.file_propagation_task(member.default_set)
         task_queue.deliver_all()
-        # One row stands PENDING; the later one is driven to FAILED so
-        # both retry legs would fire were the flag open.
+        # Include both pending and failed tasks so disabling the flag checks both sweep
+        # retry paths.
         failed.states.transition_to("RUNNING")
         failed.states.transition_to("FAILED", metadata={})
         rows = BuiltInPropagationTask.objects.count()
