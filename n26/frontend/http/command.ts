@@ -65,3 +65,17 @@ export async function postForm(
         );
     }
 }
+
+export type FormErrors = Record<string, string[]>;
+export function fieldErrors(value: unknown): value is FormErrors {
+    return (
+        !!value &&
+        typeof value === "object" &&
+        !Array.isArray(value) &&
+        Object.values(value).every(
+            (errors) =>
+                Array.isArray(errors) &&
+                errors.every((error) => typeof error === "string"),
+        )
+    );
+}
