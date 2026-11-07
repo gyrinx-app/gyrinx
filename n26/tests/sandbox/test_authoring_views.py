@@ -4271,16 +4271,11 @@ class TestTheCollectionPage:
 
 
 class TestTheModifierSection:
-    """Every assignable kind's page carries its modifiers: what hangs
-    here in scope-and-effect sentences, an attach picker for reusables,
-    and the two-step composer — kinds first (carried in the URL, so
-    step two survives a refresh), then the panes those kinds call for.
-    The section is derived from the mixin's M2M, never enumerated, so
-    a new assignable kind gets it without anyone remembering to say so.
+    """Carrier pages expose modifiers, shared attachments and composer controls;
+    foundation pages omit them.
     """
 
-    #: The empty condition formset's bookkeeping, present on every
-    #: compose POST the way the browser would send it.
+    #: Management fields for an empty condition formset, as submitted by the browser.
     NO_CONDITIONS = {
         "conditions-TOTAL_FORMS": "0",
         "conditions-INITIAL_FORMS": "0",
@@ -4305,9 +4300,6 @@ class TestTheModifierSection:
     def test_a_foundation_kind_has_a_page_without_one(
         self, author, client, default_pack
     ):
-        """A stat is not an assignable, so nothing can be hung on it —
-        but it is still authored, so it still has a page to be edited
-        on."""
         from n26.library.authoring import create_stat
 
         stat = create_stat("M", "Movement", is_inches=True)
@@ -4315,8 +4307,8 @@ class TestTheModifierSection:
 
         assert response.status_code == 200
         body = response.content.decode()
-        assert 'name="edit-full_name"' in body  # the edit form
-        assert 'name="scope_kind"' not in body  # but no composer
+        assert 'name="edit-full_name"' in body
+        assert 'name="scope_kind"' not in body
 
     def test_step_two_renders_the_panes_the_kinds_call_for(
         self, rule, client, default_pack
@@ -4327,8 +4319,8 @@ class TestTheModifierSection:
         ).content.decode()
         assert 'name="what-stat"' in body
         assert 'name="what-amount"' in body
-        # The who pane for a model scope is its condition chips: the
-        # scope itself has nothing to fill in, the verb said the reach.
+        # Model scopes have no other fields; their condition forms supply the optional
+        # narrowing.
         assert "Add a condition" in body
 
     def test_composing_attaches_here(self, rule, client, default_pack):
@@ -4379,14 +4371,13 @@ class TestTheModifierSection:
     def test_adding_a_condition_is_a_link_not_a_widget(
         self, rule, client, default_pack
     ):
-        """URL-driven: chips rides the query string, so the empty chip
-        survives a refresh and needs no JavaScript."""
+        """Carry empty condition forms in the query string so they survive a refresh."""
         body = client.get(
             f"/n26/authoring/rule/{rule.pk}/"
             "?scope_kind=targets_model&effect_kind=ef_adds&chips=1"
         ).content.decode()
         assert 'name="conditions-0-kind"' in body
-        assert "chips=2" in body  # the next link is already offered
+        assert "chips=2" in body
 
     def test_an_incompatible_pair_refuses_in_words(self, rule, client, default_pack):
         from n26.library.authoring import create_trait
@@ -4439,7 +4430,6 @@ class TestTheModifierSection:
         )
         assert response.status_code == 302
         assert rule.modifiers.count() == 0
-        # Detached, not destroyed: the other carrier keeps it.
         assert list(other.modifiers.all()) == [shared]
 
     def _compose_on_rule(self, rule, client, reusable):
@@ -4464,10 +4454,9 @@ class TestTheModifierSection:
     def test_reusable_names_it_generically_and_still_attaches(
         self, rule, client, default_pack
     ):
-        """The flag is about the name, not about where the row goes: an
-        author composing on a carrier wants it on that carrier either
-        way, and one that saved itself somewhere else would be a click
-        that appeared to do nothing."""
+        """The reusable flag changes naming without changing which carrier receives
+        the modifier.
+        """
         made = self._compose_on_rule(rule, client, reusable=True)
 
         assert rule.modifiers.count() == 1
@@ -4476,8 +4465,6 @@ class TestTheModifierSection:
     def test_named_for_its_carrier_when_it_is_not_reusable(
         self, rule, client, default_pack
     ):
-        """Named specifically, the carrier leads the name — so a list of
-        modifiers says which thing each one was written for."""
         made = self._compose_on_rule(rule, client, reusable=False)
 
         assert rule.modifiers.count() == 1
@@ -4495,10 +4482,9 @@ class TestTheModifierSection:
 
 
 class TestTheModifiersPage:
-    """The standalone listing: every modifier in the pack with its
-    sentences and carrier count. Reading and writing are separate pages,
-    as they are for a leaf kind — this one lists, and making one is a
-    button."""
+    """The modifier listing shows effect descriptions and carrier counts, with a link
+    to a separate creation page.
+    """
 
     def test_it_lists_every_modifier_with_its_reach(self, author, client, default_pack):
         from n26.library.authoring import (
@@ -4533,8 +4519,6 @@ class TestTheModifiersPage:
         assert not BeautifulSoup(body, "html.parser").select(PAGE_ISLAND)
 
     def test_it_offers_the_way_in_at_the_top(self, author, client, default_pack):
-        """The composer used to sit under the listing, which with a pack
-        of hundreds meant scrolling past every one of them to reach it."""
         body = client.get("/n26/authoring/modifiers/").content.decode()
 
         assert "/n26/authoring/modifiers/new/" in body
@@ -4549,9 +4533,7 @@ class TestTheModifiersPage:
     def test_more_modifiers_do_not_mean_more_queries(
         self, author, client, default_pack, django_assert_num_queries
     ):
-        """The page reads every modifier's sentence and counts every
-        carrier. Both are gathered for the whole page at once, so a pack
-        that grows costs rows, not round trips."""
+        """Descriptions and carrier counts must load without a query per modifier."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -4581,10 +4563,8 @@ class TestTheModifiersPage:
     def test_the_facets_cost_the_page_nothing(
         self, author, client, default_pack, django_assert_num_queries
     ):
-        """Every scope and effect kind on one page, so each facet is
-        populated and each row's kind is read. A facet worked out from
-        the rows already loaded must not cost a query, whichever kinds
-        the pack holds.
+        """Derive facet options from loaded data without a query per modifier or
+        kind.
         """
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
@@ -4603,9 +4583,9 @@ class TestTheModifiersPage:
 
 
 class TestComposingOnItsOwnPage:
-    """Making a modifier is a page of its own, reached from the listing's
-    New modifier button — the same two-step composer every carrier page
-    draws, with nothing to attach to."""
+    """Standalone composition creates an unattached modifier using scope and effect
+    kinds selected in the URL.
+    """
 
     def test_the_button_reaches_a_page_that_composes(
         self, author, client, default_pack
@@ -4617,8 +4597,9 @@ class TestComposingOnItsOwnPage:
         assert props["effect"]["name"] == "effect_kind"
 
     def test_the_two_steps_ride_the_url(self, author, client, default_pack):
-        """Both kinds and the empty condition chips are in the query
-        string, so step two survives a refresh without client state."""
+        """Keep selected kinds and empty condition forms in the query string so
+        composition survives a refresh.
+        """
         body = client.get(
             "/n26/authoring/modifiers/new/"
             "?scope_kind=targets_weapons&effect_kind=ef_adds&chips=1"
@@ -4626,9 +4607,9 @@ class TestComposingOnItsOwnPage:
 
         assert 'name="what-thing_kind"' in body
         assert 'name="conditions-0-kind"' in body
-        assert "chips=2" in body  # the next empty chip is already offered
-        # No reusable switch: there is nothing to attach to, so there
-        # is no carrier whose name the modifier could take instead.
+        assert "chips=2" in body
+        # Without a carrier, naming cannot switch between carrier-specific and reusable
+        # forms.
         assert 'name="make_reusable"' not in body
         assert "modifier-naming-" not in body
 
@@ -4653,9 +4634,7 @@ class TestComposingOnItsOwnPage:
 
         assert response.status_code == 302
         (made,) = Modifier.objects.all()
-        # Reusable by construction: no carrier anywhere holds it.
         assert _carrier_count(made) == 0
-        # And it lands on its own page, where it can be corrected.
         assert response["Location"] == f"/n26/authoring/modifiers/{made.pk}/"
         assert made.name in client.get(response["Location"]).content.decode()
 
@@ -4740,18 +4719,15 @@ class TestComposingOnItsOwnPage:
         client.post("/n26/authoring/modifiers/new/", made)
         response = client.post("/n26/authoring/modifiers/new/", made)
 
-        assert response.status_code == 200  # back on the form, not a 500
+        assert response.status_code == 200
         assert "already exists in this pack" in response.content.decode()
         assert Modifier.objects.filter(name="Grants Mounted").count() == 1
 
 
 def make_assorted_modifiers(prefix, client=None):
-    """One modifier of each of several scope and effect kinds, named
-    off ``prefix``.
+    """Create three modifiers spanning different scope, effect and attachment states.
 
-    The listing's facets are built from the kinds its rows hold, so a
-    page of one kind exercises none of them. Returns nothing: the tests
-    read the page, not these rows.
+    Names include the supplied prefix so several sets can exercise listing facets.
     """
     from n26.library.authoring import (
         attach_modifiers_to,
@@ -4786,16 +4762,8 @@ def make_assorted_modifiers(prefix, client=None):
 
 
 class TestTheButtonThatChangesTheModifierType:
-    """Step one of the composer picks the shape of everything below it,
-    and its button is worded by the surface: a carrier's page is where a
-    reader starts a modifier from nothing, so it invites — Configure new
-    modifier — while the standalone page's header has already said what
-    is being made and the click moves on to step two: Continue →.
-
-    Clicked with the pair the page is already showing it fetches the
-    same page again — and on a carrier's page it scrolls the reader back
-    to the top to do it — so it is dead until one of the two kinds
-    moves.
+    """The kind picker receives the served scope and effect pair and a submit label
+    for its page context.
     """
 
     @staticmethod
@@ -4828,7 +4796,6 @@ class TestTheButtonThatChangesTheModifierType:
     def test_a_page_drawn_from_no_kinds_matches_nothing_the_pickers_hold(
         self, author, client, default_pack
     ):
-        """The empty address is distinct from every pair the picker can submit."""
         body = client.get("/n26/authoring/modifiers/new/").content.decode()
 
         assert self.props(body)["served"] == {"scope": "", "effect": ""}
@@ -4836,9 +4803,9 @@ class TestTheButtonThatChangesTheModifierType:
     def test_a_kind_that_is_not_one_cannot_break_out_of_the_wiring(
         self, author, client, default_pack
     ):
-        """The pair the page is drawn from is written into the script,
-        and it comes off the address, where anything at all can be
-        typed."""
+        """Treat kind values from the URL as data in application/json props,
+        including script-like input.
+        """
         body = client.get(
             "/n26/authoring/modifiers/new/"
             "?scope_kind=%27%2Balert%281%29%2B%27&effect_kind=ef_adds"
@@ -4854,23 +4821,14 @@ class TestTheButtonThatChangesTheModifierType:
         assert soup.find(id=host["data-react-props"])["type"] == "application/json"
 
     def test_a_carriers_page_invites_rather_than_offers_a_change(self, carrier, client):
-        """The composer is one include on two surfaces, and the button is
-        inside it — but the wording is the caller's: at the foot of a
-        carrier's page nothing has been configured yet, so a button
-        offering to *change* a type reads as acting on one of the
-        modifiers above it."""
         body = client.get(f"/n26/authoring/rule/{carrier.pk}/").content.decode()
 
         assert self.props(body)["submitLabel"] == "Configure new modifier"
 
 
 class TestTheKindCards:
-    """The composer's two kind pickers draw as cards: a name, one plain
-    sentence saying what the verb does, and a concrete example behind an
-    icon — because the names alone assume machinery an author should not
-    have to hold in their head. Options that cannot work here are greyed
-    with the reason on the card, never hidden: a vanished option reads
-    as a bug, a greyed one teaches.
+    """Scope and effect cards explain their behaviour, examples and compatibility
+    restrictions.
     """
 
     @pytest.fixture
@@ -4893,8 +4851,6 @@ class TestTheKindCards:
             "The gang carrying it and all models",
             "The gang carrying it",
         }
-        # The gang-and-all-models card is kept for existing content and
-        # steered away from: it wears the pill and says to take care.
         deprecated = next(card for card in scopes if card["deprecated"])
         assert "in a different way per effect. Use with care." in (
             deprecated["description"] + deprecated["example"]
@@ -4908,8 +4864,7 @@ class TestTheKindCards:
     def test_the_cards_still_answer_to_the_selects_field_names(
         self, author, client, default_pack
     ):
-        """Native radios under the names the ChoiceFields validate, so
-        step one submits exactly what it always did."""
+        """Select the scope and effect cards named in the URL."""
         page = client.get(
             "/n26/authoring/modifiers/new/"
             "?scope_kind=targets_model&effect_kind=ef_changes_stat"
@@ -4928,9 +4883,9 @@ class TestTheKindCards:
     def test_a_carrier_that_is_never_fitted_greys_the_attached_scope(
         self, carrier, client
     ):
-        """A rule hangs on a card, not on a gun: on its page “The weapon
-        it's fitted to” is a disabled card carrying the reason, and its
-        radio cannot be picked."""
+        """Disable an attached-weapon scope for a rule and supply the incompatibility
+        reason.
+        """
         body = client.get(f"/n26/authoring/rule/{carrier.pk}/").content.decode()
 
         props = island_props(body, "modifier-kind-picker")
@@ -4961,8 +4916,9 @@ class TestTheKindCards:
     def test_every_effect_card_says_what_it_can_apply_to(
         self, author, client, default_pack
     ):
-        """The client-side gate reads it off the card's wrapper — every
-        effect states its kinds, so a scope click can grey the rest."""
+        """Supply each effect's accepted targets so the client can disable
+        incompatible choices.
+        """
         from n26.library.forms import EFFECT_CAN_TARGET
 
         body = client.get("/n26/authoring/modifiers/new/").content.decode()
@@ -4974,13 +4930,8 @@ class TestTheKindCards:
 
 
 class TestFindingAModifierAmongHundreds:
-    """A pack holds hundreds of modifiers, so the listing carries a
-    search and a filter per facet.
-
-    All three narrow rows already on the page — the sanctioned exception
-    to keeping UI state in the URL. So what the page must carry is what
-    the browser needs to do the narrowing: each row's own facets, and an
-    option list holding only the values the rows actually have.
+    """The modifier listing supplies search text and facet values for filtering
+    loaded content in the browser.
     """
 
     @pytest.fixture
@@ -4989,12 +4940,12 @@ class TestFindingAModifierAmongHundreds:
         make_assorted_modifiers("Beta")
 
     def facets(self, client):
-        """Each row's facets, as the page works them out."""
+        """Read facet data prepared for each modifier in the listing."""
         response = client.get("/n26/authoring/modifiers/")
         return [row["facets"] for row in response.context["rows"]]
 
     def options(self, client, name):
-        """One facet menu's options, in the order it draws them."""
+        """Read a facet menu's options in display order."""
         response = client.get("/n26/authoring/modifiers/")
         return response.context[f"{name}_options"]
 
@@ -5006,9 +4957,6 @@ class TestFindingAModifierAmongHundreds:
         assert len(props["carriedOptions"]) == 2
 
     def test_the_page_hands_every_rows_facets_to_the_browser(self, assorted, client):
-        """The narrowing happens in the browser, so each row has to
-        arrive knowing what it is — a row that registered nothing would
-        simply never show itself again once a filter moved."""
         body = client.get("/n26/authoring/modifiers/").content.decode()
         props = island_props(body)
 
@@ -5017,16 +4965,15 @@ class TestFindingAModifierAmongHundreds:
         assert 'x-init="register(facets)"' not in body
 
     def test_every_row_carries_what_the_search_reads(self, assorted, client):
-        """Name and sentences together, lowercased, so the comparison in
-        the browser is a plain substring test."""
+        """Combine lowercased names and descriptions for substring matching in the
+        browser.
+        """
         haystacks = [row["search"] for row in self.facets(client)]
 
         assert any("alpha grants a subtype" in hay for hay in haystacks)
         assert any("adds alpha subtype" in hay for hay in haystacks)
 
     def test_a_search_that_names_a_carrier_state_finds_it(self, assorted, client):
-        """Whether anything holds a modifier is in the sentence as well
-        as in the facet, so typing it works too."""
         haystacks = [row["search"] for row in self.facets(client)]
 
         assert any("reusable — attached nowhere yet" in hay for hay in haystacks)
@@ -5045,7 +4992,6 @@ class TestFindingAModifierAmongHundreds:
         rows = self.facets(client)
 
         assert {row["carried"] for row in rows} == {"carried", "uncarried"}
-        # One of the three in each set is attached to a rule.
         assert sum(row["carried"] == "carried" for row in rows) == 2
 
     def test_each_facet_offers_the_values_the_rows_hold(self, assorted, client):
@@ -5065,10 +5011,7 @@ class TestFindingAModifierAmongHundreds:
     def test_a_facet_offers_nothing_the_page_does_not_have(
         self, author, client, default_pack
     ):
-        """A filter naming a kind no row on the page has is a control
-        whose only effect is to empty the list, so it is not offered —
-        and with a single value there is nothing to narrow, so the menu
-        is not drawn at all."""
+        """Supply only facet values present in the current results."""
         from n26.library.authoring import (
             create_subtype,
             ef_adds,
@@ -5087,10 +5030,7 @@ class TestFindingAModifierAmongHundreds:
         assert len(props["effectOptions"]) == 1
 
     def test_the_menus_are_named_as_the_composer_names_them(self, assorted, client):
-        """The Reaches facet offers one option per reach, in the
-        composer's own card words — one scope model holds two reaches,
-        so the column's verbose name cannot tell them apart. Effects
-        keep the models' verbose names."""
+        """Use composer labels to distinguish scope verbs that share a model."""
         by_value = {
             option["value"]: option["label"]
             for option in self.options(client, "scope") + self.options(client, "effect")
@@ -5101,10 +5041,9 @@ class TestFindingAModifierAmongHundreds:
         assert by_value["ef_changes_stat"] == "Changes a stat"
 
     def test_every_verb_wears_its_own_card_label(self, author, client, default_pack):
-        """One modifier per scope verb and one per placement verb: the
-        facet offers every option under its composer card name, keyed by
-        verb — a column-keyed facet would lump the pairs that share a
-        model."""
+        """Key facets by authoring verb so scopes and placement effects sharing a
+        model remain distinct.
+        """
         from n26.library.authoring import (
             create_category,
             create_collection,
@@ -5158,9 +5097,6 @@ class TestFindingAModifierAmongHundreds:
         assert by_value["ef_places_choice"] == "Puts the player's choice into a section"
 
     def test_the_two_gang_reaches_filter_apart(self, author, client, default_pack):
-        """A modifier kept the gang's alone is not found under the
-        gang-and-all-models filter, and each option wears its own card
-        label."""
         from n26.library.authoring import (
             create_rule,
             ef_adds,
@@ -5183,9 +5119,6 @@ class TestFindingAModifierAmongHundreds:
         assert by_value["targets_gang_alone"] == "The gang carrying it"
 
     def test_the_readout_counts_what_was_rendered(self, assorted, client):
-        """The number above the list and the rows in it are computed
-        from one array in the browser, so the server's job is only to
-        seed it with the total."""
         response = client.get("/n26/authoring/modifiers/")
 
         assert response.context["count"] == 6
@@ -5194,9 +5127,9 @@ class TestFindingAModifierAmongHundreds:
     def test_a_page_of_hundreds_still_reads_flat(
         self, author, client, default_pack, django_assert_num_queries
     ):
-        """The whole set is rendered, because the filtering happens in
-        the browser. That is only affordable while reading it costs a
-        fixed number of queries."""
+        """Client-side filtering loads all modifiers, so query counts must not
+        increase with their number.
+        """
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -5226,11 +5159,7 @@ class TestFindingAModifierAmongHundreds:
 
 
 def drawn_picked(body, value):
-    """Whether the page drew this option already chosen.
-
-    The control is written across several lines, so the question cannot
-    be asked with a plain substring.
-    """
+    """Check whether an option has the selected attribute, allowing multiline markup."""
     return (
         re.search(rf'<option\s+value="{re.escape(str(value))}"[^>]*\sselected', body)
         is not None
@@ -5238,16 +5167,11 @@ def drawn_picked(body, value):
 
 
 class TestAModifiersOwnPage:
-    """A modifier is corrected and removed on a page of its own.
-
-    The fact that page exists to say is sharing: one modifier row hangs
-    on as many carriers as have been given it, so an edit reaches all of
-    them and a delete takes the behaviour off all of them. Both acts
-    name the carriers before they happen.
+    """Editing a shared modifier changes every carrier; deleting it detaches every
+    carrier and removes its component records.
     """
 
-    #: A prefilled formset's bookkeeping, as the browser would send it
-    #: back after drawing ``count`` chips.
+    #: Management fields for a prefilled condition formset with count initial forms.
     @staticmethod
     def chips(count=0):
         return {
@@ -5265,7 +5189,7 @@ class TestAModifiersOwnPage:
 
     @pytest.fixture
     def shared(self, mounted):
-        """One modifier on two carriers — the case the page is for."""
+        """One modifier attached to two carriers."""
         from n26.library.authoring import (
             attach_modifiers_to,
             create_rule,
@@ -5294,9 +5218,7 @@ class TestAModifiersOwnPage:
         assert "Outrider" in body
 
     def test_the_page_states_the_settled_kinds_in_their_own_words(self, shared, client):
-        """The kinds are not offered again on this page, so each pane
-        leads with the card its kind was picked from — the correction is
-        made against what the kind means, read-only."""
+        """Explain immutable scope and effect kinds beside the editable fields."""
         made, _ = shared
         body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
 
@@ -5315,9 +5237,9 @@ class TestAModifiersOwnPage:
         assert "things carry this modifier" not in body
 
     def test_the_form_opens_on_what_the_modifier_says(self, shared, client):
-        """A union reads back as its kind and its pick, which is two
-        controls: a form that opened blank would silently offer to
-        replace the effect with nothing."""
+        """Preselect both the union kind and its referenced content when editing an
+        effect.
+        """
         made, _ = shared
         body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
 
@@ -5343,8 +5265,6 @@ class TestAModifiersOwnPage:
 
         for carrier in carriers:
             (held,) = carrier.modifiers.all()
-            # The same row, saying something else — nothing was
-            # re-attached, and nothing was left saying the old thing.
             assert held.pk == made.pk
             assert held.name == "Grants Wyrd"
             assert str(held.effect) == "adds Wyrd"
@@ -5369,9 +5289,9 @@ class TestAModifiersOwnPage:
         assert AddsAssignable.objects.count() == 1
 
     def test_the_kinds_are_not_up_for_grabs(self, shared, client, default_pack):
-        """The kinds are not offered by the page, so a submission naming
-        another one is not an author changing their mind — it is a
-        request the carriers never made, and it is ignored."""
+        """Ignore posted scope or effect kinds because they are immutable on this
+        edit page.
+        """
         from n26.library.models import TargetsMiniature
 
         made, _ = shared
@@ -5414,7 +5334,6 @@ class TestAModifiersOwnPage:
         body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
         assert drawn_picked(body, champion.pk)
 
-        # Changed: the chip comes back naming the other subtype.
         client.post(
             f"/n26/authoring/modifiers/{made.pk}/",
             {
@@ -5429,8 +5348,8 @@ class TestAModifiersOwnPage:
         made.refresh_from_db()
         assert "Leader" in str(made.scope)
 
-        # Taken off: Remove drops the chip from the form, and the save
-        # that follows it is what takes the condition off the row.
+        # Removal changes the draft form; saving the resulting form persists the
+        # condition change.
         removed = client.post(
             f"/n26/authoring/modifiers/{made.pk}/",
             {
@@ -5445,9 +5364,7 @@ class TestAModifiersOwnPage:
         )
         assert removed.status_code == 302
         made.refresh_from_db()
-        assert "Leader" in str(made.scope)  # the click saved nothing
-        # The address it sends the author to holds no chip, so the page
-        # that draws next shows none — including on a reload.
+        assert "Leader" in str(made.scope)
         assert "conditions-TOTAL_FORMS=0" in removed.url
         assert not drawn_picked(client.get(removed.url).content.decode(), leader.pk)
 
@@ -5466,8 +5383,9 @@ class TestAModifiersOwnPage:
     def test_a_weapon_scopes_trait_reads_back_as_a_chip(
         self, author, client, default_pack
     ):
-        """The weapon scope keeps its narrowing in a column rather than
-        in rows, and the page must not lose it on the way back."""
+        """Restore weapon-scope trait conditions from their stored column into the
+        condition form.
+        """
         from n26.library.authoring import create_stat as make_stat
         from n26.library.authoring import (
             create_trait,
@@ -5574,15 +5492,12 @@ class TestAModifiersOwnPage:
 
         assert Modifier.objects.count() == 0
         assert all(carrier.modifiers.count() == 0 for carrier in carriers)
-        # The parts a modifier is made of go with it: nothing points at
-        # them, so anything left would be unreachable.
+        # Delete unreferenced scope, effect and condition records with their modifier.
         assert TargetsMiniature.objects.count() == 0
         assert AddsAssignable.objects.count() == 0
         assert HasSubtypes.objects.count() == 0
 
     def test_deleting_leaves_what_the_effect_named_alone(self, shared, client):
-        """The subtype a modifier granted is content of its own. Only
-        the granting goes."""
         from n26.library.models import Subtype
 
         made, _ = shared
@@ -5591,8 +5506,9 @@ class TestAModifiersOwnPage:
         assert Subtype.objects.filter(name="Mounted").count() == 1
 
     def test_the_carrier_page_still_detaches_rather_than_deletes(self, shared, client):
-        """Two different acts, and the page keeps both: detaching takes
-        the modifier off one carrier, deleting removes it from all."""
+        """Detaching changes one carrier; deleting removes the modifier from every
+        carrier.
+        """
         made, carriers = shared
         here, other = carriers
         client.post(
@@ -5604,9 +5520,6 @@ class TestAModifiersOwnPage:
         assert list(other.modifiers.all()) == [made]
 
     def test_the_page_says_what_the_modifier_does(self, shared, client):
-        """The same sentence the carriers' own pages show, on the page
-        that edits it: an author correcting a modifier is reading what it
-        says, and the scope-and-effect line above is the shorthand."""
         made, _ = shared
         body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
 
@@ -5614,9 +5527,6 @@ class TestAModifiersOwnPage:
         assert "They gain the Mounted subtype, while they have it." in body
 
     def test_it_does_not_say_the_carriers_a_second_time(self, shared, client):
-        """The carriers are a table further up, with their kinds and a
-        link each. The about column's sentences would say less of the
-        same thing beside it, so that run is left off."""
         made, _ = shared
         body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
 
@@ -5652,9 +5562,9 @@ class TestAModifiersOwnPage:
 
 
 class TestTheModifierPagesAreStaffed:
-    """These routes are behind the same door as the rest of authoring:
-    stranger and signed-in reader alike are sent to log in, and neither
-    can post."""
+    """Modifier creation, editing and deletion require staff access for GET and POST
+    requests.
+    """
 
     @pytest.fixture
     def made(self, author, default_pack, client):
@@ -5702,17 +5612,16 @@ class TestTheModifierPagesAreStaffed:
 
 
 class TestAuthoringPagesDoNotScaleQueriesWithContent:
-    """More rows must mean more bytes on a page, never more round trips.
+    """Query counts must not increase when content or related records are added.
 
-    Every authoring surface reads a set of rows and walks something off
-    each one — a label through its section, a profile through its
-    built-ins, a weapon profile through its statline. Each walk must be
-    loaded with the set, so the budget is measured small and asserted
-    unchanged after the content grows.
+    Exercise labels, built-ins, statlines and placement descriptions that traverse
+    related data.
     """
 
     def assert_flat(self, client, url, grow, django_assert_num_queries):
-        """Grow, measure, grow again, and hold the line."""
+        """Measure query counts before and after growing the fixture; reject an
+        increase.
+        """
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -5732,8 +5641,9 @@ class TestAuthoringPagesDoNotScaleQueriesWithContent:
         gang_type,
         django_assert_num_queries,
     ):
-        """The listing names each profile's list access — read through
-        its built-ins — so those load with the listing, not per row."""
+        """Resolve equipment-list access through prefetched built-ins rather than
+        per-profile queries.
+        """
         from n26.library.authoring import (
             add_built_in,
             create_collection,
@@ -5754,8 +5664,6 @@ class TestAuthoringPagesDoNotScaleQueriesWithContent:
     def test_the_category_listing_and_a_category_page_read_flat(
         self, author, client, default_pack, django_assert_num_queries
     ):
-        """A category says itself as "section: name", on the listing and
-        in the sibling switcher on every category's own page."""
         import itertools
 
         from n26.library.authoring import create_category, create_section
@@ -5784,8 +5692,6 @@ class TestAuthoringPagesDoNotScaleQueriesWithContent:
     def test_a_weapon_page_reads_flat_however_many_profiles(
         self, author, client, default_pack, django_assert_num_queries
     ):
-        """Each line shows its typed stats and its traits; the page
-        loads them with the lines."""
         from n26.library.authoring import (
             add_weapon_profile,
             create_stat,
@@ -5890,8 +5796,9 @@ class TestAuthoringPagesDoNotScaleQueriesWithContent:
     def test_placement_modifiers_do_not_mean_more_queries(
         self, author, client, default_pack, django_assert_num_queries
     ):
-        """A placement's sentence reads two hops — its section, that
-        section's collection — the deepest walk any modifier makes."""
+        """Placement descriptions traverse the section and its collection without
+        adding queries per modifier.
+        """
         from n26.library.authoring import (
             attach_modifiers_to,
             create_category,
