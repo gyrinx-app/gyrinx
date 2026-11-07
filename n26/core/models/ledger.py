@@ -1,30 +1,16 @@
-"""The ledger — what a gang acquired, what it paid, and how it changed.
+"""Store acquisition totals per assignment and record changes as ledger events.
 
-Two halves, both kept:
+A LedgerEntry records prices, payment, Trade Points, rating and acquisition
+reason. Folding its events must reproduce its current totals;
+n26.core.reconcile checks this invariant.
 
-* a **ledger entry**, one per assignment: the assignable it was for, the
-  price at the time, discount, what was paid, what it contributes to
-  rating, and why it exists;
-* **ledger events**, append-only, each recording one change and who made
-  it.
+Standalone journal events record gang or model changes without an entry.
+A clone's standalone event contains display summaries while its per-assignment
+events preserve the entry folds. Every event records its gang for history.
 
-Invariant: folding an entry's events reproduces the entry.
-``n26.reconcile`` checks it.
-
-An event may also stand alone, about a model or the gang instead of an
-assignment, for unpriced changes: a rename, a note, a characteristic set
-by hand. The invariant covers entries only, and a standalone event has no
-entry to fold into. A model clone's event keeps display-only summary
-figures in its machine-readable note, so a paged history can describe the
-whole clone from one event. Every event is pinned to its gang, so a gang's
-whole history is one ordered query.
-
-Some standalone events do move money: a **transfer** between gangs (such as
-a ransom paid to the captor), income, a manual credits adjustment, and the
-correction a gang takes when it first gets a budget. None buys anything, so
-there is no entry to fold into. The credits recompute reads their deltas
-straight off the events, summing the gang's events with and without an
-assignment alike.
+Standalone credit transfers, income, manual adjustments and initial-budget
+corrections also affect spending totals. Reconciliation sums their credit
+deltas alongside events linked to assignments.
 """
 
 from django.db import models
@@ -42,8 +28,7 @@ class Reason(models.TextChoices):
     GRANTED = "granted", "Granted by something else"
     REWARD = "reward", "Reward"
     FREE = "free", "Free"
-    # An owner's own edit to a model: a subtype or rule they added or
-    # removed. Priced at nothing; a per-section reset archives these.
+    # Owner-added subtype or rule changes cost nothing and are archived by section resets.
     EDITED = "edited", "Edited by the owner"
 
 
@@ -77,11 +62,9 @@ class LedgerEntry(Base):
             "get-out is a purchase with no entry."
         ),
     )
-    #: The open activity this purchase counted against. An activity's spend
-    #: is the sum over the purchases pointing at it, and a refund's event
-    #: sits on the same assignment, so a refund returns Trade Points to the
-    #: activity that paid them, however much later. Null for a purchase the
-    #: owner confirmed with no activity open; it counts against nothing.
+    #: Attribute refunds to the purchase's original activity, even when issued
+    #: later. A purchase confirmed without an open activity has no activity
+    #: allowance to debit or restore.
     activity = models.ForeignKey(
         "n26.Activity",
         on_delete=models.SET_NULL,
@@ -94,12 +77,9 @@ class LedgerEntry(Base):
             "made with no activity open."
         ),
     )
-    #: The model whose Trade Points paid for this. An allowance can belong
-    #: to one model, so spend follows the buyer, not the item's current
-    #: host. Moving the item to the stash or another model refunds nothing,
-    #: and a later refund returns the points to the buyer. Null when nothing
-    #: counted against an activity, and for stash purchases, which no
-    #: model's allowance pays for.
+    #: Attribute Trade Point spending to the buyer rather than the current host.
+    #: Moving equipment does not refund points or charge another model. Leave
+    #: this empty for purchases outside activities and for gang-stash purchases.
     spent_by = models.ForeignKey(
         "n26.Miniature",
         on_delete=models.SET_NULL,
@@ -113,9 +93,9 @@ class LedgerEntry(Base):
             "stash."
         ),
     )
-    #: A clone copies an advancement's contribution but not the advancement
-    #: record that names it, so the copy's entry keeps that fact itself. The
-    #: database default lets a revision that predates the column still insert.
+    #: Retain the advancement classification when cloning its contribution
+    #: without the source action record. The database default permits inserts
+    #: from application versions that do not provide this column.
     cloned_from_advancement = models.BooleanField(
         default=False,
         db_default=False,
@@ -136,9 +116,7 @@ class LedgerEntry(Base):
 
     @property
     def assignable(self):
-        """What was acquired, read through the assignment. An amendment that
-        swaps the assignable therefore changes what existing history names.
-        """
+        """Resolve acquired content through its assignment, so changing that content also changes historical naming."""
         return self.assignment.assignable
 
     @property
@@ -167,8 +145,7 @@ class LedgerEvent(Base):
         PURCHASED = "purchased", "Purchased"
         ADDED = "added", "Added"
         GRANTED = "granted", "Granted"
-        # Granted by built-in propagation (``n26.core.propagation``).
-        # Its own kind so the history can say why the item appeared.
+        # Identify grants delivered by built-in propagation separately in history.
         CAUGHT_UP = "caught_up", "Caught up"
         MOVED = "moved", "Moved"
         TALLIED = "tallied", "Tallied"
@@ -180,21 +157,15 @@ class LedgerEvent(Base):
         AMENDED = "amended", "Amended"
         REPRICED = "repriced", "Repriced"
         REMOVED = "removed", "Removed"
-        # One removed assignment put back exactly as it was, when an
-        # arbitrator unarchives a campaign counter or label. Never a fresh
-        # grant: the value or pick it held comes back with it.
+        # Restore the existing campaign counter or label assignment with its
+        # previous value or pick rather than granting a new copy.
         RESTORED = "restored", "Restored"
         REFUNDED = "refunded", "Refunded"
-        # Separate from REFUNDED: a refund undoes a purchase and returns what
-        # was paid; a sale is a later trade at half the item's rating. The
-        # history and reconciliation both need to tell them apart.
+        # Distinguish sale proceeds from a refund of the original payment.
         SOLD = "sold", "Sold"
-        # Written when an owner's removal assignment is created ("Took away:
-        # Mounted"). ``ADDED`` would read as the opposite of what the owner
-        # did.
+        # Record an owner-authored suppression as a removal rather than an addition.
         TOOK_AWAY = "took_away", "Took away"
-        # Journal-only: no entry, no deltas, nothing for reconcile to fold.
-        # They record owner changes for the history.
+        # Journal-only changes have no entry or deltas to reconcile.
         RENAMED = "renamed", "Renamed"
         NOTED = "noted", "Notes edited"
         LORE_EDITED = "lore_edited", "Lore edited"
@@ -204,34 +175,25 @@ class LedgerEvent(Base):
         STAT_CLEARED = "stat_cleared", "Characteristic cleared"
         RATING_SET = "rating_set", "Base rating changed"
         RATING_RESET = "rating_reset", "Base rating reset"
-        # A clone's entries copy a snapshot of the source instead of
-        # replaying purchases against the current library. Per-assignment
-        # CLONED events keep each entry's fold correct; one standalone
-        # CLONED event is what the history shows.
+        # Copy entry snapshots rather than replaying current library prices.
+        # Per-assignment CLONED events preserve entry folds; a standalone event
+        # summarises the clone in history.
         CLONED = "cloned", "Cloned"
-        # The gang's budget changed after founding. Credits are recomputed
-        # as the budget less ledger spend, so a budget change moves the
-        # credits a player sees and belongs in the history. When a gang with
-        # no budget takes one, this event carries a correction that sets the
-        # spend total to the worth of what the gang holds, so spend on items
-        # since deleted stops counting. The correction is bookkeeping, not
-        # income, and the history shows no figure for it.
+        # Journal budget changes because they change displayed credits. When
+        # an unlimited gang adopts a budget, include a spending correction based
+        # on current holdings, excluding previously deleted items. History omits
+        # that correction figure because it is bookkeeping rather than income.
         BUDGET_SET = "budget_set", "Budget set"
-        # A Trading Post visit opening or closing, recorded without an
-        # Activity. Nothing writes this kind; it stays so existing events
-        # of this kind still render in the history.
+        # Retain this kind to render existing Trading Post boundary events that
+        # predate Activity records; current writers use activity events.
         TRADE_POINTS_SET = "trade_points_set", "Trade Points set"
-        # One fighter taking part in a Trading Post visit. Their Trade
-        # Points belong to the gang and are counted once, on the activity's
-        # opening event, so this event carries none. The note holds the
-        # name of the subtype that set their figure, or the figure itself
-        # when several did.
+        # Record a visitor without duplicating Trade Points already allocated
+        # on the activity's opening event. The note identifies the contributing
+        # subtype, or the figure when several subtypes contributed.
         VISITED_TRADING_POST = "visited_post", "Visited the trading post"
 
-        # An activity opening and closing (``n26.core.models.activity``).
-        # Neither carries deltas; what the activity did is the events
-        # between them. The note holds the activity kind, so history can
-        # name it without a join.
+        # Record activity boundaries without deltas. Store the activity kind in
+        # the note so history can name it without another join.
         ACTION_OPENED = "action_opened", "Action started"
         ACTION_CLOSED = "action_closed", "Action completed"
 
@@ -257,31 +219,23 @@ class LedgerEvent(Base):
         # when it is a gang in the app; the note gives the reason.
         TRANSFERRED = "transferred", "Credits transferred"
 
-        # A model's status changing: into Recovery, Critically Injured,
-        # Captured, Dead, or back to Active. Journal-only: nothing is
-        # priced, though a death changes the rating sum and ``settle``
-        # repins it. The note holds "was → now", then after a colon what
-        # caused it: the result whose effect set it, "Clean House", or
-        # nothing when the owner set it directly.
+        # Journal status changes without a ledger entry. Death affects the rating
+        # sum and settlement repins it. The note records previous and new status,
+        # followed by an optional cause after a colon.
         STATUS_SET = "status_set", "Status set"
 
-        # A table roll, recorded when it is made: before anything is picked
-        # and whether or not anything ever is. The pick that follows names
-        # this event (``Assignment.roll``). A roll with no pick stays in the
-        # history on its own, so a re-roll shows as two rolls. ``roll`` and
-        # ``dice`` hold the result; ``slot`` is what it was rolled for.
+        # Record the roll before a pick exists, retaining it even if no pick
+        # follows. Assignment.roll links a selected pick to this event. Store
+        # the result, dice and slot separately from the display note.
         ROLLED = "rolled", "Rolled"
 
-        # A campaign's asset coming to the gang or leaving it. Journal-only:
-        # the gang holds the asset and never owns it, so there is no entry
-        # and nothing for reconcile to fold. GRANTED still covers what a
-        # campaign type gives at joining, which is an assignment.
+        # Journal holding gains and losses without entries. GRANTED instead
+        # records the assignments supplied by a campaign type at joining.
         GAINED = "gained", "Gained"
         LOST = "lost", "Lost"
         INCOME = "income", "Income"
-        # Credits added or removed by hand, for whatever the app does not
-        # record itself. Its own kind so the history does not call it
-        # income; negative is credits in, positive is credits out.
+        # Distinguish manual credit adjustments from income: negative deltas
+        # add credits and positive deltas spend them.
         CREDITS_ADJUSTED = "credits_adjusted", "Credits adjusted"
         POST_BATTLE = "post_battle", "Post-battle results"
 
@@ -317,17 +271,13 @@ class LedgerEvent(Base):
     received_asset_type = ULIDField(null=True, blank=True, editable=False, default=None)
     # A holding roll is usable only in the ownership period that made it.
     holding_revision = models.PositiveIntegerField(null=True, blank=True)
-    #: Set on every event at write. It could be derived from the
-    #: assignment's roots or the model's membership; storing it makes a
-    #: gang's ordered history one query, without a join per event.
+    #: Pin the gang at write time so history does not resolve each event
+    #: through assignment roots or model membership.
     gang = models.ForeignKey(
         "n26.Gang", on_delete=models.CASCADE, related_name="ledger_events"
     )
-    #: The campaign the gang was in when this happened, if any. Taken from
-    #: the gang's membership at write time, not passed by callers, so a
-    #: campaign's log is one indexed read of what its gangs did while in it.
-    #: SET_NULL: the event still belongs to the gang if the campaign is
-    #: deleted.
+    #: Pin the current campaign from the gang's membership at write time.
+    #: SET_NULL preserves gang history when the campaign is deleted.
     campaign = models.ForeignKey(
         "n26.Campaign",
         on_delete=models.SET_NULL,
@@ -355,10 +305,8 @@ class LedgerEvent(Base):
     )
     post_battle_occurrence = models.UUIDField(null=True, blank=True, db_index=True)
     kind = models.CharField(max_length=20, choices=Kind)
-    #: Shared by every event one operation wrote, such as a hire and
-    #: everything it brought, or a reset and everything it undid. The
-    #: history shows events with the same batch as one change. Null means
-    #: no batch was recorded, and the history shows each event alone.
+    #: Group related operation events in history by their shared batch.
+    #: Without a batch, history displays each event separately.
     batch = models.UUIDField(null=True, blank=True, editable=False)
     # Only the event that identifies a retriable command carries its key.
     request_key = models.UUIDField(null=True, blank=True, editable=False)
@@ -419,10 +367,8 @@ class LedgerEvent(Base):
     #: on other kinds. Stored as a column so nothing has to parse the note
     #: to find it.
     roll = models.PositiveSmallIntegerField(null=True, blank=True)
-    #: The die that roll was of, as the table named it at the time — a
-    #: table may change its die later, and the record keeps what was
-    #: actually rolled. The library's closed set of dice; not declared
-    #: as choices here because the library imports this app.
+    #: Preserve the dice used even if the library table later changes.
+    #: Keep library choices out of this model to preserve the dependency direction.
     dice = models.CharField(max_length=8, blank=True, default="")
     #: The Slot a roll was made for. SET_NULL keeps the roll if the Slot is
     #: deleted.
@@ -532,9 +478,7 @@ class LedgerEvent(Base):
 
     @property
     def about(self):
-        """What the record concerns: the thing acquired, the model acted
-        on, the campaign's asset gained or lost, or — none set — the
-        gang itself."""
+        """Return the event's assignment content, model or campaign asset, falling back to the gang."""
         if self.assignment_id is not None:
             return self.assignment.assignable
         if self.miniature_id is not None:
