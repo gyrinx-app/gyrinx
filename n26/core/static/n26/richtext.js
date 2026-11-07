@@ -1,21 +1,14 @@
-/* Make TinyMCE follow the page's light/dark mode.
+/*
+ * Apply the page theme before TinyMCE initialises, and rebuild editors when it
+ * changes.
  *
- * The skin is baked in when an editor initialises, so this has two jobs: get the
- * right one in before the first init, and swap it when the mode changes.
- *
- * Getting in first is a matter of load order rather than cleverness. The widget
- * renders a <textarea class="tinymce" data-mce-conf="{...}">, and django-tinymce's
- * own init_tinymce.js reads that attribute on DOMContentLoaded. This file is
- * loaded *before* form.media, so its listener is registered first and runs first
- * — early enough to edit the config the library is about to read. Patching after
- * the fact would mean initialising in the wrong skin and flashing.
+ * Load this script before form.media so its DOMContentLoaded listener updates
+ * data-mce-conf before django-tinymce's init_tinymce.js reads it.
  */
 (function () {
     "use strict";
 
-    // File copies can provide a PNG filename with no MIME type. TinyMCE's
-    // image handler checks the MIME type, so it otherwise rejects a supported
-    // file before its normal image upload can run. Keep other clipboard data.
+    // Clipboard files can have a PNG filename without a MIME type. Supply it for TinyMCE's image handler while preserving other clipboard data.
     window.n26CampaignImages = function (editor) {
         editor.on(
             "paste drop",
@@ -67,8 +60,7 @@
         return document.documentElement.classList.contains("dark");
     };
 
-    // oxide-dark is the editor chrome; "dark" is the stylesheet inside the
-    // editable area, which is a separate document and inherits nothing.
+    // oxide-dark styles the editor controls; dark styles the separate document in the editing area.
     var appearance = function (dark) {
         return {
             skin: dark ? "oxide-dark" : "oxide",
@@ -87,8 +79,6 @@
         return conf;
     };
 
-    // Runs before django-tinymce's initialiser, so the first paint is already
-    // in the right skin.
     document.addEventListener("DOMContentLoaded", function () {
         var dark = isDark();
         editors().forEach(function (el) {
@@ -104,12 +94,7 @@
             if (dark === last || !window.tinymce) return;
             last = dark;
 
-            // A skin cannot be changed on a live editor, so each one is torn down and
-            // rebuilt. remove() writes the content back to the textarea on its way
-            // out, which is what the re-init then picks up — no manual save needed.
-            //
-            // get() with no argument, not the `editors` array: TinyMCE 7 dropped that
-            // property, and reading .slice() off undefined threw here silently.
+            // Changing the skin requires reinitialisation. remove() preserves content in the textarea, and get() returns the live editor instances.
             window.tinymce
                 .get()
                 .slice()
@@ -117,8 +102,7 @@
                     var el = editor.getElement();
                     if (!el || !el.dataset.mceConf) return;
                     var conf = withAppearance(el, dark);
-                    // django-tinymce resolves these JSON strings on first load.
-                    // Keep the live callbacks when changing the editor's skin.
+                    // django-tinymce resolves these JSON strings on first load. Preserve its resolved callbacks during reinitialisation.
                     ["setup", "images_upload_handler"].forEach(function (key) {
                         var callback = editor.options.get(key);
                         if (typeof callback === "function")
@@ -135,12 +119,10 @@
         });
     });
 
-    /* htmx serialises the textarea, not TinyMCE's iframe. A native submit
-     * copies the live content back because TinyMCE binds the form; htmx
-     * intercepts that event and would otherwise post whatever was in the
-     * box when the page loaded. Capture so this runs before htmx reads
-     * the fields. Saving one box must not send the other: triggerSave
-     * writes every editor to its textarea, and only this form is posted.
+    /*
+     * Copy live editor content into textareas before htmx serialises the form.
+     * Capture runs before htmx's submit handler; only the submitted form is
+     * sent.
      */
     document.addEventListener(
         "submit",
@@ -150,17 +132,10 @@
         true,
     );
 
-    /* The edit / render toggle.
-     *
-     * Preview reads the editor's *live* content rather than the saved value, so it
-     * reflects what you are typing — a preview of the stored value would be stale
-     * the moment you touched anything.
-     *
-     * What it shows is therefore your own input as your own browser renders it. It
-     * is not the sanitiser's output: safe_rich_text runs server-side at render
-     * time, and the "Sanitising" example on this component's page shows what it
-     * does to hostile markup. For ordinary editing the two agree, because TinyMCE
-     * will not produce anything the allowlist rejects.
+    /*
+     * Preview the current editor content locally. Server-side rendering
+     * applies safe_rich_text separately, so this preview does not verify
+     * sanitisation.
      */
     document.addEventListener("alpine:init", function () {
         window.Alpine.data("richText", function (initial) {
@@ -173,14 +148,7 @@
                     this.mode = mode;
                 },
 
-                // $root, not $el. Alpine resolves $el against whatever is being evaluated,
-                // so called from the button's @click it is the *button* — which contains no
-                // textarea, so this silently returned the initial value and the preview
-                // showed stale content. $root is always the element carrying x-data.
-                //
-                // Falls back to the textarea when TinyMCE has not booted — without the
-                // form's media the editor never initialises, and a blank preview would
-                // look like a bug in the component rather than a missing include.
+                // $root is the element with x-data; $el can be the clicked button. Read its textarea directly if TinyMCE has not initialised.
                 current: function () {
                     var el = this.$root.querySelector("textarea.tinymce");
                     if (!el) return this.html;

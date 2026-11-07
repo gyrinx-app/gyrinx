@@ -16,9 +16,9 @@ export type EquipPriceProps = {
     min: number;
     max: number;
     id?: string;
-    /** What the box already held before React mounted; empty stays empty. */
+    /** Input value before mount, preserving an empty value. */
     initial?: string;
-    /** The server-drawn box had focus when the island replaced it. */
+    /** Whether the native input had focus before mount. */
     restoreFocus?: boolean;
     selectionStart?: number | null;
     selectionEnd?: number | null;
@@ -75,7 +75,7 @@ function PriceBox({
         try {
             box.setSelectionRange(selectionStart, selectionEnd);
         } catch {
-            // A number box may refuse a caret range.
+            // Number inputs may not support selection ranges.
         }
     }, [restoreFocus, selectionStart, selectionEnd]);
     const price = Number(raw);

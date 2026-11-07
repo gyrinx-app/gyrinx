@@ -15,8 +15,8 @@ import { useDismiss } from "./anchoredPanel";
 const recipe = cotton.quickSwitcher;
 
 /**
- * One row: a destination (`href`) or, when the switcher has `onChoose`, a
- * choice reported by `value`. Whichever it carries is its identity.
+ * A destination identified by href, or a selectable value passed to onChoose.
+ * rowKey falls back to the label when both are absent.
  */
 export type SwitcherRow = {
     label: string;
@@ -26,7 +26,7 @@ export type SwitcherRow = {
 };
 
 export type QuickSwitcherProps = {
-    /** The leading link's words; empty draws the chevron alone. */
+    /** Leading link text; an empty label shows only the chevron. */
     label?: string;
     href?: string;
     heading: string;
@@ -38,17 +38,23 @@ export type QuickSwitcherProps = {
     minWidth?: string;
     /** One letter: Alt+Shift+that letter opens the panel. */
     hotkey?: string;
-    /** Words drawn inside the chevron button, before the chevron. */
+    /** Text inside the trigger button, before the chevron. */
     triggerWords?: string;
-    /** The first page, with the current row in it. */
+    /** Initial results, including the current destination when available. */
     items: SwitcherRow[];
     /** The identity of the row being viewed or chosen, or empty. */
     current?: string;
-    /** Where further pages and searches are read; empty means `items` is the whole list. */
+    /**
+     * JSON endpoint for searches and pagination. When absent, filter items
+     * locally.
+     */
     source?: string;
-    /** The offset of the next page, or null when `items` is all of it. */
+    /** Next page offset, or null when there are no further results. */
     next?: number | null;
-    /** Makes every row a choice: called with its value, then the panel closes. */
+    /**
+     * Selection callback; when provided, results pass their value and close
+     * the panel.
+     */
     onChoose?: (value: string) => void;
 };
 
@@ -63,7 +69,7 @@ type Page = { items: SwitcherRow[]; next: number | null };
 const GUTTER = 8;
 const GAP = 4;
 const SEARCH_DELAY = 150;
-/** How close to the bottom of the list, in pixels, the next page is fetched. */
+/** Distance from the list's bottom, in pixels, at which to fetch another page. */
 const PREFETCH = 160;
 
 function SvgIcon({
@@ -106,8 +112,8 @@ function appendNew(rows: SwitcherRow[], more: SwitcherRow[]) {
 }
 
 /**
- * A searchable menu of destinations that reads the rest of its list from the
- * server as it scrolls. Without a source, it is a fixed list searched here.
+ * Search destinations locally or through a JSON endpoint, fetching additional
+ * results as the panel scrolls.
  */
 export function QuickSwitcher({
     label = "",
@@ -151,21 +157,20 @@ export function QuickSwitcher({
         isOpen.current = open;
     }, [open]);
 
-    // Once every row is here, a search needs nothing from the server.
+    // Once the base list is complete, searches can run locally.
     const whole = !source || base.next === null;
     const wanted = query.trim().toLowerCase();
     const searching = !whole && shownQuery !== query.trim();
     const matches = (row: SwitcherRow) =>
         row.label.toLowerCase().includes(wanted);
-    // Until the server answers a new search, what is already loaded is
-    // narrowed here so the list responds to every keystroke.
+    // Filter loaded results immediately while the server search is pending.
     const found = whole
         ? (source ? base.rows : items).filter(matches)
         : searching
           ? listing.rows.filter(matches)
           : listing.rows;
-    // The row being viewed may not be one the source lists (a gang sheet
-    // anyone can read), so a server search would drop it.
+    // Preserve the current public gang sheet when the endpoint lists only
+    // the user's own gangs.
     const pinned = items.find((row) => !!current && row.href === current);
     const rows =
         pinned &&
@@ -210,8 +215,9 @@ export function QuickSwitcher({
                     setListing(updated);
                     setShownQuery(forQuery);
                     setLoading(false);
-                    // A new answer can put other rows where the highlight
-                    // was; Enter must not follow one nobody chose.
+                    // Reset the highlight after replacing results so Enter
+                    // cannot select a different destination at the same
+                    // index.
                     if (offset === 0) setActive(-1);
                 })
                 .catch((error: unknown) => {
@@ -230,8 +236,7 @@ export function QuickSwitcher({
         fetchPage(shownQuery, listing.next);
     }, [whole, loading, failed, listing.next, shownQuery, query, fetchPage]);
 
-    // A search reads the whole list on the server; a query already read is
-    // shown again without asking twice.
+    // Reuse cached results for repeated searches.
     useEffect(() => {
         if (whole || !open) return;
         const trimmed = query.trim();
@@ -280,8 +285,8 @@ export function QuickSwitcher({
                 event.ctrlKey
             )
                 return;
-            // With Alt held, event.key is whatever glyph the layout types;
-            // code is the physical key and keyCode follows the letter.
+            // Alt can change event.key to a layout-specific character; code
+            // and keyCode identify the shortcut letter.
             if (
                 event.code !== `Key${letter}` &&
                 event.keyCode !== letter.charCodeAt(0)
@@ -310,9 +315,8 @@ export function QuickSwitcher({
 
     useDismiss(root, trigger, open, close);
 
-    // Fixed to the window, beside the control, and inside the visual
-    // viewport: the on-screen keyboard shrinks that without changing the
-    // layout viewport.
+    // Use the visual viewport because the on-screen keyboard can reduce its
+    // height without changing the layout viewport.
     const place = useCallback(() => {
         const box = panel.current;
         const anchorNode = root.current;
@@ -371,7 +375,8 @@ export function QuickSwitcher({
     useEffect(() => {
         if (!open) return;
         function replace(event: Event) {
-            // A scroll inside the panel is the list moving, not the page.
+            // Scrolling the results does not change the panel's viewport
+            // position.
             if (
                 event.type === "scroll" &&
                 panel.current?.contains(event.target as Node)
@@ -392,8 +397,8 @@ export function QuickSwitcher({
         };
     }, [open, place]);
 
-    // A list shorter than the panel never scrolls, so it would never ask
-    // for the page after it.
+    // Fill short lists without waiting for a scroll event that cannot occur
+    // yet.
     useEffect(() => {
         const box = panel.current;
         if (!open || !box || !placed) return;
@@ -435,8 +440,7 @@ export function QuickSwitcher({
             event.preventDefault();
             row.click();
         } else if (event.key === "Escape") {
-            // Clearing the search is the smaller thing to undo; Escape
-            // again closes.
+            // Escape clears an active search before closing the panel.
             event.stopPropagation();
             event.nativeEvent.stopImmediatePropagation();
             if (query) {
@@ -448,9 +452,8 @@ export function QuickSwitcher({
         }
     }
 
-    // Width is settled before placing, so the first measurement is the
-    // one that sticks. Transparent rather than hidden until placed, because
-    // a hidden search box cannot take focus.
+    // Set width before measuring and keep the unplaced search field
+    // focusable with opacity:0.
     const panelStyle: CSSProperties = {
         minWidth: `min(${minWidth}, calc(100vw - ${2 * GUTTER}px))`,
         maxWidth: `calc(100vw - ${2 * GUTTER}px)`,
