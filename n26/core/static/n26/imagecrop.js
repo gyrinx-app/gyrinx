@@ -1,9 +1,9 @@
 /*
  * Crop picture-input uploads with Cropper.js before submitting the form.
  *
- * Confirmation replaces the selected file with the cropped JPEG. Forms marked
- * with data-crop-submit save from the dialog and display validation errors
- * there.
+ * Confirmation replaces the selected file with the cropped JPEG. File inputs
+ * marked with data-crop-submit save their form from the dialog and display
+ * validation errors there.
  * Cancelling an unconfirmed crop clears the file input.
  *
  * The server still validates, resizes and centre-crops every upload in
@@ -57,7 +57,7 @@
 
         /*
          * This fetch bypasses busy.js. Disable both buttons until it finishes
-         * to prevent duplicate saves or cancellation during a save.
+         * to prevent repeat confirmation or clicks on Cancel.
          */
         function working(on) {
             if (on) {
