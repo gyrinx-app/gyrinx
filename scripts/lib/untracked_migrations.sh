@@ -46,8 +46,8 @@ hide_untracked_migrations() {
 
 # Put back exactly the paths that hide_untracked_migrations moved, links
 # included. If a file was written at one of those paths while the check ran,
-# that file is newer than the parked copy, so it is not overwritten. Only empty directories are removed afterwards, so a file that
-# did not go back stays parked, and the hook fails and says where.
+# preserve it rather than overwrite it. Remove only empty directories afterwards.
+# Files that could not be restored remain parked, and the hook reports their path.
 restore_untracked_migrations() {
   local dir path
   dir="${_UNTRACKED_MIGRATIONS_DIR:-}"

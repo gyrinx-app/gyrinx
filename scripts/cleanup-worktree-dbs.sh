@@ -96,10 +96,7 @@ fi
 # ---------------------------------------------------------------------------
 # Informational: report worktree .venv sizes
 # ---------------------------------------------------------------------------
-# Each child worktree has its own .venv (#1772).  We don't reap orphan .venvs
-# — a venv lives inside its worktree directory, so `git worktree remove` (or
-# rm -rf) takes it down with the worktree.  Surface the sizes so contributors
-# can eyeball disk usage.
+# Worktree removal also removes its venv. Report sizes without deleting venvs.
 report_worktree_venvs() {
   local any=0
   while IFS= read -r wt_path; do
@@ -111,9 +108,7 @@ report_worktree_venvs() {
         any=1
       fi
       local size label
-      # Best-effort: `du` can fail (race on dir removal, unreadable subtrees).
-      # Don't let an informational lookup crash the script under `set -euo
-      # pipefail` — fall back to "?" instead.
+      # Unreadable or concurrently removed directories must not abort cleanup.
       size=$(du -sh "$wt_path/.venv" 2>/dev/null | awk '{print $1}' || echo "?")
       label=$(worktree_label "$wt_path")
       echo "  - ${label} (${wt_path}/.venv): ${size}"
