@@ -36,6 +36,7 @@ __all__ = [
     "page_context",
     "running_guard",
     "superuser_only",
+    "scrub_event_sessions_view",
 ]
 
 
@@ -101,6 +102,44 @@ def maintenance_index_view(request):
         write_pauses=WritePause.objects.order_by("scope"),
     )
     return render(request, "admin/maintenance/index.html", ctx)
+
+
+def scrub_event_sessions_view(request):
+    """Preview and start the bounded cleanup of legacy Event session keys."""
+    from gyrinx.maintenance.tasks import (
+        SESSION_SCRUB_OPERATION,
+        count_legacy_session_keys,
+        scrub_event_sessions,
+    )
+
+    remaining = count_legacy_session_keys()
+    if request.method == "POST":
+        running = running_guard(SESSION_SCRUB_OPERATION)
+        if running:
+            messages.error(request, "A session-key cleanup is already running.")
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[running.pk])
+            )
+        backfill = Backfill.objects.create(
+            operation=SESSION_SCRUB_OPERATION,
+            triggered_by=request.user,
+            status=Backfill.Status.RUNNING if remaining else Backfill.Status.DONE,
+            summary={"total": remaining, "cleared": 0, "remaining": remaining},
+        )
+        if remaining:
+            scrub_event_sessions.enqueue(backfill_id=str(backfill.pk))
+            messages.success(request, "Session-key cleanup started.")
+        else:
+            messages.success(request, "No legacy session keys remain.")
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.pk])
+        )
+
+    return render(
+        request,
+        "admin/maintenance/scrub_event_sessions.html",
+        page_context(request, "Clear legacy Event session keys", remaining=remaining),
+    )
 
 
 def write_pause_view(request, scope):

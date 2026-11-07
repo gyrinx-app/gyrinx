@@ -1,10 +1,15 @@
 """Platform middleware — edition-agnostic request handling."""
 
+import logging
 from datetime import datetime
+from threading import Lock
+from time import monotonic
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
-from django.core.exceptions import RequestDataTooBig
+from django.core.exceptions import DisallowedHost, RequestDataTooBig
+from django.db import connections
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
 from django.template import TemplateDoesNotExist, TemplateSyntaxError
@@ -30,7 +35,116 @@ from gyrinx.impersonation import (
     IMPERSONATE_STARTED_KEY,
     can_impersonate,
 )
+from gyrinx.security_events import (
+    record_security_event,
+    request_id,
+    request_route,
+    trace_id,
+)
 from gyrinx.timezones import resolve_request_timezone
+from gyrinx.tracker import track
+
+logger = logging.getLogger(__name__)
+
+
+class SecurityTelemetryMiddleware:
+    """Record rejected requests and route-level latency without request secrets."""
+
+    _ACCOUNT_ROUTES = {
+        "account_login": "login",
+        "account_signup": "signup",
+        "mfa_authenticate": "mfa",
+        "mfa_reauthenticate": "mfa",
+    }
+    _pool_stats_lock = Lock()
+    _last_pool_stats = 0.0
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        started = monotonic()
+        request_id(request)
+        response = self.get_response(request)
+        status = response.status_code
+        match = getattr(request, "resolver_match", None)
+        if request.method == "POST" and match and status in (200, 400, 401, 403, 429):
+            action = self._ACCOUNT_ROUTES.get(match.url_name)
+            if action:
+                record_security_event(
+                    request,
+                    action,
+                    "rate_limited" if status == 429 else "form_rejected",
+                    response_status=status,
+                )
+        if status == 403:
+            record_security_event(
+                request, "permission", "forbidden", response_status=status
+            )
+        elif status in (301, 302, 303, 307, 308) and urlsplit(
+            response.get("Location", "")
+        ).path in ("/accounts/login/", "/admin/login/"):
+            record_security_event(
+                request, "permission", "login_required", response_status=status
+            )
+        elif status == 400 and match is None:
+            try:
+                request.get_host()
+            except DisallowedHost:
+                reason = "invalid_host"
+            else:
+                reason = "bad_request"
+            record_security_event(request, "request", reason, response_status=status)
+
+        # Cloud Run already records every request. Emit route and duration for
+        # failures and a bounded sample of successful application responses.
+        if status >= 400 or int(request._security_request_id[:4], 16) % 10 == 0:
+            track(
+                "http_route_response",
+                route=request_route(request),
+                method=request.method,
+                status=status,
+                duration_ms=round((monotonic() - started) * 1000, 1),
+                request_id=request._security_request_id,
+                trace_id=trace_id(request),
+                sampled=status < 400,
+            )
+        try:
+            self._emit_pool_stats()
+        except Exception:
+            logger.exception("Failed to emit database pool stats")
+        return response
+
+    @classmethod
+    def _emit_pool_stats(cls):
+        now = monotonic()
+        if now - cls._last_pool_stats < 60:
+            return
+        with cls._pool_stats_lock:
+            if now - cls._last_pool_stats < 60:
+                return
+            # Django keeps one pool per process/alias. Reading the registry
+            # avoids creating a pool solely to report that it is unused.
+            pool = getattr(connections["default"], "_connection_pools", {}).get(
+                "default"
+            )
+            if pool is None:
+                return
+            stats = pool.get_stats()
+            cls._last_pool_stats = now
+        track("db_pool_stats", **stats)
+
+    def process_exception(self, request, exception):
+        from psycopg_pool import PoolTimeout
+
+        if isinstance(exception, PoolTimeout):
+            track(
+                "db_pool_timeout",
+                route=request_route(request),
+                request_id=request_id(request),
+                trace_id=trace_id(request),
+            )
+        return None
 
 
 class ClearLoggingRequestMiddleware:

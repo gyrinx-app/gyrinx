@@ -17,20 +17,39 @@ enforces ``is_staff``; mutation-capable views need tighter control), which means
 a registered operation cannot accidentally be published ungated.
 """
 
+from datetime import date
+
 from django.contrib import admin
 from django.urls import path
 
 from gyrinx.maintenance.models import Backfill
-from gyrinx.maintenance.registry import all_operations, operations
+from gyrinx.maintenance.registry import (
+    MaintenanceOperation,
+    all_operations,
+    operations,
+    register_operation,
+)
 from gyrinx.maintenance.views import (
     backfill_cancel_view,
     backfill_detail_view,
     maintenance_index_view,
+    scrub_event_sessions_view,
     superuser_only,
     write_pause_view,
 )
 
 __all__ = ["BackfillAdmin", "MaintenanceAdminSite", "OperationFilter"]
+
+
+register_operation(
+    MaintenanceOperation(
+        operation="scrub_event_sessions",
+        name="Clear legacy Event session keys",
+        description="Clear the session keys recorded before audit events used fingerprints.",
+        view=scrub_event_sessions_view,
+        added=date(2026, 11, 7),
+    )
+)
 
 
 class OperationFilter(admin.SimpleListFilter):

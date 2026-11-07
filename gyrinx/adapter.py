@@ -6,11 +6,21 @@ from allauth.account.adapter import DefaultAccountAdapter
 from allauth.mfa.adapter import DefaultMFAAdapter
 from django.conf import settings
 from django.contrib.sites.shortcuts import get_current_site
+from django.core.exceptions import PermissionDenied
+
+from gyrinx.client_ip import get_client_ip
 
 logger = logging.getLogger(__name__)
 
 
 class CustomAccountAdapter(DefaultAccountAdapter):
+    def get_client_ip(self, request):
+        """Use the same trusted proxy boundary as application audit events."""
+        ip = get_client_ip(request)
+        if ip is None:
+            raise PermissionDenied("Unable to determine client IP address")
+        return ip
+
     def is_open_for_signup(self, request):
         """Use ACCOUNT_ALLOW_SIGNUPS when configured, otherwise retain allauth's decision."""
         allow_signups = super().is_open_for_signup(request)

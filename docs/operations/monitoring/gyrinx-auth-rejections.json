@@ -1,0 +1,28 @@
+{
+  "displayName": "Gyrinx authentication rejection spike",
+  "combiner": "OR",
+  "enabled": true,
+  "documentation": {
+    "content": "At least 10 rejected login, signup, or MFA submissions in a minute. Inspect route, request trace, and client IP as described in docs/operations/security-observability.md.",
+    "mimeType": "text/markdown"
+  },
+  "conditions": [
+    {
+      "displayName": "More than 10 rejected account forms per minute",
+      "conditionThreshold": {
+        "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"gyrinx\" AND metric.type=\"logging.googleapis.com/user/gyrinx_auth_rejections\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "60s",
+            "perSeriesAligner": "ALIGN_RATE",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0.166667,
+        "duration": "0s",
+        "trigger": { "count": 1 }
+      }
+    }
+  ]
+}

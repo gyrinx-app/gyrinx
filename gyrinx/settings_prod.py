@@ -53,6 +53,12 @@ SECURE_HSTS_PRELOAD = False
 
 BASE_URL = "https://gyrinx.app"
 
+# The external application load balancer appends client and forwarding-rule
+# addresses to X-Forwarded-For. Use the client entry immediately before the
+# forwarding-rule entry; any earlier values may be attacker supplied.
+TRUSTED_X_FORWARDED_FOR_HOPS = 2
+ALLAUTH_TRUSTED_PROXY_COUNT = 2
+
 # Database connection pooling (psycopg_pool via Django's `pool` option).
 #
 # Persistent connections (CONN_MAX_AGE > 0) must stay OFF here. They are

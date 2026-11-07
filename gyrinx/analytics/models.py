@@ -1,17 +1,39 @@
+import hashlib
+import hmac
 import json
 import logging
 import re
 from enum import Enum
 
+from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from gyrinx.analytics.nouns import Edition, edition_for_noun, noun_choices
 from gyrinx.base_models import AppBase
+from gyrinx.client_ip import get_client_ip
 from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)
+SENSITIVE_CONTEXT_KEY = re.compile(
+    r"(^|_)(password|passphrase|secret|token|session_key|session_id|authorization|cookie)($|_)",
+    re.IGNORECASE,
+)
+
+
+def redact_sensitive_context(value):
+    """Avoid persisting caller-supplied bearer secrets in event context."""
+    if isinstance(value, dict):
+        return {
+            key: "[redacted]"
+            if SENSITIVE_CONTEXT_KEY.search(str(key))
+            else redact_sensitive_context(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [redact_sensitive_context(item) for item in value]
+    return value
 
 
 class EventVerb(models.TextChoices):
@@ -126,11 +148,12 @@ class Event(AppBase):
         help_text="IP address of the user when the action was taken",
     )
 
-    session_id = models.CharField(
-        max_length=40,
+    session_fingerprint = models.CharField(
+        max_length=64,
         null=True,
         blank=True,
-        help_text="Session ID of the user when the action was taken",
+        db_index=True,
+        help_text="One-way identifier used to link events from the same session.",
     )
 
     # Field being modified (for UPDATE events)
@@ -169,6 +192,8 @@ class Event(AppBase):
         if not self.edition or self.edition == Edition.UNKNOWN:
             self.edition = edition_for_noun(self.noun)
 
+        self.context = redact_sensitive_context(self.context)
+
         super().save(*args, **kwargs)
 
         try:
@@ -186,7 +211,7 @@ class Event(AppBase):
                 object_id=str(self.object_id) if self.object_id else None,
                 object_type=self.object_type.model if self.object_type else None,
                 ip_address=self.ip_address,
-                session_id=self.session_id,
+                session_fingerprint=self.session_fingerprint,
                 field=self.field,
                 context=self.context,
             )
@@ -213,26 +238,6 @@ def ensure_json_serializable(data):
             return str(data)
 
 
-def get_client_ip(request):
-    """Read the first X-Forwarded-For address, then X-Real-IP or REMOTE_ADDR.
-
-    Return None without a request. Header values are not validated here.
-    """
-    if not request:
-        return None
-
-    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-    if x_forwarded_for:
-        ip = x_forwarded_for.split(",")[0].strip()
-        return ip
-
-    x_real_ip = request.META.get("HTTP_X_REAL_IP")
-    if x_real_ip:
-        return x_real_ip.strip()
-
-    return request.META.get("REMOTE_ADDR")
-
-
 # Use broad crawler patterns to exclude automated traffic from engagement.
 # Some device names may also match the bot pattern.
 BOT_USER_AGENT_RE = re.compile(
@@ -247,6 +252,15 @@ def is_bot_request(request):
     return bool(BOT_USER_AGENT_RE.search(user_agent))
 
 
+def fingerprint_session(session_key):
+    """Correlate events in one session without retaining its bearer token."""
+    if not session_key:
+        return None
+    return hmac.new(
+        settings.SECRET_KEY.encode(), session_key.encode(), hashlib.sha256
+    ).hexdigest()
+
+
 def log_event(
     user, noun, verb, object=None, request=None, ip_address=None, field=None, **context
 ):
@@ -257,16 +271,22 @@ def log_event(
     values. Convert UUID-backed object keys through to_uuid when available.
     """
     try:
-        if request is not None and is_bot_request(request):
+        # Suppress only engagement events. A caller controls User-Agent, so it
+        # must never suppress sign-ins, account changes, or other writes.
+        if (
+            request is not None
+            and verb in (EventVerb.VIEW, EventVerb.CLICK)
+            and is_bot_request(request)
+        ):
             return None
 
-        session_id = None
+        session_fingerprint = None
         if (
             request
             and hasattr(request, "session")
             and hasattr(request.session, "session_key")
         ):
-            session_id = request.session.session_key
+            session_fingerprint = fingerprint_session(request.session.session_key)
 
         if not ip_address and request:
             ip_address = get_client_ip(request)
@@ -276,7 +296,7 @@ def log_event(
             "noun": noun,
             "verb": verb,
             "ip_address": ip_address,
-            "session_id": session_id,
+            "session_fingerprint": session_fingerprint,
             "field": field,
             "context": ensure_json_serializable(context),
         }

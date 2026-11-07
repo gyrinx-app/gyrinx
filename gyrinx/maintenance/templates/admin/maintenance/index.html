@@ -98,7 +98,7 @@
                             {% if b.list_id_scope %}
                                 list {{ b.list_id_scope }}
                             {% else %}
-                                all lists
+                                {% if b.operation == "scrub_event_sessions" %}all Event records{% else %}all lists{% endif %}
                             {% endif %}
                         </td>
                     </tr>
