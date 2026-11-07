@@ -130,13 +130,10 @@ class ReactHostNode(template.Node):
 
 @register.tag
 def react_host(parser, token):
-    """An island drawn in place of server-rendered markup.
+    """Replace server-rendered fallback markup when an island mounts.
 
-    ``{% react_host "name" props class="..." %}…{% endreact_host %}``. The
-    body is what the page shows until the island mounts, and all it shows
-    without JavaScript; React replaces it on mount. For a control that
-    holds a place in a bar, where ``react_island``'s loading box would
-    shift the layout.
+    The body remains visible until mounting and without JavaScript. Use this
+    for controls whose fallback already occupies the correct layout space.
     """
     bits = token.split_contents()
     if len(bits) < 3:
