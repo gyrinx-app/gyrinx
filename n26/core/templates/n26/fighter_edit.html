@@ -2,16 +2,12 @@
 {% load navigation %}
 {% load static %}
 {% comment %}
-One model's own page, Edit face — the design system's model-edit view over
-real rows. The Equip face is n26/equip.html, wearing the same header; the two
-are tabs of one place.
+The model's Edit tab. Share its header with the Equip tab in n26/equip.html.
 {% endcomment %}
 {% block head_title %}{{ miniature.name }}{% endblock head_title %}
 {% comment %}
-richtext.js before form.media: it registers the listener that swaps the
-editor's skin with the colour mode, and django-tinymce's own initialiser
-reads the config after that listener has run. form.media goes in once for
-the page, however many editors it grows.
+Load richtext.js before form.media so theme configuration runs before TinyMCE
+initialisation. Include the form media once per page.
 {% endcomment %}
 {% block extra_head %}
     <script src="{% static 'n26/richtext.js' %}"></script>
@@ -22,11 +18,6 @@ the page, however many editors it grows.
     <script defer src="{% static 'n26/action-scroll.js' %}"></script>
     {{ form.media }}
 {% endblock extra_head %}
-{% comment %}
-The bar names the gang, not the fighter: halfway through a fighter's
-screen the way out a reader wants is to their other gang, and the fighter
-is named by the page's own heading directly below.
-{% endcomment %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
     <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
@@ -41,9 +32,7 @@ is named by the page's own heading directly below.
                            :htmx="True"
                            status_href="{{ status_href }}">
         {% comment %}
-        The heading offers the gang's other models — every row this same
-        screen for them. Not what the bar offers, which is the reader's
-        other gangs: the two controls switch different things.
+        Switch models within this gang here; the navigation bar switches gangs.
         {% endcomment %}
         <c-slot name="switcher">
             {% fighter_switcher gang miniature as fighter_switcher_ %}
@@ -60,11 +49,6 @@ is named by the page's own heading directly below.
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
-        {% comment %}
-        The numbers a per-model decision is made against, in the corner
-        the gang sheet keeps its own — the count holding the roster's
-        arithmetic one click away.
-        {% endcomment %}
         <c-slot name="actions">
             <c-n26.gang-figures :gang="gang"
                                 id="n26-gang-figures"
@@ -83,10 +67,8 @@ is named by the page's own heading directly below.
                     </c-ui.button>
                 </c-slot>
                 {% comment %}
-                Both ask the sheet for the question and land the act back
-                here; the host the panel arrives in is drawn below. Absent
-                for a reader the status feature does not reach, which is
-                what leaves the addresses empty.
+                Fetch status dialogs into the hosts below. Empty addresses hide controls
+                when the status feature is unavailable.
                 {% endcomment %}
                 {% if result_history %}
                     <c-ui.dropdown.item href="#n26-result-history">
@@ -119,10 +101,6 @@ is named by the page's own heading directly below.
                 </c-ui.dropdown.item>
             </c-ui.dropdown>
         </c-slot>
-        {% comment %}
-        Save is a success button because it ends the form; the outlined
-        controls on the card beside it all start one.
-        {% endcomment %}
         <c-slot name="flows">
             <div id="actions" class="space-y-4 scroll-mt-20">
                 {% include "n26/includes/hire_time_action.html" %}
@@ -155,10 +133,8 @@ is named by the page's own heading directly below.
         </c-slot>
         <c-slot name="notes">
             {% comment %}
-            htmx saves without rebuilding the page, so lore typed in the
-            other box survives this submit. TinyMCE stays: swapping the
-            editor out would throw its undo history away. Without
-            JavaScript this is an ordinary POST.
+            Save without replacing TinyMCE so its undo history and edits in the other
+            text box survive.
             {% endcomment %}
             <form method="post"
                   action="{{ edit_url }}"
@@ -215,18 +191,9 @@ is named by the page's own heading directly below.
             </form>
         </c-slot>
         {% comment %}
-        What the model is — its subtypes and its special rules, each the
-        whole library as boxes with what the card shows gathered on top
-        (see <c-n26.pick-list>). Ticking one adds it in the owner's name;
-        clearing one takes it away however it arrived. A thing money
-        stands behind is drawn fixed and says so, because a removal would
-        leave it exactly where it is — the equip screen's sale is the way
-        to be rid of it.
-
-        Reset per section archives the owner's edits, so the content's
-        own answer is always one act away — which is why Reset is drawn
-        only while there are edits to undo. Save says whether there is
-        anything to save.
+        Granted and purchased assignments have different removal rules: purchased
+        equipment must be sold through Equip. Reset removes owner overrides and restores
+        the content defaults.
         {% endcomment %}
         <c-slot name="edits">
             {% if subtype_edits or subtype_more or rule_edits or rule_more %}
@@ -281,24 +248,15 @@ is named by the page's own heading directly below.
             {% endif %}
         </c-slot>
         {% comment %}
-        Every skill and power the library holds for a model, ticked where
-        they have it, under the set it belongs to. Ticking selects and
-        clearing takes away, in one click and one operation — which is why
-        Save is green here as it is above. What a rule grants is fixed: it
-        is theirs while the thing granting it stands, and no click on this
-        page could take it away.
-
-        A file of its own because a tab click is answered with the box
-        alone — see n26/includes/skills_box.html.
+        Granted skills remain fixed while their source is active. Keep this section in
+        skills_box.html so tab requests can return it independently.
         {% endcomment %}
         <c-slot name="skills">
             {% include "n26/includes/skills_box.html" %}
         </c-slot>
         {% comment %}
-        The same boxes an author types a statline into, filled with what
-        this owner has set and suggesting the model's own value where
-        they have set nothing. Two forms post to this page, so each says
-        which it is; Save is green here for the reason it is green above.
+        Each form identifies its action so this endpoint can distinguish stat overrides
+        from other edits.
         {% endcomment %}
         <c-slot name="statline">
             {% if statline_cells %}
@@ -320,9 +278,8 @@ is named by the page's own heading directly below.
         </c-slot>
     </c-n26.view.model-edit>
     {% comment %}
-    The host a kit menu's click swaps its confirmation into
-    (n26/includes/equip_panel.html), drawn with the panel the address
-    names so a plain visit and a reload show the same thing.
+    Render the confirmation selected by the URL into the same host used for partial
+    responses.
     {% endcomment %}
     <div id="n26-dialog-host">
         {% if dialog %}
@@ -331,16 +288,11 @@ is named by the page's own heading directly below.
             </c-n26.owned-dialog>
         {% endif %}
     </div>
-    {% comment %}
-    Where the Mark as… and Pay ransom questions land when asked from here:
-    the sheet answers the fetch with this host filled.
-    {% endcomment %}
     <div id="n26-status-dialog-host"></div>
     {% include "n26/includes/base_rating_dialog.html" %}
     {% include "n26/includes/rename_dialog.html" %}
     {% comment %}
-    A counter pencil opens the amount dialog into this host. The id matches
-    the dialog the tally address returns, so the swap has somewhere to land.
+    Match the counter dialog host ID to the target returned by its endpoint.
     {% endcomment %}
     <div id="n26-campaign-state-dialog-host"></div>
 {% endblock content %}

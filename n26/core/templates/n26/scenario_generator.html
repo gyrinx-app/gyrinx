@@ -1,18 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation react scenario_controls %}
 {% comment %}
-The scenario generator for one campaign. On wide screens the scenario
-components sit on the left and the generated scenario on the right, with
-room for the descriptions and the deployment map; on a phone the
-components come first.
-
-Each table has one native select: Roll a D6, Leave out, or one of its
-six entries. Side jobs follow, as many as the reader adds, each from a
-set; includes/scenario_picks.html draws the menus. The form is a GET, because generating saves nothing: the
-view rolls once and redirects to an address holding the result and the
-picks, so Share passes the same scenario on and Generate again keeps
-the picks. Nothing here is saved, so anyone who can read the campaign
-may use it.
+Generate scenarios without saving. The server redirects to a URL containing both results
+and selections so reloads and shared links preserve them.
 {% endcomment %}
 {% block head_title %}Generate a scenario for {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -71,8 +61,8 @@ may use it.
                 {% elif scenario %}
                     {% include "n26/includes/scenario_results.html" with results=scenario %}
                     {% comment %}
-                    Print is for every reader: it saves nothing. Saving and
-                    recording are for whoever may record in the campaign.
+                    Printing is available to readers; saving and recording require
+                    campaign write access.
                     {% endcomment %}
                     <div class="flex flex-wrap items-center justify-end gap-2 border-t border-box-border pt-4">
                         <c-n26.share :url="share_url"

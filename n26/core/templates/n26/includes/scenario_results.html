@@ -1,13 +1,7 @@
 {% load static platform_tags scenario_controls %}
 {% comment %}
-What each scenario table landed on: the table, the entry's name and
-roll, its description, and its map where it has one. Drawn by the
-generator, the battle form and the battle's page, so a scenario reads
-the same wherever it is shown.
-
-results is a list of n26.core.scenarios.ScenarioResult. reroll_links,
-from the generators, holds a Reroll link for each side job by its key;
-the link opens a dialog that asks which set to roll it on.
+Share ScenarioResult rendering between generators and battle pages. Optional
+reroll_links identify side jobs whose dialogs select the next roll set.
 {% endcomment %}
 <ol class="flex flex-col divide-y divide-box-border rounded-box border border-box-border">
     {% for result in results %}

@@ -1,23 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation react scenario_controls %}
 {% comment %}
-The scenario generator outside a campaign, from the N26 menu, for campaign
-and skirmish play. The campaign's own generator is scenario_generator.html.
-On wide screens the scenario
-components sit on the left and the generated scenario on the right, with
-room for the descriptions and the deployment map; on a phone the
-components come first.
-
-Each table has one native select: Roll a D6, Leave out, or one of its
-six entries. Side jobs follow, as many as the reader adds, each from a
-set; includes/scenario_picks.html draws the menus. The form is a GET, because generating saves nothing: the
-view rolls once and redirects to an address holding the result and the
-picks, so Share passes the same scenario on and Generate again keeps
-the picks. Nothing here is saved, so anyone signed in may use it.
-
-Under the result, Print opens the scenario's print page. Connect to battle
-and Record a battle open a dialog, named in the address, that asks which
-of the reader's campaigns the scenario is for.
+Generate scenarios outside a campaign without saving. Redirect to a URL containing
+results and selections; connecting or recording opens a URL-selected campaign dialog.
 {% endcomment %}
 {% block head_title %}Generate a scenario{% endblock head_title %}
 {% block nav_items %}
@@ -64,9 +49,8 @@ of the reader's campaigns the scenario is for.
                 {% elif scenario %}
                     {% include "n26/includes/scenario_results.html" with results=scenario %}
                     {% comment %}
-                    Print is everybody's: it saves nothing. Saving and recording
-                    are offered when the reader has a campaign to do them in; a
-                    dialog then asks which.
+                    Print without saving; show connection and recording actions only
+                    when the user has an eligible campaign.
                     {% endcomment %}
                     <div class="flex flex-wrap items-center justify-end gap-2 pt-4">
                         <c-n26.share :url="share_url"

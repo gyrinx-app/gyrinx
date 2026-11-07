@@ -1,24 +1,13 @@
-"""Extension point: which repairs the maintenance console offers.
+"""Register edition repairs for the shared maintenance console.
 
-The console itself is platform furniture — a superuser-gated index, an audit
-record per run, a detail page, a cancel button. What it can actually repair is
-edition knowledge, so each repair is registered rather than hard-coded: a name
-and description for the index, a view for its own trigger page, and optionally
-a template fragment that renders that operation's summary on the detail page.
+Registrations provide a stored operation slug, display text, trigger view
+and optional result template. Retired operations use view=None so historical
+records retain their labels without exposing a trigger page.
 
-Registration also carries the ``operation`` slug written into
-``Backfill.operation``, which is how a historical record recovers its label.
-Retired operations stay registered with ``view=None`` — no page, no index row,
-but old records still render a name instead of a bare slug.
-
-Editions register from their admin package (see ``n23/core/admin/maintenance.py``).
-Note what they must *not* import: ``gyrinx.maintenance.admin`` patches
-``admin.site.__class__`` at import time and has to run after
-``gyrinx.analytics.admin`` to compose with it. Editions are autodiscovered
-first, so importing that module from an edition would install the maintenance
-site too early and analytics would then overwrite it, silently dropping every
-maintenance route. Import from this module and ``gyrinx.maintenance.views``
-instead — neither touches the admin site.
+Editions register from their admin packages. Import this module or
+gyrinx.maintenance.views, never gyrinx.maintenance.admin: that module patches
+admin.site after analytics admin initialisation. Importing it earlier would
+allow analytics to replace the maintenance routes.
 """
 
 import datetime
@@ -37,15 +26,11 @@ __all__ = [
 
 @dataclass(frozen=True)
 class MaintenanceOperation:
-    """One repair the console knows about.
+    """A registered repair and its console metadata.
 
-    ``operation`` is the slug stored on the ``Backfill`` records this repair
-    produces, and the registry's key. ``slug`` is the URL-facing name, defaulting
-    to ``operation``; the two differ where a URL has already been published under
-    a different name.
-
-    A ``view`` of ``None`` means retired: the entry exists only so historical
-    records keep their label.
+    operation is the registry key and the value stored on Backfill records.
+    slug optionally preserves a different URL name. view=None retires the
+    trigger page while retaining labels for historical records.
     """
 
     operation: str
@@ -55,11 +40,7 @@ class MaintenanceOperation:
     slug: str | None = None
     #: Template rendering this operation's ``summary`` on the detail page.
     detail_template: str | None = None
-    #: The day this repair was offered, which the index sorts newest first.
-    #: One-off repairs accumulate and are nearly always run soon after being
-    #: written, so the newest is the one somebody has come to the page for.
-    #: Stated rather than derived: a repair has a date before it has ever run,
-    #: and that is exactly when it needs to be easy to find.
+    #: Sort the console by release date, including repairs that have never run.
     added: datetime.date | None = None
     #: Registered write scope this operation mutates. Used by platform middleware.
     write_scope: str | None = None

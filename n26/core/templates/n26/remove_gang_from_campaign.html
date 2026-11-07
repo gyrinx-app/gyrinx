@@ -1,12 +1,7 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-The question asked before a gang is taken out of a campaign, at an address of
-its own. Following the link that leads here changes nothing; the POST is the
-act.
-
-The alert is warning rather than error: an error reports something that
-already went wrong, and nothing has yet.
+Show removal consequences before POST using warning styling for the pending action.
 {% endcomment %}
 {% block head_title %}Remove {{ gang.name }} from {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -36,9 +31,8 @@ already went wrong, and nothing has yet.
         </c-slot>
         {% csrf_token %}
         {% comment %}
-        What is true, and only what is true: what the gang loses, what goes back
-        to the campaign, and what stays with the gang. The lists are the gangs
-        table's own facts for this gang, so they match the campaign page.
+        Reuse the campaign table's facts to show what the gang loses, retains and
+        returns.
         {% endcomment %}
         <c-ui.alert variant="warning" title="{{ gang.name }} will lose campaign data">
             Its models, gear and credits stay, and its history will still show what it

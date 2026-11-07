@@ -8,9 +8,7 @@ from gyrinx.site.models import Availability, FeatureFlag
 
 pytestmark = pytest.mark.django_db
 
-#: A slug of this suite's own. The platform never names an edition's
-#: features, so these tests claim one the way an edition claims its real
-#: ones, and nothing here depends on which editions are installed.
+#: Register an isolated test slug without depending on edition features.
 FLAG = "test-only-feature"
 register_flags(FLAG)
 
@@ -49,20 +47,16 @@ def invited(group):
 
 class TestAFeatureNobodyHasOpened:
     def test_a_slug_with_no_row_is_shut(self, reader):
-        """A feature whose row has not been created fails shut. Absent is
-        not the same as allowed."""
+        """Registered features remain disabled until configured."""
         assert enabled(FLAG, reader) is False
 
     def test_a_slug_the_code_does_not_know_raises(self, reader):
-        """A typo in a guard must be loud. The alternative is a guard that
-        is quietly inert on a page it was meant to protect."""
+        """Reject unregistered slugs so misspelled guards cannot silently disable features."""
         with pytest.raises(ValueError, match="No such feature flag"):
             enabled("teleportation", reader)
 
     def test_a_guard_on_an_unknown_slug_refuses_to_be_applied(self):
-        """As the guard is applied, not as a request arrives. A mistyped
-        slug is a mistake in the code, so the app refuses to start rather
-        than serving errors to whoever finds the page first."""
+        """Validate the slug when applying the decorator, before handling requests."""
         with pytest.raises(ValueError, match="No such feature flag"):
 
             @requires_flag("teleportation")
@@ -71,7 +65,7 @@ class TestAFeatureNobodyHasOpened:
 
 
 class TestOff:
-    """Off beats the group, which is the whole point of having it."""
+    """OFF overrides group membership and staff privileges."""
 
     def test_it_shuts_out_someone_in_the_group(self, make_flag, invited):
         make_flag(Availability.OFF)
@@ -106,15 +100,14 @@ class TestTheAllowlist:
         assert enabled(FLAG, reader) is False
 
     def test_no_group_at_all_lets_nobody_in(self, make_flag, reader):
-        """An empty allowlist, not an open door."""
+        """An allowlist with no group grants no access."""
         make_flag(Availability.ALLOWLIST, with_group=False)
         assert enabled(FLAG, reader) is False
 
     def test_taking_someone_out_of_the_group_shuts_them_out(
         self, make_flag, invited, group
     ):
-        """The admin's other lever: the flag stays as it is and the person
-        stops qualifying."""
+        """Removing group membership revokes access without changing the flag."""
         make_flag(Availability.ALLOWLIST)
         assert enabled(FLAG, invited) is True
         invited.groups.remove(group)
@@ -122,7 +115,7 @@ class TestTheAllowlist:
 
 
 class TestAWordNothingCanRead:
-    """A value outside Availability must never be a way in."""
+    """Reject invalid availability values in storage and access checks."""
 
     def test_the_database_refuses_to_store_one(self, group):
         from django.db import IntegrityError
@@ -133,9 +126,7 @@ class TestAWordNothingCanRead:
             )
 
     def test_one_in_hand_is_shut_rather_than_open(self, group, invited):
-        """Belt to the constraint's braces. A flag carrying a word nothing
-        recognises must refuse a group member rather than fall through to
-        the group check and let them in on the strength of it."""
+        """Reject invalid availability on an unsaved object before checking group membership."""
         flag = FeatureFlag(
             slug=FLAG, name="Test Feature", availability="on", group=group
         )
@@ -153,9 +144,7 @@ class TestEveryone:
 
 
 class TestSwitchedOn:
-    """The user-free question background work asks: is the feature on
-    at all. Any availability but off counts, because a feature open to
-    even one account needs the machinery behind it running."""
+    """Background work treats ALLOWLIST and EVERYONE as enabled, without checking a user."""
 
     def test_a_slug_with_no_row_is_off(self):
         assert switched_on(FLAG) is False
@@ -198,8 +187,7 @@ class TestTheRowItself:
     def test_deleting_the_group_leaves_the_flag_standing_and_shut(
         self, make_flag, invited, group
     ):
-        """A deleted group must not take the flag with it, nor quietly
-        become an open door."""
+        """Deleting the allowlist group preserves the flag and revokes access."""
         flag = make_flag(Availability.ALLOWLIST)
         group.delete()
         flag.refresh_from_db()
@@ -208,8 +196,7 @@ class TestTheRowItself:
 
 
 class TestTheAdminPage:
-    """The page is the point of the model: opening a feature to another
-    player is something somebody does here, not in a deploy."""
+    """Configure feature access through the admin."""
 
     def _admin(self):
         from django.contrib import admin
@@ -229,9 +216,7 @@ class TestTheAdminPage:
         assert "slug" not in self._admin().get_readonly_fields(None, obj=None)
 
     def test_a_typed_slug_is_cleaned_on_the_way_in(self):
-        """Any word can be a flag — a slug no code reads yet is inert —
-        but what is stored must be one code could ask for, so the typed
-        value is slugified rather than refused."""
+        """Slugify admin input before saving."""
         from gyrinx.site.admin import FeatureFlagForm
 
         form = FeatureFlagForm(
@@ -250,9 +235,7 @@ class TestTheAdminPage:
         assert "slug" in form.errors
 
     def test_the_same_flag_cannot_be_configured_twice(self, make_flag):
-        """Two rows for one slug would be two switches for one feature.
-        The check runs against the cleaned value, so a dressed-up variant
-        of an existing slug is caught too."""
+        """Check uniqueness after normalising the submitted slug."""
         from gyrinx.site.admin import FeatureFlagForm
 
         make_flag(Availability.OFF)
@@ -263,15 +246,12 @@ class TestTheAdminPage:
         assert "slug" in dupe.errors
 
     def test_the_slug_is_fixed_once_the_row_exists(self, make_flag):
-        """Editing it later would not rename a feature — it would turn one
-        off and leave a second that nothing reads."""
+        """Keep an existing flag associated with the slug its callers use."""
         flag = make_flag(Availability.OFF)
         assert "slug" in self._admin().get_readonly_fields(None, obj=flag)
 
     def test_it_keeps_whatever_else_is_already_fixed(self, make_flag, monkeypatch):
-        """Pinning the slug adds to the fixed fields rather than replacing
-        them, so a field fixed on the class or a mixin later is not
-        silently freed."""
+        """Preserve inherited read-only fields when adding the slug restriction."""
         admin = self._admin()
         monkeypatch.setattr(type(admin), "readonly_fields", ["name"], raising=False)
         assert set(admin.get_readonly_fields(None, obj=None)) == {"name"}
@@ -301,15 +281,13 @@ class TestTheViewGuard:
         assert self._view()(self._request(invited)) == "drawn"
 
     def test_it_answers_404_and_not_403(self, make_flag, reader):
-        """A stranger is told the page is not there. Which features are
-        being built is not something to be probed for."""
+        """Hide inaccessible feature pages with 404."""
         make_flag(Availability.ALLOWLIST)
         with pytest.raises(Http404):
             self._view()(self._request(reader))
 
     def test_a_visitor_is_not_sent_to_sign_in(self, make_flag):
-        """404 rather than a login redirect: being asked to sign in would
-        itself say that something is there."""
+        """Return 404 to anonymous readers without revealing a feature through a login redirect."""
         make_flag(Availability.ALLOWLIST)
         with pytest.raises(Http404):
             self._view()(self._request(AnonymousUser()))

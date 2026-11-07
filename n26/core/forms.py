@@ -232,13 +232,14 @@ class CreditsForm(forms.Form):
     ADD = "add"
     REMOVE = "remove"
 
+    request_key = forms.UUIDField(widget=forms.HiddenInput)
+
     direction = forms.ChoiceField(
         choices=[(ADD, "Add credits"), (REMOVE, "Remove credits")],
         initial=ADD,
         label="Add or remove",
     )
-    #: Far above any gang's credits, and far below what the ledger's
-    #: integer column holds.
+    #: Keep entered amounts well within the ledger's integer range.
     amount = forms.IntegerField(min_value=1, max_value=1_000_000, label="Credits")
     note = forms.CharField(
         max_length=255,

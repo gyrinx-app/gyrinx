@@ -360,6 +360,8 @@ class LedgerEvent(Base):
     #: history shows events with the same batch as one change. Null means
     #: no batch was recorded, and the history shows each event alone.
     batch = models.UUIDField(null=True, blank=True, editable=False)
+    # Only the event that identifies a retriable command carries its key.
+    request_key = models.UUIDField(null=True, blank=True, editable=False)
     actor = models.ForeignKey(
         "auth.User",
         on_delete=models.SET_NULL,
@@ -450,6 +452,9 @@ class LedgerEvent(Base):
         verbose_name_plural = "ledger events"
         ordering = ["created", "pk"]
         constraints = [
+            models.UniqueConstraint(
+                fields=["gang", "request_key"], name="ledger_event_request_once"
+            ),
             # At most one of the three subjects is set: any two of them
             # could disagree about what the record is about.
             models.CheckConstraint(

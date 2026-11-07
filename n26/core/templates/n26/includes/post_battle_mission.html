@@ -1,8 +1,6 @@
 {% comment %}
-The gang's results from the battle: lines of credits and the gang's
-counters. Its buttons, and a change to an amount or a counter, post the form
-and swap this fieldset for the server's copy (see post_battle_refresh.html),
-so the id must stay put.
+Keep this fieldset ID stable: mission updates replace it while refreshing the report
+summary and draft version separately.
 {% endcomment %}
 <fieldset id="mission-results"
           class="min-w-0 scroll-mt-24 space-y-6 border border-box-border bg-surface p-4 sm:p-5"

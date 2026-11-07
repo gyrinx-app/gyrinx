@@ -1,18 +1,7 @@
 {% comment %}
-The queued messages, one alert each.
-
-Included by the layout's `messages` block, which is where they land on every
-page. A screen that wants them somewhere else — the hire page puts its
-confirmation inside the form, above the list it was clicked in — overrides that
-block to nothing and includes this where it wants them instead. Iterating the
-storage is what marks it read, so including this twice on one page would draw
-the same message twice; there is only ever one place per page.
-
-Each alert states its level in `data-message`. A page fetched in the background
-is read for what the server said rather than drawn — the crop dialog
-(n26/imagecrop.js) shows a refusal where the reader is standing instead of
-letting it land on a page nobody sees — and that attribute is the hook it reads.
-Styling is not: the variant below is a mapping and would tell a reader nothing.
+Render queued messages in one location per page; pages placing them inside a form must
+empty the layout's messages block. Keep data-message levels so background consumers such
+as imagecrop.js can extract errors and success messages independently of visual styling.
 {% endcomment %}
 {% if messages %}
     <div class="mb-4 flex flex-col gap-2">

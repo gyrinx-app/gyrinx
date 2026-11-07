@@ -1,13 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Handing one held asset to another gang playing the campaign. The gangs
-offered are the campaign's own less the one holding the asset, so an asset
-cannot go to a gang that is not in it or back to the gang that has it. Plain
-radios, as the assign form's are, so the page posts with scripting off.
-
-The arbitrator transfers; the holding gang's owner hands over. The verb is
-the view's, because who is reading decides which act this is.
+Offer only other gangs in this campaign as transfer targets. The view labels the action
+according to arbitrator or holding-owner permissions.
 {% endcomment %}
 {% block head_title %}{{ verb }} {{ campaign_asset }}{% endblock head_title %}
 {% block nav_switcher %}

@@ -18,12 +18,10 @@ logger = logging.getLogger(__name__)
 
 
 def notifications(request):
-    """Add the unread notification count for the navbar badge (authenticated only).
+    """Return the signed-in user's unread count without caching it.
 
-    A single COUNT backed by a partial index — cheap and always correct. We do not
-    cache it: the cache backend is per-process ``LocMemCache``, so a cached per-user
-    count couldn't be invalidated reliably across instances. Never raises — a failure
-    here must not break page rendering.
+    The cache is per-process and cannot reliably invalidate counts across
+    workers. Log query failures without preventing page rendering.
     """
     context = {"unread_notification_count": 0}
     try:
@@ -56,21 +54,12 @@ def write_pause(request):
 
 
 def impersonation(request):
-    """Expose impersonation state to templates.
+    """Expose active impersonation and an eligible page owner to templates.
 
-    Set by :class:`gyrinx.middleware.ImpersonationMiddleware`. When
-    ``is_impersonating`` is true, ``request.user`` is the impersonated user and
-    ``impersonator`` is the real admin.
-
-    ``impersonate_target`` is the owner of whatever the page is showing, when
-    that is somebody the viewer may impersonate — the account menu turns it
-    into a way straight into that account. It is empty while an overlay is
-    already active, because starting a second one is refused.
-
-    The subject is checked first so that every other page pays one ``getattr``:
-    only a page that named a subject goes on to resolve ``request.user``, which
-    on a request the middleware never reached — an error page, say — can raise
-    again on each access.
+    An active session supplies the impersonated user and real admin. A page
+    may call note_page_subject(request, user) for a direct account-menu action, which
+    is unavailable during an existing impersonation session. Check for that
+    subject before resolving request.user on error pages.
     """
     from gyrinx.impersonation import can_impersonate_target, page_subject
 
@@ -92,16 +81,10 @@ def impersonation(request):
 
 
 def site_banner(request):
-    """
-    Add the current live banner to the context, if any exists and hasn't been dismissed.
+    """Return the undismissed live banner for the request's edition.
 
-    Each edition shows its own banner: a banner is live on n23, on n26, or both,
-    and the request's path says which side is asking. A page both editions share
-    gets the classic site's banner — it is drawn in the classic site's chrome,
-    whichever edition the reader came from.
-
-    Note that this is disabled in tests by directly setting the BANNER_CACHE_KEYS
-    entries to False.
+    Shared pages use the N23 banner to match their platform layout. Tests
+    disable lookup by setting the edition cache entries to False.
     """
     context = {"banner": None}
 

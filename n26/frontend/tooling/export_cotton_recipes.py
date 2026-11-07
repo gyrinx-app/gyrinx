@@ -105,7 +105,73 @@ def radio_option_recipe():
 
 def input_recipe():
     root, control = classes('<c-ui.input type="text" />', "div", "input")
-    return {"root": root, "control": control}
+    addon_root, addon_control, addon = classes(
+        '<c-ui.input type="number"><c-slot name="right_addon">¢</c-slot></c-ui.input>',
+        "div",
+        "input",
+        "div",
+    )
+    return {
+        "root": root,
+        "control": control,
+        "addonRoot": addon_root,
+        "addonControl": addon_control,
+        "addon": addon,
+    }
+
+
+def workflow_page_recipe():
+    header = classes(
+        '<c-n26.page-header title="Title" lead="Lead"><c-slot name="breadcrumb">Trail</c-slot>'
+        '<c-slot name="actions">Action</c-slot></c-n26.page-header>',
+        "div",
+        "div",
+        "div",
+        "div",
+        "div",
+        "h1",
+        "p",
+        "div",
+    )
+    section = classes(
+        '<c-n26.form-section title="Section" description="Help">Fields</c-n26.form-section>',
+        "section",
+        "div",
+        "h2",
+        "p",
+        "div",
+    )
+    trail = attributes(
+        '<c-ui.breadcrumbs><c-ui.breadcrumbs.item href="/">Gang</c-ui.breadcrumbs.item>'
+        '<c-ui.breadcrumbs.item :current="True">Current</c-ui.breadcrumbs.item></c-ui.breadcrumbs>',
+        "ol",
+        "li",
+        "a",
+        "li",
+        "span",
+    )
+    form = attributes(
+        '<c-n26.form-page title="Title" submit_label="Save" />',
+        "form",
+        "div",
+        "div",
+        "div",
+        "div",
+        "div",
+    )
+    return {
+        "root": class_name(form[0]),
+        "footer": class_name(form[-2]),
+        "header": header,
+        "section": section,
+        "breadcrumb": {
+            "list": class_name(trail[0]),
+            "style": trail[0]["style"],
+            "item": class_name(trail[1]),
+            "link": class_name(trail[2]),
+            "current": class_name(trail[4]),
+        },
+    }
 
 
 def name_list_recipe():
@@ -1182,6 +1248,7 @@ def recipes():
         "radioOption": radio_option_recipe(),
         "input": input_recipe(),
         "textarea": classes("<c-ui.textarea />", "textarea")[0],
+        "workflowPage": workflow_page_recipe(),
         "nameList": name_list_recipe(),
         "nativeSelect": native_select_recipe(),
         "nativeSelectSmall": native_select_recipe("sm"),

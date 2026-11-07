@@ -1,11 +1,7 @@
-"""Template tags for rendering supporter badges inline.
+"""Shared badge selection and SVG template tags.
 
-``user_badge`` renders the whole mark in the platform's own markup. Editions
-whose component set draws it differently take the two halves instead —
-``badge_for`` for which badge, ``badge_svg`` for the artwork — and wrap them
-themselves. This library is the only seam an edition needs for badges: the
-registry and the eligibility rules stay platform-owned, so a new tier reaches
-every edition without either of them changing.
+user_badge supplies platform markup. Editions can use badge_for and
+badge_svg with their own components while retaining shared eligibility.
 """
 
 from django import template
@@ -19,35 +15,22 @@ register = template.Library()
 
 
 def _badge_svg(badge) -> str:
-    """The artwork for a badge, ready to inline, or ``""``.
-
-    Which of the two kinds of badge this is — one that ships with the app or
-    one somebody uploaded — is the badge's own business; both answer this.
-    """
+    """Return a badge's inline artwork, or an empty string when unavailable."""
     return badge.inline_svg()
 
 
 @register.simple_tag
 def badge_for(profile_user):
-    """The badge a user displays, as a ``BadgeDef``, or ``None``.
+    """Return the user's resolved display badge, or None without a profile or eligible selection.
 
-    The registry's answer to "which badge", with no markup attached, so an
-    edition that draws the mark in its own components asks the same question the
-    platform does instead of re-deriving eligibility from ``is_staff``::
-
-        {% badge_for gang.owner as badge %}
-
-    ``None`` for an anonymous viewer, a user with no profile, and anyone whose
-    selection has lapsed. Reads the profile and the user's badge grants, so call
-    sites rendering this over a queryset of users MUST
-    ``select_related("…__profile").prefetch_related("…__badge_grants")`` —
-    without the prefetch this is a query per row.
+    UserProfile.display_badge applies explicit choices, opt-out and eligible
+    defaults. Preload profile and badge_grants when rendering many users
+    to avoid per-user queries.
     """
     if profile_user is None:
         return None
 
-    # A missing reverse one-to-one raises rather than returning None, and an
-    # anonymous user has no ``profile`` attribute at all.
+    # Missing profiles raise ObjectDoesNotExist; anonymous users have no profile attribute.
     try:
         profile = profile_user.profile
     except AttributeError, ObjectDoesNotExist:
@@ -68,28 +51,24 @@ def badge_image_url(badge):
 
 @register.simple_tag
 def badge_svg(badge):
-    """A badge's artwork, inline and unwrapped.
+    """Return unwrapped artwork for a BadgeDef or slug, or an empty string if unknown.
 
-    Accepts a ``BadgeDef`` or a slug string; empty for anything unknown. The
-    wrapper — sizing, accessible name, tooltip — belongs to whoever is drawing
-    it, which differs between the two editions' component sets.
+    The caller supplies sizing, tooltip and accessible name.
     """
     if isinstance(badge, str):
         badge = badge_by_slug(badge)
     if badge is None:
         return ""
 
-    # Committed artwork is a trusted repo asset; uploaded artwork has been
-    # through the platform's SVG allowlist on the way out of storage.
+    # Trust committed SVG; uploaded artwork is sanitised before marking it safe.
     return mark_safe(_badge_svg(badge))  # nosec B308 B703
 
 
 @register.simple_tag
 def badge_icon(badge, extra_classes=""):
-    """Render a badge's inline SVG icon (no eligibility check).
+    """Render supplied badge artwork without checking user eligibility.
 
-    Accepts a ``BadgeDef`` or a slug string. Used by the badge picker; for
-    rendering a user's chosen badge next to their name use ``user_badge``.
+    Accept a BadgeDef or slug; use user_badge for a person's resolved selection.
     """
     if isinstance(badge, str):
         badge = badge_by_slug(badge)
@@ -101,7 +80,7 @@ def badge_icon(badge, extra_classes=""):
         return ""
 
     classes = f"badge-icon {extra_classes}".strip()
-    # Either committed and trusted, or uploaded and already sanitised.
+    # Trust committed SVG; uploaded artwork is already sanitised.
     return format_html(
         '<span class="{}" role="img" aria-label="{}">{}</span>',
         classes,
@@ -112,15 +91,11 @@ def badge_icon(badge, extra_classes=""):
 
 @register.simple_tag
 def user_badge(profile_user, extra_classes=""):
-    """Render the supporter badge a user has chosen, if any.
+    """Render a user's resolved display badge for all viewers.
 
-    Renders nothing (no markup) when the user has no profile, hasn't selected a
-    badge, or is no longer eligible for their selection. Visible to all viewers —
-    badge visibility is a property of the profile owner, not the viewer.
-
-    Call sites that render this over a queryset of users MUST
-    ``select_related("…__profile").prefetch_related("…__badge_grants")`` to
-    avoid a query per row.
+    Selection includes eligible defaults and fallback from a lapsed choice.
+    Return no markup without a display badge or artwork. Preload profile and
+    badge_grants when rendering a queryset of users.
     """
     badge = badge_for(profile_user)
     if badge is None:
@@ -131,10 +106,8 @@ def user_badge(profile_user, extra_classes=""):
         return ""
 
     classes = f"user-badge {extra_classes}".strip()
-    # Bootstrap tooltip (initialised globally in index.js) shows the short,
-    # user-facing description on hover. No underline — the badge is an icon-only
-    # span, so we deliberately avoid the `.tooltipped` link styling.
-    # Either committed and trusted, or uploaded and already sanitised.
+    # Use the global Bootstrap tooltip without the link-specific .tooltipped styling.
+    # Trust committed SVG; uploaded artwork is already sanitised.
     return format_html(
         '<span class="{}" data-bs-toggle="tooltip" data-bs-title="{}" '
         'role="img" aria-label="{}">{}</span>',

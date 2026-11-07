@@ -15,24 +15,9 @@ from django.views.decorators.csrf import csrf_protect
 from gyrinx.pages.access import accessible_flatpages
 from gyrinx.pages.presentation import build_flatpage_presentation
 
-# Crawl policy. Amazonbot alone was ~70% of page traffic (2026-07-28) crawling
-# every fighter page of every public list; it feeds Amazon product answers and
-# brings no users, so it is excluded entirely. Bytespider (ByteDance) likewise.
-# For everyone else (Googlebot, bingbot, ...) the list overview pages carry the
-# search value — the per-fighter detail pages are crawl noise, so they are
-# disallowed for all agents. The print views are the most expensive pages on
-# the site and have no business being indexed.
-#
-# A gang sheet in the n26 edition is readable by whoever holds its address —
-# that is what makes a roster shareable — so /n26/gangs/ is disallowed whole:
-# the sheets, their print views, and the index. Somebody else's roster is not
-# search material, and the print pages are as expensive here as they are there.
-#
-# These paths carry the /n23/ edition prefix. They MUST be kept in step with
-# n23/core/urls/__init__.py: when the edition moved under /n23/ in #2110 these
-# rules silently stopped matching, every fighter and print page became
-# crawlable, and the resulting crawl took the site down. The test below asserts
-# each pattern resolves to a real view rather than just checking the text.
+# Exclude Amazonbot and Bytespider, and discourage indexing fighter details,
+# print views and shared N26 gang pages. Keep the paths aligned with
+# edition URL configuration; test_robots.py checks that patterns resolve.
 ROBOTS_TXT = """\
 User-agent: Amazonbot
 Disallow: /
@@ -55,7 +40,6 @@ def robots_txt(request):
 
 
 def flatpage(request, url):
-    # This is copied from django.contrib.flatpages.views.flatpage
     if not url.startswith("/"):
         url = "/" + url
     site_id = get_current_site(request).id
@@ -130,15 +114,12 @@ def error_404(request, exception=None):
 
 
 def error_500(request):
-    # Django automatically logs exceptions through django.request logger
-    # See: https://docs.djangoproject.com/en/5.2/howto/error-reporting/
 
-    # Generate a unique error ID for tracing
     import uuid
 
     error_id = str(uuid.uuid4())
 
-    # Log the error ID so we can correlate with user reports
+    # Log the displayed ID so a user report can be matched to server logs.
     import logging
 
     logger = logging.getLogger("django.request")

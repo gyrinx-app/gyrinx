@@ -1,10 +1,4 @@
-"""The edition dimension on the event log.
-
-Two editions write to one table. These pin the three things that keeps
-honest: a noun belongs to one edition only, every row gets an edition without
-anyone passing one, and a noun nobody claimed lands somewhere visible rather
-than in the wrong product's graph.
-"""
+"""Event edition derivation, noun ownership and migration coverage."""
 
 from importlib import import_module
 from unittest.mock import patch
@@ -34,8 +28,7 @@ def test_each_edition_claims_its_own_nouns():
 
 
 def test_no_noun_means_something_in_two_editions():
-    """The claim the derivation rests on: were "list" also n26's word, a
-    stored row could not say which product it came from."""
+    """Disjoint noun vocabularies make edition derivation unambiguous."""
     n23 = {value for value in EventNoun.values}
     n26 = {value for value in N26Noun.values}
     platform = {value for value in PlatformNoun.values}
@@ -80,7 +73,7 @@ def test_an_event_takes_its_edition_from_its_noun():
 
 @pytest.mark.django_db
 def test_a_row_written_straight_to_the_model_is_classified_too():
-    """Nothing has to go through log_event for the column to be filled in."""
+    """Direct Event saves also derive the edition."""
     user = User.objects.create_user(username="direct")
 
     event = Event.objects.create(owner=user, noun=N26Noun.MODEL, verb=EventVerb.CREATE)
@@ -100,8 +93,7 @@ def test_an_unclaimed_noun_still_records_the_event():
 
 @pytest.mark.django_db
 def test_the_stream_is_told_the_edition_as_well():
-    """Both sinks or neither: a row in the table that the log stream files
-    under no product is only half tracked."""
+    """Include the edition in the log stream as well as the stored event."""
     user = User.objects.create_user(username="streamed")
 
     with patch("gyrinx.analytics.models.track") as track:
@@ -121,7 +113,7 @@ def test_a_broken_stream_does_not_lose_the_row():
 
 
 class TestBackfillingWhatWasAlreadyThere:
-    """The migration's answer for rows written before the column existed."""
+    """Classify events recorded before the edition column existed."""
 
     migration = import_module("gyrinx.analytics.migrations.0002_event_edition")
 
@@ -134,8 +126,7 @@ class TestBackfillingWhatWasAlreadyThere:
             assert self.migration.edition_for_existing_noun(noun) == "n23"
 
     def test_every_noun_the_old_vocabulary_had_is_answered(self):
-        """The migration has to be total: a noun it does not recognise would
-        keep the default and read as unknown forever."""
+        """Classify every legacy noun as platform or N23."""
         old = set(EventNoun.values) | set(PlatformNoun.values)
         assert {self.migration.edition_for_existing_noun(n) for n in old} == {
             "platform",

@@ -1,20 +1,11 @@
-"""Changing a campaign, and saying so in its log.
+"""Write campaign changes and their append-only campaign events.
 
-The same shape a gang's writes have, one level up. A gang's story is written
-by ``n26.core.operations``; a campaign's own story is written here, because
-the two are different subjects with different readers: the arbitrator changing
-what a campaign is has not touched anybody's gang.
+Gang changes belong to gang ledgers through ``n26.core.operations``.
+Campaign-only changes are recorded here. The campaign history combines
+both sources without duplicating the events.
 
-The rule that keeps them apart, and keeps anything from being recorded twice:
-**an act that changes a gang is written to that gang's ledger; an act that
-changes only the campaign is written here.** A campaign's log is read from
-both.
-
-Nothing here is priced and no totals are pinned, so there is no settling
-step — but the writes still run together, under the campaign's own line, and
-the campaign is read back under that line before anything is decided. What
-changed is measured against the row as it stands, never against whatever the
-reader had on screen.
+Each operation locks and reloads the campaign before deciding changes.
+Campaign metadata moves no credits and needs no settlement step.
 
 Use it as a context manager::
 
@@ -22,9 +13,8 @@ Use it as a context manager::
         act.rename("Dust Falls II")
         act.set_budget(1200)
 
-Founding is the one act that starts from a campaign not yet saved: it
-writes the campaign's own pack and additions type before the row itself,
-so a campaign never exists without them::
+Founding accepts an unsaved campaign and creates its pack and additions
+type before saving the campaign::
 
     campaign = Campaign(name="Dust Falls", owner=arbitrator)
     with campaign_operation(campaign, actor=arbitrator) as act:
@@ -65,7 +55,7 @@ def budget_word(credits):
 
 
 class CampaignOperation:
-    """Writes to one campaign, and the log entries that explain them."""
+    """Write one campaign's changes and corresponding log entries."""
 
     def __init__(self, campaign, actor=None):
         self.campaign = campaign
@@ -92,22 +82,11 @@ class CampaignOperation:
         return self.event(CampaignEvent.Kind.CREATED)
 
     def found(self, campaign_type):
-        """Set the campaign up on a type, and give it its own pack.
+        """Create the campaign with its shared type, owned pack and additions type.
 
-        What ``Operation.found`` is to a gang. The campaign is saved here
-        for the first time, with three things it never exists without: the
-        shared type it was founded on, a pack of its own that the
-        arbitrator owns, and an **additions** type created empty in that
-        pack. The pack and the additions are named for the campaign; the
-        pack's slug is keyed by the campaign's id, so two campaigns of one
-        name cannot collide on it. The pack is the arbitrator's own: what
-        they create for the campaign is theirs to edit, and a pack picker
-        offers the system pack alone, so none of it reaches anybody else.
-
-        Nothing is assigned to anybody yet. Joining is what puts the two
-        types on a gang (``Operation.join_campaign``), and the log's first
-        line names the type so a reader knows what the campaign was
-        founded on.
+        Name the pack and additions after the campaign. Key the pack slug by
+        campaign ID so duplicate names cannot collide. Record the founding type
+        in the first event. Member gangs receive the two types when they join.
         """
         from n26.library.authoring import create_campaign_type, create_pack
 
@@ -128,11 +107,7 @@ class CampaignOperation:
         return campaign
 
     def rename(self, name):
-        """Give the campaign a new name, and say so in its log.
-
-        The note keeps both names, since the whole of what a reader wants
-        from a rename is what it was and what it became.
-        """
+        """Rename the campaign and record its old and new names."""
         campaign = self.campaign
         was = campaign.name
         if was == name:
@@ -193,12 +168,9 @@ class CampaignOperation:
         return self.campaign
 
     def set_budget(self, credits):
-        """Change what a gang is founded with here, and record it.
+        """Set the starting credit budget for future gangs founded in this campaign.
 
-        ``credits`` is the new budget, or ``None`` for none at all. Nothing
-        moves and no gang already playing is touched: this settles what the
-        next gang founded for this campaign has to spend, and so what it is
-        worth on the day it starts.
+        ``credits=None`` means unlimited. Existing gangs and their balances are unchanged.
         """
         campaign = self.campaign
         was = campaign.budget
@@ -213,13 +185,9 @@ class CampaignOperation:
         return campaign
 
     def edit_summary(self, summary):
-        """Change the campaign's own words.
+        """Save the campaign summary and journal the change without copying its prose.
 
-        The log records that the summary moved and never what it says: the
-        words are the arbitrator's, and the log is a list of acts rather than
-        a copy of the prose. An unchanged field writes nothing at all — no
-        save, no event — so saving a form around an untouched box leaves no
-        trace.
+        An unchanged value produces neither a save nor an event.
         """
         campaign = self.campaign
         if campaign.summary == summary:
@@ -243,16 +211,10 @@ class CampaignOperation:
         return campaign
 
     def invite(self, user, message=""):
-        """Ask somebody into the campaign, and tell them.
+        """Invite a person, retaining one invitation record per campaign and person.
 
-        Asking again somebody who declined puts the same question back rather
-        than starting a second conversation, so a campaign holds one row per
-        person however many times the arbitrator changes their mind. Asking
-        somebody who has already accepted changes nothing.
-
-        The notification is how they hear; the log is the record that it
-        happened. An inbox that is having a bad day loses the first and
-        never the second.
+        Reinvite declined players through that record; accepted invitations remain
+        unchanged. Record the event independently of delivering the notification.
         """
         from n26.core.models import CampaignParticipant
         from n26.core.operations import Refusal
@@ -302,11 +264,9 @@ class CampaignOperation:
         return player
 
     def answer_invitation(self, user, accepted):
-        """Record somebody's answer to their invitation.
+        """Record the invitation's first answer and notify the arbitrator.
 
-        The arbitrator is told, because they asked and are owed the answer.
-        An invitation already answered is not asked again: a second click on
-        a stale page settles nothing twice.
+        Repeated submissions for an answered invitation make no change.
         """
         from n26.core.models import CampaignParticipant
         from n26.notifications import deliver
@@ -339,17 +299,11 @@ class CampaignOperation:
         return player
 
     def remove_player(self, player, *, with_gangs=False):
-        """Take somebody out of the campaign.
+        """Remove a player and optionally their gangs, retaining the history.
 
-        The row goes rather than being marked: a person who is not in a
-        campaign has no standing in it, and keeping a row saying so would
-        make them look like somebody who declined. What happened stays in
-        the log, which is where it belongs.
-
-        Their gangs keep playing unless the arbitrator asks for them to be
-        taken out too (``with_gangs``), each as ``remove_gang`` takes one.
-        Returns the gangs taken out. Somebody who left or was removed since
-        the page was read changes nothing, and the caller gets None back.
+        Delete the invitation record so removal is distinct from declining.
+        ``with_gangs`` removes their gangs through remove_gang and returns them.
+        Return None if the player is already absent.
         """
         from n26.core.models import CampaignParticipant
 
@@ -367,12 +321,9 @@ class CampaignOperation:
         return gangs
 
     def leave(self):
-        """Take the actor out of the campaign as a player, and every gang of
-        theirs with them. Returns the gangs taken out.
+        """Remove the actor's accepted player membership and all their gangs.
 
-        The arbitrator is never a player, so has nothing to leave. Somebody
-        who is not an accepted player, or who left before this transaction
-        began, changes nothing, and the caller gets None back.
+        Return removed gangs, or None when the actor is absent or is the arbitrator.
         """
         from n26.core.models import CampaignParticipant
 
@@ -647,12 +598,10 @@ class CampaignOperation:
         return found, wrong
 
     def save_scenario(self, rolls, *, name):
-        """Save a scenario from the generator for the arbitrator to see.
+        """Save a named generated scenario and its table rolls for the arbitrator.
 
-        ``rolls`` is ``{key: roll}`` for each table it uses. ``name`` is
-        what the reader calls it, held to a battle scenario's rule so the
-        log reads the same for both. Whoever may record battles may save
-        one. One line says the whole scenario.
+        ``rolls`` maps table keys to rolls. Use battle scenario name validation
+        and battle-recording permissions, recording one event for the scenario.
         """
         from n26.core.operations import Refusal
         from n26.core.scenarios import history_note, rolls_of
@@ -830,11 +779,10 @@ class CampaignOperation:
     def _stake_details(
         self, battle, *, stake, awarded_to, gang_ids, expected_revision=None
     ):
-        """Check a battle's stake against its participants.
+        """Validate the current battle stake and recipient under the campaign lock.
 
-        The stake as it stands under the campaign's line, and the gang it
-        goes to. A newly chosen stake must be unclaimed or held by a
-        participant, and only a participant can win it.
+        A new stake must be unclaimed or held by a participant. Its recipient
+        must be a participant.
         """
         from n26.core.operations import Refusal
 
@@ -866,14 +814,11 @@ class CampaignOperation:
         return stake, awarded_to
 
     def _settle_stake(self, battle, stake, awarded_to, gang_ids):
-        """Move the stake to the gang it now goes to, once.
+        """Apply a battle's asset transfer idempotently.
 
-        A transfer this battle already made is reversed first, and only if
-        the gang it went to still holds the asset: otherwise it has changed
-        hands since, and undoing it would take it from somebody else. The
-        new transfer happens only where the asset is not already with the
-        gang it goes to, and its mark is kept on the battle so saving again
-        moves nothing.
+        Reverse an earlier transfer only while its recipient still holds the
+        asset. Transfer to the new recipient only if needed, and retain the
+        transfer mark so repeated saves cannot repeat it.
         """
         from n26.core.operations import Refusal, _hold
 
@@ -1027,15 +972,10 @@ class CampaignOperation:
         return found
 
     def add_asset(self, asset, name="", *, income_override=None):
-        """Add one of an asset to the campaign, held by nobody.
+        """Add an unclaimed Holding asset eligible for this campaign.
 
-        Only an asset of a Holding asset type of this campaign's type or of
-        its own additions. A possession is every member gang's own, given on
-        joining, and the campaign keeps none; an asset of another campaign
-        type is not one this campaign deals in — either arriving here is a
-        caller's mistake, not a choice a screen offers. Nothing changes for
-        any gang: an asset nobody holds is the campaign's own act, and only
-        its log carries it.
+        Possession assets belong to member gangs and cannot enter the campaign
+        pool. Only the campaign log changes while the asset is unclaimed.
         """
         asset_type = asset.asset_type
         if not asset_type.is_holding:
@@ -1117,9 +1057,10 @@ class CampaignOperation:
         return True
 
     def _keep(self, asset, name="", *, income_override=None):
-        """The campaign asset itself, held by nobody. Written by the two
-        acts that bring an asset in — adding one by hand and rolling one —
-        each of which records itself."""
+        """Create an unclaimed campaign holding without recording an event.
+
+        Manual addition and rolling each record their own event.
+        """
         return CampaignAsset.objects.create(
             campaign=self.campaign,
             asset=asset,
@@ -1130,29 +1071,19 @@ class CampaignOperation:
     def roll_asset(
         self, table, *, membership=None, rolled=None, rng=None, avoid_duplicates=False
     ):
-        """Roll on an asset table and add what the roll lands on.
+        """Resolve an asset-table roll and record its resulting holding.
 
-        Without a membership this is the arbitrator generating the pool:
-        the table has to be one the campaign itself holds — built into
-        its type or into its additions — and the asset the roll lands on
-        is added held by nobody, exactly as :meth:`add_asset` adds one.
-        With a membership it is a gang's starting roll: the table has to
-        be one that gang holds, on its card as stored or granted, and the
-        asset is assigned to the gang as :meth:`assign` would, so the
-        gang's ledger gets its GAINED. Starting territories are additional
-        by default. With starting_from_pool, territory rolls claim a matching
-        unclaimed asset instead. Duplicate avoidance excludes assets already
-        in the campaign from generated rolls, but records manual rolls as entered.
+        Pool rolls require a campaign-held table and create an unclaimed asset.
+        Starting rolls require a table held by the gang and assign the asset
+        with a GAINED event. With starting_from_pool, a Territory result claims
+        a matching unclaimed asset instead of creating another.
 
-        ``rolled`` is a roll the reader made themselves and typed in
-        rather than one generated here; it has to be one the die can
-        make, and the record says it was a manual roll. ``rng`` is for a test that wants the dice
-        loaded.
+        Generated rolls avoid assets already present when configured; manual
+        ``rolled`` values are retained but must be valid for the die. ``rng``
+        supports deterministic tests.
 
-        One log line for one act: the roll is recorded as ASSET_ROLLED
-        with the asset in its note, and no ASSET_ADDED beside it.
-        Refused in words where the table is not one the roller holds,
-        names no dice, or has no entry for the roll.
+        Record ASSET_ROLLED once without an additional ASSET_ADDED event. Refuse
+        unheld tables, tables without dice, and results without an eligible entry.
         """
         self._check_roll_table(table, membership=membership)
         entries = self._roll_entries(table)
@@ -1399,13 +1330,9 @@ class CampaignOperation:
         return holding
 
     def remove_asset(self, campaign_asset):
-        """Take an asset nobody holds out of the campaign.
+        """Remove an unclaimed asset from the campaign, or return None if absent.
 
-        A held asset is refused in words: removing it would take the asset
-        off the holding gang with nothing in that gang's history saying so.
-        Unassigning it first writes that line. An asset already gone removes
-        nothing and says nothing: the second of two clicks on one button
-        finds the first one's work done.
+        Refuse held assets: unassigning first records the loss in the gang's history.
         """
         from n26.core.operations import Refusal
 
@@ -1430,18 +1357,11 @@ class CampaignOperation:
         return campaign_asset
 
     def assign(self, campaign_asset, membership, *, battle=None, mark=None):
-        """Give an asset nobody holds to a gang playing this campaign.
+        """Assign an unclaimed asset to a current member gang.
 
-        The asset's holder is set under the campaign's line, and the gang's
-        own line is taken inside it — campaign first, then gang, for every
-        writer that takes both; a gang's own writes only reference the
-        campaign, which the campaign's lock strength leaves alone — so two
-        acts touching one asset and one gang never wait on each other in
-        opposite orders. The gang's history gets a journal-only GAINED event
-        about the asset: it holds the asset and never owns it, so there is
-        no ledger entry, no price and nothing for the books to fold. An
-        asset another gang holds is refused in words, and one this gang
-        already holds is assigned nothing twice.
+        Lock campaign before gang, matching all ownership writers. Record a
+        journal-only GAINED event without a ledger entry or rating. Refuse assets
+        held by another gang; the same holder is a no-op.
         """
         from n26.core.operations import Refusal, operation
 
@@ -1469,18 +1389,11 @@ class CampaignOperation:
         return campaign_asset
 
     def unassign(self, campaign_asset, by_holder=None, *, battle=None, reverses=None):
-        """Take an asset back from the gang holding it, so nobody holds it.
+        """Release a held asset and record a journal-only LOST event for its gang.
 
-        The same two lines in the same order as assigning, and the matching
-        record on the gang — a journal-only LOST event. An asset nobody
-        holds is left as it is, and the caller gets None back: nothing
-        happened, so nothing is written.
-
-        ``by_holder`` is the membership the caller was allowed to act for.
-        The holding gang's owner may hand an asset back, and the page that
-        let them read the holder before this line was taken; if another
-        gang holds it by now, the act is refused in words rather than done
-        to that gang's asset. The arbitrator passes nothing.
+        Lock campaign before gang. Return None if already unclaimed. ``by_holder``
+        revalidates the membership authorised when the command was submitted;
+        arbitrator commands omit it.
         """
         from n26.core.operations import operation
 
@@ -1525,23 +1438,14 @@ class CampaignOperation:
         mark=None,
         reverses=None,
     ):
-        """Hand a held asset from the gang holding it to another gang
-        playing this campaign.
+        """Move a held asset between current member gangs and journal both sides.
 
-        One change to the asset under the campaign's line, then a record on
-        each gang inside it — LOST on the one it left, GAINED on the one it
-        went to — in the order the gangs are named, so both histories say
-        what happened and neither says it twice. The two records share one
-        mark, which is how the campaign's log reads them as one act.
+        Record LOST and GAINED with one shared batch under the campaign lock.
+        Refuse unclaimed assets and transfers to the existing holder.
 
-        An asset nobody holds cannot be handed over: assigning is the act
-        for that. An asset already held by the receiving gang is refused
-        too, in words, since nothing would change hands.
-
-        ``battle`` names the battle that moved it, on both records, and
-        ``mark`` is the mark they share where the caller keeps it.
-        ``reverses`` is the mark of an earlier transfer this one undoes:
-        each record then points at the one it reverses on the same gang.
+        ``battle`` identifies the cause. ``mark`` supplies a shared batch when
+        needed. ``reverses`` links each gang event to the corresponding earlier
+        transfer event being undone.
         """
         from n26.core.operations import Refusal, operation
 
@@ -1607,12 +1511,10 @@ class CampaignOperation:
     def add_asset_type(
         self, label_singular, ownership, label_plural="", display_group=""
     ):
-        """Declare a new asset type for this campaign alone.
+        """Create an asset type in this campaign's additions and pack.
 
-        The asset type lands on the additions type, in the campaign's pack.
-        A label the campaign already uses — on the shared type or on its own
-        additions — is refused in words, because the page would print two
-        headings that read the same.
+        Refuse labels already used by shared or campaign-owned types to prevent
+        indistinguishable headings.
         """
         from n26.core.operations import Refusal
         from n26.library.authoring import add_asset_type
@@ -1645,16 +1547,10 @@ class CampaignOperation:
     def edit_asset_type(
         self, asset_type, label_singular, ownership, label_plural="", display_group=""
     ):
-        """Change the labels or ownership of one of this campaign's own
-        asset types, and say so in its log.
+        """Change a campaign-owned asset type's labels or unfixed ownership.
 
-        Only an asset type the campaign added itself: the shared types are
-        library content. A label the campaign already uses is refused as it
-        is when adding one. The ownership cannot change once the type has
-        an asset or a table (``ownership_fixed_because``). Saving what was
-        already there writes nothing and returns None. The old label in the
-        log and the check for an unchanged save use the type as it is under
-        the campaign's line, not as the page read it.
+        Reject duplicate labels and ownership changes after an asset or table exists.
+        Compare against locked current values; an unchanged submission returns None.
         """
         from n26.core.operations import Refusal
         from n26.library.models import AssetType
@@ -1715,24 +1611,11 @@ class CampaignOperation:
         return asset_type
 
     def create_asset(self, asset_type, name, annotation="", income=0):
-        """Write a new asset under one of this campaign's asset types.
+        """Create content in the campaign pack under a shared or owned asset type.
 
-        The asset type may be the shared type's or the campaign's own: a
-        campaign's own Territory is as much a Territory as the book's. The
-        asset lands in the campaign's pack whichever asset type it is under,
-        so it never reaches another campaign; a system asset type pointing
-        at nothing of the arbitrator's is what keeps that direction clean.
-        What holding the asset does is not written here beyond its income,
-        which lands as the asset's Income contribution: it has a name, its
-        words and that figure, and nothing else.
-
-        An asset of a Possession asset type is every gang's own, so it is
-        built into the campaign's additions type as it is made, no matter
-        which campaign type its asset type belongs to, because the
-        additions type is the only campaign type in the campaign's pack.
-        It arrives on every gang that joins from now on; gangs already
-        playing are given it by the propagation pass that every built-in
-        edit files, marked as caught up.
+        Income becomes the asset's counter contribution. Possession assets are
+        built into additions so future members receive them on joining and current
+        members receive them through built-in propagation.
         """
         from n26.core.operations import Refusal
         from n26.library.authoring import create_asset
@@ -1762,17 +1645,11 @@ class CampaignOperation:
         return asset
 
     def add_counter(self, name, opening=0):
-        """Give every gang in the campaign a new counter, opening at a
-        value.
+        """Create a campaign counter and build its opening value into additions.
 
-        The counter is created in the campaign's pack and built into the
-        additions type at that amount. Gangs joining from now on receive
-        it as they join; gangs already playing receive it by the built-in
-        propagation pass that every built-in edit files, marked as caught
-        up. A name the pack already uses is refused in words, and so is
-        the name of a counter the shared type already gives every gang:
-        the gangs table keys its columns by what a counter is called, and
-        two counters reading alike would share one column.
+        Future gangs receive it on joining; current gangs receive it through
+        propagation. Refuse names already used by the pack or shared counters,
+        which would merge otherwise distinct table columns.
         """
         from n26.core.operations import Refusal
         from n26.library.authoring import add_built_in, create_counter
@@ -1805,17 +1682,11 @@ class CampaignOperation:
         return counter
 
     def add_label(self, name, options):
-        """Ask every gang in the campaign one question, with a fixed set
-        of options — an Alignment, an Allegiance.
+        """Create a gang-level choice and its options in the campaign pack.
 
-        Four library rows in the campaign's pack: a slot type named for
-        the question, one pickable per option, a picklist holding them in
-        the order given, and a slot assigned to the gang built into the
-        additions type. The slot lands on member gangs as a counter does,
-        and each gang's owner picks on the gang sheet. Options are told
-        apart by the question's name in their qualifier, so two questions
-        may both offer "None". A name the pack already asks is refused in
-        words.
+        Create the slot type, qualified pickables, ordered picklist and built-in
+        slot. Future and current gangs receive it through the ordinary additions
+        paths. Refuse an existing question name.
         """
         from n26.core.operations import Refusal
         from n26.library.authoring import (
@@ -1867,22 +1738,12 @@ class CampaignOperation:
         return slot
 
     def archive_counter(self, member):
-        """Take a counter the arbitrator added off every gang in the
-        campaign, keeping every value it reached.
+        """Archive an authored counter and its copies while retaining their values.
 
-        ``member`` is the counter's place in the campaign's additions
-        (:func:`own_addition`). It is archived, so no gang joining later
-        receives the counter, and each gang still carrying it has it
-        removed under that gang's own line, in key order, as leaving the
-        campaign removes it. Nothing is deleted or set to zero: the value
-        stays on the archived row and the gang's history keeps every
-        change, with the removal saying what the counter stood at. The
-        counter itself is archived last, which takes it out of the
-        library's lists without losing the name its history reads.
-
-        A counter another rule still names is refused in words, since
-        archiving it would change what that rule does
-        (:func:`_refuse_while_named`).
+        Archive the built-in member first, then remove each current gang's copy
+        under its lock in key order. Archive the content counter last. Keep
+        history and record the value at removal. External library references block
+        archival through _refuse_while_named.
         """
         from n26.core.models import CounterValue
 
@@ -1902,18 +1763,11 @@ class CampaignOperation:
         return counter
 
     def archive_label(self, member):
-        """Take a label the arbitrator added off every gang in the
-        campaign, keeping every pick made for it.
+        """Archive an authored label and each gang's slot and selection.
 
-        ``member`` is the label's slot in the campaign's additions
-        (:func:`own_addition`). As :meth:`archive_counter`: the member is
-        archived first, then each gang's copy of the slot is removed
-        under that gang's own line, taking its pick with it, and the
-        removal names that pick so the gang's history reads "(was
-        Lawful)". The label's slot and slot type are archived last.
-
-        A label another rule still names — the label itself, or any of
-        its options — is refused in words (:func:`_refuse_while_named`).
+        Archive the member first, remove copies under each gang lock, then archive
+        the slot and type. Record each removed pick for later restoration.
+        External references to the label or its options block archival.
         """
         from n26.core.models import Assignment
 
@@ -1938,9 +1792,10 @@ class CampaignOperation:
         return slot
 
     def _still_own(self, member, kind):
-        """The member read again under the campaign's line, or a refusal in
-        words if it was archived since the page was read. Anything else
-        that is not the campaign's own stays a ValueError."""
+        """Reload a live authored member under lock; refuse if it was archived.
+
+        Unrelated members remain caller errors.
+        """
         from n26.core.operations import Refusal
 
         try:
@@ -1955,17 +1810,11 @@ class CampaignOperation:
             raise Refusal(f"{name} was already archived.") from None
 
     def _off_every_gang(self, member, remove):
-        """Run ``remove(op, copy)`` on each gang's live copy of an archived
-        member, one gang at a time under that gang's line, in key order.
+        """Remove each current member gang's copies under gang locks in key order.
 
-        Every gang playing the campaign is visited, not only those holding a
-        copy before the walk began: a propagation pass already holding a
-        gang's line can be granting it a copy of the member as it was. That
-        pass commits before this one takes the line, so its copy is found
-        here and removed. A pass that starts later reads the member as
-        archived and grants nothing. Only gangs playing it: a clone of one
-        carries copies naming the same member, and is somebody else's gang
-        outside the campaign.
+        Visit every gang after locking it, including copies a concurrent propagation
+        committed before the lock. Later propagation sees the archived member and
+        creates nothing. Exclude cloned copies outside this campaign.
         """
         from n26.core.models import Assignment
         from n26.core.operations import operation
@@ -1978,17 +1827,10 @@ class CampaignOperation:
                     remove(op, copy)
 
     def unarchive_counter(self, member):
-        """Give an archived counter back to every gang still in the
-        campaign, at the value each gang had when it was archived.
+        """Restore an authored counter and current member gangs' archived balances.
 
-        ``member`` is the counter's archived place in the campaign's
-        additions (:func:`archived_addition`). The counter and the member
-        are unarchived, then each gang the archive took it from gets that
-        same assignment back, under the gang's own line, its value
-        untouched (:meth:`_back_on_every_gang`). A gang that joined while
-        it was archived never had it, so the propagation pass filed here
-        gives it the counter at its starting value, as any built-in added
-        to the campaign reaches gangs already playing.
+        Restore the exact copy removed by archival. Gangs that joined during
+        archival receive a new starting-value copy through filed propagation.
         """
         from n26.core.models import CounterValue
         from n26.core.propagation import file_propagation_task
@@ -2009,14 +1851,10 @@ class CampaignOperation:
         return counter
 
     def unarchive_label(self, member):
-        """Give an archived label back to every gang still in the
-        campaign, with the option each gang had picked.
+        """Restore an authored label and selections removed by its archival.
 
-        As :meth:`unarchive_counter`. A gang's pick comes back only where
-        the archive removed it — the pick its removal names, archived in
-        the same act — so an option the gang had already replaced stays
-        replaced. A gang that had picked nothing gets the label back
-        unanswered.
+        Restore only picks identified by that removal, preserving independently
+        replaced selections. Previously unresolved labels remain unresolved.
         """
         from n26.core.propagation import file_propagation_task
 
@@ -2044,8 +1882,7 @@ class CampaignOperation:
         return slot
 
     def _still_archived(self, member, kind):
-        """The archived member read again under the campaign's line, or a
-        refusal in words if it was unarchived since the page was read."""
+        """Reload an archived member under lock; refuse if already restored."""
         from n26.core.operations import Refusal
 
         try:
@@ -2058,15 +1895,10 @@ class CampaignOperation:
             raise Refusal(f"{name} is not archived.") from None
 
     def _back_on_every_gang(self, member, restore):
-        """Run ``restore(op, copy, removal)`` for each gang still in the
-        campaign whose copy of the member an archive removed, one gang at a
-        time under that gang's line, in key order.
+        """Restore copies removed by archival for each gang's current membership.
 
-        Only the copy made for the gang's current membership qualifies: a
-        gang that left took its copy with it, and a gang that came back
-        has a new membership that never held one. Only a copy whose last
-        removal was an archive's is put back, never one removed for any
-        other reason.
+        Lock gangs in key order. Ignore copies from closed memberships and those
+        last removed for another reason.
         """
         from n26.core.models import Assignment
         from n26.core.operations import operation
@@ -2098,18 +1930,12 @@ class CampaignOperation:
                 restore(op, copy, removal)
 
     def open_table(self, table):
-        """Let every gang in the campaign roll on an asset table, by
-        building it into the campaign's additions.
+        """Build a rollable table into campaign additions for current and future gangs.
 
-        The table is one of a system pack's or the campaign's own, of an
-        asset type the campaign deals in. The member lands on the
-        additions type's built-ins, so gangs joining from now on hold the
-        table as they join and gangs already playing are given it by the
-        propagation pass every built-in edit files. A member closing took
-        out is revived rather than replaced, for the reason a possession's
-        is: every copy already on a gang names it as its provenance. A
-        table the campaign's own type already gives, or one already open,
-        changes nothing and says nothing.
+        Require an eligible system or campaign table. Revive archived members to
+        preserve existing copy provenance. Tables built into the shared type and
+        tables already opened through additions are no-ops. Propagation grants
+        new copies where needed.
         """
         from n26.core.operations import Refusal
         from n26.core.propagation import file_propagation_task
@@ -2148,15 +1974,11 @@ class CampaignOperation:
         return member
 
     def close_table(self, table):
-        """Stop every gang in the campaign rolling on a table the
-        arbitrator opened.
+        """Withdraw a table opened through additions without removing held copies.
 
-        The additions' member is taken out the way any built-in is —
-        archived where a gang was given the table through it, deleted
-        where none was. Nothing is taken back: a gang that holds the
-        table keeps it, and a territory already rolled on it stays. A
-        table the campaign's type gives is not the arbitrator's to close,
-        and one not open changes nothing.
+        Archive its member when copies exist, otherwise delete it. Existing
+        territories remain. Tables built into the shared type cannot be closed
+        here.
         """
         from n26.core.operations import Refusal
         from n26.library.authoring import remove_default_member
@@ -2186,15 +2008,11 @@ class CampaignOperation:
         return members[0]
 
     def create_table(self, asset_type, name, dice=""):
-        """Write a new asset table for this campaign alone.
+        """Create a campaign-pack table under an eligible Holding asset type.
 
-        The table lands in the campaign's pack under one of the Holding
-        asset types the campaign deals in, and is built into the
-        campaign's additions as it is made, so every gang at the table
-        holds it: a table an arbitrator writes is one they mean to roll
-        on. ``dice`` names the die; blank makes an ordered list. Entries
-        are added afterwards with :meth:`add_table_entry`. A name the
-        campaign's pack already uses is refused in words.
+        Build it into additions for current and future gangs. ``dice`` selects
+        the die; blank means an ordered list. Refuse duplicate pack names.
+        Add entries separately through add_table_entry.
         """
         from n26.core.operations import Refusal
         from n26.library.authoring import create_asset_table
@@ -2230,15 +2048,10 @@ class CampaignOperation:
         return table
 
     def add_table_entry(self, table, asset, roll_low=None, roll_high=None):
-        """One more asset on one of the campaign's own tables.
+        """Add an eligible asset to a table authored in this campaign's pack.
 
-        Only a table in the campaign's pack: a system table is the
-        book's, and an arbitrator narrows it by writing their own. The
-        asset is one the campaign may add by hand (the catalogue reads
-        the same rule), and on a rolled table the band says which rolls
-        land here. What an entry is not allowed to be — another type's
-        asset, a band on an unrolled table, one running downwards — the
-        authoring verb refuses, and the words reach the form.
+        The authoring verb validates asset type and roll bands, including reversed
+        bands and bands on unrolled tables. Surface its validation errors to forms.
         """
         from n26.library.authoring import add_asset_table_entry
 
@@ -2256,11 +2069,9 @@ class CampaignOperation:
         remove_asset_table_entry(entry)
 
     def add_gang(self, gang):
-        """Put a gang into this campaign (``Operation.join_campaign``).
+        """Join this non-archived campaign through Operation.join_campaign.
 
-        The campaign's line is held already, so archiving, which takes
-        every gang out under the same line, cannot run between the check
-        and the join. An archived campaign takes no gangs.
+        The campaign lock prevents archival between validation and membership creation.
         """
         from n26.core.operations import Refusal, operation
 
@@ -2270,13 +2081,10 @@ class CampaignOperation:
             return op.join_campaign(self.campaign)
 
     def remove_gang(self, membership):
-        """Take one gang out of this campaign, and give back everything the
-        campaign gave it (``Operation.leave_campaign``).
+        """End a gang's membership through Operation.leave_campaign.
 
-        The campaign's line is held already; the gang's is taken inside it,
-        the order every writer to a campaign asset uses. A membership that
-        has closed since the page was read is left as it is, and the caller
-        gets None back.
+        Acquire the gang lock inside the campaign lock. Return None if the
+        membership has already closed.
         """
         from n26.core.models import CampaignMembership
         from n26.core.operations import operation
@@ -2294,14 +2102,10 @@ class CampaignOperation:
             return op.leave_campaign()
 
     def archive(self):
-        """Take every gang out, then take the campaign off the arbitrator's
-        list, and say so.
+        """Remove every gang, archive the campaign and pack, and record the change.
 
-        Each gang leaves as it would on its own, giving back everything
-        the campaign gave it, so no gang keeps a Settlement or a territory
-        from a campaign nobody can open. The campaign's pack is archived
-        with it. Nothing is destroyed, so the log keeps reading: what a
-        campaign recorded stays true whether or not it is still on show.
+        Ordinary departures release holdings and remove campaign grants. Preserve
+        the campaign log and all archived history.
         """
         campaign = self.campaign
         if campaign.archived:
@@ -2375,20 +2179,17 @@ def _playing_gangs(campaign):
 
 
 def own_additions(campaign, kind):
-    """Every counter or label the arbitrator added to this campaign and
-    has not archived, as members of its additions, in added order.
+    """Return live counter or label members authored in this campaign's pack.
 
-    ``kind`` is ``"counter"`` or ``"slot"``. Only members naming a thing
-    in the campaign's own pack qualify: Reputation and Income come with
-    the shared type, a gang's own questions come with its gang type, and
-    neither is the arbitrator's to archive.
+    ``kind`` is the field name ``"counter"`` or ``"slot"``. Shared campaign-type
+    content and gang-owned content are excluded because the arbitrator cannot
+    archive them here.
     """
     return _additions(campaign, kind, archived=False)
 
 
 def archived_additions(campaign, kind):
-    """Every counter or label the arbitrator added to this campaign and
-    then archived, as members of its additions, in added order."""
+    """Return archived counter or label additions in authored order."""
     return _additions(campaign, kind, archived=True)
 
 
@@ -2455,21 +2256,18 @@ class UnarchiveLine:
 
 @dataclass(frozen=True)
 class UnarchivePreview:
-    """What unarchiving one counter or label gives the gangs in the
-    campaign, read the way the act decides it (``_back_on_every_gang``)."""
+    """Per-gang restoration results using the same rules as _back_on_every_gang."""
 
     returning: list
     new: list
 
 
 def unarchive_preview(campaign, member):
-    """What unarchiving this archived counter or label would give each
-    gang still in the campaign, in a fixed number of queries.
+    """Preview restoration for current member gangs in a fixed query count.
 
-    A gang whose copy an archive removed gets that copy back, with its
-    value or the option it had picked. Every other gang still in the
-    campaign — one that joined while it was archived — gets it new: a
-    counter at its starting value, a label with nothing picked.
+    Restore archived copies with their previous values or selections. Gangs
+    that joined during archival receive a new counter at its starting value
+    or a new unresolved label.
     """
     from n26.core.models import Assignment
 
@@ -2552,9 +2350,11 @@ def _key(row):
 
 
 def archive_refusal(campaign, member):
-    """Why this counter or label of the campaign's own cannot be archived,
-    in words, or "" when it can. The confirm page asks before it offers
-    the button; the archive itself asks again under the campaign's line."""
+    """Return the reason an addition cannot be archived, or empty when permitted.
+
+    Confirmation checks this before displaying the action. Execution checks
+    again under the campaign lock.
+    """
     from n26.core.operations import Refusal
 
     try:
@@ -2573,8 +2373,7 @@ def _label_rows(campaign, slot):
 
 
 def _refuse_archiving(campaign, member):
-    """Refuse, in words, to archive a counter or label another library
-    row names (:func:`_refuse_while_named`)."""
+    """Refuse to archive an addition referenced by other library content."""
     if member.counter_id is not None:
         counter = member.counter
         _refuse_while_named(counter, [counter], own={_key(member)})
@@ -2591,14 +2390,11 @@ def _refuse_archiving(campaign, member):
 
 
 def _refuse_while_named(name, things, own):
-    """Refuse, in words, to archive something another library row names.
+    """Refuse archival while external library content references these objects.
 
-    ``things`` are rows of one kind; ``own`` is the set of rows that make
-    up the counter or label itself, which naming each other is not a use.
-    What a gang holds is not a use either: a copy, its pick and its
-    history are what archiving deals with. Anything else in the library —
-    a condition reading the counter, a rule granting a pick — would
-    change what it does, so the archive stops and says what to change.
+    ``own`` contains the addition's own supporting objects, whose references
+    are permitted. Player assignments and history are handled by archival and
+    do not block it. External conditions or grants must be changed first.
     """
     from n26.core.operations import Refusal
     from n26.library.references import named, references_to
@@ -2626,30 +2422,19 @@ def _refuse_while_named(name, things, own):
 
 
 def _own_table(campaign, table):
-    """Refuse a write to a table that is not this campaign's own. A
-    system table is the book's; only what the arbitrator wrote into the
-    campaign's pack is theirs to change."""
+    """Require a table authored in this campaign's pack before changing it."""
     if table.pack_id != campaign.pack_id:
         raise ValueError(f"{table} is not one of {campaign}'s own tables.")
 
 
 def addable_assets(campaign, *, include_staged=False):
-    """The library assets this campaign can add by hand: those of the
-    Holding asset types of its type and of its own additions, plus every
-    entry of every table the campaign holds.
+    """List visible, non-archived Holding assets eligible for manual addition.
 
-    A possession is every member gang's own, given on joining, and is never
-    added here. Only the assets this campaign may see: the system pack's,
-    the shared type's pack's and the campaign's own — an asset another
-    campaign's arbitrator wrote under the same shared asset type sits in
-    that campaign's pack and is nobody else's to offer. A table the
-    campaign holds widens that by its entries, wherever they are filed: a
-    journal's territory becomes addable the moment its table is opened.
-    Additive only — nothing that was addable stops being so. Archived
-    assets are left out here, where a new campaign asset would be made —
-    archiving hides a thing from new additions and takes nothing back from
-    a campaign that already has the asset. ``add_asset`` refuses by the
-    same rule, so the picker and the act cannot drift apart.
+    Include relevant asset types from the system, shared type and campaign
+    packs. Also include entries of held tables regardless of pack, allowing
+    those tables to extend eligibility. Exclude Possession assets, which are
+    granted to member gangs. ``add_asset`` checks type and pack or held-table
+    eligibility without applying these archive and staging filters.
     """
     from n26.library.models import Asset
 
@@ -2676,8 +2461,7 @@ def addable_assets(campaign, *, include_staged=False):
 
 
 def _on_a_held_table(campaign, asset):
-    """Whether a table the campaign holds lists this asset — what admits
-    an asset filed outside the campaign's own packs."""
+    """Whether a held table lists this asset, regardless of its pack."""
     from n26.library.models import AssetTableEntry
 
     return AssetTableEntry.objects.filter(
@@ -2696,15 +2480,10 @@ def roll_table_entries(table, actor):
 
 
 def tables_in_play(campaign, *, include_staged=False):
-    """The asset tables the campaign itself holds, and so generates its
-    pool from: the live built-in members of its type and of its
-    additions that name a table. One query.
+    """Load live tables built into the shared type or additions in one query.
 
-    ``include_staged`` is whether the reader may see staged content
-    (``n26.library.staged.sees_staged``). A roll is where an asset is
-    newly chosen for the campaign, so a reader who may not is not offered
-    a staged table; a check that asks what the campaign *holds* passes
-    True, since a staged table it holds is held all the same.
+    These generate the campaign's pool. ``include_staged`` permits staged
+    tables for authorised discovery or inspection of already held content.
     """
     from n26.library.models import AssetTable, CampaignType, DefaultAssignment
 
@@ -2723,22 +2502,12 @@ def tables_in_play(campaign, *, include_staged=False):
 
 
 def tables_on(card, computed, withdrawn=frozenset(), *, include_staged=False):
-    """The asset tables a gang may roll on, read off its card: the stored
-    assignments naming one and the tables a grant dealt onto it, each
-    once, in the order they stand. Query-free, so a page that has the
-    cards in hand asks this for every gang without another query.
+    """Return distinct rollable tables from the gang's loaded card in card order.
 
-    ``withdrawn`` is what :func:`withdrawn_members` returns for these
-    cards. A copy given through a built-in member the arbitrator has
-    since closed stays on the gang — nothing is taken back — but the
-    offer is withdrawn, so it is not a table the gang may roll on.
-
-    ``include_staged`` is whether the reader may see staged content
-    (``n26.library.staged.sees_staged``). A staged table a pick gives
-    reaches the gang's card like any grant, but rolling on it is where
-    a Territory is newly chosen for the campaign, so a reader who may
-    not see staged content is not offered it — and, as at every other
-    discovery surface, the default holds staged content back.
+    Include stored and computed tables. ``withdrawn`` identifies archived
+    built-in members whose copies remain held but cannot offer new rolls.
+    Exclude staged tables unless ``include_staged`` permits discovery.
+    This function performs no queries.
     """
     from n26.library.models import AssetTable
 
@@ -2779,11 +2548,11 @@ def withdrawn_members(*cards):
 
 
 def tables_held_by(gang, campaign, *, include_staged=False):
-    """The asset tables one gang may roll on in this campaign — its
-    starting territory's tables. Builds the gang's card and computes it,
-    so this is for an act on one gang; a page listing several reads
-    ``tables_on`` off cards it already has and asks :func:`foreign_tables`
-    once for all of them. ``include_staged`` is as for ``tables_on``."""
+    """Build one gang's effective card and return its eligible campaign tables.
+
+    For multi-gang pages, use tables_on with preloaded cards and batch
+    foreign_tables instead. ``include_staged`` follows tables_on.
+    """
     from n26.core.card import build_gang_card, build_modifier_index, carriers
     from n26.core.effects import compute
 
@@ -2797,14 +2566,10 @@ def tables_held_by(gang, campaign, *, include_staged=False):
 
 
 def foreign_tables(campaign, tables):
-    """The pks among ``tables`` that another campaign's arbitrator wrote.
+    """Return table IDs authored in another campaign's private pack.
 
-    A gang keeps the carriers a campaign gave it after it leaves, so a
-    table created for its last campaign is still on its card when it
-    joins the next. Such a table sits in that campaign's pack and is
-    nobody else's to roll on: only a system pack's tables and this
-    campaign's own are offered. One query for however many tables, and
-    none where every table is already in this campaign's pack.
+    Only system tables and this campaign's own tables are eligible. Use one
+    query for the supplied tables, skipping it when all belong to this campaign.
     """
     from django.db.models import Q
 
@@ -2821,9 +2586,10 @@ def foreign_tables(campaign, tables):
 
 
 def _still_held_by(campaign_asset, membership_id):
-    """Refuse in words where the asset has left the gang the caller was
-    acting for since they read the page. ``None`` asks nothing: the
-    arbitrator may move any held asset whoever holds it now."""
+    """Refuse a holder's command if the asset changed hands before execution.
+
+    ``None`` bypasses the holder check for arbitrator commands.
+    """
     from n26.core.operations import Refusal
 
     if membership_id is not None and campaign_asset.holder_id != membership_id:
@@ -2834,11 +2600,10 @@ def _still_held_by(campaign_asset, membership_id):
 
 
 def ownership_fixed_because(campaign, asset_type):
-    """Why the asset type's ownership can no longer change, as a sentence,
-    or "" while it still can.
+    """Explain why an asset type's ownership is fixed, or return empty.
 
-    Ownership decides how each asset of the type is made, and only a
-    Holding type has tables, so one asset or one table fixes it.
+    An existing asset or table fixes ownership because it determines how those
+    objects are created; only Holding types can have tables.
     """
     plural = asset_type.plural.lower()
     if asset_type.assets.exists():
@@ -2849,12 +2614,9 @@ def ownership_fixed_because(campaign, asset_type):
 
 
 def _asset_type_under_the_lock(asset_type):
-    """The asset type as it stands now that the campaign's line is held.
+    """Reload the campaign-owned asset type after acquiring the campaign lock.
 
-    Whoever submitted the form read it before this transaction began, and
-    ``edit_asset_type`` may have changed its labels or ownership since.
-    Every writer to a campaign's own asset type holds that campaign's line,
-    and its ownership decides how an asset or a table of it is made.
+    Labels or ownership may have changed since the form was loaded.
     """
     from n26.library.models import AssetType
 
@@ -2862,14 +2624,10 @@ def _asset_type_under_the_lock(asset_type):
 
 
 def _asset_under_the_lock(campaign_asset):
-    """The campaign asset as it stands now that the campaign's line is held,
-    or None where it has gone.
+    """Reload the asset and holder under the campaign lock, or return None.
 
-    Whoever clicked read the page before this transaction began, and two
-    clicks on one button arrive together often enough. Every writer to a
-    campaign asset holds its campaign's line first, so a row read under
-    that line is the row as it is; the holder rides along because every
-    decision here asks who has it.
+    All ownership writers take that lock, making this state authoritative for
+    a stale or concurrent submission.
     """
     return (
         CampaignAsset.objects.select_related("holder__gang", "asset__asset_type")
@@ -2880,11 +2638,7 @@ def _asset_under_the_lock(campaign_asset):
 
 @dataclass(frozen=True)
 class BattleStake:
-    """What a battle staked and where it went, for reading.
-
-    The holder is the asset's own, read now, so every page that shows the
-    stake names the same gang whoever's report it sits in.
-    """
+    """A battle's staked asset and current holder for display."""
 
     label: str
     name: str
@@ -3007,14 +2761,11 @@ def starting_asset_types_received(campaign, memberships):
 
 
 def over_budget(campaign, gang):
-    """Whether this gang is bigger than the campaign's stated size.
+    """Whether a pre-campaign gang's wealth exceeds the campaign's finite budget.
 
-    Measured on the gang's wealth: its rating, its stash and the credits it
-    has not spent. Spending moves credits into rating or stash and changes
-    none of the total, so wealth today is what the gang's rating and stash
-    come to once it has bought everything it can — which is the number a
-    budget is about. The warning only applies before the campaign starts;
-    a campaign with no budget is never over it.
+    Wealth includes model rating, stash rating and unspent credits. Purchases
+    transfer value between these components. Active campaigns and unlimited
+    budgets produce no warning.
     """
     return (
         campaign.status == Campaign.Status.PRE_CAMPAIGN
@@ -3024,14 +2775,11 @@ def over_budget(campaign, gang):
 
 
 def archive_gang(gang, actor=None):
-    """Delete a gang, taking it out of its campaign first.
+    """Archive a gang after removing its current campaign membership.
 
-    The gang's campaign is read before any line is held, so it is read
-    again under them: the campaign's line, then the gang's, the order
-    every writer to both uses. If what was read has changed, it is read
-    once more. The gang is archived under its own line, and a join checks
-    for that under the same line, so no gang joins a campaign after it is
-    deleted.
+    Recheck membership while locking campaign before gang, retrying if it
+    changed. Joining checks gang archival under the same gang lock so a
+    concurrent join cannot add the archived gang.
     """
     from n26.core.models import CampaignMembership
     from n26.core.operations import operation
@@ -3062,21 +2810,12 @@ def archive_gang(gang, actor=None):
 
 @contextmanager
 def campaign_operation(campaign, actor=None):
-    """One transaction, under the campaign's own line.
+    """Run campaign writes atomically after locking and reloading the campaign.
 
-    The line is taken first and the campaign read back under it. Whoever
-    opened the form read the row before this transaction began, and deciding
-    what changed against those values would let one arbitrator overwrite
-    another and record a note naming a name that had already been replaced.
-
-    Taken at the strength that serialises campaign operations against each
-    other and nothing else. Every ledger event a gang writes names its
-    campaign, and inserting that reference takes the database's own share
-    lock on the campaign row after the gang's line. A full lock here would
-    sit on the other side of that — campaign then gang — and an arbitrator
-    assigning an asset while the gang's owner is buying something would
-    deadlock one of them. Nothing here ever changes the campaign's key, so
-    the weaker lock loses nothing.
+    Use a no-key-update lock to serialise campaign writers while allowing
+    gang events to reference the campaign. A stronger lock could deadlock
+    with a gang write that holds its gang lock before inserting that reference.
+    Campaign operations never change the campaign primary key.
     """
     from n26.write_pause import write_guard
 
@@ -3096,18 +2835,10 @@ def campaign_operation(campaign, actor=None):
 
 @dataclass(frozen=True)
 class CampaignTypeSummary:
-    """One campaign type as the set-up screen offers it: what a campaign
-    of it is about, and what a gang that joins is given.
+    """Authored setup information about a campaign type and its starting grants.
 
-    Built here rather than in the template because each line is a
-    sentence composed from several rows — an asset type's label and its
-    ownership, a built-in member and its opening value, a modifier's scope
-    and effect — and the words belong with the facts they are made from.
-
-    ``kinds`` is one sentence per asset type, in the type's own order.
-    ``starts_with`` is one sentence for the whole built-in set, or empty
-    where the type builds nothing in. ``rules`` is one sentence per
-    campaign-wide modifier, in the words the authoring pages use.
+    ``kinds`` describes asset types in authored order. ``starts_with`` describes
+    the built-ins, or is empty. ``rules`` describes campaign-wide modifiers.
     """
 
     pk: str

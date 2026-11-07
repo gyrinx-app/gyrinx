@@ -67,7 +67,6 @@ def test_notify_never_raises(user, monkeypatch):
         raise RuntimeError("db exploded")
 
     monkeypatch.setattr(Notification.objects, "create_with_user", boom)
-    # Must not propagate.
     assert notify(recipient=user, subject="X") is None
 
 
@@ -96,7 +95,6 @@ def test_notify_campaign_arbitrator_sets_recipient_and_campaign(campaign):
     n = notify_campaign_arbitrator(campaign, subject="A list changed")
     assert n is not None
     assert n.owner == campaign.owner
-    # With nothing more specific to point at, the campaign is the subject.
     assert n.target == campaign
     assert n.scope is None
     assert n.notification_type == NotificationType.CAMPAIGN
@@ -113,11 +111,9 @@ def test_notify_list_changed_notifies_owner_and_arbitrator(
 
     notify_list_changed(lst, subject="Cost recalculated")
 
-    # Owner (user) gets one, arbitrator gets one.
     assert Notification.objects.filter(owner=user).count() == 1
     assert Notification.objects.filter(owner=arbitrator).count() == 1
     arb_note = Notification.objects.get(owner=arbitrator)
-    # The gang is what changed; the campaign is the context around it.
     assert arb_note.target == lst
     assert arb_note.scope == camp
 
@@ -126,14 +122,12 @@ def test_notify_list_changed_notifies_owner_and_arbitrator(
 def test_notify_list_changed_does_not_double_notify_when_owner_is_arbitrator(
     user, make_campaign, make_list
 ):
-    # Campaign owned by the same user who owns the list.
     camp = make_campaign("Camp", owner=user)
     lst = make_list("Gang", status=List.CAMPAIGN_MODE, campaign=camp)
     camp.lists.add(lst)
 
     notify_list_changed(lst, subject="Cost recalculated")
 
-    # Only one notification (to the owner), not two.
     assert Notification.objects.filter(owner=user).count() == 1
 
 
@@ -162,7 +156,7 @@ def test_notify_many_empty_returns_zero():
 @pytest.mark.django_db
 def test_notify_many_batches_across_batch_size(make_user):
     users = [make_user(f"u{i}", "password") for i in range(5)]
-    # batch_size=2 forces multiple bulk_create batches.
+    # Force multiple bulk_create batches.
     count = notify_many(users, subject="Batched", batch_size=2)
     assert count == 5
     assert Notification.objects.filter(subject="Batched").count() == 5
@@ -170,7 +164,6 @@ def test_notify_many_batches_across_batch_size(make_user):
 
 @pytest.mark.django_db
 def test_notification_has_no_history_table():
-    # Deliberate: notifications omit HistoricalRecords (see model docstring).
     assert hasattr(Notification, "history") is False
 
 
@@ -182,7 +175,6 @@ def test_mark_read_and_unread_are_idempotent(user):
     n.refresh_from_db()
     assert n.is_read is True
     assert n.read_at is not None
-    # Idempotent — marking read again doesn't change read_at semantics or raise.
     prior = n.read_at
     n.mark_read()
     assert n.read_at == prior
@@ -206,12 +198,9 @@ def test_queryset_buckets_and_counts(user, make_user):
     notify(recipient=other, subject="other-user")
 
     qs = Notification.objects
-    # Unread badge count: only the single active unread row for `user`.
     assert qs.unread_count_for(user) == 1
-    # Active bucket excludes archived and deleted.
     assert qs.for_recipient(user).active().count() == 2  # unread + read
     assert qs.for_recipient(user).archived_bucket().count() == 1
-    # Scoped to recipient.
     assert qs.unread_count_for(other) == 1
 
 
@@ -232,11 +221,7 @@ def test_banners_for_filters(user, make_list, make_campaign):
 def test_banners_for_matches_scope_as_well_as_target(
     user, make_user, make_list, make_campaign
 ):
-    """A notification about a gang inside a campaign banners on both pages.
-
-    The arbitrator's copy carries the gang as `target` and the campaign as
-    `scope`, which is what the two fixed FKs used to express.
-    """
+    """Display a gang notification on both its target gang and scope campaign."""
     arbitrator = make_user("arb", "password")
     campaign = make_campaign("Turf War", owner=arbitrator)
     gang = make_list("Gang", status=List.CAMPAIGN_MODE, campaign=campaign)
@@ -245,11 +230,8 @@ def test_banners_for_matches_scope_as_well_as_target(
         campaign, subject="gang changed", target=gang, show_as_banner=True
     )
 
-    # Visible on the campaign page (matched via scope)...
     assert Notification.objects.banners_for(arbitrator, campaign).count() == 1
-    # ...and on the gang's own page (matched via target).
     assert Notification.objects.banners_for(arbitrator, gang).count() == 1
-    # But not on an unrelated gang.
     assert (
         Notification.objects.banners_for(arbitrator, make_list("Elsewhere")).count()
         == 0
@@ -273,8 +255,7 @@ def test_target_url_prefers_target_then_scope(user, make_list, make_campaign):
 
 
 class KeyThatKnowsItself:
-    """A primary key that is a UUID underneath but renders as something else,
-    the way a ULID does."""
+    """A UUID-backed key with a distinct string representation, matching ULID behaviour."""
 
     def __init__(self, value):
         self.value = value
@@ -293,7 +274,7 @@ class KeyThatIsNoUUID:
 
 @pytest.mark.django_db
 def test_a_uuid_key_is_linked_as_it_is(user):
-    """The id columns are uuid, and most keys already are one."""
+    """Preserve a UUID key when creating a generic relation."""
     key = uuid.uuid4()
     user.pk = key
     content_type, found = _generic_key(user)
@@ -303,10 +284,7 @@ def test_a_uuid_key_is_linked_as_it_is(user):
 
 @pytest.mark.django_db
 def test_a_key_that_knows_how_to_become_a_uuid_is_asked(user):
-    """An edition may key its rows with something that is a UUID underneath
-    while rendering as something else. Coercing it here is what keeps the
-    link — and, because notify swallows its own errors inside a caller's
-    transaction, what keeps the notification and the act it announces."""
+    """Use to_uuid() when a key has a non-UUID string representation."""
     key = uuid.uuid4()
     user.pk = KeyThatKnowsItself(key)
     _, found = _generic_key(user)
@@ -315,7 +293,7 @@ def test_a_key_that_knows_how_to_become_a_uuid_is_asked(user):
 
 @pytest.mark.django_db
 def test_a_key_that_cannot_be_one_links_nothing_and_raises_nothing(user):
-    """Losing the link is survivable. Losing the notification is not."""
+    """Ignore an invalid generic key without raising."""
     user.pk = KeyThatIsNoUUID()
     assert _generic_key(user) == (None, None)
 

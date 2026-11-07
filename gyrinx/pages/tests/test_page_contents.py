@@ -1,4 +1,4 @@
-"""Tests for flat page headings, the contents block, the introduction and the child listing (#2540)."""
+"""Flatpage heading IDs, nested contents, introductions and child-page listings."""
 
 import pytest
 from bs4 import BeautifulSoup
@@ -24,9 +24,6 @@ def make_page(site, url, title, content="<p>Body.</p>"):
     return page
 
 
-# --- parse_headings -----------------------------------------------------------
-
-
 def test_parse_headings_returns_html_and_headings_in_document_order():
     parsed = parse_headings("<h2>Intro</h2><p>x</p><h3>Setup</h3>")
 
@@ -47,8 +44,7 @@ def test_parse_headings_deduplicates_slugs_with_numeric_suffixes():
 
 
 def test_parse_headings_reserves_ids_already_in_the_content():
-    """TinyMCE's anchor tool writes its own ids; a heading slug must not
-    duplicate one of those either."""
+    """Reserve authored anchor IDs when generating heading slugs."""
     parsed = parse_headings(
         '<a id="setup"></a><h2>Setup</h2><div id="notes-2"></div><h2>Notes</h2><h2>Notes</h2>'
     )
@@ -84,7 +80,7 @@ def test_nest_headings_nests_by_level():
 
     assert shape(tree) == [
         ("a", [("a1", [("a1a", [])]), ("a2", [])]),
-        # A skipped level (h4 straight after h2) still nests under the h2.
+        # Nest a skipped heading level under the preceding parent heading.
         ("b", [("b-deep", [])]),
     ]
 
@@ -94,9 +90,6 @@ def test_nest_headings_does_not_mutate_the_flat_list():
     nest_headings(parsed.headings)
 
     assert all(h.children == [] for h in parsed.headings)
-
-
-# --- page_contents tag --------------------------------------------------------
 
 
 CONTENT = "<h2>Intro</h2><p>x</p><h3>Setup</h3><h3>Setup</h3><h2>Outro</h2>"
@@ -135,13 +128,10 @@ def test_page_contents_renders_nested_list_with_deduplicated_links(site):
     assert 'href="#setup"' in html
     assert 'href="#setup-2"' in html
     assert 'href="#outro"' in html
-    # Nested: the two h3s sit inside the first h2's <li>.
     intro = html.index('href="#intro"')
     setup2 = html.index('href="#setup-2"')
     outro = html.index('href="#outro"')
     assert intro < setup2 < outro
-    # A nested list, not a numbered one (#2540 asks for a nested list; the
-    # sidebar page nav is marker-less too).
     contents = BeautifulSoup(html, "html.parser")
     assert len(contents.find_all("ul")) == 2
     assert contents.find("ol") is None
@@ -149,8 +139,7 @@ def test_page_contents_renders_nested_list_with_deduplicated_links(site):
 
 @pytest.mark.django_db
 def test_page_contents_block_has_no_fixed_id_to_collide_with(site):
-    """An authored heading "Page contents heading" slugs to what the block's
-    heading id used to be; the block must not carry a fixed id."""
+    """Keep the contents block free of fixed IDs that could collide with authored headings."""
     page = make_page(site, "/guide/", "Guide", "<h2>Page contents heading</h2>")
     FlatPageOptions.objects.create(page=page, show_contents=True)
 
@@ -181,9 +170,6 @@ def test_flat_page_view_shows_automatic_contents(site):
     FlatPageOptions.objects.create(page=page, show_contents=True)
     with_legacy_option = client.get(page.url).content.decode()
     assert 'aria-label="On this page"' in with_legacy_option
-
-
-# --- get_child_pages ----------------------------------------------------------
 
 
 @pytest.mark.django_db
@@ -240,9 +226,6 @@ def test_flat_page_view_has_no_child_listing_for_a_leaf(site):
     assert "In N23:" not in html
 
 
-# --- admin inline -------------------------------------------------------------
-
-
 @pytest.fixture
 def admin_user(db):
     return User.objects.create_superuser(
@@ -267,9 +250,6 @@ def test_flat_page_change_page_hides_obsolete_show_contents_checkbox(site, admin
 
 
 @pytest.mark.django_db
-# --- page_introduction tag ----------------------------------------------------
-
-
 def render_introduction(page):
     template = Template("{% load pages %}{% page_introduction flatpage %}")
     return template.render(Context({"flatpage": page}))
@@ -339,9 +319,8 @@ def test_flat_page_change_page_renders_the_introduction_editor(site, admin_user)
     html = client.get(f"/admin/flatpages/flatpage/{page.pk}/change/").content.decode()
 
     assert 'name="options-0-introduction"' in html
-    # Read the help text off the field so a copy edit cannot break this test.
+    # Read current field help text so this test does not depend on its wording.
     assert FlatPageOptions._meta.get_field("introduction").help_text in html
-    # The same rich-text editor as the page content, not a bare textarea.
     assert "tinymce" in html.lower()
 
 
@@ -373,6 +352,6 @@ def test_flat_page_change_page_saves_the_introduction(site, admin_user):
     assert response.status_code == 302, response.content.decode()[:2000]
     options = FlatPageOptions.objects.get(page=page)
     assert options.introduction == "<p>Read this first.</p>"
-    # Saved without ticking Show contents: the two options are independent.
+    # Showing an introduction does not require showing the contents block.
     assert options.show_contents is False
     assert "Read this first." in Client().get(page.url).content.decode()

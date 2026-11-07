@@ -287,21 +287,27 @@ export function Field({
 
 export function Input({
     id,
+    rightAddon,
     className = "",
     "aria-describedby": describedBy,
     "aria-invalid": invalid,
     ...props
-}: ComponentProps<"input">) {
+}: ComponentProps<"input"> & { rightAddon?: ReactNode }) {
     const field = useFieldControl(id, describedBy);
     return (
-        <div className={cotton.input.root}>
+        <div
+            className={rightAddon ? cotton.input.addonRoot : cotton.input.root}
+        >
             <input
                 {...props}
                 id={field.id}
-                className={`${cotton.input.control} ${className}`}
+                className={`${rightAddon ? cotton.input.addonControl : cotton.input.control} ${className}`}
                 aria-invalid={invalid ?? (field.errorId ? true : undefined)}
                 aria-describedby={field.describedBy}
             />
+            {rightAddon && (
+                <div className={cotton.input.addon}>{rightAddon}</div>
+            )}
         </div>
     );
 }
@@ -1375,3 +1381,99 @@ export {
     guardDialogSubmission,
     useCampaignDialogRequests,
 } from "./campaignNavigation";
+
+export function WorkflowPage({
+    title,
+    lead,
+    breadcrumb,
+    actions,
+    children,
+    footer,
+    ...form
+}: ComponentProps<"form"> & {
+    title: string;
+    lead?: string;
+    breadcrumb: ReactNode;
+    actions?: ReactNode;
+    footer: ReactNode;
+}) {
+    const recipe = cotton.workflowPage;
+    const h = recipe.header;
+    return (
+        <form {...form} data-busy="off" className={recipe.root}>
+            <div className={h[0]}>
+                <div className={h[1]}>
+                    <div className={h[2]}>{breadcrumb}</div>
+                </div>
+                <div className={h[3]}>
+                    <div className={h[4]}>
+                        <h1 className={h[5]}>{title}</h1>
+                        {lead && <p className={h[6]}>{lead}</p>}
+                    </div>
+                    {actions && <div className={h[7]}>{actions}</div>}
+                </div>
+            </div>
+            {children}
+            <div className={recipe.footer}>{footer}</div>
+        </form>
+    );
+}
+
+export function FormSection({
+    title,
+    children,
+}: {
+    title: string;
+    children: ReactNode;
+}) {
+    const s = cotton.workflowPage.section;
+    return (
+        <section className={s[0]}>
+            <div className={s[1]}>
+                <h2 className={s[2]}>{title}</h2>
+            </div>
+            <div className={s[4]}>{children}</div>
+        </section>
+    );
+}
+
+export function Breadcrumbs({
+    items,
+}: {
+    items: Array<{ label: ReactNode; href?: string }>;
+}) {
+    const b = cotton.workflowPage.breadcrumb;
+    return (
+        <nav aria-label="Breadcrumb">
+            <ol
+                className={b.list}
+                style={{ "--bc-separator": "'/'" } as CSSProperties}
+            >
+                {items.map((item, i) => (
+                    <li key={i} className={b.item}>
+                        {item.href ? (
+                            <a href={item.href} className={b.link}>
+                                {item.label}
+                            </a>
+                        ) : (
+                            <span
+                                className={
+                                    i === items.length - 1
+                                        ? b.current
+                                        : undefined
+                                }
+                                aria-current={
+                                    i === items.length - 1 ? "page" : undefined
+                                }
+                            >
+                                {item.label}
+                            </span>
+                        )}
+                    </li>
+                ))}
+            </ol>
+        </nav>
+    );
+}
+
+export { useWorkflowForm, type WorkflowResult } from "./useWorkflowForm";

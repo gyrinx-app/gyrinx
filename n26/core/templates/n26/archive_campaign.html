@@ -1,13 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Confirmation page shown before a campaign is archived. It is a page rather
-than a JavaScript dialog so it survives a reload, Back cancels, and it works
-without JavaScript. Opening this page changes nothing; only the form's POST
-archives the campaign.
-
-The alert uses the warning variant because the error variant is for something
-that has already failed.
+Opening this confirmation writes nothing; only POST archives the campaign. Use warning
+styling for the pending action.
 {% endcomment %}
 {% block head_title %}Archive {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}

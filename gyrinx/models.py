@@ -1,9 +1,4 @@
-"""Platform base models and generic helpers.
-
-Abstract bases shared by every app — platform and edition alike. Game concepts
-that used to live here (fighter categories, the cost mixins, credit formatting)
-moved to ``n23.models``: they are edition vocabulary, not infrastructure.
-"""
+"""Abstract platform model bases and scalar validation helpers."""
 
 import logging
 import uuid
@@ -26,7 +21,7 @@ SMART_QUOTES = {
 
 
 def is_int(value):
-    """Check if a value is a number."""
+    """Return whether int(value) succeeds."""
     try:
         int(value)
         return True
@@ -35,25 +30,7 @@ def is_int(value):
 
 
 def is_valid_uuid(uuid_to_test, version=4):
-    """
-    Check if uuid_to_test is a valid UUID.
-
-     Parameters
-    ----------
-    uuid_to_test : str
-    version : {1, 2, 3, 4}
-
-     Returns
-    -------
-    `True` if uuid_to_test is a valid UUID, otherwise `False`.
-
-     Examples
-    --------
-    >>> is_valid_uuid('c9bf9e57-1685-4c89-bafb-ff5af830be8a')
-    True
-    >>> is_valid_uuid('c9bf9e58')
-    False
-    """
+    """Return whether the input is a canonical UUID string of the selected version."""
 
     try:
         uuid_obj = UUID(uuid_to_test, version=version)

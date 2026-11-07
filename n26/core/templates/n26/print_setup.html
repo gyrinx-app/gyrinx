@@ -1,37 +1,12 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation react %}
 {% comment %}
-Choosing what a print includes, before the paper is committed.
-
-The frame is <c-n26.form-page>'s — the one wrapper every form screen shares,
-so this page holds the same measure and rhythm as create-gang and hire rather
-than inventing a third. The saved setups ride inside it as a section of links,
-above the form fields they are the alternative to.
-
-Saved configs come first — each is one click to print again, which is the
-whole reason configs have names. The form under them describes a new run:
-name (optional — naming is what saves it), the header, stash and notes
-toggles, and a card per model with its weapons as checkboxes. Everything
-starts ticked, because the common print is the whole gang and the screen
-should cost nothing when that is what you want.
-
-Loading a saved config (?config=) pre-fills the same form — editing a config
-and creating one are one screen, not two.
-
-A reader who does not own the gang gets the same boxes and none of the
-saving: no name field, no Edit beside a saved setup, and the form submits
-to the print page as a GET rather than writing a config here. Where it
-posts and what it says are the view's answers, not this template's.
-
-The way out leads to the gang's sheet: this page is only ever reached from
-there, and a reader who decides against printing wants the gang back rather
-than whatever the browser's history holds.
+Use one form for new and saved print selections. Owners may save configurations by POST;
+non-owners submit a GET directly to the print page without configuration editing.
 {% endcomment %}
 {% block head_title %}Print {{ gang.name }}{% endblock head_title %}
 {% comment %}
-The bar names the gang and opens on the reader's others. The heading
-block stays empty: the switcher carries the name itself, and a bar
-that said it twice would be spending the width the name needs.
+The switcher supplies the navigation heading; leave the separate heading block empty.
 {% endcomment %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
@@ -61,23 +36,16 @@ that said it twice would be spending the width the name needs.
             </c-ui.breadcrumbs>
         </c-slot>
         {% comment %}
-        The token rides the owner's POST only. A GET form would carry it in
-        the address, where it would end up in history, in a shared link and
-        in the logs, for a request that changes nothing.
+        Include CSRF only on the owner's POST, avoiding token exposure through GET URLs.
         {% endcomment %}
         {% if yours %}
             {% csrf_token %}
             {% if loaded_config %}<input type="hidden" name="config" value="{{ loaded_config }}">{% endif %}
         {% else %}
-            {# Says the address carries a choice: see _what_to_print. #}
+            {# Mark explicit URL selection for _what_to_print. #}
             <input type="hidden" name="pick" value="1">
         {% endif %}
         {% if saved %}
-            {% comment %}
-            Its own heading at the section scale, not a form-section title:
-            this block is the page's other half, not a group of fields, and
-            it reads as a peer of "New setup" below the divider.
-            {% endcomment %}
             <section class="space-y-4">
                 <h2 class="text-xl font-semibold text-ink-900 dark:text-ink-100">Previously printed</h2>
                 <div class="flex flex-col divide-y divide-box-border rounded-box border border-box-border">
@@ -95,11 +63,8 @@ that said it twice would be spending the width the name needs.
                             </div>
                             <div class="flex shrink-0 items-center gap-2">
                                 {% comment %}
-                                Edit is the owner's: it loads the setup back into a
-                                form only they can save. Print is anybody's, which
-                                is the point of a named setup — the gang as its
-                                owner meant it to go on paper, one click away for
-                                whoever is doing the printing.
+                                Only owners can edit saved setups; readers with print
+                                access can reuse them.
                                 {% endcomment %}
                                 {% if yours %}
                                     <c-ui.button size="sm"
@@ -128,8 +93,7 @@ that said it twice would be spending the width the name needs.
                 </c-ui.field>
             {% endif %}
             {% comment %}
-            Plain inputs, as the picker rows use — the kit's checkbox is wired
-            for its own group scope and these are independent toggles.
+            Use independent native inputs because the kit checkbox requires group state.
             {% endcomment %}
             <div class="flex flex-col gap-1">
                 <label class="flex min-h-9 cursor-pointer items-center gap-2.5">
@@ -178,23 +142,9 @@ that said it twice would be spending the width the name needs.
         <c-n26.form-section title="Models"
                             description="Tick who gets a card, and which of their weapons show on it.">
             {% comment %}
-            A card per model, its weapons beneath, in two columns inside the
-            form's measure. The island owns the boxes and the live sums: each
-            card counts its ticked weapons' slots against the per-card
-            budget, amber past it without blocking anything, and the footer
-            sums a crew total. Its checkboxes post fighters and weapons with
-            this form; an unticked model's weapons are disabled, so they
-            stay out of the submission.
-
-            The body is the same boxes drawn by the server, ticked as the
-            island starts. It holds the place until the island mounts and
-            is what the form posts if it is submitted before then, or if
-            the island never loads: a submission with no boxes would empty
-            the saved setup. Every box here can be ticked, since without
-            the island nothing would enable a weapon again; the server
-            drops a weapon whose model is not ticked. The hidden marker
-            says the boxes were there; the island draws it too, and its
-            error box does not.
+            Keep native checkbox fallbacks and the selection marker until React mounts.
+            Leave fallback weapon boxes enabled; the server excludes weapons whose model
+            is unticked.
             {% endcomment %}
             {% react_host "print-picker" print_picker %}
                 <div class="space-y-4">

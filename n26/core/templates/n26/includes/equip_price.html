@@ -1,29 +1,8 @@
 {% load arith hire_price react %}
 {% comment %}
-The price of one buyable line, as a box you can type in, with what changing it
-did printed beside it. Expects `field` (the input's name), `quoted` (the price
-the listing asked) and `label` (what the line is called, for the box's own
-name), and `price_cap` from the page.
-
-Used for a row and for each of its parts, so a gun and its rounds are typed into
-the same kind of control in the same column.
-
-The island keeps the quote and the typed figure. Without a script the box still
-posts what is in it, which is what the row was quoting; the delta is the only
-thing lost, and with nothing to compare there is nothing for it to say.
-
-The delta sits left of the box and outside it, so the boxes stay in one column
-whether or not a row has been haggled over. Quiet, because it is a remark about
-the number rather than a second number: nobody is charged it.
-
-Hand-written rather than the kit's input: it has to be narrow, and the kit's
-takes its width and padding as classes it renders before the caller's, so the
-caller's would be the pair the browser drops.
-
-The box's floor is the quote where the quote is below zero, and zero
-otherwise — the same rule the server applies. Gear priced below nothing has to
-be submittable at its own price, and a floor of zero would have the browser
-refuse the form before the server ever saw it.
+Render a native price input and React delta preview from field, quoted, label and
+price_cap. The input floor is min(quoted, 0), matching server validation and allowing
+negative quoted prices.
 {% endcomment %}
 {% equip_price_props field=field quoted=quoted label=label price_cap=price_cap as props_ %}
 {% react_host "equip-price" props_ class="flex items-center justify-end gap-1.5" %}

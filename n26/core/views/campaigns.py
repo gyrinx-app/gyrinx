@@ -2430,66 +2430,6 @@ def _ownership_cards(chosen):
 
 
 @login_required
-def edit_asset_type(request, pk, asset_type_pk):
-    """Change the labels or ownership of one of the campaign's own asset
-    types. Asset types that come with the campaign type are library
-    content and are not found here."""
-    from django.urls import reverse
-
-    from n26.core.campaigns import ownership_fixed_because
-    from n26.core.forms import EditAssetTypeForm
-    from n26.library.models import AssetType
-
-    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
-    asset_type = get_object_or_404(
-        AssetType, pk=asset_type_pk, campaign_type_id=found.additions_id
-    )
-    fixed = ownership_fixed_because(found, asset_type)
-    form = EditAssetTypeForm(
-        request.POST or None,
-        initial={
-            "label_singular": asset_type.label_singular,
-            "label_plural": asset_type.label_plural,
-            "display_group": asset_type.display_group,
-            "ownership": asset_type.ownership,
-        },
-        ownership_locked=bool(fixed),
-    )
-
-    def act(op, data):
-        edited = op.edit_asset_type(
-            asset_type,
-            data["label_singular"],
-            data["ownership"],
-            label_plural=data["label_plural"],
-            display_group=data["display_group"],
-        )
-        if edited is None:
-            return "Nothing changed."
-        return f"Saved the asset type {edited.label_singular}."
-
-    ownership_note = ""
-    if fixed:
-        ownership_note = (
-            f"{asset_type.get_ownership_display()}. You cannot change this now. {fixed}"
-        )
-    return _addition_page(
-        request,
-        found,
-        form,
-        "n26/edit_asset_type.html",
-        act,
-        reverse("n26-edit-campaign", args=[found.pk]) + "?tab=asset-types",
-        asset_type=asset_type,
-        heading=f"Edit {asset_type.label_singular}",
-        ownership_note=ownership_note,
-        ownerships=[]
-        if fixed
-        else _ownership_cards(str(form["ownership"].value() or "")),
-    )
-
-
-@login_required
 def new_asset(request, pk):
     """Write a new asset under one of the campaign's asset types.
 

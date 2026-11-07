@@ -1,14 +1,7 @@
-"""The platform's general-purpose template tags.
+"""Edition-independent template tags for navigation, query state and formatting.
 
-Everything here is edition-agnostic: nav-state helpers, query-string editing,
-small value formatters, HTML sanitisation and the return-URL machinery. Nothing
-in this module may import from an edition package (``n23.*``, ``n26.*``) — that
-is the whole reason it is not still part of the edition's ``custom_tags``.
-
-``n23.core.templatetags.custom_tags`` re-exports everything registered here, so
-edition templates keep writing ``{% load custom_tags %}`` and get the union of
-both sets. Platform templates load ``platform_tags`` directly and must not load
-``custom_tags`` at all.
+Keep edition imports out of this module. N23 custom_tags re-exports these
+registrations; platform templates load platform_tags directly.
 """
 
 import random
@@ -32,13 +25,12 @@ register = template.Library()
 
 
 def is_active(context: RequestContext, name):
-    """Check if the current view is active."""
+    """Return whether this request resolves to the named view."""
     try:
         match = resolve(context.request.path)
         return name == match.view_name
     except Resolver404:
-        # We can't resolve the request path (e.g. on a 404 page!)
-        # so it can't be active.
+        # Unresolvable paths, including 404 pages, cannot match an active view.
         return False
 
 
@@ -83,7 +75,7 @@ def lookup(dictionary, key):
     if dictionary is None:
         return None
     if isinstance(dictionary, list):
-        # TODO: This assumes the list is a namedtuple with a 'grouper' attribute. This is a bit of a hack.
+        # List inputs must contain regroup entries with grouper and list attributes.
         item = next((item for item in dictionary if item.grouper == key), None)
         return item.list if item else None
     return dictionary.get(key)
@@ -91,11 +83,7 @@ def lookup(dictionary, key):
 
 @register.filter
 def get_item(obj, key):
-    """Get an item from an object by key using [] access.
-
-    Works with forms (to access fields by name), dicts, and any object with __getitem__.
-    Returns None if the key doesn't exist.
-    """
+    """Read an indexed value, returning None for an absent key, invalid index or unsupported access."""
     if obj is None:
         return None
     try:
@@ -106,10 +94,7 @@ def get_item(obj, key):
 
 @register.filter
 def join_names(items, attr="name"):
-    """Join a list of objects by an attribute, comma-separated.
-
-    Usage: {{ rules|join_names }} or {{ items|join_names:"type" }}
-    """
+    """Join each object's named attribute, falling back to the object itself."""
     return ", ".join(str(getattr(item, attr, item)) for item in items)
 
 
@@ -126,11 +111,7 @@ def qt(request, **kwargs):
 
 
 def _qt_drop(querydict, drop):
-    """Remove comma-separated keys from a mutable QueryDict copy (no-op if falsy).
-
-    Lets query-string edits invalidate params that no longer apply — e.g. the
-    dice roller drops its reproducible-roll ``seed`` when the dice change.
-    """
+    """Remove comma-separated query keys that an edited selection invalidates."""
     if not drop:
         return
     for key in str(drop).split(","):
@@ -192,17 +173,7 @@ def qt_rm(request, *args):
 
 @register.simple_tag
 def qt_getlist(request, key):
-    """
-    Get all values for a query parameter key as a list.
-
-    Use this to properly iterate over multi-value query params (like cat, al).
-    Unlike request.GET.key (which returns only the last value as a string),
-    this uses getlist() to get all values.
-
-    Usage:
-        {% qt_getlist request "cat" as cat_values %}
-        {% for val in cat_values %}<input type="hidden" name="cat" value="{{ val }}">{% endfor %}
-    """
+    """Return all query values for a key, including repeated parameters."""
     return request.GET.getlist(key)
 
 
@@ -214,7 +185,7 @@ def qt_contains(request, key, value):
 
 @register.simple_tag
 def qt_has_key(request, key):
-    """Check if a query parameter key exists in the request (even if empty)."""
+    """Return whether the query contains this key, including an empty value."""
     return key in request.GET
 
 
@@ -340,26 +311,12 @@ def dot():
     return mark_safe("&nbsp;·&nbsp;")
 
 
-# Threshold for applying text-nowrap class to short property values
 NOWRAP_THRESHOLD = 40
 
 
 @register.filter
 def nowrap_class(value, threshold=NOWRAP_THRESHOLD):
-    """
-    Return 'text-nowrap' class if value length is under threshold.
-
-    Use this to prevent short property values from wrapping mid-text
-    while allowing long values to wrap naturally.
-
-    Args:
-        value: The string value to check
-        threshold: Maximum length for nowrap (default: 40 characters)
-
-    Usage:
-        <span class="{{ value|nowrap_class }}">{{ value }}</span>
-        <span class="{{ value|nowrap_class:50 }}">{{ value }}</span>
-    """
+    """Return text-nowrap when the value fits within the character threshold."""
     if value is None:
         return "text-nowrap"
     str_value = str(value)
@@ -368,43 +325,21 @@ def nowrap_class(value, threshold=NOWRAP_THRESHOLD):
 
 @register.simple_tag
 def property_nowrap_class(label, value, threshold=NOWRAP_THRESHOLD):
-    """
-    Return 'text-nowrap' class if combined label+value length is under threshold.
-
-    For asset properties displayed as "Label: Value", this checks if the total
-    display length is short enough to prevent wrapping.
-
-    Args:
-        label: The property label
-        value: The property value
-        threshold: Maximum length for nowrap (default: 40 characters)
-
-    Usage:
-        <span class="{% property_nowrap_class label value %}">{{ label }}: {{ value }}</span>
-    """
+    """Return text-nowrap when "label: value" fits within the character threshold."""
     combined = f"{label}: {value}"
     return "text-nowrap" if len(combined) <= threshold else ""
 
 
 @register.simple_tag(takes_context=True)
 def safe_referer(context: RequestContext, fallback_url="/"):
-    """
-    Get a safe redirect URL from HTTP_REFERER.
+    """Return an allowed HTTP_REFERER URL, otherwise the caller's trusted fallback.
 
-    This tag validates the referer header to prevent open redirect vulnerabilities.
-    If the referer is not safe or missing, returns the fallback URL.
-
-    Args:
-        context: The template context containing the request
-        fallback_url: The URL to use if referer is invalid (default: "/")
-
-    Returns:
-        A safe URL string that can be used for redirects
+    Limit absolute destinations to the current host and require HTTPS for
+    secure requests.
     """
     request = context["request"]
     referer = request.META.get("HTTP_REFERER", "")
 
-    # Validate the referer URL is safe
     if referer and url_has_allowed_host_and_scheme(
         url=referer,
         allowed_hosts={request.get_host()},
@@ -412,24 +347,12 @@ def safe_referer(context: RequestContext, fallback_url="/"):
     ):
         return referer
 
-    # Fall back to the provided fallback URL
     return fallback_url
 
 
 @register.simple_tag(takes_context=True)
 def return_url_param(context: RequestContext):
-    """
-    Generate a return_url query parameter for the current page.
-
-    Use this tag when creating links that should return the user to the current page.
-    The tag URL-encodes the current full path (including query string).
-
-    Usage:
-        <a href="{% url 'core:some-view' obj.id %}?{% return_url_param %}">Edit</a>
-
-    Returns:
-        str: Query parameter like "return_url=%2Fsome%2Fpath%2F"
-    """
+    """URL-encode the current full path as a return_url query parameter."""
     request = context["request"]
     current_url = request.get_full_path()
     return urlencode({"return_url": current_url})
@@ -437,22 +360,7 @@ def return_url_param(context: RequestContext):
 
 @register.simple_tag(takes_context=True)
 def return_url_field(context: RequestContext):
-    """
-    Render a hidden form field for return_url.
-
-    Use this tag inside forms to preserve the return_url through form submission.
-    The tag looks for return_url in the template context.
-
-    Usage:
-        <form method="post">
-            {% csrf_token %}
-            {% return_url_field %}
-            ...
-        </form>
-
-    Returns:
-        str: Hidden input element like '<input type="hidden" name="return_url" value="...">'
-    """
+    """Render an escaped hidden field for return_url from the template context."""
     return_url = context.get("return_url", "")
     if return_url:
         return format_html(
@@ -464,36 +372,20 @@ def return_url_field(context: RequestContext):
 
 @register.filter
 def plain_text_truncate(value, length=150):
-    """
-    Strip all HTML tags and truncate to a specified length for list view previews.
+    """Strip HTML, collapse whitespace and truncate with an ellipsis.
 
-    This filter is designed for list views where rich text content should be shown
-    as plain text. It:
-    1. Strips all HTML tags (including images, formatting, etc.)
-    2. Removes extra whitespace
-    3. Truncates to the specified length with ellipsis if needed
-
-    Args:
-        value: The HTML string to process
-        length: Maximum length for the output (default: 150 characters)
-
-    Usage:
-        {{ campaign.summary|plain_text_truncate }}
-        {{ campaign.summary|plain_text_truncate:200 }}
+    Prefer the last word boundary in the latter half of the available space.
     """
     if not value:
         return ""
 
-    # Strip all HTML tags using bleach with an empty tag list
     text = bleach.clean(value, tags=[], strip=True)
 
-    # Normalize whitespace (collapse multiple spaces/newlines into single spaces)
     text = " ".join(text.split())
 
-    # Truncate if needed
     length = int(length)
     if len(text) > length:
-        # Find the last space before the length limit to avoid cutting words
+        # Prefer a word boundary without discarding more than half the requested length.
         truncated = text[:length]
         last_space = truncated.rfind(" ")
         if last_space > length // 2:  # Only use word boundary if it's reasonable
@@ -505,24 +397,14 @@ def plain_text_truncate(value, length=150):
 
 @register.filter
 def safe_rich_text(value):
-    """
-    Sanitize and render rich text content safely.
+    """Sanitise rich HTML against the tag, attribute, CSS and URL allowlists.
 
-    This filter sanitizes HTML content to prevent XSS attacks while preserving
-    formatting from TinyMCE. It allows safe HTML tags and attributes commonly
-    used in rich text editing but removes potentially dangerous content like
-    script tags, event handlers, and javascript: URLs.
-
-    Usage:
-        {{ content|safe_rich_text|safe }}
-
-    Note: The |safe filter is still needed after this to render the HTML,
-    but the content has been sanitized first.
+    Return marked-safe HTML ready for rendering. Strip disallowed tags and
+    comments; text inside disallowed tags can remain as plain text.
     """
     if not value:
         return ""
 
-    # Define allowed tags for rich text content
     ALLOWED_TAGS = [
         # Text formatting
         "p",
@@ -590,7 +472,6 @@ def safe_rich_text(value):
         "ins",
     ]
 
-    # Define allowed attributes for specific tags
     ALLOWED_ATTRIBUTES = {
         # Links - only allow href and title, no event handlers
         "a": ["href", "title", "target", "rel"],
@@ -604,7 +485,6 @@ def safe_rich_text(value):
         "*": ["class", "id", "style"],
     }
 
-    # Define allowed CSS properties to prevent CSS-based attacks
     ALLOWED_STYLES = [
         "color",
         "background-color",
@@ -647,16 +527,13 @@ def safe_rich_text(value):
         "list-style-type",
     ]
 
-    # Define allowed URL schemes to prevent javascript: and data: URLs
     ALLOWED_PROTOCOLS = ["http", "https", "mailto", "tel", "/", "#"]
 
-    # Create CSS sanitizer for style attributes
     css_sanitizer = bleach.css_sanitizer.CSSSanitizer(
         allowed_css_properties=ALLOWED_STYLES
     )
 
-    # Sanitize the HTML content
-    # Use strip=True to remove disallowed tags and their content in one pass
+    # Strip disallowed tags and comments; Bleach can retain their text content.
     cleaned = bleach.clean(
         value,
         tags=ALLOWED_TAGS,
@@ -672,25 +549,10 @@ def safe_rich_text(value):
 
 @register.filter(name="strip")
 def strip_filter(value):
-    """Trim leading/trailing whitespace from rendered slot content.
+    """Trim rendered slot whitespace while preserving existing SafeData status.
 
-    Needed by cotton components whose slot lands inside a plain INLINE element,
-    where the surrounding whitespace is not collapsed away. djlint reflows a
-    one-line call site
-
-        <c-actions.link href="…">Cost</c-actions.link>
-
-    onto three lines, so the slot arrives as "\\n    Cost\\n" and the anchor
-    renders with underlined whitespace either side of the word. `.btn` and
-    `.badge` are immune because Bootstrap makes them inline-block, which strips
-    leading and trailing whitespace inside the box; a bare <a> is not.
-
-    Preserves safety: slot content is already-rendered, escaped HTML, so this
-    re-marks it safe rather than escaping it a second time. A plain str input --
-    a `class` prop carrying user text, say -- is returned unmarked and the engine
-    escapes it as usual. Deliberately NOT registered `is_safe=True`: that flag
-    only propagates safeness, which the isinstance check below already does, so
-    carrying it as well just invited the question of whether it skipped escaping.
+    This removes padding introduced by template formatting around inline links.
+    Plain strings remain unmarked so the template engine still escapes them.
     """
     if value is None:
         return ""
