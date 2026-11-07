@@ -418,7 +418,10 @@ def record_scenario_battle(request):
 
 
 def _print(request, back_url):
-    """Render a valid scenario with a caller-supplied return URL; reject missing results."""
+    """Render a valid scenario with a return URL from the back_url(scenario) callback.
+
+    Reject missing results.
+    """
     from n26.core.scenarios import parse
 
     scenario, wrong = parse(request.GET, request_catalogue(request))
