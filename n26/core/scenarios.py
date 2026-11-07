@@ -1,13 +1,9 @@
-"""Rolling, checking and describing a scenario from the scenario tables.
+"""Generate and describe scenarios from stored table keys and rolls.
 
-A scenario is one entry from each of the tables in
-``n26.library.scenario_tables`` that it uses, then any side jobs. Only
-each table's key and roll are stored, on a battle or in a saved
-scenario's log note, and the entry is looked up when the page is drawn.
-
-A side job is stored under its place, ``side_job`` then ``side_job_2``
-and on, as its set and roll: ``escher-3``. A bare roll, as battles saved
-before there were sets have, is from the General set.
+Store each selected table's key and roll on battles or in saved scenario
+notes, then resolve entries for display. Side jobs use side_job, side_job_2
+and subsequent positions with set-qualified rolls such as escher-3.
+Unqualified rolls use the General set.
 """
 
 from dataclasses import dataclass
@@ -71,12 +67,10 @@ def roll(keys, rng=None, *, catalogue=None):
 
 
 def roll_side_jobs(picks, rng=None):
-    """Side job values, ``["escher-3", ...]``, for a list of picks, each
-    a set and a roll, or a set and None to roll a D6.
+    """Resolve set-and-result selections to values such as escher-3.
 
-    A rolled side job is never one the scenario already has from the same
-    set, so it rolls again; a set whose every job is taken lets a repeat
-    through. Named picks are the reader's choice and are kept as given.
+    A None result rolls D6, avoiding jobs already chosen from that set unless
+    all jobs are taken. Preserve explicitly selected results, including repeats.
     """
     from n26.library.models import Dice
 
@@ -207,13 +201,9 @@ def describe(found):
     return ", ".join(describe_result(result) for result in found)
 
 
-# --- Saving a scenario to the campaign's log ---------------------------------
-#
-# The log stores no sentence, only a note the reader turns into one. A saved
-# scenario's note is each table's key and roll, then the name the player
-# gave it: "deployment=6,objective=2 Dust Up". Entry names are looked up when
-# the log is drawn, so a revised entry reads as it is now, as a battle's
-# scenario does.
+# Saved scenario notes contain table keys and rolls followed by the name,
+# such as deployment=6,objective=2 Dust Up. Resolve entry names at display
+# time, matching battle scenario rendering.
 
 
 def history_note(rolls, name):
