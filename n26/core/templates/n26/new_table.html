@@ -1,12 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Writing a new asset table into the campaign's own pack, under one of the
-Holding asset types the campaign deals in. The table is built into the
-campaign's own campaign type as it is made, so every gang in the campaign
-holds it. What it contains is added on the page this lands on.
-Native radios for the asset type and the die, so the form posts with no
-script and a redisplay keeps the pick.
+Create a holding-asset table in the campaign pack and grant it through the campaign
+type. The next page edits its entries.
 {% endcomment %}
 {% block head_title %}Create a table in {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
