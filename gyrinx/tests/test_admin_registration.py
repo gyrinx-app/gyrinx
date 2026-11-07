@@ -1,20 +1,7 @@
-"""Guard: things the admin only has because a module got imported.
+"""Admin model, registry and route registration through app imports.
 
-Admin registration happens as a side effect of importing the module holding the
-``@admin.register`` call. Moving a model between apps can quietly orphan that
-import — the model keeps working everywhere except the admin, and no other test
-notices. That happened to Event during the platform split (#2093).
-
-The platform registries have the same shape of failure. The edition pushes
-growth-chart lines, broadcast audiences and repair operations into the
-``gyrinx.{analytics,site,maintenance}`` registries from side-effect-only modules
-under ``n23/core/admin/``. Nothing raises if those imports go missing; the chart
-just loses its lines, the dropdown its options, the console its repairs. So
-assert they arrived.
-
-The admin site itself is assembled the same fragile way — by successive modules
-patching ``admin.site.__class__`` in INSTALLED_APPS order — so the composition
-is asserted here too.
+Assert that side-effect registrations reach the dashboard, broadcast and
+maintenance surfaces. Check the composed admin site and its routes.
 """
 
 import pytest
@@ -96,7 +83,7 @@ def test_maintenance_operation_is_runnable(operation):
     ],
 )
 def test_retired_operation_keeps_its_label(operation):
-    """Retired repairs stay registered so old records read as more than a slug."""
+
     registered = {op.operation: op for op in all_operations()}
     assert operation in registered, (
         f"Retired operation {operation!r} lost its registration; historical "
@@ -106,9 +93,6 @@ def test_retired_operation_keeps_its_label(operation):
         f"{operation!r} is retired but still has a view, so it will reappear "
         f"on the maintenance index as a runnable repair."
     )
-
-
-# ------------------------------------------------- admin site composition
 
 
 @pytest.mark.parametrize(
@@ -123,12 +107,7 @@ def test_retired_operation_keeps_its_label(operation):
     ],
 )
 def test_admin_route_is_mounted(url_name):
-    """Each app in the chain adds routes by subclassing the previous site.
-
-    Import one of those modules too early — from an edition, say, which Django
-    autodiscovers first — and a later link in the chain overwrites it, taking
-    its routes with it. Nothing raises; the URLs just stop existing.
-    """
+    """Keep routes from each admin-site subclass after app autodiscovery."""
     try:
         reverse(url_name)
     except NoReverseMatch:  # pragma: no cover - the failure we're guarding
