@@ -1,8 +1,5 @@
-"""Fixed sample data for the composition demos.
-
-Hard-coded rather than read from the content app: a gallery page must render the
-same thing on an empty database, and these exist to show a layout working, not to
-prove the ORM does.
+"""Fixed sample data for composition demos. Use production display dataclasses without
+querying content so the gallery renders consistently on an empty database.
 """
 
 from dataclasses import dataclass, replace
@@ -127,7 +124,7 @@ STATUSES = [
     {"value": "draft", "label": "Draft"},
 ]
 
-# Rows for the browse-screen composition.
+
 LISTS = [
     {
         "name": "Rust in Peace",
@@ -177,32 +174,17 @@ LISTS = [
 ]
 
 
-# Rows for the collection-picker composition: a trading post, which is the
-# case it was built for — long, categorised, browsed with a budget in mind.
-#
-# Names, prices and rarity ratings only. What any of it *does* is rulebook text
-# and does not belong in this repository; see n26/AGENTS.md.
-#
-# `rarity` is 0 for common, otherwise the rating. `owned` marks the few already
-# in the stash, which is what the row's optional icon is for.
-#: What the gang already has, so a row can show it.
-#:
-#: Deliberately not on the line. A PricedLine says what a thing costs *here*;
-#: whether you own one is gang state and belongs to whoever is doing the
-#: buying, so the sample keeps the two apart exactly as the real code does.
+# Sample catalogue data contains names, prices and availability only; rules text is
+# excluded. Track owned equipment separately because ownership is gang state, while
+# PricedLine describes an offer.
 IN_STASH = {"Autopistol", "Stub gun", "Shotgun", "Mesh armour", "Photo-goggles"}
 
 
 @dataclass(frozen=True)
 class _Category:
-    """Stands in for library.Category — a name, and the section it files under.
-
-    ``narrow()`` matches categories as objects rather than names, because a
-    category name is only unique within its section, so the sample needs
-    objects for the real function to accept it — and ``position``, because
-    regrouping a narrowed view sorts the whole taxonomy by it. Both came from
-    handing the sample to the real function and reading the error, which is the
-    argument for building it this way at all.
+    """Minimal library category with its section and position. The catalogue compares
+    category objects because names are unique only within their section, then sorts by
+    position.
     """
 
     name: str
@@ -222,12 +204,8 @@ class _Label:
 
 @dataclass(frozen=True)
 class _Stock:
-    """Stands in for a library assignable in a list: a name and a home.
-
-    Carries a key the way a real row does, because a catalogue names every
-    input after the row's content key and the shell posts nothing without
-    one. The label is a fiction the same size as the real thing: what
-    matters is that two rows never collide.
+    """Minimal library assignable with category and content identity. Catalogue field names
+    require a unique combination of model label and primary key.
     """
 
     name: str
@@ -245,12 +223,8 @@ class _Stock:
         return _Label("library.wargear")
 
 
-# The catalogue, as (section, category, [(name, credits, trade points, exclusive)]).
-#
-# Trade points rather than the "rarity" this sample used to invent: main settled
-# the vocabulary, and R9 was never a thing the domain had. Exclusive is the "E"
-# of both editions — equipment list only, and so absent from a trading post's
-# sweeps — which is why two items here carry it.
+# Catalogue entries are section, category and (name, credits, Trade Points, exclusive)
+# tuples. Exclusive entries exercise equipment-list-only availability.
 _CATALOGUE = [
     (
         "Weapons",
@@ -334,11 +308,7 @@ _CATALOGUE = [
 ]
 
 
-#: Notes on the list, keyed by item name.
-#:
-#: Hand-written here because n26.browse.with_use_notes needs a fighter and a
-#: database to ask its question of; the shape is exactly what it produces, so
-#: the row draws the real thing.
+#: Static use notes match with_use_notes output without requiring a fighter or database.
 USE_NOTES = {
     "Master-crafted toolkit": (
         Note(text="usable by Specialist only", about=None, level=WARNING),
@@ -348,30 +318,16 @@ USE_NOTES = {
     ),
 }
 
-#: Paid parts riding a line, keyed by the item they belong to, as
-#: ``(name, credits, trade points)``. A gun's ammo is not a second thing on
-#: the list — it is a way the gun is built — so a row that has any draws
-#: tick boxes under it and buys them on the same click.
-#:
-#: Two guns carry some, and which two matters: the Boltgun is one nobody
-#: holds, so its boxes sit on the row in the open, and the Meltagun is one
-#: the fighter already has, so its boxes are inside the row that offers
-#: another. Those are the two places a part is ever drawn.
+#: Paid parts are keyed by their parent item. Include an unowned Boltgun and an owned
+#: Meltagun to exercise part controls in both catalogue states.
 PAID_PARTS = {
     "Boltgun": [("Kraken round", 15, 10)],
     "Meltagun": [("Melta round", 20, 11)],
 }
 
-#: The questions a line asks before it will sell you the thing, keyed by
-#: the item that asks them, as ``(choose, [(name, surcharge)])``. A mount
-#: comes with a weapon and will swap it for a dearer one; a fitting may be
-#: added or left off. Both are ways the thing being bought is built rather
-#: than second things on the list, so they are controls under one Buy.
-#:
-#: One item carries both kinds, because the two are drawn differently and
-#: the second set is what puts a rule and a "how many to take" line on the
-#: screen. The surcharges are distances from the row's own price, which is
-#: what the real browse computes: the standard option adds nothing.
+#: Option groups are keyed by item and contain selection limits plus surcharge
+#: alternatives. Include single-choice and optional groups; surcharges are relative to
+#: the base price.
 OFFERED = {
     "Grav-cutter": [
         (
@@ -384,10 +340,8 @@ OFFERED = {
         ),
         ("one-or-none", [("Smoke dispenser", 20)]),
     ],
-    #: The mount the sample fighter already owns. A second optioned line
-    #: so that one can be drawn as a row still for sale, with its
-    #: controls, while the other is drawn as a row already bought,
-    #: naming what it was bought with.
+    #: The owned Ridge-runner shows selected options; the unowned Grav-cutter
+    #: shows purchase controls.
     "Ridge-runner": [
         (
             "one",
@@ -407,7 +361,7 @@ class _Set:
 
 
 def _offered_choices(name):
-    """The alternatives one line offers, as the structure browse builds."""
+    """Build option groups for a sample catalogue entry."""
     return tuple(
         OfferedGroup(
             choose=choose,
@@ -426,7 +380,7 @@ def _offered_choices(name):
 
 
 def _part_lines(name, category):
-    """The paid parts of one line, as the lines they really are."""
+    """Build priced parts for a sample catalogue entry."""
     return tuple(
         PricedLine(
             thing=_Stock(name=part, category=category),
@@ -441,18 +395,8 @@ def _part_lines(name, category):
 
 
 def trading_post() -> CollectionView:
-    """The sample catalogue as a real n26.browse.CollectionView.
-
-    Built as the render structure rather than as dicts, for the same reason the
-    model card is built from n26.render dataclasses: the components are then
-    typed against exactly what browse() produces, and a change in core breaks
-    the gallery instead of quietly rendering something that is no longer true.
-
-    Both trade-point flags are on every line, because this is a trading post:
-    a post deals in Trade Points, so its rows print them, and a trading trip
-    charges them. An equipment list does neither, and a sample of one would
-    draw no TP column at all. Both ride the line so nothing downstream needs
-    to know where a line came from.
+    """Build a CollectionView using the production browse dataclasses. Enable both Trade
+    Point display and charging on each line to model a Trading Post visit.
     """
     sections: list[SectionGroup] = []
     for position, (section_name, category_name, items) in enumerate(_CATALOGUE):
@@ -472,10 +416,8 @@ def trading_post() -> CollectionView:
                         is_exclusive=exclusive,
                         charges_trade_points=True,
                         shows_trade_points=True,
-                        # A note is how the app says something without stopping
-                        # anyone. with_use_notes() writes these for real, per
-                        # fighter; the sample carries one so the row has a case
-                        # to draw. Nothing is removed — we inform, never police.
+                        # Inform rather than police. Include a use note without removing
+                        # the offered equipment.
                         notes=USE_NOTES.get(name, ()),
                         parts=_part_lines(name, category),
                         choices=_offered_choices(name),
@@ -488,13 +430,7 @@ def trading_post() -> CollectionView:
 
 
 class _Collection:
-    """A stand-in for a Collection where only its name and key are read.
-
-    The tab strip is built by the equip screen's own function, so the
-    gallery shortens names by the rule the real page uses rather than by
-    a copy of it — and that function reads nothing else off a
-    collection.
-    """
+    """Collection name and key required by the equipment tab builder."""
 
     def __init__(self, name, pk):
         self.name = name
@@ -505,9 +441,7 @@ class _Collection:
 
 
 def _shop_tabs():
-    """The lists one fighter can buy from: two their built-ins carry, then
-    the Trading Post everyone reaches. Long names on purpose — that is
-    what the strip has to survive on a phone."""
+    """Build equipment tabs with long collection names to exercise narrow layouts."""
     from n26.core.views.equip import collection_tabs
 
     collections = [
@@ -519,11 +453,8 @@ def _shop_tabs():
 
 
 def trading_post_context():
-    """The list view needs the shape of its data as well as the data.
-
-    The ends of each slider are also its "no filter" positions, so they have to
-    span the data — derived here rather than typed into the template, where an
-    item priced outside the range would silently vanish from the list.
+    """Prepare the sample catalogue and filter ranges. Derive slider bounds from the data
+    so an unfiltered range includes every priced entry.
     """
     from n26.core.listing import build_catalogue
 
@@ -539,48 +470,35 @@ def trading_post_context():
     ]
     return {
         "trading_post": view,
-        # The equip screen's own structure, built by the real function from the
-        # sample catalogue and the sample fighter's kit. The shell then draws
-        # it with the application's own row templates, so the two cannot come
-        # to disagree about what a row looks like — the failure this replaces
-        # was a hand-written copy of the row shape that nothing checked.
+        # Use the production catalogue builder with sample ownership data so shared
+        # templates receive the real display structure.
         "trading_post_catalogue": build_catalogue(view, carried()),
-        # Both levels, with the first section flagged so it starts open. Flagged
-        # here rather than tested in the template because a Cotton `:` attribute
-        # resolves an expression rather than evaluating one, so `forloop.first`
-        # is fine and `forloop.parentloop.first and forloop.first` silently was
-        # not — it left every section shut.
+        # Compute nested first-section state here because Cotton attributes cannot
+        # evaluate a combined boolean expression.
         "trading_post_section_rows": [
             {"section": section, "first": index == 0}
             for index, section in enumerate(view.sections)
         ],
         "trading_post_categories": categories,
         "trading_post_sections": [section.name for section in view.sections],
-        # The filter menu's values are the category names themselves: the group,
-        # the item's registration and this menu all join on that one string, and
-        # a separate slug would be a fourth thing to keep in step.
+        # Use category names consistently as menu values and catalogue filter keys.
         "trading_post_category_options": [
             {"value": name, "label": name} for name in categories
         ],
         "trading_post_in_stash": IN_STASH,
-        # The bound the real purchase enforces, so the shell's boxes refuse what
-        # the application's boxes refuse.
+        # Use the production purchase limit in the sample price inputs.
         "trading_post_price_cap": PRICE_CEILING,
         "trading_post_tabs": _shop_tabs(),
         "trading_post_price_floor": min(line.credits for line in lines),
         "trading_post_price_ceiling": max(line.credits for line in lines),
-        # Exclusive lines are left out of the ceiling: "E" is not a number, and
-        # a bound derived from one would be meaningless.
+        # Exclude exclusive availability from numeric slider bounds.
         "trading_post_tp_ceiling": max(
             line.trade_points for line in lines if not line.is_exclusive
         ),
     }
 
 
-#: The crowded catalogue's shape: a section per supplier, sized the way the
-#: biggest live catalogues are — most holding a handful of rows, a couple
-#: holding dozens. The point of the numbers is their spread, not their sum:
-#: a strip of twenty uneven tabs is what the component has to stay fast on.
+#: Uneven supplier sections exercise both long tab strips and large groups of entries.
 _CROWDED_SUPPLIERS = (
     ("Ashfall Reclamators", 7),
     ("Bay Nineteen Auctions", 10),
@@ -620,13 +538,8 @@ _CROWDED_WARES = (
 
 
 def crowded_catalogue() -> CollectionView:
-    """A catalogue at the volume the biggest live catalogues reach.
-
-    Generated rather than written out — a couple of hundred rows typed
-    by hand would be a page nobody maintains — and deterministic, so the
-    strip and the counts read the same on every load. This is the
-    specimen to open when a change might make the picker slower: the
-    small demo above it stays fast whatever happens.
+    """Build a deterministic catalogue with uneven section sizes for performance and
+    overflow checks.
     """
     sections: list[SectionGroup] = []
     for supplier_index, (supplier, stocked) in enumerate(_CROWDED_SUPPLIERS):
@@ -692,36 +605,22 @@ def crowded_catalogue_context():
     }
 
 
-#: Whose gangs these are. One constant because it appears in the dashboard's
-#: greeting, in the gang sheet's breadcrumb and now in both forms' breadcrumbs —
-#: three screens saying "tom" separately is three places for a rename to miss.
+#: Share the sample owner name across dashboard greetings and gang breadcrumbs.
 OWNER = "tom"
 
 
 @dataclass(frozen=True)
 class SampleUser:
-    """Somebody the gallery names, with no account behind them.
-
-    <c-n26.user-link> reads a username off whoever it is handed and asks the
-    platform's badge registry which badge they hold; the registry reads a
-    profile, and finding none says they hold no badge. So a sample person is
-    a username and nothing else, and draws as a name with no mark after it.
+    """Username-only stand-in for gallery account displays. With no profile, the platform
+    badge lookup returns no badge.
     """
 
     username: str
 
 
 def nav_context():
-    """The switchers a gang's screens draw, built as the real ones are built.
-
-    The application's versions come from a query; these are the same
-    structures with fixed rows, so the shell pages and the demos draw the
-    controls the app draws with no database behind them.
-
-    Two of them, because a gang's screen has two: the bar names the gang and
-    offers the reader's others, and the heading — which is already the name —
-    offers the same list as a chevron on its own, named differently so the two
-    are told apart by anything reading the page aloud.
+    """Build fixed gang and model switchers using production navigation structures. Give
+    adjacent switchers distinct accessible names.
     """
     from n26.core.navigation import Switcher, SwitcherItem
 
@@ -749,10 +648,8 @@ def nav_context():
             empty="No gangs match",
             items=gangs,
         ),
-        # The chevron a model's own header carries: the gang's other
-        # fighters, each row this same screen for them.
-        # An inbox with something in it. A number rather than a string,
-        # because the bar tests it for truth and "0" is true.
+        # Provide the model switcher and a numeric unread count; the string "0" would be
+        # truthy.
         "sample_unread": 3,
         "sample_account_menu": _sample_account_menu(),
         "sample_account_menu_unread": _sample_account_menu(unread=3, theme=False),
@@ -773,11 +670,8 @@ def nav_context():
 
 
 def sample_miniature():
-    """A stand-in for the model a header or an edit page is about.
-
-    The components read ``pk`` and ``name`` and nothing else, so a
-    namespace is the honest shape: the gallery renders on an empty
-    database, and ``pk`` only has to be reversible into a URL.
+    """Provide the pk and name read by model headers and edit previews, with no database
+    record.
     """
     from types import SimpleNamespace
 
@@ -785,13 +679,7 @@ def sample_miniature():
 
 
 def roster_summary():
-    """The roster tally, in the shape ``n26.render.summarise_roster`` builds.
-
-    Real dataclasses so the demo and the views cannot drift about what a
-    tally is. The rows are a plausible mid-campaign gang: several ranks,
-    two profiles that repeat, and pets — whose groups sit where their
-    first keeper's does, exactly as the real reduction leaves them.
-    """
+    """Build a RosterSummary with repeated profiles and pets to exercise grouped counts."""
     from n26.core.render import RosterGroup, RosterLine, RosterSummary
 
     groups = [
@@ -828,8 +716,7 @@ def roster_summary():
 
 
 def _sample_account_menu(*, unread=0, theme=True):
-    """An account menu's props for the site-nav demos: what
-    n26.core.templatetags.account_menu builds for a signed-in reader."""
+    """Sample account-menu props matching n26.core.templatetags.account_menu."""
     from n26.core.templatetags.theme_choice import theme_choice_props
 
     unread_noun = "unread notification" if unread == 1 else "unread notifications"
@@ -955,8 +842,7 @@ def context():
         ),
         "houses": HOUSES,
         "gang_owner": OWNER,
-        # Somebody for a demo to name who is not the reader: a fixed name,
-        # so the gallery reads the same whoever opens it.
+        # Use a fixed second user so previews remain the same for every viewer.
         "sample_user": SampleUser("kesh"),
         "sortable_table": {
             "label": "Example territory inventory",
@@ -1014,28 +900,22 @@ def context():
         "campaign_sheet": campaign_sheet(),
         "sample_miniature": sample_miniature(),
         "sample_roster_summary": roster_summary(),
-        # Every demo that draws a gang type's badge needs the artwork as a
-        # string, because that is what the library stores and what the component
-        # sanitises. One name for it, so the demos cannot show two drawings.
+        # Supply artwork as the stored SVG string consumed by the sanitising component.
         "sample_gang_icon": SAMPLE_GANG_ICON,
-        # A stored picture's address for the components that draw one —
-        # a data URI, because the gallery renders with no uploads store.
+        # Use a data URI so image previews need no upload storage.
         "sample_picture": CARD_IMAGE,
-        # The crop spec the picture components stamp onto the browser's
-        # dialog, handed through from the server's own constants the way
-        # a real page's view hands them — never spelt out in a demo.
+        # Use the server image constants for crop settings so component previews match
+        # uploads.
         "sample_picture_shape": PORTRAIT,
         "sample_picture_max": MAX_PX,
         "choice_offer": choice_offer(),
         "empty_choice_offer": ChoiceOffer(label="Primary skill"),
-        # The screen after an act: what arrived, and the choices it asks.
         "arrival_screen": arrival_screen(),
-        # A choice that holds several picks, part-way through and with no
-        # room left: the two states where its acts differ.
+        # Include partially filled and full multi-pick offers to exercise different
+        # actions.
         "choice_picks_offer": choice_picks_offer(),
         "full_choice_picks_offer": choice_picks_offer(full=True),
-        # A roll table's controls, and a roll in its three states: landed,
-        # landed on nothing, and already applied.
+        # Include resolved, empty and applied roll states.
         "roll_table": RollTable(dice_label="D66", lowest=11, highest=66),
         "roll_landed": RollResult(
             key="roll-1",
@@ -1061,24 +941,16 @@ def context():
             landed=("Eye Injury",),
             applied="Eye Injury",
         ),
-        # The same list a fighter's edit page ticks: what they hold, and
-        # the one thing a rule gives them that no click can clear.
         "tick_list_offer": tick_list_offer(),
-        # The two halves a pick list draws: what is held, and the rest of
-        # the library its panel offers.
         "pick_list_held": pick_list_held(),
         "pick_list_addable": pick_list_addable(),
-        # The same control where the groups are the point: skill sets,
-        # each sitting in a tier.
         "pick_list_grouped": pick_list_grouped(),
         "editable_statline": editable_statline(),
-        # A profile nobody has typed a statline for yet, and one where a
-        # value was refused: the two states the editor has that a card
-        # cannot have.
+        # Include an empty profile statline and a rejected value to exercise editor-only
+        # states.
         "blank_editable_statline": editable_statline(filled=False),
         "refused_editable_statline": refused_statline(),
-        # The same boxes as a player meets them, where an empty one keeps
-        # the model's own value rather than meaning no value.
+        # An empty owner override inherits the model's value.
         "owner_statline_editor": owner_statline_editor(),
         "statuses": STATUSES,
         "lists": LISTS,
@@ -1095,9 +967,7 @@ def context():
 
 @dataclass(frozen=True)
 class _Said:
-    """A sentence as the about column reads one — duck-typed rather than
-    imported, because the gallery shows the component working, and the
-    real structure is the library's (n26.library.prose)."""
+    """Minimal sentence object matching the fields read by the authoring about column."""
 
     text: str
     hint: str = ""
@@ -1118,7 +988,7 @@ class _AssignedSample:
 
 
 def sample_about():
-    """One thing's whole story, as the authoring pages tell it."""
+    """Build sample authoring descriptions and their source links."""
     return _AboutSample(
         referenced_by=(
             _Said(
@@ -1159,13 +1029,8 @@ def sample_about():
 
 
 def choice_offer():
-    """A pick list as a view hands it over: two headings, a line of
-    detail on one option and, on another, the other choice that has
-    already had it.
-
-    Skill sets, because that is the case with headings worth showing —
-    the same structure with one nameless group is what an offer naming a
-    whole kind produces, and the component draws that with no legend.
+    """Build grouped skill choices with option details and a choice already taken for
+    another slot.
     """
     return ChoiceOffer(
         label="Primary skill",
@@ -1198,7 +1063,7 @@ def choice_offer():
 
 
 def _gang_offer(label, options, chosen=None, first_key=1):
-    """One gang-hosted picker as the screen after founding draws it."""
+    """Build a gang-hosted choice offer for the follow-up screen."""
     return ChoiceOffer(
         label=label,
         chosen=chosen,
@@ -1219,19 +1084,12 @@ def _gang_offer(label, options, chosen=None, first_key=1):
 
 
 def arrival_screen():
-    """The screen shown after founding a gang, three blocks deep: a
-    question that cannot be skipped and is still open, one already
-    chosen, and one the author let the reader skip.
-
-    Every question here is the gang's own. Founding brings the gang
-    type's slots and nothing else, so a model's question cannot appear
-    on this screen: it arrives when that model is hired, and is asked
-    on the screen for the hire. Hard-coded, as everything here is: the
-    gallery renders on an empty database.
+    """Build compulsory, completed and optional gang choices for the screen after founding.
+    Model-specific choices are shown after hiring instead.
     """
     from n26.core.render import ArrivalBlock, ArrivalQuestion, ArrivalScreen
 
-    # Nowhere real, as every sample link: the gallery founds no gang.
+    # Use a local placeholder target because the gallery creates no gang.
     back = "#"
     bearer = "The Forgotten"
     return ArrivalScreen(
@@ -1314,12 +1172,8 @@ def arrival_screen():
 
 
 def choice_picks_offer(full=False):
-    """A choice that holds several picks, part-way through being made.
-
-    One nameless group, because a picklist has no headings — it is the
-    pickables behind a choice and nothing else. Two of the three are held,
-    so both acts are on the page at once; ``full`` is the same choice with
-    no room left, where the ones it does not hold are not listed at all.
+    """Build a multi-pick choice with two selections. When full, omit unselected options so
+    the demo shows removal without an add action.
     """
     held = [
         Choosable(
@@ -1351,9 +1205,9 @@ def choice_picks_offer(full=False):
 
 
 def pick_list_held():
-    """What the thing has, as a pick list draws it: one the owner added,
-    one a rule gives that no click can clear, and one money stands behind
-    that a removal would leave exactly where it is."""
+    """Build owner-added, granted and purchased skills to exercise editable and fixed
+    selections.
+    """
     return ChoiceOffer(
         label="",
         groups=[
@@ -1385,9 +1239,7 @@ def pick_list_held():
 
 
 def pick_list_grouped():
-    """The same control where the headings carry meaning: two skill sets,
-    each saying which tier it sits in, one of them holding a skill a rule
-    gives that no click can clear."""
+    """Build skill groups with tier captions and a fixed granted selection."""
     return ChoiceOffer(
         label="",
         groups=[
@@ -1422,8 +1274,7 @@ def pick_list_grouped():
 
 
 def pick_list_addable():
-    """The rest of the library the panel offers — enough rows that the
-    filter box is the way through them rather than the eye."""
+    """Build enough additional skills to exercise filtering in the picker."""
     names = [
         "Backstab",
         "Ballistic Expert",
@@ -1453,13 +1304,7 @@ def pick_list_addable():
 
 
 def tick_list_offer():
-    """The same list as a tick list: two tiers, some of it held already,
-    and one line a rule grants.
-
-    Two sections, so every heading says which tier its set sits in — the
-    one-tier case is the same structure with the captions empty, and the
-    component simply draws no caption.
-    """
+    """Build primary and secondary skill groups with selected and granted entries."""
     return ChoiceOffer(
         label="",
         groups=[
@@ -1495,10 +1340,8 @@ def tick_list_offer():
 
 # ---------------------------------------------------------------- model cards
 
-# Built as the real render dataclasses from n26.render, not as ad-hoc dicts, so
-# the card components are typed against exactly what build_model_card() produces.
-# No database needed: these are plain objects, and a gallery page has to render on
-# an empty database.
+# Use production render dataclasses so sample structures follow the components' actual
+# input contracts without database access.
 
 
 def _cell(short, full, value, **flags):
@@ -1511,11 +1354,7 @@ def _printed(*names):
 
 
 def _granted(name, source, source_kind):
-    """One re-derived on read, because something else on the card grants it.
-
-    `computed` is what separates a granted line from a bought one, and it is
-    the flag the card renders differently — see n26.render.Provenance.
-    """
+    """Build a computed assignable whose provenance identifies its grant source."""
     return AssignableLine(
         name=name,
         provenance=Provenance(source=source, source_kind=source_kind, computed=True),
@@ -1523,11 +1362,8 @@ def _granted(name, source, source_kind):
 
 
 def _fighter_statline():
-    """The Escher Gang Queen, from the rulebook page.
-
-    Ld starts a new group and the four psychology stats are highlighted, which is
-    what StatlineTypeStat.is_first_of_group and .is_highlighted mean in the
-    database — the divider and the tint are not decisions the template makes.
+    """Build the sample fighter statline, including psychology highlighting and the group
+    boundary at Leadership.
     """
     return Statline(
         cells=[
@@ -1536,15 +1372,13 @@ def _fighter_statline():
                 "WS",
                 "Weapon Skill",
                 "2+",
-                # `modified` is derived from this list, so a modified cell is one
-                # that can say what modified it — which is the whole point.
+                # Include the modifier source so the changed stat can explain its value.
                 modified_by=[
                     Provenance(
                         source="Weapon Skill", source_kind="advancement", computed=True
                     )
                 ],
-                # 2+ is as good as a Weapon Skill gets, so the tooltip also
-                # says the cell can get no better.
+                # Weapon Skill cannot improve beyond 2+; include its limit explanation.
                 held_at="maximum",
             ),
             _cell("BS", "Ballistic Skill", "3+"),
@@ -1563,12 +1397,8 @@ def _fighter_statline():
 
 
 def _placeholder_for(value):
-    """What an empty box suggests, read off the shape of the value the card
-    shows: a distance suggests a distance, a roll target a target.
-
-    The real placeholder comes from the stat's own display flags. Those are
-    a database row, and this app has none, so the flags are inferred from
-    how the value prints — which is what they decide.
+    """Infer display-format placeholders from sample values. Production placeholders use
+    the stat's stored display flags.
     """
     if value.endswith('"'):
         return '4"'
@@ -1578,15 +1408,8 @@ def _placeholder_for(value):
 
 
 def editable_statline(filled=True, errors=None):
-    """The card's characteristics as boxes an author types in.
-
-    Derived from the display statline rather than written out a second
-    time. Both sit on one gallery page, and an editor showing different
-    columns from the card above it would be showing a different statline.
-
-    ``errors`` names the characteristics to draw a refusal against, so the
-    demo can show what a page looks like when a value is refused without
-    anyone hand-building a broken cell.
+    """Build editable cells from the display statline so the columns agree. errors
+    identifies cells with validation errors.
     """
     from n26.core.render import EditableStatCell
     from n26.library.models import Stat
@@ -1595,9 +1418,7 @@ def editable_statline(filled=True, errors=None):
         EditableStatCell(
             short_name=cell.short_name,
             full_name=cell.full_name,
-            # Input names are the stat's internal name, derived from the full
-            # name exactly as the library derives it — so a demo cannot show a
-            # form field the real page would not produce.
+            # Derive input identifiers using the library's stat-name rule.
             name=Stat.derive_field_name(cell.full_name),
             value=cell.value if filled else "",
             placeholder=_placeholder_for(cell.value),
@@ -1610,11 +1431,8 @@ def editable_statline(filled=True, errors=None):
 
 
 def owner_statline_editor():
-    """The characteristics as their owner sets them on a model's page.
-
-    The author's boxes, with the one difference that matters: an empty
-    box here means "keep what the model's entry prints", so the value it
-    prints is what the box suggests rather than an example.
+    """Build model stat overrides with the inherited value as each empty field's
+    placeholder.
     """
     return [
         replace(cell, value="", placeholder=printed.value)
@@ -1625,12 +1443,7 @@ def owner_statline_editor():
 
 
 def refused_statline():
-    """The editor with one value refused.
-
-    The box keeps what the author typed rather than the value that was
-    already stored: a refusal they cannot see the cause of is one they
-    cannot act on.
-    """
+    """Build a validation-error cell retaining the submitted value."""
     refusal = (
         "Movement is longer than 10 characters — a statline cell holds a "
         "short value like 4, 3+ or S."
@@ -1642,11 +1455,8 @@ def refused_statline():
 
 
 def _weapon_statline(rng_s, rng_l, acc_s, acc_l, strength, ap, damage, ammo):
-    """A weapon profile's characteristics — the same machinery as a fighter's.
-
-    Two columns are called S and L twice over, which is why full_name matters:
-    the header can say what an ambiguous abbreviation means without the row
-    getting any wider.
+    """Build a weapon statline with full names that disambiguate repeated S and L
+    abbreviations.
     """
     return Statline(
         cells=[
@@ -1663,25 +1473,16 @@ def _weapon_statline(rng_s, rng_l, acc_s, acc_l, strength, ap, damage, ammo):
 
 
 def model_card():
-    """One fighter's card, with enough going on to exercise the components.
-
-    Deliberately includes the awkward cases: a modified characteristic, a weapon
-    with a paid second profile, a trait granted by a modifier rather than printed,
-    an unresolved choice, and a pick the gang holds drawn with nothing to click.
+    """Build a sample ModelCard with modified stats, paid weapon profiles, granted traits
+    and unresolved choices.
     """
     return ModelCard(
-        # An id, because the card component reads it as "this depicts a stored
-        # model" and only then draws the tab strip. Never a link target here —
-        # the gallery passes hrefs of its own or none.
+        # An ID enables stored-model tabs. Gallery links supply their own targets.
         id="vesna-krail",
-        # The miniature's own name, and separately the library entry she was
-        # hired from. Different fields because they are different facts: she was
-        # bought as an "Escher Gang Queen" and named afterwards, which is what
-        # everybody does.
+        # Keep the model's chosen name separate from its library profile name.
         name="Vesna Krail",
         profile_name="Escher Gang Queen",
         rating=135,
-        # type_line is derived from these two, not stored: "Fighter (Leader)".
         profile_type="Fighter",
         subtypes=_printed("Leader"),
         statline=_fighter_statline(),
@@ -1691,11 +1492,8 @@ def model_card():
                 base_rating=30,
                 profiles=[
                     WeaponProfileLine(
-                        # Unnamed: this is the weapon's own line, and the card
-                        # prints the weapon's name on it. Naming it after the
-                        # weapon would render the same and mean something else —
-                        # a profile that happens to share the name — so the two
-                        # only agree by accident. See WeaponProfileLine.name.
+                        # An unnamed profile uses the weapon's name. A named profile
+                        # with the same text would have a different meaning.
                         name="",
                         rating=0,
                         statline=_weapon_statline(
@@ -1718,30 +1516,24 @@ def model_card():
                         traits=_printed("Plentiful"),
                     ),
                     WeaponProfileLine(
-                        # No leading dash in the name: the card draws its own
-                        # mark for a named profile, so one stored here would
-                        # print twice — and a name that is only a dash reads as
-                        # a profile with no name at all, which means the weapon.
+                        # The component adds its own marker for named profiles, so
+                        # profile names contain no leading dash.
                         name="Hotshot las pack",
                         rating=10,
                         statline=_weapon_statline(
                             '8"', '24"', "+1", "-", "4", "-1", "1", "5+"
                         ),
-                        # Unstable is not printed on the ammo — a modifier grants
-                        # it, and the provenance is what lets the card say so.
+                        # Mark Unstable as granted by a modifier so provenance explains
+                        # its source.
                         traits=[
                             *_printed("Plentiful"),
                             _granted("Unstable", "Hotshot las pack", "profile"),
                         ],
                     ),
                 ],
-                # Bolted to the weapon rather than carried by the fighter, which
-                # is the whole point of the accessory scope: "the weapon I am
-                # attached to". A card has to be able to say which weapon.
+                # Accessory scope identifies the weapon to which this sight is attached.
                 accessories=[AssignableLine(name="Telescopic sight")],
-                # A choice the weapon itself brought: an augmentation ladder at
-                # its second level. Drawn under the weapon, never as a row of
-                # the card's own.
+                # Display the weapon's augmentation choice beneath that weapon.
                 choices=[
                     ChoiceLine(
                         kind_label="Augmentation",
@@ -1755,11 +1547,8 @@ def model_card():
                 ],
             ),
             WeaponLine(
-                # Two profiles, both free, neither named after the weapon — so the
-                # first cannot be hoisted onto the weapon's own row. A grenade
-                # launcher is not its frag round. This is the case a rule based on
-                # profile count or cost would get wrong: there are two, and both
-                # cost nothing.
+                # Two free named profiles must both remain separate from the weapon
+                # heading; neither is its default unnamed profile.
                 name="Grenade launcher",
                 base_rating=65,
                 profiles=[
@@ -1796,13 +1585,8 @@ def model_card():
                 ],
             ),
         ],
-        # Bought skills and granted ones now sit in one list, told apart by
-        # provenance rather than by living in a separate field — which is why
-        # the card no longer has a "Rules" row for the granted ones.
-        # Sorted by name, as build_model_card() returns them. Overseer is not
-        # here even though the fighter has it: it was chosen for the Leader's
-        # skill choice, and the builder draws a chosen node as that choice's
-        # row rather than as a loose skill as well.
+        # List skills alphabetically with provenance. Skills chosen through offers routed
+        # to Skills remain here; only their resolved prompts are omitted.
         skills=[
             _granted("Gang Hierarchy", "Leader", "subtype"),
             _granted("Group Activation (2)", "Leader", "subtype"),
@@ -1821,42 +1605,33 @@ def model_card():
                     )
                 ],
             ),
-            # Two of one thing, drawn once with the count after the name —
-            # the one shape where a line's count is drawn. The gallery
-            # must hold a specimen or that arm is drawn nowhere.
+            # Include a repeated equipment assignment to exercise the count suffix.
             AssignableLine(name="Stimm-slug (25¢)", count=2),
-            # Kit that brought a pet onto the roster. The specimen carries
-            # the pet's name, drawn after the kit's; the pet's own card is
-            # model_card_pet().
+            # Include pet-granting equipment and identify the resulting pet, whose card
+            # is model_card_pet().
             AssignableLine(name="Phyrr Cat (pet) (120¢)", brought_in=("Fang",)),
         ],
-        # Gear whose category asks for a heading of its own. Bought and
-        # priced like the rest, and held apart because it reads as what
-        # the model is rather than as what they are carrying.
+        # This equipment category uses a separate heading on the card.
         gear_groups=[
             GearGroup(
                 name="Gene-smithing",
                 lines=_printed("Iron flesh (30¢)"),
             )
         ],
-        # One choice, still open, and it asks for something the rows above do not
-        # already list. A chosen skill is a skill — Overseer sits in `skills`
-        # with the rest, marked as granted — so a row labelled "Skill" holding
-        # one skill would be a third skills row on a card that has one.
+        # Keep the unresolved variant separate from skills, whose resolved choices
+        # appear in their own section.
         choices=[
             ChoiceLine(
                 kind_label="Gang Legacy",
                 chosen=None,
-                # A real card's slot carries the address of its own picker.
-                # "#" stands in because the gallery has no gang behind it;
-                # what matters for the card is that the prompt is a control.
+                # A nonempty placeholder URL renders the choice as a control without
+                # requiring a stored gang.
                 href="#",
                 provenance=Provenance(
                     source="Specialist", source_kind="subtype", computed=True
                 ),
             ),
-            # A choice worked at a pick at a time, with room left: what it
-            # holds is drawn, and Add stays beside it until it is full.
+            # A partially filled choice shows its current selections and an Add action.
             ChoiceLine(
                 kind_label="Lasting Injuries",
                 chosen="Eye Injury, Out Cold",
@@ -1867,9 +1642,8 @@ def model_card():
                     source="Ganger", source_kind="profile", computed=True
                 ),
             ),
-            # What the gang picked, drawn on the card of a model that
-            # plays by it. No href: the choice belongs to whoever was
-            # asked for it, so this line is a fact with nothing to click.
+            # A gang-level choice has no model-level edit URL, so display its value as
+            # text.
             ChoiceLine(
                 kind_label="Archetype",
                 chosen="Brawler",
@@ -1879,9 +1653,8 @@ def model_card():
                 ),
             ),
         ],
-        # A question asking for a skill, kept apart because the card draws it
-        # in the Skills row rather than as a row of its own. Only open ones are
-        # ever here: once chosen for, it would be a skill above.
+        # Unresolved skill choices appear within Skills. Resolved ones are displayed
+        # through their selected skill.
         skill_choices=[
             ChoiceLine(
                 kind_label="Primary skill",
@@ -1892,26 +1665,22 @@ def model_card():
                 ),
             ),
         ],
-        # This fighter has a grid, so there is a screen of what she may select
-        # and the Skills row carries the way to it. A card with no grid — and
-        # every card on a print sheet — leaves this empty and draws nothing.
+        # Only cards with a selection URL offer the skill picker; print cards leave it
+        # empty.
         skills_href="#",
-        # A Wyrd's powers, which are not skills. Drawn apart on the card
-        # because the rules treat them apart, even though they are chosen the
-        # same way — see ModelCard.powers.
+        # Keep powers separate from skills, matching ModelCard.powers.
         powers=[
             _printed("Assail")[0],
             _granted("Mind Lock", "Wyrd", "subtype"),
         ],
-        # Where this fighter can buy from. Access to buy, not things owned, which
-        # is why the card draws it apart from gear — see ModelCard.collections.
+        # Collections describe buying access and are displayed separately from owned
+        # gear.
         collections=[
             _granted("House Escher Equipment List", "Escher", "profile"),
             *_printed("Trading Post"),
         ],
-        # Something the kit does beyond this card. A stored effect is *shown,
-        # never run*, so a hire preview can say what taking a thing would do
-        # before anyone takes it — which is what `happened` is for.
+        # Display stored effects without executing them; happened controls whether
+        # wording describes a completed effect or a preview.
         effects=[
             EffectLine(
                 description="Adds a Cyber-mastiff to the gang",
@@ -1921,25 +1690,20 @@ def model_card():
                 ),
             ),
         ],
-        # Hired in her own right: nothing brought her in, so the card says
-        # nothing about an owner. model_card_pet() is the card that does.
+        # This independently hired model has no granting owner; the pet variant supplies
+        # one.
         owned_by=None,
-        # The running numbers, as every card but one draws them: settled
-        # values with nothing to click. XP keeps no line here — it has a
-        # cell in the statline with its target beside it, and the line
-        # exists only to be the control. model_card_editable() is the
-        # card that carries the addresses.
+        # Read-only cards omit adjustment URLs. XP appears in the statline; its separate
+        # counter control is supplied by model_card_editable().
         counters=[
             CounterLine(
                 name="XP", value=61, tallied=61, assignment_id="xp", is_xp=True
             ),
             CounterLine(name="Kill Count", value=3, tallied=3, assignment_id="kills"),
-            # Nothing written down. A tally floors at zero, so there is
-            # nothing to take off.
+            # A zero stored value leaves nothing to subtract.
             CounterLine(name="Glitch Count", value=0, assignment_id="glitch"),
-            # Assigned but never tallied, with a rule contributing 2 on
-            # top. It reads 2. A tally can only move the half that is
-            # written down, and that half is zero.
+            # The displayed 2 comes entirely from a rule; the stored value available for
+            # adjustment remains zero.
             CounterLine(name="Bounty", value=2, assignment_id="bounty"),
         ],
         xp=61,
@@ -1947,26 +1711,13 @@ def model_card():
     )
 
 
-# ------------------------------------------------------------------- hiring
-#
-# A gang list is a collection of profiles — Profile is an Assignable, so a sweep
-# contains them exactly as it contains weapons. Which means hiring sections the
-# same way everything else does: sections holding categories holding rows.
-#
-# Sections here are authored, not derived. library.CollectionSection makes the
-# tiers a collection's schema, so "Gang List", "Brutes", "Hangers-on" are content
-# strings with positions, and nothing in a template decides them.
+# Hiring uses authored collection sections and categories, matching the other catalogue
+# displays.
 
 
 @dataclass(frozen=True)
 class _Named:
-    """A content row that is only ever asked for its name — a ProfileType.
-
-    HireEntry.profile_type reads `.profile.profile_type.name`, so a string here
-    fails at render rather than at import. Which is the argument for the stand-in
-    being an object: it makes the sample the same shape as the real row, and the
-    failure loud when it is not.
-    """
+    """Provide the name attribute read by HireEntry.profile_type."""
 
     name: str
 
@@ -1986,12 +1737,8 @@ class _Hireable:
         return self.name
 
 
-#: (section, category, [(name, cost, subtype, [(option name, surcharge)])]).
-#:
-#: Invented names and numbers: the rulebook reference deliberately excludes
-#: individual gang lists, so there is nothing to copy even if copying were
-#: allowed. The shapes are what matter — a profile with no options, one with
-#: two, and the subtypes the composition limit counts.
+#: Sample entries contain section, category, price, subtype and option surcharges.
+#: Invented values exercise profiles with different option counts.
 _GANG_LIST = [
     (
         "Gang List",
@@ -2057,15 +1804,9 @@ _GANG_LIST = [
     ),
 ]
 
-#: A second set of options, for the profiles that have one.
-#:
-#: Option groups are the answer to combinatorial blow-up: twelve authored sets
-#: where flat combinations needed forty. "Choose one" is a radio, "choose any"
-#: is checkboxes — and the hire view shows one card per option against an
-#: otherwise-default selection, never one card per combination.
-#:
-#: A set carries no label here because the structure carries none: what the
-#: content calls one is written for authors, and a player reads the options.
+#: Independent option groups use radios or checkboxes according to their selection limit.
+#: Each option preview starts from defaults; group labels are author-facing and omitted
+#: here.
 _OPTION_GROUPS = {
     "Gang Queen": [
         ("any", [("photo-goggles", 35), ("bio-booster", 35)]),
@@ -2077,11 +1818,8 @@ _OPTION_GROUPS = {
 
 
 def extra_groups(profile_name, subtype, base_price):
-    """The further sets a profile offers beyond its plain options.
-
-    Every option carries a card, as main builds them: that option against an
-    otherwise-default selection, never one card per combination. So a price here
-    is the base plus this one surcharge, and never a running total across sets.
+    """Build preview cards for additional option groups. Each preview applies one surcharge
+    to the default selection, without combining independent groups.
     """
     return [
         HireGroup(
@@ -2091,8 +1829,8 @@ def extra_groups(profile_name, subtype, base_price):
                     name=option_name,
                     price=surcharge,
                     total_price=base_price + surcharge,
-                    # Nothing in a named group is the default unless the set is
-                    # a one-of: "choose any" starts with none taken.
+                    # Only single-choice groups receive a default; optional groups start
+                    # empty.
                     is_default=(choose == "one" and number == 0),
                     card=_hire_card(
                         profile_name, subtype, base_price + surcharge, 1 + number
@@ -2105,46 +1843,34 @@ def extra_groups(profile_name, subtype, base_price):
     ]
 
 
-#: The subtypes the composition limit counts against the rest of the gang.
-#:
-#: Rulebook, Gang Composition: the number of models with the Champion, Brute or
-#: Hanger-on subtype must be less than or equal to the number without. The view
-#: shows the count and marks the rows; it never blocks — refusing is the
-#: operation's job, and notes are explicitly not gates.
+#: Mark sample hire entries for the gallery’s composition display. Production composition
+#: breaches produce notes without blocking hires.
 LIMITED_SUBTYPES = frozenset({"Champion", "Brute", "Hanger-on"})
 
 
 def _hire_card(name, subtype, rating, weapons):
-    """A preview card for a profile, from the same dataclasses a real one uses."""
+    """Build a hire preview with production ModelCard dataclasses."""
     base = model_card()
     return replace(
         base,
-        # A preview depicts nobody stored, which is what an empty id
-        # says — and what keeps the tab strip off it, here as on the
-        # real hire list.
+        # Preview cards have no stored-model ID, so they display no tab strip.
         id="",
         name=name,
         rating=rating,
         subtypes=_printed(subtype),
         weapons=base.weapons[:weapons],
-        # A preview has no XP and nobody owns it yet, which is most of what
-        # distinguishes it from the card of a model you already have.
+        # Unhired previews have no XP or owner.
         xp=0,
         xp_target=None,
         owned_by=None,
-        # Stored effects are shown, never run: this is what makes the tense on
-        # the card read as a consequence rather than a fact.
+        # Use preview wording for stored effects without executing them.
         effects=base.effects,
     )
 
 
 def hire_list():
-    """Every profile a gang could hire, in sections of categories.
-
-    Mirrors what n26.hire.build_hire_list plus n26.hire.section_hire_list would
-    return, built by hand because a gallery renders on an empty database. The
-    sections, entries and options are the real structures holding real
-    ModelCards, so the components are typed against what the server sends.
+    """Build the production hire-list display structures with sample profiles, options and
+    preview cards, without database access.
     """
     sections = []
     for position, (section_name, category_name, profiles) in enumerate(_GANG_LIST):
@@ -2173,9 +1899,8 @@ def hire_list():
                         profile_type=_Named("Fighter"),
                         category=category,
                     ),
-                    # The default group first, always — "As standard" is
-                    # synthesised when a profile offers no plain alternatives, so
-                    # a renderer never branches on whether choices exist.
+                    # Always supply the default group, including a synthetic As standard
+                    # option when there are no alternatives.
                     groups=[HireGroup(choose="one", options=options)]
                     + extra_groups(name, subtype, price),
                 )
@@ -2187,12 +1912,7 @@ def hire_list():
 
 
 def hire_entry(value):
-    """The sample entry a click names, looked up by what the rows submit.
-
-    The shell's rows submit their slugified name, so clicking Hire on one
-    of three hundred can be answered with that one's dialog rather than a
-    fixed example that would name the wrong fighter.
-    """
+    """Find the sample hire entry by the slugified name submitted by its button."""
     if not value:
         return None
     for section in hire_list():
@@ -2203,7 +1923,7 @@ def hire_entry(value):
 
 
 def _hire_scope_tabs():
-    """The hire screen's three lists, labelled as the screen labels them."""
+    """Build the three hire-list scope tabs."""
     from n26.core.views.hire import HIRE_SCOPES
 
     return [
@@ -2213,7 +1933,7 @@ def _hire_scope_tabs():
 
 
 def hire_context():
-    """What the hire view needs: the sections, and the ends of its one slider."""
+    """Prepare sample hire sections and the price filter bounds."""
     sections = hire_list()
     entries = [entry for section in sections for entry in section.all_entries()]
     categories = [
@@ -2229,22 +1949,20 @@ def hire_context():
         ],
         "hire_price_floor": min(entry.base_price for entry in entries),
         "hire_price_ceiling": max(entry.base_price for entry in entries),
-        # What a click hands the name dialog: the row's answer, already
-        # given, riding to the next request as fields nobody has to retype.
+        # Preserve the selected entry's identity in the hire dialog's hidden fields.
         "hire_dialog_choices": ["Chainsword"],
         "hire_dialog_fields": [
             {"name": "profile", "value": "ganger"},
             {"name": "ganger:1", "value": "1"},
         ],
-        # What a real gang would supply. Shown, never enforced.
+        # Display sample gang limits without enforcing them in the gallery.
     }
 
 
 # ------------------------------------------------------------------ gang sheet
 
-# A gang is a n26.render.GangSheet, built here as the real dataclass for the same
-# reason the cards are: the components end up typed against what render_gang()
-# actually produces, and a rename upstream fails at import rather than at a glance.
+# Use the production GangSheet dataclass so component input changes also affect the
+# gallery.
 
 
 @dataclass(frozen=True)
@@ -2259,37 +1977,27 @@ class _Counter:
 
 
 def _reading(name, value):
-    """A n26.effects.CounterReading, which is what GangSheet.counters holds."""
+    """Build the CounterReading structure used by GangSheet.counters."""
     from n26.core.effects import CounterReading
 
     return CounterReading(thing=_Counter(name), value=value)
 
 
-#: What the gang owns and nobody is carrying. Real StashLines with their kinds on
-#: them, exactly as render_gang builds them now — the component does the grouping,
-#: because n26.render keeps the list flat on purpose and says grouping is the
-#: renderer's business.
-#:
-#: Kinds are lower case because that is how a model's verbose_name reads: written
-#: to appear mid-sentence. Whoever uses one as a heading capitalises it.
+#: Keep stash entries flat; the component groups them by kind. Kind labels use lower-case
+#: verbose names and are capitalised only when rendered as headings.
 STASH = [
     StashLine(name="Lasgun", rating=15, kind="weapon"),
     StashLine(name="Shotgun", rating=30, kind="weapon"),
     StashLine(name="Stub gun", rating=5, kind="weapon"),
-    # Two suits of mesh armour, drawn once with the count after the name
-    # and the rating of one beside it — what the equip listing's held
-    # rows say. Wargear only: a weapon in the stash is never stacked,
-    # since what it is includes the profiles, accessories and choices on
-    # it, and two of one name can differ in all of those.
+    # Stack identical wargear with a count and unit rating. Weapons remain separate
+    # because their profiles, accessories and choices can differ.
     StashLine(name="Mesh armour", rating=15, kind="wargear", count=2),
     StashLine(name="Photo-goggles", rating=35, kind="wargear"),
-    # Kit that brought a pet onto the roster: the pet is a model on the
-    # gang sheet, and its collar here names it.
+    # Name the pet granted by the collar; its model card appears on the gang sheet.
     StashLine(
         name="Cyber-mastiff (pet)", rating=100, kind="wargear", brought_in=("Rust",)
     ),
-    # Nobody bought this one: a modifier put it there, and it carries the mark a
-    # granted skill carries on a card.
+    # Display modifier-granted equipment with its provenance marker.
     StashLine(
         name="Respirator",
         rating=0,
@@ -2298,9 +2006,8 @@ STASH = [
             computed=True, source="Ash Wastes Nomads", source_kind="gang type"
         ),
     ),
-    # Granted AND rated: the one shape where a price is drawn inside the
-    # tooltip's trigger, beside the dotted-underlined name. The gallery must
-    # hold a specimen or that arm of assignable-lines is drawn nowhere.
+    # Include equipment that is both granted and rated to exercise a tooltip trigger
+    # with a price.
     StashLine(
         name="Blindsnake pouch",
         rating=60,
@@ -2309,44 +2016,33 @@ STASH = [
             computed=True, source="Ash Wastes Nomads", source_kind="gang type"
         ),
     ),
-    # Deliberately out of kind order. regroup starts a new group whenever the key
-    # changes rather than gathering equal keys, so a stash arriving in any order
-    # is the case the component's dictsort exists for.
+    # Supply unsorted kinds to verify that dictsort groups equal kinds before Django
+    # regroup processes consecutive entries.
     StashLine(name="Fighting knife", rating=15, kind="weapon"),
 ]
 
 
-#: The gang's open questions. Each carries the address of its own picker —
-#: "#" here, because the gallery has no gang behind it, and what the strip is
-#: showing is that a slot is a control whether or not a choice has been made.
-#:
-#: The third has no address at all: a card built from a profile's default
-#: equipment has real offers and no stored rows to choose against, so it
-#: draws as a fact rather than as a button that goes nowhere.
+#: Use # for editable choices and an empty URL for display-only offers without stored
+#: assignments.
 CHOICES = [
     ChoiceLine(kind_label="Skill trees", chosen="Ferocity, Brawn, Cunning", href="#"),
-    # A slot holding every variant: the names are one control, and that
-    # control must wrap on a narrow sheet rather than grow the page.
+    # Long selected values must wrap within one choice control on narrow screens.
     ChoiceLine(
         kind_label="Variant",
         chosen="Genestealer Cult Corrupted, Chaos Corrupted, Malstrain Corrupted",
         href="#",
     ),
-    # Unresolved is information, not an error: n26.render is explicit that
-    # a renderer informs and does not police.
+    # Inform rather than police. Display unresolved choices without treating them as
+    # errors.
     ChoiceLine(kind_label="Territory", chosen=None, href="#"),
     ChoiceLine(kind_label="Alliance", chosen=None),
 ]
 
 
 def gang_sheet():
-    """One gang, with enough going on to exercise the sheet.
-
-    The awkward cases on purpose: a choice holding three things — the "list inside
-    one control" the detail list exists for — a longer list of variants that
-    must wrap, an unresolved choice, a choice with nowhere to send anyone,
-    counters, a stash holding something granted rather than bought, and what a
-    campaign gave the gang, credited to the campaign type that brought it.
+    """Build a GangSheet with counters, granted stash equipment and campaign provenance.
+    Include unresolved, multi-value and unlinked choices to exercise their display
+    states.
     """
     return GangSheet(
         name="The Ashen Choir",
@@ -2354,9 +2050,8 @@ def gang_sheet():
             name="Dust Falls",
             campaign_id="dust-falls",
             choices=[ChoiceLine(kind_label="Faction", chosen="Nomads", href="#")],
-            # Addressed, as they are for a reader inside the campaigns
-            # feature. Empty is the other state: the name and the holding
-            # draw as text.
+            # Provide URLs to exercise linked campaign assets; empty URLs render plain
+            # text.
             href="#",
             assets_href="#",
             lines=[
@@ -2371,8 +2066,7 @@ def gang_sheet():
                     ),
                 )
             ],
-            # Addressed, so the demo shows the tally controls an owner
-            # gets. A reader who does not own the gang gets the number.
+            # Provide adjustment URLs to show owner counter controls.
             counters=[
                 CounterLine(
                     name="Reputation",
@@ -2385,8 +2079,8 @@ def gang_sheet():
                         source="Territory campaign", source_kind="campaign type"
                     ),
                 ),
-                # Read, never tallied: the whole figure is what the held
-                # territory contributes, so the stored value stays at 0.
+                # This territory contributes the full displayed value through rules; its
+                # stored counter remains zero.
                 CounterLine(
                     name="Income",
                     value=30,
@@ -2415,8 +2109,8 @@ def gang_sheet():
         rating=360,
         credits=1037,
         wealth=1397,
-        # Mid-trip: an allowance was taken to a post and some of it spent.
-        # Both, or the strip reads the figure as unset and draws an em dash.
+        # Provide both visit state and remaining Trade Points; otherwise the strip
+        # displays an unset value.
         visiting_trading_post=True,
         trade_points_left=3,
         colour="violet",
@@ -2424,8 +2118,7 @@ def gang_sheet():
             AssignableLine(name="Founded in Cycle 3"),
             AssignableLine(name="Escher house list"),
         ],
-        # One assigned to the gang directly and one that arrived with the
-        # founding, whose provenance names the gang type that brought it.
+        # Show direct and founding-granted assignments with distinct provenance.
         rules=[
             AssignableLine(name="Chem Dealers"),
             AssignableLine(
@@ -2441,9 +2134,7 @@ def gang_sheet():
     )
 
 
-#: What a player writes on a card, as opposed to what the rules put there.
-#: Editor markup, as the rich text editor stores it; the card sanitises it on
-#: the way out, so the sample walks the same path a saved note does.
+#: Use stored editor markup so note previews follow the card's sanitising path.
 CARD_NOTES = (
     "<p>Base needs redoing after the sump run — the flock came off. "
     "Owes Kaine a favour from the Ash Wastes job.</p>"
@@ -2455,9 +2146,7 @@ CARD_LORE = (
 )
 
 
-#: A stand-in photograph, drawn rather than shipped: the gallery keeps no
-#: image files, and a data URI exercises the same <img> path a stored
-#: upload's URL does.
+#: Use a generated SVG data URI to exercise image rendering without a stored upload.
 CARD_IMAGE = (
     "data:image/svg+xml,"
     "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 250'%3E"
@@ -2469,39 +2158,29 @@ CARD_IMAGE = (
 
 
 def model_card_as(variant, **changes):
-    """The sample card under another id, with ``changes`` applied.
-
-    Every stored card carries an anchor built from its id, and the
-    gallery draws the sample many times over on one page — so each
-    drawing is a variant with an id of its own, and an id appears on
-    the page once. The pet demo's owner link points at the plain
-    ``model_card()``, which is drawn exactly once.
+    """Copy the sample card with a distinct anchor ID and the supplied changes. Each
+    rendered variant needs a unique ID; the pet links to the single base card.
     """
     return replace(model_card(), id=f"vesna-krail-{variant}", **changes)
 
 
 def model_card_digital():
-    """The sample card as the digital-first demo draws it — the same
-    card again, under its own anchor."""
+    """Build the digital card variant with its own anchor."""
     return model_card_as("digital")
 
 
 def model_card_unwritten():
-    """The sample card with its Lore and Notes tabs empty, and an Edit
-    on each."""
+    """Build a card with empty Lore and Notes tabs and their Edit actions."""
     return model_card_as("unwritten")
 
 
 def model_card_founding():
-    """The sample card while the gang is still being founded: what this
-    model has left of the Trade Points its books give it to spend as it
-    joins, ahead of its rating."""
+    """Build a founding card showing the model's remaining Trade Points."""
     return model_card_as("founding", founding_budget=True, trade_points_left=3)
 
 
 def model_card_actions_waiting():
-    """An owner's roster card with several actions available, so its strip
-    says so instead of naming them."""
+    """Build an owner card with several pending actions for its summary strip."""
     return model_card_as(
         "actions-waiting",
         action_names=("Advancement", "Suit Evolution"),
@@ -2509,23 +2188,19 @@ def model_card_actions_waiting():
 
 
 def model_card_written():
-    """The sample card with its picture and its Lore and Notes tabs filled."""
+    """Build a card with a picture and populated Lore and Notes tabs."""
     return model_card_as(
         "written", notes=CARD_NOTES, lore=CARD_LORE, image_url=CARD_IMAGE
     )
 
 
 def model_card_in_recovery():
-    """The sample card with a status: In Recovery, badged beside the
-    controls, the way a card reads after a Grievous Wound."""
+    """Build a card displaying the In Recovery status."""
     return model_card_as("in-recovery", status="recovery", status_label="In Recovery")
 
 
 def model_card_pet():
-    """The sample card's pet: a model the kit on another card brought
-    in. It says whose it is under the profile name, and on a sheet the
-    owner's name is a link to the owner's card — the demo passes the
-    full card's anchor, which is on the same gallery page."""
+    """Build a pet card with a link to its owner's card on the same gallery page."""
     return ModelCard(
         id="fang",
         name="Fang",
@@ -2544,8 +2219,7 @@ def model_card_pet():
 
 
 def model_card_in_the_stash():
-    """The same pet where its collar was bought into the stash: nobody
-    owns it, and the card says where the collar is."""
+    """Build a pet card identifying the stash as the location of its granting collar."""
     return replace(
         model_card_pet(),
         id="fang-in-the-stash",
@@ -2556,7 +2230,7 @@ def model_card_in_the_stash():
 
 
 def model_card_dead():
-    """The sample card dead: greyed, badged, counting nothing."""
+    """Build a dead card with its status styling and excluded rating."""
     return model_card_as(
         "dead",
         rating=0,
@@ -2565,9 +2239,7 @@ def model_card_dead():
     )
 
 
-#: Names at the length the books really reach, for the header specimens
-#: below. The short pair is what most models are called; the long pair
-#: is a model named after a whole title and an owner who is too.
+#: Short and long model and owner names exercise header wrapping.
 SHORT_HEADER_NAME = "Vesna Krail"
 LONG_HEADER_NAME = "Vashti Corvinus-Kane the Thrice-Wounded"
 SHORT_HEADER_OWNER = "Yolanda"
@@ -2575,21 +2247,8 @@ LONG_HEADER_OWNER = "Archregent Hollis Varn-Mortenkeep"
 
 
 def _header_card(name, owned_by, **changes):
-    """One header specimen: everything the header band can hold at once,
-    over as little card as a card can have.
-
-    Built from scratch rather than off ``model_card()``, because what
-    these are for is the header — its two columns, and what the names do
-    to them — and the sample card's weapons, skills and gear would bury
-    it. The statline stays: every card has one, and the header has to
-    sit above something.
-
-    Carries no status of its own, so the demo's ``status_href`` draws the
-    quiet Active control the live half of a roster shows; a specimen
-    wanting the badge instead passes ``status`` and ``status_label``.
-
-    No ``id``, so the card draws its body plain rather than behind the
-    tab strip, and carries no anchor to collide with the pet demo's.
+    """Build a minimal statline card for header layout checks. Omit its ID to avoid tabs
+    and anchors; optional status fields select the active control or status badge.
     """
     return ModelCard(
         name=name,
@@ -2598,8 +2257,7 @@ def _header_card(name, owned_by, **changes):
         profile_type="Fighter",
         statline=_fighter_statline(),
         owned_by=owned_by,
-        # The header's own demo passes the href; this is the model the
-        # name would lead to on a sheet that drew both.
+        # The header demo supplies the link to this model separately.
         owned_by_id="vesna-krail",
         founding_budget=True,
         trade_points_left=3,
@@ -2611,30 +2269,27 @@ def _header_card(name, owned_by, **changes):
 
 
 def model_card_header_short():
-    """The header with both names short — the case it was drawn for."""
+    """Build a header with short model and owner names."""
     return _header_card(SHORT_HEADER_NAME, SHORT_HEADER_OWNER)
 
 
 def model_card_header_long_name():
-    """The header where the model's own name is long."""
+    """Build a header with a long model name."""
     return _header_card(LONG_HEADER_NAME, SHORT_HEADER_OWNER)
 
 
 def model_card_header_long_owner():
-    """The header where the owner's name is long."""
+    """Build a header with a long owner name."""
     return _header_card(SHORT_HEADER_NAME, LONG_HEADER_OWNER)
 
 
 def model_card_header_long_both():
-    """The header with both names long."""
+    """Build a header with long model and owner names."""
     return _header_card(LONG_HEADER_NAME, LONG_HEADER_OWNER)
 
 
 def model_card_header_badged():
-    """The header at its widest: the longest status there is, badged
-    rather than drawn as the quiet Active control, against the longest
-    names. Every other specimen shows Active, which is what most of a
-    roster reads; this is the row at full stretch."""
+    """Build a header combining long names with a long status badge."""
     return _header_card(
         LONG_HEADER_NAME,
         LONG_HEADER_OWNER,
@@ -2644,15 +2299,9 @@ def model_card_header_badged():
 
 
 def model_card_editable():
-    """The sample card as the model's own page draws it: its counters
-    carry addresses, so the lines grow their controls and XP joins them,
-    and kit it holds offers the same Sell and more-menu the listing does.
-
-    A card of its own rather than a flag on the base one, because the
-    base card is what the gang sheet, the hire previews and the print
-    specimens are all built from, and none of those may offer to change
-    a number or part with a weapon. The addresses go nowhere, as every
-    href in this gallery does.
+    """Build the model-page card with counter and equipment actions. Keep these controls
+    out of the base card used for sheets, hire previews and printing; gallery targets
+    use #.
     """
     from n26.core.listing import DANGER, LINK, SECONDARY, Action
 
@@ -2674,11 +2323,10 @@ def model_card_editable():
             kind_label="Archetype", chosen=None, dismissed=True, restore_href="#"
         )
     ]
-    # Every counter on this page opens an amount dialog.
+
     card.counters = [replace(line, href="#", adjust_href="#") for line in card.counters]
-    # The base card draws several of one thing as one line with a count.
-    # The model's own page draws one line per assignment, each with the
-    # menu that names it, so a stacked line is opened back out here.
+    # Expand stacked equipment into individual assignments so each receives its own
+    # action menu.
     card.equipment = [
         replace(line, sell=sell, more=more, count=1)
         for line in card.equipment
@@ -2699,7 +2347,7 @@ def model_card_editable():
 
 
 def gang_sheet_context():
-    """What the gang sheet view needs."""
+    """Prepare the gang sheet and its surrounding demo controls."""
     from n26.core.founding import FoundingBudget
     from n26.core.models import Activity
     from n26.core.render import RosterGroup, RosterLine, RosterSummary
@@ -2712,10 +2360,7 @@ def gang_sheet_context():
         ("Vex", "Ganger", 55),
         ("Sull", "Ganger", 55),
     ]
-    # The sheet's own tally, over the cards this demo actually draws rather
-    # than the fuller one the tally component is shown with on its own page:
-    # a header counting twelve models above a grid of five is the kind of
-    # thing a reader takes for a bug in the component.
+    # Match the summary count and rating to the model cards rendered by this demo.
     sheet.summary = RosterSummary(
         groups=[
             RosterGroup(profile="Escher Gang Queen", category="Leader", count=1),
@@ -2744,16 +2389,13 @@ def gang_sheet_context():
     recovery_sheet = replace(sheet, models=[model_card_in_recovery()])
     return {
         "gang": sheet,
-        # The two shapes an action card has: a visit, which has figures to
-        # show, and the founding, which has none. Built by the real function
-        # off the real kinds, so a title changed there changes here.
+        # Use the production action-card builder to show visits with figures and
+        # founding without them.
         "sample_action_visit": open_card(
             Activity.Kind.TRADING_POST_VISIT, "#", help=VISIT_HELP, facts=visit_facts
         ),
         "sample_action_founding": founding_open,
-        # The Actions square's states. The start row is offered only
-        # where no founding action is open, which is what the empty
-        # start_founding says.
+        # Offer founding only in samples without an open founding action.
         "sample_square_empty": ActivitiesSquare(start_founding="#", history_href="#"),
         "sample_square_founding": ActivitiesSquare(
             founding=founding_open, history_href="#"
@@ -2764,9 +2406,7 @@ def gang_sheet_context():
         "sample_square_both": ActivitiesSquare(
             founding=founding_open, visit=a_visit, history_href="#"
         ),
-        # The history link is drawn whether or not the gang has a story.
-        # The square does not list acts, so an empty story is not a
-        # different drawing.
+        # Keep the history link available even when the gang has no recorded actions.
         "sample_square_no_history": ActivitiesSquare(
             start_founding="#", history_href="#"
         ),
@@ -2787,22 +2427,18 @@ def gang_sheet_context():
                 post_battle_at="#post-battle",
             ),
         ),
-        # The two blocks an equip screen's rail draws for a model
-        # part-way through the founding: its own allowance, and the
-        # gang's open visit beside it. Real structures, so the tally is
-        # the arithmetic the screen does rather than a copy of it.
+        # Show a model founding allowance alongside an open gang visit using the
+        # production budget structure.
         "sample_founding_budget": FoundingBudget(
             activity=Activity(kind=Activity.Kind.FOUNDING), granted=5, spent=2
         ),
         "sample_founding_model": {"name": "Yolanda Kray"},
-        # A gang with no visit open, so the stash card offers to start
-        # one. The sheet above is mid-trip and shows the other state.
+        # Include a gang without an open visit to exercise the start-visit action.
         "sample_sheet_no_visit": replace(
             sheet, visiting_trading_post=False, trade_points_left=None
         ),
-        # Two tallies: the Visit Trading Post card's, and the one the
-        # overspend confirmation draws under it. The second carries two
-        # totals, which is what the component's per-row emphasis is for.
+        # Exercise a simple visit tally and an overspend confirmation with two
+        # emphasised totals.
         "tally_facts": visit_facts,
         "tally_overspend": (
             Fact("Available", "4"),
@@ -2811,19 +2447,8 @@ def gang_sheet_context():
             Fact("This purchase", "3"),
             Fact("Remaining after", "-2", ruled=True, strong=True),
         ),
-        # A gang of one card is a poor test of a three-column grid, so the demo
-        # repeats the sample fighter under other names. Copies rather than the same
-        # object five times, because a renderer that mutated one would otherwise
-        # look fine.
-        #
-        # Named the way a real gang is: the model's own name, and separately the
-        # library profile it was hired from. Vex and Sull are both Gangers, which
-        # is the case worth having in the sample — one content entry, two
-        # miniatures, and a card header that has to say which is which.
-        #
-        # Each copy under an id of its own, since a stored card's id is its
-        # anchor on the page and the same anchor five times would be no
-        # anchor at all.
+        # Use distinct copies and anchor IDs for each model in the roster grid. Include
+        # two models sharing a profile to exercise separate personal names.
         "gang_members": [
             replace(
                 sheet.models[0],
@@ -2840,8 +2465,7 @@ def gang_sheet_context():
 
 # --------------------------------------------------------------------- campaign
 
-#: The sample campaign's asset types: a Settlement every gang has its own
-#: of, then the Territories gangs take from each other.
+#: Include per-gang Settlements and transferable Territories.
 CAMPAIGN_ASSET_TYPES = [
     AssetTypeColumn(
         asset_type_id="settlement",
@@ -2860,7 +2484,7 @@ CAMPAIGN_ASSET_TYPES = [
 ]
 
 
-#: The one rolled table the sample campaign holds, so the Roll controls draw.
+#: Supply a rolled table to exercise campaign roll controls.
 SELECTION_TABLE = HeldTable(
     table_id="territory-selection-table",
     name="Territory Selection Table",
@@ -2871,15 +2495,8 @@ SELECTION_TABLE = HeldTable(
 
 
 def campaign_sheet():
-    """One campaign, with enough going on to exercise the sheet.
-
-    Three gangs of different types, one of them over the budget; two
-    campaign counters, one of which a gang lacks so the dash is drawn;
-    territories held and unclaimed, one with a name of its own and one
-    nobody holds yet. Every address is "#" — the gallery has no campaign
-    behind it — which is also the state the controls take for the
-    arbitrator, so the tables are seen with their buttons on, including
-    the arbitrator's own Add asset type, Add counter and Add label.
+    """Build a campaign sheet with varied gangs, missing counters and held or unclaimed
+    assets. Use # targets to display arbitrator controls without writing data.
     """
     return CampaignSheet(
         name="Dust Falls",
@@ -3084,14 +2701,13 @@ def campaign_sheet():
 
 
 def campaign_sheet_context():
-    """What the campaign page and its shell draw beside the sheet."""
+    """Prepare the campaign sheet and its surrounding shell context."""
     from n26.core.history import Act, Span
     from n26.core.navigation import Switcher, SwitcherItem
 
     now = timezone.now()
-    # The shell is the campaign as its arbitrator reads it, so the owner's
-    # own acts say "You", as the page says them, and everybody else is a
-    # person with the badge they hold after their name.
+    # Render the campaign from its arbitrator's perspective: their actions use You,
+    # while others use account names and badges.
     acts = [
         Act(
             when=now - timedelta(minutes=minutes),
@@ -3143,16 +2759,11 @@ def campaign_sheet_context():
 
 # -------------------------------------------------------------------- dashboard
 
-# Gangs as real GangSheets, because that is what <c-n26.wealth> takes and building
-# them any other way would let the row and the sheet drift about what a gang is
-# worth. Only the four figures matter here; a dashboard row draws nothing else.
+# Use GangSheet inputs for c-n26.wealth so dashboard amounts share the production
+# display structure.
 
 
-#: Stand-in artwork for a gang type, in the shape an author would paste into the
-#: library: one <svg>, drawn in a single colour so it takes the colour of the
-#: text it sits beside. Plainly ours rather than any house's, because what these
-#: pages show is that a badge appears at all — and that a type without one leaves
-#: no gap.
+#: Synthetic monochrome SVG artwork inherits the surrounding text colour.
 SAMPLE_GANG_ICON = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
     '<path d="M12 2 3 6v6c0 5.1 3.8 8.8 9 10 5.2-1.2 9-4.9 9-10V6l-9-4Zm0 2.2 '
@@ -3160,9 +2771,7 @@ SAMPLE_GANG_ICON = (
     '<path d="M9 9h6v2H9Zm2 3h2v5h-2Z"/></svg>'
 )
 
-#: Which sample gang types carry artwork, keyed by the name a row shows. Only
-#: one does, deliberately: a table where every row has a badge cannot show
-#: whether a row without one keeps the column's left edge.
+#: Only one type has artwork so the table also exercises alignment without a badge.
 GANG_TYPE_ICONS = {"Goliath (HoC)": SAMPLE_GANG_ICON}
 
 
@@ -3181,10 +2790,8 @@ def _gang_summary(
     )
 
 
-#: Five gangs, deliberately unalike: a long name to test the row on a phone, two
-#: of the same type so the filter has something to narrow, one with nothing in the
-#: stash so a zero is drawn rather than hidden, and two with no colour, because a
-#: list where some rows carry a mark and some do not is the one that ships.
+#: Vary name length, repeated types, zero stash rating and missing colours to exercise
+#: table filtering and alignment.
 GANGS = [
     _gang_summary(
         "The Ashen Choir", "Escher (HoB)", 360, 1037, 100, "violet", model_count=4
@@ -3206,8 +2813,7 @@ GANGS = [
     _gang_summary("Cog and Coil", "Goliath (HoC)", 1105, 430, 75, model_count=8),
 ]
 
-#: What changed, newest first. The summaries are long enough to be clamped, which
-#: is the case the two-line rule exists for.
+#: Long changelog summaries exercise the two-line clamp.
 CHANGELOG = [
     {
         "title": "Vehicles",
@@ -3247,40 +2853,22 @@ CHANGELOG = [
 
 # ------------------------------------------------------------- what is owned
 
-# An equip row for something the fighter already has, and the three
-# confirmations behind it. Real OwnedThings put through the real conversion,
-# because the components end up typed against what a catalogue produces — a
-# rename upstream should fail at import rather than at a glance, and the acts
-# a copy offers should appear here the day the structure grows one.
-#
-# Every address is "#". These are confirmations over the page the reader is
-# on, and a gallery page is not one — a link that navigated away would be a
-# demo you cannot look at twice.
+# Use production owned-equipment structures and conversion helpers for catalogue entries
+# and dialogs. Placeholder URLs keep the demos on the gallery page.
 
 
 @dataclass(frozen=True)
 class _Roster:
-    """Stands in for a Miniature: someone the move dialog can offer."""
+    """Minimal model offered by the move dialog."""
 
     pk: str
     name: str
 
 
 def carried():
-    """What the fighter buying from the sample list is already holding.
-
-    Keyed the way :func:`n26.core.owned.owned_things` keys it — by the
-    content row, not by the entry — so ``build_catalogue`` joins it to the
-    catalogue exactly as the application does. The shell's owned rows are
-    owned rows because the real function said so, and not because a
-    template drew them differently.
-
-    Two Stub guns, a Meltagun with a paid round, and a mount bought with
-    one option from each of its two sets: a count above one, a part
-    under a copy, a copy naming what it was bought with, and everything
-    else on the list untouched. Those are the states a row has, and one
-    sample answers for every surface that asks what this fighter is
-    carrying.
+    """Build OwnedThing instances keyed by content identity for build_catalogue. Include
+    repeated weapons, a paid weapon part and selected mount options to exercise owned-
+    entry states.
     """
     from n26.core.owned import OwnedPart, OwnedThing, thing_key
 
@@ -3315,17 +2903,14 @@ def carried():
         entry("Meltagun", 135, parts=(round_,)),
         entry("Stub gun", 5, index=0),
         entry("Stub gun", 5, index=1),
-        # A mount bought with one option taken from each of its two sets
-        # — the options themselves, never the author's name for the set
-        # they came from. The list's other mount is left unbought, so one
-        # of the two draws its controls and the other draws its picks.
+        # Include a mount with one selected option from each group, alongside an unowned
+        # mount that still offers purchase controls.
         entry(
             "Ridge-runner",
             125,
             chosen=("Ridge-runner harpoon", "Ridge-runner spikes"),
         ),
-        # An accessory nothing is holding yet, so its row is the one that
-        # offers to bolt it onto one of the guns above.
+        # An unattached accessory offers fitting to one of the owned weapons.
         entry("Infra-sight", 40, fit_href="#"),
     ):
         held.setdefault(key, []).append(thing)
@@ -3333,7 +2918,7 @@ def carried():
 
 
 def _stock(name):
-    """The catalogue row of that name, for keying what is held against it."""
+    """Find a catalogue assignable or paid part by name."""
     for line in trading_post().all_lines():
         if line.name == name:
             return line.thing
@@ -3344,7 +2929,7 @@ def _stock(name):
 
 
 def owned_context():
-    """What a fighter is carrying, and the things that can happen to it."""
+    """Prepare owned equipment and its sale, refund, fitting and option dialogs."""
     from n26.core.listing import copy_row, pick_group_props, pick_groups
 
     named = {"cancel_url": "#", "action": "#", "list": "", "name": "Meltagun"}
@@ -3358,8 +2943,7 @@ def owned_context():
         "owned_copies": [
             copy_row(thing) for entries in carried().values() for thing in entries
         ],
-        # The gun and its round together, which is what a sale of the gun
-        # is priced on: what goes with it counts towards what it fetches.
+        # Sale proceeds include the gun and its paid ammunition.
         "owned_sell_dialog": {
             **named,
             "kind": "sell",
@@ -3378,14 +2962,9 @@ def owned_context():
             "submit_label": "Move",
             "submit_variant": "primary",
         },
-        # The same gun, priced the other way: a sale returns half of the
-        # 155¢ it is worth, a refund returns the 120¢ somebody actually
-        # handed over. The two figures differ here on purpose — this gun
-        # was haggled down, which is the case that makes the distinction
-        # visible at all.
-        # The guns the card is carrying, which is the whole of what a
-        # fitting may name — and the same question with none to offer,
-        # since a card carrying no gun is the state that draws no submit.
+        # Offer fitting dialogs with and without eligible weapons; the empty case omits
+        # submission. The refund below returns the 120 credits paid, independently of
+        # the 155-credit rating.
         "owned_fit_dialog": {
             **named,
             "kind": "fit",
@@ -3424,9 +3003,7 @@ def owned_context():
             "submit_label": "Refund",
             "submit_variant": "danger",
         },
-        # The same sale, of a gun with something bolted to it. Two prices,
-        # because keeping the sight sells the gun alone: 78¢ against the
-        # 91¢ the pair would fetch.
+        # Keeping the sight yields 78 credits for the gun; selling both yields 91.
         "owned_sell_kitted_dialog": {
             **named,
             "kind": "sell",
@@ -3442,10 +3019,8 @@ def owned_context():
             "submit_label": "Sell",
             "submit_variant": "danger",
         },
-        # The mount the sample fighter owns, reopened on its alternatives.
-        # Built by the real loader from the real offer, so what starts
-        # picked here is decided the way the application decides it: the
-        # harpoon and the spikes, which is what the entry was bought with.
+        # Use the production option loader with the mount's existing harpoon and spike
+        # selections.
         "owned_rechoose_dialog": {
             **named,
             "kind": "rechoose",
@@ -3498,12 +3073,8 @@ def owned_context():
 
 
 def dashboard_context():
-    """What the dashboard needs: the gangs, their types, and the changelog.
-
-    A row is a dict wrapping its sheet rather than the sheet itself: what a row
-    draws beside a gang's type is that type's artwork, which is a fact about the
-    library's row and not about what this gang is worth. Keeping it out of
-    GangSheet keeps markup out of the renderer's dataclasses.
+    """Prepare gang sheets, type artwork and changelog entries. Wrap each sheet with its
+    type artwork so markup stays outside GangSheet.
     """
     return {
         "dashboard_gangs": [
@@ -3516,8 +3087,8 @@ def dashboard_context():
             }
             for gang in GANGS
         ],
-        # Deduplicated in order rather than sorted: the filter reads better in the
-        # order the reader already saw the types down the list.
+        # Preserve type order from the displayed gangs when removing duplicates for the
+        # filter.
         "dashboard_types": [
             {"value": name, "label": name}
             for name in dict.fromkeys(gang.gang_type for gang in GANGS)

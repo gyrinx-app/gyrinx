@@ -21,7 +21,7 @@ type Gang = {
     budgetHref: string;
     /** The owner's username, which the player filter matches. */
     owner: string;
-    /** The owner as the arbitrator's rows name them; absent for a player. */
+    /** Owner label used in arbitrator views; absent for player views. */
     ownerLink: { name: string; href: string; badge: string | null } | null;
     wealth: number;
     /** Lower-case name and owner, which the search matches. */
@@ -37,13 +37,12 @@ export type CampaignGangPickerProps = {
     wealthCeiling: number;
 };
 
-// A native range reaches only multiples of its step, so the top rounds up
-// to one; otherwise the richest gang could not be brought back in.
+// Round up to a valid range step so the richest gang remains selectable.
 const WEALTH_STEP = 50;
 
 /**
- * The gangs a campaign can take, narrowed by name, player, wealth and
- * whether they already play. Each row's Add submits the surrounding form.
+ * Filter eligible campaign gangs by name, player, wealth and membership. Each
+ * Add button submits the surrounding form.
  */
 export function CampaignGangPicker(props: CampaignGangPickerProps) {
     const wealthTop =

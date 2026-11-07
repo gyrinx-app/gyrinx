@@ -7,7 +7,7 @@ export type HirePriceProps = {
     min: number;
     max: number;
     id: string;
-    /** What the box already held before React mounted; empty stays empty. */
+    /** Input value before mount, preserving an empty value. */
     initial?: string;
 };
 
