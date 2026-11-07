@@ -1,22 +1,7 @@
-"""The built-ins backfill: fighters catch up with what they were hired without.
-
-Grants written before provenance existed carry only their shape — reason
-``DEFAULT``, caused by the carrier — and a member added to a set after a
-hire never reached the models already hired from it. The backfill walks
-every unarchived gang on the batched runner and, per gang, tags each
-legacy grant with the member and carrier it came from, then reconciles
-every live carrier so a later member arrives as caught up. Proven here:
-tagging alone moves no money; a gained member is granted with a
-catch-up event, free as every built-in is; twin guns pair one copy per
-member; a grant whose member is gone is left untagged and counted; the
-gang's founding and an option set tag like any carrier; a sold grant is
-tagged so it is never handed back; a model already holding a member's
-thing another way is skipped and named rather than given a second; a
-second run does nothing; and the console offers the operation without
-writing on GET.
-
-The legacy shape is planted the way it really arose: hire normally, then
-strip the provenance the hire recorded.
+"""Backfill built-in provenance on live and archived gangs, then grant missing members
+through reconciliation. Match existing grants without changing money, preserve sold
+grants and report unmatched or independently held items. Fixtures create legacy rows by
+stripping provenance after normal hiring.
 """
 
 import pytest
@@ -73,7 +58,7 @@ def ganger(person_type, gang_type, default_pack, launcher):
 
 
 def strip_provenance(gang):
-    """What every grant looked like before provenance was recorded."""
+    """Remove materialisation links to reproduce legacy default grants."""
     return Assignment.objects.filter(
         gang_root=gang, materialised_from__isnull=False
     ).update(materialised_from=None, materialised_for=None)
@@ -106,10 +91,9 @@ def settled(gang):
 
 
 class TestArchivedAndLiveTwinsPairLiveFirst:
-    """Where a set names the same thing through an archived member and a
-    live one, the live member claims the legacy copy — a copy bound to
-    the archived twin would leave the live one unsatisfied, and the
-    catch-up would grant the duplicate the pairing exists to prevent."""
+    """Match a legacy copy to the live member before its archived duplicate to avoid
+    granting an extra copy.
+    """
 
     def test_the_live_member_claims_the_copy_and_nothing_is_granted(
         self, gang, person_type, gang_type, default_pack
@@ -132,8 +116,7 @@ class TestArchivedAndLiveTwinsPairLiveFirst:
 
 
 class TestTaggingLegacyGrants:
-    """A grant written without provenance is matched to the member it
-    came from, and the tag is all that is written."""
+    """Matching existing grants changes provenance without creating ledger events."""
 
     def test_a_legacy_fighter_whose_set_is_unchanged_is_tagged_and_gains_nothing(
         self, gang, ganger
@@ -167,7 +150,7 @@ class TestTaggingLegacyGrants:
         strip_provenance(gang)
         rating = settled(gang).rating
         knife = create_weapon("Knife", profiles=[("Stab", 0)], price=15)
-        # Propagation is shut, so the member waits for the backfill.
+        # New members are not propagated automatically in this fixture.
         member = add_built_in(ganger, knife)
         assert not Assignment.objects.filter(materialised_from=member).exists()
 
@@ -183,8 +166,7 @@ class TestTaggingLegacyGrants:
         assert LedgerEvent.objects.filter(
             gang=gang, assignment=copy, kind=LedgerEvent.Kind.CAUGHT_UP
         ).exists()
-        # A built-in is free: the hire's package carries the money, so
-        # what arrives late is worth nothing on its own.
+        # The package already accounts for rating, so catch-up contributes zero.
         assert copy.ledger_entry.rating_contribution == 0
         assert settled(gang).rating == rating
 
@@ -239,8 +221,9 @@ class TestTaggingLegacyGrants:
 
 
 class TestEveryKindOfCarrier:
-    """The gang's founding and an option set materialise the same way a
-    hire does, and are tagged and caught up the same way."""
+    """Founding assignments and selected option sets receive the same provenance and
+    catch-up handling as hires.
+    """
 
     def test_the_gang_type_set_tags_and_catches_up_on_the_gang(
         self, gang_type, player, default_pack
@@ -289,9 +272,9 @@ class TestEveryKindOfCarrier:
     def test_a_built_in_and_an_option_naming_the_same_gun_each_keep_their_own_copy(
         self, gang, person_type, gang_type, default_pack
     ):
-        """The built-ins materialise first, so the older copy is the
-        built-in's and the newer the option's — and dropping the option
-        later must take only its own copy."""
+        """Built-ins materialise before options, so their older copies are matched first.
+        Removing the option must remove only its copy.
+        """
         autopistol = create_weapon("Autopistol", profiles=[("Standard", 0)], price=10)
         profile = create_profile("Pistolier", person_type, gang_type, price=50)
         built_in = add_built_in(profile, autopistol)
@@ -321,9 +304,9 @@ class TestEveryKindOfCarrier:
     def test_two_options_naming_the_same_thing_each_unwind_their_own_copy(
         self, gang, person_type, gang_type, default_pack
     ):
-        """Two chosen sets naming one thing pair deterministically: the
-        set recorded last claims the newest copy, so each copy leaves
-        with the set that brought it."""
+        """Pair duplicate option grants by recorded order so each option retains its own
+        copy.
+        """
         grit = create_rule("Grit")
         profile = create_profile("Stubborn", person_type, gang_type, price=50)
         first = offer_option(profile, "First grit", thing=grit)
@@ -358,9 +341,9 @@ class TestEveryKindOfCarrier:
 
 
 class TestWhatTheOwnerAlreadySettled:
-    """A grant the owner sold is tagged where it lies, so it is never
-    handed back; a thing the model already holds another way is not
-    duplicated, and the carrier is named."""
+    """Tag sold grants without restoring them, and report items already held through
+    another source instead of duplicating them.
+    """
 
     def test_a_sold_built_in_is_tagged_and_not_granted_again(
         self, gang, ganger, launcher
@@ -412,10 +395,10 @@ class TestWhatTheOwnerAlreadySettled:
     def test_a_legacy_ammo_line_under_the_gun_is_not_granted_twice(
         self, gang, person_type, gang_type, default_pack, launcher
     ):
-        """A set's ammo member materialised before provenance existed
-        looks exactly like the gun's own free line — caused by the gun,
-        reason DEFAULT — so tagging leaves it alone; catch-up must still
-        see it under the gun rather than stack a second."""
+        """Legacy option ammunition cannot be distinguished from a weapon default by cause
+        and reason alone. Leave it untagged, but recognise the existing child during
+        catch-up.
+        """
         from n26.library.models import WeaponProfile
 
         smoke = WeaponProfile.objects.create(
@@ -448,10 +431,9 @@ class TestWhatTheOwnerAlreadySettled:
 
 
 class TestArchivedGangsAreWalkedToo:
-    """An archived gang is one its owner may bring back. Left untagged it
-    would come back holding grants nothing can account for, and the live
-    propagation pass — which only visits gangs in play — would never
-    reach it."""
+    """Archived gangs also need provenance and catch-up because their owners may restore
+    them later.
+    """
 
     def test_an_archived_gang_is_tagged_and_caught_up(self, gang, ganger, default_pack):
         hire(gang, ganger, "Ana", paid=50)
@@ -468,8 +450,7 @@ class TestArchivedGangsAreWalkedToo:
 
 
 class TestRunningTwice:
-    """The walk is idempotent: a second run tags nothing and grants
-    nothing."""
+    """Repeated runs create no additional grants or ledger events."""
 
     def test_a_second_run_finds_nothing_to_do(self, gang, ganger, default_pack):
         hire(gang, ganger, "Ana", paid=50)
@@ -492,8 +473,7 @@ class TestRunningTwice:
 
 
 class TestTheConsoleDoor:
-    """The operation is registered under its label, and its page says
-    what a run would walk without writing anything."""
+    """The registered console page previews counts without starting a run on GET."""
 
     @pytest.fixture
     def superuser(self, db):
