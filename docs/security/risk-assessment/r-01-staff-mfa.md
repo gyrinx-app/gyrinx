@@ -3,6 +3,8 @@
 | Metadata | Value |
 | --- | --- |
 | ID | R-01 |
+| Last reviewed | 2026-11-07 |
+| Next review | On material change or by 2027-02-07 |
 | Status | Open |
 | Related threats | [T-01](../threats/t-01-staff-authoring-auth.md) |
 | Assets | [A-01](../assets/a-01-accounts.md), [A-03](../assets/a-03-content.md) |

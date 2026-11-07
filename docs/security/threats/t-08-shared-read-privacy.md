@@ -3,6 +3,8 @@
 | Metadata | Value |
 | --- | --- |
 | ID | T-08 |
+| Last reviewed | 2026-11-07 |
+| Next review | On material change or by 2027-02-07 |
 | STRIDE | Information Disclosure |
 | Adversary | [ADV-01: anonymous caller](../adversaries/adv-01-anonymous.md), [ADV-03: campaign insider](../adversaries/adv-03-campaign-insider.md) |
 | Assets | [A-02: gangs and campaigns](../assets/a-02-player-data.md) |

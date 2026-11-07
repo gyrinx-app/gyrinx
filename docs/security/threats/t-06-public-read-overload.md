@@ -3,6 +3,8 @@
 | Metadata | Value |
 | --- | --- |
 | ID | T-06 |
+| Last reviewed | 2026-11-07 |
+| Next review | On material change or by 2027-02-07 |
 | STRIDE | Denial of Service |
 | Adversary | [ADV-01: anonymous caller](../adversaries/adv-01-anonymous.md) |
 | Assets | [A-02: gangs and campaigns](../assets/a-02-player-data.md) (availability), [A-01: accounts](../assets/a-01-accounts.md) (site access) |

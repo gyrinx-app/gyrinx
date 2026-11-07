@@ -3,12 +3,14 @@
 | Metadata | Value |
 | --- | --- |
 | ID | T-03 |
+| Last reviewed | 2026-11-07 |
+| Next review | On deployment verification or by 2027-02-07 |
 | STRIDE | Tampering |
 | Adversary | [ADV-02: authenticated player](../adversaries/adv-02-player.md) |
 | Assets | [A-04: public uploaded media](../assets/a-04-media.md), [A-01: accounts](../assets/a-01-accounts.md) |
 | Data flow / boundary | [DF-05](../data-flows/media.md); TB-01 and TB-03 |
 | Risk | [R-03: active media](../risk-assessment/r-03-active-media.md) |
-| Status | Mitigated ordinary-player path in this branch |
+| Status | Verification pending after ordinary-player fix in this branch |
 | Evidence | [TinyMCE upload view](../../../n23/core/views/upload.py), [UploadedFile validation](../../../n23/core/models/upload.py), [GCS storage settings](../../../gyrinx/storage_settings.py), [pack attachment validation](../../../n23/core/models/pack.py) |
 
 ## Scenario

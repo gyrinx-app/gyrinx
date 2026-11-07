@@ -3,6 +3,8 @@
 | Metadata | Value |
 | --- | --- |
 | ID | R-07 |
+| Last reviewed | 2026-11-07 |
+| Next review | On material change or by 2027-02-07 |
 | Status | Open |
 | Related threats | [T-07](../threats/t-07-impersonation-attribution.md) |
 | Assets | [A-01](../assets/a-01-accounts.md), [A-02](../assets/a-02-player-data.md) |

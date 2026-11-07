@@ -3,6 +3,8 @@
 | Metadata | Value |
 | --- | --- |
 | ID | T-04 |
+| Last reviewed | 2026-11-07 |
+| Next review | On material change or by 2027-02-07 |
 | STRIDE | Information Disclosure |
 | Adversary | [ADV-01: anonymous caller](../adversaries/adv-01-anonymous.md) |
 | Assets | [A-05: held ingest sheets](../assets/a-05-ingest-sheets.md) |

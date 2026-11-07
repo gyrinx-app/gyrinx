@@ -6,7 +6,8 @@
 | Scope | N23 and N26 Django requests, identity, content authoring, media, background tasks, integrations, and deployment |
 | Method | Data flows and trust boundaries → assets and adversaries → STRIDE threats → residual risk ratings |
 | Evidence | Repository code and linked operational documentation; live cloud IAM, storage policy and runtime variables are unverified |
-| Maintenance | Revisit when a boundary, privileged role, storage destination, task handler or deployment path changes |
+| Maintenance | [Review process](process.md): at least quarterly and when a boundary, privilege, storage destination, task handler, incident or deployment path changes |
+| Next scheduled review | 2027-02-07 |
 
 ## Summary
 
@@ -19,6 +20,7 @@ Gyrinx's highest-priority open concerns are the MFA boundary around N26 staff au
 - [Adversaries](adversaries/index.md) — plausible starting access and capabilities.
 - [STRIDE threats](threats/index.md) — one file per material scenario.
 - [Risk assessment](risk-assessment/index.md) — likelihood, impact, priority, treatment and screening decisions.
+- [Review and archive process](process.md) — how to re-rate, verify, close and reopen records.
 - [Record templates](templates/index.md) — format for later updates.
 
 For vulnerability reporting, use the [security policy](../../SECURITY.md). The older [Bandit baseline](../security-baseline.md) tracks static-analysis findings rather than these architectural risks.

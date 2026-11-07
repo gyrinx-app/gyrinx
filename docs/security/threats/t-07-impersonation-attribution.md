@@ -3,6 +3,8 @@
 | Metadata | Value |
 | --- | --- |
 | ID | T-07 |
+| Last reviewed | 2026-11-07 |
+| Next review | On material change or by 2027-02-07 |
 | STRIDE | Repudiation |
 | Adversary | [ADV-04: compromised staff identity](../adversaries/adv-04-staff-session.md) |
 | Assets | [A-02: player data and history](../assets/a-02-player-data.md), [A-01: account identity](../assets/a-01-accounts.md) |

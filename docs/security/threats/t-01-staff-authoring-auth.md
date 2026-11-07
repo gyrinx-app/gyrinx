@@ -3,6 +3,8 @@
 | Metadata | Value |
 | --- | --- |
 | ID | T-01 |
+| Last reviewed | 2026-11-07 |
+| Next review | On material change or by 2027-02-07 |
 | STRIDE | Spoofing |
 | Adversary | [ADV-04: compromised staff identity](../adversaries/adv-04-staff-session.md) |
 | Assets | [A-01: accounts](../assets/a-01-accounts.md), [A-03: content catalogue](../assets/a-03-content.md) |

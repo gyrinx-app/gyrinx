@@ -3,6 +3,8 @@
 | Metadata | Value |
 | --- | --- |
 | ID | T-10 |
+| Last reviewed | 2026-11-07 |
+| Next review | On material change or by 2027-02-07 |
 | STRIDE | Tampering |
 | Adversary | [ADV-04: malicious staff session](../adversaries/adv-04-staff-session.md); the event can also be accidental |
 | Assets | [A-05: held ingest sheets](../assets/a-05-ingest-sheets.md), [A-03: content catalogue](../assets/a-03-content.md) |

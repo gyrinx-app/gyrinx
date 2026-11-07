@@ -3,6 +3,8 @@
 | Metadata | Value |
 | --- | --- |
 | ID | R-09 |
+| Last reviewed | 2026-11-07 |
+| Next review | On material change or by 2027-02-07 |
 | Status | Open |
 | Related threats | [T-10](../threats/t-10-held-sheet-collision.md) |
 | Assets | [A-05](../assets/a-05-ingest-sheets.md), [A-03](../assets/a-03-content.md) |

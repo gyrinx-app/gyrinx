@@ -3,6 +3,8 @@
 | Metadata | Value |
 | --- | --- |
 | ID | R-08 |
+| Last reviewed | 2026-11-07 |
+| Next review | On material change or by 2027-02-07 |
 | Status | Needs deployed-control validation |
 | Related threats | [T-09](../threats/t-09-deployment-tampering.md) |
 | Assets | [A-08](../assets/a-08-release.md), [A-06](../assets/a-06-service-secrets.md), [A-02](../assets/a-02-player-data.md) |

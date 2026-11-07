@@ -3,6 +3,8 @@
 | Metadata | Value |
 | --- | --- |
 | ID | T-09 |
+| Last reviewed | 2026-11-07 |
+| Next review | On material change or by 2027-02-07 |
 | STRIDE | Tampering |
 | Adversary | [ADV-05: compromised deployment principal](../adversaries/adv-05-deployment-principal.md) |
 | Assets | [A-08: release artifact](../assets/a-08-release.md), [A-06: service secrets](../assets/a-06-service-secrets.md), [A-02: player data](../assets/a-02-player-data.md) |

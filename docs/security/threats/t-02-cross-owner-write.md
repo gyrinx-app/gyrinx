@@ -3,6 +3,8 @@
 | Metadata | Value |
 | --- | --- |
 | ID | T-02 |
+| Last reviewed | 2026-11-07 |
+| Next review | On material change or by 2027-02-07 |
 | STRIDE | Elevation of Privilege |
 | Adversary | [ADV-02: authenticated player](../adversaries/adv-02-player.md), [ADV-03: campaign insider](../adversaries/adv-03-campaign-insider.md) |
 | Assets | [A-02: gangs and campaigns](../assets/a-02-player-data.md) |

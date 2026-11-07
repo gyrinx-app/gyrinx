@@ -3,6 +3,8 @@
 | Metadata | Value |
 | --- | --- |
 | ID | R-04 |
+| Last reviewed | 2026-11-07 |
+| Next review | On material change or by 2027-02-07 |
 | Status | Open |
 | Related threats | [T-04](../threats/t-04-held-sheet-disclosure.md) |
 | Assets | [A-05](../assets/a-05-ingest-sheets.md) |

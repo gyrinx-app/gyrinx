@@ -6,6 +6,7 @@
 | Method | One primary STRIDE category per scenario; code-backed controls and uncertainty in each file |
 | Status | First pass; likelihood and impact in [risk assessment](../risk-assessment/index.md) |
 | Exclusions | Marginal outcomes and duplicate downstream effects are not separate threats |
+| Lifecycle | [Review process](../process.md); [archived threats](archive/index.md) are retained after closure verification |
 
 STRIDE means **Spoofing** identity, **Tampering** with data or code, **Repudiation** of an action, **Information Disclosure**, **Denial of Service**, and **Elevation of Privilege**. A threat is a plausible path to direct harm, not necessarily a demonstrated exploit.
 
@@ -13,9 +14,9 @@ STRIDE means **Spoofing** identity, **Tampering** with data or code, **Repudiati
 | --- | --- | --- | --- |
 | [T-01](t-01-staff-authoring-auth.md) | Spoofing | Password-only staff session can reach N26 authoring | Observed gate difference |
 | [T-02](t-02-cross-owner-write.md) | Elevation of Privilege | A player write acts on another player's object | Credible regression scenario |
-| [T-03](t-03-active-upload.md) | Tampering | Player stores active SVG through TinyMCE | Mitigated in this branch |
+| [T-03](t-03-active-upload.md) | Tampering | Player stores active SVG through TinyMCE | Code fix in PR; verification pending |
 | [T-04](t-04-held-sheet-disclosure.md) | Information Disclosure | Held authoring CSV is read from public storage | Public read remains |
-| [T-05](t-05-task-sender-spoofing.md) | Spoofing | An unrelated Google identity invokes a background task | Mitigated in this branch |
+| [T-05](t-05-task-sender-spoofing.md) | Spoofing | An unrelated Google identity invokes a background task | Code fix in PR; verification pending |
 | [T-06](t-06-public-read-overload.md) | Denial of Service | Automated public reads exhaust serving capacity | Prior incident; mitigations exist |
 | [T-07](t-07-impersonation-attribution.md) | Repudiation | A privileged edit is attributed only to the impersonated user | Observed audit design |
 | [T-08](t-08-shared-read-privacy.md) | Information Disclosure | A shared read exposes owner-only gang information | Credible regression scenario |
@@ -38,3 +39,5 @@ A dash means the category was screened and no independent material scenario was 
 | [DF-08](../data-flows/deployment.md) Deployment | — | [T-09](t-09-deployment-tampering.md) | — | — | — | — |
 
 T-02 and T-08 are control-sensitive scenarios, not observed authorization failures. Their risk assessment uses residual likelihood after current controls.
+
+Records remain here while a fix is in a PR, deployment verification is pending, or residual exposure remains. Move a fully closed record to the [archive](archive/index.md) using the [review process](../process.md), then update this inventory and coverage table.

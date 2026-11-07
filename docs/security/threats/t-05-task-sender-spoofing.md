@@ -3,12 +3,14 @@
 | Metadata | Value |
 | --- | --- |
 | ID | T-05 |
+| Last reviewed | 2026-11-07 |
+| Next review | On deployment verification or by 2027-02-07 |
 | STRIDE | Spoofing |
 | Adversary | [ADV-01: anonymous caller with a Google service account](../adversaries/adv-01-anonymous.md) |
 | Assets | [A-06: service identities](../assets/a-06-service-secrets.md), [A-07: task state](../assets/a-07-task-state.md), [A-02: player data](../assets/a-02-player-data.md) |
 | Data flow / boundary | [DF-06](../data-flows/tasks.md); TB-05 |
 | Risk | [R-05: task sender](../risk-assessment/r-05-task-sender.md) |
-| Status | Mitigated in this branch; live deployment policy unverified |
+| Status | Verification pending after code change in this branch |
 | Evidence | [task push view](../../../gyrinx/tasks/views.py), [shared identity resolver](../../../gyrinx/tasks/config.py), [subscription provisioning](../../../gyrinx/tasks/provisioning.py), [task routes](../../../gyrinx/tasks/registry.py) |
 
 ## Scenario

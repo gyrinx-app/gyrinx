@@ -3,6 +3,8 @@
 | Metadata | Value |
 | --- | --- |
 | ID | R-02 |
+| Last reviewed | 2026-11-07 |
+| Next review | On material change or by 2027-02-07 |
 | Status | Controlled invariant; no current bypass established |
 | Related threats | [T-02](../threats/t-02-cross-owner-write.md), [T-08](../threats/t-08-shared-read-privacy.md) |
 | Assets | [A-02](../assets/a-02-player-data.md) |

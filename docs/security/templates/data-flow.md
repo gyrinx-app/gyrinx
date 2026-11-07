@@ -4,6 +4,8 @@
 | --- | --- |
 | ID | DF-XX |
 | Status | Draft / reviewed |
+| Last reviewed | YYYY-MM-DD |
+| Next review | [Date or concrete trigger] |
 | Entry point | [Route, job, webhook, CLI, or other trigger] |
 | Actors | [Linked adversary or legitimate actor records] |
 | Assets | [Linked asset records] |

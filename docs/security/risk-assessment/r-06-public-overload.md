@@ -3,6 +3,8 @@
 | Metadata | Value |
 | --- | --- |
 | ID | R-06 |
+| Last reviewed | 2026-11-07 |
+| Next review | On material change or by 2027-02-07 |
 | Status | Residual after incident response; October outage correlation under investigation |
 | Related threats | [T-06](../threats/t-06-public-read-overload.md) |
 | Assets | [A-02](../assets/a-02-player-data.md), [A-01](../assets/a-01-accounts.md) |

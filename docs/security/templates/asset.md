@@ -4,6 +4,8 @@
 | --- | --- |
 | ID | A-XX |
 | Status | Draft / reviewed |
+| Last reviewed | YYYY-MM-DD |
+| Next review | [Date or concrete trigger] |
 | Location and owner | [Store/service and responsible component] |
 | Sensitivity | Public / internal / personal / secret |
 | Integrity need | Low / medium / high, with reason |
