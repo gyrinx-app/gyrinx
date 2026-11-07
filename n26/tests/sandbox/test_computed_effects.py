@@ -1,9 +1,7 @@
-"""Computed effects: Mounted, Eye Injury, Backstab.
+"""Compute standing effects from held content without writing player assignments.
 
-Modifiers are never stored player-side. A card is loaded, ``compute`` works
-out what the modifiers say, and the card renders the result. Remove the
-thing carrying the modifier and the effect simply stops appearing — there
-is nothing to clean up.
+The loaded card and modifier index supply granted subtypes, skills, powers,
+traits and stat changes. Removing their source ends those computed effects.
 """
 
 import pytest
@@ -189,9 +187,7 @@ class TestMounted:
 
 
 class TestGrantedPower:
-    """A power a modifier grants — the psyker entry whose sheet says it
-    starts knowing one. A fact on the card while the granter stands,
-    filed in the Powers row where a selected power would sit."""
+    """Display a computed power in the Powers row while its granting source is held."""
 
     @pytest.fixture
     def haunted_mask(self, db):
@@ -226,7 +222,7 @@ class TestGrantedPower:
 
 
 class TestEyeInjury:
-    """A stat change, direction-aware, and a bionic that undoes it."""
+    """Combine direction-aware injury and bionic stat changes."""
 
     @pytest.fixture
     def eye_injury(self, stats):
@@ -271,7 +267,7 @@ class TestEyeInjury:
         assert statline.get("WS").modified is False
 
     def test_a_bionic_cancels_it_out(self, yolanda, eye_injury, bionic_eye):
-        """Permanent by persistence: nothing was ever edited, so they sum."""
+        """Combine the opposing effects without editing the underlying statline."""
         assign(eye_injury, miniature=yolanda)
         assign(bionic_eye, miniature=yolanda, paid=45)
         cell = card_for(yolanda).statline.get("BS")
@@ -367,7 +363,7 @@ class TestBackstab:
 
 class TestRemoval:
     def test_a_removes_modifier_beats_an_adds(self, yolanda):
-        """Death of a Leader's subtype losses: removes always win."""
+        """A removal suppresses the same subtype granted by another modifier."""
         ganger = create_subtype("Ganger")
         source = create_wargear("Promotion papers")
         modifier("Grants Ganger", targets_model(), adds(ganger), carried_by=source)
@@ -392,9 +388,7 @@ class TestRemoval:
         assert card_for(yolanda).weapons == []
 
     def test_a_removes_modifier_leaves_a_weapon_the_gang_bought(self, yolanda):
-        """It reaches grants and nothing else. A bought weapon is a row
-        somebody paid for, and parting with one is an operation — never
-        something a card works out while being read."""
+        """Computed removal effects preserve paid weapon assignments."""
         claws = create_weapon("Claws", profiles=[("", 0)])
         give_weapon(yolanda, claws, paid=10)
 
@@ -429,8 +423,7 @@ class TestValidation:
             bad.clean()
 
     def test_a_subtype_cannot_be_given_to_the_gang(self, db):
-        """The gang's card has no type line: a rule or a standing list
-        may land on the gang, and nothing else may."""
+        """Reject subtype grants targeted at the gang."""
         from n26.library.models import Modifier
 
         bad = Modifier(
@@ -442,9 +435,7 @@ class TestValidation:
             bad.clean()
 
     def test_a_weapon_cannot_be_given_to_the_gang(self, db):
-        """A gang holds no weapons: a gun is carried by whoever carries
-        it. A rule or a standing list may land on the gang's card; a
-        thing that has to be held may not."""
+        """Reject weapon grants targeted at the gang."""
         from n26.library.models import Modifier
 
         bad = Modifier(
@@ -464,7 +455,7 @@ class TestValidation:
 
 class TestPerformance:
     def test_computing_is_query_free(self, yolanda, ganger_profile):
-        """Everything compute needs is loaded first; it touches nothing."""
+        """Compute and render using the loaded card and index without additional queries."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -537,8 +528,7 @@ class TestOnTheCard:
 
 
 class TestAHiddenCarrierStaysHidden:
-    """A hidden item's name is authored to be read; its kind is the
-    library's plumbing and never reaches a player's tooltip."""
+    """Name hidden effect sources in tooltips without exposing their content kind."""
 
     def test_a_stat_shifted_by_a_hidden_names_it_without_its_kind(self, yolanda):
         from n26.library.models import Stat
@@ -624,8 +614,7 @@ class TestGrantedWargear:
         claws, _, _ = kit
         first = give_weapon(yolanda, claws, paid=50)
         second = give_weapon(yolanda, claws, paid=50)
-        # Two grants alike in every way — the same thing, from the same
-        # kind of source — are drawn as one line counting two.
+        # Group identical grants from the same source kind into a counted display line.
         assert [(item.name, item.count) for item in card_for(yolanda).equipment] == [
             ("Drop rig", 2),
             ("Grapnel launcher", 2),
