@@ -11,7 +11,7 @@
 
 ## Summary
 
-Gyrinx's highest-priority open concerns are the MFA boundary around N26 staff authoring, held CSV integrity, and renewed overload of public read pages. This branch gives new held CSVs unpredictable object keys and protects legacy shared keys during cleanup; deployment verification is still required, and the files remain in storage documented as public. The model distinguishes observed code behaviour from production configuration that still needs checking.
+Gyrinx's highest-priority open concerns are the MFA boundary around N26 staff authoring, held CSV integrity, and renewed overload of public read pages. New held CSVs receive unpredictable object keys, and cleanup protects legacy shared keys; deployment verification is still required, and the files remain in storage documented as public. The model distinguishes observed code behaviour from production configuration that still needs checking.
 
 ## Read the model
 

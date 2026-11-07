@@ -21,7 +21,7 @@ STRIDE means **Spoofing** identity, **Tampering** with data or code, **Repudiati
 | [T-07](t-07-impersonation-attribution.md) | Repudiation | A privileged edit is attributed only to the impersonated user | Observed audit design |
 | [T-08](t-08-shared-read-privacy.md) | Information Disclosure | A shared read exposes owner-only gang information | Credible regression scenario |
 | [T-09](t-09-deployment-tampering.md) | Tampering | Modified build input becomes the production application | Credible source-to-runtime scenario |
-| [T-10](t-10-held-sheet-collision.md) | Tampering | Staff CSV uploads share and can delete one object key | Mitigation in PR; verification pending |
+| [T-10](t-10-held-sheet-collision.md) | Tampering | Staff CSV uploads share and can delete one object key | Control implemented; verification pending |
 
 ## Coverage by flow
 
