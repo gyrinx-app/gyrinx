@@ -1574,17 +1574,14 @@ def remove_battle(request, pk, battle_pk):
 
 
 def _holding_assets(campaign, *, include_staged=False):
-    """The assets the Add control offers — ``addable_assets``, which is
-    also the rule ``add_asset`` refuses by."""
+    """Return the catalogue assets allowed by the campaign's add-asset policy."""
     from n26.core.campaigns import addable_assets
 
     return addable_assets(campaign, include_staged=include_staged)
 
 
 def _assets_anchor(campaign):
-    """The campaign page, opened at its assets section — where every act
-    on a campaign asset lands afterwards, since the assets are listed
-    there."""
+    """Link to the campaign's assets section."""
     from django.urls import reverse
 
     return reverse("n26-campaign", args=[campaign.pk]) + "#assets"
@@ -1608,19 +1605,14 @@ def _table_action_href(request, here=""):
 
 
 def _gangs_anchor(campaign):
-    """The campaign page, opened at its gangs table — where a counter or a
-    label the arbitrator adds shows as a column."""
+    """Link to the campaign's gangs table."""
     from django.urls import reverse
 
     return reverse("n26-campaign", args=[campaign.pk]) + "#gangs"
 
 
 def _campaign_asset_or_404(campaign, asset_pk):
-    """One of the campaign's assets, with its library asset and holder
-    along.
-
-    A key that is not a key at all is a bad link, not a server error.
-    """
+    """Load a campaign asset with its library definition and holder; reject bad keys."""
     from django.core.exceptions import ValidationError
     from django.http import Http404
 
@@ -1663,19 +1655,14 @@ def _asset_update(request, campaign, holding):
 
 
 def _holding_owner(campaign_asset, user):
-    """Whether this reader owns the gang holding the asset."""
+    """Check ownership of the gang currently holding this asset."""
     return campaign_asset.held and campaign_asset.holder.gang.owner_id == getattr(
         user, "id", None
     )
 
 
 def _asset_type_asked_for(campaign, value):
-    """The asset type named by ``?type=``, where it is one of this
-    campaign's Holding asset types; otherwise None, and the form offers
-    every asset type. A stray value is a plain link to the unscoped form,
-    not an error: nothing on the page writes one, and nothing is lost by
-    ignoring it.
-    """
+    """Resolve ?type= to a campaign Holding type, or leave the picker unfiltered."""
     from django.core.exceptions import ValidationError
 
     from n26.library.models import AssetType
@@ -1694,14 +1681,7 @@ def _asset_type_asked_for(campaign, value):
 
 @login_required
 def add_asset(request, pk):
-    """Add an asset the campaign deals in, held by nobody.
-
-    ``?type=`` narrows the assets offered to one asset type, which is how
-    the Add beside each type's table reaches here: an arbitrator adding a
-    territory is not choosing between territories and settlements. The asset
-    type rides the form's address too, so a failed submit redisplays the
-    same narrowed list.
-    """
+    """Add unclaimed catalogue assets, optionally filtered by ?type=."""
     if request.GET.get("source") == "custom":
         return new_asset(request, pk)
 
@@ -1752,8 +1732,6 @@ def add_asset(request, pk):
     submitted = set(form["asset"].value() or [])
 
     def card(asset):
-        # Show the type only when the picker is not already narrowed to it.
-        # A redisplay after a failed submit keeps the pick.
         income = income_of(asset)
         description = ", ".join(
             part
@@ -1814,7 +1792,6 @@ def add_asset(request, pk):
             if asset_type
             else "asset",
             "back": back,
-            # Drawn as cards, one per asset.
             "assets": assets,
             "fallback_options": [
                 {
@@ -1841,7 +1818,7 @@ def add_asset(request, pk):
 
 @login_required
 def assign_asset(request, pk, asset_pk):
-    """Give an asset to a gang playing the campaign, picked from the roll."""
+    """Assign a campaign asset to a selected active gang."""
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import AssignAssetForm
     from n26.core.models import CampaignMembership
@@ -1906,10 +1883,9 @@ def assign_asset(request, pk, asset_pk):
 
 @login_required
 def unassign_asset(request, pk, asset_pk):
-    """The question at its own address, then the act.
+    """Confirm and return a held asset to the unclaimed pool.
 
-    The arbitrator may unassign any asset; the owner of the gang holding it
-    may hand it back. Anybody else is told there is nothing here.
+    Allow the arbitrator or the holding gang's owner.
     """
     from django.http import Http404
 
@@ -1923,7 +1899,6 @@ def unassign_asset(request, pk, asset_pk):
     arbitrating = found.owner_id == reading
     if not arbitrating and not _holding_owner(campaign_asset, request.user):
         raise Http404("No such asset in this campaign")
-    # A stale link to an asset nobody holds any more: nothing to ask.
     if not campaign_asset.held:
         messages.error(request, f"{campaign_asset} is not held by any gang.")
         if is_htmx(request):
@@ -1932,8 +1907,8 @@ def unassign_asset(request, pk, asset_pk):
 
     if request.method == "POST":
         holder = campaign_asset.holder.gang.name
-        # The owner acts for the gang they read as the holder; the
-        # arbitrator acts on the asset whoever holds it by now.
+        # The holding owner must still hold this asset; the arbitrator may act
+        # regardless of its current holder.
         try:
             with campaign_operation(found, actor=request.user) as act:
                 unassigned = act.unassign(
@@ -1971,12 +1946,10 @@ def unassign_asset(request, pk, asset_pk):
 
 @login_required
 def transfer_asset(request, pk, asset_pk):
-    """Hand a held asset to another gang playing the campaign.
+    """Transfer a held asset to another active gang.
 
-    The arbitrator may move any held asset; the owner of the gang holding
-    it may hand it over. Anybody else is told there is nothing here. The
-    gangs offered are the campaign's own less the one holding the asset,
-    and the same list decides what the POST will accept.
+    Allow the arbitrator or the holding gang's owner; validate the recipient
+    against the same list shown by the form.
     """
     from django.http import Http404
 
@@ -1992,7 +1965,6 @@ def transfer_asset(request, pk, asset_pk):
     arbitrating = found.owner_id == reading
     if not arbitrating and not _holding_owner(campaign_asset, request.user):
         raise Http404("No such asset in this campaign")
-    # A stale link to an asset nobody holds any more: nothing to hand over.
     if not campaign_asset.held:
         messages.error(request, f"{campaign_asset} is not held by any gang.")
         if is_htmx(request):
@@ -2049,9 +2021,6 @@ def transfer_asset(request, pk, asset_pk):
             ],
             "redrawn": is_htmx(request),
             "reopened": is_htmx(request) and request.method == "POST",
-            # The arbitrator transfers; the holding gang's owner hands over.
-            # Two words for one act, because the owner is giving something
-            # of their own away and the arbitrator is moving the campaign's.
             "verb": "Transfer" if arbitrating else "Hand over",
             "back": _asset_back(request, found, campaign_asset),
             "action": _table_action_href(request),
@@ -2065,7 +2034,7 @@ def transfer_asset(request, pk, asset_pk):
 
 @login_required
 def remove_asset(request, pk, asset_pk):
-    """The question at its own address, then the act."""
+    """Confirm on GET and remove a campaign asset on POST."""
     from n26.core.campaign_table import table_view_href
     from n26.core.campaigns import campaign_operation
     from n26.core.operations import Refusal
@@ -2099,19 +2068,8 @@ def remove_asset(request, pk, asset_pk):
     )
 
 
-# --- What the arbitrator adds --------------------------------------------------
-#
-# Four small pages, one per kind of thing the arbitrator may write into the
-# campaign's pack: an asset type, an asset, a counter, a label. Each is the
-# arbitrator's alone, posts to its own address, and lands back on the part
-# of the campaign page where what it added shows. The full authoring pages
-# are never opened to an arbitrator; what these ask is the whole of what
-# they may write, and none of them asks what an asset does.
-
-
 def _campaign_asset_types(campaign):
-    """Every asset type the campaign deals in — the shared type's and the
-    campaign's own — the shared type's first, each in its authored order."""
+    """List shared asset types before campaign additions, in authored order."""
     from django.db.models import Case, IntegerField, When
 
     from n26.library.models import AssetType
@@ -2132,14 +2090,9 @@ def _campaign_asset_types(campaign):
 
 
 def _addition_page(request, campaign, form, template, act, back, **context):
-    """Run one of the arbitrator's additions through the campaign's line
-    and reply to the reader.
+    """Validate and run a campaign-addition form through campaign_operation.
 
-    ``act`` performs the write against a ``CampaignOperation`` given the
-    form's clean data; a refusal in words lands on the form as an error
-    beside the fields rather than as a message on the next page, since the
-    reader is still on the form and can fix it. ``back`` is where the page
-    lands afterwards: the part of the campaign page the addition shows in.
+    Attach operation refusals to the form; redirect successful writes to back.
     """
     from n26.core.campaigns import campaign_operation
     from n26.core.operations import Refusal
@@ -2195,9 +2148,7 @@ def add_asset_type(request, pk):
 
 
 def _ownership_cards(chosen):
-    """The two ownerships as radio cards, ``chosen`` checked. Holding
-    first: it is the one an arbitrator adding an asset type nearly always
-    means."""
+    """Build Holding and Possession radio cards with the selected value."""
     from n26.library.models import AssetType
 
     return [
@@ -2222,10 +2173,9 @@ def _ownership_cards(chosen):
 
 @login_required
 def new_asset(request, pk):
-    """Write a new asset under one of the campaign's asset types.
+    """Create an asset under a campaign type and add Holdings to the unclaimed pool.
 
-    ``?type=`` picks the asset type in advance, which is how a link beside
-    one type's table reaches here; the reader may still change it.
+    The unified custom picker accepts ?type= to restrict the offered type.
     """
     from n26.core.campaign_table import table_view_href
     from n26.core.forms import NewAssetForm
@@ -2318,7 +2268,7 @@ def add_counter(request, pk):
 
 @login_required
 def add_label(request, pk):
-    """Ask every gang in the campaign one question with fixed options."""
+    """Add a fixed-option label to every gang in the campaign."""
     from n26.core.forms import AddLabelForm
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
@@ -2335,15 +2285,10 @@ def add_label(request, pk):
 
 @login_required
 def archive_addition(request, pk, member_pk, kind):
-    """The question at its own address, then the act: archive a counter or
-    label the arbitrator added, taking it off every gang.
+    """Confirm and archive a campaign-added counter or label.
 
-    ``kind`` is ``"counter"`` or ``"label"``, fixed by the route. Only the
-    campaign's own additions are reachable (``own_addition``); Reputation,
-    Income and a gang's own questions are a 404 like any other key that
-    is not one. The page lists each gang with what it has, so the
-    arbitrator sees what goes before it goes, and says why when another
-    rule still uses the thing — without a button, since it would refuse.
+    Only the campaign's own additions are reachable. Show affected gang values
+    and any refusal caused by rules that still reference the addition.
     """
     from django.http import Http404
 
@@ -2401,10 +2346,10 @@ def archive_addition(request, pk, member_pk, kind):
 
 
 def _what_each_gang_has(campaign, member):
-    """Each gang playing the campaign that carries one of its own counters
-    or labels, by gang name, with what to show beside it: the counter's
-    value, the option it picked, or that it has picked nothing yet. Two
-    queries whatever the number of gangs."""
+    """List active gangs carrying an addition with its counter value or label pick.
+
+    Load counter values with assignments; label picks use one extra query.
+    """
     from n26.core.models import Assignment
 
     copies = list(
@@ -2418,7 +2363,7 @@ def _what_each_gang_has(campaign, member):
         .order_by("gang_root__name", "pk")
     )
     if member.counter_id:
-        # A copy with no value yet reads as 0, as the gang sheet does.
+        # Match the gang sheet's zero value for an uninitialised counter.
         values = [getattr(copy, "counter_value", None) for copy in copies]
         return [
             {
@@ -2446,13 +2391,9 @@ def _what_each_gang_has(campaign, member):
 
 @login_required
 def unarchive_addition(request, pk, member_pk, kind):
-    """The question at its own address, then the act: give an archived
-    counter or label back to every gang still in the campaign.
+    """Confirm and restore a campaign-added counter or label.
 
-    ``kind`` is ``"counter"`` or ``"label"``, fixed by the route. Only the
-    campaign's own archived additions are reachable. The page lists the
-    gangs that get it back, with the value or option each had, and the
-    gangs that joined since, which get it new.
+    Preview returning values separately from defaults for gangs that joined later.
     """
     from django.http import Http404
 
@@ -2507,21 +2448,11 @@ def unarchive_addition(request, pk, member_pk, kind):
     )
 
 
-# --- The arbitrator's tables ---------------------------------------------------
-#
-# Which asset tables every gang in the campaign may roll on, beyond the ones
-# its type gives: the arbitrator opens a system table to the campaign, or
-# writes a table of their own and fills it from the catalogue. Every table
-# is held, never listed per campaign — opening one builds it into the
-# campaign's additions, and the roll controls read the holdings.
-
-
 def _tables_offered(campaign, *, include_staged=False):
-    """The tables of the campaign's Holding asset types the arbitrator
-    may open or close: a system pack's, or the campaign's own. Another
-    campaign's tables sit in that campaign's pack and are nobody else's.
-    Archived tables are left out, as at every surface where something
-    is newly chosen."""
+    """Offer unarchived tables from system packs or this campaign's pack.
+
+    Limit them to the campaign's asset types and the reader's staged-content access.
+    """
     from django.db.models import Q
 
     from n26.library.models import AssetTable
@@ -2543,9 +2474,7 @@ def _tables_offered(campaign, *, include_staged=False):
 
 
 def _given_tables(campaign):
-    """The tables the campaign's own type gives every gang — shown as
-    given, with no control, since they are not the arbitrator's to
-    close."""
+    """Return tables granted by the shared campaign type, which cannot be closed here."""
     from n26.library.models import DefaultAssignment
 
     return set(
@@ -2558,8 +2487,7 @@ def _given_tables(campaign):
 
 
 def _open_tables(campaign):
-    """The tables the arbitrator has opened: live members of the
-    additions' built-ins naming one."""
+    """Return tables granted by this campaign's active built-in additions."""
     from n26.library.models import DefaultAssignment
 
     return set(
@@ -2572,9 +2500,7 @@ def _open_tables(campaign):
 
 
 def _table_said(table):
-    """One table's facts under its name: its die, and how many of the
-    asset type it contains, in the type's own word — "D66 · 18
-    territories". An unrolled table says only what it contains."""
+    """Summarise a table's die and entry count using its asset type's labels."""
     asset_type = table.asset_type
     count = table.entry_count
     if count == 0:
@@ -2589,9 +2515,7 @@ def _table_said(table):
 
 
 def _tables_lead(asset_types):
-    """The Tables page's lead, in the one word where the campaign has one
-    Holding asset type and it is Territory — the common case — and in
-    general words otherwise."""
+    """Use Territory wording for a single Territory type, or generic asset wording."""
     from n26.library.territory_table import TERRITORY
 
     holding = [t for t in asset_types if t.is_holding]
@@ -2602,15 +2526,10 @@ def _tables_lead(asset_types):
 
 @login_required
 def campaign_tables(request, pk):
-    """The tables every gang in the campaign may roll on, by asset type,
-    and the ticks that open and close them.
+    """Open or close tables for every gang, grouped by Holding asset type.
 
-    Under each Holding asset type: the tables the campaign's type gives,
-    shown as given; then every other table of that type the arbitrator
-    may open — a system pack's, or one written for this campaign — each
-    with a tick saying every gang may roll on it. POST reads the ticks
-    against what stood before: newly ticked tables are opened, newly
-    unticked ones closed, and nothing else is touched.
+    Shared built-in tables remain read-only. Apply changes only where the
+    submitted selection differs from the campaign's current additions.
     """
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import OpenTablesForm
@@ -2715,8 +2634,7 @@ def campaign_tables(request, pk):
 
 
 def _table_href(campaign, table):
-    """Where a table's entries are read and, for the campaign's own,
-    changed. A system table has no page here: it is the book's."""
+    """Link to editable campaign-owned tables; shared tables have no page here."""
     from django.urls import reverse
 
     if table.pack_id != campaign.pack_id:
@@ -2726,7 +2644,7 @@ def _table_href(campaign, table):
 
 @login_required
 def new_table(request, pk):
-    """Write a new asset table for this campaign, then go and fill it."""
+    """Create a campaign table and redirect to its entry editor."""
     from django.urls import reverse
 
     from n26.core.campaigns import campaign_operation
@@ -2785,9 +2703,7 @@ def new_table(request, pk):
 
 
 def _own_table_or_404(campaign, table_pk):
-    """One of the campaign's own tables — written into its pack — with its
-    asset type along. A system table is not edited here, and a key that
-    is not a key is a bad link."""
+    """Load a table from this campaign's pack with its asset type; reject bad keys."""
     from django.core.exceptions import ValidationError
     from django.http import Http404
 
@@ -2805,14 +2721,10 @@ def _own_table_or_404(campaign, table_pk):
 
 @login_required
 def campaign_table(request, pk, table_pk):
-    """One of the campaign's own tables: its entries, whether its bands
-    cover its die, and the form that adds an entry from the catalogue.
+    """Edit a campaign table and display its die coverage.
 
-    The assets offered are the ones the campaign may add by hand, of the
-    table's asset type: the same list the Add control offers, so a table
-    lists nothing the campaign could not add. POST adds one entry; what
-    the library refuses — another type's asset, a band on an unrolled
-    table — lands on the form in words.
+    Offer only addable assets of the table's type and display entry validation
+    errors on the form.
     """
     from django.core.exceptions import ValidationError
     from django.db.models import F
@@ -2892,15 +2804,13 @@ def campaign_table(request, pk, table_pk):
 
 @login_required
 def remove_table_entry(request, pk, table_pk, entry_pk):
-    """Take one entry off one of the campaign's own tables. POST is the
-    act; a GET is a plain link back to the table."""
+    """Remove a campaign table entry on POST; redirect GET without changing it."""
     from django.core.exceptions import ValidationError
     from django.http import Http404
 
     from n26.core.campaigns import campaign_operation
     from n26.library.models import AssetTableEntry
 
-    # Acts and leaves; nothing here names anybody.
     found = _own_campaign_or_404(request, pk, with_owner_badge=False)
     table = _own_table_or_404(found, table_pk)
     if request.method == "POST":
