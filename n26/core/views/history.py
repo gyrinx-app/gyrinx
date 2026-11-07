@@ -1,16 +1,8 @@
-"""The gang's history page — everything done to it, newest first.
+"""Show owner-only gang history, filtered and paginated through URL state.
 
-The owner's page: the history says when notes were edited and what
-things were renamed from, which is the owner's business before it is a
-reader's. The roster itself stays the shareable surface.
-
-Every narrowing lives in the URL — ``?q=``, ``?kind=``, ``?model=``,
-``?page=`` — so a filtered view is an address someone can keep, and the
-page works with no script at all.
-
-A campaign's gang accumulates acts for as long as it is played, so the
-page is paged: the story is read a screenful at a time rather than
-handing a browser every act a gang ever did.
+History includes earlier names and note-edit activity, so it is not part of
+the shareable roster. Filter by query, kind and model before paginating
+complete acts newest first.
 """
 
 from dataclasses import dataclass
@@ -24,12 +16,10 @@ from n26.core import history
 from n26.core.views.gangs import _pages
 from n26.core.views.permissions import _own_gang_or_404
 
-#: How many acts one screenful holds. Acts, not events: what a reader
-#: counts down the page is the things that were done.
+#: Complete history acts per page, after folding their events.
 PER_PAGE = 50
 
-#: The filter's buckets, in the order the select offers them. The words
-#: are the reader's: which button they clicked, not how it was stored.
+#: User-facing filter categories in menu order.
 KINDS = {
     "credits": "Credits",
     "kit": "Equipment",
@@ -40,7 +30,7 @@ KINDS = {
 
 @dataclass
 class Day:
-    """One date's worth of acts, newest act first."""
+    """History acts grouped by local date, retaining newest-first order."""
 
     date: object
     acts: list
@@ -58,10 +48,8 @@ def gang_history(request, pk):
         kind = ""
     model = request.GET.get("model", "")
 
-    #: Every model the history names, whether or not it is still on the
-    #: roster — a filter that cannot find the dead cannot explain them.
-    #: Which option is selected is decided here: the template only reads
-    #: flags.
+    #: Include archived or absent roster models still named by history.
+    #: Resolve selected flags before rendering.
     named = sorted(
         {(a.miniature_pk, a.miniature_name) for a in acts if a.miniature_pk},
         key=lambda pair: pair[1].casefold(),
@@ -82,8 +70,7 @@ def gang_history(request, pk):
     if model:
         acts = [a for a in acts if a.miniature_pk == model]
 
-    # Newest first before paging, so page one is the latest screenful
-    # rather than the founding.
+    # Reverse before pagination so the first page contains the latest acts.
     matched = len(acts)
     page = Paginator(list(reversed(acts)), PER_PAGE).get_page(request.GET.get("page"))
 
@@ -93,8 +80,7 @@ def gang_history(request, pk):
         {
             "gang": gang,
             "days": by_day(page.object_list),
-            # What this screenful carries, and what the whole answer
-            # holds, so the count can say "50 of 312".
+            # Keep displayed, matched and unfiltered totals separate.
             "shown": len(page.object_list),
             "matched": matched,
             "total": total,
@@ -108,8 +94,7 @@ def gang_history(request, pk):
 
 
 def by_day(acts):
-    """Already newest first: gathered under the local date each landed on.
-    Shared with the campaign log, which reads the same shape of act."""
+    """Group newest-first acts by local date for gang history and campaign logs."""
     days = []
     for act in acts:
         date = timezone.localtime(act.when).date()
