@@ -54,9 +54,7 @@ class Campaign(Base, Owned, Archived):
         help_text="The campaign's current status, set by its arbitrator.",
     )
 
-    #: Named here rather than taken from ``Owned`` because the other edition
-    #: has a Campaign too, and two models of the same name would claim the
-    #: same reverse accessor on the user.
+    #: Use a separate user reverse accessor from the other edition's Campaign model.
     owner = models.ForeignKey(
         "auth.User",
         on_delete=models.CASCADE,
@@ -77,11 +75,9 @@ class Campaign(Base, Owned, Archived):
             "joins is assigned this type and is given its built-ins."
         ),
     )
-    #: The arbitrator's own pack, created at founding. Holds the additions
-    #: type and everything the arbitrator creates for this campaign. Pack
-    #: pickers offer the system pack alone, so nothing here is ever offered
-    #: to another campaign or gang. Neither the pack nor the campaign can be
-    #: deleted while the other stands.
+    #: Keep campaign additions and arbitrator-created content in a dedicated
+    #: owned pack. PROTECT prevents deleting the pack while the campaign
+    #: references it.
     pack = models.OneToOneField(
         "library.ContentPack",
         on_delete=models.PROTECT,
@@ -119,10 +115,8 @@ class Campaign(Base, Owned, Archived):
             "Pre-campaign. Leave blank for no budget."
         ),
     )
-    #: The arbitrator's own words: what this campaign is, and whatever the
-    #: table has agreed. Editor HTML, stored as written and sanitised on the
-    #: way out (n26.core.templatetags.richtext), so a tightened allowlist
-    #: reaches what was already saved.
+    #: Store editor HTML unchanged and sanitise through the richtext filter
+    #: when rendering, so allowlist updates also apply to saved content.
     summary = models.TextField(blank=True, default="")
     starting_from_pool = models.BooleanField(
         default=False,
@@ -196,13 +190,12 @@ class CampaignEvent(Base):
         ASSET_CREATED = "asset_created", "Asset created"
         COUNTER_ADDED = "counter_added", "Counter added"
         LABEL_ADDED = "label_added", "Label added"
-        # A counter or label the arbitrator added, taken off every gang.
-        # Each gang's removal is that gang's ledger event, written under
-        # the same mark, so the log shows the archive as this one line.
+        # Archive the arbitrator's counter or label across member gangs. Share
+        # the batch with gang removal events so campaign history groups the change.
         COUNTER_ARCHIVED = "counter_archived", "Counter archived"
         LABEL_ARCHIVED = "label_archived", "Label archived"
-        # The same counter or label given back to every gang still in the
-        # campaign, each gang's restoration written under the same mark.
+        # Restore the counter or label for current member gangs, sharing a
+        # batch with their restoration events.
         COUNTER_UNARCHIVED = "counter_unarchived", "Counter unarchived"
         LABEL_UNARCHIVED = "label_unarchived", "Label unarchived"
         # Changes to the asset tables available to every gang in the
@@ -528,10 +521,9 @@ class Battle(Base, Archived):
 
     @property
     def gang_outcomes(self):
-        """Each participant with whether it won, by name.
+        """Return participants in name order with their winner flags.
 
-        Reads ``gangs`` and ``winners`` through ``.all()`` so a list that
-        prefetched both asks nothing more per battle.
+        Read prefetched gangs and winners through all() to avoid queries per battle.
         """
         won = {gang.pk for gang in self.winners.all()}
         return [
@@ -633,9 +625,7 @@ class CampaignParticipant(Base):
         return self.state == self.State.INVITED
 
     def get_absolute_url(self):
-        """The invited campaign's page, which notifications about this
-        invitation link to. The campaign's views decide who may open it.
-        """
+        """Return the campaign URL used by invitation notifications; views enforce access."""
         from django.urls import reverse
 
         return reverse("n26-campaign", args=[self.campaign_id])
