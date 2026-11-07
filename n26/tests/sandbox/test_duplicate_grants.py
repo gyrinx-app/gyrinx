@@ -1,13 +1,9 @@
-"""Dropping the second copy a catch-up pass granted.
+"""Repair duplicate catch-up grants while preserving the original copy.
 
-A pass judges by provenance alone, so a grant written before provenance
-existed was invisible to it and it granted another. Proven here: the
-pass's copy goes and the owner's copy inherits its provenance, so a
-later pass grants nothing; what the dropped copy caused goes with it; a
-copy somebody has been counting on is left alone and named; two members
-naming one thing are not a duplicate; a bought copy is not a duplicate;
-running twice does nothing; and the console offers the repair without
-writing on GET.
+Transfer the duplicate's provenance to the unlinked original, remove safe
+duplicate grants and their descendants, and retain the larger counter value.
+Keep ambiguous groups, paid copies and descendants with recorded tallies.
+The repair is idempotent, can target one model and does not write on GET.
 """
 
 from concurrent.futures import ThreadPoolExecutor
@@ -66,15 +62,14 @@ def ganger(person_type, gang_type, default_pack):
 
 
 def strip_provenance(gang):
-    """What every grant looked like before provenance was recorded."""
+    """Remove materialisation links to simulate an unlinked original grant."""
     return Assignment.objects.filter(
         gang_root=gang, materialised_from__isnull=False
     ).update(materialised_from=None, materialised_for=None)
 
 
 def caught_up_copy(gang, fighter, member, carrier, assignable):
-    """A copy of the shape a catch-up pass writes: provenance, a
-    catch-up event, and nothing paid."""
+    """Create an unpaid grant with provenance and a catch-up event."""
     with operation(gang, actor=gang.owner) as op:
         copy = op.assign(
             assignable,
@@ -96,8 +91,7 @@ def settled(gang):
 
 
 class TestTheDuplicateGoesAndTheOwnersCopyStays:
-    """The pass's copy is dropped and the owner's keeps the thing, now
-    carrying the provenance that stops any pass granting it again."""
+    """Transfer provenance to the original before deleting the duplicate catch-up grant."""
 
     @pytest.mark.parametrize("budget_drift", [False, True])
     def test_a_walk_without_duplicates_leaves_the_gangs_books_untouched(
@@ -166,8 +160,7 @@ class TestTheDuplicateGoesAndTheOwnersCopyStays:
 
 
 class TestWhatTheDroppedCopyBrought:
-    """A duplicated thing that came with built-ins of its own brought
-    them too; they go with it."""
+    """Remove the dropped duplicate's dependent built-in grants."""
 
     def test_the_nested_grants_go_with_it(
         self, gang, person_type, gang_type, default_pack
@@ -204,10 +197,10 @@ class TestWhatTheDroppedCopyBrought:
 
 
 class TestACopySomebodyCountedOn:
-    """A number somebody kept is never thrown away. Where the duplicate
-    is itself the counter, its twin stands beside it and takes the
-    higher of the two; where the tally is deeper in what the duplicate
-    brought, there is nowhere to carry it and the duplicate stands."""
+    """Merge a duplicate counter into its survivor using the greater value.
+
+    Keep duplicates with tallied descendants when those values cannot be transferred.
+    """
 
     def tallied_duplicate(self, gang, person_type, gang_type, value):
         counter = create_counter("Kill Count")
@@ -330,9 +323,7 @@ def test_repair_keeps_a_tally_committed_while_it_waits_for_the_gang_lock(
 
 
 class TestTwinsAreLeftExactlyAsTheyStand:
-    """Where one set names a thing twice, two copies both belong. Once
-    the provenance has gone from one of them, which copy answers which
-    member cannot be told, so nothing is dropped."""
+    """Keep ambiguous groups when multiple built-in members name the same assignable."""
 
     def test_a_group_a_set_names_twice_stands_and_is_named(
         self, gang, person_type, gang_type, default_pack
@@ -362,7 +353,7 @@ class TestTwinsAreLeftExactlyAsTheyStand:
 
 
 class TestWhatIsNotADuplicate:
-    """Only a caught-up grant beside an owner's untagged copy is one."""
+    """Repair only a catch-up grant paired with an unlinked original copy."""
 
     def test_two_tagged_copies_are_two_members_doing_their_job(
         self, gang, person_type, gang_type, default_pack
@@ -398,8 +389,7 @@ class TestWhatIsNotADuplicate:
 
 
 class TestTryingItOnOneModel:
-    """The repair can be confined to a single model, so it is read back
-    on one fighter before the estate is walked."""
+    """Restrict the repair and its preview to one selected model."""
 
     def two_fighters_each_with_a_duplicate(self, gang, ganger):
         member = ganger.built_ins.members.get(rule__isnull=False)
@@ -468,8 +458,7 @@ class TestTryingItOnOneModel:
 
 
 class TestATallyFurtherDown:
-    """A tally two levels down is destroyed by the same delete, so the
-    reading goes to the bottom of the cascade before dropping anything."""
+    """Inspect all cascade descendants before deleting a duplicate that may contain counter values."""
 
     def test_a_counter_under_a_granted_subtype_keeps_the_duplicate(
         self, gang, person_type, gang_type, default_pack
@@ -499,9 +488,7 @@ class TestATallyFurtherDown:
 
 
 class TestADuplicateBeneathADuplicate:
-    """A granted subtype brings its own built-ins, and one of those can
-    be a duplicate too. Dropping the subtype takes it, and the pass must
-    not then try to settle a pair whose halves have already gone."""
+    """Skip nested duplicate pairs already removed with a parent duplicate."""
 
     def test_the_gang_settles_and_one_of_each_thing_stands(
         self, gang, person_type, gang_type, default_pack
@@ -516,8 +503,7 @@ class TestADuplicateBeneathADuplicate:
         member = profile.built_ins.members.get(subtype__isnull=False)
         duplicate = caught_up_copy(gang, fighter, member, fighter.membership, spyrer)
         with operation(gang, actor=gang.owner) as op:
-            # The pass says its grants arrived by catch-up, which is what
-            # makes the nested counter a duplicate in its own right.
+            # Catch-up events make the nested counter eligible as a duplicate too.
             op.reconcile_defaults(
                 duplicate, strict=False, event_kind=LedgerEvent.Kind.CAUGHT_UP
             )

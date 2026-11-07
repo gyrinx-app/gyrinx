@@ -1,19 +1,11 @@
-"""A grant of a slot may carry the pick the slot arrives settled on.
+"""A hidden slot grant can include a default pick of its own slot type.
 
-The Clan House Outcast case (design/house-and-territory-tables.md): an
-Outcast gang picks a Clan House, and for campaign purposes counts as a
-gang of that House. Every gang carries a hidden Gang supertype slot;
-Clan House gang types build it in with a starting pick, and the Outcast
-gang's Clan House pick *gives* the same slot with the House already
-picked. ``ef_adds(slot, with_pick=…)`` is the grant-side twin of a
-built-in's starting pick.
+``ef_adds(slot, with_pick=...)`` exposes the pick to selectors without storing
+an assignment, opening a choice or adding rating. Removing the grant or slot
+removes the computed pick. The pick's own modifiers can apply effects.
 
-What this file holds still: the given pick is a fact a "has picked"
-condition reads, on the bearer and on every member of a gang that holds
-it; it is not a line, opens no choice and is worth nothing; it stands on
-the slot, so it goes the moment the slot does; it runs its own
-modifiers; and a pick is refused without a slot, with a slot of another
-type, or with a slot that is shown on the card.
+A gang-held pick can match model conditions even when its grant does not
+broadcast. See design/house-and-territory-tables.md.
 """
 
 import pytest
@@ -94,7 +86,7 @@ def supertype_slot(supertype, supertypes):
 
 @pytest.fixture
 def shown_slot(supertype, supertypes):
-    """The same choice, shown — what a grant may not carry a pick for."""
+    """Create a visible slot, which cannot receive a default pick through a grant."""
     return create_slot("Shown supertype", supertype, supertypes, assigned_to="gang")
 
 
@@ -105,8 +97,7 @@ def gang_type(default_pack):
 
 @pytest.fixture
 def goliath_rule(gang_type, houses):
-    """A rule for every fighter of a gang that has picked Goliath — the
-    shape a journal's "Goliath Controlled" boon takes on a model."""
+    """Grant a model rule when the model or its gang has the Goliath pick."""
     rule = create_rule("Goliath Controlled")
     modifier(
         "Outcasts: Goliath Controlled",
@@ -119,8 +110,7 @@ def goliath_rule(gang_type, houses):
 
 @pytest.fixture
 def clan_house(default_pack, supertype_slot, houses):
-    """The Outcast choice: its own slot type, its own pickables. Picking
-    Goliath gives the gang's supertype slot with Goliath already picked."""
+    """Create a Clan House pick that grants the hidden supertype slot with Goliath selected."""
     slot_type = create_slot_type("Clan House")
     goliath = create_pickable("Clan House: Goliath", slot_type)
     modifier(
@@ -183,9 +173,7 @@ def pick_clan_house(gang, boss, clan_house):
 
 
 class TestAGrantCarriesItsPickOntoTheBearer:
-    """The simplest shape: kit on a fighter gives a hidden slot with its
-    pick. The pick is a fact about the fighter and nothing more — no
-    line, no open choice, no rating."""
+    """Model equipment can grant a hidden selected slot without a display row, open choice or rating."""
 
     @pytest.fixture
     def badge_slot(self, supertype, supertypes):
@@ -246,8 +234,7 @@ class TestAGrantCarriesItsPickOntoTheBearer:
         assert names(card_of(other)[1].picks) == []
 
     def test_the_granted_pick_gives_in_turn(self, gang, scav, badge, houses):
-        """The pick runs its own modifiers: the index follows the grant
-        to the pick, or nothing it gives would ever load."""
+        """Load the granted pick's modifiers so it can grant further effects."""
         modifier(
             "Goliath: muscle",
             targets_model(),
@@ -273,14 +260,10 @@ class TestAGrantCarriesItsPickOntoTheBearer:
     def test_a_removal_naming_the_slot_takes_the_pick(
         self, gang, scav, badge, badge_slot, goliath_rule
     ):
-        """The pick stands on the slot, not on the carrier: take the slot
-        away and the pick goes with it, while the carrier stays.
+        """Removing the slot removes its computed pick while preserving the granting carrier.
 
-        Only the pick is asserted on. A rule a later round granted on the
-        strength of the pick is settled the way every chain is — the
-        removal's consequences are followed once, after the rounds — so
-        on the bearer's own card it stands in the same read, exactly as a
-        rule conditioned on a subtype a removed hidden gave would.
+        Assert only the pick here: dependent conditional rules can remain in this read
+        because removal consequences settle after the modifier rounds.
         """
         stripped = create_wargear("Anonymity")
         modifier(
@@ -306,10 +289,7 @@ class TestAGrantCarriesItsPickOntoTheBearer:
 
 
 class TestAGangHoldsAGrantedPick:
-    """The Outcast case. The Clan House pick is the gang's; what it gives
-    lands on the gang; and a pick the gang holds is a fact about every
-    member, whether written or given, and whether or not the grant
-    echoes."""
+    """A gang-held computed pick can match conditions on every model."""
 
     def test_the_pick_lands_on_the_gang(self, gang, leader, clan_house):
         boss = hire(gang, leader, "Boss", paid=120)
@@ -322,9 +302,7 @@ class TestAGangHoldsAGrantedPick:
     def test_every_member_counts_as_goliath(
         self, gang, leader, scav, clan_house, goliath_rule
     ):
-        """The grant is the gang's alone — it echoes nothing — and the
-        fighters still pass "has picked Goliath", exactly as the members
-        of a gang whose founding wrote the pick down would."""
+        """Gang-alone picks still match model conditions without broadcasting the pick."""
         boss = hire(gang, leader, "Boss", paid=120)
         rat = hire(gang, scav, "Rat", paid=40)
         assert names(card_of(boss)[1].rules) == []
@@ -341,8 +319,7 @@ class TestAGangHoldsAGrantedPick:
     def test_the_gang_alone_grant_does_not_echo_the_pick_itself(
         self, gang, leader, scav, clan_house
     ):
-        """The fact reaches the members; the pick's own guest list does
-        not, because the grant said the gang alone."""
+        """Expose the gang pick to selectors without adding it to the model's broadcast grants."""
         boss = hire(gang, leader, "Boss", paid=120)
         rat = hire(gang, scav, "Rat", paid=40)
         pick_clan_house(gang, boss, clan_house)
@@ -358,8 +335,7 @@ class TestAGangHoldsAGrantedPick:
 
         sheet = render_gang(gang)
 
-        # The Clan House question is the Leader's; the gang's own card
-        # asks nothing, and no line anywhere names the supertype.
+        # Show the Leader's Clan House choice while keeping the supertype hidden.
         assert sheet.choices == []
         (boss_card,) = sheet.models
         assert [line.kind_label for line in boss_card.questions] == ["Clan House"]
@@ -410,8 +386,7 @@ class TestAGangHoldsAGrantedPick:
     def test_a_grant_that_echoes_runs_the_picks_own_modifiers_on_everyone(
         self, gang, gang_type, scav, supertype_slot, houses
     ):
-        """Scoped to the gang and everyone, the pick rides the members'
-        cards as the gang's guest and what it gives reaches them."""
+        """Broadcast grants expose the pick and apply its modifiers on model cards."""
         modifier(
             "Goliath: muscle",
             targets_every_model(),
@@ -435,8 +410,7 @@ class TestAGangHoldsAGrantedPick:
     def test_the_sheet_reads_flat_however_many_members(
         self, gang, leader, scav, clan_house, goliath_rule
     ):
-        """Two prefetch paths join the budget — the pick, and what it
-        carries — and neither grows with the roster."""
+        """Prefetch granted picks and their modifiers without adding queries per model."""
         boss = hire(gang, leader, "Boss", paid=120)
         pick_clan_house(gang, boss, clan_house)
         with CaptureQueriesContext(connection) as few:
@@ -454,9 +428,7 @@ class TestAGangHoldsAGrantedPick:
 
 
 class TestWhatAGrantMayNotCarry:
-    """A pick belongs to a hidden slot of its own type. Each refusal is
-    said in words by the verb, by the row, and — where the database can
-    say it — by a constraint."""
+    """Validate that default picks belong to hidden slots of the matching type."""
 
     def test_a_pick_with_no_slot(self, houses, default_pack):
         with pytest.raises(ValidationError, match="belongs to a slot"):
@@ -524,8 +496,7 @@ class TestWhatTheAuthoringPagesSay:
 
 
 class TestTheComposer:
-    """The pick control rides the grant form because the slot declares
-    it, drawn only when the kind chosen is a slot (library/offers.py)."""
+    """Show the default-pick field only when the grant names a slot."""
 
     def test_the_form_asks_for_a_pick_beside_a_slot(self, default_pack):
         from n26.library.forms import generate_form
@@ -576,8 +547,7 @@ class TestTheComposer:
     def test_a_pick_of_another_type_is_refused_on_its_field(
         self, supertype_slot, default_pack
     ):
-        """The row's own refusal lands on the pick control, so the page
-        redraws with it instead of failing the request."""
+        """Attach incompatible-pick validation errors to the default-pick field."""
         from n26.library.forms import generate_form
         from n26.library.specs import specs
 
@@ -614,8 +584,7 @@ class TestTheComposer:
         assert "Only a hidden slot can be given with its pick" in error
 
     def test_the_composer_page_redraws_a_refused_pick(self, client, shown_slot, houses):
-        """The modifier views catch a duplicate name and nothing else, so
-        the form has to hold the refusal itself for the page to show it."""
+        """Return a form error for an invalid default pick instead of raising during compilation."""
         from n26.library.models import Modifier
 
         client.force_login(User.objects.create_user("author", is_staff=True))
