@@ -333,11 +333,8 @@ db_config_for_local() {
 }
 
 # worktree_python [path]
-#   Print the Python interpreter for this worktree. Prefers
-#   <root>/.venv/bin/python so script-language pre-commit hooks still run
-#   when the caller has no interpreter on PATH — a plain `git commit`
-#   otherwise dies in the migration check. Falls back to python3, then
-#   python, from PATH.
+#   Print <root>/.venv/bin/python when available so hooks work without Python
+#   on the caller's PATH. Otherwise try python3, then python, from PATH.
 worktree_python() {
   local wt_root="${1:-$(_worktree_root)}"
   local candidate
@@ -440,13 +437,8 @@ _release_provision_lock() {
 #   unchanged case a cheap no-op while still catching dependency-input changes
 #   after a rebase.
 #
-#   Used by dev.sh and activate_venv_hook.sh to give every child worktree
-#   (including the .claude/worktrees/* worktrees created by EnterWorktree)
-#   its own venv, so `import gyrinx` resolves to worktree-local code and
-#   pre-commit hooks see the worktree's migrations / models.  Without this,
-#   the main venv's editable install can get repointed to a child worktree
-#   by an errant `uv sync` run without UV_PROJECT_ENVIRONMENT, corrupting every other
-#   session.  See issue #1772.
+#   Give each worktree its own editable install so imports and pre-commit
+#   checks use that checkout's code.
 #
 #   Echoes a one-line progress message to stderr when a sync is needed so the
 #   delay isn't silent. Returns 0 on success or skip; non-zero if uv is missing,
@@ -555,9 +547,8 @@ provision_worktree_venv() {
     # If initial provisioning fails after `uv sync` creates the directory,
     # remove the partial venv. Preserve an existing venv after a failed re-sync,
     # but leave its old stamp in place so the next call retries.
-    # UV_PROJECT_ENVIRONMENT keeps `uv sync` pointed at this worktree's venv rather
-    # than the default ./.venv, which is what stops it repointing another
-    # worktree's editable install.  --locked installs exactly uv.lock.
+    # Set the target explicitly to protect other worktrees' editable installs.
+    # --locked requires the dependency versions in uv.lock.
     if ! (cd "$wt_root" && UV_PROJECT_ENVIRONMENT="$venv" uv sync --locked --quiet); then
       if [ "$new_venv" = true ]; then
         rm -rf "$venv"
@@ -753,23 +744,14 @@ _frontend_repair_plan() {
 }
 
 # provision_worktree_frontend <worktree_root>
-#   After a rebase, node_modules and the gitignored React manifest can be
-#   older than package-lock.json, n26/frontend, Cotton templates, or icon
-#   sources. Codex commands go through .codex/run.sh rather than
-#   ./scripts/dev.sh, so this helper does the same recovery there: `npm ci`
-#   when the install is stale, then `npm run js` when the manifest is missing
-#   or stale. Both commands put the worktree venv first on PATH because
-#   `npm run js` starts with `python -m n26.frontend.tooling.export_cotton_recipes`.
-#   Conflict markers in those inputs make the build fail. The js step is
-#   skipped, the conflicted file is named, and the caller's command still runs
-#   so it can resolve the markers.
+#   Refresh dependencies with npm ci and rebuild a missing or stale React
+#   manifest with npm run js. Put the worktree venv on PATH for recipe exports.
+#   Skip the build when inputs contain conflict markers, report the path and
+#   let the caller continue to resolve them.
 #
-#   The freshness check and the install/build share one lock, matching
-#   provision_worktree_venv, so two Codex commands cannot npm ci at once.
-#   Uses `npm ci --no-audit --no-fund`, never `npm audit fix`. A checkout
-#   without vite.config.mts is a no-op so pre-islands fixtures stay quiet.
-#   Returns 0 on success or skip; non-zero if npm/python/lockfile is missing
-#   when a build is required, or if ci/js fails.
+#   Check freshness and provision under one lock to serialise concurrent calls.
+#   Checkouts without vite.config.mts need no provisioning.
+#   Return non-zero when required tools or inputs are missing, or a command fails.
 provision_worktree_frontend() {
   local wt_root="$1"
   if [ -z "$wt_root" ] || [ ! -d "$wt_root" ]; then

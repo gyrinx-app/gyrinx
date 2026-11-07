@@ -1,20 +1,10 @@
 #!/bin/bash
-# SessionStart hook: activate the correct per-worktree virtualenv for every
-# Bash tool invocation, including mid-session worktree switches.
+# SessionStart hook: select the worktree virtualenv before each Bash call.
 #
-# The contents written to CLAUDE_ENV_FILE are sourced before every Bash tool
-# call.  We therefore write a small bash function that re-evaluates the
-# active worktree from the current working directory on every invocation —
-# without that, an agent that calls EnterWorktree mid-session ends up running
-# pre-commit / pytest / manage against the *main* worktree's venv, which
-# breaks pre-commit hooks that import gyrinx (they see the main worktree's
-# code, not the worktree the agent is actually editing).
-#
-# Worktrees under .claude/worktrees/ are checked on demand via
-# provision_worktree_venv in lib/worktree.sh. Its dependency-input stamp makes
-# the unchanged case cheap and re-syncs after a rebase changes project metadata.
-#
-# Works in both local and remote (Claude Code on the Web) environments.
+# CLAUDE_ENV_FILE is sourced on each call. Resolve the worktree from the current
+# directory so worktree switches also change the interpreter and database.
+# Worktrees under .claude/worktrees are provisioned on demand; dependency stamps
+# trigger a re-sync after project metadata changes.
 # See .claude/settings.json for hook registration.
 
 set -euo pipefail
@@ -27,19 +17,14 @@ fi
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 
-# Source the worktree library so we can resolve the main worktree path
-# and (later) provision a venv if needed.  If the library is missing,
-# we still emit a minimal env file so the session is usable.
+# Emit a minimal environment even when the worktree library is unavailable.
 WORKTREE_LIB="${PROJECT_DIR}/scripts/lib/worktree.sh"
 if [ -f "$WORKTREE_LIB" ]; then
   # shellcheck source=lib/worktree.sh
   source "$WORKTREE_LIB"
 fi
 
-# Resolve the main worktree path (where the canonical .venv lives) and
-# the Homebrew Postgres bin dir once at hook time.  These don't change
-# during the session, so embedding them as constants avoids re-resolving
-# on every Bash call.
+# Resolve session constants once instead of on every Bash call.
 MAIN_WT=""
 if command -v _main_worktree >/dev/null 2>&1; then
   MAIN_WT=$(cd "$PROJECT_DIR" 2>/dev/null && _main_worktree || true)
@@ -54,10 +39,8 @@ if command -v homebrew_postgres_bin >/dev/null 2>&1; then
   PG_BIN_DIR=$(homebrew_postgres_bin)
 fi
 
-# Eagerly provision the venv for the session's *starting* worktree.  This
-# catches `isolation: "worktree"` subagents whose CWD is already a child
-# worktree at session start.  For mid-session EnterWorktree the per-Bash
-# function below handles it.
+# Provision worktrees selected before session startup. The emitted function
+# handles worktree switches during the session.
 if command -v provision_worktree_venv >/dev/null 2>&1; then
   START_WT=$(git -C "$PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null || true)
   if [ -n "$START_WT" ] && [ "$START_WT" != "$MAIN_WT" ] \
@@ -70,9 +53,7 @@ fi
 # rebuild PATH from a known base instead of accumulating duplicates.
 BASE_PATH="$PATH"
 
-# SessionStart fires on startup, resume, clear and after compaction, and the env
-# file persists for the session, so without this guard the block accumulates
-# (six copies were observed in one session).
+# SessionStart also runs on resume and compaction. Do not append duplicate blocks.
 MARKER="# >>> Gyrinx per-worktree venv activation >>>"
 if grep -qF -- "$MARKER" "$CLAUDE_ENV_FILE" 2>/dev/null; then
   exit 0
@@ -83,13 +64,8 @@ fi
 # $vars are evaluated at *source* time (per Bash call), not at hook-write
 # time.
 #
-# Comment lines are stripped from the block on the way out. Claude Code inlines
-# the env file into the command line of EVERY Bash and Monitor call, so any word
-# in a comment here ends up in every wrapper process's argv. A comment that
-# mentioned `pytest` meant an agent's `pkill -f pytest` killed every Bash and
-# Monitor wrapper on the machine, across all sessions (2026-09-04). Keep comments
-# in this file, not in the emitted block, and keep the block's code free of words
-# anyone might `pkill -f`.
+# Claude Code includes the emitted environment in wrapper process arguments.
+# Strip comments so words in them cannot match unrelated pkill -f patterns.
 {
   echo "$MARKER"
   printf 'export __GYRINX_BASE_PATH=%q\n' "$BASE_PATH"
