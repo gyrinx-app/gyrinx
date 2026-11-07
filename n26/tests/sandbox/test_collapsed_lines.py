@@ -124,7 +124,7 @@ class TestGearOnTheCard:
         text = "\n".join(render_model_card(build_model_card(doubled)))
         print("\n" + text)
 
-        assert "Equipment: Respirator (x2)" in text
+        assert "Gear: Respirator (x2)" in text
 
     def test_one_bought_and_one_granted_stay_apart(self, gang, fighter, respirator):
         """A line saying "from Rebreather kit" of a respirator that was

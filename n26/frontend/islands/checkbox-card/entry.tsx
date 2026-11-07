@@ -5,8 +5,8 @@ import {
 } from "./CheckboxCardIsland";
 
 export function mount(element: HTMLElement, props: CheckboxCardIslandProps) {
-    // Read the server-drawn boxes before React replaces them, so ticks made
-    // before the island loaded, and the card box's focus, carry over.
+    // Read checkbox state and focus before mounting so interactions made
+    // during loading survive replacement.
     const box = element.querySelector<HTMLInputElement>(
         "[data-checkbox-card] > label > input[type='checkbox']",
     );
