@@ -2,6 +2,7 @@
 
 import hashlib
 import hmac
+import logging
 import re
 import sys
 from uuid import uuid4
@@ -94,6 +95,17 @@ def emit_pool_timeout(request):
         request_id=request_id(request),
         trace_id=trace_id(request),
     )
+
+
+class InvalidHostAuditHandler(logging.Handler):
+    """Audit host validation failures even before application middleware runs."""
+
+    def emit(self, record):
+        request = getattr(record, "request", None)
+        if request is not None:
+            record_security_event(
+                request, "request", "invalid_host", response_status=400
+            )
 
 
 @receiver(signals.got_request_exception)

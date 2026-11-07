@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
-from django.core.exceptions import DisallowedHost, RequestDataTooBig
+from django.core.exceptions import RequestDataTooBig
 from django.db import connections
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
@@ -101,15 +101,6 @@ class SecurityTelemetryMiddleware:
             record_security_event(
                 request, "permission", "login_required", response_status=status
             )
-        elif status == 400 and match is None:
-            try:
-                request.get_host()
-            except DisallowedHost:
-                reason = "invalid_host"
-            else:
-                reason = "bad_request"
-            record_security_event(request, "request", reason, response_status=status)
-
         # Cloud Run already records every request. Emit route and duration for
         # failures and a bounded sample of successful application responses.
         if status >= 400 or int(request._security_request_id[:4], 16) % 10 == 0:

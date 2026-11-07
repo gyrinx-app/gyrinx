@@ -16,6 +16,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin.models import CHANGE, LogEntry
+from django.db import connection, transaction
 from django.db.models import Count
 from django.http import HttpResponseForbidden, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
@@ -112,20 +113,28 @@ def scrub_event_sessions_view(request):
         scrub_event_sessions,
     )
 
-    remaining = count_legacy_session_keys()
     if request.method == "POST":
-        running = running_guard(SESSION_SCRUB_OPERATION)
-        if running:
-            messages.error(request, "A session-key cleanup is already running.")
-            return HttpResponseRedirect(
-                reverse("admin:maintenance_backfill_detail", args=[running.pk])
+        # Serialize the empty-to-running transition across admin processes.
+        # Publish only after commit so the task can read its Backfill row.
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT pg_advisory_xact_lock(hashtext(%s), hashtext(%s))",
+                    ["gyrinx.maintenance", SESSION_SCRUB_OPERATION],
+                )
+            running = running_guard(SESSION_SCRUB_OPERATION)
+            if running:
+                messages.error(request, "A session-key cleanup is already running.")
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_backfill_detail", args=[running.pk])
+                )
+            remaining = count_legacy_session_keys()
+            backfill = Backfill.objects.create(
+                operation=SESSION_SCRUB_OPERATION,
+                triggered_by=request.user,
+                status=Backfill.Status.RUNNING if remaining else Backfill.Status.DONE,
+                summary={"total": remaining, "cleared": 0, "remaining": remaining},
             )
-        backfill = Backfill.objects.create(
-            operation=SESSION_SCRUB_OPERATION,
-            triggered_by=request.user,
-            status=Backfill.Status.RUNNING if remaining else Backfill.Status.DONE,
-            summary={"total": remaining, "cleared": 0, "remaining": remaining},
-        )
         if remaining:
             try:
                 scrub_event_sessions.enqueue(backfill_id=str(backfill.pk))
@@ -144,6 +153,7 @@ def scrub_event_sessions_view(request):
             reverse("admin:maintenance_backfill_detail", args=[backfill.pk])
         )
 
+    remaining = count_legacy_session_keys()
     return render(
         request,
         "admin/maintenance/scrub_event_sessions.html",

@@ -1,5 +1,8 @@
 """The production legacy-key cleanup commits bounded, replay-safe batches."""
 
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event as ThreadEvent
+from threading import Lock
 from unittest.mock import patch
 
 import pytest
@@ -133,3 +136,60 @@ def test_failed_initial_publish_marks_job_failed(legacy_events):
     assert record.status == Backfill.Status.FAILED
     assert record.error == "The cleanup task could not be queued."
     assert count_legacy_session_keys() == 5
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_launches_create_one_running_job(legacy_events):
+    from gyrinx.maintenance.views import running_guard
+
+    user = legacy_events
+    user.is_staff = user.is_superuser = True
+    user.save()
+    clients = [Client(), Client()]
+    for client in clients:
+        client.force_login(user)
+
+    first_at_guard = ThreadEvent()
+    second_started = ThreadEvent()
+    second_at_guard = ThreadEvent()
+    release_first = ThreadEvent()
+    call_lock = Lock()
+    guard_calls = 0
+
+    def paused_guard(operation):
+        nonlocal guard_calls
+        with call_lock:
+            guard_calls += 1
+            ordinal = guard_calls
+        result = running_guard(operation)
+        if ordinal == 1:
+            first_at_guard.set()
+            assert release_first.wait(5)
+        else:
+            second_at_guard.set()
+        return result
+
+    def start_second():
+        second_started.set()
+        return clients[1].post(reverse("admin:maintenance_scrub_event_sessions"))
+
+    with (
+        patch("gyrinx.maintenance.views.running_guard", side_effect=paused_guard),
+        patch("django.tasks.base.Task.enqueue") as enqueue,
+        ThreadPoolExecutor(max_workers=2) as pool,
+    ):
+        first = pool.submit(
+            clients[0].post, reverse("admin:maintenance_scrub_event_sessions")
+        )
+        try:
+            assert first_at_guard.wait(5)
+            second = pool.submit(start_second)
+            assert second_started.wait(5)
+            assert not second_at_guard.wait(0.3)
+        finally:
+            release_first.set()
+        assert first.result(timeout=5).status_code == 302
+        assert second.result(timeout=5).status_code == 302
+
+    assert Backfill.objects.filter(operation=SESSION_SCRUB_OPERATION).count() == 1
+    enqueue.assert_called_once()

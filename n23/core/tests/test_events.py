@@ -203,6 +203,8 @@ def test_event_redacts_secret_context_before_storage_and_streaming(mock_track):
         context={
             "login_method": "email",
             "session_key": "bearer-value",
+            "password1": "first-password",
+            "new_password2": "second-password",
             "nested": [{"auth_token": "another-bearer-value"}],
             "nested_tuple": ({"auth_token": "tuple-bearer-value"},),
         },
@@ -211,6 +213,8 @@ def test_event_redacts_secret_context_before_storage_and_streaming(mock_track):
     expected = {
         "login_method": "email",
         "session_key": "[redacted]",
+        "password1": "[redacted]",
+        "new_password2": "[redacted]",
         "nested": [{"auth_token": "[redacted]"}],
         "nested_tuple": [{"auth_token": "[redacted]"}],
     }

@@ -408,6 +408,9 @@ LOGGING = {
         "null": {
             "class": "logging.NullHandler",
         },
+        "disallowed_host_audit": {
+            "class": "gyrinx.security_events.InvalidHostAuditHandler",
+        },
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
@@ -415,7 +418,7 @@ LOGGING = {
     },
     "loggers": {
         "django.security.DisallowedHost": {
-            "handlers": ["null"],
+            "handlers": ["disallowed_host_audit"],
             "propagate": False,
         },
         "django.utils.autoreload": {
