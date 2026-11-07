@@ -27,8 +27,11 @@ from n26.library.authoring import (
     create_slot,
     create_slot_type,
     create_wargear,
+    modifier,
     offer_option,
+    op_adds_model,
     revise,
+    targets_model,
 )
 from n26.tests.sandbox.actions import found_gang, hire, remove
 
@@ -64,6 +67,34 @@ def url(gang):
 
 
 class TestSavingOneAcquisition:
+    def test_a_retry_keeps_built_in_equipment_and_the_pet_it_created_once(
+        self, gang, owner, profile, make_profile
+    ):
+        pet = make_profile("Cyber-mastiff", price=40, hireable=False)
+        collar = create_wargear("Cyber-mastiff collar")
+        modifier(
+            "Collar brings a mastiff",
+            targets_model(),
+            op_adds_model(pet),
+            attach_to=collar,
+        )
+        add_built_in(profile, collar)
+        data = submission(profile)
+        first = hire_workflow.change(gang, owner, data)
+        assert first.saved
+        events = LedgerEvent.objects.filter(gang=gang).count()
+        replay = hire_workflow.change(gang, owner, data)
+        assert replay.saved and not replay.applied
+        assert list(
+            Miniature.objects.filter(membership__gang=gang)
+            .order_by("name")
+            .values_list("name", flat=True)
+        ) == ["Cyber-mastiff", "Vex"]
+        assert first.written == replay.written
+        assert str(first.miniature.membership_id) in replay.written
+        assert LedgerEvent.objects.filter(gang=gang).count() == events
+        assert_reconciled(gang)
+
     def test_a_retry_recalls_the_hire_without_spending_again(
         self, gang, owner, profile
     ):

@@ -6,9 +6,9 @@ form carries the name and durable request key; reuse it after validation errors.
 Put the CSRF token in the default slot. The named lead slot preserves ampersands
 in option names.
 
-The price control shows the difference from the quote. Its native fallback posts
-the quote. The rating checkbox works without an Alpine parent scope; preserve
-rate_at_paid after validation errors so an unticked box stays unticked.
+The price control shows the difference from the quote. Its native fallback keeps
+the entered payment; a blank payment uses the quote. The rating checkbox works
+without an Alpine parent scope; preserve rate_at_paid after validation errors so an unticked box stays unticked.
 {% endcomment %}
 
 {% load arith hire_price react %}

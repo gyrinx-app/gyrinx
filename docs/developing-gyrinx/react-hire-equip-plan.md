@@ -52,7 +52,7 @@ receipt. Keep command identity distinct from an operation's grouping batch.
 Check current access first, then read the receipt before resolving current
 offers or options. A catalogue change after a successful purchase must not
 prevent its retry from confirming the saved result. Retain the introduced
-assignment IDs so replay can rederive the same onward choice screens without
+assignment IDs so replay can derive any still-required onward choice screens without
 recording navigation URLs in the command receipt.
 
 Use the existing conventional form as the consumer. Prove unchanged successful
