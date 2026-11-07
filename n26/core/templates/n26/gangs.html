@@ -1,26 +1,10 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Every gang you own, and the way to found another.
-
-The same <c-n26.record-table> the dashboard's first tab draws, over the
-same context — one component and one query shape, so the two screens
-cannot come to disagree about what a gang row shows. What differs is the
-room: here the list has the page to itself rather than two thirds of a
-column beside the changelog.
-
-This is also where a search lands: both tables submit here, so `?q=` is
-a link someone can keep, and the page says what it searched for.
-
-Founding is the page's action, in the header, because a list of gangs is
-where someone goes when they want one more.
+Full gang listing using the dashboard's shared table and context. Search state lives in
+q, and the header offers gang founding.
 {% endcomment %}
 {% block head_title %}Gangs{% endblock head_title %}
-{% comment %}
-The bar names the page through the switcher rather than a plain heading:
-the name is a link, and the chevron beside it offers the app's other
-places — the same pattern a gang's screens use for their siblings.
-{% endcomment %}
 {% block nav_switcher %}
     {% places_switcher here='gangs' as places_ %}
     <c-n26.quick-switcher.of :switcher="places_" hotkey="f" />
@@ -62,16 +46,9 @@ places — the same pattern a gang's screens use for their siblings.
             {% endfor %}
         </c-n26.record-table>
         {% comment %}
-        The pager's addresses are the view's, not the kit's automatic
-        ones: those write ?page=2 alone, and a reader who has searched or
-        asked for everybody's gangs would lose that by turning the page.
-        A gap in a long run is marked and not linked — there is no one
-        page it leads to.
-
-        The ends are drawn as two cases rather than one with a computed
-        `disabled`: a component attribute takes a variable, not an
-        expression, so a comparison there evaluates to nothing and the
-        control draws as a live link with an empty address.
+        Use view-built pagination URLs to preserve search and scope parameters. Render
+        disabled buttons separately because Cotton attributes accept variables, not
+        boolean expressions.
         {% endcomment %}
         {% if pages %}
             <div class="flex flex-wrap items-center justify-between gap-3">
