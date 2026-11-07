@@ -406,7 +406,11 @@ PATH="$PWD/.venv/bin:$PATH" npm run js
 stale. If island, Cotton, or icon sources contain Git conflict markers,
 `.codex/run.sh` skips that rebuild and the command you asked for still runs.
 `npm run js` starts a Python exporter, so a bare `npm run js` without the
-venv fails. Do not run `npm audit fix` unless the task is the audit itself.
+venv fails. npm 10 can leave a nested dependency in place after a
+`package.json` `overrides` change. Regenerate the lockfile with
+`./scripts/update_package_lock.sh` (npm 11, `--package-lock-only`) and review
+the diff. CI runs the same script with `--check`. Do not run `npm audit fix`
+unless the task is the audit itself.
 
 Vite owns the content-hashed filenames under `n26/react/assets/`. That output
 lives in the gitignored directory `n26/core/static/n26/react/`. setuptools

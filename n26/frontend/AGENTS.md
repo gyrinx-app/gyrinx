@@ -74,5 +74,8 @@ island, Cotton, or icon sources contain Git conflict markers, `.codex/run.sh`
 skips that rebuild and the command you asked for still runs. Package
 discovery excludes the gitignored Vite output, `generated/`, `node_modules`,
 `staticfiles`, and `logs`, so an editable install does not keep those
-directories. Do not
+directories. npm 10 can leave a nested dependency in place after a
+`package.json` `overrides` change. Regenerate the lockfile with
+`./scripts/update_package_lock.sh` (npm 11, `--package-lock-only`) and review
+the diff. CI runs the same script with `--check`. Do not
 run `npm audit fix` unless the task is the audit itself.
