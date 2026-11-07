@@ -1,17 +1,6 @@
 {% comment %}
-Parts edited in place: one form per part, where the parts of a kind have
-no page of their own. Each form names its part in `part` and says in
-`act` that this is an edit rather than an addition, so the view knows
-which form was clicked. Removing stays a page of its own, as it is for
-every part, because what the act reaches cannot be read off the row.
-
-A part may hold things of its own — the assets of an asset type, and a
-Holding type's tables — which are listed and added under it, one block
-each, in the same box but outside its form, because a form cannot hold
-another form.
-
-Takes `section`, whose parts each carry an `edit_form` and a list `under`
-of blocks.
+Each part form submits its part identifier and act.
+Keep nested content forms outside the part form: HTML does not support nested forms.
 {% endcomment %}
 <div class="space-y-4">
     {% for part in section.parts %}

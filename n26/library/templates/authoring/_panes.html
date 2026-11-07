@@ -1,34 +1,9 @@
 {% comment %}
-The two panes a modifier is made of, and the chips that narrow its
-scope. Shared by the composer that builds a new modifier and the form
-that corrects one, because both ask the same two questions — the only
-difference is whether the kinds are still open.
-
-Takes `composer` (for its who_form, what_form and condition_formset)
-and `add_condition_href`, the address of the same page with one more
-empty chip. That is a link rather than a control: the count rides the
-URL, so an added chip survives a refresh and needs no script.
-
-Removing one cannot be a plain link. A chip is taken off part-way
-through filling the form in, and a bare GET arrives carrying none of
-what has been typed into the other chips or either pane — so Remove is
-a submit. What it does with the click is send everything except that
-chip back as an address: the chip count lives in the address, so a page
-that only redrew would go on claiming a chip it no longer shows and a
-reload would bring it back. It saves nothing: the modifier is written
-by the button at the foot of the form, and on an existing modifier the
-condition row goes when that is clicked, not on this click.
-
-The value is the chip's position, which is how a formset addresses its
-forms; the view refuses a position naming no chip.
+Render generated scope, effect and condition forms from composer.
+Adding a condition uses URL state; removing submits unsaved values and redirects with the remaining state without saving.
 {% endcomment %}
 <c-n26.form-section title="Who it reaches">
-    {% comment %}
-    On the page that corrects a modifier the kinds are settled, so each
-    pane leads with the card its kind was picked from — read-only, since
-    changing the kind is composing a different modifier. The composer
-    passes no cards: there the picker itself is the explanation.
-    {% endcomment %}
+    {# Existing modifiers retain their scope and effect kinds; creation uses the kind picker. #}
     {% if who_card %}
         <c-ui.description>
             <strong>{{ who_card.label|capfirst }}.</strong> {{ who_card.blurb }}
@@ -41,12 +16,7 @@ forms; the view refuses a position naming no chip.
             <div class="rounded-box border border-box-border p-3">
                 {% include "authoring/_form.html" with form=chip %}
                 <div class="mt-3">
-                    {% comment %}
-                    formnovalidate, because the browser would otherwise
-                    refuse the click over a required field somewhere else
-                    in the form — and what is being asked for is to take
-                    a piece of the form away, not to save it.
-                    {% endcomment %}
+                    {# Bypass native required-field validation when removing a condition from an unfinished form. #}
                     <c-ui.button type="submit"
                                  variant="ghost"
                                  size="sm"
