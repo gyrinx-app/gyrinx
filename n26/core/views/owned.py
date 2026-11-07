@@ -1,57 +1,18 @@
-"""What a fighter already owns — selling it, handing it on, taking it off.
+"""Manage stored possessions and counter values through owner-authorised operations.
 
-Seven acts, seven addresses, one shape each: a POST names the assignment
-in its path, an ``operation`` writes it, and the reader lands back where
-they clicked. They are addressed by *assignment* rather than by
-fighter, because that is what they are about — a weapon on a fighter, a
-sight on that weapon, a crate in the stash are all one assignment — and
-because the next screen that wants them (a gang sheet, a stash page) then needs
-no routes of its own.
+Possession routes identify assignments, which can belong to models, stashes
+or weapons. Exclude foundational assignments such as a model's profile and
+a gang's type from equipment actions.
 
-Which dialog is open is URL state on the screen that opened it
-(``?sell=<assignment>``), so an open confirmation is a link, survives a
-reload, and is drawn by the server rather than revealed by a script. The
-click behind it is a real form to a real address, so it works with
-scripting switched off.
+Sale, refund and removal are distinct: sales return rating-based proceeds,
+refunds return recorded payments, and removal returns nothing. Reassignment
+preserves pricing; option changes settle their difference on the owned item.
+Accessory purchases attach to a particular weapon.
 
-An operation that refuses an act answers on the screen it was clicked
-from — a control the page drew is owed a sentence, not a traceback — and
-nothing is written, because the refusal unwinds the transaction.
-
-Each act responds in one of two shapes. A plain submission redirects back to
-the screen the click came from. One sent by htmx gets a partial update
-instead — the changed row, the money, the panel closed — built by
-:func:`n26.core.views.equip.render_update`; the protocol is documented in
-:mod:`n26.core.views.htmx`.
-
-The acts are deliberately distinct, and the ledger says which happened:
-
-``sell``
-    Half of the thing's rating, rounded up, into the gang's credits.
-    Not a refund: what was paid has nothing to do with it. A gun with
-    something bolted to it asks one more question — whether the
-    accessories are being sold with it or kept — because those are two
-    sales at two prices.
-``reassign``
-    A move to another model, to the stash, onto a weapon, or off a
-    weapon onto the fighter still holding it. No money, and no
-    re-pricing. Fitting and detaching are asked as questions of their
-    own — ``?fit=`` and ``?detach=`` rather than ``?reassign=`` —
-    because which model holds a thing and which gun it is bolted to are
-    not one question, however much they are one act.
-``refund``
-    Undoing the purchase: everything that was handed over comes back —
-    credits, and the Trade Points a founding allowance paid. The amount
-    paid and the rating part company at the first discount, which is why
-    this is not a sale.
-``remove``
-    Permanently removed from the gang, with no credit change.
-``accessorise``
-    A purchase, hosted on the weapon rather than on the fighter. The only
-    one that adds something.
-``rechoose``
-    Taking a thing with different alternatives to the ones it was bought
-    with. The difference settles either way, on the thing's own line.
+Confirmation state comes from URL parameters. Ordinary POST responses redirect
+to the source page; htmx responses update its existing hosts and deliver
+messages as toasts. Determine source rows before operations move or archive
+assignments. See n26.core.views.htmx.
 """
 
 from dataclasses import dataclass
@@ -80,28 +41,16 @@ from n26.core.views.permissions import _own_assignment_or_404, _safe_redirect
 from n26.library.models import marked_name
 from n26.library.staged import sees_staged
 
-#: The largest step this address will take, either way. Far above any
-#: step a control offers, and far below what the column holds.
+#: Bound direct tally changes below the integer storage limit.
 MOST_A_TALLY_MOVES = 1000
 
 
 def link_counters(card, back="", *, adjust=False):
-    """Point every counter line on this card at what changes it.
+    """Add controls for drawn, assigned counters without querying.
 
-    Costs no queries: the line already carries the assignment behind it,
-    and this only turns it into a URL. A line with none keeps an empty
-    href and draws as a number with nothing to click — which is right
-    for a card depicting nobody, and for every screen that shows a
-    counter without offering to move it.
-
-    ``back`` is the screen the card is drawn on, which the controls carry
-    so a reader with no scripting lands there. It is passed rather than
-    read off the request because a card redrawn after an act is rendered
-    under that act's own address, and a control sent back carrying it
-    would return the next reader to a POST-only endpoint.
-
-    A counter the author marked undrawn is passed over: it stays on the
-    card so conditions can check it, and no screen offers to move it.
+    Use the supplied source-page ``back`` rather than the request path: card
+    updates can run under POST-only operation URLs. Undrawn counters remain
+    available for conditions but receive no editing control.
     """
     for line in card.counters:
         if line.drawn and line.assignment_id:
@@ -112,22 +61,10 @@ def link_counters(card, back="", *, adjust=False):
 
 
 def _possession_or_404(request, pk):
-    """One of the viewer's own assignments, and one these acts are *about*.
+    """Resolve an owned assignment and reject non-possession kinds with 404.
 
-    ``_own_assignment_or_404`` answers who may act; this answers on what.
-    Both are needed, because a gang holds a great deal that is not kit and
-    every bit of it is an assignment with a primary key: the assignment
-    naming a model's profile **is** the model, and selling it would take
-    the fighter off the roster and everything they carry with them, for
-    half the price of the profile and nothing for the kit. The one naming
-    the gang's type is the gang. Neither has any business arriving at a
-    listing row's Sell button.
-
-    A 404 rather than a message: no control anywhere draws these
-    addresses, so a click that reaches here is a hand-made URL, and the
-    honest answer is that there is no such thing to sell. That is
-    different from the refusals below, which answer a control that does
-    exist with a reason.
+    Profiles and gang-type assignments are foundational records, so equipment
+    routes must not expose sale or removal for them.
     """
     assignment = _own_assignment_or_404(request, pk)
     if not is_possession(assignment.assignable):
@@ -136,14 +73,14 @@ def _possession_or_404(request, pk):
 
 
 def _bundled_profile_message(assignment, act):
-    """Why a weapon's own profile cannot leave without the gun."""
+    """Explain why a weapon's built-in profile cannot be removed separately."""
     name = assignment.assignable.name or str(assignment.assignable)
     weapon = str(assignment.parent.assignable) if assignment.parent_id else "the weapon"
     return f"You cannot {act} {name} on its own. It comes with {weapon}."
 
 
 def _refuse_bundled_profile(request, assignment, act, back):
-    """Answer a handmade click on a weapon profile that came with the gun."""
+    """Return an unchanged response for attempts to remove a bundled profile."""
     if not is_built_in_profile(assignment):
         return None
     messages.error(request, _bundled_profile_message(assignment, act))
@@ -151,17 +88,10 @@ def _refuse_bundled_profile(request, assignment, act, back):
 
 
 def _held(host, pk):
-    """The stored possession ``pk`` names, if this host is carrying it.
+    """Find an actionable possession in the host's loaded assignment tree.
 
-    The host's roots are the whole of the permission check for drawing a
-    dialog about it — and it is free, where fetching it again would be a
-    query per click. Broadcast assignments are skipped on a fighter's card:
-    they ride it so gang-wide rules reach it, and they are not this
-    fighter's to sell.
-
-    The same kind test the routes apply, so a URL naming the fighter's own
-    profile draws no dialog rather than a confirmation whose click would
-    404 — a screen must not ask a question its answer refuses.
+    Ignore broadcast and suppressed nodes. Gang-broadcast equipment belongs to
+    the gang, not the model whose card includes it.
     """
     for root in host.roots:
         for node in root.walk():
@@ -188,7 +118,7 @@ def _roster(gang):
 
 
 def _other_models(gang, miniature):
-    """Everyone else on the roster — where a thing could go instead."""
+    """List alternative live models on the gang's roster."""
     if miniature is None:
         return _roster(gang)
     return [model for model in _roster(gang) if model.pk != miniature.pk]
@@ -206,17 +136,9 @@ def _gang_weapons(gang):
 
 
 def accessory_catalogue(*, include_staged=False):
-    """Every accessory a reader may fit, read in one go.
+    """Load selectable accessories and their fit categories once for all weapons.
 
-    The whole table, because a screen showing a fighter's guns needs the
-    whole of it: what fits is decided per weapon in Python, so six guns
-    cost this one read rather than six. The table is small — a library's
-    accessories are counted in dozens where its weapons are counted in
-    hundreds.
-
-    ``fits_category`` comes with it. Building an accessory's selector
-    reads that category, so leaving it to be fetched later would turn one
-    query into one per accessory.
+    Fit checks run in Python; preloading categories prevents a query per accessory.
     """
     from n26.library.models import WeaponAccessory
 
@@ -228,16 +150,10 @@ def accessory_catalogue(*, include_staged=False):
 
 
 def fitting_accessories(weapon, catalogue=None, *, include_staged=False):
-    """What a reader is offered to bolt onto this weapon, priced.
+    """Price selectable accessories compatible with a weapon.
 
-    Narrowed to what fits — the bracket in the accessory's name, as
-    data. That shortens a list; it settles nothing, and
-    ``Operation.buy`` will bolt anything to anything, exactly as the
-    browse notes read. A shorter list is help, and a refusal would be a
-    rule the book does not have.
-
-    ``catalogue`` is the accessories to sift, for a caller asking this of
-    several weapons; without one it reads them itself.
+    Reuse ``catalogue`` for multiple weapons. Compatibility narrows suggestions;
+    the purchase operation does not prohibit other combinations.
     """
     if catalogue is None:
         catalogue = accessory_catalogue(include_staged=include_staged)
@@ -249,12 +165,7 @@ def fitting_accessories(weapon, catalogue=None, *, include_staged=False):
 
 
 def _asked(request):
-    """Which dialog this address is asking for, and about which assignment.
-
-    One at a time, in :data:`n26.core.owned.DIALOGS` order: a URL naming
-    two is answered with whichever comes first there, because two open
-    panels is not a state a page can mean.
-    """
+    """Select the first named confirmation in DIALOGS order when several parameters exist."""
     for kind in DIALOGS:
         named = request.GET.get(kind)
         if named:
@@ -262,32 +173,17 @@ def _asked(request):
     return None, None
 
 
-#: The act a question submits to, where that is not the question's own
-#: name. Fitting an accessory to a gun, and taking one off, are asked
-#: on their own, because Reassign is about which model holds a thing and
-#: these are not, and both are answered by the move that does it.
+#: Fit and Detach confirmation panels submit to the shared reassignment route.
 ROUTES = {"fit": "reassign", "detach": "reassign"}
 
 
 def refunded_credits(gang, paid):
-    """What a refund of something bought for ``paid`` puts back in this
-    gang's pocket.
-
-    Nothing, where the gang was founded with no budget: it counts no
-    credits — its number is its rating — so the ledger's figure is a
-    number nobody watching the gang would see move.
-    """
+    """Return recorded credit payment only when the gang tracks a credit budget."""
     return 0 if gang.credits_unlimited else paid
 
 
 def refund_words(gang, paid, trade_points):
-    """What a refund hands back, as a phrase to drop into a sentence.
-
-    Both figures where both moved, and the one that did otherwise. A gang
-    spending its models' founding allowances and nothing else is told
-    about the Trade Points alone, because naming a sum of money would
-    promise it a figure that never moves.
-    """
+    """Describe refundable credits and founding trade points, omitting unused resources."""
     from django.template.defaultfilters import pluralize
 
     credits = refunded_credits(gang, paid)
@@ -298,15 +194,7 @@ def refund_words(gang, paid, trade_points):
 
 
 def removal_words(gang, paid, trade_points):
-    """The sentence under a removal: what it hands back, and what Refund
-    would hand back instead.
-
-    A gang with a budget hears about credits, which is what its removals
-    keep spent. A gang counting none hears what it would actually get —
-    its models' founding Trade Points — because "the amount paid" would
-    name money it has none of, and where no allowance paid for the thing
-    there is nothing to point it at.
-    """
+    """Explain that removal returns nothing and identify any available refund alternative."""
     if not gang.credits_unlimited:
         return "No credits are returned. Use Refund instead to recover the amount paid."
     if trade_points:
@@ -318,43 +206,27 @@ def removal_words(gang, paid, trade_points):
 
 
 def _panel(request, assignment, kind, at):
-    """What every one of these dialogs says, whatever it is asking."""
+    """Build shared confirmation fields, preserving catalogue and section navigation state."""
     from n26.core.views.choose import SHOWING, showing_dismissed
 
     return {
         "kind": kind,
-        # With the book's asterisk where this is a two-slot weapon, as
-        # the line the reader clicked draws it.
+        # Keep the two-slot marker used by the clicked listing label.
         "name": marked_name(assignment.assignable),
         "cancel_url": at,
         "action": reverse(f"n26-{ROUTES.get(kind, kind)}", args=[assignment.pk]),
         "list": request.GET.get("list", ""),
-        # Which section tab the reader had open, carried through the
-        # click so the answer lands where the question was asked. The
-        # listing's own form does this with a hidden field the picker
-        # writes; a dialog is a form of its own and has to say it here.
+        # Preserve the catalogue section in this separate confirmation form.
         "section": request.GET.get("section", ""),
         "dismissed": SHOWING if showing_dismissed(at) else "",
     }
 
 
 def panel_response(request, dialog, *, htmx=True):
-    """The confirmation panel alone, for an htmx GET that named one.
+    """Render a confirmation partial for htmx GETs, otherwise return ``None``.
 
-    ``None`` for every other request, so a caller reads it as "not that
-    kind of click" and carries on rendering the screen.
-
-    ``HX-Replace-Url`` sets the address to the one that renders this
-    panel on a plain visit — so a reload draws it again and a link to it
-    works. Replaced rather than pushed: an open confirmation is not
-    somewhere to go back to, and the panel's own way out already stands
-    where the back button would.
-
-    ``htmx`` is whether the panel's own submit may post partially: only
-    a screen holding every element such an update names may say so. The
-    equip screens do; the model's own page holds no row an update could
-    name, so there the act is an ordinary post and the page is drawn
-    again.
+    Replace the URL so reloads reproduce the open panel. Only callers containing
+    all required update hosts may permit partial form submission.
     """
     if request.method != "GET" or not is_htmx(request):
         return None
@@ -366,19 +238,10 @@ def panel_response(request, dialog, *, htmx=True):
 
 
 def accessorise_dialogs(request, host: EquipHost):
-    """The accessory question for every weapon on this host, all of them.
+    """Build one accessory panel per owned weapon using a shared catalogue query.
 
-    Not only the one the URL names. A page draws the lot — closed, and
-    each one addressed by the id of the assignment it is about — so the click
-    that opens one is the browser showing a panel that is already there
-    rather than a rebuild of a screen that can run to hundreds of rows.
-    The address is still what says which is open: with no script the
-    button is a link, and the one it names is the one drawn open here.
-
-    Every weapon costs the same single read of the accessory table.
-    Fitting is then arithmetic on what the host already holds, so a screen
-    carrying six guns asks the database exactly what a screen carrying one
-    does — and a screen carrying none asks nothing.
+    The URL selects which panel starts open. Pre-rendered panels avoid rebuilding
+    the listing for each open action; hosts without weapons issue no catalogue read.
     """
     kind, named = _asked(request)
     weapons = weapons_on(host)
@@ -394,16 +257,12 @@ def accessorise_dialogs(request, host: EquipHost):
         dialogs.append(
             panel
             | {
-                # The assignment this is about, which is also what the
-                # control that opens it names.
+                # Use the assignment identifier shared with the panel-opening control.
                 "id": pk,
                 "open": kind == "accessorise" and named == pk,
                 "title": f"Add an accessory to {panel['name']}",
                 "accessories": accessories,
-                # Nothing that fits is nothing to click. The panel says so
-                # and offers the way out, rather than a green button over an
-                # empty list — the commit is the one control that must mean
-                # something.
+                # Omit the submit control when there are no compatible accessory suggestions.
                 "submit_label": "Add accessory" if accessories else "",
                 "submit_variant": "success",
             }
@@ -412,17 +271,10 @@ def accessorise_dialogs(request, host: EquipHost):
 
 
 def owned_dialog(request, host: EquipHost):
-    """The dialog the URL says is open, as a template's worth of facts.
+    """Build the URL-selected confirmation for an actionable possession on this host.
 
-    One of the query parameters in :data:`n26.core.owned.DIALOGS`, naming
-    an assignment on this host. A name that is not on the host draws nothing at
-    all: a stale link is a page without a dialog, not an error worth a
-    screen.
-
-    ``accessorise`` is not among them: that question is drawn for every
-    weapon on the host by :func:`accessorise_dialogs`, one of which the
-    address opens. Answering it here as well would draw the same panel
-    twice.
+    Unknown assignments and invalid actions display no panel. Accessory purchase
+    panels are built separately by ``accessorise_dialogs`` to avoid duplication.
     """
     from n26.core.operations import (
         MINIMUM_PROCEEDS,
@@ -442,58 +294,37 @@ def owned_dialog(request, host: EquipHost):
         return None
     if kind == "reassign" and assignment.pk in host.bound_items:
         return None
-    # A weapon's own profile belongs to the gun. A screen must not
-    # ask a question its answer refuses, so those addresses draw nothing.
+    # Suppress separate removal confirmations for bundled profiles.
     if kind in {"sell", "refund", "remove"} and is_built_in_profile(assignment):
         return None
 
-    # What a refund of this would hand back, asked once and only where
-    # the answer decides something: what the refund panel promises, and
-    # whether a gang that returns no credits has Trade Points to return
-    # instead. A gang with a budget always offers the act, so its remove
-    # panel settles that without asking.
+    # Read recorded payments only when they affect refund availability or wording.
     asks_figures = kind == "refund" or (kind == "remove" and gang.credits_unlimited)
     refunding, paid = refund_of(assignment) if asks_figures else ((), 0)
     points = trade_points_in(refunding)
-    # A gang founded without a budget pays no credits, so a refund of a
-    # purchase it made in credits alone would give nothing back: that
-    # address asks the remove question instead, exactly as the
-    # fighter-level flow answers. Points off a founding allowance are a
-    # different matter — those come back.
+    # Unlimited-credit purchases with no refundable founding points use removal.
     if kind == "refund" and gang.credits_unlimited and not points:
         kind = "remove"
 
     name = marked_name(assignment.assignable)
-    # A part is what hangs off something else — ammo in a gun, a sight
-    # bolted to it. It is removed rather than deleted, because what is
-    # left afterwards is still the fighter's gun.
+    # Use Remove for nested possessions because their top-level weapon remains.
     is_part = assignment.parent_id is not None
     dialog = _panel(request, assignment, kind, host.at) | {
         "stash_host": host.is_stash,
-        # The removal panel's own sentence, worked out where the figures
-        # are already in hand rather than by the template asking whether
-        # this gang has a budget.
+        # Compute removal wording here using the already-loaded payment figures.
         "remove_note": removal_words(gang, paid, points),
     }
 
     if kind == "sell":
-        # Anything bolted on that the gang could keep instead of selling.
-        # Keeping them is what the dialog offers first, so it is also what
-        # the figures are worked out for: the number a reader is shown is
-        # the number the button they are looking at will pay.
-        #
-        # With nowhere to keep them there is no choice to offer, and the
-        # route behind this reads the stash the same way — a screen must
-        # not ask a question its answer cannot honour.
+        # Default proceeds to keeping detachable accessories in the stash.
+        # Offer that choice only when a stash exists, matching the sale route.
         keepable = (
             detachable_children(assignment)
             if getattr(gang, "stash", None) is not None
             else []
         )
         _, rating, proceeds = sale_of(assignment, keeping=keepable)
-        # Half of the figure, or the floor — whichever decided it. The
-        # arithmetic is stated because the number is money and there is
-        # nothing on the page for a reader to check it against.
+        # Explain whether rounding or the minimum sale price determined proceeds.
         halved = proceeds * 2 <= rating + 1
         sale = dialog | {
             "title": f"Sell {name}?",
@@ -510,15 +341,11 @@ def owned_dialog(request, host: EquipHost):
         }
         if not keepable:
             return sale
-        # The second figure, priced the same way: selling the whole of it
-        # pays more, and the choice is not one a reader can make on the
-        # strength of a number that describes only one of the answers.
+        # Show separate proceeds for selling the detachable accessories too.
         _, _, with_extras = sale_of(assignment)
         word = "accessory" if len(keepable) == 1 else "accessories"
         return sale | {
-            # Named rather than counted: the reader is deciding whether
-            # they want *these* back later, and a bare "2 accessories"
-            # answers none of that.
+            # Name the accessories being kept or sold so the choice identifies its contents.
             "keepable": ", ".join(str(child.assignable) for child in keepable),
             "keep_label": f"Stash the {word}",
             "keep_detail": f"Keep to refit later. {proceeds}¢ for the gun alone.",
@@ -555,31 +382,20 @@ def owned_dialog(request, host: EquipHost):
         }
 
     if kind == "fit":
-        # An accessory is the only thing bolted onto anything, so a URL
-        # naming something else draws no dialog at all. Without this a
-        # gun's own address opens a picker holding that same gun, whose
-        # answer would be attaching it to itself — a screen must not ask
-        # a question its answer refuses.
+        # Reject Fit panels for non-accessories to prevent invalid self-attachment choices.
         if assignment.weapon_accessory_id is None:
             return None
-        # A sight the gun came with belongs to the package. Unbolting it
-        # onto another gun would leave the gang holding something the
-        # sale of this gun is meant to take with it.
+        # Bundled accessories stay with their granting weapon.
+        # Enforce this here because the reassignment operation does not reject them.
         if assignment.caused_by_id is not None:
             return None
-        # Every gun on the card except the one this already hangs off,
-        # and not only the ones the accessory was written for: what fits
-        # what is information rather than a gate, and an owner may bolt
-        # anything to anything. The gun it is already on is not a
-        # destination — fitting it there would be leaving it where it is.
+        # Offer other weapons without compatibility gating, excluding the current parent.
         weapons = [
             node
             for node in weapons_on(host)
             if node.assignment.pk != assignment.parent_id
         ]
-        # A bolted accessory with no other gun on the card has nowhere
-        # to go, and the row does not draw Fit for it. A loose one still
-        # gets the panel, which says there is no weapon here.
+        # Hide Fit when an attached accessory has no alternative weapon; loose ones show the empty state.
         if not weapons and assignment.parent_id is not None:
             return None
         return dialog | {
@@ -593,9 +409,7 @@ def owned_dialog(request, host: EquipHost):
         }
 
     if kind == "detach":
-        # Only a copy that can come off and stay with the gang. A firing
-        # line cannot; a sight the gun came with cannot; something
-        # already loose has nothing to come off.
+        # Detach applies only to independently bought, currently attached accessories.
         if not can_unbolt(assignment):
             return None
         parent = assignment.parent.assignable
@@ -654,12 +468,7 @@ def owned_dialog(request, host: EquipHost):
         }
 
     if kind == "refund":
-        # The figures are what the ledger says was handed over, which is
-        # not on the page anywhere and is not the price the listing
-        # quotes — so the sentence says which numbers they are as well as
-        # what they are. Trade Points are named where any moved: a gang
-        # spending its founding allowance is being handed back the only
-        # thing it paid.
+        # Refunds use recorded payments rather than catalogue prices, including founding trade points.
         credits = refunded_credits(gang, paid)
         return dialog | {
             "title": f"Refund {name}?",
@@ -683,12 +492,9 @@ def owned_dialog(request, host: EquipHost):
 
 
 def link_stash_actions(sheet, at, *, refunds=True, bound_items=frozenset()):
-    """Add dialog links without querying; print and read-only sheets stay plain.
+    """Add stash action URLs from loaded line data, without querying.
 
-    ``refunds`` is whether the gang refunds in credits at all. A gang
-    founded without a budget has none to give back, so a stash line is
-    offered Refund only where a founding allowance paid for it — the line
-    already says which, off the card the sheet was drawn from.
+    Offer refunds when credits can return or a founding allowance paid trade points.
     """
     from n26.core.listing import DANGER, LINK, SECONDARY, Action
 
@@ -716,12 +522,7 @@ def link_stash_actions(sheet, at, *, refunds=True, bound_items=frozenset()):
 
 
 def stash_menu(actions):
-    """A stash line's menu, as entries for ``<c-n26.action-menu>``.
-
-    The others come first, then each danger act with a separator above it
-    whenever the line offers more than one act. A single pass would leave
-    a destructive act in the middle of the menu.
-    """
+    """Order ordinary links before destructive links, separating each destructive action."""
     from n26.core.listing import DANGER, LINK
 
     def entry(action, separator_before=False):
@@ -742,17 +543,10 @@ def stash_menu(actions):
 
 
 def link_possession_actions(model_card, host, *, refunds=True):
-    """Point each kit line at the same acts the equip listing offers.
+    """Add equipment action links from the host's loaded possession tree.
 
-    Costs no queries: the host's card is already built, and this only
-    turns stored assignment ids into addresses on ``host.at``. A line
-    with no assignment — granted gear, a hire preview — stays a name
-    with nothing to click.
-
-    ``refunds`` is whether the gang refunds in credits at all, the same
-    flag the listing takes: a gang founded without a budget has none to
-    give back, and each copy says for itself whether a founding allowance
-    paid for it.
+    Unassigned grants and preview content remain unlinked. Refund availability
+    uses the same credit and founding-allowance rules as catalogue listings.
     """
     from dataclasses import replace
 
@@ -776,9 +570,7 @@ def link_possession_actions(model_card, host, *, refunds=True):
         ]
 
     model_card.equipment = linked(model_card.equipment)
-    # Gear under its own heading is still gear: without this a group's
-    # lines would draw with no menu, and an upgrade could be bought and
-    # then not taken off.
+    # Apply possession menus to category-specific gear groups too.
     for group in model_card.gear_groups:
         group.lines = linked(group.lines)
     for weapon in model_card.weapons:
@@ -799,7 +591,7 @@ def link_possession_actions(model_card, host, *, refunds=True):
 
 
 def _back_to(request, assignment, gang):
-    """Infer the source screen before an operation moves the assignment."""
+    """Infer the source screen and navigation state before an assignment moves."""
     if assignment.stash_root_id or assignment.stash_id:
         base = reverse("n26-equip-gang", args=[gang.pk])
     elif assignment.miniature_root_id:
@@ -820,22 +612,16 @@ def _return_to(request, fallback):
 
 @dataclass(frozen=True)
 class _Touched:
-    """The row an act changes, and whose equip screen draws it."""
+    """A changed catalogue key and the model whose listing renders it."""
 
     key: str
     miniature: object | None
 
 
 def _row_behind(assignment):
-    """The row an act on this assignment changes.
+    """Find the top-level listing containing an assignment.
 
-    A part is drawn under the thing it hangs from — a gun's ammo, a sight
-    bolted to it — so what changes is that thing's row and never one of
-    its own.
-
-    Read before the act rather than after: selling archives the
-    assignment and a move points it somewhere else, so afterwards it no
-    longer says which screen the click came from.
+    Read before moving or archiving it, because its source host may change.
     """
     node = assignment
     while node.parent_id is not None:
@@ -844,33 +630,17 @@ def _row_behind(assignment):
 
 
 def _unchanged(request, back):
-    """The response for an act that changed nothing on the screen.
-
-    A refusal, or a submission that matched what was already stored. The
-    reason is queued as a message; without htmx it lands on the full
-    page, with htmx it rides the response as a toast.
-    """
+    """Return queued messages without a row update, or redirect an ordinary submission."""
     if not is_htmx(request):
         return _return_to(request, back)
     return no_update(request)
 
 
 def _acted(request, touched, gang, back, also=""):
-    """The response for an act that changed a row.
+    """Update affected htmx rows and close the panel, or redirect to the source page.
 
-    With htmx: the partial update for the row, with the confirmation
-    panel closed, and the address set back to the screen behind the
-    panel — the address that renders that screen on a plain visit.
-    Without: a redirect to that screen.
-
-    Which row stood open travels with the click — the address holds it,
-    and every htmx request carries it along (see
-    n26/core/static/n26/htmx_support.js) — so the update draws the row
-    in the state the reader left it.
-
-    ``also`` is a second row on the same screen that the act changed as
-    well; :func:`n26.core.views.equip.render_update` says when there is
-    one.
+    Preserve expanded-row state from POST. ``also`` identifies another changed
+    row on that same screen.
     """
     from n26.core.views.equip import render_update
 
