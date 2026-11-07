@@ -1,17 +1,13 @@
 {% comment %}The edit control supplied by a declared detail row.{% endcomment %}
 <c-n26.model-card.mode when="edit">
-    <c-ui.tooltip size="sm">
-        <c-ui.button variant="text"
-                     size="xs"
-                     class="ms-1 py-0!"
-                     href="{{ row.edit_href }}"
-                     aria-label="Edit skills &amp; powers">
-            <span class="n26-icon-inline">
-                <c-n26.icon name="pencil" />
-            </span>
-        </c-ui.button>
-        <c-slot name="content">
-            Edit skills &amp; powers
-        </c-slot>
-    </c-ui.tooltip>
+    <c-ui.button variant="text"
+                 size="xs"
+                 class="ms-1 py-0!"
+                 href="{{ row.edit_href }}"
+                 title="Edit skills &amp; powers"
+                 aria-label="Edit skills &amp; powers">
+        <span class="n26-icon-inline">
+            <c-n26.icon name="pencil" />
+        </span>
+    </c-ui.button>
 </c-n26.model-card.mode>
