@@ -28,18 +28,12 @@ TINYMCE_UPLOAD_CONFIG = {
     "resize": "both",
     "width": "100%",
     "height": "400px",
-    # Kept deliberately small. Across ~3,700 rich-text documents in production,
-    # 80%+ are plain paragraphs; tables, colours and font pickers are used by a
-    # handful of documents each, and nobody had ever set a text colour. The
-    # menubar (which carried tables, fonts, colours, code samples and media) is
-    # off, and the toolbar covers what people actually use.
+    # Keep the toolbar focused on paragraph formatting, lists, links and images.
     "plugins": "autoresize autosave image link lists textpattern",
     "toolbar": "undo redo | blocks | bold italic underline | bullist numlist | link image | removeformat",
     "menubar": False,
-    # Images are laid out by the page, not hand-sized by the author: no
-    # width/height fields in the image dialog and no drag handles, both of
-    # which wrote inline dimensions (often percentages). Site CSS already caps
-    # images at the container width.
+    # Let page CSS size images. Disable editor dimensions and resize handles
+    # so authored inline sizes do not override that layout.
     "image_dimensions": False,
     "object_resizing": False,
     "content_style": "img { max-width: 100%; height: auto; }",
@@ -105,9 +99,8 @@ TINYMCE_UPLOAD_CONFIG = {
     """,
 }
 
-# Inject the configured CSRF cookie name into the upload handler's cookie-fallback
-# branch. Defaults to "csrftoken", but settings_dev.py renames it per-worktree so
-# concurrent dev servers don't share one cookie jar — the JS must read the same name.
+# Use the configured CSRF cookie name in the upload fallback so port-specific
+# worktree cookies continue to authenticate uploads.
 TINYMCE_UPLOAD_CONFIG["images_upload_handler"] = TINYMCE_UPLOAD_CONFIG[
     "images_upload_handler"
 ].replace("__CSRF_COOKIE_NAME__", settings.CSRF_COOKIE_NAME)
@@ -120,14 +113,12 @@ class TinyMCEWithUpload(TinyMCE):
         if mce_attrs is None:
             mce_attrs = {}
 
-        # Merge with default upload config
         final_mce_attrs = {**TINYMCE_UPLOAD_CONFIG, **mce_attrs}
 
         super().__init__(attrs=attrs, mce_attrs=final_mce_attrs, **kwargs)
 
 
-# Bootstrap-styled form widgets. Their templates live in
-# gyrinx/pages/templates/pages/forms/widgets/ — platform, not edition.
+# Shared Bootstrap widget templates live under gyrinx/pages/templates/pages/forms/widgets/.
 class BsCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
     template_name = "pages/forms/widgets/bs_checkbox_select.html"
     option_template_name = "pages/forms/widgets/bs_checkbox_option.html"

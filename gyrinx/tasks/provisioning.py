@@ -1,17 +1,8 @@
-"""
-Auto-provision Pub/Sub and Cloud Scheduler infrastructure for registered tasks.
+"""Provision per-task Pub/Sub resources and optional Cloud Scheduler jobs.
 
-This module creates:
-- Pub/Sub topics and push subscriptions for all registered tasks
-- Cloud Scheduler jobs for tasks with a schedule configured
-
-All subscriptions point to the same /tasks/pubsub/ endpoint; routing is handled
-by the task_name field in the message payload. Scheduled tasks publish to the
-same topics, reusing the existing push handler.
-
-Orphan cleanup: When scheduled tasks are removed from the registry, this module
-detects and deletes the corresponding Cloud Scheduler jobs to prevent stale
-jobs from running.
+All push subscriptions deliver to /tasks/pubsub/ and task_name selects the
+handler. Scheduled jobs publish to those topics. Remove managed Scheduler
+jobs whose routes are no longer scheduled.
 """
 
 import json
@@ -33,44 +24,25 @@ from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)
 
-# Prefix used for scheduler job names to identify jobs managed by this system
 SCHEDULER_JOB_PREFIX = "gyrinx-scheduler"
 
-# Tasks are provisioned concurrently: each one is ~3 blocking round trips to the
-# Pub/Sub admin API (~1.5s each), and run serially that was ~40s for 8 tasks.
-# They touch disjoint resources, so there is nothing to serialise for.
+# Provision independent task resources concurrently to avoid serial network waits.
 PROVISION_MAX_WORKERS = 8
 
-# Two containers cold-starting together will both try to update the same
-# subscription, and one gets a 409. It is benign — the other process is writing
-# the identical config — so retry briefly rather than reporting a failure.
+# Concurrent container startup can conflict when updating the same subscription.
 CONFLICT_RETRIES = 2
 
 
 def get_service_url() -> str:
-    """
-    Get the Cloud Run service URL for push subscriptions.
-
-    CLOUD_RUN_SERVICE_URL must be set manually in production (Cloud Run does
-    not set this automatically). Falls back to localhost for local development.
-    """
+    """Return CLOUD_RUN_SERVICE_URL, falling back to localhost for development."""
     return os.getenv("CLOUD_RUN_SERVICE_URL", "http://localhost:8000")
 
 
 def provision_task_infrastructure():
-    """
-    Create Pub/Sub topics, subscriptions, and Cloud Scheduler jobs.
+    """Create or update registered task topics, subscriptions and Scheduler jobs.
 
-    This is idempotent - safe to run on every Cloud Run startup. Existing
-    resources are skipped or updated with current config.
-
-    Creates:
-    - Topics: {env}--gyrinx.tasks--{task.path}
-    - Subscriptions: {topic_name}-sub -> /tasks/pubsub/
-    - Scheduler jobs: {env}--gyrinx-scheduler--{task.path} (for scheduled tasks)
-
-    Also cleans up orphaned scheduler jobs that no longer have a corresponding
-    task in the registry.
+    Skip provisioning without GCP_PROJECT_ID. Handle each route independently
+    and remove orphaned managed Scheduler jobs.
     """
     project_id = getattr(settings, "GCP_PROJECT_ID", None)
     if not project_id:
@@ -109,12 +81,10 @@ def provision_task_infrastructure():
             logger.error(f"Failed to provision {route.name}: {e}", exc_info=True)
             track("task_provisioning_failed", task_name=route.name, error=str(e))
 
-    # `_run` swallows its own exceptions, so the pool always drains and one bad
-    # task cannot take the rest of the provisioning down with it.
+    # Per-task failures are logged so the pool drains and other tasks still provision.
     with ThreadPoolExecutor(max_workers=PROVISION_MAX_WORKERS) as pool:
         list(pool.map(_run, tasks))
 
-    # Provision Cloud Scheduler jobs for scheduled tasks
     _provision_scheduled_tasks(project_id=project_id, publisher=publisher, tasks=tasks)
 
 
@@ -132,16 +102,13 @@ def _provision_task(
     subscription_name = f"{route.topic_name}-sub"
     subscription_path = subscriber.subscription_path(project_id, subscription_name)
 
-    # Create topic if it doesn't exist
     try:
         publisher.create_topic(request={"name": topic_path})
         logger.info(f"Created topic: {route.topic_name}")
     except AlreadyExists:
         logger.debug(f"Topic exists: {route.topic_name}")
 
-    # Configure push subscription with OIDC authentication
-    # Audience must be the base service URL (not the full endpoint path)
-    # to match what the view expects in CLOUD_RUN_SERVICE_URL
+    # Use the base service URL as the OIDC audience to match push-token verification.
     push_config = pubsub_v1.types.PushConfig(
         push_endpoint=push_endpoint,
         oidc_token=pubsub_v1.types.PushConfig.OidcToken(
@@ -150,10 +117,8 @@ def _provision_task(
         ),
     )
 
-    # Configure retry policy from task route settings
     retry_policy = route_retry_policy(route)
 
-    # Create subscription or update if it exists
     try:
         subscriber.create_subscription(
             request={
@@ -166,7 +131,6 @@ def _provision_task(
         )
         logger.info(f"Created subscription: {subscription_name}")
     except AlreadyExists:
-        # Update existing subscription with current configuration
         _update_subscription_tolerating_conflict(
             subscriber=subscriber,
             subscription_path=subscription_path,
@@ -183,19 +147,10 @@ def _update_subscription_tolerating_conflict(
     push_config,
     route: TaskRoute,
 ):
-    """
-    Update a subscription, retrying briefly if another process is writing it.
+    """Retry concurrent subscription updates with exponential backoff and jitter.
 
-    Two containers provisioning at once both write this subscription, and Pub/Sub
-    rejects the loser with 409 "The request raced with another user request".
-    Usually both are writing identical config and the conflict carries no
-    information, so retry with jitter and do not treat it as a failure.
-
-    Where the two writers are different revisions, though, they can be writing
-    *different* config — and silently giving up would leave the subscription on
-    the other revision's settings. So once the retries are exhausted, read the
-    subscription back and say which of the two happened. Both are WARNINGs; the
-    `task_provisioning_diverged` metric is what distinguishes them for alerting.
+    After retries, compare live configuration with this revision's desired
+    fields. Log unresolved conflicts and track divergent configuration separately.
     """
     desired = {
         "name": subscription_path,
@@ -232,13 +187,9 @@ def _update_subscription_tolerating_conflict(
 
 
 def _diff_against_live(desired: dict, live) -> list[str]:
-    """
-    Name the settings where a live subscription differs from what we wanted.
+    """Compare only subscription fields this update controls.
 
-    Compares the individual values the update sets, never whole messages. The
-    server fills in defaults we never asked for — a push subscription comes back
-    carrying an empty `pubsub_wrapper`, for instance — so comparing the protos
-    whole reports a difference for every subscription, including correct ones.
+    Ignore server-populated defaults outside those fields to avoid false differences.
     """
     want_push = desired["push_config"]
     want_retry = desired["retry_policy"]
@@ -271,13 +222,9 @@ def _report_unsettled_conflict(
     route: TaskRoute,
     error: Exception,
 ):
-    """
-    Decide how loudly to complain about a conflict that never settled.
+    """Read back a conflicted subscription and report whether its configuration matches.
 
-    Reads the subscription back and compares the fields the update would have
-    set. If the winning writer left the same values, nothing is wrong. If it did
-    not, the subscription is running someone else's config and that needs saying
-    plainly.
+    Track divergence separately from matching updates or an unverifiable read.
     """
     try:
         live = subscriber.get_subscription(request={"subscription": subscription_path})
@@ -293,12 +240,8 @@ def _report_unsettled_conflict(
     divergent = _diff_against_live(desired, live)
 
     if divergent:
-        # WARNING, not ERROR. A rolling deploy is exactly when two revisions
-        # provision at once, so a route whose config changed in that deploy will
-        # land here on the way through — an expected, self-correcting condition,
-        # and crying wolf about it in Cloud Logging is the habit this whole change
-        # is trying to break. The metric below is the thing worth alerting on:
-        # it firing repeatedly, long after a deploy has settled, is the signal.
+        # Concurrent revisions can temporarily apply different configurations during deployment.
+        # Track persistent divergence separately from expected provisioning conflicts.
         logger.warning(
             f"Subscription {subscription_name} was written concurrently by another "
             f"process and now differs from this revision's config in "
@@ -333,23 +276,13 @@ def _provision_scheduled_tasks(
     publisher: pubsub_v1.PublisherClient,
     tasks: list[TaskRoute],
 ):
-    """
-    Provision Cloud Scheduler jobs for tasks with schedules configured.
-
-    Cloud Scheduler jobs publish to the task's Pub/Sub topic on their cron
-    schedule. The existing push handler receives and executes them like any
-    other task.
-
-    Also cleans up orphaned scheduler jobs that no longer have a corresponding
-    scheduled task in the registry.
-    """
+    """Provision scheduled routes and clean up orphaned managed jobs."""
     location = getattr(settings, "SCHEDULER_LOCATION", "europe-west2")
     env = getattr(settings, "TASKS_ENVIRONMENT", "dev")
     scheduled_tasks = [t for t in tasks if t.is_scheduled]
 
     scheduler = scheduler_v1.CloudSchedulerClient()
 
-    # Clean up orphaned scheduler jobs first
     _cleanup_orphaned_scheduler_jobs(
         scheduler=scheduler,
         project_id=project_id,
@@ -392,31 +325,21 @@ def _cleanup_orphaned_scheduler_jobs(
     env: str,
     scheduled_tasks: list[TaskRoute],
 ):
-    """
-    Delete Cloud Scheduler jobs that no longer have a corresponding task.
-
-    This prevents stale jobs from running after a scheduled task is removed
-    from the registry. Only jobs with our naming prefix are considered.
-    """
+    """Delete jobs with this environment's managed prefix that have no scheduled route."""
     parent = f"projects/{project_id}/locations/{location}"
     job_prefix = f"{env}--{SCHEDULER_JOB_PREFIX}--"
 
-    # Build set of expected job names from current scheduled tasks
     expected_job_names = {route.scheduler_job_name for route in scheduled_tasks}
 
     try:
-        # List all jobs in the location
         for job in scheduler.list_jobs(
             request=scheduler_v1.ListJobsRequest(parent=parent)
         ):
-            # Extract job ID from full name (projects/.../locations/.../jobs/JOB_ID)
             job_id = job.name.split("/")[-1]
 
-            # Only consider jobs with our prefix
             if not job_id.startswith(job_prefix):
                 continue
 
-            # Delete if not in expected set
             if job_id not in expected_job_names:
                 try:
                     scheduler.delete_job(
@@ -425,7 +348,6 @@ def _cleanup_orphaned_scheduler_jobs(
                     logger.info(f"Deleted orphaned scheduler job: {job_id}")
                     track("scheduler_job_deleted", job_name=job_id, reason="orphaned")
                 except NotFound:
-                    # Job was already deleted (race condition), that's fine
                     pass
                 except Exception as e:
                     logger.error(f"Failed to delete orphaned job {job_id}: {e}")
@@ -436,7 +358,6 @@ def _cleanup_orphaned_scheduler_jobs(
                     )
 
     except Exception as e:
-        # Don't fail provisioning if cleanup fails - log and continue
         logger.warning(f"Failed to list scheduler jobs for cleanup: {e}")
         track("scheduler_cleanup_failed", error=str(e))
 
@@ -448,21 +369,13 @@ def _provision_scheduler_job(
     location: str,
     route: TaskRoute,
 ):
-    """
-    Create or update a Cloud Scheduler job for a single scheduled task.
-
-    The job publishes to the task's Pub/Sub topic with a message format
-    compatible with the existing push handler.
-    """
+    """Create or update a route's Scheduler job with a push-handler-compatible payload."""
     job_name = (
         f"projects/{project_id}/locations/{location}/jobs/{route.scheduler_job_name}"
     )
     topic_path = publisher.topic_path(project_id, route.topic_name)
 
-    # Build message payload compatible with push handler.
-    # Note: Unlike backend.enqueue(), we omit enqueued_at since this is a
-    # static template reused for every execution. The Pub/Sub message ID
-    # provides uniqueness for each delivery (logged in the handler).
+    # Omit enqueued_at because Scheduler reuses this payload for every execution.
     message_data = json.dumps(
         {
             "task_id": f"scheduled-{route.name}",
@@ -472,8 +385,7 @@ def _provision_scheduler_job(
         }
     ).encode("utf-8")
 
-    # Retry configuration for Cloud Scheduler (separate from Pub/Sub retries).
-    # This controls retries when Scheduler fails to publish to Pub/Sub.
+    # Scheduler retries publishing to Pub/Sub independently of subscription delivery retries.
     retry_config = scheduler_v1.RetryConfig(
         retry_count=3,
         min_backoff_duration=duration_pb2.Duration(seconds=5),
@@ -507,7 +419,6 @@ def _provision_scheduler_job(
             timezone=route.schedule_timezone,
         )
     except AlreadyExists:
-        # Update existing job with current configuration
         scheduler.update_job(
             request=scheduler_v1.UpdateJobRequest(
                 job=job,
@@ -524,7 +435,6 @@ def _provision_scheduler_job(
         )
         logger.debug(f"Updated scheduler job: {route.scheduler_job_name}")
     except NotFound:
-        # Parent location doesn't exist - this shouldn't happen with valid config
         logger.error(
             f"Location {location} not found. "
             f"Check SCHEDULER_LOCATION setting matches your GCP region."

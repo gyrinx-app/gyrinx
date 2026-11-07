@@ -1,50 +1,23 @@
-"""Deleting content, and the test gangs holding it.
+"""Plan content deletion, including eligible staff test gangs and free copies.
 
-Deleting is for the unused: every reference to a library row protects
-it, so a row a gang holds, a list offers or a modifier names is refused
-in words. That is right for a player's gang and wrong for the author's
-own. Checking new content means founding a gang on it — hiring its
-fighters, buying from its lists, making its picks — and a player's
-Delete gang only archives, so that gang goes on holding every row it
-touched for ever. The content it was written to check can then never be
-deleted at all.
+The shared reference reader classifies dependencies as cascading parts, eligible
+test data or blocking references. Test gangs must be staff-owned and share no
+campaign or battle with player gangs. A campaign is eligible only when every gang
+is eligible. Preserve reusable carried modifiers; delete unshared modifiers that
+reference removed content.
 
-This module decides what a delete takes with it. :func:`plan_deletion`
-reads every reference to the rows asked for, through the one reference
-reader, and sorts each into one of three:
+``remove_free_lines`` permits removal of unpaid weapon profiles without dependent
+content. ``remove_built_in_copies`` permits equivalent free default copies after
+authors remove every live membership granting them. Paid copies and copies with
+dependants block deletion.
 
-* **goes with it** — a part of the row (a weapon's firing lines, a
-  list's entries), or a modifier that names the row and that nothing
-  standing carries. Deleted along with the row. A modifier the row
-  merely carries is not the row's to take: it stays, as a reusable.
-* **a test gang** — a gang owned by a member of staff that no player is
-  in a campaign or a battle with. Deleted whole, with everything hanging
-  off it; a campaign holding the content goes the same way when every
-  gang in it is such a gang.
-* **a refusal** — a player's gang, a campaign a player is in, or another
-  authored row (a list line, a built-in, a modifier carried by something
-  that stays). The author edits those first: content that has been used
-  is history, and content something else names is a decision.
+The preview enumerates the complete plan. ``apply`` locks and replans before
+deleting eligible test gangs, campaigns and library content in one transaction. It
+rejects changed plans and performs no ledger reconciliation.
 
-A firing line has one more ending, asked for with ``remove_free_lines``.
-A weapon's free lines ride along with it onto every fighter that has the
-weapon: nobody chose them and nobody paid. Deleting such a line is not
-taking history away from anyone, it is reversing a grant the content
-made, so the plan names the fighters that have it and the line is
-removed from each, gang by gang, before the row goes
-(:func:`remove_free_lines_from`). A line somebody paid for, or one with
-something under it, refuses as any held row does.
-
-A copy a built-in set handed out is free in the same way, and takes the
-same ending when asked for with ``remove_built_in_copies``: nobody chose
-it and nobody paid. Once the author has taken
-the thing out of every set, the archived memberships go with the row
-and the copies are removed gang by gang first. A thing a set still
-brings refuses, because every future hire would bring it again.
-
-The plan is the contract. The page draws it, and :func:`apply` reads it
-again under locks and performs exactly it, or refuses because what stood
-has changed since it was read. Nothing here writes outside ``apply``.
+Free-copy removal uses ``remove_free_lines_from`` gang by gang with reconciliation
+checks. The final gang deletes unused library content once its remaining
+references are gone.
 """
 
 from collections import Counter
@@ -57,19 +30,18 @@ from n26.library.references import named, references_to
 
 
 class Refused(Exception):
-    """The deletion cannot run, and the reason is already in words."""
+    """Deletion was refused with a message suitable for the task record."""
 
 
 @dataclass(frozen=True)
 class Holder:
-    """A gang or a campaign holding content this deletion would take."""
+    """A gang or campaign holding content affected by the deletion."""
 
     kind: str
     pk: str
     name: str
     owner: str
-    #: Whether its owner is staff — the whole of what makes it a test
-    #: gang, before the campaign and battle checks.
+    #: Whether the gang is staff-owned; eligibility also depends on shared play.
     staff: bool
     archived: bool
     #: What it holds, in words, so a page can say why it is named.
@@ -109,7 +81,7 @@ class Holder:
 
 @dataclass(frozen=True)
 class Line:
-    """The fighters on one gang that have a free firing line."""
+    """Free profile or built-in assignments to remove from one gang's models."""
 
     pk: str
     name: str
@@ -144,7 +116,7 @@ class Line:
 
 @dataclass(frozen=True)
 class DeletionPlan:
-    """What deleting the rows asked for would take, and what stops it."""
+    """Deletion targets, dependent records, affected holders and blocking references."""
 
     #: ``(model label, pk)`` of what was asked for.
     targets: tuple = ()
@@ -153,8 +125,7 @@ class DeletionPlan:
     #: what a deleted campaign owned. Parts go by cascade; everything is
     #: named so the page can promise the whole of it.
     rows: tuple = ()
-    #: The rows the act deletes directly, in the order it tries them.
-    #: Parts are left to cascade.
+    #: Records explicitly deleted, in order; their parts cascade.
     roots: tuple = ()
     #: Modifiers that go, parts first.
     modifier_ids: tuple = ()
@@ -175,9 +146,7 @@ class DeletionPlan:
 
     @property
     def touches_players(self):
-        """Whether the act changes any gang — deleting one, or removing
-        a line from its fighters — and so belongs on the recorded task
-        runner rather than in a request."""
+        """Whether the plan affects gangs and must run through the recorded task runner."""
         return bool(self.gangs or self.campaigns or self.lines)
 
     @property
@@ -186,8 +155,7 @@ class DeletionPlan:
 
     @property
     def lines_are_built_ins(self):
-        """Whether the free copies are built-ins rather than a weapon's
-        firing line, which decides how the page names them."""
+        """Whether removable copies are built-ins rather than weapon profiles."""
         return self.removes_built_in_copies
 
     @property
@@ -199,7 +167,7 @@ class DeletionPlan:
         return tuple(campaign for campaign in self.campaigns if campaign.is_test)
 
     def counts(self):
-        """How many rows of each kind go, by the kind's plural name."""
+        """Count deleted records by each model's plural display name."""
         from django.apps import apps
 
         found = Counter()
@@ -208,7 +176,7 @@ class DeletionPlan:
         return dict(found)
 
     def _counted(self):
-        """Each kind that goes, said with its number: "1 weapon", "3 skills"."""
+        """Format each deleted kind with its count."""
         from django.apps import apps
 
         found = Counter()
@@ -223,7 +191,7 @@ class DeletionPlan:
         )
 
     def preview(self):
-        """The act in plain sentences, for the page and the record."""
+        """Describe planned deletion in sentences for confirmation and the task record."""
         if self.nothing_here:
             return ["nothing to delete"]
         lines = [f"delete {said}" for said in self._counted()]
@@ -261,8 +229,7 @@ class DeletionPlan:
         return lines
 
     def as_record(self):
-        """The plan as a record can hold it — what the page showed, so
-        the run can check it against what stands when it runs."""
+        """Serialise the confirmed plan for comparison when the task runs."""
         return {
             "targets": [[label, str(pk)] for label, pk in self.targets],
             "rows": [[label, str(pk), said] for label, pk, said in self.rows],
@@ -276,9 +243,7 @@ class DeletionPlan:
 
     @classmethod
     def from_record(cls, summary):
-        """The plan a record holds, as it was shown. What the act needs
-        beyond this — the roots, the modifiers — comes from reading the
-        library again, which the act does anyway."""
+        """Restore the confirmed plan; execution reloads additional library dependencies."""
         return cls(
             targets=tuple((label, pk) for label, pk in summary.get("targets", [])),
             rows=tuple(
@@ -293,7 +258,7 @@ class DeletionPlan:
         )
 
     def same_as(self, other):
-        """Whether two readings would delete exactly the same things."""
+        """Compare the complete affected sets from two plan readings."""
         return (
             set(self.targets) == set(other.targets)
             and {(label, str(pk)) for label, pk, _ in self.rows}
@@ -322,8 +287,7 @@ def _key(row):
 
 
 def _said(row):
-    """How a row is named on the page — its authoring label where it
-    has one, else what the reference reader says."""
+    """Use a record's authoring label when available, otherwise its reference label."""
     return getattr(row, "authoring_label", None) or named(row)
 
 
@@ -332,8 +296,7 @@ def _kind(row):
 
 
 def _modifier_of(part):
-    """The modifier a scope, an effect or a condition row belongs to,
-    or None for one nothing holds."""
+    """Find the modifier owning a scope, effect or condition, or return ``None``."""
     if hasattr(part, "scope_id"):
         scope = getattr(part, "scope", None)
         return _modifier_of(scope) if scope is not None else None
@@ -362,8 +325,7 @@ def _parts_of(modifier):
 
 
 class _Planner:
-    """One reading. Everything doomed is queued, its references read
-    and sorted, and anything those bring down queued in turn."""
+    """Traverse queued deletion candidates and classify their references recursively."""
 
     def __init__(self, things, remove_free_lines=False, remove_built_in_copies=False):
         self.targets = [thing for thing in things]
@@ -420,7 +382,7 @@ class _Planner:
         self.holders[key] = holder
 
     def line(self, gang, assignment):
-        """One fighter's free firing line, to be removed before the row goes."""
+        """Register a model's free assignment for removal before deleting its content."""
         key = str(gang.pk)
         held = self.lines.get(key)
         if held is None:
@@ -446,7 +408,13 @@ class _Planner:
     # -- the reading -----------------------------------------------------
 
     def read(self):
+        from n26.library.models import ScenarioEntry, ScenarioTable
+
         for thing in self.targets:
+            if isinstance(thing, (ScenarioTable, ScenarioEntry)):
+                self.refuse(
+                    "Scenario content may be referenced by saved results. Retire its table instead."
+                )
             self.doom(thing, root=True)
         while self.queue:
             batch, self.queue = self.queue, []
@@ -565,9 +533,10 @@ class _Planner:
         )
 
     def set_goes(self, default_set):
-        """Whether a built-in set goes with the rows already going: it
-        does when every carrier of it and every option offering it is
-        among them. Its members cascade with it."""
+        """Delete a default set only when all carriers and offering options are also deleted.
+
+        Its member records cascade with the set.
+        """
         from django.apps import apps
 
         from n26.library.models import Option
@@ -587,7 +556,7 @@ class _Planner:
         return True
 
     def thing_named_by(self, reference, thing_model):
-        """The doomed row this reference points at."""
+        """Find the deletion candidate targeted by a reference."""
         target_id = getattr(reference.row, f"{reference.field}_id", None)
         key = (thing_model._meta.label_lower, str(target_id))
         return self.doomed.get(key) or reference.row
@@ -660,9 +629,7 @@ class _Planner:
         return reference.row._meta.get_field(reference.field).related_model
 
     def gang_of_assignment(self, assignment):
-        """The gang an assignment is rooted on, read once per gang: a
-        line a hundred fighters have is a hundred references to the
-        same few gangs."""
+        """Cache the root gang for assignment references, once per gang."""
         from n26.core.models import Gang
 
         gang_id = assignment.gang_root_id
@@ -673,8 +640,7 @@ class _Planner:
         return self._gangs[gang_id]
 
     def campaign_goes(self, campaign):
-        """A campaign that goes takes its own type, its pack and every
-        row in the pack, and every gang that joined it is a holder."""
+        """Include a deleted campaign's additions type, pack, content and member gangs."""
         from n26.core.models import CampaignMembership
         from n26.library.models import Modifier
         from n26.library.staged import content_kinds
@@ -767,11 +733,10 @@ def _is_modifier_part(row):
 
 
 def _why_not_a_test_gang(gang):
-    """Why a gang is not an author's own, in words — or empty.
+    """Explain why a gang is ineligible for test-data deletion, or return no message.
 
-    A test gang is owned by a member of staff and shares no campaign and
-    no battle with a gang that is not: a staff member playing with
-    players has a gang that is history, like anyone's.
+    Eligible gangs are staff-owned and share no campaign or battle with a
+    non-test gang.
     """
     from n26.core.models import Campaign, Gang
 
@@ -801,13 +766,10 @@ def _why_not_a_test_gang(gang):
 
 
 def _why_not_a_free_line(assignment):
-    """Why an assignment is not one a weapon or a built-in set merely
-    brought — or empty where it is.
+    """Explain why an assignment is not a removable free profile or built-in copy.
 
-    A free copy sits under its weapon's own assignment or came from a
-    built-in set, its books say nothing was paid and nothing counts, and
-    nothing hangs off it. Any of those failing means somebody chose or
-    paid for it, and it is history.
+    Require the original weapon or default provenance, zero recorded payments
+    and rating, and no dependent content.
     """
     from n26.core.models import Assignment
 
@@ -842,12 +804,9 @@ def _why_not_a_free_line(assignment):
 
 
 def _why_not_a_built_in_copy(assignment):
-    """Why an assignment is not a free copy a model's built-ins handed
-    out — or empty where it is.
+    """Explain why an assignment is not a removable carrier-default copy.
 
-    Only a carrier's own built-ins count. A set the player took as an
-    option was chosen, so its copies are history, and a copy hosted on
-    the gang or its stash has no model to name.
+    Exclude optional sets chosen by the player and copies hosted on a gang or stash.
     """
     from n26.library.models import Option
 
@@ -862,12 +821,11 @@ def _why_not_a_built_in_copy(assignment):
 
 
 def plan_deletion(things, *, remove_free_lines=False, remove_built_in_copies=False):
-    """Read what deleting these rows would take. Never writes.
+    """Read deletion targets and dependencies without writing.
 
-    ``remove_free_lines`` asks for a firing line's fourth ending: the
-    free lines fighters have are named for removal rather than refusing.
-    ``remove_built_in_copies`` asks the same of the free copies a
-    built-in set handed out, once the thing is out of every set.
+    ``remove_free_lines`` permits eligible weapon-profile removals.
+    ``remove_built_in_copies`` permits eligible default copies once every live
+    membership granting them has been removed.
     """
     planner = _Planner(
         list(things),
@@ -879,7 +837,7 @@ def plan_deletion(things, *, remove_free_lines=False, remove_built_in_copies=Fal
 
 
 def plan_again(plan):
-    """Read the plan's targets afresh, so the reading is today's."""
+    """Reload the plan's targets and rebuild the current deletion plan."""
     from django.apps import apps
 
     things = []
@@ -896,8 +854,7 @@ def plan_again(plan):
 
 
 class FreeLineRemoval:
-    """A plan with lines, as the gang-by-gang runner reads one: the gangs
-    to visit, the problems that refuse the whole run, and the preview."""
+    """The gang-by-gang runner's affected gangs, blocking problems and preview."""
 
     def __init__(self, plan):
         self.plan = plan
@@ -919,11 +876,9 @@ class FreeLineRemoval:
 
 
 def free_line_removal(plan):
-    """Read the plan again, under the runner's lock, for the walk.
+    """Rebuild the removal plan under the runner lock.
 
-    What stood when the page was read is what the author confirmed. A
-    gang that gained or paid for the line since refuses the whole run in
-    words rather than being walked past.
+    Reject newly paid or acquired copies so execution stays within the confirmed plan.
     """
     now = plan_again(plan)
     if not now.same_as(plan):
@@ -941,18 +896,13 @@ def free_line_removal(plan):
 
 
 def remove_free_lines_from(gang_id, plan):
-    """Take the plan's firing line off one gang's fighters, committed on
-    its own, and delete the row once no fighter anywhere has it.
+    """Remove eligible copies from one locked gang, then delete unused library content.
 
-    Only this gang's lines are read again, under its lock — deliveries
-    may be minutes apart — and a line since paid for, or with something
-    under it, fails the gang in words, so the run ends as not done
-    rather than as done with the row still standing. The estate as a
-    whole was read once, when the run began. The assignments go with
-    their zero-value entries and events, and the gang is proved to
-    reconcile before and after. The last gang visited finds nothing
-    else naming the row and deletes it. A row already gone means a
-    delivery replayed after the work: nothing left to do.
+    Revalidate this gang's copies because deliveries may be separated in time.
+    Paid copies or new dependants fail the gang. Remove zero-value events and
+    entries with their assignments, reconciling before and after. The last
+    processed gang deletes the library record when no references remain.
+    An already deleted record makes replay a no-op.
     """
     from django.apps import apps
 
@@ -985,8 +935,8 @@ def remove_free_lines_from(gang_id, plan):
                 fighter = (
                     line.miniature_root.name if line.miniature_root_id else "a fighter"
                 )
-                # Raised rather than returned: a gang left alone is a run
-                # that did not finish, and the record must not end as done.
+                # Raise on an unremovable copy so the runner records a failed gang instead
+                # of reporting success with the content still referenced.
                 raise Refused(
                     f"gang {gang.name}: the line on {fighter} {why_not}; refund "
                     "or remove it first"
@@ -1067,15 +1017,11 @@ def _refuse_data_errors(function):
 
 @_refuse_data_errors
 def apply(plan, actor=None):
-    """Delete exactly what the plan names, or refuse.
+    """Lock, replan and delete exactly the confirmed content.
 
-    ``plan`` is what a page showed, possibly read back from a record.
-    Read again under locks first: the plan was read before this
-    transaction opened, and a gang's assignments cascade rather than
-    protect, so a player who hired from the content in between would
-    otherwise ride the delete down. The gangs and the targets are locked,
-    the plan is read again, and anything that moved refuses. The fresh
-    reading is what is then performed.
+    Gang assignments cascade, so lock both gangs and content before rebuilding
+    the plan to exclude unconfirmed concurrent acquisitions. Reject any changed
+    plan, then perform the fresh locked plan.
     """
     from django.apps import apps
     from django.db.models import ProtectedError

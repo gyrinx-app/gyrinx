@@ -1,6 +1,7 @@
 """The CSRF failure view, wired up via ``settings.CSRF_FAILURE_VIEW``."""
 
 from django.contrib import messages
+from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from gyrinx.analytics.models import EventVerb, log_event
@@ -10,11 +11,7 @@ from gyrinx.http import safe_redirect
 
 @csrf_exempt
 def csrf_failure(request, reason=""):
-    """
-    Custom view to handle CSRF failures by redirecting back to the form
-    with an error message instead of showing a 403 page.
-    """
-    # Log the CSRF failure
+    """Return a JSON 403 for commands; redirect native forms with a message."""
     if hasattr(request, "user") and request.user.is_authenticated:
         log_event(
             user=request.user,
@@ -25,16 +22,20 @@ def csrf_failure(request, reason=""):
             csrf_reason=reason,
         )
 
-    # Add a user-friendly error message
+    if request.headers.get("Accept") == "application/json":
+        return JsonResponse(
+            {
+                "error": "Your session could not be verified. Reload the page before saving."
+            },
+            status=403,
+        )
+
     messages.error(
         request,
         "Your session has expired. Please try again. The form has been refreshed with a new security token.",
     )
 
-    # Get the referer URL to redirect back to the form
     referer = request.META.get("HTTP_REFERER")
 
-    # Falls back to safe_redirect's default of "/" — the site root, which is what
-    # the edition's index used to resolve to anyway. A platform view should not
-    # reverse an edition URL name to find somewhere to send people.
+    # Keep the fallback at the shared site root instead of an edition-specific route.
     return safe_redirect(request, referer)

@@ -246,10 +246,8 @@ class StatlineInline(admin.StackedInline):
     fields = []
 
 
-# Slots and picks. A slot type is authored on its own page in the
-# library; these registrations are the inspectable graph behind it — every
-# table filterable by the slot type it belongs to, so "what is in Gang
-# Legacy" is one question of any of them.
+# Expose the slot graph for inspection, with filters by slot type.
+# The library provides the dedicated slot-type authoring page.
 
 
 @admin.register(SlotType)
@@ -285,8 +283,7 @@ class PicklistMemberInline(admin.TabularInline):
     extra = 1
     fields = ["pickable", "label_override", "position"]
     ordering = ["position"]
-    # A plain dropdown here would draw every option in the library once
-    # per row of the list.
+    # Autocomplete avoids loading every library option for each inline form.
     autocomplete_fields = ["pickable"]
 
 
@@ -361,8 +358,7 @@ class InterstitialSlotForm(forms.ModelForm):
         pack.required = False
         pack.empty_label = "Same as the interstitial"
         if self.instance._state.adding:
-            # The model's default would pre-fill the box with the default
-            # pack, which reads as a choice; blank is the inheriting one.
+            # A blank pack inherits from the parent; suppress the model default here.
             self.initial["pack"] = None
 
     def save(self, commit=True):

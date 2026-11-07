@@ -6,6 +6,9 @@ including its reads, commands, confirmations and failure paths. Cotton continues
 to render the surrounding shell. React regions are client-rendered, not hydrated
 or server-rendered.
 
+For a code walkthrough of the Django boundary, command endpoints, shared form
+lifecycle and design adapters, read [How React workflows fit into N26](react-workflow-anatomy.md).
+
 The next migration unit is a complete workflow with explicit display data and
 command endpoints. Start with Manage credits, then Hire and Equip. Keep small
 islands for interactions that already have an independent owner. Build each
@@ -94,10 +97,13 @@ must preserve the error's meaning and applicable action.
    Add the display contract and JSON command, then replace the complete form
    body with one React root. Preserve owner and arbitrator access, current
    balance on refusal, safe return navigation, analytics and success feedback.
-2. **Hire:** prepare the catalogue and lazy model-preview contracts, including
+2. **Independent edit forms:** use Edit campaign holding, then Edit campaign
+   asset type to prove the shared form primitives and conflict handling for
+   absolute edits. These complete tasks need no catalogue or model-card renderer.
+3. **Hire:** prepare the catalogue and lazy model-preview contracts, including
    safe rich-text display where needed. Migrate filters, option picks, preview,
    name and price confirmation, submission and onward navigation together.
-3. **Equip:** reuse the catalogue support. Include owned assignments, price
+4. **Equip:** reuse the catalogue support. Include owned assignments, price
    drafts, buy and sell confirmations, and updated holdings, credits and cards.
    Return display data for React-owned content instead of out-of-band HTML.
 
@@ -107,9 +113,9 @@ its value is the repeatable pattern. More complex workflows may need preparatory
 component or extraction PRs. Each prerequisite must have a named consumer and its
 own verification.
 
-With the first workflow command, establish a small shared request and error
-convention using a real caller. Put generic transport helpers in `n26/frontend/http/`, the
-planned location described in [frontend instructions](../../n26/frontend/AGENTS.md).
+Workflow commands use the shared request and error convention in
+`n26/frontend/http/command.ts`. Keep generic transport in `http/` as described
+in [frontend instructions](../../n26/frontend/AGENTS.md).
 Keep workflow-specific response interpretation in the island. Cover session
 expiry, CSRF failure, field and non-field errors, stale reads, network failure
 and pending state. Distinguish a rejected
@@ -621,3 +627,123 @@ roots removed by other systems](https://react.dev/reference/react-dom/client/cre
 Vite documents [backend integration through its build manifest and modulepreload
 graph](https://vite.dev/guide/backend-integration). This implementation keeps that
 integration inside Django; it does not require a separate application server.
+
+### Manage credits command example
+
+Manage credits uses `n26/core/credits.py` for access, form validation, the locked
+permission check and the adjustment. Its HTML POST and JSON command adapters
+share that function. The page embeds its initial display props; it has no extra
+GET API. `manage-credits` owns the complete form body, while Django keeps the
+route and shared navigation.
+
+The command accepts form-encoded `direction`, `amount`, `note`, `back` and
+`request_key`. It returns `200` with a validated `nextUrl`, `422` with field or
+`__all__` errors and the current balance, or `409` for conflicting key reuse.
+Authentication and CSRF failures return `401` and `403`. Access failures remain
+`404`. The shared CSRF handler returns JSON only for an explicit
+`Accept: application/json`; native form failures retain their redirect.
+
+A successful credits adjustment stores its request key on its ledger event,
+with a database uniqueness constraint per gang. Under the gang lock, the command
+checks current access and compares a replay's actor, direction, amount and note
+with the recorded adjustment. Matching replays succeed without another event;
+a different payload is rejected. Failed adjustments do not consume the key.
+Analytics run after commit, only for a new adjustment. Unread success feedback
+is deduplicated by request key. If it was already consumed, a replay confirms
+that the adjustment was already saved instead of announcing another adjustment.
+
+Use `n26/frontend/http/command.ts` for the transport. Keep response interpretation
+in the workflow. A network error, a server error or an unreadable success response
+leaves the write uncertain. Retain the exact submitted payload and key, freeze
+editing and offer a retry of that save. A rejected retry does not resolve an
+earlier uncertain write. Warn before leaving during pending or uncertain saves;
+clear that warning before confirmed-success navigation. Do not mint another key
+and let the user submit edited values while the earlier write is unresolved.
+This also applies to structured validation or permission refusals on retry:
+they describe that request, not an earlier request's outcome. Only a confirmed
+matching success resolves an uncertain credits save.
+
+Keep unresolved command input in session storage, scoped to the actor and
+workflow, before sending the request. Restore it after reload with the same key
+and business values, but use the fresh page's CSRF token. Do not persist session
+credentials or CSRF tokens. This allows recovery after signing in again, which
+rotates the CSRF secret. Clear recovery input after a confirmed result; if it
+cannot be retained, do not start a write that the page cannot safely recover.
+
+React workflow forms use `data-busy="off"` to opt out of the shared
+`n26/core/static/n26/busy.js` DOM mutations. React owns pending state, including
+links. If a reader cancels a navigation warning, the shared handler would
+otherwise leave the link disabled without a new page to clear it.
+
+Test Back after a successful command. Manage credits returns its HTML with
+`never_cache`, and refreshes a completed form restored from the browser's
+back-forward cache. That obtains a fresh balance and request key for a new
+adjustment. Also refresh an older cached draft when recovery storage now holds an
+unresolved command from a later form. Read storage at restoration time, not only
+at mount, so the older draft cannot overwrite that command. Preserve an unsaved
+draft only when no command needs recovery.
+
+The single-event receipt suits credits adjustments. A workflow producing several
+events must identify one durable command receipt and its canonical payload;
+do not assume an operation's grouping `batch` is unique. Prove simultaneous
+retries, lost responses, conflicting payloads, rollback, locked access checks and
+feedback before reusing this pattern for another write.
+
+### Absolute edits: Edit campaign holding
+
+`n26/core/asset_edit.py` shares the holding form, signed starting snapshot and
+locked command between native POST and the JSON command. The existing campaign
+operation still changes the name and income override. Blank income and `0`
+remain distinct, and replacing an override affects only that holding.
+
+Absolute edits need a different retry contract from credit adjustments. The
+signed snapshot identifies the actor, holding, starting values and modification
+time. Under the campaign lock, a submission matching current values succeeds
+without another write. Different values can be saved only from the same starting
+state; a stale snapshot returns `409` with `code: revision_conflict`, current
+name/income and no write. The comparison includes nested income values as well
+as the holding's modification time.
+
+Keep the conflicting draft visible and frozen. Show the current facts and offer
+**Review current asset**, which explicitly discards the retained draft and loads
+a fresh form. Do not silently replace its snapshot or add a save-anyway action.
+An older pending request cannot overwrite the reviewed edit: under the same
+lock it either matches current values and does nothing, or its revision is stale.
+Generic network, authentication and validation failures do not prove this and
+must retain an earlier uncertain submission.
+
+Bind failure metadata to the command it describes. When session storage contains
+a retained command, native POST errors or conflict props may concern an older
+submission. Restore the retained command and retry it before accepting those
+facts or offering an action that discards it.
+
+The holding form reuses the page, fields, currency suffix and HTTP transport from
+Manage credits. Their response interpretation stays local. With Edit asset type
+as the third consumer, `useWorkflowForm` shares recovery behaviour; the
+absolute-edit conflict decision remains owned by its workflow.
+
+### Shared form recovery and Edit asset type
+
+Manage credits, Edit holding and Edit asset type share
+`n26/frontend/ui/useWorkflowForm.ts`, exported through `ui`. It handles pending
+state, retained scalar form data, fresh CSRF credentials, navigation warnings,
+error-summary focus and completed forms restored from browser history. Generic
+HTTP and error-envelope parsing stay in `http/command.ts`.
+
+Each island interprets its own response. A credits key conflict is a rejected
+request, which cannot resolve an earlier uncertain write. A holding or asset-type
+revision conflict proves the old snapshot cannot overwrite current values and
+permits an explicit review action. The shared hook does not infer that distinction
+from an HTTP status alone. Existing interaction tests remain beside all three
+consumers, including the financial retry cases.
+
+Edit asset type also signs the initial ownership lock state. Adding an asset or
+table can fix ownership without changing the asset type's modification time.
+Include that derived constraint in the locked comparison. Validate disabled
+ownership against its signed starting value; using a newly disabled field could
+silently ignore a selection made while ownership was editable. A new constraint
+then produces a conflict with current facts and a review action.
+
+Keep Inherent and Transferable as the model's displayed ownership terms. Reuse
+form labels and help from Python. Current authorization and campaign scope are
+checked before accepting a no-op, as well as before changing a value.

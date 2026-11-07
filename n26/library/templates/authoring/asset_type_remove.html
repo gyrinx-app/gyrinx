@@ -1,14 +1,5 @@
 {% extends "authoring/base.html" %}
-{% comment %}
-The question asked before an asset type is taken off its campaign type,
-at an address of its own. A page rather than a prompt: it survives a
-reload, Back is a real way out, and it works with scripting switched
-off. Nothing here changes anything — the form's POST is the act.
-
-While any asset is of the type the act is refused, so the page lists
-them: each is a way to the asset, where it can be deleted. An asset's
-type is settled when it is made, so deleting is the only way clear.
-{% endcomment %}
+{# List assets blocking this type's deletion and link to their removal pages. #}
 {% block head_title %}Remove {{ label }}{% endblock head_title %}
 {% block content %}
     <c-n26.form-page action="{% url 'authoring-asset-type-remove' thing.pk %}"

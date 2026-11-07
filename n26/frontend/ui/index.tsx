@@ -13,7 +13,7 @@ import {
 } from "react";
 import cotton from "../generated/cotton.json";
 
-/** A native modal, styled from Cotton; React owns its lifetime and dismissal. */
+/** A native modal using Cotton styles and React lifecycle handling. */
 export function Dialog({
     title,
     lead,
@@ -208,7 +208,7 @@ function useFieldControl(id?: string, describedBy?: string) {
     };
 }
 
-/** Errors in the danger colour, as `<c-ui.error>` draws them. */
+/** Validation errors styled with the c-ui.error recipe. */
 export function FieldErrors({ id, errors }: { id?: string; errors: string[] }) {
     return (
         <div id={id}>
@@ -287,22 +287,46 @@ export function Field({
 
 export function Input({
     id,
+    rightAddon,
     className = "",
     "aria-describedby": describedBy,
     "aria-invalid": invalid,
     ...props
-}: ComponentProps<"input">) {
+}: ComponentProps<"input"> & { rightAddon?: ReactNode }) {
     const field = useFieldControl(id, describedBy);
     return (
-        <div className={cotton.input.root}>
+        <div
+            className={rightAddon ? cotton.input.addonRoot : cotton.input.root}
+        >
             <input
                 {...props}
                 id={field.id}
-                className={`${cotton.input.control} ${className}`}
+                className={`${rightAddon ? cotton.input.addonControl : cotton.input.control} ${className}`}
                 aria-invalid={invalid ?? (field.errorId ? true : undefined)}
                 aria-describedby={field.describedBy}
             />
+            {rightAddon && (
+                <div className={cotton.input.addon}>{rightAddon}</div>
+            )}
         </div>
+    );
+}
+
+export function Textarea({
+    id,
+    className = "",
+    "aria-describedby": describedBy,
+    ...props
+}: ComponentProps<"textarea">) {
+    const field = useFieldControl(id, describedBy);
+    return (
+        <textarea
+            {...props}
+            id={field.id}
+            className={`${cotton.textarea} ${className}`}
+            aria-invalid={field.errorId ? true : undefined}
+            aria-describedby={field.describedBy}
+        />
     );
 }
 
@@ -353,7 +377,7 @@ export function Switch({
     accent?: boolean;
     size?: keyof typeof cotton.switch.sizes;
     className?: string;
-    /** Posts through a real checkbox and keeps the cotton switch's two events. */
+    /** Submit a native checkbox and dispatch the Cotton switch events. */
     embedded?: boolean;
 }) {
     const field = useFieldControl(embedded ? undefined : id);
@@ -377,8 +401,7 @@ export function Switch({
 
     function accessibleLabelText(element: HTMLElement | null | undefined) {
         if (!element) return "";
-        // The island's props script sits inside a wrapping label. textContent
-        // would announce that JSON as the switch's name.
+        // Exclude the island's JSON props script from the accessible label.
         const copy = element.cloneNode(true) as HTMLElement;
         copy.querySelectorAll("script, style").forEach((node) => node.remove());
         return (copy.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -389,9 +412,9 @@ export function Switch({
         const next = !checked;
         const input = inputRef.current;
         if (embedded && input) {
-            // checkedChange reaches a parent before the box shows the new
-            // value. change then reports that value. A label click only
-            // fires change, via the handler below.
+            // Preserve Cotton event order: checkedChange precedes the value
+            // update, then change reports it. Native label activation uses
+            // the input's change handler.
             input.dispatchEvent(
                 new CustomEvent("checkedChange", { bubbles: true }),
             );
@@ -461,7 +484,7 @@ export function Switch({
     );
 }
 
-/** A switch with words beside it that toggle it too, as `<c-n26.toggle>`. */
+/** A switch with a clickable label, equivalent to c-n26.toggle. */
 export function Toggle({
     label,
     checked,
@@ -516,7 +539,7 @@ export function CheckboxCard({
     checkboxDescribedBy?: string;
     notice?: ReactNode;
     errors?: ReactNode;
-    /** Posts the checkbox with its form, as the Cotton card's input does. */
+    /** Submit the checkbox as part of its containing form. */
     name?: string;
     value?: string;
 }) {
@@ -581,7 +604,7 @@ export function CheckboxCard({
     );
 }
 
-/** One nested tick inside a CheckboxCard body, as the Cotton card draws it. */
+/** A nested checkbox option inside a CheckboxCard body. */
 export function CheckboxCardItem({
     name,
     value,
@@ -629,7 +652,7 @@ export function CheckboxCardItem({
     );
 }
 
-/** A figure beside a CheckboxCard's label, as text. */
+/** Text beside a CheckboxCard's label. */
 export function CheckboxCardMeta({ children }: { children: ReactNode }) {
     return <span className={cotton.checkboxCard.meta}>{children}</span>;
 }
@@ -945,7 +968,8 @@ export type SvgNode = {
 /** A badge beside a name: its accessible name and its artwork. */
 export type BadgeMark = { label: string; svg: SvgNode };
 
-// The platform's SVG allowlist, checked again here so data never becomes markup.
+// Validate tags and attributes against the exported platform SVG allowlist
+// before creating elements.
 const SVG_TAGS = new Set(cotton.svgTags);
 const SVG_PROPS = new Set(cotton.svgProps);
 
@@ -964,7 +988,8 @@ function svgProps(props: Record<string, string>) {
 function SvgArt({ node }: { node: SvgNode }): ReactNode {
     if (!SVG_TAGS.has(node.tag)) return null;
     const props: Record<string, string> = svgProps(node.props);
-    // The wrapper names the badge, so the drawing itself stays silent.
+    // The wrapper supplies the badge's accessible name; hide its SVG from
+    // assistive technology.
     if (node.tag === "svg") {
         props["aria-hidden"] = "true";
         props.focusable = "false";
@@ -1001,9 +1026,8 @@ export function ColorSwatch({ color }: { color: string }) {
 }
 
 /**
- * A person's name in the surrounding colour, with their badge after it, as
- * `<c-n26.user-link tone="current">` draws it. Without an href the name is
- * plain text, as on a button that already does something else.
+ * Render a name and optional badge using the current text colour. Omit href to
+ * use plain text inside other controls.
  */
 export function UserLink({
     name,
@@ -1040,10 +1064,10 @@ export function UserLink({
     );
 }
 
-/** The class of the site bar's account button, as `<c-n26.site.nav>` draws it. */
+/** Classes for the site navigation account button. */
 export const siteNavAccountButton = cotton.siteNavTrigger.button;
 
-/** The inside of the site bar's account button: the name, the icons and the unread pill. */
+/** Account button content: name, icons and unread count. */
 export function SiteNavAccount({
     name,
     unread,
@@ -1073,8 +1097,8 @@ export function SiteNavAccount({
 }
 
 /**
- * A red count pill, as `<c-n26.count-badge>` draws it: nothing at zero, the
- * face capped at `max`, and the real count spoken with `label`.
+ * Cap displayed counts at max. With label, announce the uncapped count followed
+ * by label as a suffix.
  */
 export function CountBadge({
     count,
@@ -1181,8 +1205,8 @@ export type PickOption = {
 };
 
 /**
- * One tickable option. A grant or a priced hold is drawn fixed and disabled,
- * so it posts nothing an owner could take back.
+ * A checkbox option. Granted and priced assignments are disabled so the form
+ * cannot remove them.
  */
 export function PickBox({
     option,
@@ -1254,7 +1278,7 @@ export function PickLegend({
     );
 }
 
-/** The c-n26.tick-list layout: named groups of plain ticked rows. */
+/** Named groups of checkbox options using the c-n26.tick-list layout. */
 export function TickList({ children }: { children: ReactNode }) {
     return <div className={cotton.tickList.root}>{children}</div>;
 }
@@ -1357,3 +1381,99 @@ export {
     guardDialogSubmission,
     useCampaignDialogRequests,
 } from "./campaignNavigation";
+
+export function WorkflowPage({
+    title,
+    lead,
+    breadcrumb,
+    actions,
+    children,
+    footer,
+    ...form
+}: ComponentProps<"form"> & {
+    title: string;
+    lead?: string;
+    breadcrumb: ReactNode;
+    actions?: ReactNode;
+    footer: ReactNode;
+}) {
+    const recipe = cotton.workflowPage;
+    const h = recipe.header;
+    return (
+        <form {...form} data-busy="off" className={recipe.root}>
+            <div className={h[0]}>
+                <div className={h[1]}>
+                    <div className={h[2]}>{breadcrumb}</div>
+                </div>
+                <div className={h[3]}>
+                    <div className={h[4]}>
+                        <h1 className={h[5]}>{title}</h1>
+                        {lead && <p className={h[6]}>{lead}</p>}
+                    </div>
+                    {actions && <div className={h[7]}>{actions}</div>}
+                </div>
+            </div>
+            {children}
+            <div className={recipe.footer}>{footer}</div>
+        </form>
+    );
+}
+
+export function FormSection({
+    title,
+    children,
+}: {
+    title: string;
+    children: ReactNode;
+}) {
+    const s = cotton.workflowPage.section;
+    return (
+        <section className={s[0]}>
+            <div className={s[1]}>
+                <h2 className={s[2]}>{title}</h2>
+            </div>
+            <div className={s[4]}>{children}</div>
+        </section>
+    );
+}
+
+export function Breadcrumbs({
+    items,
+}: {
+    items: Array<{ label: ReactNode; href?: string }>;
+}) {
+    const b = cotton.workflowPage.breadcrumb;
+    return (
+        <nav aria-label="Breadcrumb">
+            <ol
+                className={b.list}
+                style={{ "--bc-separator": "'/'" } as CSSProperties}
+            >
+                {items.map((item, i) => (
+                    <li key={i} className={b.item}>
+                        {item.href ? (
+                            <a href={item.href} className={b.link}>
+                                {item.label}
+                            </a>
+                        ) : (
+                            <span
+                                className={
+                                    i === items.length - 1
+                                        ? b.current
+                                        : undefined
+                                }
+                                aria-current={
+                                    i === items.length - 1 ? "page" : undefined
+                                }
+                            >
+                                {item.label}
+                            </span>
+                        )}
+                    </li>
+                ))}
+            </ol>
+        </nav>
+    );
+}
+
+export { useWorkflowForm, type WorkflowResult } from "./useWorkflowForm";

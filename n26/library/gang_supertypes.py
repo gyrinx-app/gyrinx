@@ -1,38 +1,13 @@
-"""The Gang supertype — which House a gang belongs to, as a hidden pick.
+"""Seed hidden Gang supertype picks identifying the six Clan Houses.
 
-A journal's territory boon applies "if the Territory is held by a Goliath
-gang", and an Outcast gang that chose House Goliath counts as one
-(design/house-and-territory-tables.md). The fact a rule reads is a pick
-on the gang: a hidden **Gang supertype** slot, drawing from a picklist of
-six marker pickables — Goliath, Escher, Orlock, Van Saar, Delaque and
-Cawdor — that carry no boon logic of their own. A rule keys on the pick
-(``targets_gang_alone(has_gang_pickable(goliath))``) rather than hanging
-off it.
+Clan House gang types receive their House pick through built-ins.
+Outcast Clan House choices grant the same hidden slot with the matching pick,
+so House conditions can match both gangs identically.
 
-A gang gets its supertype two ways, and this seed writes both:
-
-* Each Clan House gang type builds the slot in with its own House as the
-  starting pick, so founding a Goliath gang writes the pick, and built-in
-  propagation gives it to every Goliath gang already founded.
-* Each Outcast Clan House pickable — House Goliath and the rest, on the
-  Outcast gang's own Clan House slot — carries a modifier that gives the
-  gang the supertype slot with the matching pick, so a Clan House Goliath
-  Outcast gang matches "has picked Goliath" as a Goliath gang does.
-
-Nothing here is staged: the slot is hidden, so the supertype is invisible
-to players by construction.
-
-The Venator Gang Legacy picks already hold the bare names Goliath, Escher
-and the rest, and a pickable's name is unique in its pack whatever its
-slot type, so the six markers carry the qualifier "Gang supertype" —
-author-facing only; the name a condition prints is the bare House.
-
-Everything is matched on its natural key — pack and name — and left
-alone if it is already there, so this can run against a database that
-has some of it, and running it twice changes nothing the second time.
-It runs through the authoring verbs, which file the propagation pass a
-built-in member is owed, so it works on live model classes only: run it
-as a maintenance operation after a deploy, never from a migration.
+Qualify marker pickables as Gang supertype to avoid pack-wide name collisions
+with Gang Legacy choices. Preserve existing content by natural key and keep
+the hidden slot live. Use live authoring functions so built-in changes file
+their propagation tasks; run through maintenance rather than migrations.
 """
 
 from dataclasses import dataclass, field
@@ -53,9 +28,7 @@ CLAN_HOUSE = "Clan"
 
 @dataclass
 class Outcome:
-    """What a seed did, in words: one line per row it created, and one per
-    row it looked for and left alone or could not find. Kept apart so a
-    rerun that creates nothing can say so, whatever it skipped."""
+    """Created and skipped report lines, retained separately to identify no-op reruns."""
 
     created: list = field(default_factory=list)
     skipped: list = field(default_factory=list)

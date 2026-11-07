@@ -210,8 +210,7 @@ def test_a_pack_picked_by_hand_for_an_attachment_is_honoured(
 def test_clearing_the_pack_on_an_existing_attachment_inherits_it(
     admin_client, default_pack, homebrew
 ):
-    """An existing row cleared to blank on the change page follows the
-    same rule as a new one, rather than failing on a missing pack."""
+    """Clearing a stored attachment's pack inherits the parent pack."""
     from n26.library.authoring import (
         attach_interstitial,
         create_interstitial,

@@ -1,13 +1,8 @@
-"""
-Create the Pub/Sub topics, subscriptions and Cloud Scheduler jobs the registered
-tasks need.
+"""Provision registered task topics, subscriptions and Scheduler jobs.
 
-Run from `docker/entrypoint.sh` in the background on every container boot. It is
-idempotent, so a container that starts against already-provisioned infrastructure
-does a little work and changes nothing.
-
-It used to run inline in `TasksConfig.ready()`, which put it in front of every
-request a cold container served. See the docstring there.
+docker/entrypoint.sh runs this separately from request workers. Skip
+execution outside Cloud Run unless --force is passed. Existing resources
+are updated to the current route configuration.
 """
 
 import os

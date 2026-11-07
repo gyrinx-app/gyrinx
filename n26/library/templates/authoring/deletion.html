@@ -1,10 +1,5 @@
 {% extends "authoring/base.html" %}
-{% comment %}
-One deletion's outcome. A deletion that takes a gang runs after the
-page that asked for it has answered, so this page is where the ending
-is read. It reloads itself while the deletion is still running: no
-script is needed, and a reader who leaves and comes back sees the same.
-{% endcomment %}
+{# Reload while the recorded deletion runs so returning to the same URL shows its latest outcome. #}
 {% block head_title %}
     Deletion
 {% endblock head_title %}

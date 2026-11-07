@@ -1,27 +1,12 @@
-"""Specs — what each authoring verb asks for, as data.
+"""Describe authoring API parameters for generated forms.
 
-Step 1 of design/authoring-build-plan.md. A spec is a declarative
-description of one verb's parameters: which model each names, whether
-it's optional, what narrows it, what the admin should read next to it.
-Forms are *generated* from specs (step 2), and a filled form **compiles
-to the verb call** — so the form can never drift from the API, and a
-verb without a spec is caught by a discovering guard
-(tests/sandbox/test_specs.py, the money-words pattern).
+Specs define parameter types, optional values and relation restrictions.
+Model-backed fields read help and labels from ``source=(Model, field_name)``.
+Parameters without a model field declare their own help.
 
-Two rules keep specs honest:
-
-* **Help is sourced, never written.** A field's words come from the
-  model field it stores into — the ``help_text`` we have been writing
-  carefully all along — referenced as ``(Model, "field_name")`` and
-  resolved on read. A test pins the resolution literally, so a spec
-  can't quietly paraphrase the model.
-* **Every spec is tested against a named example object** — form-shaped
-  data replicating something an example suite built (the Brawler leader
-  row, the XP-75 promotion) compiles through the spec and must come out
-  saying exactly what that object says.
-
-Nothing here renders anything; a spec is the *structure* forms derive
-from, the same structures-before-renderers rule as cards.
+``compile()`` calls the authoring function with validated form data.
+Specs are built lazily after Django's app registry is available.
+See design/authoring-build-plan.md.
 """
 
 import inspect
@@ -63,8 +48,7 @@ class _Sourced:
 
     @property
     def help(self):
-        """The model field's own words, resolved on read — or the
-        parameter's own, where it has no field."""
+        """Read help from the model field or the parameter's own declaration."""
         if self.source is None:
             return self.help_text
         model, field_name = self.source
@@ -72,12 +56,7 @@ class _Sourced:
 
     @property
     def max_length(self):
-        """The column's own limit, resolved on read — None where it has none.
-
-        The form enforces this so an overlong value is a validation
-        error with the field named, rather than the database refusing
-        the INSERT and the author getting a 500 with nobody's name on it.
-        """
+        """Read the model field's length limit for form validation, or return ``None``."""
         if self.source is None:
             return None
         model, field_name = self.source
@@ -85,12 +64,9 @@ class _Sourced:
 
     @property
     def min_value(self):
-        """The column's own floor, resolved on read — 0 for a column
-        that refuses negatives, None where it has none.
+        """Return zero for positive-integer model fields, otherwise ``None``.
 
-        The form enforces this so a negative number is a validation
-        error with the field named, rather than the database refusing
-        the INSERT and the author getting a 500 with nobody's name on it.
+        The generated form rejects negative values before the database write.
         """
         from django.db import models
 
@@ -123,14 +99,9 @@ class _Sourced:
 
     @property
     def label(self):
-        """What the model field calls itself, where it calls itself
-        anything — ``None`` otherwise, leaving the form to derive one.
+        """Use an explicit model label, leaving default labels for the form to derive.
 
-        Django names a field after its column unless told otherwise, so
-        a field that says something different is a field whose author
-        wanted a particular word in front of a reader: "Set" above a
-        column called ``group``. Where nothing was said, the form's own
-        derivation says the same thing and this stays out of the way.
+        Parameters without a source use their declared ``verbose_name``.
         """
         if self.source is None:
             return self.verbose_name or None
@@ -141,21 +112,12 @@ class _Sourced:
 
 @dataclass(frozen=True)
 class One(_Sourced):
-    """One row of a model — a foreign key pick.
+    """A model reference selected through a foreign-key field.
 
-    ``filtered_by`` names the relations a pick must respect —
-    ``("collection",)`` on a section pick means "a section of *that*
-    collection". It **refuses** in the generated form's ``clean()``, in
-    words, and leaves the picker offering everything: the rows it turns
-    away are still worth seeing, since a section of the wrong collection
-    is a mistake an author can make and should be told about by name.
-
-    ``within`` names the accessor on the thing a part is being added to
-    that lists the only rows worth offering — ``"option_groups"`` on an
-    set pick means "a set of *this* profile's". This one narrows the
-    picker *and* refuses. The rows it excludes belong to other people's
-    things, so there is nothing to be gained by offering them, and the
-    refusal is what stops a submission naming one anyway.
+    ``filtered_by`` validates matching relations without narrowing the queryset.
+    For example, ``("collection",)`` requires a section from that collection.
+    ``within`` both narrows and validates against a carrier's related records,
+    such as its ``option_groups``.
     """
 
     model: type = None
@@ -167,14 +129,10 @@ class One(_Sourced):
 
 @dataclass(frozen=True)
 class Many(_Sourced):
-    """Several rows of a model — an M2M pick.
+    """A set of model references selected through a multi-select.
 
-    ``replaced_by`` is the verb that owns replacing the set, for a form
-    opened on a row that already exists. ``revise`` refuses a set,
-    because what happens to a member the new value does not name is a
-    decision; the verb is where that decision is stated, and naming it
-    here is how an edit form finds it. A field without one may be filled
-    in when the row is made and not changed afterwards.
+    ``replaced_by`` identifies the function that replaces an existing set.
+    Fields without a replacement function can be supplied only at creation.
     """
 
     model: type = None
@@ -198,27 +156,27 @@ class Text(_Sourced):
 
 
 @dataclass(frozen=True)
-class Artwork(_Sourced):
-    """The address of a drawing in the site's own storage.
+class Image(_Sourced):
+    """A raster image uploaded to site storage."""
 
-    Two controls, one value: a box holding the address, and an upload
-    that puts a file in the storage and fills the box in. Only the
-    address is stored, so there is nothing for a reader to choose
-    between (library/artwork.py).
+
+@dataclass(frozen=True)
+class Artwork(_Sourced):
+    """An image storage address edited through a text control and upload control.
+
+    The upload fills the address; only that address is stored.
+    See library/artwork.py.
     """
 
 
 @dataclass(frozen=True)
 class Choice(_Sourced):
-    """One of a fixed set. ``options`` for a plain tuple (offerable
-    kinds); otherwise the choices come off the sourced model field.
-    ``coerce`` turns the submitted value into what the verb takes —
-    an offerable kind name into its model class.
+    """A fixed choice from ``options`` or a sourced model field.
 
-    ``reads`` is the way back: how a form opened on a stored row
-    recovers what was chosen. Needed only where the column is not the
-    parameter — a choice of kind is stored as a ContentType, and
-    ``getattr(row, "model")`` would find nothing."""
+    ``coerce`` converts form values to API arguments. ``reads`` extracts the
+    initial value when its storage differs from the parameter, such as a kind
+    stored as a ContentType.
+    """
 
     options: tuple = ()
     coerce: object = None
@@ -234,9 +192,10 @@ class Choice(_Sourced):
 
 @dataclass(frozen=True)
 class Conditions:
-    """The nested WHO conditions a scope verb takes — rendered as a
-    formset of chips (step 2), compiled by each condition's own spec.
-    ``kinds`` names which condition verbs may appear."""
+    """Nested scope conditions compiled through each condition's own spec.
+
+    ``kinds`` declares the allowed condition functions.
+    """
 
     kinds: tuple = ()
 
@@ -245,15 +204,12 @@ class Conditions:
 
 @dataclass(frozen=True)
 class Union:
-    """One thing of any of several kinds — the ef_adds/ef_removes
-    picker over ``GRANTABLE_FIELDS``, and ``attach_to``. ``over`` names
-    the allowed kinds (field name → model label).
+    """A reference to one of several content kinds.
 
-    ``through`` is the row the pick is written into, when there is one
-    (a built-in's ``DefaultAssignment``). Naming it lets each kind's
-    own ``ATTACHMENT_ASKS`` ride the form — a counter's opening value
-    appears because the counter declares it, never because a form
-    special-cased counters (library/offers.py)."""
+    ``over`` maps allowed field names to model labels. ``through`` identifies
+    the attachment model, such as ``DefaultAssignment``, so forms include each
+    kind's ``ATTACHMENT_ASKS``. See library/offers.py.
+    """
 
     over: dict = dataclass_field(default_factory=dict)
     through: type = None
@@ -267,8 +223,7 @@ class Union:
 
 @dataclass(frozen=True)
 class Spec:
-    """One verb's parameters, as data. ``compile(data)`` performs the
-    verb call a filled form amounts to."""
+    """An authoring function's parameters and form metadata."""
 
     verb: object
     fields: dict
@@ -316,12 +271,10 @@ class Spec:
         return self.model or self.fields["name"].source[0]
 
     def compile(self, data):
-        """Call the verb with form-shaped ``data``.
+        """Call the authoring function with form-shaped data and its own defaults.
 
-        Keys absent from ``data`` fall back to the verb's own defaults.
-        A ``Conditions`` value is a list of ``(verb_name, payload)``
-        pairs, each compiled by that condition's spec and passed
-        positionally — the nesting the grammar asks for.
+        Compile each ``Conditions`` entry, supplied as ``(verb_name, payload)``,
+        and pass the results positionally.
         """
         signature = inspect.signature(self.verb)
         args, kwargs = [], {}
@@ -355,22 +308,17 @@ class Spec:
 
 
 def _offerable_kind_to_model(kind_name):
-    """ "skill" → the Skill class — the form speaks kinds, never
-    ContentType rows; the verb takes the class."""
+    """Resolve a kind name, such as ``skill``, to the class the function accepts."""
     from django.apps import apps
 
     return apps.get_model("library", kind_name)
 
 
 def use_lists(model):
-    """The four use lists of a kind carrying ``UsableBy``, as spec fields.
+    """Derive restriction fields from the kind's ``UsableBy`` declarations.
 
-    Derived from the mixin's own fields rather than written out per kind,
-    so a weapon's page and a skill's draw the same pickers, each picking
-    what its own column points at — and a fifth list on the mixin
-    reaches every form the day it exists. The same shape serves the
-    collection entry, whose columns are the same four asking about one
-    list's offer.
+    The same fields describe item-wide restrictions and collection-specific
+    entry restrictions.
     """
     from n26.library import authoring
     from n26.library.models.assignable import USABLE_BY_LISTS
@@ -1745,6 +1693,34 @@ def _build_registry():
             },
         ),
     ]
+    from n26.library.models import ScenarioEntry, ScenarioTable
+
+    specs.extend(
+        [
+            Spec(
+                authoring.create_scenario_table,
+                {
+                    "name": Text(source=(ScenarioTable, "name")),
+                    "position": Int(source=(ScenarioTable, "position")),
+                },
+            ),
+            Spec(
+                authoring.add_scenario_entry,
+                {
+                    "table": One(
+                        model=ScenarioTable, source=(ScenarioEntry, "table"), fixed=True
+                    ),
+                    "roll": Int(source=(ScenarioEntry, "roll"), fixed=True),
+                    "name": Text(source=(ScenarioEntry, "name")),
+                    "text": Text(source=(ScenarioEntry, "text"), long=True),
+                    "diagram": Image(source=(ScenarioEntry, "diagram")),
+                    "diagram_alt": Text(source=(ScenarioEntry, "diagram_alt")),
+                },
+                model=ScenarioEntry,
+                joins_carrier_pack=True,
+            ),
+        ]
+    )
     return {spec.name: spec for spec in specs}
 
 
@@ -1752,11 +1728,7 @@ _REGISTRY = None
 
 
 def specs():
-    """Every authored verb's spec, keyed by verb name.
-
-    Built on first ask, so importing this module never touches the app
-    registry before Django is ready.
-    """
+    """Build specs lazily and return them keyed by authoring function name."""
     global _REGISTRY
     if _REGISTRY is None:
         _REGISTRY = _build_registry()

@@ -66,7 +66,7 @@ class TestPackScoping:
         assert "Brew" in names(Profile.objects.all())
 
     def test_archiving_a_pack_does_not_hide_its_content(self, names):
-        """gyrinx#1742: a pack-owner soft delete must not retract content."""
+        """Archiving a pack preserves its content in unfiltered querysets."""
         self.homebrew.archive()
         assert "Brew" in names(Profile.objects.all())
 

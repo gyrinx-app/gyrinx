@@ -1,11 +1,4 @@
-"""
-Tests for RequestDataTooBig exception handling.
-
-This test verifies that when a request body exceeds DATA_UPLOAD_MAX_MEMORY_SIZE,
-the server returns a 400 Bad Request (not a 500 Internal Server Error).
-
-Issue: https://github.com/gyrinx-app/gyrinx/issues/1097
-"""
+"""Return HTTP 400 for RequestDataTooBig, including template-rendering fallback."""
 
 from unittest.mock import patch
 
@@ -21,10 +14,7 @@ pytestmark = pytest.mark.core
 
 
 def test_request_size_exception_middleware_catches_exception():
-    """
-    Test that RequestSizeExceptionMiddleware catches RequestDataTooBig
-    and returns a 400 response.
-    """
+
     middleware = RequestSizeExceptionMiddleware(lambda r: HttpResponse("OK"))
 
     request = HttpRequest()
@@ -42,10 +32,7 @@ def test_request_size_exception_middleware_catches_exception():
 
 
 def test_request_size_exception_middleware_fallback():
-    """
-    Test that the middleware falls back to a plain text response
-    when template rendering fails.
-    """
+
     middleware = RequestSizeExceptionMiddleware(lambda r: HttpResponse("OK"))
 
     request = HttpRequest()
@@ -65,9 +52,7 @@ def test_request_size_exception_middleware_fallback():
 
 
 def test_request_size_exception_middleware_ignores_other_exceptions():
-    """
-    Test that RequestSizeExceptionMiddleware ignores other exceptions.
-    """
+
     middleware = RequestSizeExceptionMiddleware(lambda r: HttpResponse("OK"))
 
     request = HttpRequest()
@@ -81,11 +66,7 @@ def test_request_size_exception_middleware_ignores_other_exceptions():
 
 
 def test_request_data_too_big_exception_behavior():
-    """
-    Test that RequestDataTooBig is a SuspiciousOperation exception.
 
-    This verifies the exception hierarchy that our middleware relies on.
-    """
     from django.core.exceptions import SuspiciousOperation
 
     with override_settings(DATA_UPLOAD_MAX_MEMORY_SIZE=100):
@@ -99,14 +80,10 @@ def test_request_data_too_big_exception_behavior():
 
 @pytest.mark.django_db
 def test_full_middleware_chain_returns_400():
-    """
-    Test the middleware with a real Django request through the full
-    process_exception flow, verifying template rendering works.
-    """
+
     factory = RequestFactory()
     request = factory.post("/upload", data={"field": "x" * 200})
 
-    # Simulate what Django does: view raises, middleware process_exception is called
     def get_response(r):
         raise RequestDataTooBig("Request body exceeded settings.")
 
@@ -122,21 +99,16 @@ def test_full_middleware_chain_returns_400():
 
 @pytest.mark.django_db
 def test_middleware_call_wraps_downstream_exceptions():
-    """
-    Test that the middleware's __call__ properly propagates requests
-    and that process_exception handles RequestDataTooBig from views.
-    """
+
     factory = RequestFactory()
     request = factory.get("/")
 
-    # Normal request flows through
     middleware = RequestSizeExceptionMiddleware(
         lambda r: HttpResponse("OK", status=200)
     )
     response = middleware(request)
     assert response.status_code == 200
 
-    # process_exception returns 400 for RequestDataTooBig
     exception = RequestDataTooBig("Request body exceeded settings.")
     with patch(
         "gyrinx.middleware.render", return_value=HttpResponse("Error", status=400)

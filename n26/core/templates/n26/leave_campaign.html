@@ -1,10 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-The question asked before a player leaves a campaign, at an address of its
-own. Following the link that leads here changes nothing; the POST is the act.
-Each gang's lists are the gangs table's own facts for that gang, as on the
-page that removes one gang.
+Show the consequences of leaving before POST. Reuse the campaign table's gang facts for
+the affected values.
 {% endcomment %}
 {% block head_title %}Leave {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}

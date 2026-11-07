@@ -15,6 +15,7 @@ what makes it a move rather than a change.
 from n26.core.views.action_flows import action_by_hand, action_flow, action_start
 from n26.core.views.api import preview_view
 from n26.core.views.arrivals import gang_next
+from n26.core.views.asset_types import edit_asset_type, edit_asset_type_command
 from n26.core.views.assignment_sets import (
     edit_model_card,
     model_cards,
@@ -28,7 +29,12 @@ from n26.core.views.battles import (
     record_battle_outcome,
     restore_battle,
 )
-from n26.core.views.campaign_assets import asset_detail, edit_asset, save_asset_boons
+from n26.core.views.campaign_assets import (
+    asset_detail,
+    edit_asset,
+    edit_asset_command,
+    save_asset_boons,
+)
 from n26.core.views.campaign_rolls import (
     campaign_roll,
     preview_pool_roll,
@@ -53,7 +59,6 @@ from n26.core.views.campaigns import (
     campaign_tables,
     campaigns,
     create_campaign,
-    edit_asset_type,
     edit_campaign,
     leave_campaign,
     new_asset,
@@ -79,7 +84,7 @@ from n26.core.views.changelog import (
 )
 from n26.core.views.choose import choose, dismiss_offer, restore_offer
 from n26.core.views.cloning import clone_fighter, clone_gang
-from n26.core.views.credits import gang_credits
+from n26.core.views.credits import gang_credits, gang_credits_command
 from n26.core.views.crews import crew_sheet, edit_crew
 from n26.core.views.edit import base_rating, edit_fighter
 from n26.core.views.equip import equip, equip_gang
@@ -162,6 +167,7 @@ __all__ = [
     "accessorise_assignment",
     "asset_detail",
     "edit_asset",
+    "edit_asset_command",
     "save_asset_boons",
     "campaign",
     "campaign_log",
@@ -189,6 +195,7 @@ __all__ = [
     "add_counter",
     "add_asset_type",
     "edit_asset_type",
+    "edit_asset_type_command",
     "add_label",
     "archive_addition",
     "unarchive_addition",
@@ -232,6 +239,7 @@ __all__ = [
     "equip_gang",
     "fighter_options",
     "gang_credits",
+    "gang_credits_command",
     "gang_founding_action",
     "gang_history",
     "gang_lore",

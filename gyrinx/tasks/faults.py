@@ -1,20 +1,8 @@
-"""
-Fault injection for the local task queue.
+"""Inject delivery faults into the local task worker.
 
-Pub/Sub is at-least-once, retries on failure, and can be slow — and the codebase
-is full of idempotency reasoning that only ever runs in production. This module
-lets the local worker *reproduce* those conditions so the hardening can actually
-be exercised (in dev, and via the pytest driver in CI).
-
-Two complementary mechanisms:
-
-- ``FaultConfig`` — *probabilistic* chaos for the running dev server, configured
-  from settings/env (each delivery may be delayed, may fail, may be duplicated,
-  may be dropped). Great for "leave it on for an afternoon and see what breaks".
-- The manual test driver (``gyrinx.tasks.testing``) — *scripted, deterministic*
-  faults (``fail_next``, ``redeliver_last``, ``drop_next``) for assertions.
-
-Both ultimately feed the same delivery machinery in ``gyrinx.tasks.worker``.
+FaultConfig supplies probabilistic delays, failures, duplicates and drops.
+The manual driver in gyrinx.tasks.testing scripts deterministic faults
+through the same worker delivery function.
 """
 
 import os
@@ -26,10 +14,9 @@ from dataclasses import dataclass
 
 @dataclass
 class FaultConfig:
-    """Probabilistic fault knobs applied per delivery.
+    """Per-delivery fault probabilities and delays.
 
-    All rates are in ``[0, 1]``. Defaults are all-zero (a no-op), so an
-    unconfigured queue behaves normally.
+    Use probabilities from zero to one. Zero defaults disable fault injection.
     """
 
     duplicate_rate: float = 0.0  # chance a successful delivery is redelivered once
@@ -100,10 +87,7 @@ class FaultConfig:
 
     @classmethod
     def from_env(cls, prefix: str = "TASKS_FAULT_") -> FaultConfig:
-        """Build from environment variables, e.g. ``TASKS_FAULT_DUPLICATE_RATE=0.1``.
-
-        Lets you flip chaos on for a dev-server session without editing settings.
-        """
+        """Read fault rates and delays from prefixed environment variables."""
 
         def _f(name: str, default: float = 0.0) -> float:
             raw = os.getenv(prefix + name)

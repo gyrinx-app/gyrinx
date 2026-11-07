@@ -1167,3 +1167,18 @@ receipt. Undo it and check that exactly 5 rating is removed. Restore the same
 choice and check that exactly 5 returns. Editing a slot changes new acquisitions;
 it does not reprice completed names or corrected and restored results from the
 same action.
+
+## Create a side-job set
+
+Open **Scenario tables** and create a side-job set. Give it a name and add one
+entry for each D6 result, from 1 to 6. Each entry needs a name and description.
+Put asterisks around words to display them in bold. You can also upload a diagram;
+add a description for players who cannot see it.
+
+Once all six entries are complete, use **Preview in generator** to check the
+set. It remains staged while you check it. Use **Put live** when it is ready;
+players can then select it in the scenario generator and on battles.
+
+Corrections to live wording also appear on saved scenarios. Use **Retire set**
+to stop offering a set while keeping existing results readable. Use **Restore set**
+to offer it again.

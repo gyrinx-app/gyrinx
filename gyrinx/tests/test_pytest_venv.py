@@ -1,9 +1,4 @@
-"""A sibling worktree's pytest on PATH imports that checkout's code.
-
-wren hit this on #lessons (27 Sep): bare ``pytest`` resolved to another
-worktree's ``.venv`` and produced phantom failures. The root conftest
-refuses to start in that case.
-"""
+"""Reject a sibling worktree's pytest interpreter to prevent imports from the wrong checkout."""
 
 import sys
 from pathlib import Path

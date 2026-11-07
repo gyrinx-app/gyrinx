@@ -1,23 +1,7 @@
-"""
-Lightweight helpers to capture SQL executed by a callable (function, method, view)
-using Django's CaptureQueriesContext. Designed for quick diagnostics in tests,
-management commands, or ad-hoc profiling.
+"""Capture SQL counts and timings for diagnostics.
 
-Typical usage:
-
-    result, info = capture_queries(lambda: MyModel.objects.filter(...).list())
-    print(info.count, info.total_time)
-    for q in info.queries:
-        print(q["time"], q["sql"])
-
-Or as a decorator:
-
-    @with_query_capture(using="replica")
-    def do_work():
-        ...
-        return "ok"
-
-    (result, info) = do_work()
+capture_queries returns (result, QueryInfo). with_query_capture logs the
+summary and preserves the decorated function's return value.
 """
 
 import logging
@@ -33,14 +17,9 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class QueryInfo:
-    """Summary of SQL captured during a function call.
+    """Captured SQL count, total elapsed query time in seconds and raw query entries.
 
-    Attributes:
-        count: Total number of SQL statements executed.
-        total_time: Sum of execution times across all captured statements, in seconds.
-        queries: Raw entries as emitted by Django's CaptureQueriesContext. Each dict has:
-            - "sql": The SQL string sent to the database (driver-rendered).
-            - "time": Execution time as a string in seconds (e.g., "0.003").
+    Each raw entry retains Django's sql and string-valued time fields.
     """
 
     count: int
@@ -51,47 +30,17 @@ class QueryInfo:
 def capture_queries(
     func: Callable[[], Any], *, using: str = "default"
 ) -> tuple[Any, QueryInfo]:
-    """Run a callable with SQL query capture enabled.
+    """Run a zero-argument callable and return its result with a SQL summary.
 
-    This wraps the callable in Django's ``CaptureQueriesContext`` for the specified
-    database connection and returns both the callable's result and a structured
-    summary of the SQL executed.
-
-    Works even if ``DEBUG=False`` because the context forces a debug cursor
-    for the duration of the capture.
-
-    Args:
-        func: Zero-argument callable to execute (wrap with ``lambda`` if needed to
-            bind arguments).
-        using: Django database alias to capture against (defaults to ``"default"``).
-
-    Returns:
-        A tuple ``(result, info)`` where:
-            - ``result`` is whatever ``func()`` returns.
-            - ``info`` is a :class:`QueryInfo` containing count, total_time (seconds),
-              and the raw captured queries.
-
-    Notes:
-        * The time per query is captured as strings by Django; this function converts
-          them to ``float`` only when computing ``total_time``. Individual entries in
-          ``info.queries`` keep the original string values.
-        * Nested calls that also use ``CaptureQueriesContext`` will aggregate at the
-          outermost level; Django appends to the same list during the context.
-        * If your callable issues queries to multiple database aliases, only queries
-          executed via the specified ``using`` connection are captured.
-
-    Examples:
-        >>> result, info = capture_queries(lambda: MyModel.objects.count())
-        >>> info.count
-        1
-        >>> round(info.total_time, 6) >= 0.0
-        True
+    Capture only the selected database alias. CaptureQueriesContext enables
+    the debug cursor even with DEBUG=False. Total time converts the raw
+    string timings to seconds; individual query entries remain unchanged.
     """
     conn = connections[using]
     with CaptureQueriesContext(conn) as ctx:
         result = func()
 
-    # ctx.captured_queries is a list of {"sql": "...", "time": "..."} (time as string seconds)
+    # Django stores individual timings as strings; convert only the total.
     total_time = sum(float(q.get("time") or 0.0) for q in ctx.captured_queries)
 
     info = QueryInfo(
@@ -103,34 +52,9 @@ def capture_queries(
 
 
 def with_query_capture(using="default", *log_args, **log_kwargs):
-    """Decorator that returns ``(result, QueryInfo)`` when the function is called.
+    """Log captured SQL for the selected alias while preserving the function's result.
 
-    Apply to any function to execute it under query capture for the given database
-    alias. The decorated function’s *runtime return value* becomes a tuple of the
-    original result and the accompanying :class:`QueryInfo`.
-
-    Args:
-        using: Django database alias to capture against (defaults to ``"default"``).
-
-    Returns:
-        A decorator that, when applied, causes the wrapped function to return
-        ``(result, QueryInfo)`` instead of just ``result``.
-
-    Example:
-        >>> @with_query_capture()
-        ... def do_work(n):
-        ...     return n * 2
-        ...
-        >>> (value, info) = do_work(5)
-        >>> value
-        10
-        >>> isinstance(info.count, int)
-        True
-
-    Caution:
-        Because the decorator changes the return type at runtime, avoid applying it
-        directly to production code paths that callers expect to return a specific
-        type. It’s ideal for tests, diagnostics, shell use, and management commands.
+    Forward log_args and log_kwargs to log_query_info.
     """
 
     def deco(fn):
@@ -145,18 +69,13 @@ def with_query_capture(using="default", *log_args, **log_kwargs):
 
 
 def log_query_info(info, *, limit: int | None = 10, level: int = logging.DEBUG):
-    """Pretty-print a QueryInfo object to the Python logger.
+    """Log query count, total seconds and up to limit individual statements.
 
-    Args:
-        info: QueryInfo instance.
-        limit: Optional max number of queries to show (defaults to 10).
-               Set to None to show all.
-        level: Logging level to use (default DEBUG).
+    Use limit=None to log every captured statement.
     """
     header = f"Captured {info.count} queries in {info.total_time:.3f} seconds"
     logger.log(level, header)
 
-    # Show queries up to limit
     queries = info.queries if limit is None else info.queries[:limit]
     for idx, q in enumerate(queries, start=1):
         sql = q.get("sql", "").strip()

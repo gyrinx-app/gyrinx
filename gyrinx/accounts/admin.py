@@ -81,7 +81,6 @@ def add_users_to_group(modeladmin, request, queryset):
 
         return None
 
-    # GET request - show selection form
     groups = Group.objects.all().order_by("name")
 
     if not groups.exists():
@@ -112,12 +111,10 @@ def add_users_to_group(modeladmin, request, queryset):
     )
 
 
-# Unregister the default admin classes
 admin.site.unregister(User)
 admin.site.unregister(Group)
 
 
-# Register with our custom admin classes
 @admin.action(description="Remove selected users from group")
 def remove_users_from_group(modeladmin, request, queryset):
     selected = queryset.values_list("pk", flat=True)
@@ -177,7 +174,6 @@ def remove_users_from_group(modeladmin, request, queryset):
 
         return None
 
-    # GET request - show selection form
     groups = Group.objects.all().order_by("name")
 
     if not groups.exists():
@@ -236,7 +232,6 @@ def add_profiles_to_group(modeladmin, request, queryset):
             )
         return None
 
-    # Build a user queryset for display in the template.
     users_qs = User.objects.filter(profile__pk__in=selected).order_by("username")
 
     context = {
@@ -252,14 +247,10 @@ def add_profiles_to_group(modeladmin, request, queryset):
 
 
 def _grant_badge(modeladmin, request, users, selected, action_name):
-    """Grant one badge to a set of people, behind a confirmation page.
+    """Confirm and grant one badge to users selected through users or profiles.
 
-    Shared by the action on people and the one on profiles, because the only
-    thing that differs between them is how the selection was made.
-
-    Re-granting is not an error: the second run reports how many already had it
-    rather than refusing the lot, which is what makes it safe to run again after
-    adding a few more names to the list.
+    Preserve existing grants and report their count so repeated submissions
+    can add recipients without failing on duplicates.
     """
     if request.POST.get("post") == "yes":
         badge = Badge.objects.filter(pk=request.POST.get("badge")).first()
@@ -272,8 +263,7 @@ def _grant_badge(modeladmin, request, users, selected, action_name):
         reason = (request.POST.get("reason") or "").strip()
         granted = 0
         for user in users:
-            # Matches the partial unique constraint exactly — a lookup that
-            # missed a row would trip the constraint instead of being a no-op.
+            # Match the grant's unique key so existing grants are counted without an integrity error.
             _, created = BadgeGrant.objects.get_or_create(
                 badge=badge,
                 user=user,
@@ -318,11 +308,9 @@ def grant_badge_to_profiles(modeladmin, request, queryset):
 
 
 class BadgeForm(forms.ModelForm):
-    """The badge's two ways to artwork: upload a drawing, or name one.
+    """Upload badge artwork or use a stored artwork address.
 
-    The upload control stores nothing of its own — it puts the file in the
-    site's storage and writes the resulting address into ``artwork_url``, which
-    is the only thing the row keeps.
+    The upload helper stores the file and writes its URL to artwork_url.
     """
 
     artwork_upload = forms.FileField(
@@ -352,13 +340,10 @@ class BadgeForm(forms.ModelForm):
 
 
 def resolve_people(text):
-    """Split pasted text into the people it names, and what it didn't match.
+    """Resolve comma-separated or line-separated usernames and email addresses.
 
-    Takes usernames or email addresses, one per line or comma-separated, and
-    matches either case-insensitively. Returns the people found and the lines
-    that found nobody — reporting the misses matters more than it sounds,
-    because a mistyped name in a pasted list would otherwise be a person who
-    quietly never gets their badge.
+    Match case-insensitively, deduplicate accounts and return unmatched inputs
+    separately so the admin can correct missing recipients.
     """
     identifiers = [
         part.strip()
@@ -402,12 +387,7 @@ class BadgeAdmin(admin.ModelAdmin):
         ]
 
     def grant_to_list_view(self, request):
-        """Grant a badge to a pasted list of people.
-
-        The selection-based action needs every recipient found and ticked in the
-        changelist, which does not fit a cohort that arrives as a list of names
-        from somewhere else entirely.
-        """
+        """Grant a badge to accounts resolved from pasted usernames or email addresses."""
         granted, already, missing, people = 0, 0, [], []
         pasted = ""
 
@@ -448,7 +428,7 @@ class BadgeAdmin(admin.ModelAdmin):
 
     @admin.display(description="Badge")
     def preview(self, obj):
-        """The artwork itself — an address tells a reader nothing."""
+        """Render the badge's inline artwork for the admin list."""
         svg = obj.as_def().inline_svg()
         if not svg:
             return "—"
@@ -536,7 +516,6 @@ def show_verification_links(modeladmin, request, queryset):
     """
     selected = queryset.values_list("pk", flat=True)
 
-    # Check if this is a CSV download request
     if request.POST.get("download_csv"):
         response = HttpResponse(content_type="text/csv")
         response["Content-Disposition"] = (
@@ -548,9 +527,7 @@ def show_verification_links(modeladmin, request, queryset):
 
         for email_address in queryset:
             if not email_address.verified:
-                # Create a new email confirmation
                 confirmation = email_address.send_confirmation(request, signup=False)
-                # Generate the verification URL
                 verification_url = get_email_verification_url(request, confirmation)
                 writer.writerow([email_address.email, "Unverified", verification_url])
             else:
@@ -558,7 +535,6 @@ def show_verification_links(modeladmin, request, queryset):
 
         return response
 
-    # Build verification data for the template
     verification_data = []
 
     for email_address in queryset:
@@ -569,14 +545,11 @@ def show_verification_links(modeladmin, request, queryset):
         }
 
         if not email_address.verified:
-            # Create a new email confirmation
             confirmation = email_address.send_confirmation(request, signup=False)
-            # Generate the verification URL
             item["verification_url"] = get_email_verification_url(request, confirmation)
 
         verification_data.append(item)
 
-    # Render the template with the verification data
     context = {
         **modeladmin.admin_site.each_context(request),
         "title": _("Email Verification Links"),
@@ -591,7 +564,6 @@ def show_verification_links(modeladmin, request, queryset):
     )
 
 
-# Unregister allauth's default EmailAddress admin if it exists
 try:
     admin.site.unregister(EmailAddress)
 except admin.sites.NotRegistered:
@@ -600,9 +572,8 @@ except admin.sites.NotRegistered:
 
 @admin.register(EmailAddress)
 class EmailAddressAdmin(AllauthEmailAddressAdmin):
-    # Extend allauth's EmailAddressAdmin to add our custom action
     actions = AllauthEmailAddressAdmin.actions + [show_verification_links]
 
     def has_add_permission(self, request):
-        # Disable manual addition of email addresses for security
+        # Email creation must use the verification flow.
         return False

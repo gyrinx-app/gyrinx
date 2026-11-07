@@ -1,10 +1,5 @@
 {% extends "authoring/base.html" %}
-{% comment %}
-One modifier onto several things of a kind, at an address of its own.
-The listing's ticked rows arrive in the query string and are listed
-back so the author can see what they picked; the post carries them as
-hidden fields. Nothing changes until the form posts.
-{% endcomment %}
+{# GET identifies the selected content; POST resubmits those identifiers as hidden fields. #}
 {% block head_title %}
     Attach a modifier
 {% endblock head_title %}

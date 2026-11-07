@@ -17,6 +17,7 @@ type Entry = {
     text: string;
     parts?: [string, boolean][];
     image: string;
+    imageAlt?: string;
 };
 
 type SideJobSet = {
@@ -26,13 +27,15 @@ type SideJobSet = {
     entries: Entry[];
 };
 
-// A side job's result also names its set, so it can be rolled again.
+// Retain the originating set so side-job results can be rerolled.
 type Result = { key: string; heading: string; entry: Entry; set?: string };
 
-// A side job pick: "" until a set is picked, "leave", a set's key to
-// roll on it, or a set's key and roll for one of its jobs, "escher-3".
+// Picks can be empty, leave, a set key for a random result, or a set and
+// roll such as escher-3.
 function setOf(pick: string, sets: SideJobSet[]) {
-    return sets.find((found) => found.key === pick.split("-")[0]);
+    return sets.find(
+        (found) => pick === found.key || pick.startsWith(`${found.key}-`),
+    );
 }
 
 function Text({ entry }: { entry: Entry }) {
@@ -65,6 +68,7 @@ export type BattleScenarioProps = {
     sideJobKeys?: string[];
     sideJobLimit?: number;
     sideJobSets?: SideJobSet[];
+    referencedSideJobSets?: SideJobSet[];
 };
 
 export function BattleScenario(props: BattleScenarioProps) {
@@ -72,10 +76,11 @@ export function BattleScenario(props: BattleScenarioProps) {
     const [revision, setRevision] = useState(props.save?.revision);
     const sideJobKeys = props.sideJobKeys ?? [];
     const sideJobSets = props.sideJobSets ?? [];
+    const resultSets = [...sideJobSets, ...(props.referencedSideJobSets ?? [])];
     const initialSidePicks = sideJobKeys.flatMap((key) => {
         const value = props.rolls[key];
         if (!value) return [];
-        const set = setOf(value.includes("-") ? value : "general", sideJobSets);
+        const set = setOf(value.includes("-") ? value : "general", resultSets);
         return set ? [set.key] : [];
     });
     const { picks, sidePicks, setPicks, setSidePicks } = useScenarioPicks({
@@ -86,7 +91,7 @@ export function BattleScenario(props: BattleScenarioProps) {
     });
     const [pending, setPending] = useState(false);
     const [error, setError] = useState("");
-    // The side job whose Reroll dialog is open, and the set picked in it.
+
     const [reroll, setReroll] = useState<{
         key: string;
         heading: string;
@@ -121,8 +126,8 @@ export function BattleScenario(props: BattleScenarioProps) {
         );
         return entry ? [{ key: table.key, heading: table.name, entry }] : [];
     });
-    // Side jobs are stored as a set and roll, "escher-3"; a bare roll is
-    // from the General set, as battles saved before there were sets have.
+    // Side-job values combine set and roll, such as escher-3. Bare rolls
+    // use the General set.
     let place = 0;
     for (const key of sideJobKeys) {
         const value = rolls[key];
@@ -133,7 +138,7 @@ export function BattleScenario(props: BattleScenarioProps) {
             dash >= 0
                 ? [value.slice(0, dash), value.slice(dash + 1)]
                 : ["general", value];
-        const set = sideJobSets.find((found) => found.key === setKey);
+        const set = resultSets.find((found) => found.key === setKey);
         const entry = set?.entries.find((entry) => String(entry.roll) === roll);
         if (!set || !entry) invalid = true;
         else
@@ -148,7 +153,7 @@ export function BattleScenario(props: BattleScenarioProps) {
     const query = new URLSearchParams(
         Object.entries(rolls).filter(([, value]) => value),
     );
-    // The menus as they are set, for Generate.
+
     function menuChoices() {
         const choices = new URLSearchParams({ generate: "1", format: "json" });
         for (const [key, value] of Object.entries(picks))
@@ -161,8 +166,8 @@ export function BattleScenario(props: BattleScenarioProps) {
         }
         return choices;
     }
-    // The scenario as it is, for the server to roll one side job again on
-    // the set chosen, never giving back the job it replaces.
+    // Send the current scenario so the server can replace one side job and
+    // exclude its existing result.
     function rerollChoices(target: string, set: string) {
         const choices = new URLSearchParams({
             format: "json",
@@ -173,8 +178,8 @@ export function BattleScenario(props: BattleScenarioProps) {
             if (value) choices.set(key, value);
         return choices;
     }
-    // After a reroll, the menu that gave that side job rolls on its new
-    // set too, when each menu with a set still gave one side job.
+    // Update the corresponding generation menu only when populated menus
+    // and results still map one to one.
     function pickRerolledSet(target: string, set: string) {
         const sideJobs = results.filter((result) => result.set);
         const giving = sidePicks.flatMap((pick, index) =>
@@ -293,13 +298,23 @@ export function BattleScenario(props: BattleScenarioProps) {
                                             <Button
                                                 variant="text"
                                                 className="text-sm"
-                                                disabled={pending}
+                                                disabled={
+                                                    pending ||
+                                                    !sideJobSets.length
+                                                }
                                                 aria-label={`Reroll ${heading}`}
                                                 onClick={() =>
                                                     setReroll({
                                                         key,
                                                         heading,
-                                                        set,
+                                                        set: sideJobSets.some(
+                                                            (each) =>
+                                                                each.key ===
+                                                                set,
+                                                        )
+                                                            ? set
+                                                            : (sideJobSets[0]
+                                                                  ?.key ?? ""),
                                                     })
                                                 }
                                             >
@@ -317,7 +332,10 @@ export function BattleScenario(props: BattleScenarioProps) {
                                         <img
                                             className="mt-2 w-full max-w-sm"
                                             src={entry.image}
-                                            alt={`${heading}: ${entry.name}`}
+                                            alt={
+                                                entry.imageAlt ||
+                                                `${heading}: ${entry.name}`
+                                            }
                                         />
                                     )}
                                 </div>
@@ -364,6 +382,7 @@ export function BattleScenario(props: BattleScenarioProps) {
                             prefix="preview"
                             picks={sidePicks}
                             sets={sideJobSets}
+                            referencedSets={props.referencedSideJobSets}
                             keys={sideJobKeys}
                             limit={props.sideJobLimit ?? 6}
                             disabled={pending}

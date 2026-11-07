@@ -1,44 +1,15 @@
-"""Reach — a piece of content explained in sentences.
+"""Describe library effects and acquisition routes as structured sentences.
 
-Two questions an author has about anything in the library, and neither is
-answerable from the row's own page as it stands: **what does this do** to
-whoever ends up with it, and **how does anyone come to have it** at all.
-The first is downstream, the modifiers; the second is upstream, every
-edge that puts the thing in somebody's hands.
+``does`` explains what held content changes; ``referenced_by`` explains how
+it can be acquired. Views add URLs using each sentence's model-and-key
+identity. This module produces no HTML and resolves no URLs.
 
-Both are compiled here into plain sentences a player could read, each
-carrying the mechanics as a hint for whoever wants them and an identity
-for whoever wants to link it. Structures before renderers: this module
-knows no HTML and no URLs — a ``Sentence``'s ``href`` is left empty for
-the view to fill, the way the hire list's cards are pointed at their
-addresses after they are built.
+Compute sentence subjects from the carrier: gang-held content can affect
+every model, while equipment describes its bearer. Preserve authored content
+names without pluralising them. Use present-tense facts for existing
+relationships and "may" for possible acquisition routes.
 
-The register is the option cards' (``specs.py``): short, concrete,
-player-plain, the game's own words. Four rules hold the voice together:
-
-* **Who a modifier speaks of follows from who carries it.** The same
-  "the bearer's weapons gain Backstab" reads three ways — carried by a
-  subtype it is about anyone with that subtype, carried by a piece of
-  gear it is about whoever holds the gear, held by the gang it is about
-  every fighter in it. So the subject is computed from the carriage, not
-  written into the modifier.
-* **A sentence about a person's own sheet says "they"; one about their
-  kit names the bearer.** "Their Psychoteric Whispers set appears as
-  Primary" and "its bearer's weapons gain Backstab" are the two
-  registers, and the second exists because a bare "their weapons" would
-  be taken for the gang's.
-* **Structural facts say "is"; potential routes say "may".** Being built
-  into a gang type is a fact about the world; being chosen for an
-  offered choice is something that might happen.
-* **A content name is said exactly as it was authored.** "3 Hive Scum",
-  never "3 Hive Scums": the name is the book's, and inflecting it
-  invents a word no author wrote. Ordinary words around it still count
-  properly — two gangs, three times.
-
-A hint says what happens for the row in front of the reader, in their
-own timeline — when it arrives, what takes it away, what a page will
-warn about. It never explains how the app is built and never argues the
-design.
+Hints explain arrival, removal and other player-visible mechanics.
 """
 
 from dataclasses import dataclass, field, replace
@@ -67,14 +38,9 @@ UNATTACHED = "unattached"
 
 @dataclass(frozen=True)
 class Sentence:
-    """One statement about a piece of content.
+    """Display text, an optional mechanics hint and a linkable content identity.
 
-    ``text`` is what a player could read. ``hint`` is the mechanics
-    behind it, for a reader who hovers. ``href`` is the address of the
-    row the sentence is about, filled in by the view — the compiler
-    knows no URLs. ``key`` is that row's identity, ``(model label, pk)``,
-    so a view can point each sentence at its subject without reading the
-    words.
+    Views resolve ``key=(model label, pk)`` into ``href`` without parsing text.
     """
 
     text: str
@@ -83,18 +49,13 @@ class Sentence:
     key: tuple = ()
 
     def at(self, href):
-        """This sentence, pointed at an address.
-
-        The rows are frozen, so a view decorates by replacing rather than
-        by writing into them: it walks the prose, turns each ``key`` into
-        a URL of its own, and keeps what comes back.
-        """
+        """Return an immutable copy with its destination URL set."""
         return replace(self, href=href)
 
 
 @dataclass(frozen=True)
 class AssignedTo:
-    """How much of the player side is standing on this thing."""
+    """Counts of assignments and gangs referencing content."""
 
     gangs: int
     rows: int
@@ -102,13 +63,7 @@ class AssignedTo:
 
 @dataclass(frozen=True)
 class Prose:
-    """Everything the reach column says about one thing.
-
-    ``referenced_by`` is how anyone comes to have it, ``does`` is what it
-    does once they have it, in the order the rules apply it.
-    ``assigned_to`` is the player-side tally, and ``None`` for a kind
-    nobody can be assigned.
-    """
+    """Effect descriptions, acquisition routes and an optional player-assignment tally."""
 
     referenced_by: tuple = ()
     does: tuple = ()
@@ -120,12 +75,10 @@ class Prose:
 
 @dataclass(frozen=True)
 class _Who:
-    """The words a sentence needs for whoever a modifier reaches.
+    """Sentence fragments describing a modifier's target.
 
-    Every phrase is stored with a small first letter; the finished
-    sentence is capitalised once, at the end. That way a leading clause
-    ("While their XP is 75 or more, …") can be put in front of any of
-    them without each renderer having to know it might not be first.
+    Store fragments with lowercase initials and capitalise the complete sentence
+    after prepending any condition clauses.
     """
 
     subject: str
@@ -151,18 +104,14 @@ class _Who:
 
 
 def _owned(who, thing):
-    """What the subject has, as a noun phrase: "their Ballistic Skill",
-    or "the Ballistic Skill of every fighter with Cawdor" once the
-    subject carries a narrowing of its own."""
+    """Format possession, expanding qualified subjects to avoid ambiguous apostrophes."""
     if who.qualified:
         return f"the {thing} of {who.subject}"
     return f"{who.possessive} {thing}"
 
 
 def _a(name):
-    """A name with its article. Naive on purpose — the leading letter and
-    nothing more: the names are the books', and getting "a Unification
-    Elder" right needs a pronunciation dictionary nobody maintains."""
+    """Choose a content name's article from its first letter without pronunciation analysis."""
     article = "an" if str(name)[:1].lower() in "aeiou" else "a"
     return f"{article} {name}"
 
@@ -220,12 +169,10 @@ _CARRIED = ("weapon", "wargear", "weaponaccessory", "weaponprofile")
 
 
 def carriage_of(thing, edges):
-    """How this thing comes to be held, in the sense ``_who`` needs.
+    """Determine how content is held for sentence subject selection.
 
-    Reaching the gang wins over everything: a rule built into a gang
-    type does what it does to every member, whatever kind of row it is.
-    Below that the kind decides, because a subtype is a fact about a
-    model and a gun is something a model carries.
+    Gang-reaching references take precedence. Otherwise distinguish subtype
+    facts from carried equipment using the content kind.
     """
     from n26.library.models import CampaignType, GangType, Subtype
 
@@ -260,12 +207,7 @@ def _renders(field):
 
 @dataclass(frozen=True)
 class _Parts:
-    """What a renderer is handed: the reach, the target, and the chain.
-
-    ``chain`` is what a granted thing gives in its own right, already
-    looked up in a batch, because a sentence that asked for it a row at
-    a time would cost a query per grant.
-    """
+    """Batched scope, target and further-grant data for effect descriptions."""
 
     who: _Who
     target: str
@@ -277,21 +219,14 @@ def _agrees(who, singular, plural):
 
 
 def _while(who):
-    """When what is given holds good, where that still needs saying.
-
-    Empty where the sentence has already said it: a scope conditioned on
-    a threshold opens with "While their XP is 75 or more", and a second
-    "while" at the end would say the same thing twice.
-    """
+    """Add a persistence clause unless a leading condition already describes it."""
     return f", {who.persistence}" if who.persistence else ""
 
 
 def _gained(thing):
-    """What arriving with a thing is called, in words that suit its kind.
+    """Describe acquisition using the content kind's terminology.
 
-    A trait on a weapon profile needs no noun after it; a collection is
-    access rather than an object; a granted weapon is free kit and says
-    so, because nothing about it is bought.
+    Collections grant access; computed weapon grants are free equipment.
     """
     kind = type(thing)._meta.model_name
     if kind == "subtype":
@@ -639,8 +574,7 @@ def _says_op_changes_counter(effect, parts):
 
 
 def _and_then(names, joiner="and"):
-    """Several names said as a list — "A, B and C", or with ``joiner``
-    "or" where any one of them will do."""
+    """Join names with commas and a final conjunction, defaulting to "and"."""
     names = list(names)
     if len(names) == 1:
         return names[0]
@@ -648,11 +582,9 @@ def _and_then(names, joiner="and"):
 
 
 def sentence_for(modifier, carriage=UNATTACHED, thing=None, chain=None):
-    """One modifier, as a sentence about whoever carries it.
+    """Describe one modifier using its carriage context and optional carrier.
 
-    ``carriage`` says who that is (``KIT``, ``CARD``, ``SUBTYPE``,
-    ``GANG``, or ``UNATTACHED`` for a modifier nothing carries yet).
-    ``thing`` is the carrier itself, which a subtype's sentence names.
+    ``carriage`` is KIT, CARD, SUBTYPE, GANG or UNATTACHED.
     """
     from n26.library.models.modifier import GANG as GANG_TARGET
     from n26.library.models.modifier import _possible_kinds
@@ -714,8 +646,7 @@ def _effect_field(modifier):
 
 @dataclass
 class _Narrowings:
-    """What a model scope's conditions narrow it to, sorted by the shape
-    each takes in the sentence."""
+    """Scope conditions grouped by their grammatical position in the sentence."""
 
     #: Ranks or entries named outright: they become the subject.
     named: list = field(default_factory=list)
@@ -793,26 +724,12 @@ MODEL_NARROWINGS = {
 
 
 def _narrowed(who, scope):
-    """The subject once the scope's conditions have had their say.
+    """Apply model and weapon conditions to a sentence's target phrases.
 
-    Each narrowing has its own shape, because each means something
-    different. Ranks or entries named become the subject — "Champion and
-    Leader" says who is reached better than any pronoun could, in the
-    names as authored, because a content name is never inflected — and
-    a Type beside them is their kind: "Champion vehicles". A Type alone
-    is the model's own word, "every vehicle". Whatever a row leaves out
-    follows after one "except"; a pick held joins as "with" or
-    "without", before the exception so it qualifies the subject and not
-    what was left out. A threshold becomes a clause in front, being a
-    condition on the moment rather than on the person, and the sentence
-    then drops its own "while" so as not to say the same thing twice.
-
-    A subject that is a pronoun or a clause takes no phrase after it, so
-    its narrowings lead the sentence as clauses too: "While holding
-    Cawdor, they gain …". A narrowing of the weapons joins the noun
-    phrase, in the words the condition row says of itself, so the
-    modifier's own name and this sentence cannot come to describe the
-    selection differently.
+    Use authored rank and profile names without inflection. Put pick conditions
+    before exclusions so they qualify the subject. Thresholds lead as clauses;
+    pronoun subjects also express their restrictions as leading clauses.
+    Use condition labels for weapon restrictions to match automatic naming.
     """
     if not getattr(scope, "CONDITIONS", ()) or scope.pk is None:
         return who, ""
@@ -888,14 +805,7 @@ def _narrowed(who, scope):
 
 
 def _narrowed_gang(who, scope):
-    """The gang scope's conditions, as a clause in front of the sentence.
-
-    There is one gang, so nothing qualifies the subject: the renderers
-    say "the gang" and go on saying it. What a condition adds is the
-    gang it has to be — "for Goliath gangs, the gang gains …" — said in
-    the condition row's own words, so the modifier's auto-name and this
-    sentence cannot come to describe the gangs differently.
-    """
+    """Prefix gang conditions using the condition labels used by automatic naming."""
     rows = scope._narrowing_rows()
     if not rows:
         return who, ""
@@ -910,13 +820,9 @@ def _picks_asked(slot):
 
 
 def _asks(slot):
-    """What a choice does by being on a card: it asks.
+    """Describe a visible slot's choice before its modifier effects.
 
-    Said before the modifiers a slot happens to carry, because this is
-    the whole of what a choice is for and everything else is beside it.
-    A hidden one asks nothing at all — the pick still arrives and still
-    does everything it does, which is how several things come under one
-    name.
+    Hidden slots apply their picks without displaying a choice.
     """
     count = _picks_asked(slot)
     named = slot.slot_type.name if slot.max_picks == 1 else slot.slot_type.plural
@@ -949,24 +855,16 @@ def _asks(slot):
 
 
 def _structural(thing):
-    """What a kind does by being what it is, before any modifier speaks.
-
-    Only a choice has anything to say here: everything else on a card
-    does what its modifiers do and nothing more.
-    """
+    """Describe a slot's choice independently of its modifiers."""
     from n26.library.models import Slot
 
     return (_asks(thing),) if isinstance(thing, Slot) else ()
 
 
 def _does(thing, carriage):
-    """Every modifier the thing carries, in the order the rules run them.
+    """Describe modifiers in the same specificity order used by effect computation.
 
-    Application order is specificity: an unconditional grant settles
-    before anything that could depend on it, which is how "the Cutter
-    grants Mounted" reaches a rule about Mounted models. Saying them in
-    any other order would tell the reader a different story from the one
-    the card lives by.
+    Unconditional grants precede rules that may depend on their granted facts.
     """
     from n26.core import select
 
@@ -993,12 +891,9 @@ def _does(thing, carriage):
 
 
 def _grants_of(things):
-    """What each of these things gives in its own right, keyed by identity.
+    """Batch further grants by content identity for chained effect descriptions.
 
-    The chain clause: a grant that hands over something which itself
-    hands over something. One query per kind present and one for the
-    modifiers, never one per thing — a bundle handing over eight rules
-    is read at the price of a bundle handing over one.
+    Query per kind and for modifiers, rather than per granted object.
     """
     from n26.library.models import Modifier
     from n26.library.models.modifier import GRANTABLE_FIELDS
@@ -1036,27 +931,18 @@ def _grants_of(things):
 
 
 def _identity(row):
-    """A row's identity for decoration — the same pair selectors key on."""
+    """Return the model label and primary key used for link decoration."""
     return (type(row)._meta.label_lower, row.pk)
 
 
 def _named(row):
-    """A row as a sentence names it: what an author calls it, and its kind.
-
-    Reads nothing but the row: an assignable says itself out of its own
-    name and annotation, so a sentence naming fifty carriers costs no
-    queries at all.
-    """
+    """Format a content label and kind from its local fields without queries."""
     label = getattr(row, "authoring_label", None) or str(row)
     return f"the {label} {row._meta.verbose_name}"
 
 
 def _modifier_of(row):
-    """The modifier an effect row belongs to, or None for an orphan.
-
-    An effect with no modifier is content half-written rather than a
-    bug, and a page about something else should say the rest and move on.
-    """
+    """Find an effect's modifier, returning ``None`` for unattached authoring content."""
     from django.core.exceptions import ObjectDoesNotExist
 
     try:
@@ -1067,14 +953,9 @@ def _modifier_of(row):
 
 @dataclass(frozen=True)
 class _Edges:
-    """Every edge into a thing, read once and shared by the sentences.
+    """Batch references, default-set carriers, modifier carriers and collection sweeps.
 
-    Four sweeps, each batched and each a fixed number of queries: what
-    names the thing, what holds the sets it is built into, what carries
-    the modifiers naming it, and which collections sweep its kind in.
-    Gathered here rather than by each sentence, because a sentence that
-    fetched its own subject would charge the page once per route it
-    found.
+    Share these reads across descriptions so query count does not grow per route.
     """
 
     thing: object
@@ -1120,14 +1001,9 @@ def _edges_into(thing):
 
 
 def _sweeps_catching(thing):
-    """The sweeps of the thing's kind that actually catch it.
+    """Test sweeps of this content kind in memory using browse semantics.
 
-    A sweep says a kind and a narrowing rather than a row, so nothing
-    points at the thing and there is no edge to read — the sweeps of its
-    kind are fetched and asked in memory, exactly as a browse asks them.
-    Read here rather than where a sentence wants them, because two
-    readers want the same answer: what offers the thing, and which
-    offered choices it can genuinely be chosen for.
+    Both catalogue-offer and choice descriptions reuse the matching sweeps.
     """
     from django.contrib.contenttypes.models import ContentType
 
@@ -1142,11 +1018,9 @@ def _sweeps_catching(thing):
 
 
 def _sets_holding(references):
-    """The sets of defaults naming the thing, by identity.
+    """Return default sets containing referenced content through unarchived members.
 
-    Archived memberships are skipped: an archived member no longer
-    materialises, so a page saying the thing is built into something
-    would contradict what a hire actually brings.
+    Deduplicate sets by ID.
     """
     from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
 
@@ -1171,13 +1045,10 @@ def _offers_of_kind(thing):
 
 
 def _carriers_of(modifiers):
-    """Everything holding each of these modifiers, keyed by modifier.
+    """Batch carriers by modifier identity.
 
-    The kinds share no table, so the pairs are asked for one kind at a
-    time — per call, though, never per modifier: a thing named by twenty
-    modifiers is read at the price of one. The rows themselves are
-    fetched only for the kinds that turned out to carry something, and
-    plain, because a carrier says itself out of its own columns.
+    Query matching carrier IDs per content kind, then bulk-fetch the carrier
+    records for kinds with matches.
     """
     if not modifiers:
         return {}
@@ -1203,13 +1074,7 @@ def _asking(credits):
 
 
 def _price_facts(price):
-    """A price said as facts, for the hint behind an offer.
-
-    Both halves of what a buyer pays with, because the Trading Post half
-    is the one a listing's own words leave out: an exclusive item is on
-    an equipment list and nowhere else, and a thing with no trade-point
-    price cannot be had for trade points at all.
-    """
+    """Describe credit and trade-point pricing, including exclusivity and unavailable prices."""
     if not price.credits:
         asked = "Free"
     else:
@@ -1223,13 +1088,7 @@ def _price_facts(price):
 
 
 def _reaches_the_gang(edges):
-    """Whether any edge puts the thing in the gang's own hands.
-
-    Two ways it can: a gang type's built-ins, which every gang of that
-    type is founded with, and a grant whose scope is the gang itself.
-    Either way what it does reaches every member, so its sentences speak
-    of every fighter rather than of a bearer.
-    """
+    """Detect gang-type built-ins or gang-scoped grants that affect every member."""
     from n26.library.models import CampaignType, GangType
 
     for reference in of_kind(edges.references, "library.addsassignable"):
@@ -1244,14 +1103,7 @@ def _reaches_the_gang(edges):
 
 
 def _referenced_by(edges):
-    """Every route by which somebody ends up holding this.
-
-    Ordered as the reader needs it: what is structurally true first —
-    built into something, given by something, taken away by something —
-    and the routes that merely *may* happen after, because a collection
-    that stocks it and a choice it could be chosen for are possibilities
-    rather than facts.
-    """
+    """Describe structural acquisition relationships before potential offers."""
     said = [
         *_built_into(edges),
         *_started_with(edges),
@@ -1281,11 +1133,7 @@ _TAKEN_HINT = (
 
 
 def _built_in_hint(holder=None):
-    """When a built-in arrives and when it goes, said of what holds it.
-
-    The holder is named where there is one, because the moment it arrives
-    is a fact about that thing rather than about built-ins in general.
-    """
+    """Describe built-in arrival and removal in the context of its holder."""
     named = _named(holder) if holder is not None else "the thing it is built into"
     return (
         f"Arrives free when {named} is assigned — hired, founded, or "
@@ -1339,12 +1187,7 @@ def _picklists_holding(edges):
 
 
 def _listed(edges):
-    """The picklists that offer the thing.
-
-    A fact about each picklist rather than a route on its own: being on
-    a picklist is how a pickable comes to be offered, and which choices
-    do the offering is said further down.
-    """
+    """Describe picklist memberships separately from choices offering those lists."""
     return [
         Sentence(
             text=f"Listed in {picklist}.",
@@ -1359,12 +1202,7 @@ def _listed(edges):
 
 
 def _offered_by_a_choice(edges):
-    """The choices that draw on a list the thing is on — the "may" half.
-
-    A choice names a picklist, so nothing points at the pickable itself:
-    every choice drawing on a list that offers it is a way somebody could
-    come to have it. One query however many lists hold it.
-    """
+    """Find choices using any picklist containing this pickable in one query."""
     from n26.library.models import Slot
 
     lists = _picklists_holding(edges)
@@ -1383,12 +1221,7 @@ def _offered_by_a_choice(edges):
 
 
 def _started_with(edges):
-    """The choices this arrives already settling — a slot with a default.
-
-    A route of its own: nothing gives the pickable and nobody picks it,
-    it simply comes with the choice, changed afterwards by the ordinary
-    rechoose.
-    """
+    """Describe slot defaults as initial picks that can later be changed."""
     return [
         Sentence(
             text=f"Chosen from the start for {_named(reference.row.slot)}.",
@@ -1403,13 +1236,9 @@ def _started_with(edges):
 
 
 def _granted_with_a_pick(edges):
-    """The granted slots this arrives already settling — a grant with a
-    starting pick.
+    """Describe starting picks supplied with granted slots through ``with_pick``.
 
-    The grant-side twin of :func:`_started_with`: nothing gives the
-    pickable in its own right, it comes with the slot the grant hands
-    over, and it goes when that slot does. Read off the grant's own
-    ``with_pick`` column, never as "given by" — the grant gives the slot.
+    The pick is attached to the slot grant and is removed with it.
     """
     return [
         Sentence(
@@ -1428,11 +1257,9 @@ def _granted_with_a_pick(edges):
 
 
 def _granted(edges):
-    """Who gives it and who takes it away — the modifier routes.
+    """Describe grants and removals through their content-target fields.
 
-    Only the columns that name the thing given or taken: a grant also
-    names the pick a slot arrives with, and that is a route of its own
-    (:func:`_granted_with_a_pick`), not "given by".
+    Starting picks have their own route through ``_granted_with_a_pick``.
     """
     from n26.library.models.modifier import GRANTABLE_FIELDS
 
@@ -1496,12 +1323,7 @@ def _brought(edges):
 
 
 def _entries_naming(edges):
-    """The entries that list the thing — the rows that put it in a catalogue.
-
-    Gated to the columns that mean listing: an entry's usable-by columns
-    name the fighters a line is for, and a line about somebody is not a
-    line offering them.
-    """
+    """Find catalogue entries naming content, excluding use-restriction references."""
     from n26.library.models.collection import ENTRY_ASSIGNABLE_FIELDS
 
     return tuple(
@@ -1512,11 +1334,7 @@ def _entries_naming(edges):
 
 
 def _collections_holding(edges):
-    """Every collection the thing is in, by identity.
-
-    A collection holds a thing two ways and no others: an entry names
-    it, or one of the collection's sweeps catches it.
-    """
+    """Find collections containing content through entries or matching sweeps."""
     held = {entry.collection_id for entry in _entries_naming(edges)}
     held.update(sweep.collection_id for sweep in edges.swept)
     return held
@@ -1559,12 +1377,9 @@ def _offered(edges):
 
 
 def _swept(thing, sweeps, listed):
-    """Collections that sweep the thing in without naming it.
+    """Describe matching collection sweeps unless an explicit entry takes precedence.
 
-    A collection that does both speaks once, in its entry's voice: an
-    entry wins over a sweep for the same item, so the sweep's reference
-    price is not what the reader would be asked for, and two "Offered
-    by" sentences from one collection at two prices tell them nothing true.
+    The entry can override pricing, so describing both would show conflicting offers.
     """
     from n26.library.models.collection import price_of
 
@@ -1587,17 +1402,10 @@ def _swept(thing, sweeps, listed):
 
 
 def _may_be_chosen(edges):
-    """Offered choices this could be chosen for — the "may" half.
+    """Find compatible choice offers, respecting their collection membership.
 
-    An offer names a kind, not a row, so nothing points at the thing:
-    every choice of its kind is a way somebody could come to have it.
-
-    An offer drawing from a section is narrower than its kind, though.
-    What a player is shown there is what the section's collection holds,
-    resectioned for their model — so a thing that collection neither
-    lists nor sweeps in can never be chosen for that choice, whatever
-    kind it is, and saying it may be would offer a route nobody can
-    take.
+    Kind-only offers permit any content of that kind. Section-scoped offers also
+    require an entry or matching sweep in the section's collection.
     """
     holding = _collections_holding(edges)
     said = []
@@ -1643,7 +1451,7 @@ def _may_be_chosen(edges):
 
 
 def _once(sentences):
-    """The same sentence said twice is one sentence."""
+    """Deduplicate identical sentences."""
     seen, kept = set(), []
     for sentence in sentences:
         if sentence.text in seen:
@@ -1657,12 +1465,7 @@ def _once(sentences):
 
 
 def assigned_to(thing):
-    """How many rows and how many gangs are standing on this thing.
-
-    ``None`` for a kind nobody can be assigned — a modifier, a set of
-    defaults — where the question has no answer rather than an answer of
-    nought.
-    """
+    """Count assignments and gangs, returning ``None`` for unassignable content kinds."""
     from django.db.models import Count
 
     from n26.core.models import Assignment
@@ -1694,11 +1497,9 @@ def _assignment_column(model, fields):
 
 
 def prose_for(thing):
-    """Everything the reach column says about one piece of content.
+    """Build reach descriptions for content or an unattached modifier.
 
-    Handed a ``Modifier``, it says the one sentence that modifier amounts
-    to and who carries it — what the composer needs while a modifier is
-    being written, before it belongs to anything.
+    For a Modifier, include its effect sentence and existing carriers.
     """
     from n26.library.models import Modifier
 

@@ -1,12 +1,12 @@
-{% load richtext %}
+{% load richtext n26_rows %}
 {% load static %}
 <!DOCTYPE html>
 <html lang="en-gb">
     <head>
         <meta charset="utf-8">
         {% comment %}
-        A bare document, not the app shell. Crew prints add only a screen-only
-        toolbar. Everything inside the sheet is the print target itself.
+        Render a standalone print target with only a screen-only crew toolbar outside
+        the sheet.
         {% endcomment %}
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="description"
@@ -49,9 +49,8 @@
                 </c-n26.print.card>
             {% elif include_header %}
                 {% comment %}
-                The gang's own block: what it is called, what it is, what it is
-                worth. A card like any other so it obeys the same fragmentation
-                rules — it must arrive on paper whole, not straddle the fold.
+                Keep the gang header in a card so print fragmentation preserves it as a
+                complete block.
                 {% endcomment %}
                 <c-n26.print.card title="{{ gang.name }}"
                                   subtitle="{{ gang.gang_type.name }}"
@@ -78,39 +77,17 @@
             {% endif %}
             {% if campaign %}
                 <c-n26.print.card title="{{ campaign.name }}">
+                    {% campaign_columns campaign as columns %}
                     <c-n26.print.columns>
-                        {% if campaign.asset_groups or campaign.other_lines %}
+                        {% for column in columns %}
                             <c-n26.print.column>
-                                {% for group in campaign.asset_groups %}
+                                {% for group in column %}
                                     <c-n26.print.entry label="{{ group.label }}">
-                                        {% if group.names %}
-                                            <c-n26.name-list :names="group.names" label="{{ group.label }}" />
-                                        {% else %}
-                                            None
-                                        {% endif %}
-                                    </c-n26.print.entry>
-                                {% endfor %}
-                                {% for line in campaign.other_lines %}
-                                    <c-n26.print.entry label="{{ line.type_label }}">
-                                        {{ line.name }}
+                                        {% include "n26/includes/print_row_parts.html" %}
                                     </c-n26.print.entry>
                                 {% endfor %}
                             </c-n26.print.column>
-                        {% endif %}
-                        {% if campaign.counters or campaign.choices %}
-                            <c-n26.print.column>
-                                {% for counter in campaign.counters %}
-                                    <c-n26.print.entry label="{{ counter.name }}">
-                                        {{ counter.value }}
-                                    </c-n26.print.entry>
-                                {% endfor %}
-                                {% for choice in campaign.choices %}
-                                    <c-n26.print.entry label="{{ choice.kind_label }}">
-                                        {{ choice.chosen|default:'—' }}
-                                    </c-n26.print.entry>
-                                {% endfor %}
-                            </c-n26.print.column>
-                        {% endif %}
+                        {% endfor %}
                     </c-n26.print.columns>
                 </c-n26.print.card>
             {% endif %}
@@ -142,29 +119,19 @@
                 </c-n26.print.card>
             {% endif %}
             {% comment %}
-            The fighters, two-up on portrait and three-up on landscape. The
-            composition is the lab's cards specimen
-            (designsystem/print/_cards.html) over real rows — auto-height
-            cards, because a home print wants no scissors: the next card
-            starts where this one ends.
+            Reuse the print lab's auto-height card composition, with two portrait
+            columns or three landscape columns.
             {% endcomment %}
             <c-n26.print.grid columns="{{ grid_columns|default:2 }}" gutter="4mm">
                 {% for row in rows %}
                     {% if row.card %}
-                        {% comment %}
-                    Current status leads the subtitle, where it remains visible
-                    before the profile and a pet's owner.
-                        {% endcomment %}
                         <c-n26.print.card title="{{ row.card.name }}"
                                           subtitle="{{ row.subtitle }}"
                                           badge="{{ row.card.rating }}¢">
                             {% if include_notes %}
                                 {% comment %}
-                            Notes, a box to write in, and the picture share
-                            one footer so they sit together at the bottom of
-                            the card. The same toggle takes the whole strip
-                            off. Lore never prints — it is read once, not at
-                            the table.
+                                Group notes, picture and writing space in one optional
+                                footer. Lore is excluded from the print.
                                 {% endcomment %}
                                 <c-slot name="foot">
                                     <div class="n26-print-foot">
@@ -199,7 +166,7 @@
                                     <c-n26.print.column>
                                         {% for group in column %}
                                             <c-n26.print.entry label="{{ group.label }}">
-                                                {{ group.text }}
+                                                {% include "n26/includes/print_row_parts.html" %}
                                             </c-n26.print.entry>
                                         {% endfor %}
                                     </c-n26.print.column>

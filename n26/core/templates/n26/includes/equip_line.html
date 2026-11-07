@@ -1,26 +1,7 @@
 {% comment %}
-One buyable row: the picker's item, with the action the row says it offers.
-Expects `row` — an n26.core.listing.Listing — and `price_cap` from the page.
-
-`htmx` from the page says the screen receives partial updates, and `redrawn`
-that this render is one — both flow through to the row shell and its acts.
-
-An include rather than repeated inline, because the equip page draws it from
-three places: categorised rows, uncategorised rows, and nested under a row for
-something the fighter already owns, where it is how they buy another. A drifted
-copy would be a different purchase.
-
-The row carries its own Buy, so nothing here decides that buying is a submit or
-that it is green — see n26/includes/row_action.html.
-
-  --- the price is a box ---
-
-The price input holds the base payment. The server adds the selected options'
-surcharges when it records the purchase.
-
-The number the row arrived quoting is kept beside it, so a changed box can say
-by how much. The delta grows leftwards out of the price column, which leaves
-every input in the list on the same column however many rows have one.
+Render a priced Listing in categorised, uncategorised or buy-another contexts. The
+submitted base payment excludes option surcharges, which the server adds; htmx and
+redrawn configure partial updates.
 {% endcomment %}
 <c-n26.collection-picker.item name="{{ row.marked_name }}"
                               :price="row.price"

@@ -1,9 +1,5 @@
 {% extends "authoring/base.html" %}
-{% comment %}
-The question asked before everything staged is deleted at once, at an
-address of its own: it survives a reload, Back works, and so does a
-browser with scripting switched off. The form's POST is the act.
-{% endcomment %}
+{# Confirm the combined staged-content deletion plan before POST. #}
 {% block head_title %}
     Delete everything staged
 {% endblock head_title %}

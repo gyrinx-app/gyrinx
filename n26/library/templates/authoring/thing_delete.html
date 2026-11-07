@@ -1,15 +1,5 @@
 {% extends "authoring/base.html" %}
-{% comment %}
-The question asked before an authored row leaves the library, at an
-address of its own. A page rather than a prompt: it survives a reload,
-Back is a real answer, and it works with scripting switched off.
-Nothing here changes anything — the form's POST is the act.
-
-Deleting is for the unused. Every reference protects its target — a
-gang's assignment, a list's entry, an option's kit — so a row anybody
-relies on is refused in words. The one holder that goes with the row is
-the author's own test gang, and the page lists those before the click.
-{% endcomment %}
+{# Show protected references and eligible test gangs included in the deletion plan. #}
 {% block head_title %}Delete {{ label }}{% endblock head_title %}
 {% block content %}
     <c-n26.form-page action="{% url 'authoring-thing-delete' kind thing.pk %}"

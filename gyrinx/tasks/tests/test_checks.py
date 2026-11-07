@@ -1,4 +1,4 @@
-"""The #1947 system check: declared @task functions must be registered."""
+"""System checks for task declarations and registered routes."""
 
 import pytest
 from django.tasks import task
@@ -10,10 +10,8 @@ from gyrinx.tasks.route import TaskRoute
 pytestmark = pytest.mark.core
 
 
-# Module-level @task functions (Django requires module scope) for tests that
-# need a task in a module OTHER than n23.core.tasks. Neither is in the real
-# registry, TASK_MODULES, or a discovered <app>.tasks module, so the live check
-# never scans this module — they're inert outside the tests that reference them.
+# Django tasks require module-level functions. These test declarations are
+# outside discovered task modules and enter the check only through test fixtures.
 @task
 def sample_registered():
     pass
@@ -25,14 +23,12 @@ def sample_unregistered():
 
 
 def test_current_registry_passes_the_check():
-    """Every @task the app currently declares is registered — no errors. This is
-    the guard: if someone lands a new task without a TaskRoute, this goes red."""
+
     assert checks.check_tasks_registered(app_configs=None) == []
 
 
 def test_unregistered_declared_task_is_flagged(monkeypatch):
-    """Drop one real task from the registry view and the check reports E001 for
-    it — the exact mistake #1947 is about (declared, left out of task_routes)."""
+
     routes = [r for r in get_all_tasks() if r.name != "hello_world"]
     monkeypatch.setattr(checks, "get_all_tasks", lambda: routes)
 
@@ -41,15 +37,13 @@ def test_unregistered_declared_task_is_flagged(monkeypatch):
     e001 = [e for e in errors if e.id == "gyrinx.tasks.E001"]
     assert len(e001) == 1
     assert "hello_world" in e001[0].msg
-    # The hint must point at the module that declares the task, not at the
-    # platform registry — that redirection is the whole point of #2093.
+    # Point the registration hint at the task's declaring module.
     assert "task_routes" in e001[0].hint
     assert "n23/core/tasks.py" in e001[0].hint
 
 
 def test_module_owning_a_registered_task_is_scanned(monkeypatch):
-    """A second @task in a module reached ONLY via a registered task's own module
-    (not TASK_MODULES) is still caught — guards the route-module derivation."""
+
     monkeypatch.setattr(checks, "TASK_MODULES", ())
     monkeypatch.setattr(checks, "get_all_tasks", lambda: [TaskRoute(sample_registered)])
 
@@ -61,9 +55,7 @@ def test_module_owning_a_registered_task_is_scanned(monkeypatch):
 
 
 def test_app_discovery_reaches_conventional_task_modules(monkeypatch):
-    """With no explicit TASK_MODULES and no registered routes, the scan still
-    reaches n23.core.tasks purely by discovering the n23.core app's
-    conventional <app>.tasks module — this closes the new-app gap."""
+
     monkeypatch.setattr(checks, "TASK_MODULES", ())
 
     paths = checks._task_module_paths([])
@@ -71,18 +63,15 @@ def test_app_discovery_reaches_conventional_task_modules(monkeypatch):
     assert "n23.core.tasks" in paths
 
 
-# The prefix filter itself now lives in gyrinx.tasks.discovery and is covered
-# by test_discovery.py — the check consumes that same list rather than
-# repeating the scan.
+# Prefix filtering is covered in test_discovery.py.
 
 
 def test_registry_entry_that_isnt_a_task_is_flagged(monkeypatch):
-    """A TaskRoute wrapping a plain (non-@task) function reports E002."""
 
     def not_a_task():
         pass
 
-    # Silence the forward scan so only the reverse check runs.
+    # Disable declaration scanning to isolate invalid registry entries.
     monkeypatch.setattr(checks, "_task_module_paths", lambda routes: set())
     monkeypatch.setattr(checks, "get_all_tasks", lambda: [TaskRoute(not_a_task)])
 
@@ -93,17 +82,14 @@ def test_registry_entry_that_isnt_a_task_is_flagged(monkeypatch):
 
 
 def test_check_is_registered_with_django():
-    """The check is wired into Django's system-check framework (not just defined),
-    so it actually runs on manage check / runserver / CI."""
+
     from django.core.checks.registry import registry as check_registry
 
     assert checks.check_tasks_registered in check_registry.get_checks()
 
 
 def test_declared_tasks_attributes_tasks_to_their_own_module():
-    """_declared_tasks only surfaces tasks *defined* in a module — a module with
-    no @task (e.g. checks.py) yields nothing, so re-exports elsewhere can't create
-    phantom 'unregistered' entries."""
+
     assert checks._declared_tasks(("gyrinx.tasks.checks",)) == {}
     declared = checks._declared_tasks(("n23.core.tasks",))
     assert "reconcile_all_lists" in declared
@@ -111,6 +97,5 @@ def test_declared_tasks_attributes_tasks_to_their_own_module():
 
 
 def test_declared_tasks_skips_unimportable_module():
-    """A bad module path degrades gracefully (skipped) rather than crashing the
-    whole system check with a traceback."""
+
     assert checks._declared_tasks(("gyrinx.tasks.does_not_exist",)) == {}

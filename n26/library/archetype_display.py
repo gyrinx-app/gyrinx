@@ -1,35 +1,17 @@
-"""Drawing an Outcast gang's archetype on the models it governs.
+"""Display a gang's Outcast archetype on every model except Champions.
 
-The leader picks the archetype, the gang holds it, and every model in
-the gang plays by it — every model but the Champions, who pick one of
-their own. A pick the gang holds rides each member's card without being
-listed on it, so the line that says which archetype a model plays by is
-a modifier the pickable carries: reaching every model except Champions,
-and drawing the pick there.
-
-One modifier, shared by every archetype on the leader's list, because
-they all say the same thing about who sees the line. It hangs on the
-pickables the leader may pick and on nothing else, which is what keeps
-a Champion's own archetype off everyone else's cards.
-
-Written here rather than inside the migration that performs it so it can
-be read, run and tested as ordinary code. It adds and never takes away:
-running it a second time finds what the first run made.
+The gang-held pickable carries a shared DrawsPick modifier scoped to
+non-Champions. Champions use their own pick and must not broadcast it.
+Match existing identifiers and preserve them on repeated runs.
 """
 
-#: The stored value of ``TargetsMiniature.Reach.EVERY_MODEL``. Written
-#: out because a migration's historical models carry fields and nothing
-#: else; a test holds the two together.
+#: The stored reach value supports historical models, which have no enum constants.
 EVERY_MODEL = "every_model"
 
-#: What the modifier is called in the authoring pages. Looked up by this
-#: name, so changing it makes a second modifier rather than renaming the
-#: first.
+#: The lookup name is an idempotency key; changing it would create another modifier.
 MODIFIER_NAME = "Archetype: drawn on every model except Champions"
 
-#: The rank that plays by an archetype of its own, named as the one
-#: exception so a rank authored later is reached without anyone
-#: revisiting the condition.
+#: Exclude Champions because they choose their own archetype.
 EXCEPTED_SUBTYPE = "Champion"
 
 #: The archetypes an Outcast leader picks for the gang, in the order the
@@ -71,9 +53,7 @@ def draw_gang_archetypes(
     if rank is None or not pickables:
         return None
 
-    # Matched without regard to case, because the name is unique per pack
-    # that way: an exact-match lookup would miss a differently-cased row
-    # and then trip the constraint on the way in.
+    # Use the same case-insensitive matching as the unique name constraint.
     row = Modifier.objects.filter(pack=pack, name__iexact=name).first()
     if row is None:
         row = _compose(apps, pack, name, rank)

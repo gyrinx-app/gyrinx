@@ -1,9 +1,4 @@
-"""A sibling worktree can hash to the same dev port.
-
-Not marked core: that suite is capped and was already full. CI still runs
-this file when a pull request changes it, and the full suite runs it on
-every push.
-"""
+"""Development port selection and ownership checks across sibling worktrees."""
 
 import errno
 import importlib.util

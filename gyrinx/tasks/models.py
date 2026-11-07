@@ -1,9 +1,4 @@
-"""
-Task execution models for storing task state and results.
-
-This module provides persistent storage for task execution data,
-allowing result retrieval and status tracking for async tasks.
-"""
+"""Execution results and durable delivery records for background tasks."""
 
 import logging
 
@@ -49,7 +44,6 @@ class TaskExecution(Base):
         READY -> FAILED: Task failed before starting (e.g., invalid args)
     """
 
-    # State machine configuration
     states = StateMachine(
         states=[
             ("READY", "Ready"),  # Enqueued, waiting to run
@@ -64,7 +58,6 @@ class TaskExecution(Base):
         },
     )
 
-    # Task identification
     task_id = models.CharField(
         max_length=255,
         unique=True,
@@ -73,11 +66,7 @@ class TaskExecution(Base):
     )
     task_name = models.CharField(max_length=255, db_index=True)
 
-    # Grouping: a logical operation may fan out into many task runs (e.g. starting a
-    # campaign spawns one clone task per gang). Tag them with a shared group_key so the
-    # generic /tasks/status endpoint can report the group's progress as a whole. group_key
-    # should embed an unguessable component (e.g. a UUID) since the status endpoint is
-    # readable by anyone who knows the key.
+    # Use an unguessable group key because status is readable by anyone who knows it.
     group_key = models.CharField(
         max_length=255,
         blank=True,
@@ -92,16 +81,13 @@ class TaskExecution(Base):
         help_text="Human-readable name for this unit of work within its group.",
     )
 
-    # Task arguments (stored as JSON)
     args = models.JSONField(default=list)
     kwargs = models.JSONField(default=dict)
 
-    # Result storage
     return_value = models.JSONField(null=True, blank=True)
     error_message = models.TextField(blank=True)
     error_traceback = models.TextField(blank=True)
 
-    # Timing
     enqueued_at = models.DateTimeField(db_index=True)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
@@ -119,25 +105,14 @@ class TaskExecution(Base):
         return f"{self.task_name} ({self.status}) - {self.task_id}"
 
     def mark_running(self, metadata: dict | None = None) -> None:
-        """
-        Mark the task as running and record start time.
-
-        Args:
-            metadata: Optional metadata to store with the transition
-        """
+        """Enter RUNNING and save the start time with optional transition metadata."""
         with transaction.atomic():
             self.started_at = timezone.now()
             self.states.transition_to("RUNNING", metadata=metadata, save=False)
             self.save(update_fields=["started_at", "status", "modified"])
 
     def mark_successful(self, return_value=None, metadata: dict | None = None) -> None:
-        """
-        Mark the task as successfully completed.
-
-        Args:
-            return_value: The return value from the task (must be JSON-serializable)
-            metadata: Optional metadata to store with the transition
-        """
+        """Enter SUCCESSFUL and save a JSON-serialisable result with the finish time."""
         with transaction.atomic():
             self.finished_at = timezone.now()
             self.return_value = return_value
@@ -152,14 +127,7 @@ class TaskExecution(Base):
         error_traceback: str = "",
         metadata: dict | None = None,
     ) -> None:
-        """
-        Mark the task as failed.
-
-        Args:
-            error_message: The error message
-            error_traceback: The full traceback (optional)
-            metadata: Optional metadata to store with the transition
-        """
+        """Enter FAILED and save the error, optional traceback and finish time."""
         with transaction.atomic():
             self.finished_at = timezone.now()
             self.error_message = error_message
@@ -177,27 +145,22 @@ class TaskExecution(Base):
 
     @property
     def is_complete(self) -> bool:
-        """Check if the task has completed (successfully or with failure)."""
+        """Return whether this execution ended successfully or failed."""
         return self.status in ("SUCCESSFUL", "FAILED")
 
     @property
     def is_success(self) -> bool:
-        """Check if the task completed successfully."""
+        """Return whether this execution ended successfully."""
         return self.status == "SUCCESSFUL"
 
     @property
     def is_failed(self) -> bool:
-        """Check if the task failed."""
+        """Return whether this execution failed."""
         return self.status == "FAILED"
 
     @property
     def duration(self):
-        """
-        Calculate the task's execution duration.
-
-        Returns:
-            timedelta if task has both started_at and finished_at, else None
-        """
+        """Return elapsed execution time, or None until both timestamps are present."""
         if self.started_at and self.finished_at:
             return self.finished_at - self.started_at
         return None
@@ -207,12 +170,9 @@ class QueuedTaskQuerySet(models.QuerySet):
     """QuerySet helpers for the local durable queue."""
 
     def deliverable(self, now=None):
-        """Rows that are due and not currently leased by a worker.
+        """Select due deliveries with no lease or an expired lease.
 
-        A row is deliverable when its ``available_at`` has passed and it is not
-        held under an unexpired visibility lease. An expired lease
-        (``locked_until`` in the past) is reclaimable — that's how a task whose
-        worker died mid-run (e.g. a runserver autoreload) gets redelivered.
+        Expired leases allow another worker to reclaim tasks after a worker stops.
         """
         now = now or timezone.now()
         return self.filter(available_at__lte=now).filter(
@@ -222,17 +182,12 @@ class QueuedTaskQuerySet(models.QuerySet):
 
 class QueuedTaskManager(models.Manager.from_queryset(QueuedTaskQuerySet)):
     def claim_one(self, *, worker_id, lease, now=None, ignore_schedule=False):
-        """Atomically claim the next deliverable row and return it, or ``None``.
+        """Lock and lease the next deliverable task, or return None.
 
-        Uses ``SELECT … FOR UPDATE SKIP LOCKED`` so concurrent workers never grab
-        the same row and a slow/locked row never blocks the pool. Claiming bumps
-        ``attempts`` and stamps a visibility lease (``locked_until`` /
-        ``locked_by``); if the worker dies before deleting the row, the lease
-        lapses and the row becomes deliverable again (at-least-once).
-
-        ``ignore_schedule=True`` (used by the manual test driver) ignores
-        ``available_at`` so retries fire immediately instead of waiting out the
-        backoff — deterministic tests shouldn't sleep.
+        SKIP LOCKED lets concurrent workers claim different tasks without waiting.
+        Increment attempts and save the worker and lease deadline atomically.
+        With ignore_schedule=True, ignore available_at but retain lease checks
+        so the manual test driver can retry without waiting for backoff.
         """
         now = now or timezone.now()
         with transaction.atomic():

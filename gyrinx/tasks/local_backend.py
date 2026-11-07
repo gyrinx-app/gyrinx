@@ -1,24 +1,15 @@
-"""
-Local durable task backend (dev + tests only).
+"""Durable in-process task backend for development and tests.
 
-A drop-in replacement for Django's ``ImmediateBackend`` that adds real
-asynchrony and Pub/Sub-like semantics without any Pub/Sub dependency and without
-a second process. Production continues to use ``PubSubBackend`` — this backend is
-never selected there.
+Production uses PubSubBackend. This backend supports three modes:
 
-Modes (``OPTIONS["mode"]``):
+* eager normally runs inline and is the test default. Write pauses defer
+  registered tasks to the durable queue.
+* worker persists QueuedTask records for daemon threads, with leases, retries,
+  backoff and optional fault injection.
+* manual persists records for explicit delivery by gyrinx.tasks.testing.
 
-- ``eager`` (default; test default): run inline inside ``enqueue()``, exactly like
-  ``ImmediateBackend``. Keeps the whole existing test suite synchronous and green.
-- ``worker`` (dev server): persist the task to the ``QueuedTask`` table and let an
-  in-process pool of daemon threads deliver it asynchronously, with retries,
-  backoff, visibility leases, and optional fault injection.
-- ``manual`` (opt-in in tests): persist the task but deliver nothing automatically;
-  the pytest driver in ``gyrinx.tasks.testing`` drives delivery explicitly and can
-  script duplicates, failures, drops, and slowness.
-
-The durable ``QueuedTask`` row means a task survives a runserver autoreload: an
-interrupted delivery's lease lapses and the row is redelivered rather than lost.
+Persisted tasks survive server restarts and can be reclaimed after their
+leases expire.
 """
 
 import logging
@@ -39,9 +30,8 @@ logger = logging.getLogger(__name__)
 
 VALID_MODES = ("eager", "worker", "manual")
 
-# Test-only, process-wide mode override. The pytest `task_queue` fixture flips the
-# backend to `manual` for a single test without fighting Django's cached task
-# backend handler (which has no settings_changed reset hook for TASKS).
+# The test task_queue fixture overrides the process-wide mode because Django
+# does not reset cached task backends when TASKS changes.
 _mode_override: str | None = None
 _override_lock = threading.Lock()
 

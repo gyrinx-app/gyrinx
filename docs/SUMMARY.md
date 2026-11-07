@@ -75,6 +75,7 @@ Documentation for Necromunda 2023, the edition Gyrinx currently implements. Ever
 - [Key Concepts](developing-gyrinx/key-concepts.md)
 - [Frontend Development](developing-gyrinx/frontend-development.md)
 - [Incremental React in N26](developing-gyrinx/react.md)
+- [How React workflows fit into N26](developing-gyrinx/react-workflow-anatomy.md)
 - [Testing](developing-gyrinx/testing.md)
 - [Integration Testing](integration_testing.md)
 - [Test Performance Improvements](test-performance-improvements.md)

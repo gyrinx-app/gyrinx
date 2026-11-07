@@ -65,13 +65,8 @@ COMPUTED_EFFECT_FIELDS = (
 #: call site.
 STORED_EFFECT_FIELDS = ("op_adds_miniature", "op_changes_counter", "op_sets_status")
 
-#: Kinds an OffersChoice may name. Growing this is one line plus deliberate
-#: thought — clean() refuses anything else, and the boot check screams if a
-#: kind named here has no Assignment column to resolve into.
-#: ``affiliation`` is a chosen carrier whose whole payload rides it as
-#: modifiers; ``subtype`` because some *types* are chosen — an Enforcer
-#: Haunt selects Psyrender or Bonecrusher, and the pick is a fact other
-#: rules may match on.
+#: Supported choice kinds, validated by clean() and checked against Assignment fields.
+#: Affiliations carry modifiers; subtype choices also supply facts for other rules.
 OFFERABLE_KINDS = (
     "power",
     "skill",
@@ -79,9 +74,8 @@ OFFERABLE_KINDS = (
     "subtype",
 )
 
-#: Kinds authors may choose for a new offer. Affiliation remains valid above
-#: only so legacy rows can still be loaded and repaired before the model is
-#: removed; the slot-based replacement is the only authorable route now.
+#: Kinds permitted for newly authored offers. Existing affiliation offers remain
+#: readable for repair; new affiliation choices use slots.
 AUTHORABLE_OFFER_KINDS = tuple(
     kind for kind in OFFERABLE_KINDS if kind != "affiliation"
 )
@@ -99,9 +93,7 @@ GRANTABLE_FIELDS = {
     # A named special rule the bearer gains — "all Escher fighters may…",
     # carried by the gang type and reaching each member.
     "rule": "library.Rule",
-    # A power the bearer knows without having selected it — a psyker entry
-    # whose sheet says it manifests something from the start. Skill-like:
-    # a fact on the card, gone when the granter goes.
+    # Granted powers apply without a pick and disappear with their granting carrier.
     "power": "library.Power",
     # Free kit: a beast's claws, a vehicle's fixed gun. The weapon and its
     # profiles are worked out at read time, so they add nothing to the
@@ -110,10 +102,8 @@ GRANTABLE_FIELDS = {
     # card nodes for granted equipment and a weapon's profiles.
     "weapon": "library.Weapon",
     "wargear": "library.Wargear",
-    # A carrier that draws no row, so naming one is naming a *bundle*:
-    # everything the hidden thing does arrives or departs together. What
-    # a gang's own rules hang off, so that one "takes away" can cancel
-    # the lot — see recipes.md, the corrupted gang.
+    # Hidden carriers group modifiers without displaying a card entry.
+    # Granting or removing one applies to the whole group; see recipes.md.
     "hidden": "library.Hidden",
     # A further choice: picking Clan House opens the House choice.
     # Un-choosing the first retracts the second and its pick through the
@@ -851,15 +841,9 @@ class TargetsGang(models.Model):
     #: narrowing back (library/forms.py).
     CONDITIONS = ("has_gang_pickable",)
 
-    #: Whether what this modifier gives the gang also rides every
-    #: member's card as the gang's guest. On, this is the ordinary
-    #: gang-and-everyone reach — a rule given to the gang does everything
-    #: it does to every fighter. Off, the grant is the gang's alone:
-    #: it prints on the gang's card and touches no fighter. Stored
-    #: assignments the gang holds (a pick made for it) ride regardless —
-    #: that is assignment-level broadcast, not this modifier's. A pick
-    #: given with a slot counts the same way: what the gang has picked is
-    #: a fact about every member, however the pick arrived.
+    #: Whether gang-scoped grants also affect each model's card.
+    #: Stored gang assignments and picks accompanying granted slots broadcast
+    #: independently of this flag.
     echoes = models.BooleanField(
         default=True,
         help_text=(
@@ -1428,9 +1412,7 @@ class OffersChoice(models.Model):
     )
 
     class WillBeAssignedTo(models.TextChoices):
-        #: The model (or gang) whose assignment carries the offered
-        #: choice — the ordinary case: a fighter's chosen skill rides
-        #: them.
+        #: Store the selected assignment on the model or gang carrying the offer.
         BEARER = "bearer", "the bearer"
         #: The Leader → Gang arrow:
         #: the Leader picks the affiliation, but the pick belongs to the

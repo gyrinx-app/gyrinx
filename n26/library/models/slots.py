@@ -247,10 +247,7 @@ class Dice(models.TextChoices):
 
     @classmethod
     def label_for(cls, value, fallback=None):
-        """The die's name as a player says it — "D66" — for a stored
-        value. A value the set no longer names reads as ``fallback``'s
-        name where one is given, else as it was written: the record
-        keeps the roll, and the roll is what matters."""
+        """Return a die's display label, using fallback for an unknown stored value when supplied."""
         try:
             return cls(value).label
         except ValueError:
@@ -645,12 +642,8 @@ class Slot(Content, Assignable):
     # the pick, and the pick arrives through choosing.
     takes_built_ins = False
 
-    #: Building a slot in is what carries its starting pick — the
-    #: Ironhead Squats profile arriving with the Squats legacy already
-    #: chosen — so that is what attaching one asks for, and a grant of a
-    #: slot asks the same question of its own row. Restated with the
-    #: inherited entry ask, because declaring these replaces rather than
-    #: merges (library/offers.py).
+    #: Built-in and granted slots can supply a starting pick.
+    #: ATTACHMENT_ASKS replaces the inherited mapping, so retain entry price fields.
     ATTACHMENT_ASKS = {
         "built-in": ("default_pickable",),
         "grant": ("with_pick",),
@@ -658,8 +651,7 @@ class Slot(Content, Assignable):
     }
 
     class WillBeAssignedTo(models.TextChoices):
-        #: The model or gang whose card carries the slot — the ordinary
-        #: case: a fighter's Gang Legacy rides that fighter.
+        #: Store picks on the model or gang carrying the slot.
         BEARER = "bearer", "the bearer"
         #: The Leader → Gang arrow: the Outcast Leader is asked, and what
         #: he picks belongs to the gang, reaching every member.
@@ -781,25 +773,14 @@ class Slot(Content, Assignable):
         return pickable.rating_contribution
 
     def interstitials(self, *, include_archived=False, include_staged=True):
-        """The interstitials this slot carries — the screens shown when it
-        arrives — in their own order: an interstitial's ``position`` is
-        its place among the screens shown together.
+        """Read linked interstitials in display order under the requested visibility rules.
 
-        Two readers, on two terms. An authoring or discovery surface —
-        the slot's page, the listing, a count — takes the default and
-        sees only live ones: an archived interstitial, or one in an
-        archived pack, is withdrawn from every slot at once, and an
-        archived attachment, or one in an archived pack, from this one.
-        A player path passes ``include_archived=True``: archiving is a
-        pack owner's soft delete and never retracts content from a gang
-        already holding the slot, so the screen goes on showing there.
-        Staged ones are included by default, as on every authoring
-        surface; ``include_staged=False`` leaves out a staged interstitial
-        and a staged attachment alike — an attachment on hold keeps its
-        screen off this slot the way a staged line keeps a pickable off
-        its list — for a reader who may not see staged content.
-        ``n26.core.arrivals.interstitials_on`` reads many slots at once
-        on the player's terms; a change to those terms is made in both.
+        Default authoring reads exclude archived screens, attachments and packs.
+        Player paths use ``include_archived=True`` to preserve assigned content.
+        ``include_staged=False`` excludes both staged screens and staged attachments.
+
+        Keep these rules consistent with the bulk reader
+        ``n26.core.arrivals.interstitials_on``.
         """
         # One filter call, so every condition on the attachment reads
         # the same join; a second call would join the attachments again

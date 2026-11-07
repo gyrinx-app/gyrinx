@@ -1,25 +1,16 @@
-"""Layout decisions that have to be made before the HTML is.
+"""Partition print content into explicit columns before rendering HTML.
 
-Printing is the one place where a renderer cannot leave layout to CSS, because
-the CSS that would do the job does not survive being printed. The clearest case
-is multi-column text: WebKit has no support for a multi-column container nested
-inside another fragmentation context, and when printing, the page *is* a
-fragmentation context — so iOS Safari collapses a two-column block to one
-full-width column, and the layout exists on the developer's desktop and nowhere
-else. Chrome fails at it more quietly, by dropping the last group off the end.
-
-So the split is done here, in Python, and the template renders two plain boxes
-that any engine can lay out. It is deterministic, identical everywhere, and —
-unlike a CSS behaviour observed in one browser — something a test can assert.
-
-Nothing here knows about HTML. It takes things with a height and returns them
-grouped, which is all a column is.
+Nested CSS multi-column layouts are unreliable within printed pages,
+including WebKit pagination. Compute deterministic groups by height so
+templates can render ordinary side-by-side containers.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
+
+from n26.core.rows import readable_parts, row_text
 
 
 class HasHeight(Protocol):
@@ -41,88 +32,59 @@ class DetailGroup:
     label: str
     text: str
 
-    #: Roughly what fits on a line of a half-width card column at 2.4mm type.
-    #: Measured from the rendered output rather than derived, because the
-    #: alternative is modelling a font.
+    #: Measured line capacity for a half-width card column at 2.4mm type.
     chars_per_line: int = 30
+    parts: tuple = field(default=(), compare=False, repr=False)
 
     @property
     def height(self) -> int:
         return estimate_lines(self.text, self.chars_per_line, self.label)
 
 
-def _run(lines) -> str:
-    """A run of names: one that brought a pet written with the pet's
-    name, one standing for several written with its count — in that
-    order, as the screen card writes them."""
-    return ", ".join(
-        line.name + line.tier_mark + line.brought_mark + line.count_mark
-        for line in lines
-    )
-
-
 def _item_choices(lines) -> list[DetailGroup]:
     """A carried item's non-tier questions, labelled with the item that carries them."""
     return [
-        DetailGroup(f"{line.name} — {choice.kind_label}", choice.chosen or "—")
+        DetailGroup(
+            f"{line.name} — {row.label}",
+            row_text(row),
+            parts=tuple(readable_parts(row)),
+        )
         for line in lines
-        for choice in line.other_choices
+        for row in line.other_choice_rows
     ]
 
 
 def detail_groups(card) -> list[DetailGroup]:
-    """A model card's loose assignables, as labelled runs.
+    """Group card details into labelled runs for printing.
 
-    General choices are folded in with their kind as the label, so an unresolved
-    one still occupies its row and prints as a blank to be filled in.
-    An item's selected tier sits beside its name; an empty tier adds nothing.
+    Include unresolved choices as blanks and selected item tiers beside names.
+    Omit equipment collections, which describe application purchase access.
+    Omit XP counter lines because XP already appears in the statline.
 
-    The lists a model buys from (``card.collections``) are deliberately
-    absent. Which listings the app will offer them is an affordance of the
-    app, not a fact about the model: nobody buys from a card in their
-    hand, and the row spends space a reader needs for what the model can
-    do. The screen card leaves it out for the same reason and sends a
-    reader to Equip instead — this is the last surface that printed it.
-
-    The counters a model keeps lead, as they do on screen — bar XP, which
-    has a cell in the statline above and would be saying the same number
-    twice. Nothing on paper can be changed, so the line XP draws on the
-    screen it is edited from has nothing to do here.
-
-    Stored effects are deliberately absent too. Their current result is
-    already printed as a dedicated fact: the model's status in its header,
-    a counter's value in its row, or a pet's name beside the kit that brought
-    it. Repeating the operation as prose both duplicates that fact and, after
-    something such as Clean House, can contradict it.
+    Do not repeat stored effects as prose: their current results appear in
+    status, counter or pet displays, and the original operation can disagree
+    with later state changes.
     """
-    groups = []
-    for counter in card.counter_lines:
-        # XP is in the statline above, with its target beside it. Skipped
-        # here rather than left to counter_lines, which keeps XP for a
-        # card whose lines can be moved — nothing on paper can be.
-        if not counter.is_xp:
-            groups.append(DetailGroup(counter.name, str(counter.value)))
-    # A line standing for several of one thing is written once with its
-    # count, as the screen card writes it.
-    if card.skills:
-        groups.append(DetailGroup("Skills", _run(card.skills)))
-    if card.rules:
-        groups.append(DetailGroup("Rules", _run(card.rules)))
-    if card.powers:
-        groups.append(DetailGroup("Powers", _run(card.powers)))
-    if card.equipment:
-        groups.append(DetailGroup("Gear", _run(card.equipment)))
-        groups.extend(_item_choices(card.equipment))
-    for gear_group in card.gear_groups:
-        # Under the category's own name, as on screen. A group with
-        # nothing in it is not built, so there is no empty one to skip.
-        groups.append(DetailGroup(gear_group.name, _run(gear_group.lines)))
-        groups.extend(_item_choices(gear_group.lines))
-    for choice in card.row_questions:
-        # What it holds, or a blank. The Add on the screen card is a way
-        # into the picker, and nothing on paper can be added. A question
-        # a weapon carries prints beside the weapon instead.
-        groups.append(DetailGroup(choice.kind_label, choice.chosen or "—"))
+    groups = [
+        DetailGroup(
+            row.label,
+            text,
+            parts=tuple(readable_parts(row, skip_xp=hasattr(card, "statline"))),
+        )
+        for row in card.detail_rows
+        if (text := row_text(row, skip_xp=hasattr(card, "statline")))
+    ]
+    groups.extend(
+        DetailGroup(
+            row.label,
+            row_text(row, skip_xp=False),
+            parts=tuple(readable_parts(row, skip_xp=False)),
+        )
+        for row in getattr(card, "owned_choice_rows", ())
+    )
+    groups.extend(_item_choices(getattr(card, "equipment", ())))
+    for group in getattr(card, "gear_groups", ()):
+        groups.extend(_item_choices(group.lines))
     return groups
 
 
@@ -147,29 +109,19 @@ def estimate_lines(text: str, chars_per_line: int, label: str = "") -> int:
 
 
 def balance_columns[T: HasHeight](groups: list[T], columns: int = 2) -> list[list[T]]:
-    """Split ``groups`` across ``columns``, keeping them in reading order.
+    """Split groups into non-empty columns in their existing reading order.
 
-    Groups are cut at ``columns - 1`` points, exactly as column-major flow
-    would: the first column takes the first N, the next takes the following
-    ones, and so on. Reading order is preserved because a reader who scans a
-    card top-to-bottom and finds Skills after Gear has been lied to by the
-    layout, and no amount of balance is worth that.
-
-    The cut minimises the tallest column, which is what multicol's balancing
-    was doing before it stopped working on paper.
-
-    An empty column is never returned. Each column is a flex item claiming an
-    equal share of the width, so an empty one is not nothing — it is a third of
-    the block, held open, and the content beside it mysteriously narrow.
+    Choose ``columns - 1`` cut points that minimise the tallest column. Keeping
+    contiguous groups preserves top-to-bottom reading order; omitting empty
+    columns avoids reserving unused horizontal space.
     """
     if columns < 2 or len(groups) <= 1:
         return [groups] if groups else []
 
     heights = [group.height for group in groups]
 
-    # Exhaustive over cut positions. With a handful of groups on a card this is
-    # a few dozen combinations at most, and being exact is worth more than being
-    # clever — a greedy fill gets the near-balanced cases visibly wrong.
+    # Check every cut position: cards have few groups, and greedy cuts
+    # can leave visibly uneven columns.
     best: list[list[T]] | None = None
     best_tallest = None
 

@@ -1,11 +1,7 @@
 {% extends "authoring/base.html" %}
 {% comment %}
-Merging a duplicate into the row it duplicates, at an address of its
-own. The survivor is named in the address (?into=), so the plan can be
-reloaded and sent; choosing one is a GET form of its own, and the POST
-from a chosen plan is the act. Two forms rather than one form-page,
-because a form inside a form is dropped by the browser and the chooser
-would then post the act. Nothing here changes anything until the act.
+Select the survivor through GET using ?into=; submit the confirmed plan through POST.
+Keep these forms separate because HTML does not support nested forms.
 {% endcomment %}
 {% block head_title %}Merge {{ label }}{% endblock head_title %}
 {% block content %}

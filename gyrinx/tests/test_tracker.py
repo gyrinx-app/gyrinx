@@ -8,13 +8,7 @@ from gyrinx import tracker
 
 @pytest.fixture
 def caplog_json(caplog):
-    """Fixture that parses JSON logs from caplog.
-
-    Uses caplog.set_level with an explicit logger name so pytest captures
-    records from gyrinx.tracker even though the parent gyrinx logger has
-    propagate=False. (pytest attaches its capture handler to the named
-    non-propagating logger; adding the handler manually double-counts.)
-    """
+    """Capture INFO-level tracker records and expose their JSON payloads."""
     caplog.set_level(logging.INFO, logger="gyrinx.tracker")
 
     def get_json_logs():
@@ -32,7 +26,7 @@ def caplog_json(caplog):
 
 
 def test_track_basic_event(caplog_json):
-    """Test tracking a basic event."""
+
     tracker.track("test_event")
 
     logs = caplog_json.get_json_logs()
@@ -41,7 +35,7 @@ def test_track_basic_event(caplog_json):
 
 
 def test_track_event_with_count(caplog_json):
-    """Test tracking an event with custom count."""
+
     tracker.track("test_event", n=5)
 
     logs = caplog_json.get_json_logs()
@@ -50,7 +44,7 @@ def test_track_event_with_count(caplog_json):
 
 
 def test_track_event_with_value(caplog_json):
-    """Test tracking an event with distribution value."""
+
     tracker.track("response_time", value=123.45)
 
     logs = caplog_json.get_json_logs()
@@ -59,7 +53,7 @@ def test_track_event_with_value(caplog_json):
 
 
 def test_track_event_with_labels(caplog_json):
-    """Test tracking an event with multiple labels."""
+
     tracker.track("api_call", endpoint="/api/v1/fighters", method="GET", status=200)
 
     logs = caplog_json.get_json_logs()
@@ -72,7 +66,7 @@ def test_track_event_with_labels(caplog_json):
 
 
 def test_track_event_with_all_parameters(caplog_json):
-    """Test tracking an event with all possible parameters."""
+
     tracker.track(
         "complex_event",
         n=3,
@@ -93,7 +87,7 @@ def test_track_event_with_all_parameters(caplog_json):
 
 
 def test_track_model_context_labels(caplog_json):
-    """Test an event carrying labels that identify a model and one of its fields."""
+
     tracker.track(
         "example_event",
         stat_name="ammo",
@@ -110,7 +104,7 @@ def test_track_model_context_labels(caplog_json):
 
 
 def test_multiple_track_calls(caplog_json):
-    """Test multiple track calls produce separate log entries."""
+
     tracker.track("event1")
     tracker.track("event2", n=2)
     tracker.track("event3", value=3.0)

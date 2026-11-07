@@ -1,43 +1,24 @@
-"""What points at a piece of content — read once, for everyone who asks.
+"""Read references to library content for deletion checks and reach descriptions.
 
-Two surfaces ask the same question of a library row and must never get
-two answers: the delete page, which says what is standing in the way,
-and the reach column, which turns the same edges into sentences. So the
-edges are read here and nowhere else.
-
-They are found by **reflection over the model graph** rather than from a
-list: every reverse relation of the row's own kind, including the ones
-declared ``related_name="+"``, which is most of them. A new column
-naming content is therefore seen the day it exists, with nothing to
-remember and nothing to keep in step.
-
-The reading is **batched by edge, never by row**: one query per relation
-whatever the answer's size, so a thing nothing references and a thing a
-hundred things reference are read at the same price. Several things of
-one kind are read together for the same reason — a caller following a
-chain (thing → the sets holding it → the profiles holding those) asks
-once per level rather than once per link.
+Inspect reverse model relations, including hidden ``related_name="+"``
+relations. Batch records of one content kind by relation so the query
+count depends on the model graph rather than the number of references.
 """
 
 from dataclasses import dataclass
 
 from django.db import models
 
-#: What a reference's row is read with, so that saying it costs no
-#: further queries: the column a sentence about that row has to name.
-#: A kind absent from here is read plain, which is right for a row whose
-#: own columns say everything — and where it is not, the miss shows up
-#: as a query per row, which the pinned counts catch.
+#: Relations needed to describe each referenced record without extra queries.
+#: Kinds whose labels use only local fields need no entry.
 READ_WITH = {
-    # The slot rides along because a set naming a starting pick is read
-    # as "chosen from the start for that choice", which names it.
+    # The description of a default pick also names its slot.
     "library.defaultassignment": ("default_set", "slot"),
     "library.picklistmember": ("picklist", "pickable"),
     "library.interstitialslot": ("interstitial", "slot"),
     "library.assettableentry": ("table", "asset"),
     "library.option": ("default_set", "profile", "wargear"),
-    # The slot rides along for the same reason: a grant naming a starting
-    # pick is read as "chosen from the start for that choice".
+    # The description of a granted starting pick also names its slot.
     "library.addsassignable": ("modifier", "slot", "with_pick"),
     "library.removesassignable": ("modifier",),
     "library.offerschoice": ("modifier", "from_section__collection"),
@@ -54,22 +35,9 @@ READ_WITH = {
 }
 
 
-#: Where a row's own words would only repeat the thing it names, the
-#: column that says something an author can act on instead. A built-in
-#: reads as the assignable it holds, so a page naming built-ins as what
-#: stands in the way would print the same name twice and point nowhere;
-#: the set holding it is what has to be edited. Kinds absent from here
-#: say themselves, which is right wherever the row's own words already
-#: name a second thing — an assignment says the model carrying it.
-#:
-#: Each column here is loaded by ``READ_WITH`` above, so saying a row
-#: this way costs no query.
-#: An entry reads as the asset it names, so a page saying what stands in
-#: the way of deleting that asset would name the asset itself; the table
-#: is what has to be edited.
-#: An attachment reads as the slot it names, so a page saying what
-#: stands in the way of deleting that slot would name the slot itself;
-#: the interstitial is what has to be edited.
+#: Describe a reference through the object an author must edit.
+#: For example, a built-in member should identify its set rather than repeat the
+#: content being deleted. READ_WITH loads these relations.
 NAMED_BY = {
     "library.defaultassignment": "default_set",
     "library.assettableentry": "table",
@@ -85,12 +53,10 @@ def named(row):
 
 @dataclass(frozen=True)
 class Reference:
-    """One stored row naming the thing, and the column it names it in.
+    """A referencing record and its field, including deletion semantics.
 
-    The column matters: two of a model's columns can name the same kind
-    and mean opposite things — a composition rule's ``for_each`` and
-    ``of`` are both subtypes, one the rank being propped up and one the
-    companions doing the propping.
+    The field distinguishes references with different roles even when they point
+    to the same content kind.
     """
 
     row: object
@@ -114,12 +80,7 @@ class Reference:
 
 
 def carrying_models():
-    """Every concrete kind that can carry modifiers.
-
-    Discovered rather than listed: a kind that gains the mixin is swept
-    up the day it does, and a page counting carriers can never quietly
-    stop counting one of them.
-    """
+    """Discover every concrete content model with a modifiers relation."""
     from django.apps import apps
 
     return [
@@ -140,14 +101,10 @@ def forward_relations(model):
 
 
 def _edges(model):
-    """Every relation pointing at this kind, as ``(related model, field)``.
+    """Enumerate reverse relations, including hidden relations.
 
-    ``related_objects`` alone would miss most of them: a relation
-    declared ``related_name="+"`` is hidden, and the grants, the
-    built-ins and the list entries all declare theirs that way. Asking
-    for the hidden ones brings in the through tables of every
-    many-to-many as well, which are the same edge counted twice — so
-    those are dropped and the many-to-many itself kept.
+    Exclude automatic many-to-many through models because their relation is
+    already represented by the many-to-many field.
     """
     seen = []
     for rel in model._meta.get_fields(include_hidden=True):
@@ -160,12 +117,7 @@ def _edges(model):
 
 
 def references_to(thing, *more):
-    """Every stored row naming these things, in a fixed number of queries.
-
-    All of them must be of one kind — the edges are a property of the
-    kind, and reading two kinds together would mean walking two graphs
-    and calling the result one answer.
-    """
+    """Read references to records of one kind with one query per relation."""
     things = [thing, *more]
     model = type(thing)
     found = []
@@ -198,27 +150,17 @@ def of_kind(references, label, field=None):
 
 
 def reading_sentences(modifiers):
-    """A modifier queryset with everything its sentences read loaded.
+    """Prefetch relations used by modifier descriptions.
 
-    A modifier says itself by walking its scope and its effect, and
-    each of those walks further — the stat a change names, the subtypes
-    a condition lists. Unhinted that is several queries per row. The
-    paths are derived from the fields rather than listed, so a new
-    scope, effect or condition kind is covered the day it is added.
-
-    Everything loads as prefetch paths, not joins: joined together the
-    paths make a select wide enough that Postgres spends longer
-    planning it than running it, while each path alone is a small
-    query — and a path no row uses never reaches the database.
+    Derive paths from scope, effect and condition fields. Separate prefetches
+    avoid a wide joined query with expensive PostgreSQL planning; unused paths
+    issue no query.
     """
     from n26.library.models import Modifier
     from n26.library.models.modifier import EFFECT_FIELDS, SCOPE_FIELDS
 
-    # Two hops where a sentence reads through an intermediate row: a
-    # placement or a choice names a section, and a section says itself
-    # as "name (collection)". Derivation below stops at one hop, so
-    # these are listed the way card.py lists its deep paths — without
-    # them a page of placements fetches one collection per row.
+    # Section labels include their collection, so these descriptions need two joins.
+    # The automatic relation loader below follows only one hop.
     paths = [
         "hides_categories__categories",
         "places_category__section__collection",
@@ -232,9 +174,8 @@ def reading_sentences(modifiers):
         for condition in getattr(related, "CONDITIONS", ()):
             model = related._meta.get_field(condition).related_model
             paths.append(f"{half}__{condition}")
-            # A many-to-many is not a concrete column, and a condition
-            # row's names live there: left out, each row's words are a
-            # query of their own on every sentence.
+            # Prefetch many-to-many condition values; they are absent from concrete fields
+            # and would otherwise add a query for each description.
             paths.extend(
                 f"{half}__{condition}__{field.name}"
                 for field in model._meta.get_fields()

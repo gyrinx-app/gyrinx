@@ -1,17 +1,9 @@
-"""
-ASGI config for gyrinx project.
-
-It exposes the ASGI callable as a module-level variable named ``application``.
-
-For more information on this file, see
-https://docs.djangoproject.com/en/5.1/howto/deployment/asgi/
-"""
+"""Django ASGI application with tracing initialised before startup."""
 
 import os
 import warnings
 
-# Filter deprecation warning from Google namespace packages using pkg_resources.
-# This is a third-party issue that we can't fix directly.
+# Suppress the Google namespace package's pkg_resources deprecation warning.
 warnings.filterwarnings(
     "ignore",
     message="pkg_resources is deprecated as an API",
@@ -22,8 +14,7 @@ from django.core.asgi import get_asgi_application  # noqa: E402
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "gyrinx.settings")
 
-# Initialize OpenTelemetry tracing before Django loads
-# This ensures trace context propagation is configured for all requests
+# Initialise trace propagation before loading Django.
 import gyrinx.tracing  # noqa: F401, E402
 
 application = get_asgi_application()

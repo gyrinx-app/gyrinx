@@ -50,12 +50,8 @@
             </c-slot>
         {% endif %}
         {% comment %}
-        The reader's other gangs, beside the name of this one — the same rows
-        the bar offers, off the same memo, so the two cost one query between
-        them. The heading has already said which gang this is, so this is the
-        chevron on its own; it is named differently from the bar's, because two
-        controls announced identically tell a reader who cannot see where they
-        sit nothing about either.
+        Reuse the memoised gang-switcher results for both controls, with distinct
+        accessible names.
         {% endcomment %}
         {% if yours %}
             <c-slot name="switcher">
@@ -64,25 +60,14 @@
             </c-slot>
         {% endif %}
         {% comment %}
-        The badge is a fact about the owner, and which one they hold is the
-        platform's answer — supporter tier or staff, whichever they are entitled
-        to and have picked. The wording comes from there too, so this page never
-        guesses what someone else's badge means.
-
-        The type's badge is the library's own answer: whatever artwork was
-        authored against this gang type, cleaned on the way out. A type with
-        none draws nothing, so the lead reads as the bare name — which is right,
-        and is not the same as this page choosing a picture for it.
+        Resolve account badges through the platform registry and gang-type artwork
+        through the library sanitiser.
         {% endcomment %}
         {% if owner_badge %}
             <c-slot name="owner_flair">
                 {% badge_svg owner_badge %}
             </c-slot>
         {% endif %}
-        {% comment %}
-        Anybody holding the address may read the sheet, so anybody may pass
-        it on: the button is for every reader, owner or not.
-        {% endcomment %}
         <c-slot name="share">
             <c-n26.share url="{% url 'n26-gang' gang.pk %}" />
         </c-slot>
@@ -90,59 +75,31 @@
             <c-n26.flair.gang-type :icon="gang.gang_type.artwork" />
         </c-slot>
         {% comment %}
-        Only when there is something to list. An empty detail-list is still a
-        <dl>, and the sheet stacks its sections with gap-4 — so a gang with no
-        choices and no counters would pay a line of space for an element with
-        nothing in it. The component draws the slot only if it is filled.
+        Create the detail-list slot only when it has content, avoiding empty elements
+        that add layout gaps.
         {% endcomment %}
         {% if sheet.rules or sheet.choices or sheet.counters %}
             <c-slot name="details">
                 <c-n26.detail-list>
-                    {% comment %}
-                    The gang's rules are one answer to one question — which is
-                    why they share a row (see detail_list/row.html) — and a
-                    settled fact: they come from the gang type, so there is
-                    nothing here to click.
-                    {% endcomment %}
-                    {% if sheet.rules %}
-                        <c-n26.detail-list.row label="Rules" :editable="False">
-                            {% for rule in sheet.rules %}{{ rule.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                    {% for row in sheet.detail_rows %}
+                        <c-n26.detail-list.row label="{{ row.label }}" :editable="False">
+                            {% include "n26/includes/row_parts.html" with parts=row.parts campaign_style=False slot_style=True %}
                         </c-n26.detail-list.row>
-                    {% endif %}
-                    <c-n26.choice-slots :choices="sheet.choices" />
-                    {% for counter in sheet.counters %}
-                        <c-n26.detail-list.row label="{{ counter.name }}"
-                                               value="{{ counter.value }}"
-                                               :editable="False" />
                     {% endfor %}
                     {% comment %}
-                    What the campaign gave, under the campaign's name: a row
-                    for each asset and a counter row for each counter, so a
-                    Settlement reads as the gang's own facts do and Reputation
-                    reads as any counter it keeps. The heading is what says
-                    none of it is the gang's own — it arrived with the campaign
-                    and leaves with it.
+                    Keep campaign-granted assets and counters under the campaign name to
+                    identify their source.
                     {% endcomment %}
                 </c-n26.detail-list>
             </c-slot>
         {% endif %}
         {% comment %}
-        Both acts here are the gang's. Hiring adds a fighter to the roster;
-        buying from this page puts equipment in the stash, which is the gang's
-        own store rather than anybody's kit. Buying *for* a fighter is the Equip
-        on each card below — that purchase lands on that model's card, and which
-        of the two a reader wants is which screen they start from.
+        Gang-level equipment purchases go to the stash. Model Equip controls purchase
+        for that model instead.
         {% endcomment %}
         {% comment %}
-        Every control on this page belongs to whoever owns the gang, bar
-        two. A reader who does not gets the roster and none of them — not a
-        disabled button, which is a control saying no, but nothing at all:
-        the page is the gang, and the acts are the owner's.
-
-        Printing and cloning are the exceptions, because neither changes the
-        gang being read: one puts the roster on paper, and the other makes a
-        new gang owned by the reader. Signed out there is neither — a visitor
-        may read a gang, while both acts need a player.
+        Hide owner actions from other readers. Signed-in readers may print or clone
+        without changing the displayed gang.
         {% endcomment %}
         <c-slot name="campaign_state">
             <c-n26.campaign-block :campaign="sheet.campaign" />
@@ -157,11 +114,6 @@
             </c-slot>
             <c-slot name="secondary_actions">
                 <c-n26.button-group>
-                    {% comment %}
-                The gang's own facts — name, colour, budget — have a page
-                of their own, reached from the same group as the other
-                whole-gang detours.
-                    {% endcomment %}
                     <c-ui.button size="sm" variant="default" href="{% url 'n26-edit-gang' gang.pk %}">
                         Edit
                     </c-ui.button>
@@ -192,9 +144,7 @@
             </c-slot>
         {% else %}
             {% comment %}
-            Signed out there is no Print — but the notes and lore pages
-            read like the sheet does, for whoever holds the address, so
-            the way in cannot hide behind signing in.
+            Keep public notes and lore links available to signed-out readers.
             {% endcomment %}
             <c-slot name="secondary_actions">
                 <c-ui.button size="sm" variant="default" href="{% url 'n26-gang-notes' gang.pk %}">
@@ -206,9 +156,7 @@
             </c-slot>
         {% endif %}
         {% comment %}
-        The gang's own actions, stacked with the stash in the grid's first
-        cell. The owner's alone: a reader who does not own the gang gets
-        no square at all.
+        Render the actions square only for the gang owner.
         {% endcomment %}
         {% if activities_square %}
             <c-slot name="activities_square">
@@ -227,9 +175,8 @@
                 </c-slot>
             {% endif %}
             {% comment %}
-            An open visit is already in Actions when that square is drawn,
-            so the stash does not say it again. An owner without the square
-            still reads it here. Starting a visit stays on the stash.
+            Avoid repeating the open visit when the actions square displays it; keep
+            starting a visit available from the stash.
             {% endcomment %}
             {% if not activities_square or not sheet.visiting_trading_post %}
                 <c-slot name="stash_notice">
@@ -262,10 +209,8 @@
                 </c-n26.model-card>
             {% endfor %}
             {% comment %}
-            The dead stay on the roster and keep their cards, drawn under
-            their own heading at the end and counting nothing. Their
-            badge leads to Mark as — a table mistake is undone by hand —
-            and Edit to the page that carries the ways off the roster.
+            Dead models remain visible in a final roster group with no rating
+            contribution. Their controls still allow status correction and editing.
             {% endcomment %}
             {% if sheet.dead %}
                 <c-n26.divider label="Dead/Destroyed" class="col-span-full py-2" />
@@ -293,19 +238,11 @@
         </c-slot>
     </c-n26.view.gang-sheet>
     {% comment %}
-    The rename dialog, when the URL names a member. Open is a server
-    state — ?rename=<pk> draws the question, so an address can be
-    followed or reloaded with scripting off. The pencil that writes
-    this address lives on the model's own page.
+    Render the rename dialog selected by the URL so reloads retain its state.
     {% endcomment %}
     {% comment %}
-    The leaving dialogs, when the URL asks about a member. One question,
-    two answers each: the act on everything, or the kit money was paid
-    for moved to the stash first — where every line keeps its pinned
-    rating, because a move never re-prices. The stash button is offered
-    only when there is such a line to move; built-ins stay with the
-    fighter either way, because a free knife in the stash is clutter the
-    next hire re-arms without.
+    Offer stashing purchased equipment only when eligible assignments exist. Moving
+    preserves their pinned ratings; built-in equipment remains with the model.
     {% endcomment %}
     {% if leaving %}
         {% if leaving.kind == "delete" %}

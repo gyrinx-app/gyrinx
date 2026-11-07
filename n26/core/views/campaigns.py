@@ -20,6 +20,7 @@ from n26.core.views.permissions import (
     _own_campaign_or_404,
     _recording_campaign_or_404,
 )
+from n26.library.scenario_tables import request_catalogue
 from n26.library.staged import sees_staged
 
 #: Campaigns per page in the searchable listing.
@@ -1059,7 +1060,7 @@ def scenario_generator(request, pk):
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=True)
     here = reverse("n26-scenario-generator", args=[found.pk])
-    form = ScenarioGeneratorForm(request.GET)
+    form = ScenarioGeneratorForm(request.GET, catalogue=request_catalogue(request))
     changed = side_job_changes(request, form, here)
     if changed:
         return changed
@@ -1069,7 +1070,7 @@ def scenario_generator(request, pk):
         query = {**form.chosen_picks(), **form.generate()}
         return redirect(f"{here}?{urlencode(query)}#scenario")
 
-    scenario, wrong = parse(request.GET)
+    scenario, wrong = parse(request.GET, request_catalogue(request))
     if wrong:
         scenario = []
     rolls = rolls_of(scenario)
@@ -1127,18 +1128,20 @@ def save_scenario(request, pk):
         request, pk, with_owner_badge=request.method == "GET"
     )
     data = request.POST if request.method == "POST" else request.GET
-    scenario, wrong = parse(data)
+    scenario, wrong = parse(data, request_catalogue(request))
     if wrong:
         scenario = []
     generator = reverse("n26-scenario-generator", args=[found.pk])
-    picks_form = ScenarioGeneratorForm(request.GET)
+    picks_form = ScenarioGeneratorForm(
+        request.GET, catalogue=request_catalogue(request)
+    )
     picks = picks_form.chosen_picks() if picks_form.is_valid() else {}
     action_url = reverse("n26-save-scenario", args=[found.pk])
     if picks:
         action_url += f"?{urlencode(picks)}"
 
     if request.method == "POST":
-        form = SaveScenarioForm(request.POST)
+        form = SaveScenarioForm(request.POST, catalogue=request_catalogue(request))
         if form.is_valid():
             try:
                 with campaign_operation(found, actor=request.user) as act:
@@ -1153,7 +1156,9 @@ def save_scenario(request, pk):
                 query = {**picks, **form.cleaned_data["scenario_rolls"]}
                 return redirect(f"{generator}?{urlencode(query)}#scenario")
     else:
-        form = SaveScenarioForm(initial=rolls_of(scenario))
+        form = SaveScenarioForm(
+            initial=rolls_of(scenario), catalogue=request_catalogue(request)
+        )
 
     _badge_a_redrawn_page(request, found)
     return render(
@@ -1697,7 +1702,9 @@ def add_battle(request, pk):
     playing = _playing(found)
 
     if request.method == "POST":
-        form = BattleForm(request.POST, playing=playing)
+        form = BattleForm(
+            request.POST, playing=playing, catalogue=request_catalogue(request)
+        )
         if form.is_valid():
             try:
                 with campaign_operation(found, actor=request.user) as act:
@@ -1707,11 +1714,14 @@ def add_battle(request, pk):
             else:
                 messages.success(request, "Battle recorded.")
                 return redirect("n26-battle", pk=found.pk, battle_pk=battle.pk)
-    scenario, wrong = parse(request.POST if request.method == "POST" else request.GET)
+    scenario, wrong = parse(
+        request.POST if request.method == "POST" else request.GET,
+        request_catalogue(request),
+    )
     if wrong:
         scenario = []
     if request.method != "POST":
-        form = BattleForm(playing=playing)
+        form = BattleForm(playing=playing, catalogue=request_catalogue(request))
         form.initial.update(
             {key: request.GET[key] for key in form.scenario_keys if key in request.GET}
         )
@@ -1726,7 +1736,8 @@ def add_battle(request, pk):
             "scenario_results": scenario,
             "scenario_wrong": bool(wrong),
             "battle_scenario": battle_scenario_props(
-                request.POST if request.method == "POST" else request.GET
+                request.POST if request.method == "POST" else request.GET,
+                request_catalogue(request),
             ),
         },
     )
@@ -2416,66 +2427,6 @@ def _ownership_cards(chosen):
             ),
         )
     ]
-
-
-@login_required
-def edit_asset_type(request, pk, asset_type_pk):
-    """Change the labels or ownership of one of the campaign's own asset
-    types. Asset types that come with the campaign type are library
-    content and are not found here."""
-    from django.urls import reverse
-
-    from n26.core.campaigns import ownership_fixed_because
-    from n26.core.forms import EditAssetTypeForm
-    from n26.library.models import AssetType
-
-    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
-    asset_type = get_object_or_404(
-        AssetType, pk=asset_type_pk, campaign_type_id=found.additions_id
-    )
-    fixed = ownership_fixed_because(found, asset_type)
-    form = EditAssetTypeForm(
-        request.POST or None,
-        initial={
-            "label_singular": asset_type.label_singular,
-            "label_plural": asset_type.label_plural,
-            "display_group": asset_type.display_group,
-            "ownership": asset_type.ownership,
-        },
-        ownership_locked=bool(fixed),
-    )
-
-    def act(op, data):
-        edited = op.edit_asset_type(
-            asset_type,
-            data["label_singular"],
-            data["ownership"],
-            label_plural=data["label_plural"],
-            display_group=data["display_group"],
-        )
-        if edited is None:
-            return "Nothing changed."
-        return f"Saved the asset type {edited.label_singular}."
-
-    ownership_note = ""
-    if fixed:
-        ownership_note = (
-            f"{asset_type.get_ownership_display()}. You cannot change this now. {fixed}"
-        )
-    return _addition_page(
-        request,
-        found,
-        form,
-        "n26/edit_asset_type.html",
-        act,
-        reverse("n26-edit-campaign", args=[found.pk]) + "?tab=asset-types",
-        asset_type=asset_type,
-        heading=f"Edit {asset_type.label_singular}",
-        ownership_note=ownership_note,
-        ownerships=[]
-        if fixed
-        else _ownership_cards(str(form["ownership"].value() or "")),
-    )
 
 
 @login_required

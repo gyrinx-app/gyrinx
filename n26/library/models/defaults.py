@@ -364,12 +364,7 @@ class DefaultAssignment(NamesAnAssignable, Content):
 
     @property
     def dependent_members(self):
-        """The set's other members that stop making sense without this one.
-
-        Ammo lines ride their gun: an extra profile names the weapon
-        member it lands under (``gun_member``), so with that member gone
-        it rides a gun the set no longer brings.
-        """
+        """Return weapon-profile members anchored to this weapon member."""
         return self.default_set.members.filter(archived=False, gun_member=self)
 
 
