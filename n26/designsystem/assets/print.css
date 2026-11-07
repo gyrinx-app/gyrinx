@@ -251,8 +251,8 @@
 /* Cards remain together during pagination. */
 
 /*
- * Flex is confined to the footer inside an unfragmented card, keeping notes, write-in
- * space and photograph together.
+ * Keep the footer’s flex layout inside an unfragmented card so notes, write-in space
+ * and photograph stay together.
  */
 .n26-print-foot {
     display: flex;

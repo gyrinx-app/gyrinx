@@ -1,8 +1,8 @@
 {% load navigation %}
 {% comment %}
-Shared application navigation. here identifies the current destination; authoring detail
-pages use library. Help links use stored flatpage URLs, and staff-only authoring links
-share one conditional group.
+Shared application navigation. here identifies the current destination. Authoring detail
+pages use their dedicated item when present and library otherwise. Help links use stored
+flatpage URLs, and staff-only authoring links share one conditional group.
 {% endcomment %}
 <c-ui.navbar.item href="{% url 'n26-dashboard' %}"
                   current="{% if here == 'home' %}1{% endif %}">Home</c-ui.navbar.item>
