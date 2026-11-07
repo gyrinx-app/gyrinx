@@ -14,7 +14,7 @@
 | [A-02](a-02-player-data.md) | Player gangs and campaigns | Preserve ownership, visibility, and game history | [DF-02](../data-flows/player-writes.md), [DF-03](../data-flows/shared-reads.md) |
 | [A-03](a-03-content.md) | Game content catalogue | Preserve authoring authority and shared rules | [DF-04](../data-flows/staff-authoring.md), [DF-03](../data-flows/shared-reads.md) |
 | [A-04](a-04-media.md) | Uploaded public media | Prevent unsafe or altered files from reaching readers | [DF-05](../data-flows/media.md) |
-| [A-05](a-05-ingest-sheets.md) | Held ingest spreadsheets | Keep pre-publication source files confined to staff | [DF-04](../data-flows/staff-authoring.md), [DF-05](../data-flows/media.md) |
+| [A-05](a-05-ingest-sheets.md) | Held ingest spreadsheets | Protect draft CSV privacy and author-specific bytes | [DF-04](../data-flows/staff-authoring.md), [DF-05](../data-flows/media.md) |
 | [A-06](a-06-service-secrets.md) | Service secrets and identities | Prevent forged sessions, webhooks, and task calls | [DF-01](../data-flows/account-session.md), [DF-06](../data-flows/tasks.md), [DF-07](../data-flows/integrations.md), [DF-08](../data-flows/deployment.md) |
 | [A-07](a-07-task-state.md) | Task and webhook records | Keep internal commands and diagnostic payloads controlled | [DF-06](../data-flows/tasks.md), [DF-07](../data-flows/integrations.md) |
 | [A-08](a-08-release.md) | Deployed release artifact and control | Preserve the running code and configuration | [DF-08](../data-flows/deployment.md) |

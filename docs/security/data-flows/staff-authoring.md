@@ -44,3 +44,4 @@ sequenceDiagram
 - A staff session without a configured second factor can reach authoring even while the Django admin gate would require one.
 - A mistaken or malicious import can change content visible to all players; the preview is a control, but staff authority is broad.
 - Held CSVs reside in the default media storage; the repository does not establish whether the deployed bucket/CDN blocks unauthenticated object reads.
+- Different staff authors' held rows can share a fixed sheet-type storage key, so one author's upload or cleanup can affect another author's preview and import.

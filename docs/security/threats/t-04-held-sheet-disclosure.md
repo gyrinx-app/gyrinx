@@ -8,13 +8,13 @@
 | Assets | [A-05: held ingest sheets](../assets/a-05-ingest-sheets.md) |
 | Data flow / boundary | [DF-04](../data-flows/staff-authoring.md) and [DF-05](../data-flows/media.md); TB-03 |
 | Risk | [R-04: held CSV](../risk-assessment/r-04-held-csv.md) |
-| Status | Public-read exposure remains; predictable names and cross-author collisions mitigated in this branch |
+| Status | Public-read exposure remains; object names are fixed by sheet type |
 | Evidence | [UploadedSheet model](../../../n26/library/models/staging.py), [sheet storage](../../../n26/library/ingest.py), [GCS storage settings](../../../gyrinx/storage_settings.py), [bucket setup](../../gcs-cdn-setup.md) |
 
 ## Scenario
 
-A staff author uploads an ingest CSV for preview before publication. UploadedSheet writes it through the same default object store as public media, under ingest-sheets/. The documented bucket setup grants public object read access, and storage URLs are unsigned. A caller who learns an object's URL can download draft source data without passing the staff-only authoring view.
+A staff author uploads an ingest CSV for preview before publication. UploadedSheet writes it through the same default object store as public media, under ingest-sheets/. The documented bucket setup grants public object read access, and storage URLs are unsigned. A caller who learns or predicts the fixed sheet-type object name can download draft source data without passing the staff-only authoring view.
 
 ## Existing controls and uncertainty
 
-Authoring pages and application queries are staff-gated; uploads are capped at 8 MB and scoped to the author in the database. This branch gives each upload a UUID-suffixed object name, avoiding predictable first names and cross-author overwrite of a shared key. Object-name secrecy is not an access-control mechanism, and those controls do not govern direct object-store reads. The repository documents a public bucket, but this assessment has not queried live IAM policy or existing objects.
+Authoring pages and application queries are staff-gated; uploads are capped at 8 MB and scoped to the author in the database. store_sheet uses a fixed name for each sheet kind, so object-name secrecy is weak and these controls do not govern direct object-store reads. The repository documents a public bucket, but this assessment has not queried live IAM policy or existing objects.

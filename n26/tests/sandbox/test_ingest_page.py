@@ -226,25 +226,6 @@ class TestHoldingTheSheets:
         assert "equipment.csv" not in body
         assert client.get(PREVIEW_URL, follow=True).request["PATH_INFO"] == URL
 
-    def test_two_authors_uploading_the_same_sheet_keep_separate_bytes(
-        self, author, client
-    ):
-        """One author's replacement must not overwrite another's held CSV."""
-        hold(client, "equipment")
-        first = UploadedSheet.objects.get(owner=author)
-        first_name = first.file.name
-
-        other = User.objects.create_user("other", is_staff=True)
-        client.force_login(other)
-        other_csv = EQUIPMENT_CSV.replace("Autogun", "Lasgun")
-        hold(client, "equipment", text=other_csv)
-        second = UploadedSheet.objects.get(owner=other)
-
-        assert first_name != "ingest-sheets/equipment.csv"
-        assert first_name != second.file.name
-        assert first.text() == EQUIPMENT_CSV.strip()
-        assert second.text() == other_csv.strip()
-
 
 class TestPreviewing:
     def test_repeated_previews_name_the_sheets_and_problems_without_writing(

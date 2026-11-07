@@ -20,6 +20,7 @@ STRIDE means **Spoofing** identity, **Tampering** with data or code, **Repudiati
 | [T-07](t-07-impersonation-attribution.md) | Repudiation | A privileged edit is attributed only to the impersonated user | Observed audit design |
 | [T-08](t-08-shared-read-privacy.md) | Information Disclosure | A shared read exposes owner-only gang information | Credible regression scenario |
 | [T-09](t-09-deployment-tampering.md) | Tampering | Modified build input becomes the production application | Credible source-to-runtime scenario |
+| [T-10](t-10-held-sheet-collision.md) | Tampering | Staff CSV uploads share and can delete one object key | Open fixed-key design |
 
 ## Coverage by flow
 
@@ -30,8 +31,8 @@ A dash means the category was screened and no independent material scenario was 
 | [DF-01](../data-flows/account-session.md) Account/session | [T-01](t-01-staff-authoring-auth.md) | — | [T-07](t-07-impersonation-attribution.md) | — | — | — |
 | [DF-02](../data-flows/player-writes.md) Player writes | — | — | [T-07](t-07-impersonation-attribution.md) | — | — | [T-02](t-02-cross-owner-write.md) |
 | [DF-03](../data-flows/shared-reads.md) Shared reads | — | — | — | [T-08](t-08-shared-read-privacy.md) | [T-06](t-06-public-read-overload.md) | — |
-| [DF-04](../data-flows/staff-authoring.md) Staff authoring | [T-01](t-01-staff-authoring-auth.md) | — | — | [T-04](t-04-held-sheet-disclosure.md) | — | — |
-| [DF-05](../data-flows/media.md) Media | — | [T-03](t-03-active-upload.md) | — | [T-04](t-04-held-sheet-disclosure.md) | — | — |
+| [DF-04](../data-flows/staff-authoring.md) Staff authoring | [T-01](t-01-staff-authoring-auth.md) | [T-10](t-10-held-sheet-collision.md) | — | [T-04](t-04-held-sheet-disclosure.md) | — | — |
+| [DF-05](../data-flows/media.md) Media | — | [T-03](t-03-active-upload.md), [T-10](t-10-held-sheet-collision.md) | — | [T-04](t-04-held-sheet-disclosure.md) | — | — |
 | [DF-06](../data-flows/tasks.md) Tasks | [T-05](t-05-task-sender-spoofing.md) | — | — | — | — | — |
 | [DF-07](../data-flows/integrations.md) Integrations | — | — | — | — | — | — |
 | [DF-08](../data-flows/deployment.md) Deployment | — | [T-09](t-09-deployment-tampering.md) | — | — | — | — |

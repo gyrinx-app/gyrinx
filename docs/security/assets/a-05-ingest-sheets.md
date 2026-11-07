@@ -13,10 +13,10 @@
 
 ## What must be protected
 
-Staff-uploaded CSV source files held between preview and import. UploadedSheet is owner-scoped in the database, but its FileField uses the production default GCS storage. Each upload now receives a UUID-suffixed object name; replacing a sheet writes a new object and deletes the superseded one after the database transaction commits. This prevents one author's upload from overwriting another author's held bytes. The documented bucket setup grants public object read to every object, and the application has no separate private storage backend for these files.
+Staff-uploaded CSV source files held between preview and import. UploadedSheet is owner-scoped in the database, but its FileField uses the production default GCS storage. store_sheet uses one fixed object name per sheet type, so two authors can have separate rows that point to the same stored file. A later upload can overwrite the bytes another author expects, and cleanup can delete a file another row still references. The documented bucket setup grants public object read to every object, and the application has no separate private storage backend for these files.
 
 ## Security properties
 
-- Confidentiality: The CSV bytes should remain limited to the uploading author and authorized staff until deliberate publication. UUID-suffixed names reduce discovery, but do not enforce access control. Verify live IAM and separate private uploads from public media.
-- Integrity: Keep each author's preview and import bound to the same object; the UUID-suffixed naming and owner-scoped row provide this boundary.
-- Availability: Retain a held file until import or explicit discard, then delete it from storage.
+- Confidentiality: The CSV bytes should remain limited to the uploading author and authorized staff until deliberate publication. Fixed sheet-type names make direct object lookup easier; storage authorization is still required. Verify live IAM and separate private uploads from public media.
+- Integrity: Keep each author's preview and import bound to the same object; the owner-scoped row alone does not protect the shared object key.
+- Availability: Retain a held file while any row references it; delete it only after the last reference is gone.

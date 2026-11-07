@@ -10,7 +10,7 @@
 
 ## Summary
 
-Gyrinx's highest-priority open concerns are the MFA boundary around N26 staff authoring and renewed overload of public read pages. Held authoring CSVs still use storage documented as public; this PR makes their object names unique, but private storage is the proper fix. The PR also closes the player SVG upload path and requires an exact Pub/Sub task sender. The model distinguishes observed code behavior from production configuration that still needs checking.
+Gyrinx's highest-priority open concerns are the MFA boundary around N26 staff authoring, held CSV integrity, and renewed overload of public read pages. Held authoring CSVs use storage documented as public and fixed object names that can collide across staff authors. The PR closes the player SVG upload path and requires an exact Pub/Sub task sender. The model distinguishes observed code behavior from production configuration that still needs checking.
 
 ## Read the model
 
