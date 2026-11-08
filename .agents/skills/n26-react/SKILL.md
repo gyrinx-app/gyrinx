@@ -217,3 +217,13 @@ each name a separate flex child changes wrapping. A hire card has no stored
 model ID, so its Cotton preview has no Lore/Notes tabs; do not add a rich-text
 editor as a prerequisite for that consumer. Compare the real preview with its
 delivered hire as well as checking gallery examples.
+
+For acquisition retries, inspect the saved command before resolving mutable
+catalogue data. `core/hire_workflow.py` binds a request key to the actor and
+submitted business input, then recalls `HireReceipt` after checking current
+access under the gang lock. A changed price, removed option or archived profile
+must not prevent confirmation of an earlier committed hire. Failed transactions
+must leave no receipt. Retain the written assignment IDs needed to rederive
+onward choice screens; do not store an arbitrary client return URL as a result.
+Keep native form keys required and stable across validation errors. Update real
+POST payloads in tests explicitly, and separately prove missing-key rejection.

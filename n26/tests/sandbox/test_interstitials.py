@@ -9,6 +9,7 @@ from dataclasses import replace
 from html import unescape
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
+from uuid import uuid4
 
 import pytest
 from django.contrib.auth.models import User
@@ -265,7 +266,7 @@ class TestHiringAModel:
         client.force_login(owner)
         response = client.post(
             reverse("n26-hire-fighter", args=[gang.pk]),
-            {"profile": str(hunter.pk), "name": "Kal"},
+            {"request_key": str(uuid4()), "profile": str(hunter.pk), "name": "Kal"},
         )
 
         assert response.status_code == 302
@@ -284,7 +285,7 @@ class TestHiringAModel:
         client.force_login(owner)
         response = client.post(
             reverse("n26-hire-fighter", args=[gang.pk]),
-            {"profile": str(plain.pk), "name": "Rat"},
+            {"request_key": str(uuid4()), "profile": str(plain.pk), "name": "Rat"},
         )
 
         assert response["Location"] == reverse("n26-hire-fighter", args=[gang.pk])

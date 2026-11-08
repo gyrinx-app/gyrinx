@@ -9,33 +9,26 @@ keeps unrelated listing controls out of the URL. After hiring, show any
 introduced interstitials before returning to the list.
 """
 
-from dataclasses import dataclass
 from urllib.parse import urlencode
+from uuid import uuid4
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import Http404
 from django.shortcuts import redirect, render
-from django.utils.text import slugify
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_http_methods
 
-from n26.core.views.equip import PRICE_CEILING
+from n26.core import hire_workflow
+from n26.core.hire_workflow import HireSubmissionForm, UnavailableHire
+from n26.core.prices import PRICE_CEILING
 from n26.core.views.permissions import (
     _own_gang_or_404,
     credits_href,
     trade_points_href,
 )
 from n26.library.staged import sees_staged
-
-
-@dataclass(frozen=True)
-class _Pick:
-    """A selected option with its submitted field name and value."""
-
-    field: str
-    value: str
-    option: object
-
 
 #: Build only the URL-selected scope; All profiles is substantially larger than the gang list.
 HIRE_SCOPES = {
@@ -80,83 +73,18 @@ def _scope_tabs(request, scope):
     ]
 
 
-def _hireable(gang, pk, *, include_staged=False):
-    """Find an unarchived, hireable profile visible under the caller's staging access.
-
-    Any gang can hire eligible profiles at reference price. Return ``None`` for
-    missing or malformed identifiers.
-    """
-    from n26.library.models import Profile
-
-    try:
-        found = Profile.objects.filter(pk=pk, hireable=True).unarchived()
-        if not include_staged:
-            found = found.live()
-        return found.first()
-    except ValidationError:
-        return None
-
-
 def _offered(gang, raw, offers, *, include_staged=False):
-    """Resolve a profile and optional collection entry from the submitted offer key.
-
-    A key is the profile identifier, optionally followed by the entry identifier.
-    Validate that the gang's current collection offers include that profile-entry
-    pair before using its price. Query collection offers only when an entry is named.
-    """
-    profile_pk, _, entry_pk = (raw or "").partition("-")
-    profile = _hireable(gang, profile_pk, include_staged=include_staged)
-    if profile is None or not entry_pk:
-        return profile, None
-    entry = next(
-        (
-            offer.entry
-            for offer in offers()
-            if offer.entry is not None
-            and str(offer.entry.pk) == entry_pk
-            and offer.profile.pk == profile.pk
-        ),
-        None,
-    )
-    if entry is None:
-        raise Http404("No such offer")
-    return profile, entry
+    try:
+        return hire_workflow.resolve_offer(raw, offers, include_staged=include_staged)
+    except UnavailableHire as error:
+        raise Http404(str(error)) from None
 
 
 def _picks(data, profile, entry, key=None):
-    """Resolve option indices through the same derived groups used by the listing.
-
-    Use the slugified complete row key, including a collection entry when present.
-    This matches rendered field names and accounts for synthesised default groups.
-    Reject negative and out-of-range indices.
-    """
-    scope = slugify(key or str(profile.pk))
-    picks = []
-    for group_index, group in enumerate(entry.groups):
-        field = f"{scope}:{group_index}"
-        for value in data.getlist(field):
-            # An empty radio value explicitly selects no optional member.
-            if value == "":
-                continue
-            # Reject negative indices before indexing; Python would otherwise accept them from the end.
-            try:
-                if not value.isdigit():
-                    raise ValueError(value)
-                option = group.options[int(value)]
-            except ValueError, IndexError:
-                raise Http404("No such option") from None
-            picks.append(_Pick(field=field, value=value, option=option))
-    return picks
-
-
-def _chosen(picks):
-    """Extract actual default sets, excluding the synthesised no-alternative option."""
-    return [pick.option.default_set for pick in picks if pick.option.default_set]
-
-
-def _base(entry):
-    """Read a collection's credit override, or use the profile reference price."""
-    return entry.price_override if entry is not None else None
+    try:
+        return hire_workflow.resolve_picks(data, profile, entry, key=key)
+    except UnavailableHire as error:
+        raise Http404(str(error)) from None
 
 
 def _dialog(
@@ -175,13 +103,15 @@ def _dialog(
     after validation errors so an unchecked rating option stays unchecked.
     """
     try:
-        # Use the profile's shared pricing and option validation for the dialog quote.
-        price = profile.price_with(_chosen(picks), base=_base(entry))
-    except ValueError:
+        price = hire_workflow.quote(profile, picks, entry)
+    except UnavailableHire:
         raise Http404("No such option") from None
     return {
         "profile": profile.name,
         "price": price,
+        "paid": request.POST.get("paid", str(price))
+        if request.method == "POST"
+        else None,
         "scope": scope,
         "choices": [pick.option.name for pick in picks if pick.option.default_set],
         "fields": [
@@ -273,7 +203,9 @@ def hire_card(request, pk, profile):
             raise Http404("No such offer")
 
     try:
-        card = preview_model_card(found, option=option, base=_base(entry))
+        card = preview_model_card(
+            found, option=option, base=hire_workflow.base_price(entry)
+        )
     except ValueError:
         # Reject invalid combinations through the same option resolution used by hiring.
         raise Http404("No such option") from None
@@ -283,7 +215,33 @@ def hire_card(request, pk, profile):
     return response
 
 
+def hire_feedback(request, gang, result):
+    """Record one analytics event and keep one unread success for a hire."""
+    if result.applied:
+        from n26.analytics import EventVerb, N26Noun, record
+
+        record(
+            request,
+            N26Noun.MODEL,
+            EventVerb.CREATE,
+            result.miniature,
+            gang_id=str(gang.pk),
+            profile=result.receipt.profile_name,
+            paid=result.receipt.paid,
+        )
+    tag = f"hire-{result.receipt.request_key}"
+    storage = messages.get_messages(request)
+    already_queued = any(
+        tag in (message.extra_tags or "").split() for message in storage
+    )
+    storage.used = False
+    if not already_queued:
+        messages.success(request, result.message, extra_tags=tag)
+
+
 @login_required
+@never_cache
+@require_http_methods(["GET", "POST"])
 def hire_fighter(request, pk):
     """Build the selected hiring scope and execute confirmed hires through operations.
 
@@ -293,10 +251,8 @@ def hire_fighter(request, pk):
     """
     from functools import cache
 
-    from n26.analytics import EventVerb, N26Noun, record
     from n26.core.access import gang_collections
     from n26.core.arrivals import onward
-    from n26.core.forms import HireFighterForm
     from n26.core.hire import (
         build_entries,
         build_hire_entry,
@@ -307,7 +263,6 @@ def hire_fighter(request, pk):
         section_hire_list,
         supplementary_profiles,
     )
-    from n26.core.operations import Refusal, operation
     from n26.core.render import roster, summarise_roster
 
     gang = _own_gang_or_404(request, pk)
@@ -317,7 +272,7 @@ def hire_fighter(request, pk):
     section = _section(request)
     # Preserve scope and section through confirmation, cancellation and successful hiring.
     back = _here(request, scope, section)
-    form = HireFighterForm()
+    form = HireSubmissionForm(initial={"request_key": uuid4()})
     dialog = None
 
     @cache
@@ -331,75 +286,26 @@ def hire_fighter(request, pk):
         return collection_offers(carried(), include_staged=shown)
 
     if request.method == "POST" and "profile" in request.POST:
-        form = HireFighterForm(request.POST)
+        try:
+            result = hire_workflow.change(gang, request.user, request.POST)
+        except UnavailableHire as error:
+            raise Http404(str(error)) from None
+        form = result.form
+        if result.saved:
+            hire_feedback(request, gang, result)
+            return redirect(onward(request, gang, result, back))
+        if result.refused:
+            messages.error(request, result.refused)
+            return redirect(back)
         key = request.POST["profile"]
         profile, offer = _offered(gang, key, offers, include_staged=shown)
         if profile is not None:
-            picks = _picks(request.POST, profile, build_hire_entry(profile), key=key)
-            if form.is_valid():
-                # Parse typed payment with the same bounded price helper used by equipment purchases.
-                from n26.core.views.equip import BadPrice, price_typed
-
-                try:
-                    # The entry replaces only the base profile price; selected options still add to it.
-                    quoted = profile.price_with(_chosen(picks), base=_base(offer))
-                except ValueError:
-                    raise Http404("No such option") from None
-                try:
-                    paid = price_typed(request.POST, "paid", quoted, profile.name)
-                except BadPrice as refusal:
-                    messages.error(request, str(refusal))
-                    return redirect(back)
-                # rate=paid pins rating to actual payment; otherwise retain the quote and record the difference as a discount.
-                # An absent checkbox means unchecked; only the initial dialog supplies its default.
-                rate_at_paid = request.POST.get("rate") == "paid"
-                try:
-                    with operation(gang, actor=request.user) as op:
-                        miniature = op.hire(
-                            profile,
-                            form.cleaned_data["name"] or profile.name,
-                            option=_chosen(picks),
-                            paid=paid,
-                            list_price=paid if rate_at_paid else quoted,
-                            discount=0 if rate_at_paid else quoted - paid,
-                            # Record the collection entry that priced this hire, when present.
-                            bought_from=offer,
-                        )
-                except Refusal as refusal:
-                    messages.error(request, str(refusal))
-                    return redirect(back)
-                except ValueError:
-                    # Reject invalid option-set combinations that passed the individual index parser.
-                    raise Http404("No such option") from None
-                # Use recorded payment for confirmation. Nullable membership and a missing
-                # reverse ledger relation must not turn a committed hire into a response error.
-                entry = getattr(miniature.membership, "ledger_entry", None)
-                # Use the ledger payment for analytics; a missing entry is unpriced, not zero.
-                record(
-                    request,
-                    N26Noun.MODEL,
-                    EventVerb.CREATE,
-                    miniature,
-                    gang_id=str(gang.pk),
-                    profile=profile.name,
-                    paid=None if entry is None else entry.paid,
-                )
-                if entry is None:
-                    messages.success(
-                        request,
-                        f"Hired {profile.name}."
-                        if miniature.name == profile.name
-                        else f"Hired {miniature.name} — {profile.name}.",
-                    )
-                else:
-                    messages.success(
-                        request,
-                        f"Hired {profile.name} for {entry.paid}¢."
-                        if miniature.name == profile.name
-                        else f"Hired {miniature.name} — {profile.name}, {entry.paid}¢.",
-                    )
-                # Show introduced interstitials before returning to the hiring list.
-                return redirect(onward(request, gang, op, back))
+            picks = _picks(
+                request.POST,
+                profile,
+                build_hire_entry(profile, with_cards=False),
+                key=key,
+            )
             # Preserve typed name, selected options and rating mode after validation errors.
             dialog = _dialog(
                 request,
@@ -416,7 +322,12 @@ def hire_fighter(request, pk):
         key = request.POST.get("hire", "")
         profile, offer = _offered(gang, key, offers, include_staged=shown)
         if profile is not None:
-            picks = _picks(request.POST, profile, build_hire_entry(profile), key=key)
+            picks = _picks(
+                request.POST,
+                profile,
+                build_hire_entry(profile, with_cards=False),
+                key=key,
+            )
             # Preserve colons in option field names when encoding the query string.
             query = urlencode(
                 [
@@ -435,7 +346,12 @@ def hire_fighter(request, pk):
             dialog = _dialog(
                 request,
                 profile,
-                _picks(request.GET, profile, build_hire_entry(profile), key=key),
+                _picks(
+                    request.GET,
+                    profile,
+                    build_hire_entry(profile, with_cards=False),
+                    key=key,
+                ),
                 scope=scope,
                 section=section,
                 entry=offer,

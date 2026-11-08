@@ -1,19 +1,14 @@
 {% comment %}
-<c-n26.hire-dialog> — The hire form: name, the price paid, and whether rating matches that price.
+<c-n26.hire-dialog> confirms the name, payment and rating for a hire.
 
-Render this only when the hire question is open. It always draws the dialog open.
+profile names the hireable type. fields retain the offer and selected options.
+form carries the name and durable request key; reuse it after validation errors.
+Put the CSRF token in the default slot. The named lead slot preserves ampersands
+in option names.
 
-profile is the hireable type name used in the title.
-
-Lead is a named slot so an option name can carry an ampersand.
-
-fields become hidden inputs the hire view needs. Drop them and the POST has no option.
-
-The price box posts paid. It shows how far the typed figure is from the quote. Without script the box still posts the quote, but no difference is shown.
-
-Put the csrf token in the default slot.
-Use a plain checkbox, not the kit's. The kit checkbox needs Alpine group scope, and this panel must work with scripting off.
-Pass rate_at_paid from the posted form. If the name is rejected and the form redraws, an unticked box must stay unticked.
+The price control shows the difference from the quote. Its native fallback keeps
+the entered payment; a blank payment uses the quote. The rating checkbox works
+without an Alpine parent scope; preserve rate_at_paid after validation errors so an unticked box stays unticked.
 {% endcomment %}
 
 {% load arith hire_price react %}
@@ -21,6 +16,7 @@ Pass rate_at_paid from the posted form. If the name is rejected and the form red
     action=""
     profile=""
     price=""
+    :paid="None"
     price_cap=""
     :choices="None"
     :fields="None"
@@ -41,6 +37,8 @@ Pass rate_at_paid from the posted form. If the name is rejected and the form red
     <c-slot name="lead">{{ price }}¢{% if choices %} — {{ choices|join:", " }}{% endif %}</c-slot>
 
     {{ slot }}
+    {{ form.request_key }}
+    {% for error in form.request_key.errors %}<c-ui.error>{{ error }}</c-ui.error>{% endfor %}
     {% for field in fields %}<input type="hidden" name="{{ field.name }}" value="{{ field.value }}">{% endfor %}
 
     <c-ui.field label="Name"
@@ -56,13 +54,13 @@ Pass rate_at_paid from the posted form. If the name is rejected and the form red
     <c-ui.field label="Price"
                 description="Price to be paid in credits. Rating may be different."
                 for="hire-paid">
-        {% hire_price_props field="paid" quoted=price label=profile price_cap=price_cap element_id="hire-paid" as props_ %}
+        {% hire_price_props field="paid" quoted=price label=profile price_cap=price_cap element_id="hire-paid" initial=paid as props_ %}
         {% react_host "hire-price" props_ class="inline-flex" %}
         <span class="flex items-center justify-end gap-1.5">
             <input type="number"
                    id="hire-paid"
                    name="paid"
-                   value="{{ price|default:0 }}"
+                   value="{{ props_.initial }}"
                    min="{{ price|default:0|at_most:0 }}"
                    max="{{ price_cap }}"
                    step="1"

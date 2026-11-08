@@ -49,6 +49,12 @@ without another fighter, assignment, ledger entry, charge or side effect.
 Changed-input reuse must be refused. A failed transaction must leave no consumed
 receipt. Keep command identity distinct from an operation's grouping batch.
 
+Check current access first, then read the receipt before resolving current
+offers or options. A catalogue change after a successful purchase must not
+prevent its retry from confirming the saved result. Retain the introduced
+assignment IDs so replay can derive any still-required onward choice screens without
+recording navigation URLs in the command receipt.
+
 Use the existing conventional form as the consumer. Prove unchanged successful
 and refused outcomes before introducing another HTTP adapter. Cover free hires,
 unlimited credits, grants, pets and onward choice/allowance screens where those

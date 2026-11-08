@@ -1893,6 +1893,26 @@ class Operation:
         grant_recruitment_allowances(self, miniature)
         return miniature
 
+    def record_hire_receipt(self, request_key, payload, miniature, profile_name):
+        """Retain the hire result inside the transaction that created it."""
+        from n26.core.models import HireReceipt
+
+        if self.actor is None:
+            raise ValueError("Hire receipts require an actor.")
+        membership = miniature.membership
+        entry = getattr(membership, "ledger_entry", None) if membership else None
+        return HireReceipt.objects.create(
+            gang=self.gang,
+            actor=self.actor,
+            request_key=request_key,
+            payload=payload,
+            miniature_key=str(miniature.pk),
+            model_name=miniature.name,
+            profile_name=profile_name,
+            paid=entry.paid if entry is not None else None,
+            written=sorted(self.written),
+        )
+
     def found(self, gang_type, taken=(), **kwargs):
         """Create the gang's free founding assignment and its built-ins.
 

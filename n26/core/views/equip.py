@@ -9,7 +9,6 @@ pages and partial updates. Updates replace changed rows and shared figures
 while preserving controls elsewhere on the listing. See n26.core.views.htmx.
 """
 
-import re
 from dataclasses import dataclass, replace
 from urllib.parse import urlencode
 
@@ -25,6 +24,7 @@ from n26.core.listing import choice_field as _choice_field
 from n26.core.listing import parts_field as _parts_field
 from n26.core.listing import price_field as _price_field
 from n26.core.owned import thing_key as _thing_key
+from n26.core.prices import PRICE_CEILING, BadPrice, price_typed
 from n26.core.views.htmx import is_htmx, no_update, with_toasts
 from n26.core.views.permissions import (
     _own_gang_or_404,
@@ -36,17 +36,6 @@ from n26.core.views.permissions import (
     trade_points_href,
 )
 from n26.library.staged import sees_staged
-
-#: Bound hand-entered payment per line independently of gang credit affordability.
-PRICE_CEILING = 100_000
-
-#: Accept only ASCII decimal digits and an optional minus; int() alone also
-#: accepts plus signs, underscores and non-ASCII digits.
-_WHOLE_CREDITS = re.compile(r"-?[0-9]+")
-
-
-class BadPrice(Exception):
-    """A submitted price is outside the accepted whole-credit range."""
 
 
 def _parts_picked(data, key, line):
@@ -89,32 +78,6 @@ def _choices_picked(data, key, groups):
             seen.add(position)
             picked.append(group.options[position])
     return picked
-
-
-def price_typed(data, field, quoted, name):
-    """Parse a submitted whole-credit price, using the quote for an absent or blank field.
-
-    Accept plain ASCII digits with an optional minus. The minimum is zero or the
-    negative quoted price, whichever is lower; PRICE_CEILING bounds the maximum.
-    Reject an invalid amount without clamping or changing it.
-    """
-    raw = data.get(field)
-    if raw is None or not raw.strip():
-        return quoted
-    raw = raw.strip()
-    floor = price_floor(quoted)
-    typed = int(raw) if _WHOLE_CREDITS.fullmatch(raw) else None
-    if typed is None or not floor <= typed <= PRICE_CEILING:
-        raise BadPrice(
-            f"{name}: a price is a whole number of credits, "
-            f"from {floor} to {PRICE_CEILING}."
-        )
-    return typed
-
-
-def price_floor(quoted):
-    """Allow zero or the negative quoted price, whichever is lower."""
-    return min(0, quoted)
 
 
 def _price_typed(data, field, line):

@@ -8,6 +8,8 @@ This suite covers the integration between authoring, hiring, choosing, buying
 and dismissal. See test_slots_and_picks.py for the engine contracts.
 """
 
+from uuid import uuid4
+
 import pytest
 from django.contrib.auth.models import User
 from django.test import Client
@@ -286,7 +288,7 @@ def hire(client, gang, profile, name):
 
     response = client.post(
         reverse("n26-hire-fighter", args=[gang.pk]),
-        {"profile": str(profile.pk), "name": name},
+        {"request_key": str(uuid4()), "profile": str(profile.pk), "name": name},
     )
     assert response.status_code == 302
     return Miniature.objects.get(name=name, membership__gang=gang)

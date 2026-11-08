@@ -9,6 +9,8 @@ to a held collection. Hiring through the unrestricted profile list uses the
 reference price instead.
 """
 
+from uuid import uuid4
+
 import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
@@ -132,7 +134,10 @@ def click(client, gang, key, **data):
 
 def hire_through(client, gang, key, name="", **data):
     """Submit the hiring dialog payload."""
-    return client.post(hire_url(gang), {"profile": key, "name": name, **data})
+    return client.post(
+        hire_url(gang),
+        {"request_key": str(uuid4()), "profile": key, "name": name, **data},
+    )
 
 
 class TestTheSectionACollectionOffers:
