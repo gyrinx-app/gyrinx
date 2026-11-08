@@ -76,6 +76,7 @@ export function ScheduleEditor({
         },
     });
     const { values, errors } = form;
+    const unavailable = editor.context.unavailable === true;
     const change = (name: string, value: string) =>
         form.setValues({ ...values, [name]: value });
     const fields = new Set(visible[editor.kind] ?? []);
@@ -127,7 +128,10 @@ export function ScheduleEditor({
             lead={editor.lead}
             formProps={{ method: "post", action: editor.action }}
             pending={form.pending || form.uncertain}
-            onSubmit={form.save}
+            onSubmit={(event) => {
+                if (unavailable && !form.uncertain) event.preventDefault();
+                else void form.save(event);
+            }}
             onDismiss={() => {
                 if (!form.pending && !form.uncertain)
                     form.conflicted
@@ -174,7 +178,10 @@ export function ScheduleEditor({
                 </div>
             )}
             <div className="max-h-[60vh] overflow-y-auto px-1">
-                <fieldset disabled={form.frozen} className="space-y-4">
+                <fieldset
+                    disabled={form.frozen || unavailable}
+                    className="space-y-4"
+                >
                     {(editor.kind === "setup" ||
                         editor.kind === "template") && (
                         <>
@@ -322,10 +329,14 @@ export function ScheduleEditor({
                 </fieldset>
             </div>
             <FormActions>
-                {form.conflicted ? (
+                {form.conflicted || (unavailable && !form.uncertain) ? (
                     <Button
                         variant="primary"
-                        onClick={() => form.review(reviewUrl)}
+                        onClick={() =>
+                            form.conflicted
+                                ? form.review(reviewUrl)
+                                : navigate(editor.back)
+                        }
                     >
                         Review current schedule
                     </Button>

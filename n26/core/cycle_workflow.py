@@ -179,7 +179,10 @@ def prepare(campaign, action, query):
     else:
         initial["expected_current"] = state.current_cycle_id
         if action == "advance":
-            preview = s.preview_advance(state)
+            try:
+                preview = s.preview_advance(state)
+            except s.ScheduleError:
+                raise Http404("This schedule action is not available") from None
             if preview.finishes:
                 raise Http404("Finish the campaign after its final cycle")
             context["ending"] = state.current.name
@@ -192,6 +195,27 @@ def prepare(campaign, action, query):
             lead = f"End {state.current.name} and finish the campaign. Its final cycle will remain recorded."
     return PreparedEditor(
         action, HEADINGS[action], lead, initial, context, canonical, target
+    )
+
+
+def recovery_editor(campaign, action, query):
+    """Keep the original form shape available for an authorised retained command."""
+    state = cycles.load(campaign)
+    return PreparedEditor(
+        action,
+        HEADINGS[action],
+        "This action is no longer available. Retry an earlier unconfirmed save, or review the current schedule.",
+        {
+            "request_key": str(uuid4()),
+            "expected_revision": state.revision if state else 0,
+            "expected_current": state.current_cycle_id if state else "",
+        },
+        {"unavailable": True},
+        {
+            key: query[key]
+            for key in ("cycle", "plan", "position", "phase")
+            if key in query
+        },
     )
 
 

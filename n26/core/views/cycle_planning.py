@@ -94,20 +94,7 @@ def cycle_editor(request, pk, action):
     try:
         prepared = workflow.prepare(campaign, action, request.GET)
     except Http404:
-        if submitted is None:
-            raise
-        prepared = workflow.PreparedEditor(
-            action,
-            workflow.HEADINGS[action],
-            "Review the current schedule before saving.",
-            {},
-            {},
-            {
-                key: request.GET[key]
-                for key in ("cycle", "plan", "position", "phase")
-                if key in request.GET
-            },
-        )
+        prepared = workflow.recovery_editor(campaign, action, request.GET)
     form = (
         submitted.form
         if submitted

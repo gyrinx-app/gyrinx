@@ -328,3 +328,111 @@ class TestDisplayReads:
         large, larger_count = read(12)
         assert count == larger_count
         assert len(small.rows) == 2 and len(large.rows) == 7
+
+
+class TestRecoveryAfterTheCommandChangesItsOwnPage:
+    def test_setup_reload_keeps_the_form_shape_and_recovery_key(
+        self, client, campaign, opened, template
+    ):
+        initial = props(client.get(editor_url(campaign, "setup")))["editor"]
+        data = {
+            **initial["values"],
+            "template_id": str(template.pk),
+            "mode": "fixed",
+            "current_number": "1",
+        }
+        assert post(client, campaign, "setup", data).status_code == 200
+        recovered = props(client.get(editor_url(campaign, "setup")))["editor"]
+        assert recovered["context"]["unavailable"]
+        assert recovered["recoveryKey"] == initial["recoveryKey"]
+        assert recovered["values"].keys() == initial["values"].keys()
+        assert post(client, campaign, "setup", data).status_code == 200
+        assert campaign.cycle_commands.count() == 1
+
+    @pytest.mark.parametrize("status", ["pre_campaign", "post_campaign"])
+    def test_native_stale_advance_after_status_change_retains_the_conflict_instead_of_failing(
+        self, client, campaign, configured, status
+    ):
+        from n26.core.campaigns import campaign_operation
+
+        state = cycles.load(campaign)
+        cycles.start(
+            campaign,
+            actor=campaign.owner,
+            expected_current=state.current_cycle_id,
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        before = props(client.get(editor_url(campaign, "advance")))["editor"]
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            act.set_status(status)
+        failed = post(client, campaign, "advance", before["values"], native=True)
+        editor = props(failed)["editor"]
+        assert editor["initialConflict"]
+        assert editor["values"]["request_key"] == before["values"]["request_key"]
+        assert editor["context"]["unavailable"]
+
+    def test_deletion_reload_can_retry_the_original_phase_command(
+        self, client, campaign, configured
+    ):
+        cycles.duplicate_phase(
+            campaign,
+            actor=campaign.owner,
+            phase_id=configured.phases[0].id,
+            name="Unused copy",
+            expected_revision=configured.revision,
+            request_key=uuid4(),
+        )
+        phase = cycles.load(campaign).phases[-1]
+        query = {"phase": phase.id}
+        before = props(client.get(editor_url(campaign, "delete-phase", **query)))[
+            "editor"
+        ]
+        assert (
+            post(
+                client, campaign, "delete-phase", before["values"], **query
+            ).status_code
+            == 200
+        )
+        after = props(client.get(editor_url(campaign, "delete-phase", **query)))[
+            "editor"
+        ]
+        assert after["context"]["unavailable"]
+        assert after["values"].keys() == before["values"].keys()
+        assert after["recoveryKey"] == before["recoveryKey"]
+        assert (
+            post(
+                client, campaign, "delete-phase", before["values"], **query
+            ).status_code
+            == 200
+        )
+
+    def test_advancing_into_the_final_cycle_keeps_reload_recovery_available(
+        self, client, campaign, configured
+    ):
+        state = cycles.load(campaign)
+        cycles.start(
+            campaign,
+            actor=campaign.owner,
+            expected_current=state.current_cycle_id,
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        for _ in range(5):
+            state = cycles.load(campaign)
+            cycles.advance(
+                campaign,
+                actor=campaign.owner,
+                expected_current=state.current_cycle_id,
+                expected_revision=state.revision,
+                request_key=uuid4(),
+            )
+        before = props(client.get(editor_url(campaign, "advance")))["editor"]
+        assert post(client, campaign, "advance", before["values"]).status_code == 200
+        assert cycles.load(campaign).current.order == 7
+        after = props(client.get(editor_url(campaign, "advance")))["editor"]
+        assert after["context"]["unavailable"]
+        assert after["values"].keys() == before["values"].keys()
+        assert after["recoveryKey"] == before["recoveryKey"]
+        assert post(client, campaign, "advance", before["values"]).status_code == 200
+        assert cycles.load(campaign).current.order == 7

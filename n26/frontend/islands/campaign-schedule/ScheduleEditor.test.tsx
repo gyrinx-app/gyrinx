@@ -232,3 +232,36 @@ test("malformed recovered structured input stays available for exact retry", asy
             .matches(":disabled"),
     ).toBe(true);
 });
+
+test("an unavailable editor offers review while retaining exact reload recovery", async () => {
+    const unavailable = { ...editor, context: { unavailable: true } };
+    const first = render(
+        <ScheduleEditor
+            editor={unavailable}
+            phases={phases}
+            onNavigate={vi.fn()}
+        />,
+    );
+    expect(
+        screen.getByRole("button", { name: "Review current schedule" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+    first.unmount();
+    const retained = new URLSearchParams(editor.values).toString();
+    sessionStorage.setItem(editor.recoveryKey, retained);
+    const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
+    vi.stubGlobal("fetch", fetch);
+    const navigate = vi.fn();
+    render(
+        <ScheduleEditor
+            editor={unavailable}
+            phases={phases}
+            onNavigate={navigate}
+        />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    const data = new URLSearchParams(fetch.mock.calls[0][1].body);
+    data.delete("csrfmiddlewaretoken");
+    expect(data.toString()).toBe(retained);
+    expect(navigate).toHaveBeenCalledWith("/cycles/");
+});
