@@ -36,6 +36,7 @@ export function HelpPopover({
     tone = "help",
     cta,
     triggerContent,
+    inline = false,
     children,
 }: {
     label: string;
@@ -45,6 +46,8 @@ export function HelpPopover({
     cta?: { label: string; href: string };
     /** Text that opens the explanation, with a dashed underline. */
     triggerContent?: ReactNode;
+    /** Preserve the text baseline when help sits within a sentence or card fact. */
+    inline?: boolean;
     children: ReactNode;
 }) {
     const look = TONES[tone];
@@ -104,7 +107,7 @@ export function HelpPopover({
     return (
         <span
             ref={root}
-            className="inline-flex align-middle"
+            className={inline ? "inline-block" : "inline-flex align-middle"}
             onMouseEnter={() => {
                 if (!pinned) later(true, OPEN_DELAY);
             }}

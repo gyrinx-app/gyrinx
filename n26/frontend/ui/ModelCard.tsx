@@ -1,5 +1,7 @@
 import cotton from "../generated/cotton.json";
-import { ButtonLink, HelpPopover, Icon } from "./index";
+import { useId, useRef, useState } from "react";
+import { useAnchoredPlacement, useDismiss } from "./anchoredPanel";
+import { ButtonLink, HelpPopover, Icon, Tooltip } from "./index";
 import {
     ModelPreview,
     isModelPreview,
@@ -23,14 +25,69 @@ type StoredFacts = {
     personalAction: string;
     ratingOverride: { baseRating?: number; defaultBaseRating?: number };
 };
-export function FoundingMark() {
+export function FoundingMark({ className = "size-4" }: { className?: string }) {
     return (
         <span className={cotton.modelCard.foundingMark}>
-            <Icon name="flag" className="size-4" />
+            <Icon name="flag" className={className} />
         </span>
     );
 }
 export type ModelCardData = ModelPreviewProps & { stored: StoredFacts };
+
+function ModelPicture({ href }: { href: string }) {
+    const id = useId();
+    const root = useRef<HTMLSpanElement>(null);
+    const trigger = useRef<HTMLButtonElement>(null);
+    const panel = useRef<HTMLDivElement>(null);
+    const [open, setOpen] = useState(false);
+    useDismiss(root, trigger, open, () => setOpen(false));
+    const style = useAnchoredPlacement({
+        open,
+        trigger,
+        panel,
+        width: "content",
+        minWidth: "12rem",
+        align: "end",
+        gap: 4,
+        margin: 8,
+        clampHeight: true,
+    });
+    return (
+        <span ref={root} className="inline-block">
+            <button
+                ref={trigger}
+                type="button"
+                aria-label="Show this model's picture"
+                aria-haspopup="dialog"
+                aria-expanded={open}
+                aria-controls={open ? id : undefined}
+                className={cotton.modelCard.pictureTrigger}
+                onClick={() => setOpen(!open)}
+            >
+                <span className="n26-icon-only">
+                    <Icon name="image" className="size-3.5" />
+                </span>
+            </button>
+            {open && (
+                <div
+                    ref={panel}
+                    id={id}
+                    role="dialog"
+                    aria-label="Model picture"
+                    className={`${cotton.actionMenu.panel} fixed p-1`}
+                    style={style}
+                >
+                    <img
+                        src={href}
+                        alt="Model picture"
+                        className="w-56 max-w-[75vw] rounded-control"
+                    />
+                </div>
+            )}
+        </span>
+    );
+}
+
 export function ModelCard({
     card,
     ...controls
@@ -45,23 +102,34 @@ export function ModelCard({
                     id: `model-${stored.id}`,
                     label: `${card.name} model card`,
                     dead: stored.status === "dead",
-                    nameAction: (
-                        <span className="ms-1 inline-flex align-baseline">
+                    nameAction: stored.renameHref && (
+                        <>
+                            {" "}
                             <ButtonLink
                                 href={stored.renameHref}
                                 size="xs"
                                 variant="text"
+                                className={cotton.modelCard.editLink}
                                 aria-label={`Rename ${card.name}`}
+                                title="Rename"
                             >
-                                <Icon name="pencil" className="size-3" />
+                                <span className="n26-icon-inline">
+                                    <Icon name="pencil" className="" />
+                                </span>
                             </ButtonLink>
-                        </span>
+                        </>
                     ),
-                    profileExtra: stored.rankTitles.map((title) => (
-                        <p key={title} className="text-xs font-medium">
-                            {title}
-                        </p>
-                    )),
+                    profileExtra: !!stored.rankTitles.length && (
+                        <div className="mt-1 space-y-0.5 text-xs text-muted">
+                            {stored.rankTitles.map((title) => (
+                                <p key={title}>
+                                    <span className="font-medium text-ink-900 dark:text-ink-100">
+                                        {title}
+                                    </span>
+                                </p>
+                            ))}
+                        </div>
+                    ),
                     figures: (
                         <>
                             {stored.statusHref &&
@@ -81,36 +149,46 @@ export function ModelCard({
                                         href={stored.statusHref}
                                         size="xs"
                                         variant="ghost"
+                                        className={`${cotton.modelCard.compactLink} !text-muted !font-normal`}
                                     >
                                         Active
                                     </ButtonLink>
                                 ))}
                             {stored.foundingBudget && (
                                 <>
-                                    <HelpPopover
-                                        label="Personal trade points"
-                                        triggerContent={
-                                            <span className="inline-flex items-baseline gap-1">
-                                                <FoundingMark />
-                                                {stored.tradePointsLeft} TP
-                                            </span>
-                                        }
+                                    <Tooltip
+                                        size="sm"
+                                        closeOnActivate={false}
+                                        label={`This model can spend these trade points at the Trading Post while the ${stored.personalAction} action is open.`}
                                     >
-                                        <p>
-                                            This model can spend these trade
-                                            points at the Trading Post while the{" "}
-                                            {stored.personalAction} action is
-                                            open.
-                                        </p>
-                                    </HelpPopover>
-                                    <span aria-hidden="true">·</span>
+                                        <button
+                                            type="button"
+                                            className="text-muted focus-ring"
+                                        >
+                                            <span>
+                                                <span className="inline-block align-[-0.1875em]">
+                                                    <FoundingMark className="size-3.5" />
+                                                </span>{" "}
+                                                <span>
+                                                    {stored.tradePointsLeft} TP
+                                                </span>
+                                            </span>
+                                        </button>
+                                    </Tooltip>
+                                    <span
+                                        aria-hidden="true"
+                                        className="text-muted"
+                                    >
+                                        ·
+                                    </span>
                                 </>
                             )}
-                            <HelpPopover
-                                label={`${card.name}'s rating: ${card.rating}¢`}
-                                triggerContent={`${card.rating}¢`}
-                            >
-                                {override.baseRating !== undefined ? (
+                            {override.baseRating !== undefined ? (
+                                <HelpPopover
+                                    inline
+                                    label={`${card.name}'s rating: ${card.rating}¢. Includes a base rating override`}
+                                    triggerContent={`${card.rating}¢`}
+                                >
                                     <>
                                         <p>
                                             Base rating overridden to{" "}
@@ -125,39 +203,42 @@ export function ModelCard({
                                             this figure.
                                         </p>
                                     </>
-                                ) : (
-                                    <p>Rating, including weapons and wargear</p>
-                                )}
-                            </HelpPopover>
+                                </HelpPopover>
+                            ) : (
+                                <Tooltip
+                                    label="Rating, including weapons and wargear"
+                                    size="sm"
+                                    closeOnActivate={false}
+                                >
+                                    <button
+                                        type="button"
+                                        className="focus-ring"
+                                    >
+                                        {card.rating}¢
+                                    </button>
+                                </Tooltip>
+                            )}
                         </>
                     ),
                     actions: (
                         <div className="col-start-2 row-start-2 flex min-w-0 flex-wrap items-center justify-end">
                             {stored.imageHref && (
-                                <HelpPopover
-                                    label="Show this model's picture"
-                                    triggerContent={
-                                        <Icon
-                                            name="image"
-                                            className="size-3.5"
-                                        />
-                                    }
-                                >
-                                    <img
-                                        src={stored.imageHref}
-                                        alt="Model picture"
-                                        className="w-56 max-w-[75vw] rounded-control"
-                                    />
-                                </HelpPopover>
+                                <ModelPicture href={stored.imageHref} />
                             )}
                             {stored.modelCardsHref && (
                                 <ButtonLink
                                     href={stored.modelCardsHref}
                                     variant="ghost"
                                     size="xs"
+                                    className={cotton.modelCard.compactLink}
                                     aria-label="Model cards"
                                 >
-                                    <Icon name="layers" className="size-3.5" />
+                                    <span className="n26-icon-only">
+                                        <Icon
+                                            name="layers"
+                                            className="size-3.5"
+                                        />
+                                    </span>
                                 </ButtonLink>
                             )}
                         </div>
@@ -208,6 +289,8 @@ function action(value: unknown): boolean {
     return (
         object(value) &&
         texts(value, ["label", "target", "tone"]) &&
+        (value.separatorBefore === undefined ||
+            typeof value.separatorBefore === "boolean") &&
         sameOrigin(value.target)
     );
 }

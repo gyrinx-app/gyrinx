@@ -23,7 +23,8 @@ export type ActionMenuProps = {
     label: string;
     /** Entries in display order. */
     items: ActionMenuItem[];
-    trigger?: "ellipsis" | "chevron";
+    /** Inline chevrons use the model card's compact ghost control. */
+    trigger?: "ellipsis" | "chevron" | "inline-chevron";
     variant?: "default" | "ghost";
     align?: "start" | "end";
     /** A CSS length. */
@@ -173,7 +174,11 @@ export function ActionMenu({
             <button
                 ref={button}
                 type="button"
-                className={`${cotton.buttonSmall[variant]} ${trigger === "chevron" ? "px-1.5!" : ""}`}
+                className={
+                    trigger === "inline-chevron"
+                        ? cotton.modelCard.menuTrigger
+                        : `${cotton.buttonSmall[variant]} ${trigger === "chevron" ? "px-1.5!" : ""}`
+                }
                 id={triggerId}
                 aria-label={label}
                 title={label}
@@ -203,7 +208,7 @@ export function ActionMenu({
                     if (event.key === " ") event.preventDefault();
                 }}
             >
-                {trigger === "chevron" ? (
+                {trigger !== "ellipsis" ? (
                     <span className="n26-icon-only">
                         <Glyph
                             name="chevron-down"

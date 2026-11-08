@@ -23,9 +23,7 @@ def choice_control(choice):
 
 def item_controls(source, projected):
     projected["key"] = source.id or source.name
-    projected["actions"] = [
-        asdict(action) for action in (source.sell, *source.more) if action
-    ]
+    projected["actions"] = owned_actions(source)
     projected["tiers"] = [
         choice_control(choice) for choice in source.choices if choice.is_tier_ladder
     ]
@@ -33,6 +31,19 @@ def item_controls(source, projected):
         source.other_choice_rows, projected["choices"], strict=True
     ):
         data["controls"] = [choice_control(part.value) for part in original.parts]
+
+
+def owned_actions(source):
+    """Match owned-actions' sale, ordinary actions and separated danger actions."""
+    actions = [asdict(source.sell) | {"tone": "default"}] if source.sell else []
+    actions.extend(asdict(action) for action in source.more if action.tone != "danger")
+    for action in source.more:
+        if action.tone == "danger":
+            actions.append(
+                asdict(action)
+                | {"separatorBefore": bool(source.sell or len(source.more) > 1)}
+            )
+    return actions
 
 
 def model_card_props(card, *, rename_href, status_href):
@@ -94,9 +105,7 @@ def model_card_props(card, *, rename_href, status_href):
             original.named_profiles, weapon["profiles"], strict=True
         ):
             profile["key"] = source.id or source.name
-            profile["actions"] = [
-                asdict(action) for action in (source.sell, *source.more) if action
-            ]
+            profile["actions"] = owned_actions(source)
         for source, accessory in zip(
             original.accessories, weapon["accessories"], strict=True
         ):

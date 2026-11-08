@@ -121,6 +121,17 @@ without cached assets. Attach visual evidence using the pr-screenshots skill.
 The bar already loads React on N26 pages; check that unrelated feature entries
 do not load and the migrated root has no Alpine owner.
 
+Compare matched data in the same rendering mode, viewport and theme. Inventory
+each control's variant, size, padding, icon treatment and menu contents; sharing
+the base button recipe alone does not preserve its call-site configuration.
+Check open menus, destructive separators, long names, repeated accessories,
+choice controls, counters and crowded headers. Use the paired model-card gallery
+for stored cards and verify the real workflow too. Record concrete differences
+and fixes in the PR; a functional smoke check does not establish visual parity.
+Use `Tooltip` in its small Cotton style for short card facts and provenance.
+Reserve a popover for structured explanations such as a rating breakdown. An
+informational preview prompt becomes a ghost button only when a picker URL exists.
+
 Switch the complete workflow to one renderer per request. Do not mount both
 renderers and hide one. Remove obsolete code after checking every caller; name
 any short-lived rollback cleanup. Independent shared chrome can stay unchanged.

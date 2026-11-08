@@ -19,6 +19,41 @@ def sale(key):
     return Action("Sell", "link", f"/equip/?sell={key}", "danger")
 
 
+def test_owned_menus_keep_sale_neutral_and_move_destructive_actions_after_ordinary_actions():
+    card = ModelCard(
+        "Vex",
+        75,
+        Statline(),
+        id="model",
+        weapons=[
+            WeaponLine(
+                "Gun",
+                30,
+                sell=sale("gun"),
+                more=(
+                    Action("Delete", "link", "/delete/", "danger"),
+                    Action("Reassign", "link", "/move/", "secondary"),
+                    Action("Refund", "link", "/refund/", "danger"),
+                ),
+                accessorise=Action("Add accessory", "link", "/accessory/", "secondary"),
+            )
+        ],
+    )
+    weapon = model_card_props(card, rename_href="/rename/", status_href="/status/")[
+        "weapons"
+    ][0]
+    assert [
+        (action["label"], action["tone"], action.get("separatorBefore", False))
+        for action in weapon["actions"]
+    ] == [
+        ("Sell", "default", False),
+        ("Reassign", "secondary", False),
+        ("Delete", "danger", True),
+        ("Refund", "danger", True),
+    ]
+    assert weapon["accessorise"]["target"] == "/accessory/"
+
+
 def test_stored_cards_keep_distinct_gear_profile_and_accessory_controls_without_reads():
     tier = ChoiceLine("Tier", "One", key="tier", href="/tier/", is_tier_ladder=True)
     channel = ChoiceLine("Channel", "Blue", key="channel", href="/channel/")

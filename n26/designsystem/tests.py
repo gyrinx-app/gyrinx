@@ -116,6 +116,24 @@ class TestModelPreviewGallery:
         stored_props = json.loads(soup.find(id=stored["data-react-props"]).string)
         assert stored_props["card"]["stored"]["id"] == "vesna-krail-edit"
         assert stored_props["card"]["weapons"]
+        examples = soup.select("[data-stored-example]")
+        assert len(examples) == 2
+        for example in examples:
+            reference = example.select_one("[data-preview-reference]")
+            host = example.select_one('[data-react-name="model-card-demo"]')
+            props = json.loads(soup.find(id=host["data-react-props"]).string)["card"]
+            assert (
+                reference.select_one('a[aria-label^="Rename "]')["href"]
+                == props["stored"]["renameHref"]
+            )
+            assert reference.select_one('button[aria-label="Add one to XP"]')
+            assert reference.select_one('button[aria-label^="More for Mesh armour"]')
+            assert [
+                link.get_text(strip=True)
+                for link in reference.select('a[href="#status"]')
+            ] == [props["stored"]["statusLabel"] or "Active"]
+        assert "Veteran" in examples[1].get_text()
+        assert "Long-range targeting sight" in examples[1].get_text()
         assert len(hosts) == 3
         for reference, host in zip(
             soup.select("[data-preview-reference]")[:3], hosts, strict=True

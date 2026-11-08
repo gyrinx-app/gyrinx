@@ -87,29 +87,25 @@ describe("model preview", () => {
         expect(within(weapons).getByText("6")).toBeTruthy();
         expect(within(weapons).getByText("Accurate")).toBeTruthy();
         expect(within(weapons).getByText("Sight")).toBeTruthy();
-        expect(within(weapons).getByText("Channel: Blue, —")).toBeTruthy();
+        expect(
+            within(weapons).getByText("Channel:").closest("li")?.textContent,
+        ).toBe("Channel: Blue, —");
     });
 
     it("makes modifier and provenance explanations available from the keyboard", async () => {
         const user = userEvent.setup();
         render(<ModelPreview {...sample} />);
         const trigger = screen.getByRole("button", {
-            name: /4: T changed by Armour/,
+            name: "4",
         });
         trigger.focus();
         await user.keyboard("{Enter}");
-        const panel = screen.getByRole("dialog", {
-            name: /4: T changed by Armour/,
-        });
+        const panel = screen.getByRole("tooltip");
         expect(within(panel).getByText(stat.explanation)).toBeTruthy();
         await user.keyboard("{Escape}");
         expect(document.activeElement).toBe(trigger);
-        await user.click(
-            screen.getByRole("button", { name: "Mesh armour: From Harness" }),
-        );
-        expect(
-            screen.getByRole("dialog", { name: "Mesh armour: From Harness" }),
-        ).toBeTruthy();
+        await user.click(screen.getByRole("button", { name: "Mesh armour" }));
+        expect(screen.getByRole("tooltip").textContent).toBe("From Harness");
     });
 
     it("renders all supplied content as text and exposes no editing controls", () => {

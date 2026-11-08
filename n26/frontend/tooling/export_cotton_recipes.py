@@ -85,7 +85,31 @@ def tooltip_recipe():
     ]
     if len(panels) != 1:
         raise ValueError("Cotton tooltip panel changed")
-    return {"panel": _without(class_name(panels[0]), "absolute", "pointer-events-none")}
+    small = Elements(
+        Template(
+            CottonCompiler().process(
+                '<c-ui.tooltip size="sm">Help<c-slot name="content">Text</c-slot></c-ui.tooltip>'
+            )
+        ).render(Context())
+    ).elements
+    return {
+        "panel": _without(class_name(panels[0]), "absolute", "pointer-events-none"),
+        "small": _without(
+            class_name(
+                next(attrs for tag, attrs in small if attrs.get("role") == "tooltip")
+            ),
+            "absolute",
+            "pointer-events-none",
+        ),
+        "arrow": class_name(
+            next(
+                attrs
+                for tag, attrs in small
+                if "w-2" in attrs.get("class", "").split()
+                and "h-2" in attrs.get("class", "").split()
+            )
+        ),
+    }
 
 
 def gang_figures_recipe():
@@ -571,6 +595,11 @@ def model_preview_recipe():
         "xpCell": find("td", "border-l", "tabular-nums"),
         "muted": find("span", "text-muted", without=("text-xs",)),
         "changed": find("span", "text-accent-text"),
+        "information": _without(
+            find("span", "underline", "decoration-dotted"),
+            "font-semibold",
+            "text-accent-text",
+        ),
         "details": find("dl"),
         "detailLabel": find("dt"),
         "detailValue": find("dd"),
@@ -600,6 +629,37 @@ def model_preview_recipe():
 
 
 def model_card_recipe():
+    from n26.core.listing import Action
+    from n26.core.render import CounterLine
+
+    controls = Elements(
+        Template(
+            CottonCompiler().process(
+                '<c-n26.owned-actions :sell="sell" layout="menu" label="Weapon" />'
+                '<c-n26.counter-controls :counter="counter" />'
+                '{% include "n26/includes/row_edit.html" %}'
+            )
+        ).render(
+            Context(
+                {
+                    "sell": Action("Sell", "link", "/sell/", "danger"),
+                    "counter": CounterLine("XP", 1, tallied=1, href="/counter/"),
+                    "row": {"edit_href": "/skills/"},
+                    "mode": "edit",
+                }
+            )
+        )
+    ).elements
+
+    def control(label):
+        return class_name(
+            next(
+                attrs
+                for tag, attrs in controls
+                if tag in ("a", "button") and attrs.get("aria-label") == label
+            )
+        )
+
     tabs = [
         {"label": "Edit", "href": "/edit/", "current": False},
         {"label": "Equip", "href": "/equip/", "current": True},
@@ -610,6 +670,17 @@ def model_card_recipe():
     )
     elements = Elements(rendered).elements
     return {
+        "menuTrigger": control("More for Weapon"),
+        "counterStep": control("Add one to XP"),
+        "editLink": control("Edit skills & powers"),
+        "compactLink": classes(
+            '<c-ui.button href="/" size="xs" variant="ghost" :compact="True">Active</c-ui.button>',
+            "a",
+        )[0],
+        "pictureTrigger": classes(
+            '<c-ui.button size="xs" variant="ghost" :compact="True">Picture</c-ui.button>',
+            "button",
+        )[0],
         "status": {
             colour: classes(
                 f'<c-ui.badge color="{colour}" size="sm" href="/">Status</c-ui.badge>',

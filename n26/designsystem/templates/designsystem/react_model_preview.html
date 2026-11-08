@@ -29,16 +29,33 @@
         <section class="space-y-3" aria-labelledby="stored-card-title">
             <h2 id="stored-card-title" class="text-xl font-semibold">Stored fighter card</h2>
             <p class="text-muted">The stored card keeps its editing links and per-copy controls. Counter changes in this example stay in the browser.</p>
-            <div class="grid min-w-0 gap-5 xl:grid-cols-2">
-                <div class="min-w-0 space-y-2" data-preview-reference>
-                    <h3 class="font-semibold">Cotton</h3>
-                    <c-n26.model-card :card="stored_card" :tabs="False" />
+            {% for example in stored_examples %}
+                <div class="grid min-w-0 gap-5 xl:grid-cols-2"
+                     data-stored-example="{{ example.card.id }}"
+                     role="group"
+                     aria-label="{{ example.card.name }} comparison">
+                    <div class="min-w-0 space-y-2" data-preview-reference>
+                        <h3 class="font-semibold">Cotton</h3>
+                        <c-n26.model-card :card="example.card" :tabs="False" mode="edit" status_href="#status">
+                            <c-slot name="name_action">
+                                <c-ui.button variant="text"
+                                             size="xs"
+                                             class="ms-1 py-0!"
+                                             href="#rename"
+                                             aria-label="Rename {{ example.card.name }}">
+                                    <span class="n26-icon-inline">
+                                        <c-n26.icon name="pencil" />
+                                    </span>
+                                </c-ui.button>
+                            </c-slot>
+                        </c-n26.model-card>
+                    </div>
+                    <div class="min-w-0 space-y-2" data-preview-react>
+                        <h3 class="font-semibold">React</h3>
+                        {% react_island "model-card-demo" example.props %}
+                    </div>
                 </div>
-                <div class="min-w-0 space-y-2" data-preview-react>
-                    <h3 class="font-semibold">React</h3>
-                    {% react_island "model-card-demo" stored_props %}
-                </div>
-            </div>
+            {% endfor %}
         </section>
     </div>
 {% endblock %}

@@ -188,6 +188,14 @@ and [visual evidence skill](../../.agents/skills/pr-screenshots/SKILL.md). Run t
 focused Python tests, React tests, typecheck and production build before cutover.
 Keep existing domain checks; a new rendering test does not replace them.
 
+Visual parity needs the same data and rendering mode on both sides. A preview
+card and an editable card expose different controls. Compare control variants,
+sizes, padding, icon alignment, wrapping, menu contents and separators as well as
+page layout. Preserve actions in their existing menus. Test repeated accessories,
+long chosen values and crowded headers, then exercise the actual workflow. The
+paired cards at `/n26/design/react/model-preview/` provide database-free fixtures
+for this comparison. Record specific differences and their resolution in the PR.
+
 Select one complete renderer for each request. During a short rollback period,
 both renderers can call the same Python behaviour, but never mount both and hide
 one. Name the removal follow-up if it cannot be included in the cutover PR. Delete

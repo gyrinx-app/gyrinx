@@ -6,6 +6,28 @@ import { Tooltip } from "./Tooltip";
 afterEach(() => vi.useRealTimers());
 
 describe("Tooltip", () => {
+    it("keeps short card explanations open on activation and dismisses without moving focus", async () => {
+        const user = userEvent.setup();
+        render(
+            <Tooltip
+                size="sm"
+                closeOnActivate={false}
+                label="From Hotshot las pack (profile)"
+            >
+                <button>Unstable</button>
+            </Tooltip>,
+        );
+        await user.click(screen.getByRole("button", { name: "Unstable" }));
+        const panel = screen.getByRole("tooltip");
+        expect(panel.textContent).toBe("From Hotshot las pack (profile)");
+        expect(panel.querySelector('[aria-hidden="true"]')).toBeTruthy();
+        expect(screen.queryByRole("dialog")).toBeNull();
+        await user.keyboard("{Escape}");
+        expect(screen.queryByRole("tooltip")).toBeNull();
+        expect(document.activeElement).toBe(
+            screen.getByRole("button", { name: "Unstable" }),
+        );
+    });
     it("describes its control on focus and dismisses without moving focus", async () => {
         const user = userEvent.setup();
         render(

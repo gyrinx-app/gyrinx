@@ -3,8 +3,10 @@ import {
     type ReactElement,
     useEffect,
     useId,
+    useLayoutEffect,
     useRef,
     useState,
+    type CSSProperties,
 } from "react";
 import cotton from "../generated/cotton.json";
 import { useAnchoredPlacement, useDismiss } from "./anchoredPanel";
@@ -13,8 +15,12 @@ import { useAnchoredPlacement, useDismiss } from "./anchoredPanel";
 export function Tooltip({
     label,
     children,
+    size = "md",
+    closeOnActivate = true,
 }: {
     label: string;
+    size?: "md" | "sm";
+    closeOnActivate?: boolean;
     children: ReactElement<{ "aria-describedby"?: string }>;
 }) {
     const id = useId();
@@ -22,14 +28,33 @@ export function Tooltip({
     const panel = useRef<HTMLDivElement>(null);
     const timer = useRef<number | undefined>(undefined);
     const [open, setOpen] = useState(false);
+    const [arrow, setArrow] = useState<CSSProperties>({});
     const style = useAnchoredPlacement({
         open,
         trigger: root,
         panel,
         width: "content",
         minWidth: "0px",
-        gap: 6,
+        gap: size === "sm" ? 8 : 6,
+        align: size === "sm" ? "center" : "start",
+        preferredSide: size === "sm" ? "top" : "bottom",
     });
+    useLayoutEffect(() => {
+        if (!open || size !== "sm" || !root.current || !panel.current) return;
+        const anchor = root.current.getBoundingClientRect();
+        const above = Number(style.top) < anchor.top;
+        setArrow({
+            left: Math.max(
+                8,
+                Math.min(
+                    panel.current.offsetWidth - 8,
+                    anchor.left + anchor.width / 2 - Number(style.left),
+                ),
+            ),
+            [above ? "bottom" : "top"]: -4,
+            transform: "translateX(-50%) rotate(45deg)",
+        });
+    }, [open, size, style]);
     const close = () => {
         window.clearTimeout(timer.current);
         setOpen(false);
@@ -57,8 +82,8 @@ export function Tooltip({
             onBlurCapture={(event) => {
                 if (!event.currentTarget.contains(event.relatedTarget)) close();
             }}
-            onPointerDownCapture={close}
-            onClickCapture={close}
+            onPointerDownCapture={closeOnActivate ? close : undefined}
+            onClickCapture={closeOnActivate ? close : undefined}
             onKeyDown={(event) => {
                 if (open && event.key === "Escape") {
                     event.preventDefault();
@@ -77,12 +102,22 @@ export function Tooltip({
                 id={id}
                 role="tooltip"
                 hidden={!open}
-                className={`${cotton.tooltip.panel} fixed`}
-                style={style}
+                className={`${size === "sm" ? cotton.tooltip.small : cotton.tooltip.panel} fixed whitespace-normal`}
+                style={{
+                    ...style,
+                    maxWidth: "min(var(--container-xs), calc(100vw - 32px))",
+                }}
                 onMouseEnter={() => window.clearTimeout(timer.current)}
                 onMouseLeave={leave}
             >
                 {label}
+                {size === "sm" && (
+                    <span
+                        aria-hidden="true"
+                        className={cotton.tooltip.arrow}
+                        style={arrow}
+                    />
+                )}
             </div>
         </span>
     );
