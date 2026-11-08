@@ -328,18 +328,16 @@ test("editing retains the awarded stake and visibly reports a stale ownership sn
 });
 
 test("invalid prefilled components remain visible and are submitted unchanged", async () => {
-    const fetch = vi
-        .fn()
-        .mockResolvedValue(
-            json(
-                {
-                    errors: {
-                        __all__: ["A scenario component is not on its table."],
-                    },
+    const fetch = vi.fn().mockResolvedValue(
+        json(
+            {
+                errors: {
+                    __all__: ["A scenario component is not on its table."],
                 },
-                422,
-            ),
-        );
+            },
+            422,
+        ),
+    );
     vi.stubGlobal("fetch", fetch);
     render(<BattleEditor {...props} values={{ ...props.values, crew: "9" }} />);
     expect(
@@ -355,3 +353,35 @@ test("invalid prefilled components remain visible and are submitted unchanged", 
         "Street fight",
     );
 });
+
+test.each([false, true])(
+    "flag changes preserve the exact earlier command (initially enabled: %s)",
+    async (initiallyEnabled) => {
+        const { cycle: _cycle, ...withoutCycle } = props.values;
+        const original = new URLSearchParams(
+            initiallyEnabled ? props.values : withoutCycle,
+        );
+        sessionStorage.setItem(props.recoveryKey, original.toString());
+        const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/battle/" }));
+        vi.stubGlobal("fetch", fetch);
+        const navigate = vi.fn();
+        render(
+            <BattleEditor
+                {...props}
+                values={initiallyEnabled ? withoutCycle : props.values}
+                cycles={initiallyEnabled ? null : props.cycles}
+                onNavigate={navigate}
+            />,
+        );
+        expect(
+            screen.getByRole("textbox", { name: "Name" }).matches(":disabled"),
+        ).toBe(true);
+        await userEvent.click(
+            screen.getByRole("button", { name: "Retry save" }),
+        );
+        const body = new URLSearchParams(fetch.mock.calls[0][1].body);
+        body.delete("csrfmiddlewaretoken");
+        expect(body.toString()).toBe(original.toString());
+        expect(navigate).toHaveBeenCalledWith("/battle/");
+    },
+);

@@ -2984,11 +2984,11 @@ class Operation:
     ):
         from n26.core.advancements import record_action_roll
 
-        return record_action_roll(
-            self,
+        return self._action_call(
+            record_action_roll,
             record,
-            configured,
-            request_key,
+            configured=configured,
+            request_key=request_key,
             rolled=rolled,
             rng=rng,
             decline_promotion=decline_promotion,
@@ -3008,11 +3008,11 @@ class Operation:
     ):
         from n26.core.advancements import record_skill_roll
 
-        return record_skill_roll(
-            self,
+        return self._action_call(
+            record_skill_roll,
             record,
-            configured,
-            request_key,
+            configured=configured,
+            request_key=request_key,
             pickable_id=pickable_id,
             skill_set_id=skill_set_id,
             rolled=rolled,
@@ -3473,9 +3473,14 @@ def operation(
     with transaction.atomic(), write_guard():
         selected = None
         if cycle_context is not None:
-            from n26.core.cycle_context import lock_campaign, require_membership
+            from n26.core.cycle_context import (
+                CycleContext,
+                lock_campaign,
+                require_membership,
+            )
 
             selected = lock_campaign(cycle_context, actor)
+            op.cycle_context = CycleContext.from_cycle(selected)
         if gang is not None and gang.pk is not None:
             _hold(gang, *also)
             # Refresh values loaded before locking so concurrent submissions

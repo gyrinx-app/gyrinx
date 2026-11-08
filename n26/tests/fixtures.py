@@ -342,3 +342,19 @@ def past_cycle_context(campaign_type):
         return CycleContext(str(campaign.pk), state.cycles[0].id)
 
     return attach
+
+
+@pytest.fixture
+def cycle_tracking_switch(db):
+    from gyrinx.site.models import Availability, FeatureFlag
+    from n26.flags import CYCLE_TRACKING
+
+    def set_open(opened):
+        assert (
+            FeatureFlag.objects.filter(slug=CYCLE_TRACKING).update(
+                availability=Availability.EVERYONE if opened else Availability.OFF
+            )
+            == 1
+        )
+
+    return set_open

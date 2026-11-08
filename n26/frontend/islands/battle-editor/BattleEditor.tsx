@@ -77,6 +77,13 @@ export function BattleEditor(props: BattleEditorProps) {
     const [cycleError, setCycleError] = useState("");
     const form = useWorkflowForm({
         ...props,
+        optionalRecoveryFields: Object.keys(props.values).filter(name => ![
+            "request_key",
+            "scenario",
+            "date",
+            "gangs",
+            ...(props.editing ? ["revision", "result", "winners"] : []),
+        ].includes(name)),
         interpret(status, data) {
             if (status === 200 && typeof data.nextUrl === "string")
                 return { kind: "saved", nextUrl: data.nextUrl };

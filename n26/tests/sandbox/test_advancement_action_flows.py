@@ -775,6 +775,80 @@ class TestRecordingASkillRoll:
         )
         return record, skill_url, client.get(skill_url)
 
+    def test_closing_cycle_tracking_refuses_carried_skill_roll_changes(
+        self,
+        client,
+        monkeypatch,
+        advancement,
+        past_cycle_context,
+        cycle_tracking_switch,
+    ):
+        advancement.cycle_context = past_cycle_context(advancement.gang)
+        ferocity = a.create_category("Skills", "Ferocity", position=2)
+        a.create_skill("Berserker", category=ferocity, position=1)
+        a.modifier(
+            "Prospect: Ferocity is Primary",
+            a.targets_model(),
+            a.ef_places(ferocity, advancement.primary),
+            attach_to=advancement.profile,
+        )
+        record, skill_url, page = self._skill_page(client, monkeypatch, advancement)
+        options = {
+            option["label"]: option["value"]
+            for option in page.context["skill_roll"]["choices"]["options"]
+        }
+        assert (
+            client.post(
+                skill_url,
+                {
+                    "request_key": page.context["form"]["request_key"].value(),
+                    "skill_set_id": options["Skills: Agility"],
+                    "roll_mode": "record",
+                    "rolled": "1",
+                },
+            ).status_code
+            == 302
+        )
+        record.refresh_from_db()
+        selection = record.skill_selection
+        attempts, selected_set = list(selection.random_attempts), selection.skill_set_id
+        events = record.ledger_events.count()
+        cycle_tracking_switch(False)
+        refused = client.post(
+            skill_url,
+            {
+                "request_key": str(uuid4()),
+                "skill_set_id": options["Skills: Ferocity"],
+                "roll_mode": "roll",
+            },
+        )
+        assert refused.status_code == 200
+        assert "Cycle tracking is not available" in refused.content.decode()
+        selection.refresh_from_db()
+        assert selection.random_attempts == attempts
+        assert selection.skill_set_id == selected_set
+        assert record.ledger_events.count() == events
+        assert_reconciled(advancement.gang)
+
+    def test_closing_cycle_tracking_refuses_the_initial_action_roll(
+        self, client, advancement, past_cycle_context, cycle_tracking_switch
+    ):
+        from n26.core.models import AdvancementSelection
+        from n26.core.operations import Refusal
+
+        advancement.cycle_context = past_cycle_context(advancement.gang)
+        record = _start(client, advancement)
+        cycle_tracking_switch(False)
+        before = record.ledger_events.count()
+        with pytest.raises(Refusal, match="Cycle tracking is not available"):
+            with operation(advancement.gang, actor=advancement.owner) as op:
+                op.record_action_roll(
+                    record, advancement.outcome.operation, uuid4(), rolled=12
+                )
+        assert record.ledger_events.count() == before
+        assert not AdvancementSelection.objects.filter(action_record=record).exists()
+        assert_reconciled(advancement.gang)
+
     def test_the_recorded_d6_controls_refuse_impossible_input_then_save_its_result(
         self, client, monkeypatch, advancement
     ):

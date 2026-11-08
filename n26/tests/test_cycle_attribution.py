@@ -358,7 +358,10 @@ class TestBattleWorkflowAdapters:
         assert detail.context["cycle_attribution"]["name"] == "Cycle 1"
 
 
-def test_projected_action_selection_and_its_prefix_share_one_transaction(table):
+@pytest.mark.parametrize("reuse_key", [False, True])
+def test_projected_action_selection_and_its_prefix_share_one_transaction(
+    table, reuse_key
+):
     action = a.create_action("Cycle preparation", "post_cycle")
     with operation(table.gang, actor=table.owner) as op:
         op.assign(action, miniature=table.fighter)
@@ -372,14 +375,14 @@ def test_projected_action_selection_and_its_prefix_share_one_transaction(table):
     assert record.action.records.count() == 1
     assert CampaignCycle.objects.count() == 5
     before = cycles.load(table.campaign)
-    with pytest.raises(Refusal, match="another action use"):
+    with pytest.raises(Refusal, match="another action use|different cycle"):
         with cycles.action_operation(
             table.campaign,
             table.gang,
             actor=table.owner,
             target=s.project(before)[0].ref,
         ) as op:
-            op.start_action(table.fighter, action, key)
+            op.start_action(table.fighter, action, key if reuse_key else uuid4())
     assert CampaignCycle.objects.count() == 5
     assert cycles.load(table.campaign) == before
     assert before.current_cycle_id == table.state.current_cycle_id
@@ -472,3 +475,50 @@ def test_malformed_optional_cycle_values_are_refused_instead_of_clearing_attribu
     assert response.status_code == 422
     assert "cycle" in response.json()["errors"]
     assert not Battle.objects.exists()
+
+
+def test_uuid_contexts_are_canonical_for_exact_retries_and_legacy_resume(table):
+    from n26.core.fields import to_ulid
+
+    action = a.create_action("Cycle preparation", "post_cycle")
+    with operation(table.gang, actor=table.owner) as op:
+        op.assign(action, miniature=table.fighter)
+    context = CycleContext(
+        str(table.campaign.pk.to_uuid()), str(to_ulid(table.context.cycle_id).to_uuid())
+    )
+    key = uuid4()
+    identities = []
+    for _ in range(2):
+        with operation(table.gang, actor=table.owner, cycle_context=context) as op:
+            assert op.cycle_context == table.context
+            record = op.start_action(table.fighter, action, key)
+            identities.append(record.pk)
+    with operation(table.gang, actor=table.owner) as op:
+        assert op.start_action(table.fighter, action, key).pk == identities[0]
+        assert op.start_action(table.fighter, action, uuid4()).pk == identities[0]
+    assert len(set(identities)) == 1
+    assert action.records.count() == 1
+    assert_reconciled(table.gang)
+
+
+def test_enabling_the_flag_after_a_lost_creation_response_replays_the_original_unattributed_battle(
+    client, table
+):
+    from django.urls import reverse
+
+    client.force_login(table.owner)
+    table.flag.availability = Availability.OFF
+    table.flag.save()
+    props = client.get(
+        reverse("n26-campaign-add-battle", args=[table.campaign.pk])
+    ).context["battle_editor"]
+    data = {**props["values"], "date": "2026-11-08"}
+    assert "cycle" not in data
+    assert client.post(props["commandHref"], data).status_code == 200
+    table.flag.availability = Availability.EVERYONE
+    table.flag.save()
+    fresh = client.get(props["action"]).context["battle_editor"]
+    assert "cycle" in fresh["values"]
+    assert client.post(fresh["commandHref"], data).status_code == 200
+    assert Battle.objects.count() == BattleCommand.objects.count() == 1
+    assert Battle.objects.get().cycle_id is None

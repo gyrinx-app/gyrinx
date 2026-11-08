@@ -203,6 +203,7 @@ def editor_props(
                     json.loads(values[name]), separators=(",", ":")
                 )
             except ValueError:
+                # Preserve invalid input so validation and exact retries see it unchanged.
                 pass
     scenario = (
         battle_scenario_props(
@@ -218,6 +219,7 @@ def editor_props(
         try:
             selected = json.loads(values["cycle"])
         except ValueError:
+            # Invalid retained JSON has no selectable option; its original value stays above.
             pass
     choices = {}
     for name in ("gangs", "winners", "result", "stake", "stake_awarded_to"):

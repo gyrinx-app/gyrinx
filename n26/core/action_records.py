@@ -463,7 +463,10 @@ def start_action(op, fighter, action, request_key, allowance=None, *, by_hand=Fa
         if (
             existing.fighter_id != fighter.pk
             or existing.action_id != action.pk
-            or str(existing.cycle_id or "") != str(context_cycle or "")
+            or (
+                op.cycle_context is not None
+                and str(existing.cycle_id or "") != context_cycle
+            )
         ):
             raise Refusal("That request key belongs to another action use.")
         return existing
@@ -490,6 +493,13 @@ def start_action(op, fighter, action, request_key, allowance=None, *, by_hand=Fa
         raise Refusal("Only an earned use can be marked as applied by hand.")
     existing = active_action_record(fighter, action)
     if existing is not None:
+        if (
+            op.cycle_context is not None
+            and str(existing.cycle_id or "") != op.cycle_context.cycle_id
+        ):
+            raise Refusal(
+                "This action draft belongs to a different cycle. Resume it without changing its cycle."
+            )
         if by_hand:
             raise Refusal(
                 "This model has a started flow for that action. "
