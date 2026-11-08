@@ -950,8 +950,6 @@ class TestThePreviewFollowsEveryOption:
         self, client, hirer, spawn_gang, spawn
     ):
         """Each option carries its set ID for composing the preview URL."""
-        import json
-
         from bs4 import BeautifulSoup
 
         profile, rolled = spawn
