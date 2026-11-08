@@ -33,10 +33,10 @@ const maximum = () =>
 describe("RangeMenu", () => {
     it("names the whole range Any and a narrowed one by its ends", () => {
         const whole = render(<Harness />);
-        expect(trigger().textContent).toBe("WealthAny");
+        expect(trigger().textContent).toBe("Wealth Any");
         whole.unmount();
         render(<Harness initial={[100, 300]} />);
-        expect(trigger().textContent).toBe("Wealth100–300¢");
+        expect(trigger().textContent).toBe("Wealth 100–300¢");
     });
 
     it("opens a panel whose thumbs narrow the range at once", async () => {
@@ -101,4 +101,40 @@ describe("RangeMenu", () => {
         await user.click(screen.getByRole("button", { name: "Elsewhere" }));
         expect(screen.queryByRole("group", { name: "Wealth" })).toBeNull();
     });
+});
+
+it("a trade-point ceiling has one thumb and labels freely available separately", async () => {
+    function Ceiling() {
+        const [value, setValue] = useState<[number, number]>([0, 5]);
+        return (
+            <RangeMenu
+                label="Trade points"
+                min={0}
+                max={5}
+                maximumOnly
+                atMinLabel="Freely available"
+                atMaxLabel="Any"
+                prefix="≤ "
+                value={value}
+                onChange={setValue}
+            />
+        );
+    }
+    render(<Ceiling />);
+    await userEvent.click(
+        screen.getByRole("button", { name: "Trade points Any" }),
+    );
+    expect(screen.getAllByRole("slider")).toHaveLength(1);
+    fireEvent.change(screen.getByRole("slider", { name: "Value" }), {
+        target: { value: "0" },
+    });
+    expect(
+        screen.getByRole("button", { name: "Trade points Freely available" }),
+    ).toBeTruthy();
+    fireEvent.change(screen.getByRole("slider", { name: "Value" }), {
+        target: { value: "3" },
+    });
+    expect(
+        screen.getByRole("button", { name: "Trade points ≤ 3" }),
+    ).toBeTruthy();
 });

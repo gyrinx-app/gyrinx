@@ -44,6 +44,8 @@ export function RangeMenu({
     prefix = "",
     suffix = "",
     atMaxLabel = "",
+    atMinLabel = "",
+    maximumOnly = false,
     value,
     onChange,
 }: {
@@ -56,6 +58,8 @@ export function RangeMenu({
     suffix?: string;
     /** Names the high end, and the trigger when nothing is narrowed. */
     atMaxLabel?: string;
+    atMinLabel?: string;
+    maximumOnly?: boolean;
     value: [number, number];
     onChange: (value: [number, number]) => void;
 }) {
@@ -67,7 +71,9 @@ export function RangeMenu({
     const [open, setOpen] = useState(false);
     const [low, high] = value;
     const span = max - min || 1;
-    const range = `${prefix}${low}–${high}${suffix}`;
+    const range = maximumOnly
+        ? `${prefix}${high}${suffix}`
+        : `${prefix}${low}–${high}${suffix}`;
 
     useDismiss(root, trigger, open, () => setOpen(false));
     const panelStyle = useAnchoredPlacement({
@@ -92,11 +98,13 @@ export function RangeMenu({
                     onClick={() => setOpen(!open)}
                 >
                     <span className={recipe.triggerContent}>
-                        {label}
+                        {label}{" "}
                         <span className={recipe.value}>
-                            {atMaxLabel && low <= min && high >= max
-                                ? atMaxLabel
-                                : range}
+                            {maximumOnly && atMinLabel && high <= min
+                                ? atMinLabel
+                                : atMaxLabel && low <= min && high >= max
+                                  ? atMaxLabel
+                                  : range}
                         </span>
                         <ChevronDown />
                     </span>
@@ -128,27 +136,33 @@ export function RangeMenu({
                                         right: `${100 - ((high - min) / span) * 100}%`,
                                     }}
                                 />
-                                <input
-                                    type="range"
-                                    aria-label={recipe.minimumLabel}
-                                    min={min}
-                                    max={max}
-                                    step={step}
-                                    value={low}
-                                    onKeyDown={swallowEnter}
-                                    onChange={(event) =>
-                                        onChange([
-                                            Math.min(
-                                                Number(event.target.value),
+                                {!maximumOnly && (
+                                    <input
+                                        type="range"
+                                        aria-label={recipe.minimumLabel}
+                                        min={min}
+                                        max={max}
+                                        step={step}
+                                        value={low}
+                                        onKeyDown={swallowEnter}
+                                        onChange={(event) =>
+                                            onChange([
+                                                Math.min(
+                                                    Number(event.target.value),
+                                                    high,
+                                                ),
                                                 high,
-                                            ),
-                                            high,
-                                        ])
-                                    }
-                                />
+                                            ])
+                                        }
+                                    />
+                                )}
                                 <input
                                     type="range"
-                                    aria-label={recipe.maximumLabel}
+                                    aria-label={
+                                        maximumOnly
+                                            ? recipe.valueLabel
+                                            : recipe.maximumLabel
+                                    }
                                     min={min}
                                     max={max}
                                     step={step}
@@ -166,7 +180,7 @@ export function RangeMenu({
                                 />
                             </div>
                             <div className={recipe.ends}>
-                                <span>{min}</span>
+                                <span>{atMinLabel || min}</span>
                                 <span>{atMaxLabel || max}</span>
                             </div>
                         </div>

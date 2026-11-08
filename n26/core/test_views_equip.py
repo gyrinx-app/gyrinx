@@ -870,7 +870,7 @@ def test_an_invalid_price_buys_nothing(client, tester, gang, fighter, house_list
 
 
 def test_price_validation_rejects_malformed_or_out_of_range_credit_amounts():
-    from n26.core.views.equip import BadPrice, price_typed
+    from n26.core.prices import BadPrice, price_typed
 
     for hostile in ("-5", "+5", "abc", "12.5", "1_0", "1e3", "100001", "999999999999"):
         with pytest.raises(BadPrice, match="whole number of credits"):
@@ -1350,7 +1350,10 @@ def test_a_sale_confirmation_states_its_arithmetic(
 
     assert response.context["dialog"]["proceeds"] == 18
     assert "Half of its 35¢ rating, rounded up — 18¢." in copy
-    assert "It and anything attached to it are removed from the gang." in copy
+    assert (
+        "The equipment and any accessories sold with it are removed from the gang."
+        in copy
+    )
     assert "<dialog open" in body
     assert reverse("n26-sell", args=[sword.pk]) in body
 
@@ -1383,7 +1386,7 @@ def test_a_move_offers_the_stash_and_the_roster(
     body = response.content.decode()
 
     assert [model.name for model in response.context["dialog"]["models"]] == ["Nell"]
-    assert "Moving it does not change its rating." in body
+    assert "Moving this equipment does not change its rating." in body
     assert 'name="to" value="stash"' in body
     assert 'name="miniature"' in body
 
@@ -1416,7 +1419,7 @@ def test_a_removal_says_it_is_permanent(client, tester, gang, fighter, house_lis
     copy = " ".join(body.split())
 
     assert (
-        "It and anything attached to it are permanently removed from the gang. "
+        "The equipment and anything attached to it are permanently removed from the gang. "
         "No credits are returned. Use Refund instead to recover the amount paid."
         in copy
     )
@@ -1449,7 +1452,7 @@ def test_a_refund_names_what_was_paid_and_not_its_rating(
 
     assert "You get 5¢ back — the amount paid, not its rating." in copy
     assert (
-        "It and anything attached to it are removed from the gang, undoing the purchase."
+        "The equipment and anything attached to it are removed from the gang. This undoes the purchase."
         in copy
     )
     assert reverse("n26-refund", args=[knife.pk]) in body
@@ -1550,7 +1553,7 @@ def test_a_gang_with_no_budget_is_offered_no_refund(
     assert "Refund" not in asked
     # Not "no credits are returned": this gang counts none either way, so
     # the sentence says the plain thing instead of naming money.
-    assert "Nothing comes back." in asked
+    assert "Removal does not refund the purchase." in asked
 
 
 @pytest.fixture

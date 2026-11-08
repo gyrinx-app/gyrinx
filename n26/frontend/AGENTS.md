@@ -118,3 +118,11 @@ Keep retained URLSearchParams compatible with cached clients and keep every
 expected scalar in the form, including an empty hidden value for an unticked
 controlled checkbox. After changing this lifecycle, run the Hire confirmation
 and recovery tests as well as the other workflow consumers.
+
+Equip refreshes its existing root after a confirmed command. Use `onComplete`
+for that refresh and preserve `recoverAt` for sign-in or reload navigation.
+Match confirmation metadata to the retained request key before displaying it.
+Keep a readable snapshot of selected options and destinations with unresolved
+input, so recovery can describe the original action even on another panel.
+Add presentation-only fields through `optionalRecoveryFields` to keep older
+retained commands recoverable.

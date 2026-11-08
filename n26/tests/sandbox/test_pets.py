@@ -475,7 +475,7 @@ class TestRemovingThroughThePetsCard:
         leaving = client.get(f"{url}?refund={pet.pk}").context["leaving"]
         assert leaving["kind"] == ("refund" if points else "delete")
         if points:
-            assert leaving["full_returned"] == "2 Trade Points"
+            assert leaving["full_returned"] == "2 trade points"
         client.post(reverse("n26-refund-fighter", args=[pet.pk]))
 
         purchase.refresh_from_db()
@@ -553,7 +553,7 @@ class TestRemovingThroughThePetsCard:
         url = reverse("n26-gang", args=[gang.pk])
 
         leaving = client.get(f"{url}?refund={yolanda.pk}").context["leaving"]
-        assert leaving["full_returned"] == "155¢ and 2 Trade Points"
+        assert leaving["full_returned"] == "155¢ and 2 trade points"
         assert leaving["stash_label"] == "Stash kit, refund 55¢"
         client.post(reverse("n26-refund-fighter", args=[yolanda.pk]), {"kit": "stash"})
 

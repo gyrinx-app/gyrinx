@@ -315,6 +315,16 @@ urlpatterns = [
         name="n26-hire-preview",
     ),
     path("gangs/<str:pk>/equip/", views.equip_gang, name="n26-equip-gang"),
+    path(
+        "gangs/<str:pk>/equip/display/",
+        views.stash_display,
+        name="n26-equip-stash-display",
+    ),
+    path(
+        "gangs/<str:pk>/equip/command/",
+        views.stash_command,
+        name="n26-equip-stash-command",
+    ),
     # Load preview cards on demand; the initial hire list contains priced rows only.
     path(
         "gangs/<str:pk>/hire/card/<str:profile>/",

@@ -110,7 +110,7 @@ class TestWhenItDoesNot:
 
         assert answer.status_code == 200
         assert b"Buy Mesh armour anyway" in answer.content
-        assert b"Not enough Trade Points" in answer.content
+        assert b"Not enough trade points" in answer.content
 
     def test_nothing_is_bought_by_asking(self, client, gang, fighter, post, buying):
         client.post(equip_url(fighter, post), buying)
@@ -138,7 +138,7 @@ class TestWhenItDoesNot:
         ):
             assert label in body
         assert "-2" in body
-        assert "You don&#x27;t have enough TP" in body or "don't have enough TP" in body
+        assert "Not enough trade points for this purchase" in body
         assert "You can buy it anyway." in body
 
     def test_confirming_records_no_action(self, client, gang, fighter, post, buying):
@@ -243,7 +243,7 @@ class TestTheQuestionOnAScreenThatUpdatesInPlace:
         # it replace whatever that host holds rather than land nowhere.
         assert 'id="n26-dialog-host"' in body
         assert 'hx-swap-oob="true"' in body
-        assert "Not enough Trade Points" in body
+        assert "Not enough trade points" in body
 
     def test_it_asks_the_same_arithmetic_as_the_page_does(
         self, client, gang, fighter, post, buying
@@ -275,7 +275,7 @@ class TestTheQuestionOnAScreenThatUpdatesInPlace:
 
         assert answer.status_code == 200
         assert held(gang) == 1
-        assert "Not enough Trade Points" not in answer.content.decode()
+        assert "Not enough trade points" not in answer.content.decode()
 
     def test_confirming_closes_the_panel_that_asked(
         self, client, gang, fighter, post, buying

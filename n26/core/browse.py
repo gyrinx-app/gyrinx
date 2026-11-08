@@ -99,6 +99,7 @@ class OfferedOption:
     surcharge: int
     is_default: bool
     default_set: object
+    option_key: str = ""
 
 
 @dataclass(frozen=True)
@@ -467,6 +468,7 @@ def offered_choices(thing):
                         surcharge=option.price - included,
                         is_default=one_of and position == 0,
                         default_set=option.default_set,
+                        option_key=str(option.pk),
                     )
                     for position, option in enumerate(offered)
                 ),

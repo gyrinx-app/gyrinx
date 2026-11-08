@@ -437,10 +437,14 @@ class TestTheDialogs:
         )
         client.force_login(gang.owner)
         url = reverse("n26-equip-gang", args=[gang.pk])
-        body = client.get(f"{url}?list=stash&reassign={loose.pk}").content.decode()
+        props = client.get(f"{url}?list=stash&reassign={loose.pk}").context[
+            "equip_props"
+        ]
 
-        assert "Fit Telescopic sight to a weapon" in body
-        assert re.search(r"<option[^>]*>\s*Heavy stubber\* \(Vex\)\s*</option>", body)
+        assert props["dialog"]["title"] == "Fit Telescopic sight to a weapon"
+        assert "Heavy stubber* (Vex)" in [
+            weapon["label"] for weapon in props["dialog"]["weapons"]
+        ]
 
 
 class TestAuthoringAWeapon:

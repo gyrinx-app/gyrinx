@@ -136,8 +136,11 @@ class TestTheFigureThatLeadsHere:
 
     def test_the_owners_stash_screen_links_the_figure(self, client, tester, gang):
         client.force_login(tester)
-        body = client.get(reverse("n26-equip-gang", args=[gang.pk])).content.decode()
-        assert f'href="{page(gang)}"' in body
+        response = client.get(reverse("n26-equip-gang", args=[gang.pk]))
+        figures = response.context["equip_props"]["figures"]["items"]
+        assert next(figure for figure in figures if figure["short"] == "TP")[
+            "href"
+        ] == page(gang)
 
     def test_the_owners_gang_sheet_links_it_too(self, client, tester, gang):
         client.force_login(tester)
@@ -172,16 +175,30 @@ class TestTheCallToAction:
     def test_both_buying_screens_offer_it(self, client, tester, roster, gang):
         client.force_login(tester)
         for at in self.equip_screens(gang, roster["Vex"]):
-            body = client.get(at).content.decode()
-            assert "Track TP spend by starting an action" in body, at
+            response = client.get(at)
+            if "equip_props" in response.context:
+                props = response.context["equip_props"]
+                assert props["tradePointsHref"] == page(gang)
+                assert props["visitingTradingPost"] is False
+                assert props["postIsShut"] is False
+            else:
+                assert (
+                    "Track TP spend by starting an action" in response.content.decode()
+                ), at
 
     def test_it_goes_once_an_action_is_open(self, client, tester, roster, gang):
         client.force_login(tester)
         start(client, gang, roster["Vex"])
 
         for at in self.equip_screens(gang, roster["Vex"]):
-            body = client.get(at).content.decode()
-            assert "Track TP spend by starting an action" not in body, at
+            response = client.get(at)
+            if "equip_props" in response.context:
+                assert response.context["equip_props"]["visitingTradingPost"] is True
+            else:
+                assert (
+                    "Track TP spend by starting an action"
+                    not in response.content.decode()
+                ), at
 
     def test_a_stranger_is_not_offered_it(self, client, roster, gang):
         """It leads where they cannot go, so they are not sent."""
@@ -925,24 +942,27 @@ class TestTheShutPostSaysSo:
 
     def stash(self, client, gang, post):
         at = reverse("n26-equip-gang", args=[gang.pk])
-        return client.get(f"{at}?list={post.pk}").content.decode()
+        return client.get(f"{at}?list={post.pk}").context["equip_props"]
 
     def test_the_stash_screen_says_the_post_is_shut(self, client, tester, gang, post):
         client.force_login(tester)
-        assert "Not tracking TP" in self.stash(client, gang, post)
+        assert self.stash(client, gang, post)["postIsShut"] is True
 
     def test_it_offers_one_way_in_and_not_two(self, client, tester, gang, post):
         """The rail's block and the link under the figures say the same
         thing. On a list that deals in Trade Points only the fuller one
         draws."""
         client.force_login(tester)
-        body = self.stash(client, gang, post)
-        assert "Not tracking TP" in body
-        assert "Track TP spend by starting an action" not in body
+        props = self.stash(client, gang, post)
+        assert props["postIsShut"] is True
+        assert props["visitingTradingPost"] is False
+        assert props["tradePointsHref"] == page(gang)
 
     def test_and_stops_saying_it_once_somebody_has(
         self, client, tester, roster, gang, post
     ):
         client.force_login(tester)
         start(client, gang, roster["Vex"])
-        assert "Not tracking TP" not in self.stash(client, gang, post)
+        props = self.stash(client, gang, post)
+        assert props["postIsShut"] is False
+        assert props["visitingTradingPost"] is True

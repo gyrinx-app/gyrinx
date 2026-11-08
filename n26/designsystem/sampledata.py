@@ -2977,7 +2977,7 @@ def owned_context():
         "library.wargear:ridge-runner",
         taken=held_options,
     )
-    return {
+    context = {
         "owned_copies": [
             copy_row(thing) for entries in carried().values() for thing in entries
         ],
@@ -3108,6 +3108,13 @@ def owned_context():
             "submit_variant": "danger",
         },
     }
+
+    from n26.core.equip_display import owned_description
+
+    for dialog in context.values():
+        if isinstance(dialog, dict) and "kind" in dialog:
+            dialog["lead"] = owned_description(dialog)
+    return context
 
 
 def dashboard_context():

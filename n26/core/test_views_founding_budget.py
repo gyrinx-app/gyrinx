@@ -690,7 +690,7 @@ class TestGoingPastIt:
         body = response.content.decode()
 
         assert response.status_code == 200
-        assert "Not enough Trade Points" in body
+        assert "Not enough trade points" in body
         assert "Buy Flak plate anyway" in body
         # The model's own name, because the allowance is the model's.
         assert "Rasp has 1" in body
@@ -911,7 +911,7 @@ class TestAGangFoundedWithNoBudget:
         # would name a number that never moves.
         assert dialog["proceeds"] == 0
         assert dialog["sum"] == (
-            "You get 3 Trade Points back — the amount paid, not its rating."
+            "You get 3 trade points back — the amount paid, not its rating."
         )
 
     def test_the_dialog_for_a_copy_no_allowance_paid_for_asks_to_remove(
@@ -923,7 +923,7 @@ class TestAGangFoundedWithNoBudget:
         assert dialog["kind"] == "remove"
         # Nothing to point the reader at: this gang counts no credits and
         # no allowance paid for the banner.
-        assert dialog["remove_note"] == "Nothing comes back."
+        assert dialog["remove_note"] == "Removal does not refund the purchase."
 
     def test_the_removal_panel_points_at_the_trade_points_and_not_at_credits(
         self, client, leader, post, plate
@@ -935,7 +935,7 @@ class TestAGangFoundedWithNoBudget:
 
         note = response.context["dialog"]["remove_note"]
         assert note == (
-            "Nothing comes back. Use Refund instead to get 3 Trade Points back."
+            "No trade points are returned. Use Refund instead to recover 3 trade points."
         )
         assert "amount paid" not in note
         assert "¢" not in note
@@ -951,7 +951,7 @@ class TestAGangFoundedWithNoBudget:
         after = client.get(equip_url(leader, post)).context["founding_budget"]
         assert (after.spent, after.remaining) == (0, 5)
         assert [str(message) for message in get_messages(response.wsgi_request)] == [
-            "Refunded Flak plate — 3 Trade Points back."
+            "Refunded Flak plate — 3 trade points back."
         ]
 
     def test_removing_the_copy_leaves_the_trade_points_spent(
@@ -989,7 +989,7 @@ class TestAGangFoundedWithNoBudget:
         leaving = client.get(f"{url}?refund={leader.pk}").context["leaving"]
 
         assert leaving["kind"] == "refund"
-        assert leaving["full_returned"] == "3 Trade Points"
+        assert leaving["full_returned"] == "3 trade points"
         # Stashing the plate keeps its Trade Points spent and the hire
         # itself returns nothing this gang counts, so the second button
         # names no figure rather than promising a zero.
@@ -1006,7 +1006,7 @@ class TestAGangFoundedWithNoBudget:
         # The last of them: the purchase this undoes left one of its own,
         # and nothing has drawn a page to read them off since.
         said = [str(message) for message in get_messages(response.wsgi_request)]
-        assert said[-1] == "Refunded Rasp — 3 Trade Points back."
+        assert said[-1] == "Refunded Rasp — 3 trade points back."
 
     def test_refunding_the_model_but_stashing_the_kit_returns_nothing(
         self, client, gang, leader, plate
