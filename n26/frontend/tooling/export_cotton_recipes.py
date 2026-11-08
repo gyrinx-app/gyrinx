@@ -39,6 +39,133 @@ def class_name(attrs):
     return " ".join(attrs.get("class", "").split())
 
 
+def model_preview_recipe():
+    from n26.core.render import (
+        AssignableLine,
+        ChoiceLine,
+        CounterLine,
+        ModelCard,
+        Provenance,
+        StatCell,
+        Statline,
+        WeaponLine,
+        WeaponProfileLine,
+    )
+
+    def render(source, **context):
+        return Elements(
+            Template(CottonCompiler().process(source)).render(Context(context))
+        ).elements
+
+    card = ModelCard(
+        "Name",
+        125,
+        Statline(
+            [
+                StatCell("M", "Movement", "5", modified_by=[Provenance(source="Gear")]),
+                StatCell("T", "Toughness", "4", first_of_group=True),
+            ]
+        ),
+        profile_name="Profile",
+        skills=[AssignableLine("Skill")],
+        skill_choices=[ChoiceLine("Skills", None)],
+        counters=[CounterLine("Tally", 0)],
+        equipment=[AssignableLine("Gear", choices=[ChoiceLine("Setting", "Blue")])],
+        weapons=[
+            WeaponLine(
+                "Weapon",
+                20,
+                profiles=[
+                    WeaponProfileLine(
+                        "",
+                        0,
+                        Statline([StatCell("S", "Strength", "4")]),
+                        traits=[AssignableLine("Trait")],
+                    ),
+                    WeaponProfileLine(
+                        "Focused", 0, Statline([StatCell("S", "Strength", "6")])
+                    ),
+                ],
+                accessories=[AssignableLine("Sight")],
+                choices=[ChoiceLine("Channel", "Blue")],
+            ),
+            WeaponLine("Without stats", 0),
+        ],
+    )
+    elements = render('<c-n26.model-card :card="card" />', card=card)
+
+    def find(tag, *tokens, without=()):
+        found = {
+            class_name(attrs)
+            for name, attrs in elements
+            if name == tag
+            and set(tokens) <= set(attrs.get("class", "").split())
+            and not set(without) & set(attrs.get("class", "").split())
+        }
+        if len(found) != 1:
+            raise ValueError(f"Model preview recipe changed: {tag}, {tokens}: {found}")
+        return found.pop()
+
+    stats = {}
+    for group in (False, True):
+        for highlighted in (False, True):
+            cells = [
+                StatCell("M", "Movement", "5"),
+                StatCell(
+                    "T", "Toughness", "4", first_of_group=group, highlighted=highlighted
+                ),
+            ]
+            source = '<table><tr><c-n26.statline.header :cells="cells" /></tr><tr><c-n26.statline.cells :cells="cells" /></tr></table>'
+            rendered = render(source, cells=cells)
+            stats[f"{int(group)}{int(highlighted)}"] = {
+                tag: class_name([attrs for name, attrs in rendered if name == tag][1])
+                for tag in ("th", "td")
+            }
+    return {
+        "root": find("div", "rounded-box"),
+        "header": find("div", "border-b"),
+        "headerGrid": find("div", "grid-cols-[minmax(0,1fr)_auto]"),
+        "heading": find("div", "min-w-0", without=("col-start-1", "col-start-2")),
+        "name": find("div", "font-semibold"),
+        "profilePosition": find("div", "col-start-1", "row-start-2"),
+        "profile": find("div", "text-sm", "text-muted"),
+        "figures": find("div", "col-start-2", "tabular-nums"),
+        "statRoot": find("div", "overflow-x-auto", without=("border-t",)),
+        "table": find("table"),
+        "statRowDivider": find("tr", "border-b"),
+        "typeHeader": find("th", "border-l"),
+        "typeCell": find("td", "border-l", without=("tabular-nums",)),
+        "xpCell": find("td", "border-l", "tabular-nums"),
+        "muted": find("span", "text-muted", without=("text-xs",)),
+        "changed": find("span", "text-accent-text"),
+        "details": find("dl"),
+        "detailLabel": find("dt"),
+        "detailValue": find("dd"),
+        "part": find("span", "max-w-full", "items-baseline"),
+        "names": find("span", "min-w-0", without=("flex",)),
+        "gearPart": find("div", "max-w-full", "align-baseline"),
+        "separator": find("span", "me-2"),
+        "prompt": find("span", "text-xs", "text-muted"),
+        "counter": find("span", "tabular-nums"),
+        "itemChoice": find("span", "block", "pl-2"),
+        "weaponRoot": find("div", "overflow-x-auto", "border-t"),
+        "weaponHeaderRow": find("thead"),
+        "weaponHeader": find("th", "text-left"),
+        "weaponBody": find("tbody", "[&>tr:last-child>td]:pb-2"),
+        "weaponDivider": find("tr", "border-t"),
+        "weaponName": find("td", "px-4", "py-1.5"),
+        "weaponNameGroup": find("span", "inline-flex", "flex-wrap", "gap-1"),
+        "weaponNoStats": find("td", "px-4", "pt-2"),
+        "weaponProfileName": find("span", "flex", "pl-2"),
+        "weaponProfileText": find("span", "flex", "min-w-0", "gap-1"),
+        "weaponTraits": find("td", "px-2", "text-xs"),
+        "weaponExtra": find("td", "px-4", "pb-2"),
+        "accessories": find("span", "pl-2", without=("flex", "block")),
+        "weaponChoices": find("ul", "pl-2"),
+        "stats": stats,
+    }
+
+
 def classes(source, *tags):
     return [class_name(attrs) for attrs in attributes(source, *tags)]
 
@@ -1249,6 +1376,7 @@ def recipes():
         "input": input_recipe(),
         "textarea": classes("<c-ui.textarea />", "textarea")[0],
         "workflowPage": workflow_page_recipe(),
+        "modelPreview": model_preview_recipe(),
         "nameList": name_list_recipe(),
         "nativeSelect": native_select_recipe(),
         "nativeSelectSmall": native_select_recipe("sm"),

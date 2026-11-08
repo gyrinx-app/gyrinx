@@ -1922,6 +1922,44 @@ def hire_entry(value):
     return None
 
 
+def model_preview_cards():
+    """Configured, vehicle and empty hire cards for renderer comparisons."""
+    configured = next(hire_list()[0].all_entries()).default_option.card
+    configured = replace(configured, weapons=model_card().weapons)
+    vehicle = ModelCard(
+        "Cargo crawler",
+        180,
+        Statline(
+            [
+                StatCell("M", "Movement", '6"'),
+                StatCell("T", "Toughness", "6"),
+                StatCell("W", "Wounds", "3"),
+                StatCell(
+                    "Ld", "Leadership", "7+", first_of_group=True, highlighted=True
+                ),
+            ]
+        ),
+        profile_type="Vehicle",
+        weapons=[WeaponLine("Ram", 0)],
+    )
+    empty = replace(
+        configured,
+        name="Unarmed recruit",
+        rating=0,
+        weapons=[],
+        equipment=[],
+        gear_groups=[],
+        skills=[],
+        rules=[],
+        powers=[],
+        choices=[],
+        counters=[],
+        skill_choices=[],
+        power_choices=[],
+    )
+    return [configured, vehicle, empty]
+
+
 def _hire_scope_tabs():
     """Build the three hire-list scope tabs."""
     from n26.core.views.hire import HIRE_SCOPES

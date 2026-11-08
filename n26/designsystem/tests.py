@@ -103,6 +103,29 @@ class TestReactDemo:
         assert client.get("/n26/design/react/").status_code == 302
 
 
+class TestModelPreviewGallery:
+    def test_both_renderers_receive_the_same_three_unstored_cards(self, reader):
+        import json
+
+        response = reader.get("/n26/design/react/model-preview/")
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        hosts = soup.select('[data-react-name="model-preview"]')
+        assert len(hosts) == 3
+        for reference, host in zip(
+            soup.select("[data-preview-reference]"), hosts, strict=True
+        ):
+            props = json.loads(soup.find(id=host["data-react-props"]).string)
+            assert props["name"] in reference.get_text()
+            assert f"{props['rating']}¢" in reference.get_text()
+            assert "id" not in props
+        assert "Cargo crawler" in response.content.decode()
+
+    @pytest.mark.django_db
+    def test_the_comparison_requires_staff(self, client):
+        assert client.get("/n26/design/react/model-preview/").status_code == 302
+
+
 class TestTheSidebar:
     """List every catalogue component in the filterable sidebar and its native fallback."""
 

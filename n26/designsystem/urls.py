@@ -8,6 +8,7 @@ urlpatterns = [
     path("", views.index, name="index"),
     path("theming/", views.theming, name="theming"),
     path("react/", views.react_demo, name="react"),
+    path("react/model-preview/", views.react_model_preview, name="react_model_preview"),
     path("tokens/", views.token_reference, name="tokens"),
     # The lab is the harness; the sheet is the thing under test, and has to be a
     # URL of its own so it can be opened on a phone, framed as a preview, or

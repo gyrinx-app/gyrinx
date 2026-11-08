@@ -1,6 +1,16 @@
 from n26.frontend.tooling.export_cotton_recipes import recipes
 
 
+def test_model_preview_recipes_preserve_cotton_characteristic_states():
+    card = recipes()["modelPreview"]
+    assert "rounded-box" in card["root"]
+    assert "overflow-x-auto" in card["weaponRoot"]
+    assert "border-l" not in card["stats"]["00"]["th"]
+    assert "border-l" in card["stats"]["10"]["th"]
+    assert "bg-ink-500/10" in card["stats"]["01"]["td"]
+    assert "min-w-0" in card["names"]
+
+
 def test_icon_recipes_keep_their_svg_geometry():
     icons = recipes()["icons"]
 

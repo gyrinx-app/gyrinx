@@ -1359,6 +1359,7 @@ export {
 export { HelpPopover } from "./HelpPopover";
 export { IncomeTooltip, type IncomeTooltipProps } from "./IncomeTooltip";
 export { NameList, type CountedName } from "./NameList";
+export { ModelPreview, type ModelPreviewProps } from "./ModelPreview";
 export {
     useAnchoredPlacement,
     useDismiss,
