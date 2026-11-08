@@ -153,6 +153,7 @@ def campaign(request, pk):
     """
     from django.urls import reverse
 
+    from n26.core.cycle_display import dashboard_summary
     from n26.core.models import CampaignParticipant
     from n26.core.render import CampaignPlayerLine, load_owner_badges, render_campaign
     from n26.core.views.htmx import is_htmx
@@ -226,6 +227,7 @@ def campaign(request, pk):
         {
             "campaign": found,
             "sheet": sheet,
+            "cycle_summary": dashboard_summary(found, request.user),
             "yours": yours,
             "log_href": reverse("n26-campaign-log", args=[found.pk]),
             "more_actions": more_actions(found, yours=yours, playing=at_the_table),

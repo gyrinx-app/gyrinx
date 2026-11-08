@@ -1,0 +1,80 @@
+export type DiceAmount = { count: number; sides: number; multiplier: number };
+export type Credits = { fixed: number; dice: DiceAmount | null };
+export type Reward = { credits: Credits; reputation: number };
+export type Rewards = {
+    win: Reward;
+    draw: Reward;
+    loss: Reward;
+    entry_credits: Credits;
+};
+export type Step = { id: string; phase_id: string; count: number };
+export type Phase = {
+    id: string;
+    name: string;
+    description: string;
+    effects: string;
+    rewards: Rewards;
+    count: number;
+    editHref: string;
+    duplicateHref: string;
+    deleteHref: string;
+};
+export type Cycle = {
+    key: string;
+    name: string;
+    order: number;
+    phaseId: string;
+    phaseName: string;
+    state: string;
+    startsOn: string;
+    endsOn: string;
+    description: string;
+    effects: string;
+    editHref: string;
+    href: string;
+    startedAt: string;
+    endedAt: string;
+};
+export type Editor = {
+    kind: string;
+    heading: string;
+    lead: string;
+    context: Record<string, unknown>;
+    values: Record<string, string>;
+    errors: Record<string, string[]>;
+    initialConflict: boolean;
+    current: { revision: number | null; cycle: string; phase: string } | null;
+    templates: Array<{ id: string; name: string }>;
+    action: string;
+    commandHref: string;
+    csrfToken: string;
+    recoveryKey: string;
+    back: string;
+};
+export interface ScheduleProps {
+    campaignName: string;
+    campaignHref: string;
+    scheduleHref: string;
+    canManage: boolean;
+    configured: boolean;
+    status: string;
+    currentName: string;
+    currentPhase: string;
+    currentPhaseId: string;
+    rows: Cycle[];
+    phases: Phase[];
+    plan: {
+        mode: string;
+        steps: Step[];
+        startsAfter: string;
+        nextPosition: number;
+    } | null;
+    actions: Record<string, string>;
+    previousHref: string;
+    nextHref: string;
+    moreHref: string;
+    focusId: string;
+    editor: Editor | null;
+    onNavigate?: (url: string) => void;
+    onReload?: () => void;
+}

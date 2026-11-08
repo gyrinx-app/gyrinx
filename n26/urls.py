@@ -5,6 +5,7 @@ point.
 from django.urls import include, path
 
 from n26.core import views
+from n26.core.views import cycle_planning
 from n26.library import action_builder_views
 from n26.library import views as authoring_views
 
@@ -43,6 +44,26 @@ urlpatterns = [
     path("campaigns/new/", views.create_campaign, name="n26-create-campaign"),
     # Match the literal new route before the string primary-key route.
     path("campaigns/<str:pk>/", views.campaign, name="n26-campaign"),
+    path(
+        "campaigns/<str:pk>/cycles/",
+        cycle_planning.cycle_schedule,
+        name="n26-campaign-schedule",
+    ),
+    path(
+        "campaigns/<str:pk>/cycles/<str:cycle_pk>/",
+        cycle_planning.cycle_schedule,
+        name="n26-campaign-cycle",
+    ),
+    path(
+        "campaigns/<str:pk>/cycles/edit/<str:action>/",
+        cycle_planning.cycle_editor,
+        name="n26-cycle-editor",
+    ),
+    path(
+        "campaigns/<str:pk>/cycles/commands/<str:action>/",
+        cycle_planning.cycle_command,
+        name="n26-cycle-command",
+    ),
     path(
         "campaigns/<str:pk>/rolls/new/",
         views.record_campaign_roll,
