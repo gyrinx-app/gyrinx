@@ -21,6 +21,16 @@ from n26.core.models.campaign import (
 from n26.core.models.campaign_roll import CampaignRoll
 from n26.core.models.counter_tracking import CounterTracking
 from n26.core.models.crew import BattleCrew, CrewMember
+from n26.core.models.cycle import (
+    CampaignCycle,
+    CampaignCycleCommand,
+    CampaignCycleDelivery,
+    CampaignCycleTransition,
+    CampaignPhase,
+    CampaignPlan,
+    CampaignSchedule,
+    CampaignScheduleTemplate,
+)
 from n26.core.models.dismissed_offer import DismissedOffer
 from n26.core.models.equip_receipt import EquipReceipt
 from n26.core.models.gang import Gang
@@ -55,6 +65,14 @@ __all__ = [
     "CampaignAsset",
     "CampaignEvent",
     "CampaignRoll",
+    "CampaignCycle",
+    "CampaignCycleCommand",
+    "CampaignCycleDelivery",
+    "CampaignCycleTransition",
+    "CampaignPhase",
+    "CampaignPlan",
+    "CampaignSchedule",
+    "CampaignScheduleTemplate",
     "CampaignMembership",
     "CampaignParticipant",
     "ChosenProfileOption",

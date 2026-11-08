@@ -207,6 +207,8 @@ class CampaignEvent(Base):
         # The note stores the scenario name and component values.
         # Recording a battle with a scenario is BATTLE_RECORDED.
         SCENARIO_SAVED = "scenario_saved", "Scenario saved"
+        SCHEDULE_EDITED = "schedule_edited", "Schedule edited"
+        CYCLE_TRANSITION = "cycle_transition", "Cycle changed"
 
     campaign = models.ForeignKey(
         "n26.Campaign",

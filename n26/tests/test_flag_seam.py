@@ -10,7 +10,7 @@ from django.contrib.auth.models import Group, User
 
 from gyrinx.site.flags import enabled, known_flags
 from gyrinx.site.models import Availability, FeatureFlag
-from n26.flags import BUILT_IN_PROPAGATION, STAGED_CONTENT
+from n26.flags import BUILT_IN_PROPAGATION, CYCLE_TRACKING, STAGED_CONTENT
 
 pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
@@ -18,6 +18,21 @@ GROUP_NAME = "N26 Campaigns"
 
 
 class TestWhatThisEditionClaims:
+    def test_the_cycle_flag_migration_starts_closed_and_preserves_existing_settings(
+        self,
+    ):
+        mod = importlib.import_module(
+            "gyrinx.site.migrations.0011_campaign_cycles_start_closed"
+        )
+        mod.seed_cycle_flag(apps, None)
+        flag = FeatureFlag.objects.get(slug=CYCLE_TRACKING)
+        assert flag.availability == Availability.OFF
+        flag.availability = Availability.EVERYONE
+        flag.save()
+        mod.seed_cycle_flag(apps, None)
+        flag.refresh_from_db()
+        assert flag.availability == Availability.EVERYONE
+
     def test_built_in_propagation_is_registered(self):
         """Propagation checks require a registered slug; otherwise the platform raises
         ValueError.
@@ -27,6 +42,21 @@ class TestWhatThisEditionClaims:
     def test_staged_content_is_registered(self):
         """Register staged-content access before player addition screens check it."""
         assert STAGED_CONTENT in known_flags()
+
+    def test_cycle_tracking_is_registered_but_disabled_without_an_access_record(self):
+        reader = User.objects.create_user("cycle-reader")
+        assert CYCLE_TRACKING in known_flags()
+        assert enabled(CYCLE_TRACKING, reader) is False
+
+    def test_opening_cycle_tracking_does_not_require_gating_campaign_access(self):
+        reader = User.objects.create_user("cycle-reader")
+        FeatureFlag.objects.create(
+            slug=CYCLE_TRACKING,
+            name="Campaign cycles",
+            availability=Availability.EVERYONE,
+        )
+        assert enabled(CYCLE_TRACKING, reader) is True
+        assert "campaigns" not in known_flags()
 
     def test_the_released_features_are_no_longer_claimed(self):
         """Campaigns and founding require no feature-flag registration."""

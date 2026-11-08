@@ -6,6 +6,7 @@ from gyrinx.site.flags import enabled, register_flags, requires_flag, switched_o
 
 __all__ = [
     "BUILT_IN_PROPAGATION",
+    "CYCLE_TRACKING",
     "STAGED_CONTENT",
     "enabled",
     "requires_flag",
@@ -20,4 +21,7 @@ BUILT_IN_PROPAGATION = "built-in-propagation"
 #: access is checked separately.
 STAGED_CONTENT = "staged-content"
 
-register_flags(BUILT_IN_PROPAGATION, STAGED_CONTENT)
+#: Gate campaign scheduling and cycle attribution independently of campaign access.
+CYCLE_TRACKING = "campaign-cycles"
+
+register_flags(BUILT_IN_PROPAGATION, STAGED_CONTENT, CYCLE_TRACKING)
