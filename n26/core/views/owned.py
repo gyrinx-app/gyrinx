@@ -669,7 +669,7 @@ def _owned_action(request, pk, action):
             include_staged=sees_staged(request.user),
         )
     except UnavailableEquipment as error:
-        raise Http404(str(error)) from None
+        raise Http404(error.public_message) from None
     if result.refused:
         messages.error(request, result.refused)
         return _unchanged(request, back)
@@ -907,7 +907,7 @@ def tally_counter(request, pk):
                     model_key=model_key,
                 )
             except UnavailableEquipment as error:
-                raise Http404(str(error)) from None
+                raise Http404(error.public_message) from None
             return _counter_step_response(
                 request, gang, miniature, result, request.POST.get("back", "")[:500]
             )
@@ -1014,7 +1014,7 @@ def tally_counter(request, pk):
                 gang, request.user, pk, request.POST, model_key=str(miniature.pk)
             )
         except UnavailableEquipment as error:
-            raise Http404(str(error)) from None
+            raise Http404(error.public_message) from None
         return _counter_step_response(request, gang, miniature, result, back)
 
     try:
