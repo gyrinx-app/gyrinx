@@ -642,6 +642,29 @@ class TestTheQueryBudget:
 class TestStashManagement:
     """Held gear is manageable on the gang equip page, including orphans."""
 
+    def test_queued_messages_belong_only_to_the_react_owner(
+        self, client, tester, gang, monkeypatch
+    ):
+        from django.contrib import messages
+
+        from n26.core.views import equip_react
+
+        read = equip_react.stash_read
+
+        def with_message(request, gang):
+            messages.success(request, "Equipment updated.")
+            return read(request, gang)
+
+        monkeypatch.setattr(equip_react, "stash_read", with_message)
+        client.force_login(tester)
+        response = client.get(equip_url(gang))
+
+        assert props(response)["messages"] == [
+            {"text": "Equipment updated.", "tone": "success"}
+        ]
+        page = BeautifulSoup(response.content, "html.parser")
+        assert page.select('[data-message="success"]') == []
+
     def test_the_page_is_called_equip(self, client, tester, gang, house_list):
         client.force_login(tester)
         body = client.get(equip_url(gang, house_list)).content.decode()

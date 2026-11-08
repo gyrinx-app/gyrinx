@@ -62,6 +62,14 @@ const sample: ModelPreviewProps = {
 };
 
 describe("model preview", () => {
+    it("shows a numeric zero XP target", () => {
+        render(<ModelPreview {...sample} xp={3} xpTarget={0} />);
+        const stats = screen.getByRole("table", { name: "Characteristics" });
+        expect(within(stats).getByText("3").closest("td")?.textContent).toBe(
+            "3/0",
+        );
+    });
+
     it("preserves formatted stats, weapons, choices and zero values", () => {
         render(<ModelPreview {...sample} />);
         const stats = screen.getByRole("table", { name: "Characteristics" });

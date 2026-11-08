@@ -870,7 +870,7 @@ export function ModelPreview(
                                                     {props.typeLine}
                                                 </td>
                                                 <td className={recipe.xpCell}>
-                                                    {props.xpTarget ? (
+                                                    {props.xpTarget !== "" ? (
                                                         <>
                                                             <Information
                                                                 plain

@@ -195,6 +195,8 @@ page layout. Preserve actions in their existing menus. Test repeated accessories
 long chosen values and crowded headers, then exercise the actual workflow. The
 paired cards at `/n26/design/react/model-preview/` provide database-free fixtures
 for this comparison. Record specific differences and their resolution in the PR.
+Include zero-valued targets in card checks. A workflow that draws queued messages
+must empty the Django layout's messages block to avoid duplicate alerts.
 
 Pending controls use the existing `data-busy` stylesheet. React owns those
 attributes through `Button`'s `busy` prop or `BusyControlScope`; the native busy
