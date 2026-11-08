@@ -109,6 +109,16 @@ def perform(campaign, actor, playing, data, *, battle=None, catalogue=None):
                 return submitted
             submitted.battle, submitted.replayed = previous.battle, True
             return submitted
+        if battle is not None:
+            from n26.core.models import Battle
+
+            current = Battle.objects.get(pk=battle.pk, campaign=campaign)
+            if current.archived:
+                form.is_valid()
+                form.add_error(
+                    None, "This battle is archived. Restore it before editing it."
+                )
+                return submitted
         if not form.is_valid():
             return submitted
         if "cycle" in data and "cycle" not in form.fields:
@@ -129,9 +139,6 @@ def perform(campaign, actor, playing, data, *, battle=None, catalogue=None):
                 form.add_error("cycle", str(exc))
                 return submitted
         if battle is not None:
-            from n26.core.models import Battle
-
-            current = Battle.objects.get(pk=battle.pk, campaign=campaign)
             if current.revision != values["revision"]:
                 submitted.conflict = True
                 submitted.current = {
@@ -253,6 +260,7 @@ def editor_props(
         "campaignHref": reverse("n26-campaign", args=[campaign.pk]),
         "heading": "Edit battle" if battle else "Record a battle",
         "editing": bool(battle),
+        "archived": bool(battle and battle.archived),
         "action": action,
         "commandHref": command,
         "back": back,

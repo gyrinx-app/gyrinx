@@ -838,9 +838,10 @@ class TestArchivedBattles:
                 submission_key=uuid4(),
                 review="",
             )
-        assert (
-            client.post(address(campaign, battle, "edit/"), fields(gang)).status_code
-            == 404
+        refused = client.post(address(campaign, battle, "edit/"), fields(gang))
+        assert refused.status_code == 200
+        assert "archived" in " ".join(
+            refused.context["battle_editor"]["errors"]["__all__"]
         )
         assert (
             client.post(

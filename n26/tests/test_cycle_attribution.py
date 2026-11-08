@@ -241,6 +241,71 @@ class TestActionCycles:
 
 class TestBattleWorkflowAdapters:
     @pytest.mark.parametrize("native", [False, True])
+    def test_archived_battle_confirms_committed_edit_but_refuses_fresh_edits(
+        self, client, table, native
+    ):
+        from django.urls import reverse
+
+        client.force_login(table.owner)
+        battle = record_battle(table)
+        url = reverse("n26-campaign-edit-battle", args=[table.campaign.pk, battle.pk])
+        props = client.get(url).context["battle_editor"]
+        data = {**props["values"], "scenario": "Committed before archiving"}
+        target = props["action"] if native else props["commandHref"]
+        assert client.post(target, data).status_code == (302 if native else 200)
+        battle.refresh_from_db()
+        with campaign_operation(table.campaign, actor=table.owner) as act:
+            act.remove_battle(battle, revision=battle.revision)
+        replay = client.post(target, data)
+        reload = client.get(url)
+        assert (replay.status_code, reload.status_code) == (302 if native else 200, 200)
+        assert reload.context["battle_editor"]["archived"]
+        count = BattleCommand.objects.count()
+        fresh = client.post(
+            target, {**data, "request_key": str(uuid4()), "scenario": "Must not save"}
+        )
+        assert fresh.status_code == (200 if native else 422)
+        assert BattleCommand.objects.count() == count
+        battle.refresh_from_db()
+        assert battle.scenario == "Committed before archiving" and battle.archived
+        client.force_login(User.objects.create_user("foreign-recovery-reader"))
+        assert client.get(url).status_code == 404
+        assert client.post(target, data).status_code == 404
+
+    def test_retained_projection_uses_saved_provenance_without_saving_more_cycles(
+        self, client, table
+    ):
+        import json
+
+        from django.urls import reverse
+
+        client.force_login(table.owner)
+        selected = s.project(table.state)[3]
+        saved = record_battle(table, cycle=selected.ref)
+        count = CampaignCycle.objects.count()
+        response = client.get(
+            reverse("n26-battle-cycle-options", args=[table.campaign.pk]),
+            {"selected": json.dumps(ref_data(selected.ref))},
+        )
+        choice = next(
+            c
+            for c in response.json()["choices"]
+            if c["value"] == ref_data(selected.ref)
+        )
+        assert saved.cycle.name in choice["label"] and "Saved" in choice["label"]
+        assert "already saved" in choice["hint"]
+        assert CampaignCycle.objects.count() == count
+        foreign = {
+            "plan_id": str(table.campaign.pk),
+            "index": selected.ref.position.index,
+        }
+        response = client.get(
+            reverse("n26-battle-cycle-options", args=[table.campaign.pk]),
+            {"selected": json.dumps(foreign)},
+        )
+        assert all(c["value"] != foreign for c in response.json()["choices"])
+
+    @pytest.mark.parametrize("native", [False, True])
     def test_battle_forms_default_to_current_and_replay_future_selection_once(
         self, client, table, native
     ):

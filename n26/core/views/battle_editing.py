@@ -3,7 +3,7 @@
 import json
 
 from django.contrib import messages
-from django.http import Http404, JsonResponse
+from django.http import JsonResponse
 from django.middleware.csrf import get_token
 from django.shortcuts import redirect, render
 from django.views.decorators.cache import never_cache
@@ -27,8 +27,6 @@ def resources(request, pk, battle_pk=None):
         request, pk, with_owner_badge=request.method == "GET"
     )
     battle = battle_or_404(campaign, battle_pk) if battle_pk else None
-    if battle is not None and battle.archived:
-        raise Http404("This battle is archived")
     playing = (
         Gang.objects.filter(
             Q(

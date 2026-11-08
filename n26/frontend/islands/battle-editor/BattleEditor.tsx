@@ -35,6 +35,7 @@ export type BattleEditorProps = {
     campaignHref: string;
     heading: string;
     editing: boolean;
+    archived?: boolean;
     action: string;
     commandHref: string;
     back: string;
@@ -63,6 +64,33 @@ function identities(value: string | undefined): string[] {
         return [];
     }
 }
+async function readCycles(
+    href: string,
+    selected: string,
+    page?: number,
+    signal?: AbortSignal,
+): Promise<CycleOptions> {
+    const query = new URLSearchParams({ selected: selected || "null" });
+    if (page !== undefined) query.set("page", String(page));
+    const response = await fetch(`${href}?${query}`, {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+        signal,
+    });
+    if (
+        !response.ok ||
+        !response.headers.get("content-type")?.includes("application/json")
+    )
+        throw new Error();
+    const data = await response.json();
+    if (
+        !data ||
+        !Array.isArray(data.choices) ||
+        typeof data.current !== "string"
+    )
+        throw new Error();
+    return data;
+}
 export function BattleEditor(props: BattleEditorProps) {
     useEffect(() => {
         const id = window.location.hash.slice(1);
@@ -77,13 +105,16 @@ export function BattleEditor(props: BattleEditorProps) {
     const [cycleError, setCycleError] = useState("");
     const form = useWorkflowForm({
         ...props,
-        optionalRecoveryFields: Object.keys(props.values).filter(name => ![
-            "request_key",
-            "scenario",
-            "date",
-            "gangs",
-            ...(props.editing ? ["revision", "result", "winners"] : []),
-        ].includes(name)),
+        optionalRecoveryFields: Object.keys(props.values).filter(
+            (name) =>
+                ![
+                    "request_key",
+                    "scenario",
+                    "date",
+                    "gangs",
+                    ...(props.editing ? ["revision", "result", "winners"] : []),
+                ].includes(name),
+        ),
         interpret(status, data) {
             if (status === 200 && typeof data.nextUrl === "string")
                 return { kind: "saved", nextUrl: data.nextUrl };
@@ -127,6 +158,39 @@ export function BattleEditor(props: BattleEditorProps) {
     const selectedCycle = cycleOptions?.choices.find(
         (choice) => JSON.stringify(choice.value) === values.cycle,
     );
+    useEffect(() => {
+        if (
+            !props.cycleOptionsHref ||
+            !values.cycle ||
+            values.cycle === "null" ||
+            cycleOptions?.choices.some(
+                (choice) => JSON.stringify(choice.value) === values.cycle,
+            )
+        )
+            return;
+        const controller = new AbortController();
+        setLoadingCycles(true);
+        setCycleError("");
+        void readCycles(
+            props.cycleOptionsHref,
+            values.cycle,
+            undefined,
+            controller.signal,
+        )
+            .then((data) => {
+                if (!controller.signal.aborted) setCycleOptions(data);
+            })
+            .catch(() => {
+                if (!controller.signal.aborted)
+                    setCycleError(
+                        "The cycle list could not be loaded. Try again.",
+                    );
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setLoadingCycles(false);
+            });
+        return () => controller.abort();
+    }, [props.cycleOptionsHref, values.cycle]);
     function checkboxList(name: "gangs" | "winners", label: string) {
         const selected = identities(values[name]);
         return (
@@ -194,28 +258,11 @@ export function BattleEditor(props: BattleEditorProps) {
         setLoadingCycles(true);
         setCycleError("");
         try {
-            const query = new URLSearchParams({
-                page: String(page),
-                selected: values.cycle || "null",
-            });
-            const response = await fetch(`${props.cycleOptionsHref}?${query}`, {
-                credentials: "same-origin",
-                headers: { Accept: "application/json" },
-            });
-            if (
-                !response.ok ||
-                !response.headers
-                    .get("content-type")
-                    ?.includes("application/json")
-            )
-                throw new Error();
-            const data = await response.json();
-            if (
-                !data ||
-                !Array.isArray(data.choices) ||
-                typeof data.current !== "string"
-            )
-                throw new Error();
+            const data = await readCycles(
+                props.cycleOptionsHref,
+                values.cycle,
+                page,
+            );
             setCycleOptions(data);
         } catch {
             setCycleError("The cycle list could not be loaded. Try again.");
@@ -243,7 +290,7 @@ export function BattleEditor(props: BattleEditorProps) {
                 />
             }
             onSubmit={(event) => {
-                if (scenarioBusy) {
+                if (scenarioBusy || (props.archived && !form.uncertain)) {
                     event.preventDefault();
                     return;
                 }
@@ -263,7 +310,11 @@ export function BattleEditor(props: BattleEditorProps) {
                         <Button
                             type="submit"
                             variant="success"
-                            disabled={form.pending || scenarioBusy}
+                            disabled={
+                                form.pending ||
+                                scenarioBusy ||
+                                (props.archived && !form.uncertain)
+                            }
                         >
                             {form.pending
                                 ? "Saving…"
@@ -328,7 +379,16 @@ export function BattleEditor(props: BattleEditorProps) {
                     </p>
                 </div>
             )}
-            <fieldset disabled={form.frozen} className="space-y-6">
+            {props.archived && (
+                <p>
+                    This battle is archived. You can retry an unresolved save.
+                    Restore the battle before making another change.
+                </p>
+            )}
+            <fieldset
+                disabled={form.frozen || props.archived}
+                className="space-y-6"
+            >
                 <FormSection title="Battle">
                     <Field
                         label="Name"
@@ -400,6 +460,13 @@ export function BattleEditor(props: BattleEditorProps) {
                                 <option value="null">
                                     No cycle attribution
                                 </option>
+                                {values.cycle &&
+                                    values.cycle !== "null" &&
+                                    !selectedCycle && (
+                                        <option value={values.cycle}>
+                                            Selected cycle
+                                        </option>
+                                    )}
                                 {cycleOptions.choices.map((choice) => (
                                     <option
                                         key={JSON.stringify(choice.value)}

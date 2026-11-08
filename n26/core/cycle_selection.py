@@ -4,7 +4,8 @@ from django.core.paginator import Paginator
 from django.db import transaction
 
 from n26.core import schedule as s
-from n26.core.cycle_data import ref_data, steps_from_data
+from n26.core.cycle_data import ref_data, ref_from_data, steps_from_data
+from n26.core.fields import to_ulid
 from n26.core.models import Campaign, CampaignCycle, CampaignSchedule
 
 
@@ -35,24 +36,33 @@ def options(campaign, *, page=None, selected=None):
         number = page or (header.current_cycle.order - 1) // 50 + 1
         chosen = saved.get_page(number)
         visible = list(chosen)
-        if isinstance(selected, dict) and "cycle_id" in selected:
-            identity = selected.get("cycle_id")
-            if identity and not any(str(cycle.pk) == identity for cycle in visible):
-                # Malformed and foreign IDs never become selectable options.
-                from n26.core.fields import to_ulid
-
-                try:
-                    extra = (
-                        CampaignCycle.objects.filter(
-                            campaign=campaign, pk=to_ulid(identity)
-                        )
-                        .select_related("phase")
-                        .first()
+        retained = None
+        try:
+            target = ref_from_data(selected) if selected is not None else None
+            if isinstance(target, s.ProjectedCycleRef):
+                retained = (
+                    CampaignCycle.objects.filter(
+                        campaign=campaign,
+                        source_plan_id=to_ulid(target.position.plan_id),
+                        source_position=target.position.index,
                     )
-                except ValueError:
-                    extra = None
+                    .select_related("phase")
+                    .first()
+                )
+            elif isinstance(target, s.SavedCycleRef) and not any(
+                str(cycle.pk) == target.cycle_id for cycle in visible
+            ):
+                extra = (
+                    CampaignCycle.objects.filter(
+                        campaign=campaign, pk=to_ulid(target.cycle_id)
+                    )
+                    .select_related("phase")
+                    .first()
+                )
                 if extra:
                     visible.insert(0, extra)
+        except ValueError, s.ScheduleError:
+            pass
         choices = []
         for cycle in visible:
             state = (
@@ -68,6 +78,15 @@ def options(campaign, *, page=None, selected=None):
                     "label": f"{cycle.name} · {cycle.phase.name} · {state}",
                     "hint": "",
                     "isCurrent": cycle.pk == header.current_cycle_id,
+                }
+            )
+        if retained is not None:
+            choices.append(
+                {
+                    "value": selected,
+                    "label": f"{retained.name} · {retained.phase.name} · Saved",
+                    "hint": "This cycle is already saved. Retrying confirms the original battle save.",
+                    "isCurrent": retained.pk == header.current_cycle_id,
                 }
             )
         plan = s.Plan(

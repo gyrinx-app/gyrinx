@@ -83,6 +83,94 @@ afterEach(() => {
     sessionStorage.clear();
 });
 
+test("recovered projection remains visibly selected after materialisation and retries its original payload", async () => {
+    const retained = props.cycles!.choices[1];
+    const resolved = {
+        ...props.cycles!,
+        choices: [
+            {
+                ...retained,
+                label: "Cycle 4 · Downtime · Saved",
+                hint: "This cycle is already saved.",
+            },
+        ],
+    };
+    const fetch = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Lost response"))
+        .mockResolvedValueOnce(json(resolved))
+        .mockResolvedValueOnce(json({ nextUrl: "/battle/" }));
+    vi.stubGlobal("fetch", fetch);
+    const first = render(<BattleEditor {...props} />);
+    await userEvent.selectOptions(
+        screen.getByRole("combobox", { name: "Campaign cycle" }),
+        '{"plan_id":"plan","index":3}',
+    );
+    await userEvent.click(
+        screen.getByRole("button", { name: "Record battle" }),
+    );
+    await screen.findByText(/The save may have completed/);
+    first.unmount();
+    const payload = sessionStorage.getItem(props.recoveryKey)!;
+    const navigate = vi.fn();
+    render(
+        <BattleEditor
+            {...props}
+            onNavigate={navigate}
+            cycles={{
+                ...props.cycles!,
+                choices: [
+                    props.cycles!.choices[0],
+                    {
+                        value: { cycle_id: "four" },
+                        label: "Cycle 4 · Downtime · Saved future",
+                        hint: "",
+                        isCurrent: false,
+                    },
+                ],
+            }}
+        />,
+    );
+    await screen.findByText("This cycle is already saved.");
+    const selected = screen.getByRole("combobox", {
+        name: "Campaign cycle",
+    }) as HTMLSelectElement;
+    expect(selected.selectedOptions[0]?.textContent).toContain("Cycle 4");
+    expect(fetch.mock.calls[1][0]).toContain("selected=");
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    const retried = new URLSearchParams(fetch.mock.calls[2][1].body);
+    retried.delete("csrfmiddlewaretoken");
+    expect(retried.toString()).toBe(payload);
+    expect(navigate).toHaveBeenCalledWith("/battle/");
+});
+
+test("archived recovery permits exact retry while fresh archived edits stay disabled", async () => {
+    const fetch = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Lost response"))
+        .mockResolvedValueOnce(json({ nextUrl: "/battle/" }));
+    vi.stubGlobal("fetch", fetch);
+    const first = render(<BattleEditor {...props} editing />);
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await screen.findByText(/The save may have completed/);
+    first.unmount();
+    const recovered = render(
+        <BattleEditor {...props} editing archived onNavigate={vi.fn()} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    expect(fetch).toHaveBeenCalledTimes(2);
+    recovered.unmount();
+    render(<BattleEditor {...props} editing archived />);
+    expect(
+        screen
+            .getByRole("button", { name: "Save changes" })
+            .matches(":disabled"),
+    ).toBe(true);
+    expect(
+        screen.getByRole("textbox", { name: "Name" }).matches(":disabled"),
+    ).toBe(true);
+});
+
 test("records participant identities and an explicitly selected projected cycle", async () => {
     const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/battle/" }));
     vi.stubGlobal("fetch", fetch);
