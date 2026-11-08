@@ -115,12 +115,9 @@ export function EditHolding(
                             type="submit"
                             variant="success"
                             disabled={pending}
+                            busy={pending}
                         >
-                            {pending
-                                ? "Saving…"
-                                : uncertain
-                                  ? "Retry save"
-                                  : "Save"}
+                            {uncertain ? "Retry save" : "Save"}
                         </Button>
                     )}
                     <ButtonLink href={props.back} variant="ghost">

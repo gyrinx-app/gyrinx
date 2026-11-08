@@ -9,6 +9,7 @@ import {
 import cotton from "../generated/cotton.json";
 import { useAnchoredPlacement, useDismiss } from "./anchoredPanel";
 import { Glyph } from "./glyph";
+import { useBusyControl } from "./Busy";
 
 export type ActionMenuItem = {
     label: string;
@@ -23,7 +24,8 @@ export type ActionMenuProps = {
     label: string;
     /** Entries in display order. */
     items: ActionMenuItem[];
-    trigger?: "ellipsis" | "chevron";
+    /** Inline chevrons use the model card's compact ghost control. */
+    trigger?: "ellipsis" | "chevron" | "inline-chevron";
     variant?: "default" | "ghost";
     align?: "start" | "end";
     /** A CSS length. */
@@ -61,6 +63,7 @@ export function ActionMenu({
     align = "start",
     minWidth = "12rem",
 }: ActionMenuProps) {
+    const busyProps = useBusyControl();
     const triggerId = useId();
     const panelId = useId();
     const root = useRef<HTMLDivElement>(null);
@@ -171,9 +174,15 @@ export function ActionMenu({
     return (
         <div ref={root} className="contents">
             <button
+                {...busyProps}
                 ref={button}
                 type="button"
-                className={`${cotton.buttonSmall[variant]} ${trigger === "chevron" ? "px-1.5!" : ""}`}
+                disabled={!!busyProps["aria-busy"]}
+                className={
+                    trigger === "inline-chevron"
+                        ? cotton.modelCard.menuTrigger
+                        : `${cotton.buttonSmall[variant]} ${trigger === "chevron" ? "px-1.5!" : ""}`
+                }
                 id={triggerId}
                 aria-label={label}
                 title={label}
@@ -203,7 +212,7 @@ export function ActionMenu({
                     if (event.key === " ") event.preventDefault();
                 }}
             >
-                {trigger === "chevron" ? (
+                {trigger !== "ellipsis" ? (
                     <span className="n26-icon-only">
                         <Glyph
                             name="chevron-down"

@@ -173,6 +173,29 @@ describe("useDismiss", () => {
 });
 
 describe("useAnchoredPlacement", () => {
+    it("centres short explanations above their trigger and flips below near the top edge", async () => {
+        const user = userEvent.setup();
+        stubWindow(390, 600);
+        const box = rect(150, 200, 40, 20);
+        stubTrigger(box);
+        stubPanelSize(120, 40);
+        render(
+            <Panel
+                placement={{
+                    width: 120,
+                    gap: 8,
+                    align: "center",
+                    preferredSide: "top",
+                }}
+            />,
+        );
+        await user.click(screen.getByRole("button", { name: "Open" }));
+        expect(screen.getByRole("dialog").style.left).toBe("110px");
+        expect(screen.getByRole("dialog").style.top).toBe("152px");
+        Object.assign(box, rect(150, 20, 40, 20));
+        fireEvent.scroll(window);
+        expect(screen.getByRole("dialog").style.top).toBe("48px");
+    });
     it("lines up with the trigger's start and narrows to the window", async () => {
         const user = userEvent.setup();
         stubWindow(300, 800);

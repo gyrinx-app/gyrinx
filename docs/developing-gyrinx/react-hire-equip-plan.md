@@ -119,6 +119,15 @@ Evidence: parity for every affected figure and card fact, allowance changes
 between display and submit, concurrent/retried writes, refunds and grants,
 all confirmation paths, command recovery, query growth and real browser use.
 
+Implementation: fighter and stash Equip share `islands/equip`, display builders
+and purchase/owned commands. The stored card uses `model_card_display` and
+`ui/ModelCard`; Edit, Options and action-flow screens remain independent links.
+Native POST and cached htmx callers retain their shared command path. The card's
+counter steps have a separate receipt format, bound to the model, and preserve
+the native sequential click queue. Refusal or uncertainty stops unsent steps
+with a notice and retains the active command. The complete shell uses
+`WorkflowLayout` so native choice-dismissal forms remain valid HTML.
+
 ## Shared completion checks
 
 - Record permitted users, initial defaults, input choices, writes, failures,

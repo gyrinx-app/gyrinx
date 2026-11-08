@@ -420,6 +420,16 @@ urlpatterns = [
     path("gangs/<str:pk>/clean-house/", views.clean_house, name="n26-clean-house"),
     path("fighters/<str:pk>/delete/", views.delete_fighter, name="n26-delete-fighter"),
     path("fighters/<str:pk>/refund/", views.refund_fighter, name="n26-refund-fighter"),
+    path(
+        "fighters/<str:pk>/equip/display/",
+        views.fighter_display,
+        name="n26-equip-fighter-display",
+    ),
+    path(
+        "fighters/<str:pk>/equip/command/",
+        views.fighter_command,
+        name="n26-equip-fighter-command",
+    ),
     path("fighters/<str:pk>/equip/", views.equip, name="n26-equip"),
     path("fighters/<str:pk>/skills/", views.skills, name="n26-skills"),
     # Address owned equipment by assignment so the same endpoints work for fighters,

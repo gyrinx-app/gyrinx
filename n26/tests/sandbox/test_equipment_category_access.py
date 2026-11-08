@@ -168,7 +168,9 @@ class TestEquipmentCategoryAccess:
             reverse("n26-equip", args=[e.model.pk]), {"list": str(e.collection.pk)}
         )
         assert response.status_code == 200
-        assert {row.name for row in response.context["catalogue"].all_rows()} == {
+        from n26.tests.test_react_helpers import equip_props, equipment_rows
+
+        assert {row["name"] for row in equipment_rows(equip_props(response))} == {
             e.gear[0].name,
             e.gear[2].name,
         }

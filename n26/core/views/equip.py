@@ -2,11 +2,11 @@
 
 Both pages derive the current offer, validate submitted selections and prices,
 and write through operations. Confirmation objects let callers choose between
-full pages and htmx panels without duplicating purchase logic.
+React display data and native confirmation responses without duplicating purchase logic.
 
-_screen supplies the same card, collection and budget derivation for ordinary
-pages and partial updates. Updates replace changed rows and shared figures
-while preserving controls elsewhere on the listing. See n26.core.views.htmx.
+_screen supplies the same card, collection and budget derivation for the React
+owner and retained native POST adapters. Shared fragments still serve native
+controls on other screens and cached clients.
 """
 
 from dataclasses import dataclass
@@ -18,7 +18,6 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.cache import never_cache
 
-from n26.core.activities import founding_blocks_visit
 from n26.core.confirm import CONFIRM_FIELD, Confirmation
 from n26.core.owned import thing_key as _thing_key
 from n26.core.prices import PRICE_CEILING
@@ -56,7 +55,7 @@ def _tab_label(collection):
 
 
 def buyable_lists(held):
-    """Select held collections containing gear and place the standard Trading Post last.
+    """Select held gear lists, then the standard Trading Post.
 
     Collection assignments also include skill sets, so filter by content family.
     Resolve the standard post within the default pack; same-named custom posts
@@ -160,9 +159,16 @@ def _screen(gang, miniature=None, list_param="", budgets=True, *, include_staged
         # Load personal budgets only when needed; each collection determines whether it charges points.
         budget = budget_for(gang, miniature, computed) if budgets else None
         collections = buyable_lists(
-            access.collection
-            for access in collections_for(miniature, card=card, computed=computed)
+            [
+                access.collection
+                for access in collections_for(miniature, card=card, computed=computed)
+            ],
         )
+        pricing_collections = collections
+        # Tab order does not change which held list supplies an unrestricted price.
+        collections = [c for c in collections if c.name != "Supplementary Pets"] + [
+            c for c in collections if c.name == "Supplementary Pets"
+        ]
         if list_param == ALL_SCOPE:
             # Price unrestricted gear through held collections and retain model usability notes.
             chosen = None
@@ -174,7 +180,7 @@ def _screen(gang, miniature=None, list_param="", budgets=True, *, include_staged
                 ),
                 [
                     browse(collection, include_staged=include_staged)
-                    for collection in collections
+                    for collection in pricing_collections
                 ],
             )
         else:
@@ -405,6 +411,7 @@ def _purchase_catalogue(request, gang, miniature, wanted):
 
 
 @login_required
+@never_cache
 def equip(request, pk):
     """Buy and manage equipment on an owned model's current catalogue.
 
@@ -413,21 +420,28 @@ def equip(request, pk):
     Each purchase is atomic, with paid weapon profiles hosted on that weapon.
 
     Build owned-copy controls from the same computed card as the catalogue.
-    Return confirmations or partial updates for htmx; ordinary requests render
-    or redirect through the same purchase behaviour.
+    GET renders one React workflow. Retained native POSTs use the same purchase
+    behaviour and support cached htmx forms.
     """
-    from n26.core.listing import build_catalogue
-    from n26.core.owned import possessions, with_query
     from n26.core.views.choose import SHOW_DISMISSED, SHOWING, showing_dismissed
-    from n26.core.views.owned import (
-        accessorise_dialogs,
-        owned_dialog,
-        panel_response,
-    )
+    from n26.core.views.equip_react import equipment_read
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.gang
-    founding_seen = may_see_founding(gang, request.user)
+    if request.method != "POST":
+        if is_htmx(request):
+            response = HttpResponse()
+            response["HX-Redirect"] = request.get_full_path()
+            return response
+        return render(
+            request,
+            "n26/equip.html",
+            {
+                "miniature": miniature,
+                "gang": gang,
+                "equip_props": equipment_read(request, gang, miniature),
+            },
+        )
 
     wanted = request.GET.get("list", "")
     everything = wanted == ALL_SCOPE
@@ -435,10 +449,10 @@ def equip(request, pk):
         gang,
         miniature=miniature,
         list_param=wanted,
-        budgets=founding_seen,
+        budgets=may_see_founding(gang, request.user),
         include_staged=sees_staged(request.user),
     )
-    collections, chosen, view = screen.collections, screen.chosen, screen.view
+    chosen = screen.chosen
 
     # Carry section state through POST and redirects; unknown tabs fall back in the picker.
     section = request.POST.get("section", request.GET.get("section", ""))[:100]
@@ -460,7 +474,7 @@ def equip(request, pk):
             params.append((SHOW_DISMISSED, SHOWING))
         return f"{request.path}?{urlencode(params)}" if params else request.path
 
-    if request.method == "POST" and view is not None:
+    if request.method == "POST":
         hx = is_htmx(request)
         key = _buy_clicked(
             request,
@@ -496,93 +510,7 @@ def equip(request, pk):
             closed=carried_confirmation(request),
         )
 
-    # Index owned possessions from the existing card rather than querying per catalogue line.
-    at = here(chosen)
-    host = screen.host(at)
-    owned = possessions(host)
-
-    dialog = owned_dialog(request, host)
-    if (panel := panel_response(request, dialog)) is not None:
-        return panel
-
-    # Build the linked model card only after an early panel-only response has been ruled out.
-    card = _card_context(request, screen, host, at=at)
-
-    catalogue = (
-        build_catalogue(
-            view,
-            owned,
-            refunds=not gang.credits_unlimited,
-            expanded_key=expanded_key,
-        )
-        if view is not None
-        else None
-    )
-    tabs = list_tabs(collections, chosen, everything)
-    # Preserve dismissal visibility in the action URL; section and expanded-row state use form fields.
-    if everything:
-        action = f"{request.path}?list={ALL_SCOPE}"
-        browsing = ALL_BROWSING
-    elif chosen is not None:
-        action = f"{request.path}?list={chosen.pk}"
-        browsing = str(chosen)
-    else:
-        action = request.path
-        browsing = ""
-    if dismissed_shown:
-        action = with_query(action, **{SHOW_DISMISSED: SHOWING})
-    from n26.core.render import roster as gang_roster
-    from n26.core.render import summarise_roster
-
-    roster = gang_roster(gang)
-
-    picker = picker_context(catalogue, view, gang, screen.budget)
-    tp_href = trade_points_href(gang, request.user)
-    # Show personal allowance and visit figures separately; purchases use the personal allowance first.
-    visit_beside_founding = bool(
-        screen.budget is not None and tp_href and gang.visiting_trading_post
-    )
-    return render(
-        request,
-        "n26/equip.html",
-        {
-            "miniature": miniature,
-            "gang": gang,
-            "role": (
-                miniature.membership.profile.category.name
-                if miniature.membership.profile
-                and miniature.membership.profile.category
-                else ""
-            ),
-            "summary": summarise_roster(roster),
-            "trade_points_href": tp_href,
-            "credits_href": credits_href(gang, request.user),
-            "collections": collections,
-            "collection_tabs": tabs,
-            "everything": everything,
-            "action": action,
-            "browsing": browsing,
-            "chosen": chosen,
-            "catalogue": catalogue,
-            # Enable htmx only because the page includes every required out-of-band update host.
-            "htmx": True,
-            "dialog": dialog,
-            "accessorise": accessorise_dialogs(request, host),
-            "founding_budget": screen.budget,
-            "visit_beside_founding": visit_beside_founding,
-            "visit_trade_points_left": (
-                gang.trade_points_left if visit_beside_founding else None
-            ),
-            # Check founding restrictions only when rendering an invitation to open a Trading Post visit.
-            "founding_blocks_visit": (
-                founding_blocks_visit(gang, founding_seen)
-                if picker["post_is_shut"]
-                else False
-            ),
-            **card,
-            **picker,
-        },
-    )
+    return redirect(here(chosen))
 
 
 def _card_context(request, screen, host, *, at):

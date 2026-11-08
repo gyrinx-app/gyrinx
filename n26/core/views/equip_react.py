@@ -1,4 +1,4 @@
-"""Complete gang-stash equipment reads and narrowly scoped JSON commands."""
+"""Complete equipment reads and narrowly scoped JSON commands."""
 
 from urllib.parse import urlencode
 from uuid import uuid4
@@ -24,15 +24,23 @@ from n26.core.views.equip import (
     ALL_SCOPE,
     STASH_LABEL,
     STASH_SCOPE,
+    _card_context,
     _purchase_catalogue,
     _screen,
     gang_tabs,
+    list_tabs,
     picker_context,
     purchase_feedback,
 )
-from n26.core.views.owned import accessorise_dialogs, owned_dialog, owned_feedback
+from n26.core.views.owned import (
+    accessorise_dialogs,
+    counter_feedback,
+    owned_dialog,
+    owned_feedback,
+)
 from n26.core.views.permissions import (
     _own_gang_or_404,
+    _own_miniature_or_404,
     credits_href,
     may_see_founding,
     trade_points_href,
@@ -40,7 +48,7 @@ from n26.core.views.permissions import (
 from n26.library.staged import sees_staged
 
 
-def stash_read(request, gang):
+def equipment_read(request, gang, miniature=None):
     """Build the same initial and refreshed equipment display for this owner."""
     from n26.core.activities import founding_blocks_visit
     from n26.core.browse import offered_choices
@@ -52,22 +60,34 @@ def stash_read(request, gang):
     wanted = data.get("list", "")[:100]
     section = data.get("section", "")[:100]
     expanded = data.get("owned", "")[:200]
-    screen = _screen(gang, list_param=wanted, include_staged=sees_staged(request.user))
+    screen = _screen(
+        gang,
+        miniature=miniature,
+        list_param=wanted,
+        budgets=may_see_founding(gang, request.user),
+        include_staged=sees_staged(request.user),
+    )
     scope = (
         wanted
-        if wanted in {STASH_SCOPE, ALL_SCOPE}
+        if wanted == ALL_SCOPE or (miniature is None and wanted == STASH_SCOPE)
         else str(screen.chosen.pk)
         if screen.chosen
         else ""
     )
-    path = reverse("n26-equip-gang", args=[gang.pk])
+    path = (
+        reverse("n26-equip", args=[miniature.pk])
+        if miniature
+        else reverse("n26-equip-gang", args=[gang.pk])
+    )
     params = {"list": scope, "section": section, "owned": expanded}
+    if data.get("dismissed") == "show":
+        params["dismissed"] = "show"
     back = (
         path + "?" + urlencode({key: value for key, value in params.items() if value})
     )
     host = screen.host(back)
     held = possessions(host)
-    if scope == STASH_SCOPE:
+    if miniature is None and scope == STASH_SCOPE:
         catalogue = build_stash_catalogue(
             held, STASH_LABEL, refunds=not gang.credits_unlimited, expanded_key=expanded
         )
@@ -77,7 +97,7 @@ def stash_read(request, gang):
         )
     else:
         catalogue = None
-    picker = picker_context(catalogue, screen.view, gang)
+    picker = picker_context(catalogue, screen.view, gang, screen.budget)
     named_kind, named_key = next(
         ((kind, request.GET[kind]) for kind in DIALOGS if request.GET.get(kind)),
         ("", ""),
@@ -100,7 +120,25 @@ def stash_read(request, gang):
     owner = person_link(gang.owner, badges)
     owner["badge"] = badges.get(owner.get("badge"))
     points_href = trade_points_href(gang, request.user)
+    model = None
+    if miniature is not None:
+        from n26.core.equip_display import fighter_data
+
+        model = fighter_data(
+            request, screen, _card_context(request, screen, host, at=back)
+        )
+    tabs = (
+        list_tabs(screen.collections, screen.chosen, scope == ALL_SCOPE)
+        if miniature
+        else gang_tabs(
+            screen.collections,
+            screen.chosen,
+            scope == ALL_SCOPE,
+            stash=scope == STASH_SCOPE,
+        )
+    )
     return {
+        "model": model,
         "gangName": gang.name,
         "gangHref": reverse("n26-gang", args=[gang.pk]),
         "owner": owner,
@@ -111,13 +149,7 @@ def stash_read(request, gang):
         if scope == ALL_SCOPE
         else str(screen.chosen or "equipment"),
         "scopeTabs": [
-            {**tab, "key": tab["href"].partition("list=")[2]}
-            for tab in gang_tabs(
-                screen.collections,
-                screen.chosen,
-                scope == ALL_SCOPE,
-                stash=scope == STASH_SCOPE,
-            )
+            {**tab, "key": tab["href"].partition("list=")[2]} for tab in tabs
         ],
         "section": section,
         "owned": expanded,
@@ -156,9 +188,15 @@ def stash_read(request, gang):
         "requestKey": str(uuid4()),
         "csrfToken": get_token(request),
         "action": back,
-        "displayHref": reverse("n26-equip-stash-display", args=[gang.pk]),
-        "commandHref": reverse("n26-equip-stash-command", args=[gang.pk]),
-        "recoveryKey": f"equip-stash:{request.user.pk}:{gang.pk}",
+        "displayHref": reverse("n26-equip-fighter-display", args=[miniature.pk])
+        if miniature
+        else reverse("n26-equip-stash-display", args=[gang.pk]),
+        "commandHref": reverse("n26-equip-fighter-command", args=[miniature.pk])
+        if miniature
+        else reverse("n26-equip-stash-command", args=[gang.pk]),
+        "recoveryKey": f"equip-fighter:{request.user.pk}:{miniature.pk}"
+        if miniature
+        else f"equip-stash:{request.user.pk}:{gang.pk}",
         "signInHref": reverse("account_login")
         + "?"
         + urlencode(
@@ -172,6 +210,10 @@ def stash_read(request, gang):
             }
         ),
     }
+
+
+def stash_read(request, gang):
+    return equipment_read(request, gang)
 
 
 @never_cache
@@ -195,8 +237,17 @@ def stash_command(request, pk):
             {"error": "Sign in again to change this equipment."}, status=401
         )
     gang = _own_gang_or_404(request, pk)
+    return equipment_command(request, gang)
+
+
+def equipment_command(request, gang, miniature=None):
     data = request.POST
     action = data.get("action", "")
+    path = (
+        reverse("n26-equip", args=[miniature.pk])
+        if miniature
+        else reverse("n26-equip-gang", args=[gang.pk])
+    )
     try:
         if action == "buy":
             wanted = data.get("list", "")
@@ -204,11 +255,25 @@ def stash_command(request, pk):
                 gang,
                 request.user,
                 data,
-                lambda: _purchase_catalogue(request, gang, None, wanted),
-                action=reverse("n26-equip-gang", args=[gang.pk]),
-                back=reverse("n26-equip-gang", args=[gang.pk]),
-                identity={"holder": "stash", "list": wanted},
+                lambda: _purchase_catalogue(request, gang, miniature, wanted),
+                action=path,
+                back=path,
+                identity={
+                    "holder": str(miniature.pk) if miniature else "stash",
+                    "list": wanted,
+                },
                 require_key=True,
+            )
+        elif action == "tally" and miniature is not None:
+            from n26.core.model_card_commands import tally_step
+
+            result = tally_step(
+                gang,
+                request.user,
+                data.get("assignment", ""),
+                data,
+                require_key=True,
+                model_key=str(miniature.pk),
             )
         elif action in {
             "sell",
@@ -232,21 +297,27 @@ def stash_command(request, pk):
     except UnavailableEquipment as error:
         return JsonResponse({"errors": {"__all__": [error.public_message]}}, status=422)
     if result.refused:
-        gang = _own_gang_or_404(request, pk)
+        gang = _own_gang_or_404(request, gang.pk)
         return JsonResponse(
             {
                 "errors": {"__all__": [result.refused]},
-                "page": stash_read(request, gang),
+                "page": equipment_read(request, gang, miniature),
             },
             status=409 if result.conflict else 422,
         )
     question = result.confirmation if action == "buy" else None
     if question is None:
         if action == "buy":
-            purchase_feedback(request, result)
+            purchase_feedback(
+                request,
+                result,
+                event={"miniature_id": str(miniature.pk)} if miniature else None,
+            )
+        elif action == "tally":
+            counter_feedback(request, gang, result)
         else:
             owned_feedback(request, result)
-    gang = _own_gang_or_404(request, pk)
+    gang = _own_gang_or_404(request, gang.pk)
     return JsonResponse(
         {
             "outcome": "confirmation" if question is not None else "completed",
@@ -254,6 +325,30 @@ def stash_command(request, pk):
             "confirmation": confirmation_data(question)
             if question is not None
             else None,
-            "page": stash_read(request, gang),
+            "page": equipment_read(request, gang, miniature),
         }
     )
+
+
+@never_cache
+@require_GET
+def fighter_display(request, pk):
+    """Refresh the complete equipment display for the model's owner."""
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {"error": "Sign in again to view this equipment."}, status=401
+        )
+    miniature = _own_miniature_or_404(request, pk)
+    return JsonResponse({"page": equipment_read(request, miniature.gang, miniature)})
+
+
+@never_cache
+@require_POST
+def fighter_command(request, pk):
+    """Apply one model-equipment command through the shared locked workflow."""
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {"error": "Sign in again to change this equipment."}, status=401
+        )
+    miniature = _own_miniature_or_404(request, pk)
+    return equipment_command(request, miniature.gang, miniature)

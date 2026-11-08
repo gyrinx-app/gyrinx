@@ -1,8 +1,8 @@
-"""JSON-safe display facts for the model card shown before a hire.
+"""JSON-safe model-card facts shared by previews and stored-card projections.
 
 The card builder remains authoritative. This projection follows the existing
-Cotton preview, including informative choice prompts, without exposing records
-or owner-only actions. Stored-card editors need their own command contracts.
+Cotton card, including informative choice prompts. The preview rejects stored
+cards; model_card_display adds their authorised controls and navigation.
 """
 
 from n26.core.render import ModelCard
@@ -81,6 +81,11 @@ def model_preview_props(card: ModelCard):
     """Project an already built hire card without reads, writes or HTML."""
     if card.id:
         raise ValueError("Model previews require an unstored card.")
+    return model_card_facts(card)
+
+
+def model_card_facts(card: ModelCard):
+    """Project the common display facts of an already built model card."""
     groups = card.statline.groups()
     return {
         "name": card.name,

@@ -126,3 +126,10 @@ Keep a readable snapshot of selected options and destinations with unresolved
 input, so recovery can describe the original action even on another panel.
 Add presentation-only fields through `optionalRecoveryFields` to keep older
 retained commands recoverable.
+
+Fighter and stash Equip share the `equip` island. Compose the stored `ModelCard`
+adapter inside that root; independent Edit, Options and action-flow screens stay
+ordinary links. Use `WorkflowLayout` when card controls include native forms,
+so they are not nested inside a page form. Its busy-script opt-out is required.
+Keep counter steps in sequence with one request key per deliberate click; stop
+unsent steps visibly on uncertainty while retaining the active command.

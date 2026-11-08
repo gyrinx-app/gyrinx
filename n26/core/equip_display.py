@@ -177,3 +177,78 @@ def owned_description(dialog):
     if kind == "refund":
         return f"{dialog['sum']} The equipment and anything attached to it are removed from the gang. This undoes the purchase."
     return f"The equipment and anything attached to it are permanently removed from the gang. {dialog['remove_note']}"
+
+
+def fighter_data(request, screen, context):
+    """Prepare the model card, personal balance and action-flow navigation."""
+    from django.contrib.humanize.templatetags.humanize import naturaltime
+    from django.urls import reverse
+
+    from n26.core.model_card_display import model_card_props
+    from n26.core.navigation import fighter_switcher, model_screen_tabs, switcher_props
+
+    miniature = screen.miniature
+    switcher = fighter_switcher(screen.gang, miniature, route="n26-equip")
+    budget = screen.budget
+    return {
+        "name": miniature.name,
+        "role": miniature.membership.profile.category.name
+        if miniature.membership.profile and miniature.membership.profile.category
+        else "",
+        "card": model_card_props(
+            context["card"],
+            rename_href=reverse("n26-edit-fighter", args=[miniature.pk])
+            + f"?rename={miniature.pk}",
+            status_href=context["status_href"],
+        ),
+        "tabs": model_screen_tabs(miniature, "equip"),
+        "switcher": switcher_props(switcher, hotkey="r"),
+        "budget": {
+            "activity": str(budget.activity.pk),
+            "title": budget.title,
+            "actionLabel": budget.action_label,
+            "facts": [asdict(fact) for fact in budget.facts],
+        }
+        if budget
+        else None,
+        "visitLeft": screen.gang.trade_points_left
+        if budget and screen.gang.visiting_trading_post
+        else None,
+        "panels": [
+            {
+                "key": panel.action_id,
+                "name": panel.name,
+                "timing": panel.timing[:1].upper() + panel.timing[1:],
+                "flagged": panel.flagged,
+                "menu": [
+                    {
+                        "label": item["label"],
+                        "href": item["href"],
+                        "tone": item.get("tone", "default"),
+                        "separatorBefore": bool(item.get("separator_before")),
+                    }
+                    for item in panel.menu
+                    if item.get("href")
+                ],
+                "startHref": panel.start_href,
+                "prices": [asdict(price) for price in panel.prices],
+                "availableUses": panel.available_uses,
+                "thresholds": list(panel.earned_thresholds),
+                "problem": panel.problem,
+                "drafts": [
+                    {
+                        "key": draft.key,
+                        "href": draft.href,
+                        "label": draft.label,
+                        "variant": draft.variant,
+                        "problem": draft.problem,
+                        "threshold": draft.earned_threshold,
+                        "when": draft.when.isoformat() if draft.when else "",
+                        "whenLabel": naturaltime(draft.when) if draft.when else "",
+                    }
+                    for draft in panel.drafts
+                ],
+            }
+            for panel in context["action_panels"]
+        ],
+    }

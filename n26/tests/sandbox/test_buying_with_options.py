@@ -9,10 +9,7 @@ and later changes must preserve the same payment, rating and grant rules
 as direct operations.
 """
 
-import json
-
 import pytest
-from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.urls import reverse
 
@@ -35,6 +32,7 @@ from n26.tests.sandbox.actions import (
     remove,
     set_statline,
 )
+from n26.tests.test_react_helpers import equip_props, equipment_rows
 
 pytestmark = pytest.mark.django_db
 
@@ -131,11 +129,11 @@ def cutter_line(house_list):
 
 
 def row_named(client, owner, fighter, collection, name):
-    """Read the named catalogue row directly from the response context."""
+    """Read the actual catalogue row supplied to the React owner."""
     client.force_login(owner)
     response = client.get(equip_url(fighter, collection))
     return next(
-        row for row in response.context["catalogue"].all_rows() if row.name == name
+        row for row in equipment_rows(equip_props(response)) if row["name"] == name
     )
 
 
@@ -156,27 +154,29 @@ class TestWhatTheRowAsks:
         self, client, owner, fighter, house_list
     ):
         row = cutter_row(client, owner, fighter, house_list)
-        launchers, stubbers, plasma = row.choices[0].options
+        launchers, stubbers, plasma = row["purchase"]["choices"][0]["options"]
 
-        assert row.choices[0].choose == "one"
-        assert launchers.name == "Cutter grenade launchers"
-        assert [option.is_default for option in row.choices[0].options] == [
+        assert row["purchase"]["choices"][0]["choose"] == "one"
+        assert launchers["name"] == "Cutter grenade launchers"
+        assert [
+            option["checked"] for option in row["purchase"]["choices"][0]["options"]
+        ] == [
             True,
             False,
             False,
         ]
-        assert (stubbers.surcharge, plasma.surcharge) == (10, 15)
+        assert (stubbers["surcharge"], plasma["surcharge"]) == (10, 15)
 
     def test_a_surcharge_is_measured_from_the_price_the_row_quotes(
         self, client, owner, fighter, house_list
     ):
         """Quote the mount with standard weapons and show only the selected option's additional price."""
         row = cutter_row(client, owner, fighter, house_list)
-        launchers, _, plasma = row.choices[0].options
+        launchers, _, plasma = row["purchase"]["choices"][0]["options"]
 
-        assert row.price == 150
-        assert (launchers.surcharge, launchers.surcharge_label) == (0, "")
-        assert plasma.surcharge_label == "+15¢"
+        assert row["purchase"]["price"] == 150
+        assert launchers["surcharge"] == 0
+        assert plasma["surcharge"] == 15
 
     def test_a_head_the_author_priced_is_still_in_the_quote_once(
         self, client, owner, gang, fighter, default_pack
@@ -194,10 +194,10 @@ class TestWhatTheRowAsks:
         assign(collection, gang=gang)
 
         row = row_named(client, owner, fighter, collection, "Sentry gun")
-        launcher, stubber = row.choices[0].options
+        launcher, stubber = row["purchase"]["choices"][0]["options"]
 
-        assert row.price == 75
-        assert (launcher.surcharge, stubber.surcharge) == (0, 35)
+        assert row["purchase"]["price"] == 75
+        assert (launcher["surcharge"], stubber["surcharge"]) == (0, 35)
 
     def test_a_set_with_nothing_to_pick_asks_nothing(
         self, client, owner, gang, fighter, default_pack
@@ -211,7 +211,7 @@ class TestWhatTheRowAsks:
         assign(collection, gang=gang)
 
         row = row_named(client, owner, fighter, collection, "Grav harness")
-        assert row.choices == ()
+        assert row["purchase"]["choices"] == []
 
     def test_the_label_the_author_gave_a_set_reaches_nobody(
         self, client, owner, fighter, house_list
@@ -225,70 +225,35 @@ class TestWhatTheRowAsks:
 
 
 class TestWhatTheScreenDraws:
-    """Render option controls with field names and values accepted by purchase submission."""
+    """The whole workflow receives stable choices and server quotes in one root."""
 
-    def test_the_price_and_options_share_one_island_with_the_server_prices(
+    def test_the_price_and_options_share_one_owner_with_the_server_prices(
         self, client, owner, fighter, house_list, cutter
     ):
         client.force_login(owner)
-        response = client.get(equip_url(fighter, house_list))
-        soup = BeautifulSoup(response.content, "html.parser")
-        box = soup.find("input", attrs={"name": price_field(cutter)})
-        host = box.find_parent(attrs={"data-react-name": "equip-price"})
-        props = json.loads(soup.find(id=host["data-react-props"]).string)
-
-        assert props["quoted"] == 150
-        assert props["purchase"]["buy"]["target"] == key_of(cutter)
-        assert len(host.select('input[type="radio"]')) == 5
-        assert not host.select("[data-react-name]")
-        assert [option["surcharge"] for option in props["choices"][0]["options"]] == [
-            0,
-            10,
-            15,
+        props = equip_props(client.get(equip_url(fighter, house_list)))
+        row = equipment_rows(props)[0]
+        purchase = row["purchase"]
+        assert purchase["key"] == key_of(cutter)
+        assert purchase["price"] == 150
+        assert [
+            option["surcharge"] for option in purchase["choices"][0]["options"]
+        ] == [0, 10, 15]
+        assert [option["checked"] for option in purchase["choices"][0]["options"]] == [
+            True,
+            False,
+            False,
         ]
-        assert props["choices"][1]["options"][0]["price"] == 20
-
-    def test_every_option_is_a_radio_named_what_the_purchase_reads_back(
-        self, client, owner, fighter, house_list, cutter
-    ):
-        """Assert rendered field names, including the slugified scope, rather than relying only on manually constructed POST data."""
-        client.force_login(owner)
-        body = client.get(equip_url(fighter, house_list)).content.decode()
-
-        assert f'name="{choice_field(cutter, 0)}"' in body
-        assert body.count(f'name="{choice_field(cutter, 0)}"') == 3
-        assert "Cutter plasma guns" in body
-        assert "+15¢" in body
-
-    def test_the_standard_option_arrives_already_picked(
-        self, client, owner, fighter, house_list, cutter
-    ):
-        client.force_login(owner)
-        body = client.get(equip_url(fighter, house_list)).content.decode()
-
-        field = choice_field(cutter, 0)
-        standard = body.index(f'name="{field}"')
-        assert "checked" in body[standard : body.index("</label>", standard)]
-
-    def test_a_further_set_says_how_many_to_take_and_offers_none(
-        self, client, owner, fighter, house_list, cutter
-    ):
-        """Provide a None radio for optional groups because a selected radio cannot be cleared directly."""
-        client.force_login(owner)
-        body = client.get(equip_url(fighter, house_list)).content.decode()
-
-        assert "Choose one, or none" in body
-        assert f'name="{choice_field(cutter, 1)}"' in body
-        assert ">None</span>" in body
-
-    def test_nothing_the_choice_draws_is_a_second_submit(
-        self, client, owner, fighter, house_list
-    ):
-        """Submit selected options through the item's Buy button without adding extra submit controls."""
-        client.force_login(owner)
-        body = client.get(equip_url(fighter, house_list)).content.decode()
-
-        assert body.count('type="submit"') == body.count('name="thing"')
+        assert purchase["choices"][1]["choose"] == "one-or-none"
+        assert purchase["choices"][1]["options"][0]["price"] == 20
+        assert not any(
+            option["checked"] for option in purchase["choices"][1]["options"]
+        )
+        assert all(
+            option["key"]
+            for group in purchase["choices"]
+            for option in group["options"]
+        )
 
 
 class TestBuyingWithNothingPicked:
@@ -437,7 +402,7 @@ class TestWhatAnOwnedCopySays:
 
     def chosen(self, client, owner, fighter, house_list):
         row = cutter_row(client, owner, fighter, house_list)
-        return [copy.chosen for copy in row.copies]
+        return [tuple(copy["chosen"]) for copy in row["copies"]]
 
     def test_a_swap_is_named_on_the_copy_that_took_it(
         self, client, owner, fighter, house_list, cutter
@@ -537,7 +502,7 @@ class TestWhatAnOwnedCopySays:
         )
 
         row = row_named(client, owner, fighter, collection, "Grenade belt")
-        assert [copy.chosen for copy in row.copies] == [
+        assert [tuple(copy["chosen"]) for copy in row["copies"]] == [
             ("Frag grenades", "Smoke grenades")
         ]
         gang.refresh_from_db()
@@ -587,7 +552,7 @@ class TestWhatAnOwnedCopySays:
         )
 
         row = row_named(client, owner, fighter, collection, "Grav rig")
-        assert [copy.chosen for copy in row.copies] == [("With boosters",)]
+        assert [tuple(copy["chosen"]) for copy in row["copies"]] == [("With boosters",)]
 
     def test_something_that_asked_nothing_says_nothing(
         self, client, owner, gang, fighter, house_list, default_pack
@@ -599,7 +564,7 @@ class TestWhatAnOwnedCopySays:
         client.post(equip_url(fighter, house_list), {"thing": key_of(knife)})
 
         row = row_named(client, owner, fighter, house_list, "Stiletto knife")
-        assert [copy.chosen for copy in row.copies] == [()]
+        assert [tuple(copy["chosen"]) for copy in row["copies"]] == [()]
 
 
 class TestWhatTheOwnedCopyDraws:
@@ -618,9 +583,9 @@ class TestWhatTheOwnedCopyDraws:
                 choice_field(cutter, 1): "0",
             },
         )
-        body = client.get(equip_url(fighter, house_list)).content.decode()
-
-        assert "Cutter plasma guns · Smoke dispenser" in body
+        assert equipment_rows(equip_props(client.get(equip_url(fighter, house_list))))[
+            0
+        ]["copies"][0]["chosen"] == ["Cutter plasma guns", "Smoke dispenser"]
 
     def test_an_owned_copy_never_names_the_set_a_pick_came_from(
         self, client, owner, fighter, house_list, cutter
@@ -650,11 +615,11 @@ class TestTheWayToChangeThem:
         client.post(equip_url(fighter, house_list), {"thing": key_of(cutter)})
 
         row = cutter_row(client, owner, fighter, house_list)
-        (copy,) = row.copies
-        assert [action.label for action in copy.more][0] == "Change options"
+        (copy,) = row["copies"]
+        assert "Change options" in [action["label"] for action in copy["actions"]]
         assert (
-            f"rechoose={copy.id}"
-            in dict((action.label, action.target) for action in copy.more)[
+            f"rechoose={copy['id']}"
+            in dict((action["label"], action["target"]) for action in copy["actions"])[
                 "Change options"
             ]
         )
@@ -670,8 +635,8 @@ class TestTheWayToChangeThem:
         client.post(equip_url(fighter, house_list), {"thing": key_of(knife)})
 
         row = row_named(client, owner, fighter, house_list, "Stiletto knife")
-        (copy,) = row.copies
-        assert "Change options" not in [action.label for action in copy.more]
+        (copy,) = row["copies"]
+        assert "Change options" not in [action["label"] for action in copy["actions"]]
 
     def test_the_panel_starts_on_what_the_copy_took(
         self, client, owner, fighter, house_list, cutter
@@ -682,17 +647,20 @@ class TestTheWayToChangeThem:
             equip_url(fighter, house_list),
             {"thing": key_of(cutter), choice_field(cutter, 0): "2"},
         )
-        copy_id = cutter_row(client, owner, fighter, house_list).copies[0].id
+        copy_id = cutter_row(client, owner, fighter, house_list)["copies"][0]["id"]
 
         response = client.get(f"{equip_url(fighter, house_list)}&rechoose={copy_id}")
-        guns, fittings = response.context["dialog"]["choices"]
+        guns, fittings = equip_props(response)["dialog"]["choices"]
 
-        assert [option.checked for option in guns.options] == [False, False, True]
-        assert fittings.nothing_taken
-        preview = response.context["dialog"]["price_preview"]
-        assert preview["changing"]
+        assert [option["checked"] for option in guns["options"]] == [False, False, True]
+        assert not any(option["checked"] for option in fittings["options"])
+        preview = equip_props(response)["dialog"]["pricePreview"]
+        assert equip_props(response)["dialog"]["kind"] == "rechoose"
         assert preview["before"] == 15
-        assert [option["checked"] for option in preview["choices"][0]["options"]] == [
+        assert [
+            option["checked"]
+            for option in equip_props(response)["dialog"]["choices"][0]["options"]
+        ] == [
             False,
             False,
             True,
@@ -706,13 +674,13 @@ class TestTheWayToChangeThem:
             equip_url(fighter, house_list),
             {"thing": key_of(cutter), choice_field(cutter, 1): "0"},
         )
-        copy_id = cutter_row(client, owner, fighter, house_list).copies[0].id
+        copy_id = cutter_row(client, owner, fighter, house_list)["copies"][0]["id"]
 
         response = client.get(f"{equip_url(fighter, house_list)}&rechoose={copy_id}")
-        _, fittings = response.context["dialog"]["choices"]
+        _, fittings = equip_props(response)["dialog"]["choices"]
 
-        assert not fittings.nothing_taken
-        assert [option.checked for option in fittings.options] == [True]
+        assert any(option["checked"] for option in fittings["options"])
+        assert [option["checked"] for option in fittings["options"]] == [True]
 
     def test_a_fixed_option_is_included_in_the_change_preview(
         self, client, owner, fighter, house_list, cutter
@@ -730,12 +698,12 @@ class TestTheWayToChangeThem:
             equip_url(fighter, house_list),
             {"thing": key_of(cutter), choice_field(cutter, 0): "2"},
         )
-        copy_id = cutter_row(client, owner, fighter, house_list).copies[0].id
+        copy_id = cutter_row(client, owner, fighter, house_list)["copies"][0]["id"]
         response = client.get(f"{equip_url(fighter, house_list)}&rechoose={copy_id}")
-        preview = response.context["dialog"]["price_preview"]
+        preview = equip_props(response)["dialog"]["pricePreview"]
         assert preview["before"] == 22
         assert preview["resolution"][-1]["options"][0]["price"] == 7
-        assert len(preview["choices"]) == 2
+        assert len(equip_props(response)["dialog"]["choices"]) == 2
 
     def test_a_hand_made_change_options_url_for_a_weapon_draws_no_dialog(
         self, client, owner, fighter, house_list, cutter
@@ -749,7 +717,7 @@ class TestTheWayToChangeThem:
         )
         response = client.get(f"{equip_url(fighter, house_list)}&rechoose={gun.pk}")
         assert response.status_code == 200
-        assert response.context["dialog"] is None
+        assert equip_props(response)["dialog"] is None
 
 
 class TestChangingThem:
@@ -772,7 +740,7 @@ class TestChangingThem:
         response = client.get(
             f"{equip_url(fighter, house_list)}&rechoose={entry.assignment_id}"
         )
-        preview = response.context["dialog"]["price_preview"]
+        preview = equip_props(response)["dialog"]["pricePreview"]
         refundable = [row for group in preview["refunds"] for row in group["entries"]]
         assert refundable == [{"key": str(sight.pk), "paid": 20}]
         gang.refresh_from_db()
@@ -825,7 +793,7 @@ class TestChangingThem:
         )
         entry = LedgerEntry.objects.get(assignment__wargear=mount)
         preview_url = f"{equip_url(fighter, collection)}&rechoose={entry.assignment_id}"
-        preview = client.get(preview_url).context["dialog"]["price_preview"]
+        preview = equip_props(client.get(preview_url))["dialog"]["pricePreview"]
         assert preview["before"] == 32
         assert set(preview["held"]) == {
             str(standard.default_set_id),
@@ -882,7 +850,7 @@ class TestChangingThem:
         client.post(equip_url(fighter, collection), {"thing": key_of(mount), **choices})
         entry = LedgerEntry.objects.get(assignment__wargear=mount)
         preview_url = f"{equip_url(fighter, collection)}&rechoose={entry.assignment_id}"
-        preview = client.get(preview_url).context["dialog"]["price_preview"]
+        preview = equip_props(client.get(preview_url))["dialog"]["pricePreview"]
         assert preview["before"] == (47 if extra else 65)
         assert set(preview["held"]) == {
             str((extra or standard).default_set_id),
@@ -902,7 +870,7 @@ class TestChangingThem:
         assert gang.credits - before == (-3 if extra else 15)
         assert_reconciled(gang)
 
-        preview = client.get(preview_url).context["dialog"]["price_preview"]
+        preview = equip_props(client.get(preview_url))["dialog"]["pricePreview"]
         assert preview["before"] == 25
         assert preview["held"] == [str(standard.default_set_id)]
         before = gang.credits
@@ -917,7 +885,7 @@ class TestChangingThem:
     def bought(self, client, owner, fighter, house_list, cutter, **picked):
         client.force_login(owner)
         client.post(equip_url(fighter, house_list), {"thing": key_of(cutter), **picked})
-        return cutter_row(client, owner, fighter, house_list).copies[0].id
+        return cutter_row(client, owner, fighter, house_list)["copies"][0]["id"]
 
     def change(self, client, fighter, house_list, copy_id, **picked):
         return client.post(
@@ -978,7 +946,7 @@ class TestChangingThem:
         )
 
         row = cutter_row(client, owner, fighter, house_list)
-        assert [copy.chosen for copy in row.copies] == [
+        assert [tuple(copy["chosen"]) for copy in row["copies"]] == [
             ("Cutter heavy stubbers", "Smoke dispenser")
         ]
 
@@ -1019,7 +987,9 @@ class TestChangingThem:
 
         client.force_login(owner)
         client.post(equip_url(fighter, collection), {"thing": key_of(rig)})
-        copy_id = row_named(client, owner, fighter, collection, "Duct rig").copies[0].id
+        copy_id = row_named(client, owner, fighter, collection, "Duct rig")["copies"][
+            0
+        ]["id"]
 
         response = client.post(
             reverse("n26-rechoose", args=[copy_id]),
@@ -1030,7 +1000,9 @@ class TestChangingThem:
         said = [str(message) for message in response.context["messages"]]
         assert said == ["Duct rig now has Right-handed fitting."]
         row = row_named(client, owner, fighter, collection, "Duct rig")
-        assert [copy.chosen for copy in row.copies] == [("Right-handed fitting",)]
+        assert [tuple(copy["chosen"]) for copy in row["copies"]] == [
+            ("Right-handed fitting",)
+        ]
         gang.refresh_from_db()
         assert_reconciled(gang)
 
@@ -1091,9 +1063,9 @@ class TestChangingThem:
 
         client.force_login(owner)
         client.post(equip_url(fighter, collection), {"thing": key_of(cutter)})
-        copy_id = (
-            row_named(client, owner, fighter, collection, "Escher Cutter").copies[0].id
-        )
+        copy_id = row_named(client, owner, fighter, collection, "Escher Cutter")[
+            "copies"
+        ][0]["id"]
 
         response = client.post(
             reverse("n26-rechoose", args=[copy_id]),
@@ -1247,7 +1219,7 @@ class TestScaling:
             with CaptureQueriesContext(connection) as queries:
                 response = client.get(url)
                 assert response.status_code == 200
-                assert response.context["dialog"]["price_preview"]["refunds"]
+                assert equip_props(response)["dialog"]["pricePreview"]["refunds"]
             return len(queries)
 
         assert measure(urls[0]) == measure(urls[1])

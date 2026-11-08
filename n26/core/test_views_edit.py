@@ -69,9 +69,12 @@ class TestTheModelsOwnPage:
         """The equip screen offers the way back to the Edit face, so the
         two screens read as tabs of one page."""
         client.force_login(tester)
-        body = client.get(reverse("n26-equip", args=[vex.pk])).content.decode()
-        assert ">Edit<" in body
-        assert edit_url(vex) in body
+        from n26.tests.test_react_helpers import equip_props
+
+        props = equip_props(client.get(reverse("n26-equip", args=[vex.pk])))
+        assert {"label": "Edit", "href": edit_url(vex), "current": False} in props[
+            "model"
+        ]["tabs"]
 
     def test_the_sheet_leads_here_and_offers_no_cards_item(
         self, client, tester, gang, vex

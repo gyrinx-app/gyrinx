@@ -174,7 +174,7 @@ test("disables duplicate submission while a request is pending", async () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(
-        screen.getByRole("button", { name: "Saving…" }).matches(":disabled"),
+        screen.getByRole("button", { name: "Save" }).matches(":disabled"),
     ).toBe(true);
     expect(screen.getByRole("spinbutton").matches(":disabled")).toBe(true);
     finish(json({ nextUrl: props.back }));

@@ -2384,6 +2384,73 @@ def model_card_editable():
     return card
 
 
+def model_card_equip_examples():
+    """Matched editing cards covering compact controls and crowded headers."""
+    from copy import deepcopy
+
+    from n26.core.progression import RankSummary
+
+    standard = model_card_editable()
+    crowded = deepcopy(standard)
+    crowded.id = "vesna-krail-equip-crowded"
+    crowded.name = LONG_HEADER_NAME
+    crowded.status = "recovery"
+    crowded.status_label = "In Recovery"
+    crowded.image_url = CARD_IMAGE
+    crowded.model_cards_href = "#cards"
+    crowded.founding_budget = True
+    crowded.trade_points_left = 3
+    crowded.personal_tp_action = "Hire"
+    crowded.rating_override = {
+        "name": crowded.name,
+        "rating": crowded.rating,
+        "baseRating": 100,
+        "defaultBaseRating": 95,
+    }
+    crowded.rank_summaries = (
+        RankSummary("rank", "Standing", "XP", True, 61, "Veteran", 79, "Champion", 18),
+    )
+    crowded.skill_choices = [
+        replace(
+            choice, key=f"gallery-skill-{index}", dismiss_href="#dismiss", back="#card"
+        )
+        for index, choice in enumerate(crowded.skill_choices)
+    ]
+    crowded.choices += [
+        ChoiceLine(
+            "Allegiance",
+            "House Ulanti and the lower hive trading families",
+            key="allegiance",
+            href="#allegiance",
+        ),
+        ChoiceLine(
+            "Recovery", None, key="recovery", href="#recovery", follows_status=True
+        ),
+    ]
+    crowded.equipment[0] = replace(
+        crowded.equipment[0],
+        choices=[ChoiceLine("Fit", "Reinforced shoulder harness", href="#fit")],
+    )
+    weapon = next(weapon for weapon in crowded.weapons if weapon.accessories)
+    weapon.choices += [
+        ChoiceLine("Channel", "Focused", href="#channel"),
+        ChoiceLine(
+            "Channel",
+            None,
+            key="second-channel",
+            href="#channel-two",
+            dismiss_href="#dismiss",
+            back="#card",
+        ),
+    ]
+    weapon.accessories.append(
+        replace(
+            weapon.accessories[0], id="second-sight", name="Long-range targeting sight"
+        )
+    )
+    return [standard, crowded]
+
+
 def gang_sheet_context():
     """Prepare the gang sheet and its surrounding demo controls."""
     from n26.core.founding import FoundingBudget

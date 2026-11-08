@@ -30,6 +30,81 @@ function response(name: string) {
 }
 
 describe("Hire preview reads", () => {
+    it("retains the preview error and retry control while a retry is pending", async () => {
+        let finish!: (response: Response) => void;
+        vi.stubGlobal(
+            "fetch",
+            vi
+                .fn()
+                .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+                .mockImplementationOnce(
+                    () =>
+                        new Promise<Response>((resolve) => {
+                            finish = resolve;
+                        }),
+                ),
+        );
+        const onLoading = vi.fn();
+        render(
+            <Preview
+                href="/preview/"
+                selection={[]}
+                cache={new Map()}
+                onLoading={onLoading}
+            />,
+        );
+        const error = await screen.findByRole("alert");
+        const retry = screen.getByRole("button", { name: "Retry preview" });
+        await userEvent.click(retry);
+        expect(screen.getByRole("alert")).toBe(error);
+        expect(retry.getAttribute("data-busy")).toBe("on");
+        expect(onLoading).toHaveBeenLastCalledWith(false);
+        await act(async () => finish(response("Recovered model")));
+        expect(screen.queryByRole("alert")).toBeNull();
+        expect(screen.getByText("Recovered model")).toBeTruthy();
+    });
+    it("keeps the displayed card while selected options load a replacement", async () => {
+        let finish!: (response: Response) => void;
+        const fetcher = vi
+            .fn()
+            .mockResolvedValueOnce(response("Original model"))
+            .mockImplementationOnce(
+                () =>
+                    new Promise<Response>((resolve) => {
+                        finish = resolve;
+                    }),
+            );
+        vi.stubGlobal("fetch", fetcher);
+        const onLoading = vi.fn();
+        const cache: PreviewCache = new Map();
+        const view = render(
+            <Preview
+                href="/preview/"
+                selection={[]}
+                cache={cache}
+                onLoading={onLoading}
+            />,
+        );
+        await screen.findByText("Original model");
+        view.rerender(
+            <Preview
+                href="/preview/"
+                selection={["sword"]}
+                cache={cache}
+                onLoading={onLoading}
+            />,
+        );
+        expect(screen.getByText("Original model")).toBeTruthy();
+        expect(
+            screen
+                .getByRole("region", { name: "Model preview" })
+                .getAttribute("aria-busy"),
+        ).toBe("true");
+        expect(onLoading).toHaveBeenLastCalledWith(true);
+        await act(async () => finish(response("Updated model")));
+        expect(screen.getByText("Updated model")).toBeTruthy();
+        expect(onLoading).toHaveBeenLastCalledWith(false);
+    });
     it("requests the selected combination and reuses it when reopened", async () => {
         const fetcher = vi.fn().mockResolvedValue(response("Selected model"));
         vi.stubGlobal("fetch", fetcher);
@@ -42,7 +117,12 @@ describe("Hire preview reads", () => {
                 cache={cache}
             />,
         );
-        expect(screen.getByRole("status").textContent).toBe("Loading preview…");
+        expect(
+            screen
+                .getByRole("region", { name: "Model preview" })
+                .getAttribute("aria-busy"),
+        ).toBe("true");
+        expect(screen.queryByText("Loading preview…")).toBeNull();
         await screen.findByText("Selected model");
         const [url, options] = fetcher.mock.calls[0];
         expect(

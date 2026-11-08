@@ -1417,7 +1417,9 @@ class TestHireTimeTradePoints:
             == reverse("n26-equip", args=[recruit.pk]) + f"?list={post.pk}"
         )
         response = client.get(equip["href"])
-        assert response.context["chosen"] == post
+        from n26.tests.test_react_helpers import equip_props
+
+        assert equip_props(response)["scope"] == str(post.pk)
         assert "Spend hire-time TP" in response.content.decode()
 
     def test_completion_requires_explicit_correction_and_keeps_previous_spend(

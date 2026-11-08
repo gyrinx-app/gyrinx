@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { fieldErrors } from "../../http/command";
 import {
     Button,
@@ -91,6 +91,9 @@ export function Command({
     onPage,
     onDismiss,
     onFrozen,
+    onInlinePending,
+    onQueueBlocked,
+    queueNotice,
 }: {
     page: EquipProps;
     draft: EquipDraft | null;
@@ -98,19 +101,27 @@ export function Command({
     onPage: (page: EquipProps) => void;
     onDismiss: () => void;
     onFrozen: (frozen: boolean) => void;
+    onInlinePending: (pending: boolean) => void;
+    onQueueBlocked: () => void;
+    queueNotice: string;
 }) {
     const element = useRef<HTMLFormElement>(null);
     const started = useRef(false);
     const resolved = useRef<EquipOutcome | null>(null);
     const currentValues = useRef(draft?.values ?? blankValues(page));
     const id = useId();
+    const [destination, setDestination] = useState<"model" | "stash" | null>(
+        null,
+    );
+    const [showDialog, setShowDialog] = useState(false);
+    const [pendingNotice, setPendingNotice] = useState("");
     const form = useWorkflowForm({
         values: draft?.values ?? blankValues(page),
         errors: {},
         commandHref: page.commandHref,
         csrfToken: page.csrfToken,
         recoveryKey: page.recoveryKey,
-        optionalRecoveryFields: ["display_details"],
+        optionalRecoveryFields: ["display_details", "change", "dismissed"],
         interpret(status, data) {
             if (status === 200 && isEquipOutcome(data)) {
                 if (data.requestKey !== currentValues.current.request_key)
@@ -129,6 +140,7 @@ export function Command({
                         "personal_activity",
                         "display_name",
                         "display_details",
+                        "change",
                     ]);
                     if (
                         Object.entries(currentValues.current).some(
@@ -158,18 +170,44 @@ export function Command({
         },
     });
     const { values, setValues, frozen, pending, uncertain } = form;
+    const notice = form.notice || (pending ? pendingNotice : "");
+    useEffect(() => {
+        if (!pending) setPendingNotice(form.notice);
+    }, [pending, form.notice]);
+    useEffect(() => {
+        if (destination && values.to === destination && !frozen) {
+            element.current?.requestSubmit();
+            setDestination(null);
+        }
+    }, [destination, values.to, frozen]);
     currentValues.current = values;
     useEffect(() => {
         onFrozen(frozen);
     }, [frozen, onFrozen]);
+    useEffect(() => {
+        if (values.action === "tally" && (uncertain || form.hasErrors))
+            onQueueBlocked();
+    }, [values.action, uncertain, form.hasErrors, onQueueBlocked]);
     useEffect(() => {
         if (draft?.auto && !started.current && !uncertain) {
             started.current = true;
             element.current?.requestSubmit();
         }
     }, [draft?.auto, uncertain]);
-    if (!values.action) return null;
     const matchesDraft = draft?.values.request_key === values.request_key;
+    const inlineCommand =
+        matchesDraft &&
+        !!draft?.auto &&
+        !showDialog &&
+        !uncertain &&
+        !form.hasErrors;
+    useEffect(() => {
+        if (uncertain || form.hasErrors || !matchesDraft) setShowDialog(true);
+    }, [uncertain, form.hasErrors, matchesDraft]);
+    useEffect(() => {
+        onInlinePending(pending && inlineCommand);
+    }, [pending, inlineCommand, onInlinePending]);
+    if (!values.action) return null;
     const dialog = matchesDraft ? draft?.dialog : null;
     const question = matchesDraft ? draft?.question : null;
     const recovered = !matchesDraft || (uncertain && !dialog && !question);
@@ -182,6 +220,7 @@ export function Command({
             reassign: "Move",
             rechoose: "Change options",
             accessorise: "Add an accessory",
+            tally: "Change counter",
         }[values.action] || "Change";
     const selection = keys(values.selection);
     const difference =
@@ -195,6 +234,15 @@ export function Command({
     const canSubmit = uncertain || !dialog || !!dialog.submit_label;
     const change = (name: keyof typeof values, value: string) =>
         setValues((previous) => ({ ...previous, [name]: value }));
+    const hasStashDestination =
+        dialog?.kind === "reassign" &&
+        !!page.model &&
+        !!dialog.models.length &&
+        !dialog.weapons?.length;
+    const submitTo = (to: "model" | "stash") => {
+        change("to", to);
+        setDestination(to);
+    };
     let details = keys(values.display_details);
     if (dialog) {
         details = [dialog.lead];
@@ -220,7 +268,28 @@ export function Command({
             details.push(
                 `To: ${dialog.models.find((model) => model.key === values.miniature)?.name || "selected model"}`,
             );
+        if (dialog.kind === "reassign" && values.to === "stash")
+            details.push("To: stash");
     }
+    if (inlineCommand)
+        return (
+            <form
+                ref={element}
+                onSubmit={form.save}
+                data-equip-command
+                data-busy="off"
+                className="hidden"
+            >
+                <input
+                    type="hidden"
+                    name="csrfmiddlewaretoken"
+                    value={page.csrfToken}
+                />
+                {Object.entries(values).map(([name, value]) => (
+                    <input key={name} type="hidden" name={name} value={value} />
+                ))}
+            </form>
+        );
     return (
         <Dialog
             title={
@@ -233,7 +302,14 @@ export function Command({
                         `${values.action === "buy" ? "Buy" : "Change"} ${values.display_name}`
             }
             lead={question?.lead}
-            onSubmit={form.save}
+            onSubmit={(event) => {
+                if (hasStashDestination && !uncertain && !destination) {
+                    event.preventDefault();
+                    submitTo("model");
+                } else {
+                    void form.save(event);
+                }
+            }}
             pending={frozen}
             onDismiss={() => {
                 if (!frozen) onDismiss();
@@ -261,7 +337,7 @@ export function Command({
                     }
                 />
             ))}
-            {form.hasErrors && (
+            {(form.hasErrors || notice) && (
                 <div
                     ref={form.summary}
                     role="alert"
@@ -271,11 +347,12 @@ export function Command({
                     <FieldErrors
                         errors={[
                             ...Object.values(form.errors).flat(),
-                            ...(form.notice ? [form.notice] : []),
+                            ...(notice ? [notice] : []),
                         ]}
                     />
                 </div>
             )}
+            {queueNotice && <p role="alert">{queueNotice}</p>}
             <fieldset disabled={frozen} className="min-w-0 space-y-4">
                 {recovered && (
                     <>
@@ -294,7 +371,10 @@ export function Command({
                                     strong: false,
                                 },
                                 {
-                                    label: "Equipment",
+                                    label:
+                                        values.action === "tally"
+                                            ? "Counter"
+                                            : "Equipment",
                                     value: values.display_name,
                                     sub: "",
                                     ruled: false,
@@ -521,14 +601,19 @@ export function Command({
                     </>
                 )}
                 {!recovered && !question && !dialog && (
-                    <p>
-                        {pending
-                            ? "Saving…"
-                            : "Retry this change to confirm its result."}
-                    </p>
+                    <p>Retry this change to confirm its result.</p>
                 )}
             </fieldset>
             <FormActions>
+                {hasStashDestination && (
+                    <Button
+                        busy={pending && values.to === "stash"}
+                        disabled={frozen}
+                        onClick={() => submitTo("stash")}
+                    >
+                        To the stash
+                    </Button>
+                )}
                 {canSubmit && (
                     <Button
                         type="submit"
@@ -542,21 +627,23 @@ export function Command({
                                 : "success"
                         }
                         disabled={pending}
+                        busy={
+                            pending &&
+                            (!hasStashDestination || values.to !== "stash")
+                        }
                     >
-                        {pending
-                            ? "Saving…"
-                            : uncertain
-                              ? "Retry change"
-                              : recovered
-                                ? "Retry earlier change"
-                                : label}
+                        {uncertain
+                            ? "Retry change"
+                            : recovered
+                              ? "Retry earlier change"
+                              : label}
                     </Button>
                 )}
                 <Button variant="ghost" disabled={frozen} onClick={onDismiss}>
                     Cancel
                 </Button>
             </FormActions>
-            {(uncertain || form.notice) && (
+            {(uncertain || notice) && (
                 <div className="flex flex-wrap gap-3">
                     <Button
                         size="sm"

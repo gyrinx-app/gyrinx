@@ -85,7 +85,31 @@ def tooltip_recipe():
     ]
     if len(panels) != 1:
         raise ValueError("Cotton tooltip panel changed")
-    return {"panel": _without(class_name(panels[0]), "absolute", "pointer-events-none")}
+    small = Elements(
+        Template(
+            CottonCompiler().process(
+                '<c-ui.tooltip size="sm">Help<c-slot name="content">Text</c-slot></c-ui.tooltip>'
+            )
+        ).render(Context())
+    ).elements
+    return {
+        "panel": _without(class_name(panels[0]), "absolute", "pointer-events-none"),
+        "small": _without(
+            class_name(
+                next(attrs for tag, attrs in small if attrs.get("role") == "tooltip")
+            ),
+            "absolute",
+            "pointer-events-none",
+        ),
+        "arrow": class_name(
+            next(
+                attrs
+                for tag, attrs in small
+                if "w-2" in attrs.get("class", "").split()
+                and "h-2" in attrs.get("class", "").split()
+            )
+        ),
+    }
 
 
 def gang_figures_recipe():
@@ -500,7 +524,9 @@ def model_preview_recipe():
             ]
         ),
         profile_name="Profile",
-        skills=[AssignableLine("Skill")],
+        skills=[
+            AssignableLine("Skill", provenance=Provenance(source="Gear", computed=True))
+        ],
         skill_choices=[ChoiceLine("Skills", None)],
         counters=[CounterLine("Tally", 0)],
         equipment=[AssignableLine("Gear", choices=[ChoiceLine("Setting", "Blue")])],
@@ -571,6 +597,7 @@ def model_preview_recipe():
         "xpCell": find("td", "border-l", "tabular-nums"),
         "muted": find("span", "text-muted", without=("text-xs",)),
         "changed": find("span", "text-accent-text"),
+        "information": find("span", "cursor-help", "underline", "decoration-dotted"),
         "details": find("dl"),
         "detailLabel": find("dt"),
         "detailValue": find("dd"),
@@ -596,6 +623,103 @@ def model_preview_recipe():
         "accessories": find("span", "pl-2", without=("flex", "block")),
         "weaponChoices": find("ul", "pl-2"),
         "stats": stats,
+    }
+
+
+def model_card_recipe():
+    from n26.core.listing import Action
+    from n26.core.render import CounterLine
+
+    controls = Elements(
+        Template(
+            CottonCompiler().process(
+                '<c-n26.owned-actions :sell="sell" layout="menu" label="Weapon" />'
+                '<c-n26.counter-controls :counter="counter" />'
+                '{% include "n26/includes/row_edit.html" %}'
+            )
+        ).render(
+            Context(
+                {
+                    "sell": Action("Sell", "link", "/sell/", "danger"),
+                    "counter": CounterLine("XP", 1, tallied=1, href="/counter/"),
+                    "row": {"edit_href": "/skills/"},
+                    "mode": "edit",
+                }
+            )
+        )
+    ).elements
+
+    def control(label):
+        return class_name(
+            next(
+                attrs
+                for tag, attrs in controls
+                if tag in ("a", "button") and attrs.get("aria-label") == label
+            )
+        )
+
+    tabs = [
+        {"label": "Edit", "href": "/edit/", "current": False},
+        {"label": "Equip", "href": "/equip/", "current": True},
+    ]
+    source = '<c-n26.tab-links :tabs="tabs" :narrow_tabs="3" label="Model screens" />'
+    rendered = Template(CottonCompiler().process(source)).render(
+        Context({"tabs": tabs})
+    )
+    elements = Elements(rendered).elements
+    return {
+        "menuTrigger": control("More for Weapon"),
+        "counterStep": control("Add one to XP"),
+        "editLink": control("Edit skills & powers"),
+        "compactLink": classes(
+            '<c-ui.button href="/" size="xs" variant="ghost" :compact="True">Active</c-ui.button>',
+            "a",
+        )[0],
+        "pictureTrigger": classes(
+            '<c-ui.button size="xs" variant="ghost" :compact="True">Picture</c-ui.button>',
+            "button",
+        )[0],
+        "status": {
+            colour: classes(
+                f'<c-ui.badge color="{colour}" size="sm" href="/">Status</c-ui.badge>',
+                "a",
+            )[0]
+            for colour in ("ink", "amber", "red")
+        },
+        "panels": classes('<c-ui.card padding="none" />', "div")[0],
+        "foundingMark": classes("<c-n26.founding-mark />", "span")[0],
+        "tabStrip": _without(
+            class_name(
+                next(
+                    attrs
+                    for tag, attrs in elements
+                    if tag == "div" and "sm:hidden" in attrs.get("class", "").split()
+                )
+            ),
+            "sm:hidden",
+        ),
+        "tabEnd": class_name(
+            next(
+                attrs
+                for tag, attrs in elements
+                if tag == "span" and "order-last" in attrs.get("class", "").split()
+            )
+        ),
+        "tab": {
+            str(current).lower(): _without(
+                class_name(
+                    next(
+                        attrs
+                        for tag, attrs in elements
+                        if tag == "a"
+                        and (attrs.get("aria-current") == "page") == current
+                    )
+                ),
+                "px-3",
+            )
+            + " px-2 sm:px-3"
+            for current in (False, True)
+        },
     }
 
 
@@ -721,6 +845,7 @@ def workflow_page_recipe():
     )
     return {
         "root": class_name(form[0]),
+        "wideRoot": _without(class_name(form[0]), "max-w-3xl"),
         "footer": class_name(form[-2]),
         "header": header,
         "section": section,
@@ -1822,6 +1947,10 @@ def recipes():
         "textarea": classes("<c-ui.textarea />", "textarea")[0],
         "workflowPage": workflow_page_recipe(),
         "modelPreview": model_preview_recipe(),
+        "modelCard": model_card_recipe(),
+        "spinner": classes(
+            '<c-ui.spinner size="xs" color="ink" />', "svg", "circle", "path"
+        ),
         "gangFigures": gang_figures_recipe(),
         "hireCatalogue": hire_catalogue_recipe(),
         "equipment": equipment_recipe(),
@@ -1941,6 +2070,10 @@ def recipes():
                 "arrow-down",
                 "arrow-right",
                 "pencil",
+                "image",
+                "layers",
+                "flag",
+                "circle-fading-arrow-up",
                 "trash-2",
                 "printer",
             )

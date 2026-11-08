@@ -188,6 +188,25 @@ and [visual evidence skill](../../.agents/skills/pr-screenshots/SKILL.md). Run t
 focused Python tests, React tests, typecheck and production build before cutover.
 Keep existing domain checks; a new rendering test does not replace them.
 
+Visual parity needs the same data and rendering mode on both sides. A preview
+card and an editable card expose different controls. Compare control variants,
+sizes, padding, icon alignment, wrapping, menu contents and separators as well as
+page layout. Preserve actions in their existing menus. Test repeated accessories,
+long chosen values and crowded headers, then exercise the actual workflow. The
+paired cards at `/n26/design/react/model-preview/` provide database-free fixtures
+for this comparison. Record specific differences and their resolution in the PR.
+Include zero-valued targets in card checks. A workflow that draws queued messages
+must empty the Django layout's messages block to avoid duplicate alerts.
+
+Pending controls use the existing `data-busy` stylesheet. React owns those
+attributes through `Button`'s `busy` prop or `BusyControlScope`; the native busy
+guard respects their `data-busy="off"` owner. Keep labels, dimensions and pending
+retry feedback stable. Reserve space for inline counter progress and price
+differences, and retain an existing preview while reading its replacement. Delay
+responses in browser checks and compare control and neighbour rectangles before
+and during loading. Include cancellation, retries and both screen widths; a fast
+successful request can hide a loading-induced layout shift.
+
 Select one complete renderer for each request. During a short rollback period,
 both renderers can call the same Python behaviour, but never mount both and hide
 one. Name the removal follow-up if it cannot be included in the cutover PR. Delete
@@ -791,7 +810,7 @@ the private rejected-draft marker is stripped before posting.
 
 ### Equipment decisions and payments
 
-The gang-stash Equip body mounts `islands/equip-stash` once. The root owns
+Gang-stash and fighter Equip mount `islands/equip` once. The root owns
 catalogue filters, purchase drafts, owned-item panels and mutable figures.
 `core/equip_display.py` projects plain data from the existing listing structures.
 `views/equip_react.py` uses that projection for the initial page and later JSON
@@ -848,3 +867,45 @@ same retained amount that a purchase will submit, even if a refreshed quote
 changes. Confirmation chains preserve carried decisions when the next question
 does not offer that input again. A native keyed adapter must reach the shared
 receipt check before requiring the assignment to remain active.
+
+### Stored fighter cards and small commands
+
+Fighter Equip includes its model card, action panels, personal allowance and
+catalogue in that same owner. `core/model_card_display.py` projects the linked
+stored card; it adds authorised links and controls to `model_card_facts` without
+queries or domain calculations. `ui/ModelCard` composes the read-only
+`ModelPreview` renderer. Hire previews still reject stored cards and expose no
+editing controls. Use stable assignment and choice IDs for React keys so a
+refreshed card cannot transfer a menu's state to another possession.
+
+Rename, Edit, Options and action-flow screens remain ordinary navigation to
+independent tasks. Choice dismissal remains a native POST with fresh CSRF.
+`WorkflowLayout` provides the page shell without wrapping these forms in another
+form, and opts out of the shared busy-link script with `data-busy="off"`.
+
+Counter steps belong to Equip because their result changes the displayed card
+while equipment drafts remain open. `core/model_card_commands.py` shares the
+locked command and feedback with native POST. Each deliberate step has a unique
+receipt key; a retry reuses that key. Bind it to the actor, model, assignment and
+signed change. Recall the result before requiring the assignment to remain live.
+Keep receipts for different command formats distinguishable before reading their
+result fields. Preserve the separate campaign-arbitrator path where it applies.
+
+Keep rapid counter clicks sequential, as the native queue did. Confirm each step
+before sending the next; an uncertain or refused result stops the unsent queue
+with an explicit notice and retains the active command for recovery. Test both
+queue draining and failure, alongside draft preservation and ledger replay.
+
+Include less visible navigation flags in the migration inventory. Equip carries
+`dismissed=show` through reads, commands, confirmations and onward links even
+though it does not restore dismissed choices on the Equip card. Test the native
+adapter and the JSON refresh together. Keep new navigation-only scalars optional
+when restoring older retained commands.
+
+Collection tab order and pricing priority are separate. Fighter Equip places
+Supplementary Pets after the Trading Post for navigation, while Unrestricted
+still uses held equipment-list terms before post terms. Test overlapping offers
+through native and JSON purchases. Preserve secondary form actions as explicit
+intents too: moving fighter equipment to the stash remains available when other
+models are offered. Prepare the chosen destination before submitting, so the
+hidden fields and retained command describe the same move.

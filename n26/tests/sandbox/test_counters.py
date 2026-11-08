@@ -661,7 +661,21 @@ class TestMovingOneWithoutReloading:
         client.force_login(gang.owner)
 
         for route in ("n26-equip", "n26-fighter-options"):
-            drawn = client.get(reverse(route, args=[yolanda.pk])).content.decode()
+            response = client.get(reverse(route, args=[yolanda.pk]))
+            if route == "n26-equip":
+                from n26.tests.test_react_helpers import equip_props
+
+                parts = [
+                    part
+                    for row in equip_props(response)["model"]["card"]["details"]
+                    for part in row["parts"]
+                    if part["kind"] == "counter"
+                ]
+                xp = next(part for part in parts if part["control"]["name"] == "XP")
+                assert xp["control"]["assignment"] and xp["control"]["href"]
+                assert xp["value"] == 61 and xp["control"]["tallied"] == 61
+                continue
+            drawn = response.content.decode()
             soup = BeautifulSoup(drawn, "html.parser")
             assert soup.find("button", attrs={"aria-label": "Add one to XP"})
             assert soup.find("a", attrs={"aria-label": "Edit XP"}) is None

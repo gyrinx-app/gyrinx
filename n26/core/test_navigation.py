@@ -445,10 +445,14 @@ class TestTheHeading:
         here = hire(gang, "Vex")
         other = hire(gang, "Karn")
         client.force_login(tester)
-        body = client.get(reverse("n26-equip", args=[here.pk])).content.decode()
-        assert 'aria-label="Equip another fighter"' in body
-        assert 'aria-label="Switch to another gang"' in body
-        assert reverse("n26-equip", args=[other.pk]) in body
+        response = client.get(reverse("n26-equip", args=[here.pk]))
+        switcher = response.context["equip_props"]["model"]["switcher"]
+        assert switcher["menuLabel"] == "Equip another fighter"
+        assert switcher["current"] == reverse("n26-equip", args=[here.pk])
+        assert reverse("n26-equip", args=[other.pk]) in [
+            item["href"] for item in switcher["items"]
+        ]
+        assert 'aria-label="Switch to another gang"' in response.content.decode()
 
     def test_the_equip_screen_costs_the_same_whatever_the_roster(
         self, client, tester, make_gang, hire

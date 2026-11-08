@@ -90,7 +90,7 @@ def choice_field(thing, group):
 
 def props(response):
     page = BeautifulSoup(response.content, "html.parser")
-    host = page.select_one('[data-react-name="equip-stash"]')
+    host = page.select_one('[data-react-name="equip"]')
     assert host is not None
     return json.loads(page.find(id=host["data-react-props"]).string)
 
@@ -276,7 +276,9 @@ class TestBuyingIntoTheStash:
             follow=True,
         )
 
-        assert "Bought Knife for the stash — 10¢." in response.content.decode()
+        assert props(response)["messages"] == [
+            {"text": "Bought Knife for the stash — 10¢.", "tone": "success"}
+        ]
 
     def test_a_buy_stays_on_the_list_it_was_clicked_on(
         self, client, tester, gang, house_list
@@ -477,9 +479,7 @@ class TestTheRail:
         assert page["displayHref"] == reverse("n26-equip-stash-display", args=[gang.pk])
         assert page["commandHref"] == reverse("n26-equip-stash-command", args=[gang.pk])
         assert "hx-post=" not in str(
-            BeautifulSoup(html, "html.parser").select_one(
-                '[data-react-name="equip-stash"]'
-            )
+            BeautifulSoup(html, "html.parser").select_one('[data-react-name="equip"]')
         )
 
 
@@ -644,6 +644,29 @@ class TestTheQueryBudget:
 class TestStashManagement:
     """Held gear is manageable on the gang equip page, including orphans."""
 
+    def test_queued_messages_belong_only_to_the_react_owner(
+        self, client, tester, gang, monkeypatch
+    ):
+        from django.contrib import messages
+
+        from n26.core.views import equip_react
+
+        read = equip_react.stash_read
+
+        def with_message(request, gang):
+            messages.success(request, "Equipment updated.")
+            return read(request, gang)
+
+        monkeypatch.setattr(equip_react, "stash_read", with_message)
+        client.force_login(tester)
+        response = client.get(equip_url(gang))
+
+        assert props(response)["messages"] == [
+            {"text": "Equipment updated.", "tone": "success"}
+        ]
+        page = BeautifulSoup(response.content, "html.parser")
+        assert page.select('[data-message="success"]') == []
+
     def test_the_page_is_called_equip(self, client, tester, gang, house_list):
         client.force_login(tester)
         body = client.get(equip_url(gang, house_list)).content.decode()
@@ -661,7 +684,7 @@ class TestStashManagement:
         client.force_login(tester)
         body = client.get(equip_url(gang, house_list)).content.decode()
         host = BeautifulSoup(body, "html.parser").select_one(
-            '[data-react-name="equip-stash"]'
+            '[data-react-name="equip"]'
         )
         assert host is not None
         assert "x-data" not in str(host)
@@ -713,7 +736,7 @@ class TestStashManagement:
         assert row["purchase"] is None
         assert row["copies"][0]["id"] == str(bought.pk)
         host = BeautifulSoup(body, "html.parser").select_one(
-            '[data-react-name="equip-stash"]'
+            '[data-react-name="equip"]'
         )
         assert host is not None and "x-data" not in str(host)
 

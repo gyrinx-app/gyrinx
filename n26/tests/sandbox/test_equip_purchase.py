@@ -671,3 +671,73 @@ def test_a_keyed_native_removal_replays_after_the_assignment_is_archived(
     ) == before
     assert EquipReceipt.objects.filter(gang=gang).count() == 1
     assert_reconciled(gang)
+
+
+def test_a_fighter_purchase_refreshes_the_complete_card_and_replays_once(
+    client, gang, owner, kit, make_profile
+):
+    from django.urls import reverse
+
+    from n26.tests.sandbox.actions import hire
+
+    fighter = hire(gang, make_profile("Ganger", price=0), "Vex")
+    sword, collection = kit
+    client.force_login(owner)
+    data = submission(sword)
+    data.update(
+        {
+            "action": "buy",
+            "list": str(collection.pk),
+            "selection": "[]",
+            "parts": "[]",
+            "paid": "35",
+            "personal_activity": "",
+        }
+    )
+    at = reverse("n26-equip-fighter-command", args=[fighter.pk])
+    first = client.post(at, data)
+    assert first.status_code == 200
+    page = first.json()["page"]
+    assert page["model"]["card"]["rating"] == 35
+    gear = next(
+        row for row in page["model"]["card"]["details"] if row["label"] == "Gear"
+    )
+    assert gear["parts"][0]["lines"][0]["text"] == "Sword"
+    assert (
+        next(item for item in page["figures"]["items"] if item["short"] == "Cr")[
+            "value"
+        ]
+        == "65¢"
+    )
+    current = client.get(
+        reverse("n26-equip-fighter-display", args=[fighter.pk]),
+        {"list": str(collection.pk)},
+    ).json()["page"]
+    assert current["model"] == page["model"]
+    assert current["figures"] == page["figures"]
+    assert current["sections"] == page["sections"]
+    replay = client.post(at, data)
+    assert replay.status_code == 200
+    assert Assignment.objects.filter(miniature=fighter, wargear=sword).count() == 1
+    assert EquipReceipt.objects.filter(gang=gang).count() == 1
+    gang.refresh_from_db()
+    assert gang.credits == 65 and gang.rating == 35
+    assert_reconciled(gang)
+
+
+@pytest.mark.parametrize(
+    "endpoint", ["n26-equip-fighter-display", "n26-equip-fighter-command"]
+)
+def test_fighter_equipment_endpoints_require_the_model_owner(
+    client, gang, owner, make_profile, endpoint
+):
+    from django.urls import reverse
+
+    from n26.tests.sandbox.actions import hire
+
+    fighter = hire(gang, make_profile("Ganger", price=0), "Vex")
+    at = reverse(endpoint, args=[fighter.pk])
+    call = client.get if endpoint.endswith("display") else client.post
+    assert call(at).status_code == 401
+    client.force_login(User.objects.create_user("other-equip-owner"))
+    assert call(at).status_code == 404

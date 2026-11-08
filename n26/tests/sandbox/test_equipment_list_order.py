@@ -249,15 +249,19 @@ class TestTheScreensAgree:
         client.force_login(owner)
 
         response = client.get(reverse("n26-equip", args=[fighter.pk]))
-        assert response.context["chosen"] == lists["house"]
-        assert [str(c) for c in response.context["collections"]] == [
-            "Escher Equipment List",
-            "Chaos Corrupted Equipment List",
+        from n26.tests.test_react_helpers import equip_props
+
+        props = equip_props(response)
+        assert props["scope"] == str(lists["house"].pk)
+        assert [tab["key"] for tab in props["scopeTabs"]] == [
+            str(lists["house"].pk),
+            str(lists["variant"].pk),
+            "all",
         ]
 
         set_position(lists["house"], VARIANT_POSITION + 1)
         response = client.get(reverse("n26-equip", args=[fighter.pk]))
-        assert response.context["chosen"] == lists["variant"]
+        assert equip_props(response)["scope"] == str(lists["variant"].pk)
 
     def test_the_gang_equip_screen_opens_on_the_gangs_own_list(
         self, client, owner, gang, variant, lists

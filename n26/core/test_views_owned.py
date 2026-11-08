@@ -1286,14 +1286,12 @@ class TestDetachingAnAccessory:
             reverse("n26-equip", args=[fighter.pk]), {"detach": str(bolted.pk)}
         )
 
-        body = response.content.decode()
-        assert "Take Telescopic sight off Lasgun?" in body
-        assert "The model keeps it." in body
-        assert 'name="to" value="held"' in body or (
-            'name="to"' in body and 'value="held"' in body
-        )
-        assert 'id="reassign-to"' not in body
-        assert 'id="reassign-weapon"' not in body
+        from n26.tests.test_react_helpers import equip_props
+
+        dialog = equip_props(response)["dialog"]
+        assert dialog["title"] == "Take Telescopic sight off Lasgun?"
+        assert dialog["kind"] == "detach"
+        assert not dialog["stash_host"]
 
     def test_a_click_leaves_it_held_and_unfitted(
         self, client, tester, gang, fighter, gun, bolted

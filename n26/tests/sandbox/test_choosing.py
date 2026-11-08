@@ -1802,8 +1802,10 @@ class TestShowingDismissedOffers:
             gun = op.buy(miniature, thing=weapon, paid=5)
         here = reverse("n26-equip", args=[miniature.pk])
         shown = f"{here}?list={collection.pk}&dismissed=show"
-        page = BeautifulSoup(client.get(shown).content, "html.parser")
-        action = page.find("form", id="equip-catalogue")["action"]
+        from n26.tests.test_react_helpers import equip_props
+
+        props = equip_props(client.get(shown))
+        action = props["action"]
         assert parse_qs(urlsplit(action).query)["dismissed"] == ["show"]
 
         headers = {"HX-Request": "true"} if htmx else {}
@@ -1817,17 +1819,11 @@ class TestShowingDismissedOffers:
         assert restore_url(gang, line) not in response.content.decode()
 
         bought = Assignment.objects.get(miniature=miniature, wargear=knife)
-        page = BeautifulSoup(
-            client.get(f"{shown}&sell={bought.pk}").content, "html.parser"
-        )
-        form = page.find("form", action=reverse("n26-sell", args=[bought.pk]))
-        assert form is not None
-        data = {
-            field["name"]: field.get("value", "")
-            for field in form.find_all("input", type="hidden")
-        }
-        assert data["dismissed"] == "show"
-        response = client.post(form["action"], data, headers=headers)
+        dialog = equip_props(client.get(f"{shown}&sell={bought.pk}"))["dialog"]
+        assert dialog["action"] == reverse("n26-sell", args=[bought.pk])
+        assert dialog["dismissed"] == "show"
+        data = {"list": str(collection.pk), "dismissed": dialog["dismissed"]}
+        response = client.post(dialog["action"], data, headers=headers)
         if not htmx:
             assert response.url == shown
             response = client.get(response.url)
@@ -1835,13 +1831,23 @@ class TestShowingDismissedOffers:
             assert response["HX-Replace-Url"] == shown
         assert response.status_code == 200
         assert restore_url(gang, line) not in response.content.decode()
-        page = BeautifulSoup(response.content, "html.parser")
-        accessory_form = page.find(
-            "form", action=reverse("n26-accessorise", args=[gun.pk])
-        )
-        assert (
-            accessory_form.find("input", attrs={"name": "dismissed"})["value"] == "show"
-        )
+        if htmx:
+            page = BeautifulSoup(response.content, "html.parser")
+            accessory_form = page.find(
+                "form", action=reverse("n26-accessorise", args=[gun.pk])
+            )
+            assert (
+                accessory_form.find("input", attrs={"name": "dismissed"})["value"]
+                == "show"
+            )
+        else:
+            weapons = equip_props(response)["model"]["card"]["weapons"]
+            target = next(
+                weapon["accessorise"]["target"]
+                for weapon in weapons
+                if weapon["name"] == "Autogun"
+            )
+            assert parse_qs(urlsplit(target).query)["dismissed"] == ["show"]
         assert dismissed_keys(gang) == {line.key}
         assert_reconciled(gang)
 

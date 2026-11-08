@@ -76,7 +76,12 @@ from n26.core.views.credits import gang_credits, gang_credits_command
 from n26.core.views.crews import crew_sheet, edit_crew
 from n26.core.views.edit import base_rating, edit_fighter
 from n26.core.views.equip import equip, equip_gang
-from n26.core.views.equip_react import stash_command, stash_display
+from n26.core.views.equip_react import (
+    fighter_command,
+    fighter_display,
+    stash_command,
+    stash_display,
+)
 from n26.core.views.gangs import (
     clean_house,
     create_gang,
@@ -227,6 +232,8 @@ __all__ = [
     "equip",
     "equip_gang",
     "stash_display",
+    "fighter_command",
+    "fighter_display",
     "stash_command",
     "fighter_options",
     "gang_credits",

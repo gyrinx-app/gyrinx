@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
 import { fieldErrors } from "../../http/command";
 import {
     Button,
@@ -100,6 +100,11 @@ export function Confirmation(
         },
     });
     const { values, setValues, errors, pending, uncertain, frozen } = form;
+    const [pendingNotice, setPendingNotice] = useState("");
+    const notice = form.notice || (pending ? pendingNotice : "");
+    useEffect(() => {
+        if (!pending) setPendingNotice(form.notice);
+    }, [pending, form.notice]);
     const quote = Number.isFinite(Number(values.quoted))
         ? Number(values.quoted)
         : 0;
@@ -114,7 +119,7 @@ export function Confirmation(
     const topErrors = Object.entries(errors)
         .filter(([field]) => field !== "name" && field !== "paid")
         .flatMap(([, messages]) => messages);
-    if (!props.confirmation && !uncertain && !(form.notice && values.profile))
+    if (!props.confirmation && !uncertain && !(notice && values.profile))
         return null;
     const navigate =
         props.onNavigate ?? ((url: string) => window.location.assign(url));
@@ -148,7 +153,7 @@ export function Confirmation(
                         value={value}
                     />
                 ))}
-            {form.hasErrors && (
+            {(form.hasErrors || notice) && (
                 <div
                     ref={form.summary}
                     role="alert"
@@ -156,12 +161,9 @@ export function Confirmation(
                     aria-label="Hire errors"
                 >
                     <FieldErrors
-                        errors={[
-                            ...topErrors,
-                            ...(form.notice ? [form.notice] : []),
-                        ]}
+                        errors={[...topErrors, ...(notice ? [notice] : [])]}
                     />
-                    {!topErrors.length && !form.notice && (
+                    {!topErrors.length && !notice && (
                         <p>Check the highlighted fields.</p>
                     )}
                 </div>
@@ -199,7 +201,11 @@ export function Confirmation(
                         max={100000}
                         step={1}
                         inputMode="numeric"
-                        rightAddon={difference ? `(${difference})` : "¢"}
+                        rightAddon={
+                            <span className="inline-block w-20 whitespace-nowrap text-right tabular-nums">
+                                {difference ? `(${difference})` : "¢"}
+                            </span>
+                        }
                         onChange={(event) =>
                             setValues({ ...values, paid: event.target.value })
                         }
@@ -220,8 +226,13 @@ export function Confirmation(
                 </FieldDescription>
             </fieldset>
             <FormActions>
-                <Button type="submit" variant="success" disabled={pending}>
-                    {pending ? "Saving…" : uncertain ? "Retry hire" : "Hire"}
+                <Button
+                    type="submit"
+                    variant="success"
+                    disabled={pending}
+                    busy={pending}
+                >
+                    {uncertain ? "Retry hire" : "Hire"}
                 </Button>
                 <Button
                     type="button"
@@ -232,7 +243,7 @@ export function Confirmation(
                     Cancel
                 </Button>
             </FormActions>
-            {(uncertain || !!form.notice) && (
+            {(uncertain || !!notice) && (
                 <div className="flex flex-wrap gap-3">
                     <Button
                         type="button"

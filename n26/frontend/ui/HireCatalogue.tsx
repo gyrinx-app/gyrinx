@@ -41,7 +41,11 @@ export type CatalogueData = {
     sections: HireSection[];
 };
 
-export type PreviewRenderer = (href: string, selection: string[]) => ReactNode;
+export type PreviewRenderer = (
+    href: string,
+    selection: string[],
+    onLoading: (loading: boolean) => void,
+) => ReactNode;
 
 const recipe = cotton.hireCatalogue;
 const instructions = {
@@ -72,6 +76,13 @@ const Row = memo(function Row({
     onExpand: (key: string) => void;
 }) {
     const id = useId();
+    const [previewLoading, setPreviewLoading] = useState(false);
+    const [previewReady, setPreviewReady] = useState(false);
+    const previewState = useCallback((loading: boolean) => {
+        setPreviewLoading(loading);
+        if (!loading) setPreviewReady(true);
+    }, []);
+    const cardShown = expanded && (!previewLoading || previewReady);
     const selection = new Set(selected);
     const price = entry.groups
         .flatMap((group) => group.options)
@@ -106,12 +117,18 @@ const Row = memo(function Row({
                     <button
                         type="button"
                         className={recipe.disclosure}
-                        aria-expanded={expanded}
+                        data-busy={previewLoading ? "on" : undefined}
+                        aria-busy={previewLoading || undefined}
+                        aria-expanded={cardShown}
                         aria-controls={expanded ? id : undefined}
-                        aria-label={`${expanded ? "Hide" : "Show"} card for ${entry.name}`}
-                        onClick={() => onExpand(entry.key)}
+                        aria-label={`${cardShown ? "Hide" : "Show"} card for ${entry.name}`}
+                        onClick={() => {
+                            setPreviewLoading(false);
+                            if (!expanded) setPreviewReady(false);
+                            onExpand(entry.key);
+                        }}
                     >
-                        <span>{expanded ? "Hide card" : "Show card"}</span>
+                        <span>{cardShown ? "Hide card" : "Show card"}</span>
                         <Icon
                             name="chevron-right"
                             className={`size-3 transition-transform duration-200 ${expanded ? "rotate-90" : ""}`}
@@ -204,8 +221,12 @@ const Row = memo(function Row({
                 )}
             </div>
             {expanded && (
-                <div id={id} className={recipe.details}>
-                    {renderPreview(entry.previewHref, selected)}
+                <div
+                    id={id}
+                    hidden={previewLoading && !previewReady}
+                    className={recipe.details}
+                >
+                    {renderPreview(entry.previewHref, selected, previewState)}
                 </div>
             )}
         </div>

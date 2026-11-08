@@ -1,6 +1,8 @@
-import { Fragment } from "react";
+import { Fragment, createContext, useContext, type ReactNode } from "react";
+import { Button, ButtonLink, Icon, Spinner } from "./index";
+import { ActionMenu } from "./ActionMenu";
 import cotton from "../generated/cotton.json";
-import { HelpPopover } from "./HelpPopover";
+import { Tooltip } from "./Tooltip";
 
 type Stat = {
     shortName: string;
@@ -10,19 +12,82 @@ type Stat = {
     firstOfGroup: boolean;
     explanation: string;
 };
-type ItemChoice = { label: string; values: string[] };
-type Line = { text: string; explanation: string; choices: ItemChoice[] };
-type Part =
+export type CardChoiceControl = {
+    key: string;
+    label: string;
+    href: string;
+    dismissHref: string;
+    restoreHref: string;
+    back: string;
+    resolved: boolean;
+    full: boolean;
+    several: boolean;
+    followsStatus: boolean;
+};
+type CardAction = {
+    label: string;
+    target: string;
+    tone: string;
+    separatorBefore?: boolean;
+};
+type ItemChoice = {
+    label: string;
+    values: string[];
+    controls?: CardChoiceControl[];
+};
+export type CardControls = {
+    csrfToken: string;
+    frozen: boolean;
+    countersFrozen?: boolean;
+    pendingTally?: string;
+    onTally: (assignment: string, change: number, name: string) => void;
+};
+export const CardControlsContext = createContext<CardControls | null>(null);
+type Line = {
+    key?: string;
+    text: string;
+    explanation: string;
+    choices: ItemChoice[];
+    actions?: CardAction[];
+    tiers?: CardChoiceControl[];
+};
+type Part = { key?: string } & (
     | { kind: "names" | "gear"; lines: Line[] }
-    | { kind: "counter"; value: number }
-    | { kind: "choice"; chosen: string | null; prompt: string };
+    | {
+          kind: "counter";
+          value: number;
+          control?: {
+              name: string;
+              href: string;
+              back: string;
+              tallied: number;
+              assignment: string;
+          };
+      }
+    | {
+          kind: "choice";
+          chosen: string | null;
+          prompt: string;
+          control?: CardChoiceControl;
+      }
+);
 type Weapon = {
+    key?: string;
     name: string;
     stats: Stat[];
     traits: Line[];
-    profiles: { name: string; stats: Stat[]; traits: Line[] }[];
+    profiles: {
+        key?: string;
+        name: string;
+        stats: Stat[];
+        traits: Line[];
+        actions?: CardAction[];
+    }[];
     accessories: Line[];
     choices: ItemChoice[];
+    actions?: CardAction[];
+    tiers?: CardChoiceControl[];
+    accessorise?: CardAction | null;
 };
 
 export type ModelPreviewProps = {
@@ -35,7 +100,12 @@ export type ModelPreviewProps = {
     xpTarget: number | string;
     statGroups: Stat[][];
     typeSpan: number;
-    details: { label: string; parts: Part[] }[];
+    details: {
+        key?: string;
+        label: string;
+        parts: Part[];
+        editHref?: string;
+    }[];
     weaponColumns: Stat[];
     weapons: Weapon[];
 };
@@ -141,18 +211,23 @@ function Information({
     text,
     explanation,
     suffix = "",
+    plain = false,
 }: {
     text: string;
     explanation: string;
     suffix?: string;
+    plain?: boolean;
 }) {
     return explanation ? (
-        <HelpPopover
-            label={`${text.trim()}: ${explanation}`}
-            triggerContent={`${text}${suffix}`}
-        >
-            <p>{explanation}</p>
-        </HelpPopover>
+        <Tooltip label={explanation} size="sm" closeOnActivate={false}>
+            <button
+                type="button"
+                className={`${plain ? "" : recipe.information} focus-ring`}
+            >
+                {text}
+                {suffix}
+            </button>
+        </Tooltip>
     ) : (
         <span>
             {text}
@@ -161,43 +236,263 @@ function Information({
     );
 }
 
-function Names({ lines }: { lines: Line[] }) {
-    if (!lines.length) return <>—</>;
-    return lines.map((line, index) => (
-        <Information
-            key={index}
-            text={line.text}
-            suffix={
-                index < lines.length - 1
-                    ? line.explanation
-                        ? ",\u00a0"
-                        : ", "
-                    : ""
-            }
-            explanation={line.explanation}
-        />
-    ));
+export function ChoiceDismiss({ choice }: { choice: CardChoiceControl }) {
+    const controls = useContext(CardControlsContext);
+    const href = choice.restoreHref || choice.dismissHref;
+    if (!controls || !href) return null;
+    return (
+        <form
+            action={href}
+            method="post"
+            className="inline-flex shrink-0 items-center"
+            data-busy="off"
+        >
+            <input
+                type="hidden"
+                name="csrfmiddlewaretoken"
+                value={controls.csrfToken}
+            />
+            <input type="hidden" name="back" value={choice.back} />
+            <Button
+                size="xs"
+                variant="ghost"
+                type="submit"
+                disabled={controls.frozen}
+                aria-label={`${choice.restoreHref ? "Restore" : "Dismiss"} ${choice.label}`}
+            >
+                {choice.restoreHref ? (
+                    "Restore"
+                ) : (
+                    <span className="n26-icon-only">
+                        <Icon name="x" className="size-3" />
+                    </span>
+                )}
+            </Button>
+        </form>
+    );
 }
-
-function ItemChoices({ choices }: { choices: ItemChoice[] }) {
-    return choices.map((choice, index) => (
-        <span key={index} className={recipe.itemChoice}>
-            {choice.label}: {choice.values.join(", ")}
+function TierControls({ choices }: { choices?: CardChoiceControl[] }) {
+    return choices?.map((choice, i) => (
+        <span className="inline-flex items-center" key={i}>
+            {choice.href && (
+                <ButtonLink href={choice.href} variant="ghost" size="xs">
+                    {choice.resolved ? "Change tier" : "Choose tier"}
+                </ButtonLink>
+            )}
+            <ChoiceDismiss choice={choice} />
         </span>
     ));
 }
-
+function CardActions({
+    name,
+    actions,
+    accessory,
+}: {
+    name: string;
+    actions?: CardAction[];
+    accessory?: CardAction | null;
+}) {
+    if (!actions?.length && !accessory) return null;
+    const entries = [...(accessory ? [accessory] : []), ...(actions || [])];
+    return (
+        <span className="flex shrink-0 items-center">
+            <ActionMenu
+                label={`More for ${name}`}
+                trigger="inline-chevron"
+                align="end"
+                minWidth="10rem"
+                items={entries.map((action, index) => ({
+                    label: action.label,
+                    href: action.target,
+                    tone: action.tone === "danger" ? "danger" : "default",
+                    separatorBefore:
+                        !!action.separatorBefore ||
+                        (!!accessory && index === 1),
+                }))}
+            />
+        </span>
+    );
+}
+function Names({ lines }: { lines: Line[] }) {
+    if (!lines.length) return <>—</>;
+    const interactive = lines.some(
+        (line) => line.actions?.length || line.tiers?.length,
+    );
+    return (
+        <>
+            {lines.map((line, index) => (
+                <Fragment key={line.key || index}>
+                    <span
+                        className={
+                            interactive
+                                ? "inline-flex max-w-full flex-wrap items-center gap-1"
+                                : undefined
+                        }
+                    >
+                        <Information
+                            text={line.text}
+                            explanation={line.explanation}
+                            suffix={
+                                index < lines.length - 1
+                                    ? line.explanation
+                                        ? ",\u00a0"
+                                        : ", "
+                                    : ""
+                            }
+                        />
+                        <TierControls choices={line.tiers} />
+                        <CardActions name={line.text} actions={line.actions} />
+                    </span>
+                </Fragment>
+            ))}
+        </>
+    );
+}
+function ItemChoices({
+    choices,
+    weapon = false,
+}: {
+    choices: ItemChoice[];
+    weapon?: boolean;
+}) {
+    const Tag = weapon ? "li" : "span";
+    return choices.map((choice, index) => (
+        <Tag
+            key={index}
+            className={
+                weapon ? "flex flex-wrap items-center gap-2" : recipe.itemChoice
+            }
+        >
+            <span className="min-w-0">{choice.label}:</span>{" "}
+            {choice.values.map((value, i) => (
+                <Fragment key={i}>
+                    {i > 0 && ", "}
+                    <span className="inline-flex items-center gap-0">
+                        {value}
+                        {choice.controls?.[i]?.href && (
+                            <ButtonLink
+                                href={choice.controls[i].href}
+                                variant="ghost"
+                                size="xs"
+                            >
+                                {choice.controls[i].resolved
+                                    ? "Change"
+                                    : "Choose"}
+                            </ButtonLink>
+                        )}
+                        {choice.controls?.[i] && (
+                            <ChoiceDismiss choice={choice.controls[i]} />
+                        )}
+                    </span>
+                </Fragment>
+            ))}
+        </Tag>
+    ));
+}
 function DetailPart({ part }: { part: Part }) {
+    const controls = useContext(CardControlsContext);
     if (part.kind === "counter")
-        return <span className={recipe.counter}>{part.value}</span>;
+        return (
+            <>
+                <span className={recipe.counter}>{part.value}</span>
+                {controls && part.control?.href && (
+                    <span className="ms-1 inline-flex items-center gap-1 align-middle">
+                        <Button
+                            size="xs"
+                            variant="default"
+                            className={cotton.modelCard.counterStep}
+                            disabled={
+                                (controls.countersFrozen ?? controls.frozen) ||
+                                !part.control.tallied
+                            }
+                            aria-label={`Take one off ${part.control.name}`}
+                            onClick={() =>
+                                controls.onTally(
+                                    part.control!.assignment,
+                                    -1,
+                                    part.control!.name,
+                                )
+                            }
+                        >
+                            −
+                        </Button>
+                        <Button
+                            size="xs"
+                            variant="default"
+                            className={cotton.modelCard.counterStep}
+                            disabled={
+                                controls.countersFrozen ?? controls.frozen
+                            }
+                            aria-label={`Add one to ${part.control.name}`}
+                            onClick={() =>
+                                controls.onTally(
+                                    part.control!.assignment,
+                                    1,
+                                    part.control!.name,
+                                )
+                            }
+                        >
+                            +
+                        </Button>
+                        <span className="ms-1 inline-flex size-3 shrink-0">
+                            {controls.pendingTally ===
+                                part.control.assignment && (
+                                <Spinner
+                                    label={`Saving ${part.control.name}`}
+                                />
+                            )}
+                        </span>
+                    </span>
+                )}
+            </>
+        );
     if (part.kind === "choice")
         return (
-            <span>
-                {part.chosen !== null && <span>{part.chosen}</span>}
+            <span
+                className={
+                    part.chosen === null && part.prompt.startsWith("Choose ")
+                        ? "inline-flex items-center gap-0"
+                        : undefined
+                }
+            >
+                {part.chosen !== null &&
+                    (part.control?.href ? (
+                        <ButtonLink
+                            href={part.control.href}
+                            variant="ghost"
+                            size="xs"
+                            className="max-w-full whitespace-normal! text-left px-0!"
+                        >
+                            {part.chosen}
+                        </ButtonLink>
+                    ) : (
+                        <span>{part.chosen}</span>
+                    ))}
                 {part.chosen !== null && part.prompt && " "}
-                {part.prompt && (
-                    <span className={recipe.prompt}>{part.prompt}</span>
-                )}
+                {part.prompt &&
+                    (part.control?.href ? (
+                        <ButtonLink
+                            href={part.control.href}
+                            variant="ghost"
+                            size="xs"
+                        >
+                            {part.control.followsStatus &&
+                            part.prompt === "Resolve" ? (
+                                <span className="inline-flex items-center gap-1">
+                                    Resolve{" "}
+                                    <Icon
+                                        name="arrow-right"
+                                        className="size-3.5 shrink-0"
+                                    />
+                                </span>
+                            ) : (
+                                part.prompt
+                            )}
+                        </ButtonLink>
+                    ) : (
+                        <span className={recipe.prompt}>{part.prompt}</span>
+                    ))}
+                {part.control && <ChoiceDismiss choice={part.control} />}
             </span>
         );
     if (part.kind === "names")
@@ -206,20 +501,51 @@ function DetailPart({ part }: { part: Part }) {
                 <Names lines={part.lines} />
             </span>
         );
+    if (
+        controls &&
+        part.kind === "gear" &&
+        part.lines.some((line) => line.actions?.length || line.tiers?.length)
+    )
+        return (
+            <ul className="flex flex-col gap-1">
+                {part.lines.map((line, index) => (
+                    <li key={line.key || index}>
+                        <div className="flex flex-wrap items-center gap-1">
+                            <Information
+                                text={line.text}
+                                explanation={line.explanation}
+                            />
+                            <TierControls choices={line.tiers} />
+                            <CardActions
+                                name={line.text}
+                                actions={line.actions}
+                            />
+                        </div>
+                        <ItemChoices choices={line.choices} />
+                    </li>
+                ))}
+            </ul>
+        );
     return (
         <>
             <Names lines={part.lines} />
             {part.kind === "gear" &&
                 part.lines.map((line, index) =>
-                    line.choices.map((choice, choiceIndex) => (
-                        <span
-                            key={`${index}:${choiceIndex}`}
-                            className={recipe.itemChoice}
-                        >
-                            {line.text} — {choice.label}:{" "}
-                            {choice.values.join(", ")}
+                    controls ? (
+                        <span key={index}>
+                            <ItemChoices choices={line.choices} />
                         </span>
-                    )),
+                    ) : (
+                        line.choices.map((choice, i) => (
+                            <span
+                                key={`${index}:${i}`}
+                                className={recipe.itemChoice}
+                            >
+                                {line.text} — {choice.label}:{" "}
+                                {choice.values.join(", ")}
+                            </span>
+                        ))
+                    ),
                 )}
         </>
     );
@@ -277,7 +603,7 @@ function Weapons({ weapons, columns }: { weapons: Weapon[]; columns: Stat[] }) {
                 </thead>
                 <tbody className={recipe.weaponBody}>
                     {weapons.map((weapon, index) => (
-                        <Fragment key={index}>
+                        <Fragment key={weapon.key || index}>
                             <tr
                                 className={
                                     index ? recipe.weaponDivider : undefined
@@ -297,6 +623,12 @@ function Weapons({ weapons, columns }: { weapons: Weapon[]; columns: Stat[] }) {
                                         <span className={recipe.names}>
                                             {weapon.name}
                                         </span>
+                                        <TierControls choices={weapon.tiers} />
+                                        <CardActions
+                                            name={weapon.name}
+                                            actions={weapon.actions}
+                                            accessory={weapon.accessorise}
+                                        />
                                     </span>
                                 </td>
                                 <StatValues stats={weapon.stats} />
@@ -315,7 +647,7 @@ function Weapons({ weapons, columns }: { weapons: Weapon[]; columns: Stat[] }) {
                                 </tr>
                             )}
                             {weapon.profiles.map((profile, profileIndex) => (
-                                <Fragment key={profileIndex}>
+                                <Fragment key={profile.key || profileIndex}>
                                     <tr>
                                         <td className={recipe.weaponName}>
                                             <span
@@ -333,6 +665,10 @@ function Weapons({ weapons, columns }: { weapons: Weapon[]; columns: Stat[] }) {
                                                     </span>
                                                     <span>{profile.name}</span>
                                                 </span>
+                                                <CardActions
+                                                    name={profile.name}
+                                                    actions={profile.actions}
+                                                />
                                             </span>
                                         </td>
                                         <StatValues stats={profile.stats} />
@@ -358,10 +694,53 @@ function Weapons({ weapons, columns }: { weapons: Weapon[]; columns: Stat[] }) {
                                         colSpan={tableSpan}
                                         className={recipe.weaponExtra}
                                     >
-                                        <span className={recipe.accessories}>
-                                            <span aria-hidden="true">+</span>{" "}
-                                            <Names lines={weapon.accessories} />
-                                        </span>
+                                        {weapon.accessories.some(
+                                            (line) => line.actions?.length,
+                                        ) ? (
+                                            <ul
+                                                className={recipe.weaponChoices}
+                                            >
+                                                {weapon.accessories.map(
+                                                    (line, i) => (
+                                                        <li
+                                                            key={line.key || i}
+                                                            className="flex items-center gap-2"
+                                                        >
+                                                            <span className="min-w-0">
+                                                                <span aria-hidden="true">
+                                                                    +
+                                                                </span>{" "}
+                                                                <Information
+                                                                    text={
+                                                                        line.text
+                                                                    }
+                                                                    explanation={
+                                                                        line.explanation
+                                                                    }
+                                                                />
+                                                            </span>
+                                                            <CardActions
+                                                                name={line.text}
+                                                                actions={
+                                                                    line.actions
+                                                                }
+                                                            />
+                                                        </li>
+                                                    ),
+                                                )}
+                                            </ul>
+                                        ) : (
+                                            <span
+                                                className={recipe.accessories}
+                                            >
+                                                <span aria-hidden="true">
+                                                    +
+                                                </span>{" "}
+                                                <Names
+                                                    lines={weapon.accessories}
+                                                />
+                                            </span>
+                                        )}
                                     </td>
                                 </tr>
                             )}
@@ -371,7 +750,12 @@ function Weapons({ weapons, columns }: { weapons: Weapon[]; columns: Stat[] }) {
                                         colSpan={tableSpan}
                                         className={recipe.weaponExtra}
                                     >
-                                        <ItemChoices choices={weapon.choices} />
+                                        <ul className={recipe.weaponChoices}>
+                                            <ItemChoices
+                                                choices={weapon.choices}
+                                                weapon
+                                            />
+                                        </ul>
                                     </td>
                                 </tr>
                             )}
@@ -383,18 +767,34 @@ function Weapons({ weapons, columns }: { weapons: Weapon[]; columns: Stat[] }) {
     );
 }
 
-/** Read-only hire facts; the caller owns option selection and preview loading. */
-export function ModelPreview(props: ModelPreviewProps) {
+/** Shared card facts; stored-card controls are supplied by the workflow owner. */
+export function ModelPreview(
+    props: ModelPreviewProps & {
+        presentation?: {
+            id: string;
+            label: string;
+            nameAction: ReactNode;
+            profileExtra: ReactNode;
+            figures: ReactNode;
+            actions: ReactNode;
+            dead: boolean;
+        };
+    },
+) {
     return (
         <div
-            className={recipe.root}
+            className={`${recipe.root} ${props.presentation?.dead ? "opacity-60" : ""}`}
+            id={props.presentation?.id}
             role="region"
-            aria-label={`${props.name} preview`}
+            aria-label={props.presentation?.label || `${props.name} preview`}
         >
             <div className={recipe.header}>
                 <div className={recipe.headerGrid}>
                     <div className={recipe.heading}>
-                        <div className={recipe.name}>{props.name}</div>
+                        <div className={recipe.name}>
+                            {props.name}
+                            {props.presentation?.nameAction}
+                        </div>
                     </div>
                     <div className={recipe.profilePosition}>
                         {props.profileName && (
@@ -402,6 +802,7 @@ export function ModelPreview(props: ModelPreviewProps) {
                                 {props.profileName}
                             </div>
                         )}
+                        {props.presentation?.profileExtra}
                         {props.ownerLine && (
                             <div className={recipe.profile}>
                                 {props.ownerLine}
@@ -409,11 +810,15 @@ export function ModelPreview(props: ModelPreviewProps) {
                         )}
                     </div>
                     <div className={recipe.figures}>
-                        <Information
-                            text={`${props.rating}¢`}
-                            explanation="Rating, including weapons and wargear"
-                        />
+                        {props.presentation?.figures ?? (
+                            <Information
+                                plain
+                                text={`${props.rating}¢`}
+                                explanation="Rating, including weapons and wargear"
+                            />
+                        )}
                     </div>
+                    {props.presentation?.actions}
                 </div>
             </div>
             <div className={recipe.statRoot}>
@@ -465,9 +870,10 @@ export function ModelPreview(props: ModelPreviewProps) {
                                                     {props.typeLine}
                                                 </td>
                                                 <td className={recipe.xpCell}>
-                                                    {props.xpTarget ? (
+                                                    {props.xpTarget !== "" ? (
                                                         <>
                                                             <Information
+                                                                plain
                                                                 text={String(
                                                                     props.xp,
                                                                 )}
@@ -486,6 +892,7 @@ export function ModelPreview(props: ModelPreviewProps) {
                                                                 }
                                                             >
                                                                 <Information
+                                                                    plain
                                                                     text={String(
                                                                         props.xpTarget,
                                                                     )}
@@ -508,15 +915,34 @@ export function ModelPreview(props: ModelPreviewProps) {
             </div>
             <dl className={recipe.details}>
                 {props.details.map((row, index) => (
-                    <Fragment key={index}>
-                        <dt className={recipe.detailLabel}>{row.label}</dt>
+                    <Fragment key={row.key || index}>
+                        <dt className={recipe.detailLabel}>
+                            {row.label}
+                            {row.editHref && (
+                                <>
+                                    {" "}
+                                    <ButtonLink
+                                        href={row.editHref}
+                                        variant="text"
+                                        size="xs"
+                                        className={cotton.modelCard.editLink}
+                                        aria-label="Edit skills & powers"
+                                        title="Edit skills & powers"
+                                    >
+                                        <span className="n26-icon-inline">
+                                            <Icon name="pencil" className="" />
+                                        </span>
+                                    </ButtonLink>
+                                </>
+                            )}
+                        </dt>
                         <dd className={recipe.detailValue}>
                             {row.parts.map((part, partIndex) => {
                                 const Tag =
                                     part.kind === "gear" ? "div" : "span";
                                 return (
                                     <Tag
-                                        key={partIndex}
+                                        key={part.key || partIndex}
                                         className={
                                             part.kind === "gear"
                                                 ? recipe.gearPart

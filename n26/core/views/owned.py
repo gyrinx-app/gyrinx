@@ -22,6 +22,7 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods, require_POST
 
+from n26.core.model_card_commands import MOST_A_TALLY_MOVES
 from n26.core.owned import (
     DIALOGS,
     EquipHost,
@@ -37,9 +38,6 @@ from n26.core.views.htmx import is_htmx, no_update
 from n26.core.views.permissions import _own_assignment_or_404, _safe_redirect
 from n26.library.models import marked_name
 from n26.library.staged import sees_staged
-
-#: Bound direct tally changes below the integer storage limit.
-MOST_A_TALLY_MOVES = 1000
 
 
 def link_counters(card, back="", *, adjust=False):
@@ -626,6 +624,7 @@ def _owned_action(request, pk, action):
             request_key=request_key,
             actor=request.user,
             payload__assignment=str(pk),
+            result__has_key="touched",
             gang__owner=request.user,
             gang__archived=False,
         )
@@ -860,6 +859,59 @@ def tally_counter(request, pk):
     from n26.core.views.permissions import _campaign_counter_or_404
     from n26.library.models import Counter
 
+    if (
+        request.method == "POST"
+        and "adjust" not in request.POST
+        and "reset" not in request.POST
+    ):
+        from uuid import UUID
+
+        from n26.core.equip_purchase import UnavailableEquipment
+        from n26.core.model_card_commands import tally_step
+        from n26.core.models import EquipReceipt, Miniature
+        from n26.core.views.permissions import _own_gang_or_404
+
+        try:
+            request_key = UUID(request.POST.get("request_key", ""))
+        except ValueError, AttributeError:
+            request_key = None
+        receipt = (
+            EquipReceipt.objects.filter(
+                request_key=request_key,
+                actor=request.user,
+                gang__owner=request.user,
+                gang__archived=False,
+                payload__format="counter-step-v1",
+                payload__assignment=str(pk),
+            ).first()
+            if request_key
+            else None
+        )
+        if receipt is not None:
+            gang = _own_gang_or_404(request, receipt.gang_id)
+            model_key = receipt.payload["model"]
+            miniature = (
+                Miniature.objects.filter(
+                    pk=model_key, membership__gang=gang, membership__archived=False
+                ).first()
+                if model_key
+                else None
+            )
+            try:
+                result = tally_step(
+                    gang,
+                    request.user,
+                    pk,
+                    request.POST,
+                    require_key=True,
+                    model_key=model_key,
+                )
+            except UnavailableEquipment as error:
+                raise Http404(error.public_message) from None
+            return _counter_step_response(
+                request, gang, miniature, result, request.POST.get("back", "")[:500]
+            )
+
     assignment = _campaign_counter_or_404(request, pk)
     if not isinstance(assignment.assignable, Counter):
         raise Http404("Not a counter")
@@ -953,6 +1005,18 @@ def tally_counter(request, pk):
         # Reject zero and oversized direct steps to avoid empty history events and integer overflow.
         raise Http404("Not a change to make")
 
+    if miniature is not None and not adjusting and gang.owner_id == request.user.pk:
+        from n26.core.equip_purchase import UnavailableEquipment
+        from n26.core.model_card_commands import tally_step
+
+        try:
+            result = tally_step(
+                gang, request.user, pk, request.POST, model_key=str(miniature.pk)
+            )
+        except UnavailableEquipment as error:
+            raise Http404(error.public_message) from None
+        return _counter_step_response(request, gang, miniature, result, back)
+
     try:
         with operation(gang, actor=request.user) as op:
             # Recheck archive state under the operation lock in case an arbitrator removed the counter.
@@ -1043,3 +1107,44 @@ def tally_counter(request, pk):
     else:
         messages.success(request, f"{name} is now {standing}.")
     return _safe_redirect(request, back, here)
+
+
+def counter_feedback(request, gang, result):
+    """Record a direct counter step once; inline controls need no success message."""
+    from n26.analytics import EventVerb, N26Noun, record
+
+    if result.replayed:
+        return
+    assignment = result.assignment
+    record(
+        request,
+        N26Noun.ASSIGNMENT,
+        EventVerb.UPDATE,
+        assignment,
+        gang_id=str(gang.pk),
+        miniature_id=str(assignment.miniature_root_id),
+        thing=result.name,
+        action="tally",
+        change=result.change,
+    )
+
+
+def _counter_step_response(request, gang, miniature, result, back):
+    """Refresh a model counter in place or return a native submission to its source."""
+    from n26.core.views.edit import render_card_update
+
+    fallback = reverse("n26-gang", args=[gang.pk])
+    if result.refused:
+        messages.error(request, result.refused)
+        return (
+            no_update(request)
+            if is_htmx(request)
+            else _safe_redirect(request, back, fallback)
+        )
+    counter_feedback(request, gang, result)
+    if miniature is not None and is_htmx(request):
+        return render_card_update(
+            request, miniature, back or reverse("n26-edit-fighter", args=[miniature.pk])
+        )
+    messages.success(request, f"{result.name} is now {result.value}.")
+    return _safe_redirect(request, back, fallback)

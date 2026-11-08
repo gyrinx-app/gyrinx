@@ -121,6 +121,28 @@ without cached assets. Attach visual evidence using the pr-screenshots skill.
 The bar already loads React on N26 pages; check that unrelated feature entries
 do not load and the migrated root has no Alpine owner.
 
+Compare matched data in the same rendering mode, viewport and theme. Inventory
+each control's variant, size, padding, icon treatment and menu contents; sharing
+the base button recipe alone does not preserve its call-site configuration.
+Check open menus, destructive separators, long names, repeated accessories,
+choice controls, counters and crowded headers. Use the paired model-card gallery
+for stored cards and verify the real workflow too. Record concrete differences
+and fixes in the PR; a functional smoke check does not establish visual parity.
+Use `Tooltip` in its small Cotton style for short card facts and provenance.
+Reserve a popover for structured explanations such as a rating breakdown. An
+informational preview prompt becomes a ghost button only when a picker URL exists.
+Check numeric zero targets as well as missing values. When the workflow draws
+queued messages, empty the Django layout's messages block so each appears once.
+
+Keep loading feedback in the initiating control. Use `Button`'s `busy` prop or
+`BusyControlScope` with the shared `data-busy` styling; keep the label and control
+dimensions stable. Reserve inline space for counter progress and price differences.
+Keep an existing preview visible while its replacement loads. Avoid page-level
+loading paragraphs and transient saving dialogs. Delay responses in the browser
+and compare control and neighbour rectangles before and during reads, saves and
+retries at phone and desktop widths. Confirm cancellation still reaches React
+through the native busy guard.
+
 Switch the complete workflow to one renderer per request. Do not mount both
 renderers and hide one. Remove obsolete code after checking every caller; name
 any short-lived rollback cleanup. Independent shared chrome can stay unchanged.
@@ -280,3 +302,30 @@ payments after hiding and restoring that entry. A selected profile must display
 its retained payment after a quote refresh. A follow-up confirmation without a
 rating checkbox preserves the carried rating policy. Native keyed adapters must
 also reach receipt replay before requiring a live assignment.
+
+For fighter Equip, compose `ui/ModelCard` within the shared `equip` owner.
+Project linked stored cards through `core/model_card_display.py`; keep previews
+read-only. Preserve independent task links and native dismiss forms without
+nesting forms: use `WorkflowLayout`, including `data-busy="off"`. Give repeated
+card controls stable assignment/choice keys so a refresh cannot reuse another
+item's menu state.
+
+Counter steps must preserve the native sequential queue. Give each intentional
+step a new key, retry the active step with its original key, and stop unsent
+steps with an explicit notice after refusal or uncertainty. Do not make rapid
+clicks disappear behind a pending modal. Test queue draining and interruption,
+draft preservation, replay after removal, model scope and the separate campaign
+arbitrator path. Distinguish receipt formats before reading result fields.
+
+Inventory navigation flags as well as visible tabs. Equip carries `dismissed`
+through display reads, commands, confirmations and onward control links. Test
+such flags on native and JSON adapters; a complete renderer can still lose
+navigation state if a retained scalar is missing. Add navigation-only fields as
+optional recovery inputs so older unresolved commands still restore.
+
+Keep navigation order separate from quote precedence. A reordered collection
+rail must not change which held list prices Unrestricted purchases. Test an
+item present in both the moved list and the Trading Post through both command
+adapters. Inventory secondary submit actions too: fighter reassignment offers
+both another model and the stash. The retained payload must match the clicked
+destination before submission.

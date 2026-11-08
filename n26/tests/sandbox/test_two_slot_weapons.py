@@ -5,10 +5,11 @@ rows, stash listings, print output and text output use ``slot_mark``.
 Weapons using zero or one slot display no mark.
 """
 
-import re
+import json
 from dataclasses import replace
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.urls import reverse
 
@@ -33,6 +34,22 @@ pytestmark = pytest.mark.django_db
 
 #: Source page for held-copy action URLs.
 AT = "/n26/fighters/vex/equip/?list=1"
+
+
+def equip_props(response):
+    soup = BeautifulSoup(response.content, "html.parser")
+    host = soup.select_one('[data-react-name="equip"]')
+    assert host is not None
+    return json.loads(soup.find(id=host["data-react-props"]).string)
+
+
+def equipment_rows(props):
+    return {
+        row["name"]: row
+        for section in props["sections"]
+        for category in section["categories"]
+        for row in category["entries"]
+    }
 
 
 class TestTheMark:
@@ -229,10 +246,10 @@ class TestTheEquipPicker:
         client.force_login(gang.owner)
         url = reverse("n26-equip", args=[fighter.pk])
         key = f"{stubber._meta.label_lower}:{stubber.pk}"
-        body = client.get(f"{url}?list={house_list.pk}&owned={key}").content.decode()
-
-        assert 'aria-label="More for Heavy stubber*"' in body
-        assert 'aria-label="Add accessory to Heavy stubber*"' in body
+        props = equip_props(client.get(f"{url}?list={house_list.pk}&owned={key}"))
+        copy = equipment_rows(props)["Heavy stubber*"]["copies"][0]
+        assert copy["name"] == "Heavy stubber*"
+        assert copy["actions"] and copy["accessorise"]["target"]
 
 
 class TestThePriceBoxes:
@@ -243,10 +260,9 @@ class TestThePriceBoxes:
     ):
         client.force_login(gang.owner)
         url = reverse("n26-equip", args=[fighter.pk])
-        body = client.get(f"{url}?list={house_list.pk}").content.decode()
-
-        assert 'aria-label="Price for Heavy stubber*"' in body
-        assert 'aria-label="Price for Autogun"' in body
+        rows = equipment_rows(equip_props(client.get(f"{url}?list={house_list.pk}")))
+        assert rows["Heavy stubber*"]["purchase"]["name"] == "Heavy stubber*"
+        assert rows["Autogun"]["purchase"]["name"] == "Autogun"
 
     def test_buy_anothers_price_box_is_named_with_the_mark(
         self, client, gang, fighter, house_list, armed, stubber
@@ -254,12 +270,10 @@ class TestThePriceBoxes:
         client.force_login(gang.owner)
         url = reverse("n26-equip", args=[fighter.pk])
         key = f"{stubber._meta.label_lower}:{stubber.pk}"
-        body = client.get(f"{url}?list={house_list.pk}&owned={key}").content.decode()
-
-        # Owning one replaces the listing's row, so the only price box
-        # for the stubber on this page is the one under "Buy another".
-        assert "Buy another" in body
-        assert 'aria-label="Price for Heavy stubber*"' in body
+        props = equip_props(client.get(f"{url}?list={house_list.pk}&owned={key}"))
+        row = equipment_rows(props)["Heavy stubber*"]
+        assert row["count"] == 1 and row["expanded"]
+        assert row["purchase"]["name"] == "Heavy stubber*"
 
 
 class TestThePrintSetupPicker:
@@ -418,11 +432,14 @@ class TestTheDialogs:
         )
         client.force_login(gang.owner)
         url = reverse("n26-equip", args=[fighter.pk])
-        body = client.get(f"{url}?list={house_list.pk}&fit={loose.pk}").content.decode()
-
-        assert "Fit Telescopic sight to a weapon" in body
-        assert re.search(r"<option[^>]*>\s*Heavy stubber\*\s*</option>", body)
-        assert re.search(r"<option[^>]*>\s*Autogun\s*</option>", body)
+        dialog = equip_props(client.get(f"{url}?list={house_list.pk}&fit={loose.pk}"))[
+            "dialog"
+        ]
+        assert dialog["title"] == "Fit Telescopic sight to a weapon"
+        assert {weapon["label"] for weapon in dialog["weapons"]} == {
+            "Heavy stubber*",
+            "Autogun",
+        }
 
     def test_a_stashed_accessory_is_offered_the_marked_gun(
         self, client, gang, fighter, stubber

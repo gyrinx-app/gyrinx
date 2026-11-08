@@ -59,7 +59,8 @@ export type AnchoredPlacementOptions = {
     trigger: RefObject<HTMLElement | null>;
     panel: RefObject<HTMLElement | null>;
     /** Which edge of the trigger the panel lines up with. */
-    align?: "start" | "end";
+    align?: "start" | "end" | "center";
+    preferredSide?: "top" | "bottom";
     /**
      * A width in pixels, narrowed to fit the window, or "content" to let the
      * panel size itself between `minWidth` and the window.
@@ -131,6 +132,7 @@ export function useAnchoredPlacement({
     trigger,
     panel,
     align = "start",
+    preferredSide = "bottom",
     width,
     minWidth = "0px",
     gap,
@@ -153,7 +155,11 @@ export function useAnchoredPlacement({
                     ? box.offsetWidth
                     : Math.min(width, window.innerWidth - margin * 2);
             const at =
-                align === "end" ? anchor.right - panelWidth : anchor.left;
+                align === "end"
+                    ? anchor.right - panelWidth
+                    : align === "center"
+                      ? anchor.left + (anchor.width - panelWidth) / 2
+                      : anchor.left;
             const left = Math.min(
                 Math.max(margin, at),
                 window.innerWidth - panelWidth - margin,
@@ -189,7 +195,8 @@ export function useAnchoredPlacement({
                 const height = box.offsetHeight;
                 const below = anchor.bottom + gap;
                 const top =
-                    below + height > window.innerHeight - margin &&
+                    (preferredSide === "top" ||
+                        below + height > window.innerHeight - margin) &&
                     anchor.top - gap - height >= margin
                         ? anchor.top - gap - height
                         : below;
@@ -203,7 +210,14 @@ export function useAnchoredPlacement({
         place();
         window.addEventListener("resize", place);
         window.addEventListener("scroll", place, true);
+        const observer =
+            typeof ResizeObserver === "undefined"
+                ? null
+                : new ResizeObserver(place);
+        if (trigger.current) observer?.observe(trigger.current);
+        if (panel.current) observer?.observe(panel.current);
         return () => {
+            observer?.disconnect();
             window.removeEventListener("resize", place);
             window.removeEventListener("scroll", place, true);
             // Reset placement so reopening measures the panel without its
@@ -215,6 +229,7 @@ export function useAnchoredPlacement({
         trigger,
         panel,
         align,
+        preferredSide,
         width,
         minWidth,
         gap,

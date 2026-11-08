@@ -10,6 +10,7 @@ import {
     Breadcrumbs,
     Button,
     ButtonLink,
+    BusyControlScope,
     CatalogueFrame,
     EquipmentRow,
     equipmentDraft,
@@ -17,7 +18,10 @@ import {
     EquipmentRail,
     GangFigures,
     UserLink,
-    WorkflowPage,
+    WorkflowLayout,
+    EquipmentModel,
+    EquipmentBudget,
+    QuickSwitcher,
     type EquipmentPurchase,
 } from "../../ui";
 import { Command } from "./Command";
@@ -54,14 +58,31 @@ export function Equip(initial: EquipProps) {
         () => new Set(initial.owned ? [initial.owned] : []),
     );
     const [frozen, setFrozen] = useState(false);
+    const [tallyMode, setTallyMode] = useState(false);
+    const tallyActive = useRef(false);
+    const tallyQueue = useRef<EquipDraft[]>([]);
+    const [queueNotice, setQueueNotice] = useState("");
     const [loading, setLoading] = useState(false);
+    const [inlinePending, setInlinePending] = useState(false);
+    const [busyControl, setBusyControl] = useState<string | null>(null);
     const [notice, setNotice] = useState("");
     const [retry, setRetry] = useState("");
     const read = useRef<AbortController | null>(null);
     const root = useRef<HTMLDivElement>(null);
     const trigger = useRef<HTMLElement | null>(null);
+    const clicked = useRef<HTMLElement | null>(null);
     const heading = useRef<HTMLHeadingElement>(null);
     const returnFocus = useRef(false);
+    const stopTallyQueue = useCallback(() => {
+        tallyActive.current = false;
+        setTallyMode(false);
+        if (tallyQueue.current.length) {
+            setQueueNotice(
+                `${tallyQueue.current.length} queued counter ${tallyQueue.current.length === 1 ? "change was" : "changes were"} not sent. Resolve the earlier change before adding them again.`,
+            );
+            tallyQueue.current = [];
+        }
+    }, []);
     useEffect(() => {
         if (!returnFocus.current) return;
         returnFocus.current = false;
@@ -69,12 +90,12 @@ export function Equip(initial: EquipProps) {
         else heading.current?.focus();
     }, [generation]);
     const refreshPanel = useCallback(
-        async (url: string) => {
+        async (url: string, control: string | null = null) => {
             read.current?.abort();
             const controller = new AbortController();
             read.current = controller;
             setLoading(true);
-            setNotice("");
+            setBusyControl(control);
             setRetry(url);
             try {
                 const target = new URL(url, window.location.href);
@@ -105,6 +126,7 @@ export function Equip(initial: EquipProps) {
                         "The equipment details could not be loaded. Try again.",
                     );
                 if (controller.signal.aborted) return;
+                setNotice("");
                 setPage(data.page);
                 setDraft(
                     data.page.dialog
@@ -167,7 +189,7 @@ export function Equip(initial: EquipProps) {
         )
             return;
         event.preventDefault();
-        if (frozen || loading) return;
+        if (frozen || tallyActive.current || loading) return;
         const current = new URLSearchParams(window.location.search);
         for (const [name, value] of [
             ["section", current.get("section") || ""],
@@ -176,8 +198,12 @@ export function Equip(initial: EquipProps) {
             if (value) url.searchParams.set(name, value);
             else url.searchParams.delete(name);
         }
-        trigger.current = anchor;
-        void refreshPanel(url.href);
+        const menu = anchor.closest('[role="menu"]');
+        trigger.current =
+            menu?.parentElement?.querySelector<HTMLButtonElement>(
+                'button[aria-haspopup="menu"]',
+            ) || anchor;
+        void refreshPanel(url.href, trigger.current.dataset.busyId || null);
     }
     function navigationValues() {
         const params = new URLSearchParams(window.location.search);
@@ -194,8 +220,10 @@ export function Equip(initial: EquipProps) {
         selection: string[],
         parts: Array<{ key: string; paid: string }>,
     ) {
-        if (frozen || loading) return;
-        trigger.current = document.activeElement as HTMLElement;
+        if (frozen || tallyActive.current || loading) return;
+        trigger.current =
+            clicked.current || (document.activeElement as HTMLElement);
+        setBusyControl(trigger.current?.dataset.busyId || null);
         const surcharge = purchase.choices
             .flatMap((group) => group.options)
             .filter((option) => selection.includes(option.key))
@@ -230,6 +258,13 @@ export function Equip(initial: EquipProps) {
     }
     function settled(outcome: EquipOutcome) {
         setPage(outcome.page);
+        if (tallyActive.current && tallyQueue.current.length) {
+            setDraft(tallyQueue.current.shift()!);
+            setGeneration((value) => value + 1);
+            return;
+        }
+        tallyActive.current = false;
+        setTallyMode(false);
         setFrozen(false);
         setNotice("");
         if (outcome.confirmation) {
@@ -258,41 +293,127 @@ export function Equip(initial: EquipProps) {
     }
     function dismiss() {
         if (frozen) return;
+        returnFocus.current = true;
         setDraft(null);
         setGeneration((value) => value + 1);
         window.history.replaceState(window.history.state, "", page.listingHref);
     }
-    return (
-        <div ref={root} onClick={open}>
-            <WorkflowPage
-                title="Equip"
+    const content = (
+        <div
+            ref={root}
+            onClick={open}
+            onClickCapture={(event) => {
+                clicked.current = (
+                    event.target as Element
+                ).closest<HTMLElement>("button, a[href]");
+                if (
+                    (frozen || tallyActive.current) &&
+                    (event.target as Element).closest("a[href]")
+                )
+                    event.preventDefault();
+            }}
+            onSubmitCapture={(event) => {
+                if (
+                    (frozen || tallyActive.current) &&
+                    !(event.target as Element).closest(
+                        "dialog, [data-equip-command]",
+                    )
+                )
+                    event.preventDefault();
+            }}
+        >
+            <WorkflowLayout
+                fullWidth={!!page.model}
+                title={page.model?.name || "Equip"}
+                trailing={
+                    page.model ? (
+                        <QuickSwitcher {...page.model.switcher} />
+                    ) : undefined
+                }
                 headingRef={heading}
-                lead="Buy equipment for the stash, manage it here or move it to a model."
+                lead={
+                    page.model?.role ||
+                    (page.model
+                        ? undefined
+                        : "Buy equipment for the stash, manage it here or move it to a model.")
+                }
                 breadcrumb={
                     <Breadcrumbs
                         items={[
                             { label: <UserLink {...page.owner} /> },
                             { label: page.gangName, href: page.gangHref },
-                            { label: "Equip" },
+                            { label: page.model?.name || "Equip" },
                         ]}
                     />
                 }
                 actions={<GangFigures data={page.figures} />}
                 footer={null}
-                onSubmit={(event) => event.preventDefault()}
             >
+                {page.model && (
+                    <EquipmentModel
+                        model={page.model}
+                        csrfToken={page.csrfToken}
+                        frozen={frozen || loading}
+                        countersFrozen={loading || (frozen && !tallyMode)}
+                        pendingTally={
+                            tallyMode && inlinePending
+                                ? draft?.values.assignment
+                                : undefined
+                        }
+                        onTally={(assignment, change, name) => {
+                            if ((frozen && !tallyActive.current) || loading)
+                                return;
+                            trigger.current =
+                                document.activeElement as HTMLElement;
+                            const step: EquipDraft = {
+                                auto: true,
+                                question: null,
+                                dialog: null,
+                                values: {
+                                    ...navigationValues(),
+                                    action: "tally",
+                                    assignment,
+                                    change: String(change),
+                                    display_name: name,
+                                    display_details: JSON.stringify([
+                                        `Recorded counter change: ${change > 0 ? "+" : ""}${change}.`,
+                                    ]),
+                                },
+                            };
+                            if (tallyActive.current) {
+                                tallyQueue.current.push(step);
+                                return;
+                            }
+                            tallyActive.current = true;
+                            setTallyMode(true);
+                            setQueueNotice("");
+                            setDraft(step);
+                            setGeneration((value) => value + 1);
+                        }}
+                    />
+                )}
                 {page.messages.map((message, index) => (
                     <Alert key={`${generation}:${index}`} tone={message.tone}>
                         {message.text}
                     </Alert>
                 ))}
+                {queueNotice && !draft && (
+                    <Alert tone="warning">{queueNotice}</Alert>
+                )}
                 {notice && (
                     <Alert tone="error">
                         {notice}{" "}
                         {retry && (
                             <Button
                                 size="sm"
-                                onClick={() => void refreshPanel(retry)}
+                                disabled={loading}
+                                onClick={(event) =>
+                                    void refreshPanel(
+                                        retry,
+                                        event.currentTarget.dataset.busyId ||
+                                            null,
+                                    )
+                                }
                             >
                                 Try again
                             </Button>
@@ -302,10 +423,18 @@ export function Equip(initial: EquipProps) {
                         </ButtonLink>
                     </Alert>
                 )}
-                {loading && <p role="status">Loading equipment details…</p>}
+                <span className="sr-only" role="status">
+                    {loading ? "Loading equipment details…" : ""}
+                </span>
                 <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-[11rem_minmax(0,1fr)]">
                     <aside className="flex flex-col gap-4 self-start">
                         <EquipmentRail tabs={page.scopeTabs} />
+                        {page.model && (
+                            <EquipmentBudget
+                                model={page.model}
+                                tradePointsHref={page.tradePointsHref}
+                            />
+                        )}
                         {page.scope === "all" && (
                             <div className="self-start rounded-box border border-box-border p-3">
                                 <p className="text-sm font-medium">
@@ -360,6 +489,7 @@ export function Equip(initial: EquipProps) {
                         )}
                         {!page.postIsShut &&
                             !page.visitingTradingPost &&
+                            !page.model?.budget &&
                             page.tradePointsHref && (
                                 <ButtonLink
                                     href={page.tradePointsHref}
@@ -377,10 +507,13 @@ export function Equip(initial: EquipProps) {
                         plural="items"
                         sectionLabel="Equipment sections"
                         filters={page.scope !== "stash"}
+                        categoriesOpen={!page.model}
                         empty={
                             page.scope === "stash"
                                 ? "Nothing in the stash yet."
-                                : "No equipment lists yet. Choose Unrestricted to browse the library, or In stash to manage what the gang holds."
+                                : page.model
+                                  ? "No equipment lists yet. Choose Unrestricted to browse the library."
+                                  : "No equipment lists yet. Choose Unrestricted to browse the library, or In stash to manage what the gang holds."
                         }
                         renderEntry={(entry) => (
                             <EquipmentRow
@@ -424,12 +557,15 @@ export function Equip(initial: EquipProps) {
                                         ),
                                     }))
                                 }
+                                ownedLabel={
+                                    page.model ? "equipped" : "in stash"
+                                }
                                 onBuy={buy}
                             />
                         )}
                     />
                 </div>
-            </WorkflowPage>
+            </WorkflowLayout>
             <Command
                 key={generation}
                 page={page}
@@ -438,7 +574,19 @@ export function Equip(initial: EquipProps) {
                 onPage={setPage}
                 onDismiss={dismiss}
                 onFrozen={setFrozen}
+                onInlinePending={setInlinePending}
+                onQueueBlocked={stopTallyQueue}
+                queueNotice={queueNotice}
             />
         </div>
+    );
+    return (
+        <BusyControlScope
+            value={
+                loading || (inlinePending && !tallyMode) ? busyControl : null
+            }
+        >
+            {content}
+        </BusyControlScope>
     );
 }
