@@ -8,6 +8,8 @@
 {% block nav_items %}
     {% include "n26/_nav.html" with here="gangs" %}
 {% endblock nav_items %}
+{% block messages %}
+{% endblock messages %}
 {% block content %}
     {% react_island "equip" equip_props %}
 {% endblock content %}

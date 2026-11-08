@@ -107,6 +107,31 @@ def test_the_page_wires_the_catalogue_controls_and_update_hosts(
     assert '<meta name="n26-carry"' not in response.content.decode()
 
 
+def test_queued_messages_belong_only_to_the_fighter_equip_owner(
+    client, tester, fighter, monkeypatch
+):
+    from bs4 import BeautifulSoup
+    from django.contrib import messages
+
+    from n26.core.views import equip_react
+
+    read = equip_react.equipment_read
+
+    def with_message(request, gang, miniature=None):
+        messages.success(request, "Equipment updated.")
+        return read(request, gang, miniature)
+
+    monkeypatch.setattr(equip_react, "equipment_read", with_message)
+    client.force_login(tester)
+    response = client.get(equip_url(fighter))
+
+    assert page_of(response)["messages"] == [
+        {"text": "Equipment updated.", "tone": "success"}
+    ]
+    page = BeautifulSoup(response.content, "html.parser")
+    assert page.select('[data-message="success"]') == []
+
+
 def test_a_buy_pays_the_servers_price_and_returns_to_its_list_and_section(
     client, tester, gang, fighter, house_list
 ):
