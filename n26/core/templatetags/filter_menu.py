@@ -1,4 +1,4 @@
-"""JSON props for the filter menu React draws in place of the Alpine dropdown."""
+"""Build JSON props for the React filter menu."""
 
 from html import unescape
 
@@ -12,18 +12,14 @@ ALIGNS = ("start", "end")
 
 
 def _text(value):
-    """Plain text for React.
-
-    A Cotton string attribute arrives already escaped, and React escapes again
-    when it draws, so that is decoded here, once.
-    """
+    """Return plain text for React, decoding escaped SafeData once."""
     if value is None:
         return ""
     return unescape(str(value)) if isinstance(value, SafeData) else str(value)
 
 
 def _flag(value, default):
-    """A cotton boolean, or the string a template printed for one."""
+    """Parse a Cotton boolean or its rendered string value, using the supplied default for None or empty input."""
     if isinstance(value, bool):
         return value
     if value is None or value == "":
@@ -32,7 +28,7 @@ def _flag(value, default):
 
 
 def _width(value):
-    """min_width as pixels. 20rem is the menu's own default, which is 320."""
+    """Convert px or rem widths to pixels at 16 pixels per rem; default to 320."""
     text = _text(value) or "20rem"
     if text.endswith("rem"):
         number = text[: -len("rem")]
@@ -75,10 +71,11 @@ def filter_menu_props(
     align="start",
     min_width="20rem",
 ):
-    """The menu's ticks and the words on its buttons.
+    """Build the filter menu's options, selections and button labels.
 
-    An empty selected list with select_all on becomes every option once the
-    island mounts. None and the string false leave select_all off.
+    An empty selection with select_all enabled selects every option when the
+    island mounts. None or empty select_all uses the default True; the string
+    false disables it.
     """
     chosen_size = size if size in SIZES else "sm"
     chosen_align = align if align in ALIGNS else "start"

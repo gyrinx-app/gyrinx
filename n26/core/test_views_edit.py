@@ -157,8 +157,7 @@ class TestSavingNotes:
         assert vex.notes == ""
 
     def test_hostile_notes_never_reach_the_page_alive(self, client, tester, gang, vex):
-        """Stored as written, sanitised on the way out: the page carries
-        the words, never the tag."""
+        """Stored notes retain their text but remove unsafe tags when displayed."""
         client.force_login(tester)
         client.post(
             edit_url(vex),
@@ -361,11 +360,7 @@ class TestThePicture:
     def test_a_refusal_says_which_level_it_is(
         self, client, tester, gang, vex, own_storage
     ):
-        """The crop dialog saves in the background and shows a refusal
-        where the reader is standing, so it has to tell a refusal from a
-        save by reading the page it fetched. Every alert states its level
-        (n26/includes/messages.html); without that the dialog draws an
-        empty box and the reason is lost with the page nobody sees."""
+        """Background crop responses identify alert levels so validation errors remain visible."""
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         client.force_login(tester)

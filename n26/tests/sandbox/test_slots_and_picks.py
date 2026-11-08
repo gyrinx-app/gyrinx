@@ -1,15 +1,13 @@
-"""Slots and picks: a choice made from a curated list.
+"""Slots identify authored choices; picks record their selected content.
 
-The shape a new slot type is authored in rather than coded: a
-slot type, its pickables, the list they are offered on, and the choice
-itself. Gang Legacy is the first use — eight houses, each opening that
-house's equipment list to whoever picks it.
+Build a slot type, pickables, a picklist and a slot through authoring verbs.
+The Gang Legacy fixtures offer three houses with their equipment collections.
 
-What this file holds still is the engine underneath: that assigning a
-slot asks the question, that the pick is read off ``chosen_for`` and
-nothing is inferred from kinds, that a pickable with no choice behind it
-does nothing at all, and that a choice a pick opens goes when that pick
-does. The screens are `test_choosing.py`'s.
+Assigning a slot exposes a computed choice. Picks identify their granting
+assignment through chosen_for and, when needed, their slot. Unanchored
+pickables neither apply modifiers nor satisfy pick conditions. Removing a
+granting pick retracts dependent choices and selections. See test_choosing.py
+for the picker workflow.
 """
 
 import pytest
@@ -64,9 +62,6 @@ from n26.tests.sandbox.actions import (
 pytestmark = pytest.mark.django_db
 
 
-# --- Example A: Gang Legacy, eight houses, one choice ----------------------
-
-
 @pytest.fixture
 def owner(db):
     return User.objects.create_user("player")
@@ -74,7 +69,7 @@ def owner(db):
 
 @pytest.fixture
 def legacy(default_pack):
-    """The slot type. Nobody picks two legacies."""
+    """Create a Gang Legacy slot type that does not allow repeats."""
     return create_slot_type(
         "Gang Legacy", plural_name="Gang Legacies", allows_repeats=False
     )
@@ -83,7 +78,7 @@ def legacy(default_pack):
 @pytest.fixture
 @library_setup
 def houses(legacy):
-    """Three of the eight, each opening its own equipment list."""
+    """Create three house picks, each granting its own equipment collection."""
     made = {}
     for name in ("Cawdor", "Escher", "Ironhead Squats"):
         pickable = create_pickable(name, legacy)
@@ -110,7 +105,7 @@ def gang_legacy_slot(legacy, legacies):
 @pytest.fixture
 @library_setup
 def hunter(person_type, gang_type, gang_legacy_slot):
-    """A profile carrying the choice: hired plain, it arrives open."""
+    """Build an unresolved Gang Legacy slot into the profile."""
     profile = create_profile("Hunter", person_type, gang_type, price=100)
     add_built_in(profile, gang_legacy_slot)
     return profile
@@ -119,7 +114,7 @@ def hunter(person_type, gang_type, gang_legacy_slot):
 @pytest.fixture
 @library_setup
 def squats_hunter(person_type, gang_type, gang_legacy_slot, houses):
-    """The slot-with-default: hired, it arrives already settled."""
+    """Build a Gang Legacy slot into the profile with an initial Squats pick."""
     profile = create_profile("Squats Hunter", person_type, gang_type, price=100)
     add_built_in(profile, gang_legacy_slot, default_pickable=houses["Ironhead Squats"])
     return profile
@@ -153,8 +148,7 @@ def gang_choices(gang):
 
 
 class TestMakingTheChoice:
-    """Assigning a slot is what asks the question. Nothing pending is
-    written: the row is computed, and leaving it open costs nothing."""
+    """Compute an unresolved choice from its assigned slot without writing pending picks or spending credits."""
 
     def test_a_free_pick_settles_the_row_and_gives_its_payload_without_changing_rating(
         self, gang, hunter, houses
@@ -213,8 +207,7 @@ class TestMakingTheChoice:
     def test_a_pickable_the_list_does_not_offer_is_still_the_owners_to_give(
         self, gang, hunter, legacy
     ):
-        """The narrowing informs and never polices — an owner may hand
-        over an off-list pickable of the right slot type."""
+        """Allow a direct operation to select an off-list pickable of the matching slot type."""
         kaustos = hire(gang, hunter, "Kaustos", paid=100)
         (open_slot,) = choices_of(kaustos)
         unlisted = create_pickable("Delaque", legacy)
@@ -266,8 +259,7 @@ class TestASlotWithADefault:
 
 
 class TestTwoChoicesOfOneSlotType:
-    """Two slots of one type on one holder stay independent, because a
-    pick names the assignment that asked and not the slot row."""
+    """Keep two slots of the same type independent by recording which assignment each pick answers."""
 
     @pytest.fixture
     @library_setup
@@ -316,12 +308,9 @@ class TestTwoChoicesOfOneSlotType:
 
 
 class TestThePickerMarksWhatIsTaken:
-    """Where the slot type takes one pickable once, the picker says which of
-    its pickables this holder has already spent elsewhere.
+    """Mark picks selected for another slot of a non-repeating type without disabling them.
 
-    Marked and never withheld: the click still works, and what the card
-    says about picking the same thing twice is said afterwards, on the
-    card. The one hard refusal in the app is the founding budget.
+    Duplicate selection produces a card note rather than blocking the choice.
     """
 
     @pytest.fixture
@@ -333,7 +322,7 @@ class TestThePickerMarksWhatIsTaken:
         return profile
 
     def offers(self, miniature):
-        """Both pickers, in the order the slots are named."""
+        """Build both choice offers in source-name order."""
         from n26.core.render import build_choice_offer
 
         _, computed = card_of(miniature)
@@ -387,7 +376,7 @@ class TestThePickerMarksWhatIsTaken:
         body = client.get(second.href).content.decode()
 
         assert "already chosen for Legacy 1" in body
-        # Marked, not locked: the pickable is still a control that works.
+        # Keep the marked pick selectable.
         control = re.search(
             rf'<input[^>]*value="library.pickable:{houses["Cawdor"].pk}"[^>]*>', body
         )
@@ -412,14 +401,12 @@ class TestThePickerMarksWhatIsTaken:
 
 
 class TestAnPickableWithNoChoiceBehindIt:
-    """A pickable an owner hands over with no slot to answer shows
-    nothing and does nothing — not a line, not a modifier, not a fact
-    another rule can match on."""
+    """Ignore pickables assigned without a choice: hide their lines, skip their modifiers and exclude them from pick conditions."""
 
     @pytest.fixture
     @library_setup
     def loud(self, legacy, default_pack):
-        """A pickable that would be impossible to miss if it ran."""
+        """Create a pickable granting a distinctive rule so unintended modifier execution is visible."""
         pickable = create_pickable("Cawdor", legacy)
         modifier(
             "Cawdor: a rule",
@@ -448,8 +435,7 @@ class TestAnPickableWithNoChoiceBehindIt:
         assert drawn.choices == []
 
     def test_no_rule_can_match_on_it(self, gang, plain_hunter, loud, default_pack):
-        """A scope naming the pick reaches whoever chose it, and nobody
-        chose this one."""
+        """Exclude an unanchored pickable from has_pickable conditions."""
         marker = create_rule("Noticed")
         gear = create_wargear("Watcher")
         modifier(
@@ -486,8 +472,7 @@ class TestAnPickableWithNoChoiceBehindIt:
 
 
 class TestAHiddenChoice:
-    """A hidden slot draws no row at all while its pick applies in full
-    — several things arriving together under one name."""
+    """Hide the choice row and selected pick while applying its effects."""
 
     @pytest.fixture
     @library_setup
@@ -500,10 +485,7 @@ class TestAHiddenChoice:
     def test_a_hand_made_pick_draws_no_line_either(
         self, gang, bundled, houses, legacy, legacies
     ):
-        """Answered outright rather than by a starting pick, which is
-        the other way into a hidden choice. Hidden means the card says
-        nothing, however the answer arrived — so the pick draws no line
-        of its own, and its holder shows only what it gives."""
+        """Apply manually chosen hidden picks without drawing the choice or pick as separate lines."""
         from n26.core.models import Assignment
         from n26.library.models import Slot
 
@@ -546,9 +528,7 @@ class TestAHiddenChoice:
 
 
 class TestAChoiceTheGangIsAsked:
-    """A slot the gang holds is asked once, on the gang's own card. It
-    rides every member's card so its behaviour reaches them; the
-    question is the gang's."""
+    """Ask a gang-hosted choice once on the gang card while broadcasting its selected content to members."""
 
     @pytest.fixture
     @library_setup
@@ -594,13 +574,10 @@ class TestAChoiceTheGangIsAsked:
 
 
 class TestALeaderAskedForTheGang:
-    """The Leader → Gang arrow: the choice rides the leader, and what he
-    picks belongs to the gang.
+    """Offer a choice on the Leader and store its selected pick on the gang.
 
-    The pick is gang-hosted and its payload says all models — scoped, so
-    it reaches the ranks the archetype names and no others. Which ranks
-    those are is content: naming a second one is a row on the condition,
-    not a change here.
+    The gang-hosted pick broadcasts to member cards, where its authored rank
+    conditions determine which models receive its effects.
     """
 
     @pytest.fixture
@@ -675,8 +652,7 @@ class TestALeaderAskedForTheGang:
 
 
 class TestOneChoiceOpensAnother:
-    """A pick may give a further slot. Un-choosing retracts the chain
-    through the cause: the given choice goes, and so does its answer."""
+    """Anchor a follow-up choice and its pick to the granting pick so removal retracts the chain."""
 
     @pytest.fixture
     @library_setup
@@ -725,10 +701,11 @@ class TestOneChoiceOpensAnother:
 
 
 class TestAGangPickOpensAChoiceOnEveryModel:
-    """The Water Guild shape: the gang's pick grants a slot to all
-    models, so each fighter's card asks its own Guild Role — anchored on
-    the gang's pick riding their card. The gang's own card is never
-    asked: the grant reaches no model there."""
+    """A gang pick grants a separate model-targeted choice to each fighter.
+
+    Anchor each selection to the gang pick and its recipient model. The gang
+    card has no model target, so it does not receive the follow-up choice.
+    """
 
     @pytest.fixture
     @library_setup
@@ -759,8 +736,7 @@ class TestAGangPickOpensAChoiceOnEveryModel:
 
     @pytest.fixture
     def gang(self, owner, gang_type, guild_shape):
-        # Founded after the built-in exists: founding is what writes the
-        # gang's Alliance slot.
+        # Create the built-in slot before founding so the gang receives its assignment.
         return found_gang("The Long Hunt", gang_type, owner=owner, budget=1000)
 
     def crew_with_the_pick(self, gang, profile, guild):
@@ -842,11 +818,7 @@ class TestAGangPickOpensAChoiceOnEveryModel:
 
 
 class TestAChoiceOpenedFurtherDownTheChain:
-    """The giver need not be a line the card holds. A wargear gives a
-    hidden carrier and the carrier opens the choice: nothing wrote the
-    carrier down, so the choice is addressed on the wargear the whole
-    chain stands on, and goes when the wargear does.
-    """
+    """Anchor a choice granted through computed hidden content to the stored equipment supporting the grant chain."""
 
     @pytest.fixture
     @library_setup
@@ -895,22 +867,16 @@ class TestAChoiceOpenedFurtherDownTheChain:
 
         assert choices_of(kaustos) == []
         assert not Assignment.objects.filter(pickable=vigil, archived=False).exists()
-        # The refund repinned the gang it reached through the assignment,
-        # which is not this instance.
+        # Refresh this instance after the refund updated the gang through its assignment.
         gang.refresh_from_db()
         assert_reconciled(gang)
 
 
 class TestAGangGuestOpensAChoiceOnEveryModel:
-    """The same shape one hop further down the chain: what opens the
-    choice is not a line the gang holds but a rule the gang was *given* —
-    an alliance's, written nowhere. The choice is asked on every fighter
-    all the same, addressed on the line the chain of grants stands on,
-    which is the alliance the gang signed.
+    """A rule computed on the gang grants a separate choice to each fighter.
 
-    A player who signed the alliance saw its rule arrive on the gang and
-    the Guild Role it opens arrive on nobody: every fighter had the role's
-    behaviour waiting and no card ever asked which role.
+    Echo the computed rule onto member cards and anchor their choices to the
+    stored alliance supporting the grant chain. No rule assignment is created.
     """
 
     @pytest.fixture
@@ -926,8 +892,7 @@ class TestAGangGuestOpensAChoiceOnEveryModel:
         )
         roles = create_picklist("Guild Roles", role, members=[nauticus])
         role_slot = create_slot("Guild Role", role, roles)
-        # What the gang is given, and what it opens. The rule is held by
-        # grant: no assignment names it anywhere.
+        # The alliance grants the rule in memory, and that rule grants the member choice.
         pact = create_rule("The Water Pact")
         modifier(
             "The Water Pact: every hand has a role",
@@ -978,8 +943,7 @@ class TestAGangGuestOpensAChoiceOnEveryModel:
 
         choose(role_row.anchor.assignment, nauticus, slot=role_slot, miniature=kaustos)
 
-        # The guest itself draws no line on a fighter: what the pick gives
-        # is the fighter's, and the rule behind it stays the gang's.
+        # Display the chosen model effect without drawing the echoed gang rule on the fighter card.
         assert [line.name for line in card_of(kaustos)[1].rules] == ["Master of Water"]
         assert card_of(grendel)[1].rules == []
         assert Assignment.objects.get(pickable=nauticus).miniature == kaustos
@@ -1030,10 +994,7 @@ class TestRemovingTheChoiceItself:
 
 
 class TestTheScreenBehindTheRow:
-    """One route, one page, one click, whether the question came from a
-    modifier's offer or from a slot. The pick screen is
-    `test_choosing.py`'s subject; what is pinned here is that a slot's
-    row has an address at all and that clicking it writes the pick."""
+    """Link an assigned slot to the shared picker route and record its selection through the page."""
 
     def slot_line(self, gang):
         from n26.core.views.choose import link_slots
@@ -1083,10 +1044,11 @@ class TestTheScreenBehindTheRow:
 
 
 class TestAnOptionalChoiceOffersNone:
-    """A choice expecting no picks ends its list with a None row, which
-    takes the standing pick back and leaves the choice open. A choice
-    that expects one offers no such row — leaving it open is already
-    free, and there is nothing None would say."""
+    """Offer None for optional single-pick choices to remove the current pick.
+
+    Mandatory single-pick choices omit None. Multi-pick choices remove each
+    pick through its own control instead.
+    """
 
     @pytest.fixture
     @library_setup
@@ -1137,7 +1099,7 @@ class TestAnOptionalChoiceOffersNone:
     def test_a_choice_worked_at_a_pick_at_a_time_has_no_none_row(
         self, gang, person_type, gang_type, legacy, legacies, client, owner
     ):
-        """Each pick already carries its own Remove, which is the reset."""
+        """Use per-pick Remove controls rather than a None option for multi-pick choices."""
         slot = create_slot("Two legacies", legacy, legacies, min_picks=0, max_picks=2)
         profile = create_profile("Wanderer", person_type, gang_type, price=100)
         add_built_in(profile, slot)
@@ -1150,13 +1112,9 @@ class TestAnOptionalChoiceOffersNone:
 
 
 class TestAPickTheGangHolds:
-    """What the gang chose is a fact about everybody in it.
+    """Treat valid gang-held picks as facts about every member, including the fighter who made the choice.
 
-    A choice may say the gang carries the answer. The pick then lands on
-    the gang and rides every member's card — including the card of the
-    fighter who was asked — so a rule reaching "models with the Mutant
-    pick" reaches them. A pick is the only thing the gang holds that
-    counts as a member's: its gun is still its own.
+    Ordinary gang equipment does not satisfy conditions asking what a model holds.
     """
 
     @pytest.fixture
@@ -1172,7 +1130,7 @@ class TestAPickTheGangHolds:
     @pytest.fixture
     @library_setup
     def leader(self, person_type, gang_type, slot_type, mutant):
-        """A profile carrying a choice whose answer the gang holds."""
+        """Give the Leader a choice whose selected pick is stored on the gang."""
         picklist = create_picklist("Outcast Archetypes", slot_type, members=[mutant])
         slot = create_slot("Archetype", slot_type, picklist, assigned_to="gang")
         profile = create_profile("Outcast Leader", person_type, gang_type, price=120)
@@ -1185,7 +1143,7 @@ class TestAPickTheGangHolds:
         return create_profile("Scav", person_type, gang_type, price=40)
 
     def watcher(self, pickable, name="Watcher"):
-        """Kit that notices a pick: one rule behind one condition."""
+        """Create equipment that grants a rule when its model matches the specified pick condition."""
         gear = create_wargear(name)
         modifier(
             f"{name}: notices {pickable}",
@@ -1232,8 +1190,7 @@ class TestAPickTheGangHolds:
         assert_reconciled(gang)
 
     def test_a_gun_the_gang_holds_is_still_not_the_models(self, gang, leader, mutant):
-        """Only picks widen: a scope asking what this fighter has must
-        not find the gang's kit in their hands."""
+        """Include gang-held picks in model matching without including ordinary gang equipment."""
         from n26.core import select
 
         boss = hire(gang, leader, "Boss", paid=120)
@@ -1250,8 +1207,7 @@ class TestAPickTheGangHolds:
     def test_a_gang_held_pickable_with_no_choice_behind_it_says_nothing(
         self, gang, leader, mutant
     ):
-        """The orphan rule holds wherever the pickable sits: nobody was
-        offered it, so it is not a fact about anybody."""
+        """Exclude an unanchored gang-held pickable from member pick conditions."""
         from n26.core import select
 
         boss = hire(gang, leader, "Boss", paid=120)
@@ -1261,9 +1217,7 @@ class TestAPickTheGangHolds:
 
 
 class TestTwoChoicesOneThingGave:
-    """One thing may open two choices of a slot type. They share the
-    assignment that gave them, so only the slot each pick names keeps
-    their answers apart."""
+    """Distinguish choices sharing the same granting assignment and slot type through each pick's recorded slot."""
 
     @pytest.fixture
     @library_setup
@@ -1342,10 +1296,7 @@ class TestTwoChoicesOneThingGave:
 
 
 class TestAChoiceBoughtIntoTheStash:
-    """A thing that arrives with its choice settled may be bought
-    unassigned. There is no bearer for the pick to land on, and it
-    belongs with the item rather than with the gang: it waits in the
-    stash beside it and moves when somebody carries the thing."""
+    """Host an equipment choice and its default pick in the stash when the purchase has no bearer."""
 
     @pytest.fixture
     @library_setup
@@ -1356,9 +1307,7 @@ class TestAChoiceBoughtIntoTheStash:
         return gear
 
     def test_the_purchase_goes_through(self, gang, banner, houses):
-        """The whole buy used to unwind: the pick had no host at all,
-        and the constraint that says an assignment has exactly one took
-        the purchase down with it."""
+        """Give the default pick the same stash host as its purchase to satisfy the exactly-one-host constraint."""
         bought = buy(gang.stash, thing=banner, paid=20)
 
         assert bought.stash == gang.stash
@@ -1376,8 +1325,7 @@ class TestWhereAGivenChoiceIsDrawn:
     def test_it_takes_the_place_its_slot_was_given(
         self, gang, person_type, gang_type, legacy, legacies, houses
     ):
-        """A choice a modifier handed over sits where the author put it,
-        like any other — being given is not a reason to draw last."""
+        """Order computed choices by the authored slot position alongside built-in choices."""
         early = create_slot("Early Legacy", legacy, legacies, label="Aa", position=0)
         late = create_slot("Late Legacy", legacy, legacies, label="Zz", position=9)
         charter = create_wargear("Charter")
@@ -1397,9 +1345,7 @@ class TestWhereAGivenChoiceIsDrawn:
 
 
 class TestTheWordingAListGivesAnPickable:
-    """A list may call a pickable something of its own. The wording is
-    the list's, so it reaches the picker and stops there: the card
-    prints what the thing is called."""
+    """Use picklist-member labels in the picker and the pickable's own name on the card."""
 
     @pytest.fixture
     @library_setup
@@ -1436,7 +1382,7 @@ def pickable_key_of(pickable):
 
 
 def button_labels(body):
-    """What the page's buttons say, as a reader would read them."""
+    """Extract rendered button labels in page order."""
     import re
 
     return [
@@ -1446,7 +1392,7 @@ def button_labels(body):
 
 
 def picker_href(gang):
-    """Where the one choice on this gang's one fighter is settled."""
+    """Return the linked choice on the gang's single fighter card."""
     from n26.core.views.choose import link_slots
 
     sheet = render_gang(gang)
@@ -1457,11 +1403,11 @@ def picker_href(gang):
 
 
 class TestAChoiceThatHoldsSeveral:
-    """A choice of more than one is worked at rather than made in one stroke: each
-    pickable carries its own act, a click settles or unsettles that one,
-    and the page comes back. Full, it stops offering the rest — the way
-    to something else is to take a pick back, never to have one pushed
-    out unasked."""
+    """Add and remove one pick per request and return to the picker.
+
+    At capacity, offer only removal controls. Selecting another result must
+    not evict an existing pick.
+    """
 
     @pytest.fixture
     @library_setup
@@ -1557,8 +1503,7 @@ class TestAChoiceThatHoldsSeveral:
 
 
 class TestAChoiceThatHoldsNone:
-    """Nought picks: a choice authored to ask nothing. It offers nothing
-    and writes nothing."""
+    """A slot with zero capacity offers no selections and creates no picks."""
 
     @pytest.fixture
     @library_setup
@@ -1630,9 +1575,7 @@ class TestAChoiceThatHoldsNone:
 
 
 class TestAChoiceTheGangIsAskedThatHoldsNone:
-    """The gang's own strip draws a choice that asks nothing the way a
-    card does: the row stands, headed as authored, and nothing on it
-    leads to a picker with nothing on it."""
+    """Display a zero-capacity gang choice without linking to an empty picker."""
 
     @pytest.fixture
     @library_setup
@@ -1653,9 +1596,7 @@ class TestAChoiceTheGangIsAskedThatHoldsNone:
     def test_a_dismissal_written_for_it_hides_nothing(
         self, owner, asks_the_gang_nothing, client
     ):
-        """No screen offers to dismiss or restore a choice that asks
-        nothing, so a row for one — left over from before the content
-        changed — must not hide it, or it would be hidden for good."""
+        """Ignore stored dismissals for zero-capacity choices because no control can restore them."""
         from django.urls import reverse
 
         from n26.core.models import DismissedOffer
@@ -1686,9 +1627,10 @@ class TestAChoiceTheGangIsAskedThatHoldsNone:
 
 
 class TestARollTableInThePicker:
-    """A player who rolled on the physical table finds their result by
-    the roll: the picker leads each option with its band and lists them
-    in roll order. An ordinary list draws exactly as it always has."""
+    """Order roll-table options by their bands and display each band before its result.
+
+    Ordinary picklists have no bands.
+    """
 
     @pytest.fixture
     @library_setup
@@ -1771,9 +1713,7 @@ class TestThePickerStaysFlatHoweverLongTheList:
     def test_the_page_reads_flat_as_the_list_grows(
         self, gang, hunter, legacy, legacies, client, owner, django_assert_num_queries
     ):
-        """Six pickables and twenty-six are the same page read twice: the
-        wording is the member's and the identity the pickable's, and both
-        come back with the list."""
+        """Load labels and pick identities with the list so adding options adds no page queries."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -1795,32 +1735,24 @@ class TestThePickerStaysFlatHoweverLongTheList:
 
 class TestTheKindsKeepOutOfTheWay:
     def test_neither_is_gear_the_trading_post_would_stock(self):
-        """Family is read by more than the menu: the Trading Post sweeps
-        every GEAR kind, and a choice on sale would be nonsense."""
+        """Exclude slots and pickables from the GEAR family used by Trading Post sweeps."""
         from n26.library.models.assignable import Family
 
         assert Pickable.family != Family.GEAR
         assert Slot.family != Family.GEAR
 
     def test_neither_says_its_kind_to_a_player(self, legacy, houses):
-        """Internals never leak: the names are authored to be read, the
-        kinds are the library's own plumbing."""
+        """Use authored pick names without an internal kind label."""
         from n26.core.effects import kind_of
 
         assert kind_of(houses["Cawdor"]) == ""
 
 
-# --- Example B: a choice worked at a pick at a time, allowing repeats ------
-
-
 class TestAChoiceThatAllowsRepeats:
-    """A standing choice that holds several picks and may hold the same
-    one twice — the shape a lasting injury takes: a fighter carries the
-    slot from hire, and a second Eye Injury is a second Eye Injury.
+    """Combine slot capacity with the slot type's repeat policy.
 
-    Nothing here is a new kind. The slot type says it allows repeats,
-    the slot says how many it holds, and the card and the picker draw
-    what those two already mean.
+    A repeated injury creates another pick assignment and another effect;
+    the card groups repeated result names with a count.
     """
 
     @pytest.fixture
@@ -1951,9 +1883,7 @@ class TestAChoiceThatAllowsRepeats:
     def test_where_repeats_are_not_allowed_a_held_pick_is_only_removable(
         self, gang, person_type, gang_type, legacy, houses
     ):
-        """The same picker under the other doctrine: a several-pick
-        choice of a type that forbids repeats offers a held pick only its
-        way back."""
+        """Offer only removal for a held result when the multi-pick choice forbids repeats."""
         picklist = create_picklist(
             "Two Legacies", legacy, members=list(houses.values())
         )
@@ -1971,9 +1901,7 @@ class TestAChoiceThatAllowsRepeats:
 
 
 class TestAChoiceThatAllowsRepeatsOnScreen:
-    """The same choice through the pages: the picker takes a second
-    click on a held result as a second pick, and the card keeps its
-    Choose beside what is already held until the choice is full."""
+    """Add repeated results through the picker and retain the card's Add control until capacity is reached."""
 
     @pytest.fixture
     @library_setup
@@ -2085,9 +2013,7 @@ class TestAChoiceThatAllowsRepeatsOnScreen:
     def test_the_sheet_reads_flat_however_many_are_hurt(
         self, client, owner, gang, ganger, yolanda, results
     ):
-        """Whether a choice is full is read off picks the card already
-        holds, so a sheet of injured fighters costs what a sheet of
-        unhurt ones does."""
+        """Determine remaining capacity from loaded picks without adding page queries per injured model."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -2117,16 +2043,13 @@ class TestAChoiceThatAllowsRepeatsOnScreen:
         )
 
 
-# --- A pick that adds to rating ---------------------------------------------
-
-
 class TestAPickMayAddToRating:
-    """A pick is never paid for, but a pickable may say what holding it
-    adds to the model's rating — a Spyrer's Power Boost raises the
-    model's value by the amount the table prints. The pick is written
-    with that as its rating and nothing paid, so taking it back drops
-    the rating and moves no credits, and the owned-assignment acts
-    (sell, refund, reassign, remove) do not resolve for it at all."""
+    """Record a pickable's rating contribution without charging credits.
+
+    Removing the pick reverses that rating without moving money. Generic owned
+    assignment endpoints do not expose sell, refund, reassign or remove actions
+    for these picks.
+    """
 
     @pytest.fixture
     @library_setup
@@ -2162,8 +2085,7 @@ class TestAPickMayAddToRating:
     @pytest.fixture
     @library_setup
     def boosted_spyrer(self, person_type, gang_type, power_boost_slot, results):
-        """Hired already holding one result: a slot's starting pick
-        carries its rating like a clicked one."""
+        """Apply an initial pick's rating contribution during hire, as for a manually chosen pick."""
         profile = create_profile("Boosted Spyrer", person_type, gang_type, price=200)
         add_built_in(
             profile, power_boost_slot, default_pickable=results["Combat Neuroware"]
@@ -2249,9 +2171,7 @@ class TestAPickMayAddToRating:
     def test_a_pick_the_gang_holds_adds_nothing(
         self, gang, person_type, gang_type, boost, results
     ):
-        """Rating is what the models are worth; a gang-hosted assignment
-        carries none of its own, and a pick landing on the gang is no
-        exception, whatever its pickable says."""
+        """Keep gang-hosted picks at zero rating regardless of the pickable's authored contribution."""
         table = create_picklist("Gang Boost", boost, members=list(results.values()))
         gang_slot = create_slot(
             "Gang Boost", boost, table, min_picks=0, max_picks=1, assigned_to="gang"

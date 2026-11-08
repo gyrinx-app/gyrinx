@@ -1,11 +1,8 @@
-"""Setting groups — small typed models carrying extra facts.
+"""Register typed setting models under stable keys.
 
-Each group is its own model with real columns and real foreign keys,
-registered under a stable key. The decorator records ``group_key`` and
-``applies_to`` on the class. The model must be imported from
-``models/__init__.py`` or ``SETTING_GROUPS`` never sees it.
-
-Adding a new kind of setting is a new small model plus a migration.
+The decorator stores group_key and applies_to on each class. Import each
+model from models/__init__.py so its decorator runs and registers it in
+SETTING_GROUPS. New setting kinds require a model and migration.
 """
 
 from django.db import models

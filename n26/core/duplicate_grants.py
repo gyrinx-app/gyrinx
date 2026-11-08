@@ -1,32 +1,16 @@
-"""Dropping the second copy a catch-up pass granted.
+"""Remove duplicate catch-up grants and retain the original free assignment.
 
-A pass decides whether a carrier already holds a member by provenance
-alone: a copy naming the member and the carrier. Grants written before
-provenance existed name nothing, so to a pass they were invisible — it
-looked at a model that plainly held the thing, found no copy naming the
-member, and granted another. Every such pass over a set left the model
-holding the thing twice: the owner's original, and a fresh grant told in
-the history as caught up.
+Match a provenance-tagged copy with a catch-up event to an untagged DEFAULT
+copy of the same content on the same host. Exclude purchased or rewarded
+copies, independently tagged set members, and ordinary acquisition grants.
 
-A duplicate is recognised by its shape rather than by when it happened:
-one copy carrying provenance and a catch-up event, beside a copy of the
-same thing on the same host with no provenance at all. Nothing else has
-that shape. Two members of a set naming one thing leave two copies that
-both carry provenance; a thing an owner bought or was rewarded leaves a
-copy whose reason is not ``default``; a hire's own grant carries no
-catch-up event.
+Delete the duplicate and its caused descendants, transferring its provenance
+to the retained original. Archiving would incorrectly record a removed
+possession and leave the duplicate in provenance checks. Later reconciliation
+can grant the survivor's nested built-ins once.
 
-The repair keeps the owner's copy and drops the pass's, then writes the
-dropped copy's provenance onto the survivor — the state the estate would
-have been in had every grant been tagged before any pass ran. Deleting
-is right where archiving is not: an archived copy reads as something the
-owner parted with, and they never had this one. What the dropped copy
-caused goes with it, which is how a duplicated subtype's own built-ins
-leave too; the next pass grants them once, against the survivor.
-
-Nothing here moves money. Every copy dropped is a free grant whose entry
-pins zero and whose events carry no deltas, so the books fold exactly as
-they did — proved per gang, as every repair here proves it.
+Matched copies must have zero-valued entries and events. Verify each gang
+reconciles before its transaction commits.
 """
 
 from dataclasses import dataclass, field
@@ -59,9 +43,8 @@ class GangOutcome:
     swept: int = 0
     #: Tallies carried from a dropped duplicate onto the copy that stays.
     merged: int = 0
-    #: Sentences, one per group left standing because dropping it would
-    #: destroy something the repair cannot move: a tally with nowhere to
-    #: go, or something that was paid for.
+    #: Reasons for retaining groups with paid assignments or counter history
+    #: that cannot be transferred safely.
     kept_a_tally: list = field(default_factory=list)
 
     def counts(self):
@@ -91,13 +74,7 @@ def _kind_of(assignment):
 
 
 def _goes_with(assignment):
-    """Everything the database takes with the copy, to the bottom.
-
-    Both ``caused_by`` and ``materialised_for`` cascade, and either can
-    nest: a granted subtype brings its own built-ins, and one of those
-    may bring more. The whole subtree goes, so the whole subtree is what
-    a reading of the consequences must walk.
-    """
+    """Collect the full cascade graph through caused_by and materialised_for links."""
     found = set()
     frontier = {assignment.pk}
     while frontier:
@@ -112,11 +89,10 @@ def _goes_with(assignment):
 
 
 def _money_under(assignment, goes_with):
-    """Whether anything going with the copy was paid for or counts
-    towards the gang's rating.
+    """Whether the duplicate's cascade contains paid or rating-bearing assignments.
 
-    A grant never is, but a thing the duplicate spawned may have been
-    bought since, and money the owner spent is not a repair's to delete.
+    Spawned models may have acquired equipment independently, which this repair
+    must preserve.
     """
     from n26.core.models import LedgerEntry
 
@@ -128,12 +104,7 @@ def _money_under(assignment, goes_with):
 
 
 def _tally_under(assignment, goes_with=None):
-    """The highest counter value on the copy or anywhere beneath it, or
-    None where nothing under it counts anything.
-
-    The whole subtree is read, not just the copy's own children: a tally
-    two levels down would be destroyed by the same delete.
-    """
+    """Return the highest counter value in the cascade, or None without counters."""
     from n26.core.models import CounterValue
 
     under = {assignment.pk} | (
@@ -146,11 +117,7 @@ def _tally_under(assignment, goes_with=None):
 
 
 def _verdict(grant, owner, gang=None):
-    """What the repair would do with one pair, as (action, sentence).
-
-    The single reading behind both the run and the page that previews
-    it, so the page can never describe something the run would not do.
-    """
+    """Return the action and explanation shared by preview and execution."""
     goes_with = _goes_with(grant)
     where = grant.miniature_root or gang or "the gang"
     if _named_more_than_once(grant):
@@ -188,12 +155,9 @@ def _verdict(grant, owner, gang=None):
 
 
 def _named_more_than_once(grant):
-    """Whether the set behind the grant names its thing more than once.
+    """Whether repeated set members make duplicate attribution ambiguous.
 
-    Twin members leave two copies that both belong, and an untagged one
-    beside a granted one is then two members doing their job rather than
-    a duplicate. Which copy answers which member cannot be told once the
-    provenance has gone, so such a group is left exactly as it stands.
+    Leave these groups unchanged because both copies may represent legitimate grants.
     """
     from n26.library.models import DefaultAssignment
 
@@ -225,13 +189,10 @@ def _can_carry(grant, owner, goes_with):
 
 
 def _carry_the_tally(grant, owner, tally, goes_with):
-    """Move a tally from the duplicate onto the copy that stays, where
-    there is somewhere for it to go.
+    """Transfer the duplicate counter's value to its retained twin when safe.
 
-    A counter duplicated outright has its twin standing beside it, and
-    the higher of the two numbers is the one somebody kept. A tally
-    deeper in the subtree has no twin to carry it to, and says so by
-    answering False, so the duplicate is left standing instead.
+    Keep the larger balance. Nested counters without a matching twin prevent
+    the duplicate's deletion.
     """
     from n26.core.models import CounterValue
     from n26.core.operations import operation
@@ -252,12 +213,9 @@ def _carry_the_tally(grant, owner, tally, goes_with):
 
 
 def duplicates_in(gang, only_miniature_id=None):
-    """The pairs this gang carries: a caught-up grant beside an owner's
-    untagged copy of the same thing on the same host.
+    """Pair catch-up grants with matching untagged originals on the same host.
 
-    ``only_miniature_id`` narrows the whole reading to one model, so a
-    repair can be tried on a single fighter and read back before the
-    estate is walked.
+    only_miniature_id restricts the read to one model.
     """
     caught_up = set(
         LedgerEvent.objects.filter(
@@ -294,10 +252,8 @@ def duplicates_in(gang, only_miniature_id=None):
             and getattr(copy, "ledger_entry", None) is not None
             and copy.ledger_entry.reason == Reason.DEFAULT
         ]
-        # Oldest against oldest, so the same reading twice pairs the same
-        # copies. Pairs only, deliberately: a group with more caught-up
-        # grants than owner's copies has as many duplicates as there are
-        # copies to keep, and the rest are grants standing on their own.
+        # Pair oldest copies deterministically, at most one duplicate per retained
+        # original. Extra catch-up grants remain independent.
         for grant, owner in zip(
             sorted(granted, key=lambda copy: copy.pk),
             sorted(owners, key=lambda copy: copy.pk),
@@ -308,11 +264,9 @@ def duplicates_in(gang, only_miniature_id=None):
 
 
 def de_duplicate(gang_id, only_miniature_id=None):
-    """Settle one gang: drop each duplicated grant and hand its
-    provenance to the copy the owner already had.
+    """Delete safe duplicate grants and transfer provenance to retained originals.
 
-    ``only_miniature_id`` confines the repair to one model, leaving the
-    rest of the gang exactly as it stands.
+    only_miniature_id confines changes to one model.
     """
     from django.db import transaction
 
@@ -324,13 +278,9 @@ def de_duplicate(gang_id, only_miniature_id=None):
         # Read the repair plan under the same lock as ordinary counter writes.
         # Keep it until the duplicate and its history have been removed.
         gang = Gang.objects.select_for_update().get(pk=gang_id)
-        # A duplicate may sit beneath another: a granted subtype brings
-        # its own built-ins, and one of those may be a duplicate in its
-        # own right. Dropping the one above takes it, so what has
-        # already gone is remembered — a pair whose grant or whose
-        # survivor is gone has nothing left to settle, and writing the
-        # provenance of a deleted carrier onto anything would fail the
-        # whole gang.
+        # Deleting a duplicate can cascade through other candidate pairs. Skip
+        # pairs whose duplicate or survivor was already deleted, preventing dangling
+        # provenance writes.
         gone = set()
         for grant, owner in duplicates_in(gang, only_miniature_id):
             if grant.pk in gone or owner.pk in gone:
@@ -393,8 +343,7 @@ def duplicate_grants_by_kind():
 
 
 def what_one_model_carries(miniature):
-    """The duplicates standing on one model, as sentences — exactly what
-    a single-model run would do, read before running it."""
+    """Describe the exact duplicate repairs a single-model run would perform."""
     if miniature.membership_id is None:
         return []
     gang = miniature.membership.gang_root

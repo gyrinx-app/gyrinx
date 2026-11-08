@@ -1,17 +1,7 @@
-"""The badge beside a name, in this edition's markup.
-
-A badge belongs to the person, not to the edition they happen to be
-looking at. Which one someone shows is derived from their live supporter
-standing and their staff flag against the platform's registry, plus
-whichever of the ones they are entitled to they picked — so an n26 page
-asks the platform that question rather than answering it itself. What
-crosses the boundary is the answer, not the markup: the artwork and the
-wording arrive as data, and <c-n26.user-link> draws them in this
-edition's own terms.
-
-The bug these pin: the gang sheet used to draw a hardcoded staff icon
-whenever the owner was staff, which showed every supporter no badge at
-all and would have gone wrong again on the next tier.
+"""Verify that N26 displays account badges selected by the shared platform registry. Use
+the same eligibility, artwork and labels across account controls, profiles, gang owners
+and campaigns. Batch badge reads for repeated names, and export allowlisted SVG data for
+React islands.
 """
 
 import re
@@ -31,16 +21,13 @@ pytestmark = pytest.mark.django_db
 
 GUILDER = badge_by_slug("guilder")
 
-# The wrapper <c-n26.flair-link> puts round a badge. Nothing else in the
-# edition emits it, so its absence is the claim that no empty span was
-# drawn where a badge would have gone.
+# Identify the badge wrapper so tests can detect unwanted empty spacing.
 FLAIR_WRAPPER = 'class="ml-[0.25em] n26-icon-inline'
 
 
 @pytest.fixture
 def tester(client):
-    """Make the signed-in person a page is looked at as, and sign them
-    in — an ordinary account unless the caller asks for more."""
+    """Create and sign in an account, with optional staff or other user fields."""
 
     def _make(username, **kwargs):
         user = User.objects.create_user(username, **kwargs)
@@ -52,7 +39,7 @@ def tester(client):
 
 @pytest.fixture
 def supporter(tester):
-    """Someone entitled to a tier badge, showing it."""
+    """Active supporter who has selected the Guilder badge."""
     user = tester("patron")
     UserProfile.objects.create(
         user=user,
@@ -64,8 +51,7 @@ def supporter(tester):
 
 
 class TestTheBadgeBesideAName:
-    """Whatever the registry says this person shows, drawn in n26's own
-    component — never a mark this edition picked for them."""
+    """Display the platform-selected account badge through N26 components."""
 
     def test_a_supporter_sees_their_own_tier_badge(
         self, supporter, client, default_pack
@@ -76,8 +62,7 @@ class TestTheBadgeBesideAName:
     def test_a_staff_member_who_has_chosen_nothing_gets_the_staff_mark(
         self, tester, client, default_pack
     ):
-        """Staff outranks the tiers, so it is what an unchosen staff
-        account defaults to."""
+        """Default eligible staff accounts to the staff badge when no badge is selected."""
         UserProfile.objects.create(user=tester("boss", is_staff=True))
 
         body = client.get("/n26/gangs/new/").content.decode()
@@ -86,9 +71,7 @@ class TestTheBadgeBesideAName:
     def test_someone_entitled_to_nothing_gets_no_mark_and_no_empty_span(
         self, tester, client, default_pack
     ):
-        """Not an invisible badge: the wrapper is drawn only when there
-        is artwork to put in it, so the name is followed by the next
-        thing on the line rather than by a quarter-em of nothing."""
+        """Omit the badge wrapper when no badge is available so it adds no empty spacing."""
         tester("nobody")
 
         body = client.get("/n26/gangs/new/").content.decode()
@@ -98,9 +81,9 @@ class TestTheBadgeBesideAName:
     def test_a_lapsed_supporter_loses_the_badge_they_picked(
         self, tester, client, default_pack
     ):
-        """Eligibility is derived every time it is drawn, so a
-        subscription ending takes the mark with it — the stored pick
-        outlives the entitlement and must not be trusted on its own."""
+        """Recheck eligibility rather than trusting a stored selection after entitlement
+        ends.
+        """
         user = tester("former-patron")
         UserProfile.objects.create(
             user=user,
@@ -115,10 +98,9 @@ class TestTheBadgeBesideAName:
     def test_the_account_menu_names_the_reader_and_marks_them(
         self, supporter, client, default_pack
     ):
-        """The bar's button drops the name on a phone, so the menu behind
-        it is the only place left that says which account this is — and
-        the badge goes with the name, out of the same registry rather
-        than out of a second guess made here."""
+        """Keep account identity and badge in menu props because the header button can hide
+        the name on narrow screens.
+        """
         import json
 
         from bs4 import BeautifulSoup
@@ -126,8 +108,7 @@ class TestTheBadgeBesideAName:
         soup = BeautifulSoup(client.get("/n26/gangs/new/").content, "html.parser")
         host = soup.select_one('[data-react-name="account-menu"]')
         menu = json.loads(soup.find(id=host["data-react-props"]).string)
-        # The island names the reader on the menu's first line, with the
-        # badge the props carry from the platform's registry.
+
         assert menu["items"][0] == {"type": "person"}
         assert menu["person"]["name"] == "patron"
         assert menu["person"]["badge"] == "guilder"
@@ -136,12 +117,11 @@ class TestTheBadgeBesideAName:
     def test_the_bars_account_button_marks_the_name_it_shows(
         self, supporter, client, default_pack
     ):
-        """The button carries the name at any width the page can spare
-        it, and a name shown there without its badge would be the one
-        place in the chrome that disagreed about who this is."""
+        """The server-rendered account button must show the same badge supplied to the
+        React menu.
+        """
         body = client.get("/n26/gangs/new/").content.decode()
-        # The button drawn until the island mounts; the island draws the
-        # same name and badge from its props.
+        # Inspect the server fallback before the React island mounts.
         host = body.index('data-react-name="account-menu"')
         button = body[host : body.index("</button>", host)]
         assert "patron" in button
@@ -150,18 +130,16 @@ class TestTheBadgeBesideAName:
     def test_the_badge_says_what_the_registry_says_it_means(
         self, supporter, client, default_pack
     ):
-        """The accessible name and the tooltip are the registry's own
-        wording. A label written into a template would be this edition
-        guessing at what someone else's badge means, and would say the
-        old thing after a tier was renamed."""
+        """Use the registry description for both the accessible name and tooltip so renamed
+        tiers remain consistent.
+        """
         body = client.get("/n26/gangs/new/").content.decode()
         assert f'aria-label="{GUILDER.description}"' in body
         assert f'title="{GUILDER.description}"' in body
 
 
 class TestTheHomePageGreeting:
-    """The home page opens by naming whoever is reading, so the name
-    there carries the same mark it carries everywhere else."""
+    """Use the reader's account badge in the home-page heading."""
 
     def test_the_greeting_marks_the_reader(self, supporter, client, default_pack):
         body = client.get("/n26/").content.decode()
@@ -173,8 +151,7 @@ class TestTheHomePageGreeting:
     def test_the_badge_is_inside_the_heading_and_scales_with_it(
         self, supporter, client, default_pack
     ):
-        """Sized in em rather than pixels, so it grows with the h1
-        instead of sitting beside it at the size of body text."""
+        """Size the badge in em units so it scales with the heading."""
         body = client.get("/n26/").content.decode()
         heading = body[body.index("Hello,") :]
         heading = heading[: heading.index("</h1>")]
@@ -185,8 +162,7 @@ class TestTheHomePageGreeting:
     def test_a_reader_entitled_to_nothing_is_greeted_by_name_alone(
         self, tester, client, default_pack
     ):
-        """The common case: no mark, and no quarter-em of nothing after
-        the name where one would have gone."""
+
         tester("nobody")
 
         body = client.get("/n26/").content.decode()
@@ -196,8 +172,9 @@ class TestTheHomePageGreeting:
 
 
 class TestTheProfilePage:
-    """A person's profile is headed by their name, so the name there
-    carries the same mark it carries everywhere else."""
+    """Display the profile subject's badge, independently of the reader or selected edition
+    tab.
+    """
 
     @pytest.mark.parametrize("tab", ["n23", "n26"])
     def test_the_profile_header_marks_the_person_with_the_picker_artwork(
@@ -227,8 +204,7 @@ class TestTheProfilePage:
 
 
 class TestTheOwnerOfAGang:
-    """A gang's breadcrumb names its owner, so it carries the owner's
-    badge — the same answer the owner's own pages give."""
+    """Use the owner's account badge throughout gang navigation."""
 
     @pytest.fixture
     def gang(self, supporter, gang_type, make_profile):
@@ -245,9 +221,7 @@ class TestTheOwnerOfAGang:
         assert f'aria-label="{GUILDER.description}"' in body
 
     def test_every_trail_into_the_gang_shows_it_too(self, gang, client, default_pack):
-        """Every trail into a gang starts with the same person, so a
-        badge that appeared on one screen and not the next would read as
-        two different accounts."""
+
         from n26.core.models import Miniature
 
         fighter = Miniature.objects.get(name="Vex")
@@ -260,14 +234,8 @@ class TestTheOwnerOfAGang:
             assert badge_svg(GUILDER).strip() in body, path
 
     def test_a_gang_has_no_badge_of_its_own_to_show(self, gang, client, default_pack):
-        """The house artwork in the set is one house's, and nothing in
-        the library records which drawing a gang type owns — so a gang
-        carries its type as text and no mark. The only badge on the
-        sheet is the owner's.
-
-        Counted below the bar: the chrome names the signed-in reader at
-        the top of the account menu and draws their badge there too,
-        which is a fact about the account rather than about this gang.
+        """Below the account header, the gang sheet has one account badge: its owner's.
+        Gang-type artwork must not introduce another account-badge wrapper.
         """
         body = client.get(f"/n26/gangs/{gang.pk}/").content.decode()
         sheet = body.split("</header>")[-1]
@@ -275,21 +243,22 @@ class TestTheOwnerOfAGang:
 
 
 class TestTheNamesOnACampaign:
-    """A campaign names its arbitrator, its players and every gang's owner,
-    and each name carries the badge that person holds — read once for the
-    whole page, not once per name."""
+    """Display participant and arbitrator badges while keeping queries constant as people
+    and campaigns increase.
+    """
 
     @pytest.fixture
     def table(self, supporter, campaign_type):
-        """A campaign the supporter arbitrates."""
+
         from n26.tests.sandbox.actions import found_campaign
 
         return found_campaign("Dust Falls", campaign_type, owner=supporter, budget=1000)
 
     @pytest.fixture
     def player(self, gang_type, default_pack):
-        """Somebody entitled to the same badge, seated at a campaign's table
-        with a gang of their own."""
+        """Create an active Guilder supporter, accept their campaign invitation and add
+        their gang.
+        """
         from n26.core.campaigns import campaign_operation
         from n26.tests.sandbox.actions import found_gang, join_campaign
 
@@ -314,10 +283,9 @@ class TestTheNamesOnACampaign:
 
     @staticmethod
     def _queries(client, path):
-        """How many queries a page costs, once the session has settled — the
-        first request after signing in records the session, which is a
-        cost of signing in and not of the page. A path asking for a roll
-        dialog is asked for the way the page asks, over htmx."""
+        """Warm session state before measuring page queries. Request roll dialogs over
+        htmx, matching their caller.
+        """
         headers = {"HX-Request": "true"} if "?roll=" in path else {}
         client.get(path, headers=headers)
         with CaptureQueriesContext(connection) as context:
@@ -328,10 +296,9 @@ class TestTheNamesOnACampaign:
     def test_each_player_is_marked_at_the_table_and_on_their_gang(
         self, table, player, client
     ):
-        """Below the bar, which names the reader. A player's name is drawn
-        three times — under their gang, in the players table, and in the
-        log for accepting their place (joining is the arbitrator's act, and
-        reads "You") — and the mark follows it each time."""
+        """Check server-rendered player and log badges together with React gang-owner data.
+        Exclude the account header from badge counts.
+        """
         before = client.get(f"/n26/campaigns/{table.pk}/").content.decode()
         player(table, "vex")
         player(table, "kesh")
@@ -358,8 +325,7 @@ class TestTheNamesOnACampaign:
         assert with_more == with_one
 
     def test_a_campaign_row_marks_its_arbitrator(self, table, player, client):
-        """The list a player reads names whoever runs each campaign, and
-        the name carries their badge."""
+
         person = player(table, "vex")
         client.force_login(person)
         body = client.get("/n26/campaigns/").content.decode()
@@ -381,7 +347,7 @@ class TestTheNamesOnACampaign:
         with_one = self._queries(client, "/n26/campaigns/")
         for campaign in campaigns[1:]:
             player(campaign, f"vex-in-{campaign.name[-1]}")
-        # Seat the same reader at the other three tables.
+        # Accept invitations as the same reader for all campaigns being compared.
         from n26.core.campaigns import campaign_operation
 
         for campaign in campaigns[1:]:
@@ -395,11 +361,9 @@ class TestTheNamesOnACampaign:
     def test_a_dialog_that_cannot_be_drawn_serves_the_page_without_a_read_per_gang(
         self, table, player, client
     ):
-        """An htmx request for a roll dialog fetches the campaign and builds
-        the sheet without anybody's badge data, since a dialog names nobody.
-        When the question turns out stale and the whole page is served
-        instead, the people it names get their badge data read for the page,
-        not once per gang."""
+        """A stale roll-dialog request redraws the campaign page. Batch badge loading for
+        that fallback instead of reading once per gang.
+        """
         player(table, "vex")
         with_one = self._queries(
             client, f"/n26/campaigns/{table.pk}/?roll=nothing-of-the-kind"
@@ -413,9 +377,9 @@ class TestTheNamesOnACampaign:
         assert with_more == with_one
 
     def test_the_log_names_who_acted_with_their_badge(self, table, player, client):
-        """Somebody else's act is theirs by name, and the name carries the
-        badge they hold. The reader's own acts say "You", and a badge
-        after "You" would be the reader's own — the chrome shows that."""
+        """Show badges beside other actors' names. The reader's own acts use You without
+        repeating their badge.
+        """
         player(table, "vex")
 
         body = client.get(f"/n26/campaigns/{table.pk}/").content.decode()
@@ -438,8 +402,7 @@ class TestTheNamesOnACampaign:
     def test_the_players_screen_marks_players_and_people_found(
         self, table, player, client
     ):
-        """Both lists on the screen — the people already asked and the
-        people a search turns up — name each person with their badge."""
+        """Include badges in both existing participant rows and account search results."""
         player(table, "vex")
         UserProfile.objects.create(
             user=User.objects.create_user("vexation"),
@@ -452,16 +415,15 @@ class TestTheNamesOnACampaign:
             f"/n26/campaigns/{table.pk}/players/add/?q=vex"
         ).content.decode()
         below_the_bar = body.split("</header>")[-1]
-        # The arbitrator in the trail, vex at the table, then vex and
-        # vexation among the people found.
+        # Count the arbitrator breadcrumb, participant row and both search results.
         assert below_the_bar.count(badge_svg(GUILDER).strip()) == 4
 
     def test_the_players_screen_reads_the_arbitrators_badge_with_the_campaign(
         self, table, supporter
     ):
-        """The screen's trail names the arbitrator with their badge, so the
-        guard that fetches the campaign for it brings the profile and the
-        grants along: asking which badge they hold then reads nothing."""
+        """Load the arbitrator's profile and grants with the campaign so rendering their
+        breadcrumb needs no further account query.
+        """
         from django.test import RequestFactory
 
         from gyrinx.site.templatetags.badge_tags import badge_for
@@ -495,30 +457,30 @@ class TestTheNamesOnACampaign:
         assert with_more == with_one
 
     def test_the_add_gang_screen_marks_each_gangs_owner(self, table, player, client):
-        """The arbitrator picks from every gang at the table, each named
-        with whose it is, and the name carries the owner's badge. A player
-        picking from their own gangs is told nobody's name."""
+        """The arbitrator sees each gang owner's badge. A participant choosing among their
+        own gangs needs no repeated owner identity.
+        """
         player(table, "vex")
         person = player(table, "kesh")
         address = reverse("n26-campaign-add-gang", args=[table.pk])
 
         body = client.get(address).content.decode()
         below_the_bar = body.split("</header>")[-1]
-        # The arbitrator in the trail, then vex and kesh on their gangs.
+        # Count the arbitrator breadcrumb and both gang owners.
         assert below_the_bar.count(badge_svg(GUILDER).strip()) == 3
 
         client.force_login(person)
         body = client.get(address).content.decode()
         below_the_bar = body.split("</header>")[-1]
         assert "kesh&#x27;s gang" in below_the_bar
-        # The arbitrator in the trail alone.
+        # Only the arbitrator breadcrumb remains when owner identity is omitted from the
+        # participant's own gangs.
         assert below_the_bar.count(badge_svg(GUILDER).strip()) == 1
 
     def test_the_add_gang_island_names_each_owner_and_draws_each_badge_once(
         self, table, player, client
     ):
-        """The island's rows name each owner as the platform says to, and
-        the badge's drawing arrives once however many rows carry it."""
+        """Reuse one badge-artwork entry across all owner links that select it."""
         import json
 
         from bs4 import BeautifulSoup
@@ -568,12 +530,10 @@ class TestTheNamesOnACampaign:
     def test_an_add_gang_post_that_falls_through_costs_what_a_get_costs(
         self, table, player, client
     ):
-        """A POST naming a gang the list did not offer draws the page
-        again, which names the arbitrator in its trail and each gang's
-        owner on its rows. Their badge data is read for the page as a GET
-        reads it, not looked up for the names. Captured ORM queries for the
-        redraw match the GET, however many players there are. Session locks
-        use the physical connection and stand outside this capture."""
+        """Invalid gang submissions redraw the picker with the same batched badge reads as
+        GET. Compare captured ORM queries; session advisory locks use the physical
+        connection outside this capture.
+        """
 
         def redraw(path):
             client.get(path)
@@ -597,13 +557,10 @@ class TestTheNamesOnACampaign:
     def test_every_screen_under_a_campaign_reads_the_arbitrators_badge_with_it(
         self, table, supporter, player, client
     ):
-        """Every screen under a campaign names its arbitrator in the trail.
-        Each reads their badge grants with the campaign, for a set of people
-        ahead of drawing anything, and never for one name while the trail
-        is drawn. The only reads of one person's grants on any of them are
-        the bar's, which names the reader and reads their own — a fact
-        about the account, the same on every page, so a page outside any
-        campaign says what they are."""
+        """Batch campaign-person badge reads before rendering. Per-account reads must
+        remain limited to the signed-in reader, matching the account header on a page
+        outside the campaign.
+        """
         from n26.core.models import Gang
         from n26.tests.sandbox.actions import (
             add_asset,
@@ -667,11 +624,9 @@ class TestTheNamesOnACampaign:
     def test_a_post_that_does_not_act_draws_the_page_with_the_badges_in_hand(
         self, table, player, client
     ):
-        """A POST the form refuses draws its page again rather than
-        leaving, and that page names the arbitrator. The fetch left the
-        grants out — the POST was meant to act — so the redraw reads them
-        before drawing, which is the same one read the GET makes and not
-        one taken while the trail renders."""
+        """A refused POST must load the same batched badge data as GET before redrawing the
+        form.
+        """
         player(table, "vex")
         refused = [
             (
@@ -679,7 +634,8 @@ class TestTheNamesOnACampaign:
                 {"gang": "nothing-of-the-kind"},
             ),
             (reverse("n26-edit-campaign", args=[table.pk]), {"name": ""}),
-            # An addition page: four views share the one that draws it.
+            # Exercise the shared additions-page renderer through one of its counter
+            # views.
             (reverse("n26-campaign-add-counter", args=[table.pk]), {"name": ""}),
         ]
 
@@ -702,10 +658,9 @@ class TestTheNamesOnACampaign:
     def test_a_post_that_acts_reads_nobodys_badge(
         self, table, supporter, player, gang_type, client
     ):
-        """The mirror of the screens above: a POST that acts leaves without
-        drawing anybody, so the fetch carrying it reads no badge grants at
-        all. The page the reader lands on names the arbitrator and reads
-        them for itself."""
+        """Successful POSTs redirect without rendering names, so skip badge-grant queries.
+        The destination loads its own display data.
+        """
         from n26.core.models import Gang
         from n26.tests.sandbox.actions import (
             add_asset,
@@ -732,7 +687,7 @@ class TestTheNamesOnACampaign:
             (reverse("n26-campaign-asset-unassign", args=[table.pk, held.pk]), {}),
             (reverse("n26-campaign-asset-remove", args=[table.pk, unheld.pk]), {}),
             (reverse("n26-campaign-remove-player", args=[table.pk, person.pk]), {}),
-            # Archives the campaign, so it is asked last.
+            # Archive last because the remaining endpoints require an active campaign.
             (reverse("n26-archive-campaign", args=[table.pk]), {}),
         ]
         for address, payload in acts:
@@ -747,20 +702,17 @@ class TestTheNamesOnACampaign:
             assert not grants, (address, grants)
 
     def test_every_screen_under_a_campaign_says_whether_it_will_draw_anybody(self):
-        """A discovering guard, not a list. Every view reaching a campaign
-        through one of the two guards either draws the arbitrator in its
-        trail or does not, and the fetch is told which: a view that can
-        leave on a POST keys the read on the method, and one that never
-        draws anybody says so outright. A view added without saying takes
-        the default meant for the screens that only ever draw, and pays a
-        read on every act it performs."""
+        """Discover campaign-fetch calls and require POST-capable views to choose
+        with_owner_badge explicitly. The default display fetch would otherwise read
+        grants on requests that only write and redirect.
+        """
         import ast
         from pathlib import Path as _Path
 
         from n26.core import views as n26_views
 
-        # The package re-exports a view function under the module's own
-        # name, so the file is found through the package directory.
+        # Find the source through the package path because campaigns also names an
+        # exported view function.
         source = (_Path(n26_views.__file__).parent / "campaigns.py").read_text()
         tree = ast.parse(source)
         guards = {"_any_campaign_or_404", "_own_campaign_or_404"}
@@ -803,9 +755,9 @@ class TestTheNamesOnACampaign:
     def test_the_remove_player_question_names_them_with_their_badge(
         self, table, player, client
     ):
-        """The question says who is being taken out, and the name carries
-        their badge — read with the player, not looked up for the name, so
-        the page costs the same whether or not they hold one."""
+        """Fetch the removed participant's badge with their account so confirmation queries
+        are the same for badged and plain accounts.
+        """
         from n26.core.campaigns import campaign_operation
 
         badged = player(table, "vex")
@@ -825,8 +777,7 @@ class TestTheNamesOnACampaign:
         assert badged_queries == plain_queries
 
     def test_an_invitation_names_its_arbitrator_with_their_badge(self, table, client):
-        """The campaigns list opens with the invitations still waiting, each
-        saying who asked — through the same component, so the badge follows."""
+
         from n26.core.campaigns import campaign_operation
 
         person = User.objects.create_user("vex")
@@ -863,12 +814,12 @@ class TestTheNamesOnACampaign:
 
 
 class TestNoPageDecidesForItself:
-    """A discovering guard, not a list: any page that draws a person's
-    name must go through <c-n26.user-link>, because the moment one draws
-    its own the two disagree about the same person."""
+    """Discover templates that bypass user-link by supplying usernames directly to
+    flair-link. Account badge selection belongs to the shared registry.
+    """
 
-    # Every template but the one that is the answer: user-link is a
-    # flair-link with a username on it, and has to be.
+    # Exclude user-link itself because it implements account identity through
+    # flair-link.
     PAGES = sorted(
         path
         for path in (Path(__file__).resolve().parents[1] / "core" / "templates").rglob(
@@ -895,8 +846,9 @@ class TestNoPageDecidesForItself:
 
 
 class TestTheBadgeAsData:
-    """An island cannot take markup, so a badge crosses as an element tree,
-    limited to the platform's SVG allowlist and named as React names it."""
+    """Export badges as element trees restricted to the platform SVG allowlist, with React
+    attribute names.
+    """
 
     def test_the_staff_mark_crosses_with_its_drawing(self):
         from n26.badges import badge_mark
@@ -907,7 +859,8 @@ class TestTheBadgeAsData:
         assert svg["tag"] == "svg"
         assert svg["props"]["viewBox"] == "0 0 24 24"
         assert svg["props"]["shapeRendering"] == "geometricPrecision"
-        # The wrapper names the badge; the island hides the drawing itself.
+        # The wrapper supplies the accessible name; the React renderer hides the SVG
+        # itself.
         assert "aria-hidden" not in svg["props"]
         paths = [child for child in svg["children"] if child["tag"] == "path"]
         assert paths

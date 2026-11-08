@@ -1,15 +1,6 @@
-"""Gear that reads as what a model is, not as what it carries.
-
-Most possessions belong together under Gear: a knife and a respirator are
-the same sort of fact about a fighter. A few are not. A Goliath's
-Gene-smithing upgrades are bought and priced like anything else, but a
-reader scanning the card for them should not have to find them among the
-grenades.
-
-So a category can ask for a heading of its own, and everything filed
-under it leaves the Gear row for one named after the category. Nothing
-about the item changes: it is still a possession, still carries its
-rating, and can still be taken off.
+"""Categories with draws_its_own_row display their equipment under a separate heading, such
+as Gene-smithing. Grouping changes presentation while preserving assignment ratings and
+removal behaviour.
 """
 
 import pytest
@@ -39,8 +30,7 @@ def player():
 
 @pytest.fixture
 def library(default_pack, person_type, gang_type, make_profile):
-    """A gang list with two kinds of possession: ordinary gear, and
-    upgrades filed under a category that asks for its own heading."""
+    """Ordinary gear and upgrades whose category requests a separate heading."""
     upgrades = create_category("Gene-smithing", "Gene-smithing", draws_its_own_row=True)
     return {
         "bruiser": make_profile("Goliath Bruiser", price=100),
@@ -52,7 +42,7 @@ def library(default_pack, person_type, gang_type, make_profile):
 
 @pytest.fixture
 def krath(gang_type, player, library):
-    """One fighter holding one of each."""
+    """A model holding one ordinary item and one grouped upgrade."""
     gang = found_gang("The Chain", gang_type, owner=player, budget=1000)
     mini = hire(gang, library["bruiser"], "Krath", paid=100)
     assign(library["respirator"], miniature=mini, paid=15)
@@ -82,8 +72,7 @@ class TestACategoryThatAsksForItsOwnRow:
         assert card_of(krath).rating == 145
 
     def test_a_group_with_nothing_in_it_is_not_drawn(self, krath, library):
-        """Only categories with something filed under them here. An empty
-        heading says less than no heading."""
+        """Omit headings for categories with no equipment on this model."""
         card = card_of(krath)
         assert len(card.gear_groups) == 1
 
@@ -97,8 +86,7 @@ class TestACategoryThatAsksForItsOwnRow:
 
 
 class TestEverySurfaceDrawsIt:
-    """A row missing from one surface and present on another is the
-    failure nobody notices, so each is asserted rather than assumed."""
+    """Preserve separate gear groups in printed, text and captured model representations."""
 
     def test_the_printed_card_gives_it_a_heading(self, krath):
         groups = {group.label: group.text for group in detail_groups(card_of(krath))}
@@ -120,10 +108,10 @@ class TestEverySurfaceDrawsIt:
 
 
 class TestTwoHeadingsOfOneName:
-    """A category name is unique only within its section, so two headings
-    can read alike. They stay two headings, and the capture keeps them
-    apart — folded together, a conversion could move a possession from one
-    to the other and still call the two pages equal."""
+    """Keep same-named categories from different sections distinct in rendering and
+    capture. Combining them would hide reassignment between categories during
+    comparisons.
+    """
 
     @pytest.fixture
     def twins(self, default_pack, library, gang_type, player):
@@ -160,12 +148,13 @@ class TestTwoHeadingsOfOneName:
     def test_drawing_them_asks_no_query_of_its_own(
         self, twins, django_assert_num_queries
     ):
-        """Ordering breaks its tie on the section's name, which rides the
-        same hydration pass rather than a query per heading."""
+        """Hydrate category sections with their assignments so tie-breaking adds no
+        per-heading queries.
+        """
         card = build_card(twins)
         with CaptureQueriesContext(connection) as counted:
             card_to_model_card(card, name="Sull")
-        # Only the statline's own fetch, which no group adds to.
+        # Allow only the existing statline query, with no query added by grouping.
         assert len(counted.captured_queries) <= 1
 
 
@@ -195,10 +184,10 @@ class TestNothingElseChanges:
     def test_a_grouped_line_asks_no_query_of_its_own(
         self, krath, library, gang_type, player, django_assert_num_queries
     ):
-        """The category rides its kind's own hydration pass, so drawing a
-        card holding grouped gear takes exactly as many queries as
-        drawing one without it. Compared rather than pinned: the figure
-        itself is the statline's and belongs to the test that owns it."""
+        """Grouped gear must add no render queries compared with ordinary equipment.
+        Compare query counts so unrelated statline-query changes do not invalidate this
+        constraint.
+        """
         plain = found_gang("The Plain Chain", gang_type, owner=player, budget=1000)
         bare = hire(plain, library["bruiser"], "Yeng", paid=100)
         assign(library["respirator"], miniature=bare, paid=15)

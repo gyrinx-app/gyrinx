@@ -1,22 +1,6 @@
-"""Venator ranked skill trees: gang-chosen placements.
-
-The 2026 Venator rule (design/venator-skill-trees.md): the
-gang picks skill trees and ranks them 1–4; a fighter's primary and
-secondary access is a function of the gang's ordered picks and the
-fighter's rank:
-
-    | fighter        | Primary | Secondary |
-    | Hunt Leader    | 1 and 2 | 3 and 4   |
-    | Hunt Champion  | 1 and 2 | 3         |
-    | Specialist     | 1       | 2 and 3   |
-
-The unlock is reading that table **per column**: each rank slot is one
-gang-hosted assignable carrying everything except which tree was picked
-— a gang-level choice (``TargetsGang`` granting a ``Slot`` over the
-trees) and per-rank chosen-mode placements
-(``PlacesCategory.the_chosen``). The tree pick contributes exactly one
-datum, the pickable's ``category`` home; the whole mapping is authored
-content, known to no code.
+"""Venator gangs rank four skill trees. Each gang-level slot carries placements that
+determine primary and secondary access for each fighter rank; the chosen pickable
+supplies the category.
 """
 
 import pytest
@@ -58,12 +42,9 @@ from n26.tests.sandbox.actions import (
 pytestmark = pytest.mark.django_db
 
 
-# --- The content library --------------------------------------------------
-
-
 @pytest.fixture
 def sets(db):
-    """The six 2026 sets (core rules); the gang will rank four."""
+    """Six skill sets available for the four ranked slots."""
     return {
         name.lower(): create_category("Skills", name, position)
         for position, name in enumerate(
@@ -101,19 +82,15 @@ def skills_collection(skills):
 
 @pytest.fixture
 def tree_type(db):
-    """The game ranks four *different* trees, so the same one picked for
-    two ranks is worth a word — which is what refusing repeats means
-    here: informed, never policed."""
+    """Repeated trees produce guidance without rejecting the pick: Inform rather than
+    police.
+    """
     return create_slot_type("Skill Tree", allows_repeats=False)
 
 
 @pytest.fixture
 def tokens(sets, tree_type):
-    """One pickable per set, homed where the set lives.
-
-    The home is the whole of what a pick contributes: a rule placing
-    "the chosen set" reads the pickable's category to learn which set
-    the pick stands for."""
+    """Each pickable names the category used by chosen-category placements."""
     return {
         key: create_pickable(category.name, tree_type, category=category)
         for key, category in sets.items()
@@ -122,7 +99,7 @@ def tokens(sets, tree_type):
 
 @pytest.fixture
 def trees(tokens, tree_type):
-    """One list, offered by all four rank slots."""
+    """One collection shared by all four rank slots."""
     return create_picklist("Skill Trees", tree_type, members=list(tokens.values()))
 
 
@@ -135,7 +112,7 @@ def subtypes(db):
     }
 
 
-#: The table, read per column: rank slot -> who treats its pick as what.
+#: Rank slot to fighter ranks and access tiers.
 RANKS = {
     1: [("primary", ("leader", "champion", "specialist"))],
     2: [("primary", ("leader", "champion")), ("secondary", ("specialist",))],
@@ -146,8 +123,7 @@ RANKS = {
 
 @pytest.fixture
 def venators(subtypes, skills_collection, tree_type, trees):
-    """The gang type: four rank slots, each carrying the pick and what
-    the pick means per fighter rank. No code knows this table."""
+    """Four gang-level slots carry the tree choice and its placements by fighter rank."""
     _, tiers = skills_collection
     gang_type = create_gang_type("Venators")
 
@@ -198,8 +174,7 @@ def profiles(venators, subtypes, skills_collection, person_type):
         )
         profile.save()
         made[key] = profile
-    # Leaders start with a Primary skill — the ordinary, Escher-shaped
-    # offer; which sets are Primary arrives from the gang's picks.
+    # The starting skill offer reads the categories placed in Primary.
     modifier(
         "Hunt Leader: starts with a Primary skill",
         targets_model(),
@@ -235,11 +210,7 @@ def slot_row(gang, rank):
 
 
 def pick(gang, tokens, ranked):
-    """Choose for the rank slots: ``pick(gang, tokens, ["agility", ...])``.
-
-    A granted slot has no assignment of its own, so the anchor is the
-    marker the grant stands on and the slot being answered is named.
-    """
+    """Answer each granted slot on the stored assignment anchoring its grant."""
     from n26.library.models import Slot
 
     return [
@@ -265,7 +236,7 @@ def fighter_computed(miniature):
 
 
 def tiers_for(miniature, skills_collection, sets):
-    """``{set key: tier name}`` as this fighter's sections would sit."""
+    """Map category keys to the section names on a fighter card."""
     collection, _ = skills_collection
     placed = placements_for(fighter_computed(miniature), collection)
     return {
@@ -284,8 +255,7 @@ class TestTheGangPicks:
         assert not any(slot.is_resolved for slot in computed.choices)
 
     def test_the_pick_list_is_every_tree(self, gang, tokens):
-        """ "Pick a selection of skill trees": all six sets offer, the
-        gang ranks four of them."""
+        """All six trees are available in each of the four ranked slots."""
         computed = the_gang_computed(gang)
         offerable = offered_by(computed.choice("Skill tree 1"), computed)
         assert {tree.name for tree in offerable} == {
@@ -298,19 +268,15 @@ class TestTheGangPicks:
         }
 
     def test_no_hunters_card_asks_the_gangs_question(self, gang, hunters):
-        """The choice rows draw on the host's card and nowhere else.
-
-        The gang's assignments ride every member's card so that gang-wide
-        rules reach them — and a choice that rode along with them would
-        put the same question in front of the reader once per fighter,
-        each pointing at the same answer.
+        """Gang-wide assignments affect fighter cards, but their choice rows appear only on
+        the gang card.
         """
         asked = {
             slot.kind_label
             for hunter in hunters.values()
             for slot in fighter_computed(hunter).choices
         }
-        # The Hunt Leader has a question of his own, which is his.
+
         assert asked == {"Primary skill"}
 
     def test_the_chosen_rows_live_on_the_gang(self, gang, tokens):
@@ -327,7 +293,7 @@ class TestTheGangPicks:
 
 
 class TestTheTable:
-    """The rank table, asserted per fighter — the design's whole point."""
+    """Primary and secondary access follows the authored rank table."""
 
     @pytest.fixture(autouse=True)
     def picked(self, gang, hunters, tokens):
@@ -342,7 +308,7 @@ class TestTheTable:
         }
 
     def test_the_hunt_champion(self, hunters, skills_collection, sets):
-        """Nothing from slot 4 — not demoted: simply no modifier names them."""
+        """The fourth slot has no placement targeting the Hunt Champion."""
         assert tiers_for(hunters["champion"], skills_collection, sets) == {
             "agility": "Primary",
             "cunning": "Primary",
@@ -359,8 +325,7 @@ class TestTheTable:
     def test_the_leaders_primary_skill_offer_follows_the_picks(
         self, hunters, skills_collection
     ):
-        """Trees 1 and 2 are both Primary, so the one Primary tier shows
-        both — no union mechanism, just two placements into one tier."""
+        """Both primary placements contribute categories to the same tier."""
         computed = fighter_computed(hunters["leader"])
         offer = next(
             slot for slot in computed.choices if slot.kind_label == "Primary skill"
@@ -377,8 +342,7 @@ class TestChangingYourMind:
     def test_repicking_moves_every_fighter_at_once(
         self, gang, hunters, tokens, skills_collection, sets
     ):
-        """Nothing stored chases the change: placements are computed, so
-        a re-pick lands everywhere on the next read."""
+        """Placements are computed from the current picks on each read."""
         picks = pick(gang, tokens, ["agility", "cunning", "savant", "shooting"])
         assert (
             tiers_for(hunters["specialist"], skills_collection, sets)["agility"]
@@ -395,9 +359,9 @@ class TestChangingYourMind:
     def test_the_same_tree_twice_is_noted_and_ordering_settles_it(
         self, gang, hunters, tokens, skills_collection, sets
     ):
-        """Inform, not police: the owner may double-pick. The gang sheet
-        says so, and the fighter's view takes the better tier — lowest
-        section position wins, the ordering rule as everywhere."""
+        """Duplicate picks produce a gang-sheet note. The lowest section position wins when
+        the same category receives two tiers.
+        """
         pick(gang, tokens, ["agility", "cunning", "agility", "shooting"])
 
         notes = the_gang_computed(gang).notes
@@ -408,18 +372,17 @@ class TestChangingYourMind:
         )
 
     def test_before_any_pick_the_plan_says_why(self, gang, hunters):
-        """An open slot places nothing, visibly: the step ran, found
-        its fighter, and skipped for want of a choice."""
+        """The plan distinguishes an unmatched fighter scope from a placement skipped
+        because its slot is unanswered.
+        """
         computed = fighter_computed(hunters["leader"])
         steps = [
             step
             for step in computed.plan
             if "the chosen set" in step.effect and step.outcome == "skipped"
         ]
-        # Five placement modifiers ride the four slots (slot 2 carries
-        # two). Four name the Leader and skip for want of a choice; the
-        # fifth names only the Specialist and skips at the scope. All
-        # skipped, nothing placed — and the plan distinguishes why.
+        # Four modifiers match the Leader but have no choice to place. The
+        # Specialist-only modifier fails its scope.
         assert len(steps) == 5
         assert computed.placements == []
 
@@ -434,4 +397,4 @@ class TestTheSheet:
         assert "Skill tree 2: Cunning" in text
         assert "Skill tree 3: Savant" in text
         assert "Skill tree 4: — (not chosen)" in text
-        assert "Primary skill: — (not chosen)" in text  # the Leader's, open
+        assert "Primary skill: — (not chosen)" in text

@@ -1,9 +1,6 @@
-"""The hire view: a card for a fighter nobody has hired yet.
-
-A preview is built from library alone — a profile and its default
-equipment — and produces the same ``ModelCard`` a real hire produces. The
-equivalence test below is the point of the whole design: it is what stops
-the "what you'd get" screen and the gang sheet from drifting apart.
+"""Library-only previews and owned-model cards share the ModelCard representation. Compare
+built-ins, selected options, computed effects and starting XP without creating player
+data during preview.
 """
 
 import json
@@ -147,7 +144,7 @@ def preview(profile, option=None):
 
 class TestAPreviewCard:
     def test_it_needs_no_gang_and_no_model(self, khimerix):
-        """Nothing is written; there is nothing to write it to."""
+        """Previewing writes no assignments or owned models."""
         from n26.core.models import Assignment, Miniature
 
         card = preview(khimerix)
@@ -178,7 +175,7 @@ class TestAPreviewCard:
         assert card.rating == 260
 
     def test_weapons_carry_their_profiles(self, khimerix):
-        """The whole point of a preview: seeing what the thing does."""
+        """Every previewed weapon includes its profile lines."""
         for weapon in preview(khimerix).weapons:
             assert weapon.profiles, f"{weapon.name} has no profile lines"
 
@@ -198,7 +195,7 @@ class TestAPreviewCard:
 
 
 class TestTheCardYouGetIsTheCardYouWerePromised:
-    """The guarantee that makes two loaders safe."""
+    """Library and owned-model loaders must produce equivalent card facts."""
 
     def _comparable(self, card):
         return (
@@ -237,8 +234,7 @@ class TestTheCardYouGetIsTheCardYouWerePromised:
 
 
 class TestAStartingPickOnThePreview:
-    """A slot built in with its starting pick: the preview reads settled,
-    the way the hired card does — not an open Choose."""
+    """Built-in default picks render as answered choices before hiring."""
 
     @pytest.fixture
     def settled_hunter(self, person_type, gang_type, default_pack):
@@ -272,8 +268,7 @@ class TestAStartingPickOnThePreview:
         assert (choice.kind_label, choice.chosen) == ("Gang Legacy", "Cawdor")
 
     def test_what_the_pick_means_runs_on_the_preview(self, settled_hunter):
-        """The starting pick is a real pick, not decoration: what it
-        gives shows before anyone buys, and nothing is written."""
+        """Default-pick modifiers apply in previews without saving assignments."""
         from n26.core.models import Assignment
 
         card = preview(settled_hunter)
@@ -301,7 +296,7 @@ class TestAStartingPickOnThePreview:
 
 class TestModifiersRunInAPreview:
     def test_a_granted_skill_shows_before_you_buy(self, person_type, gang_type):
-        """Built-ins carry modifiers, and a preview computes them."""
+        """Preview computation includes modifiers carried by built-ins."""
         mounted = create_subtype("Mounted")
         modifier(
             "Mounted grants Hit & Run",
@@ -345,7 +340,7 @@ class TestModifiersRunInAPreview:
         assert choice.is_resolved is False
 
     def test_a_pet_wargear_says_what_it_will_bring(self, person_type, gang_type):
-        """Point 4: a stored effect is visible before it has happened."""
+        """Preview the pet-producing operation without performing it."""
         mastiff = Profile.objects.create(
             name="Cyber-mastiff",
             profile_type=person_type,
@@ -431,7 +426,7 @@ class TestTheHireEntry:
         assert eruption.total_price == 235
 
     def test_a_profile_with_no_options_still_offers_one(self, make_profile):
-        """So a UI never branches on whether choices exist."""
+        """Provide a default entry even when no authored options exist."""
         plain = make_profile("Escher Ganger", price=55)
         entry = build_hire_entry(plain)
 
@@ -443,7 +438,7 @@ class TestTheHireEntry:
         assert entry.offers_a_choice is False
 
     def test_the_option_carries_the_set_to_hire_with(self, gang, khimerix):
-        """What the UI hands back to ``hire``."""
+        """Pass the selected entry’s default set to hiring."""
         entry = build_hire_entry(khimerix)
         chosen = next(o for o in entry.options if o.name == "Eruption breath")
 
@@ -452,9 +447,7 @@ class TestTheHireEntry:
 
 
 class TestStartingXPOnThePreview:
-    """A hire opens at its printed Starting XP, and the preview card says
-    so before anyone is hired — the built-in carries the opening value,
-    and a card built from library alone reads it from there."""
+    """Previews read initial XP from the built-in counter declaration."""
 
     def test_the_preview_card_opens_at_the_printed_xp(
         self, person_type, gang_type, default_pack
@@ -473,8 +466,7 @@ class TestStartingXPOnThePreview:
         assert entry.default_option.card.xp == 61
 
     def test_the_card_you_get_still_matches_it(self, gang, person_type, gang_type):
-        """The equivalence this file exists for, extended to XP: the
-        preview and the hired card say the same number."""
+        """Starting XP matches between preview and the hired card."""
         from n26.library.authoring import add_built_in, create_counter
 
         profile = Profile.objects.create(
@@ -491,12 +483,8 @@ class TestStartingXPOnThePreview:
 
 
 class TestTheCardFollowsTheMainPick:
-    """Pick the arc welder and the card in front of you carries it.
-
-    Every main-pick option's card is served in the row's HTML — each was
-    already built, one per option against an otherwise-default selection
-    — and the radios only decide which is visible. Without scripting the
-    default card shows.
+    """The Cotton row includes each main-option preview and selects the visible card
+    through its radio state.
     """
 
     @pytest.fixture
@@ -530,15 +518,14 @@ class TestTheCardFollowsTheMainPick:
 
     def test_every_main_pick_card_is_on_the_row(self, ogryn):
         body = self.drawn(ogryn)
-        # The wargear's own name renders only inside its option's card —
-        # the radio label says "With arc welder", never the item's name.
+        # The item name appears only inside its option preview, distinct from the radio
+        # label.
         assert "Arc welder mk-VII" in body
         assert 'x-show="mainpick === 0"' in body
         assert 'x-show="mainpick === 1"' in body
 
     def test_only_the_default_card_shows_before_anything_is_clicked(self, ogryn):
-        """The alternatives arrive cloaked; scripting only ever narrows
-        what is already there."""
+        """Only alternative preview cards start cloaked."""
         body = self.drawn(ogryn)
         cloaked = body.count('x-show="mainpick === 1" x-cloak')
         assert cloaked == 1
@@ -546,9 +533,9 @@ class TestTheCardFollowsTheMainPick:
 
 
 class TestAnOptionalPickOnTheRow:
-    """A one-or-none set on the hire screen: radios, none of them
-    checked by the data, and a "None" row that makes taking nothing
-    pickable — a checked radio group cannot otherwise be unchecked."""
+    """An optional radio group needs an explicit None control because a selected radio
+    cannot otherwise be unchecked.
+    """
 
     @pytest.fixture
     def grenadier(self, person_type, gang_type, default_pack):
@@ -574,7 +561,7 @@ class TestAnOptionalPickOnTheRow:
         entry = build_hire_entry(grenadier)
         maybe = entry.groups[1]
         assert maybe.choose == "one-or-none"
-        # Even a single option is a choice: taking it or not.
+        # Optional selection remains a choice even with one available item.
         assert maybe.offers_a_choice is True
         assert not any(option.is_default for option in maybe.options)
         assert entry.base_price == 100
@@ -639,7 +626,7 @@ class TestTheWholeScreen:
     def test_a_longer_list_costs_no_more_queries(
         self, roster, person_type, weapons, default_pack
     ):
-        """The house rule: invariance, not a magic number."""
+        """Increasing profiles must not increase query count."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -667,12 +654,7 @@ class TestTheWholeScreen:
 
 
 class TestSectioningTheList:
-    """The picker's shape: sections of categories, each drawn once.
-
-    Nothing here needs a request. The page draws what this returns, so
-    what a tab is called, what a heading is called and what a row filters
-    under are all one answer, checked here rather than through HTML.
-    """
+    """Group hire entries by section and category for tab labels, headings and filtering."""
 
     @pytest.fixture
     def sections(self, default_pack):
@@ -724,8 +706,7 @@ class TestSectioningTheList:
         drawn = section_hire_list(build_hire_list(gang_type))
 
         assert [section.name for section in drawn] == ["Gang List", UNCATEGORISED]
-        # The category stays unnamed: the content really did file nothing,
-        # and the picker draws such rows straight inside the section.
+        # Uncategorised entries have no category heading within their fallback section.
         (homeless,) = drawn[-1].categories
         assert homeless.name == ""
         assert [entry.name for entry in homeless.entries] == ["Stray"]
@@ -733,13 +714,8 @@ class TestSectioningTheList:
     def test_two_headings_of_the_same_name_are_one_section(
         self, gang_type, sections, categorised, make_profile
     ):
-        """A section drawn twice is a tab drawn twice, and the strip keys
-        its tabs by name — so one of the two would show the other's rows,
-        and a reader would meet the same heading further down the page
-        holding different fighters.
-
-        Two packs each naming a heading "Gang List" is how it happens: a
-        heading's name is unique within a pack and nowhere else.
+        """Merge same-named sections across packs because the tab strip identifies sections
+        by name.
         """
         from n26.library.authoring import create_pack
         from n26.library.models import Category, Section
@@ -764,8 +740,7 @@ class TestSectioningTheList:
     def test_one_category_name_under_two_headings_stays_two_categories(
         self, gang_type, categorised
     ):
-        """A category name is only unique within its heading, so matching
-        on the string would fold two different categories into one."""
+        """Category names are scoped to their sections and must not merge across headings."""
         categorised("Ganger", 55, "Gang List", "Specialists")
         categorised("Rogue Doc", 80, "Hangers-on", "Specialists")
 
@@ -777,8 +752,7 @@ class TestSectioningTheList:
         ] == [("Gang List", ["Specialists"]), ("Hangers-on", ["Specialists"])]
 
     def test_every_entry_is_reachable_from_the_sections(self, gang_type, categorised):
-        """The structure is the whole screen: an entry the grouping drops
-        is a fighter served nowhere."""
+        """Grouping must preserve every hireable entry."""
         for number, name in enumerate(["Juve", "Ganger", "Champion", "Stray"]):
             categorised(name, 25 + number, "Gang List" if number < 3 else None, "Crew")
 
@@ -788,11 +762,6 @@ class TestSectioningTheList:
         assert sorted(
             entry.name for section in drawn for entry in section.all_entries()
         ) == sorted(entry.name for entry in entries)
-
-
-# =========================================================================
-# The card behind a row, for the whole of what the row is set to
-# =========================================================================
 
 
 @pytest.fixture
@@ -807,16 +776,8 @@ def spawn_gang(gang_type, hirer):
 
 @pytest.fixture
 def spawn(person_type, gang_type, default_pack, make_statline):
-    """A Chaos Spawn: the printed band, and the dice as option groups.
-
-    The book rolls each characteristic at a table and the roster takes
-    the option matching the die, so the sets do not add kit — they *set*
-    a characteristic outright. Two such groups is what makes this the
-    content to test a preview with: picking in both is a fighter neither
-    group's own card depicts.
-
-    A third set of options grants a mutation instead, which is the other
-    thing a set can carry: kit and a rule, priced.
+    """Characteristic-setting option groups can combine into a card no single option
+    preview represents. A separate mutation group adds equipment and a priced rule.
     """
     profile = create_profile("Chaos Spawn", person_type, gang_type, price=90)
     make_statline(profile, movement=4, weapon_skill=4, toughness=5)
@@ -869,8 +830,9 @@ def hire_screen(gang):
 
 
 def card_address(gang, profile, *sets, entry=None):
-    """Where the card for this selection is served — the address the row
-    builds, written out here the way a reader's browser would."""
+    """Build the preview URL with repeated option parameters and an optional
+    collection-entry source.
+    """
     address = reverse("n26-hire-card", args=[gang.pk, profile.pk])
     params = [
         *(("option", str(chosen.pk)) for chosen in sets),
@@ -880,21 +842,14 @@ def card_address(gang, profile, *sets, entry=None):
 
 
 class TestThePreviewFollowsEveryOption:
-    """A hire listing's card shows the fighter as configured — every
-    option ticked on it, not the one group the main pick belongs to.
-
-    The card is fetched, because the alternative is a card per
-    combination and enumerating those is exactly the explosion the option
-    groups exist to avoid. So the selection is in the address: repeat
-    ``option`` and the fragment composes them.
+    """Fetch a card for the complete URL selection instead of prebuilding every option
+    combination.
     """
 
     def test_two_picked_groups_both_show_on_one_card(
         self, client, hirer, spawn_gang, spawn
     ):
-        """Roll a 6 for Weapon Skill and a 6 for Toughness and the card
-        says both. Each group's own card knows only its own pick, so a
-        card following one of them shows a fighter nobody is buying."""
+        """Combine selected characteristic changes from both groups in one preview."""
         profile, rolled = spawn
         client.force_login(hirer)
         response = client.get(
@@ -905,8 +860,7 @@ class TestThePreviewFollowsEveryOption:
         assert card.statline.get("WS").value == "3+"
         assert card.statline.get("T").value == "6"
 
-        # And on the fragment itself: a changed cell says what changed it,
-        # which is the only place either roll's name can appear.
+        # Rendered change tooltips identify both selected modifiers.
         body = response.content.decode()
         assert "WS changed by WS rolled 6" in body
         assert "T changed by T rolled 6" in body
@@ -914,9 +868,7 @@ class TestThePreviewFollowsEveryOption:
     def test_picking_in_one_group_leaves_the_others_printed(
         self, client, hirer, spawn_gang, spawn
     ):
-        """One option is what a listing asked for before, and it still
-        means what it meant: this set taken, everything else as
-        standard."""
+        """Unselected groups retain their default configuration."""
         profile, rolled = spawn
         client.force_login(hirer)
         response = client.get(card_address(spawn_gang, profile, rolled["WS"]))
@@ -940,9 +892,7 @@ class TestThePreviewFollowsEveryOption:
     def test_a_set_that_grants_kit_and_a_rule_shows_both(
         self, client, hirer, spawn_gang, spawn
     ):
-        """What an option set brings is what the hire would write, so it
-        is on the card that stands for the hire: the whole payload, not
-        the surcharge alone."""
+        """Apply all equipment, rules and stat changes from the selected sets."""
         profile, rolled = spawn
         client.force_login(hirer)
         response = client.get(
@@ -961,9 +911,7 @@ class TestThePreviewFollowsEveryOption:
     def test_the_price_is_every_option_on_top_of_the_base(
         self, client, hirer, spawn_gang, spawn
     ):
-        """The card quotes what the hire would charge for exactly this
-        selection — the same arithmetic the dialog quotes, so a reader
-        never meets two numbers for one fighter."""
+        """The preview displays this fixture’s base price plus all selected surcharges."""
         profile, rolled = spawn
         client.force_login(hirer)
         response = client.get(
@@ -978,8 +926,7 @@ class TestThePreviewFollowsEveryOption:
     def test_a_set_this_fighter_does_not_offer_is_a_broken_link(
         self, client, hirer, spawn_gang, spawn
     ):
-        """One forged option in a selection spoils the address, however
-        genuine the rest of it is."""
+        """Any option outside the profile’s offered sets invalidates the preview URL."""
         from n26.library.models import DefaultAssignmentSet
 
         profile, rolled = spawn
@@ -990,8 +937,7 @@ class TestThePreviewFollowsEveryOption:
         assert response.status_code == 404
 
     def test_two_picks_in_one_group_are_refused(self, client, hirer, spawn_gang, spawn):
-        """A group offering one pick cannot be given two — no listing can
-        produce it, and the hire itself refuses the same selection."""
+        """A single-choice group cannot contain two selected sets."""
         profile, rolled = spawn
         client.force_login(hirer)
         both = card_address(
@@ -1003,9 +949,7 @@ class TestThePreviewFollowsEveryOption:
     def test_the_row_says_which_set_each_control_stands_for(
         self, client, hirer, spawn_gang, spawn
     ):
-        """The address is composed from the controls, so each input has to
-        name the set it would take. Without that the row can build one
-        option's address and no combination's."""
+        """Each option control carries its set ID for composing the preview URL."""
         profile, rolled = spawn
         client.force_login(hirer)
         body = client.get(hire_screen(spawn_gang)).content.decode()
@@ -1016,14 +960,12 @@ class TestThePreviewFollowsEveryOption:
     def test_the_card_follows_the_rows_own_address(
         self, client, hirer, spawn_gang, spawn
     ):
-        """One fetched card per row, refetched as the address changes —
-        rather than one per main-pick option, switched between."""
+        """Fetch one card per row whenever its complete selection URL changes."""
         profile, _ = spawn
         client.force_login(hirer)
         body = client.get(hire_screen(spawn_gang)).content.decode()
 
         assert 'x-effect="fetchIt(card)"' in body
         assert card_address(spawn_gang, profile) in body
-        # Still no drawn cards in the document: the statline is the
-        # marker, because nothing else on this list draws one.
+        # No statline is embedded before the preview fetch.
         assert "Weapon Skill" not in body

@@ -51,7 +51,8 @@
         } else if (align === "center") {
             left = t.left + t.width / 2 - width / 2;
         }
-        // Keep the menu inside the viewport when its requested alignment would overflow.
+        // Clamp horizontal placement to the viewport margins. Oversized menus
+        // keep the right margin and may extend past the left edge.
         left = Math.min(
             Math.max(MARGIN, left),
             window.innerWidth - width - MARGIN,

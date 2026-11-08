@@ -1,21 +1,13 @@
-"""Dismissed offers: open choices a gang's owner has hidden.
+"""Store display dismissals by the key of a computed choice.
 
-An offer is not stored. It is a slot computed from a modifier or a
-profile while its carrier exists (``n26.core.effects``); only the pick is
-written. A ``DismissedOffer`` stores the slot's key, and every renderer of
-the gang skips slots with a stored key.
+A dismissal applies to owner pages, shared sheets and printed rosters.
+It changes no money or rating and uses plain saves rather than operations.
+Only choices without picks that permit dismissal can be hidden; renderers ignore
+stored dismissals when the choice disallows them.
 
-A dismissal applies across the gang: the owner's pages, the shared sheet
-and the printed roster. It is display state, like ``PrintConfig``: it moves
-no money, changes no rating and does not go through ``n26.operations``.
-Only an offer with no pick can be dismissed. An offer with a pick shows the
-pick and has no hide control. Slots may disallow dismissal; stored dismissals
-for those choices are ignored while dismissal is disabled.
-
-The key comes from ``slot_key`` below: the card, the assignment carrying
-the offer, and the offer itself. It matches only while those rows exist,
-so re-buying the carrier or re-authoring the offer shows the choice again.
-Selling the carrier leaves a dismissal that matches no slot and has no effect.
+Keys include the host, stored anchor and authored choice identity, optionally
+scoped to a status transition. Replacing a carrier changes its anchor key,
+so a previous dismissal does not hide the new choice.
 """
 
 from django.db import models
@@ -46,10 +38,10 @@ def identity_key(identity_pk, status_revision=None):
 
 
 def slot_key(host, anchor_pk, identity_pk, status_revision=None):
-    """One slot's key: the card it is drawn on (a model's id, or
-    ``GANG_SLOT_HOST``), the assignment carrying the offer, and the offer or
-    slot itself. The renderer and the operations both build keys here, so
-    the keys they write always match."""
+    """Build a shared choice key from its host, stored anchor and authored identity.
+
+    Include a status revision when the choice belongs to one status transition.
+    """
     return f"{host}:{anchor_pk}:{identity_key(identity_pk, status_revision)}"
 
 
@@ -79,8 +71,7 @@ class DismissedOffer(Base):
 
     @classmethod
     def clear(cls, gang, *, host, anchor, identity, status_revision=None):
-        """Delete any dismissal of one slot when a pick fills it, so that
-        removing the pick later shows the offer again instead of hiding it."""
+        """Clear a choice's dismissal when selecting a pick so later removal exposes the choice again."""
         cls.objects.filter(
             gang=gang, slot_key=slot_key(host, anchor.pk, identity.pk, status_revision)
         ).delete()

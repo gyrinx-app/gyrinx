@@ -1,11 +1,6 @@
-"""The delete pages, as an author meets them.
-
-A row's delete page says what would go before anything is clicked: the
-test gangs holding it, or what refuses it. A delete that takes a gang is
-recorded and run on the task runner, and the page that shows the outcome
-is where the author lands. The Staged content page offers a delete per
-row and one for everything staged — the way back from a book that did
-not work out.
+"""Verify authoring deletion previews, refusals and outcomes for individual rows and staged
+content. Deletions that include test gangs run as recorded tasks and redirect to their
+result page; unused library rows can be deleted within the request.
 """
 
 import pytest
@@ -126,7 +121,7 @@ class TestARowsDeletePage:
         record = Backfill.objects.get()
         assert response["Location"] == f"/n26/authoring/deletions/{record.pk}/"
         assert record.triggered_by == author
-        # Tasks run inline here, so the record has its ending already.
+        # The test task backend executes inline, so the record is already terminal.
         assert record.status == Backfill.Status.DONE
         assert not Weapon.objects.filter(pk=test_weapon.pk).exists()
         assert not Gang.objects.filter(pk=gang.pk).exists()
@@ -163,9 +158,9 @@ class TestARowsDeletePage:
     def test_a_second_deletion_waits_for_the_first(
         self, author, client, test_type, test_fighter, test_weapon
     ):
-        """The runner holds one lock per operation and a second copy
-        stands down without writing an ending, so a second run is
-        refused at the page rather than left saying running for ever."""
+        """Reject another run of the same deletion operation before enqueuing it, because
+        lock contention could acknowledge its delivery without completing its record.
+        """
         gang = checked_by(author, test_type, test_fighter, test_weapon)
         Backfill.objects.create(
             operation="n26_delete_test_content", status=Backfill.Status.RUNNING

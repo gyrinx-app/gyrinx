@@ -1,8 +1,6 @@
-"""The More actions menus in the gang sheet and campaign headers.
+"""Server-selected gang and campaign header actions passed to React menus.
 
-React draws both menus. The server picks the links, so these tests read the
-island's props and, on the gang sheet, the list drawn for a reader without
-JavaScript.
+Check island props and the gang sheet's no-JavaScript fallback.
 """
 
 import json

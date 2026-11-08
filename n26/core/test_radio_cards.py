@@ -6,19 +6,14 @@ from django_cotton.compiler_regex import CottonCompiler
 
 
 def render(source: str, **context) -> str:
-    """Compile a call site the way the template loader would, then render it.
-
-    Cotton's `<c-…>` tags are rewritten by a loader, so a template built from a
-    string never sees them. Running the compiler by hand is what lets a test
-    write the call site it is testing.
-    """
+    """Compile Cotton tags before rendering an inline template."""
     return Template(CottonCompiler().process(source)).render(Context(context))
 
 
 class TestACardCanCarryLinesOfDetail:
-    """An option that is a set of rules needs more than one line under its
-    name. The body slot draws under the description, inside the label, so
-    a click on any line still selects the card."""
+    """Render the body after the description inside the label so every detail line
+    selects the radio card.
+    """
 
     def test_the_body_is_drawn_after_the_description(self):
         html = render(

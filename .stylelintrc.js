@@ -1,17 +1,5 @@
-// Stylelint config.
-//
-// PRETTIER OWNS FORMATTING. `npm run fmt` runs prettier over .scss (and
-// scripts/fmt.sh calls it), so stylelint must not also have opinions about
-// whitespace, indentation, quotes or leading zeros — the two tools disagreed,
-// and because stylelint lost that argument on every save, `npm run css-lint`
-// sat at ~1,350 errors and stopped being read at all. It is not wired into CI
-// or pre-commit, so nothing caught the rot.
-//
-// Everything purely stylistic is therefore switched off here, and stylelint is
-// left to do the part prettier cannot: correctness and convention.
-//
-// The @stylistic list is derived from the installed plugin rather than typed
-// out, so it stays complete when the plugin adds rules.
+// Prettier handles formatting. Disable stylistic rules in Stylelint so the
+// tools agree. Read the installed plugin's rules to include newly added rules.
 
 const stylisticPlugin = require("@stylistic/stylelint-plugin");
 
@@ -37,44 +25,30 @@ module.exports = {
     rules: {
         ...stylisticRulesOff,
 
-        // SCSS-flavoured formatting rules, same reasoning: prettier decides where
-        // the line breaks go. `operator-no-newline-after` in particular fires on
-        // any calc() prettier chose to wrap.
+        // Prettier controls SCSS spacing and line breaks, including wrapped calc().
         "scss/operator-no-newline-after": null,
         "scss/operator-no-newline-before": null,
         "scss/dollar-variable-colon-space-after": null,
         "scss/dollar-variable-colon-space-before": null,
 
-        // Declaration ordering is cosmetic and prettier does not do it, so keeping
-        // it would just reintroduce a few hundred unfixable warnings.
+        // Property ordering is cosmetic and Prettier does not enforce it.
         "order/properties-order": null,
 
-        // Keyword casing: keep the rule, but stop it lowercasing things that are
-        // conventionally cased. `--fix` turned `Roboto` into `roboto`,
-        // `currentColor` into `currentcolor` and the SVG keyword
-        // `geometricPrecision` into `geometricprecision`. CSS keywords are
-        // case-insensitive so none of that changed behaviour — it just cost
-        // legibility for a diff nobody asked for.
-        // Not `camelCaseSvgKeywords`, which would also demand `in sRGB` inside
-        // color-mix() — the CSS spec writes that colour space lowercase, and the
-        // camelCase form only exists for SVG's color-interpolation-filters.
-        // An explicit ignore list is narrower and says why each one is here.
+        // Preserve font names and conventional CSS/SVG casing. An explicit list
+        // avoids enabling camelCaseSvgKeywords, which also changes sRGB casing.
         "value-keyword-case": [
             "lower",
             {
                 ignoreKeywords: [
                     "currentColor",
                     "geometricPrecision", // SVG shape-rendering value
-                    "A4", // @page size; reads as a paper size, not a keyword
+                    "A4", // @page paper size
                 ],
                 ignoreProperties: ["/font-family/"],
             },
         ],
 
-        // BEM is deliberate in _classic_card.scss (.cc-tab__save-label,
-        // .cc-injuries--wide). The default pattern only allows kebab-case, which
-        // flagged 26 correct selectors. Widen it rather than rename a print
-        // stylesheet's whole vocabulary to satisfy a lint default.
+        // Card styles use BEM elements and modifiers alongside kebab-case names.
         "selector-class-pattern": [
             "^[a-z][a-z0-9]*(-[a-z0-9]+)*(__[a-z0-9]+(-[a-z0-9]+)*)?(--[a-z0-9]+(-[a-z0-9]+)*)?$",
             {

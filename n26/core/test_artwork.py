@@ -1,9 +1,5 @@
-"""What ``safe_artwork`` promises about artwork it did not write.
-
-The stored value is whatever an author typed into a form. These pin the two
-halves of the contract: nothing dangerous survives, and nothing survives being
-absent — a gang type with no artwork must produce no markup at all, because a
-placeholder would hold space in a list where most rows have nothing to draw.
+"""Artwork passes through the shared SVG sanitiser; absent or invalid SVG produces no
+markup.
 """
 
 from unittest import mock
@@ -18,7 +14,7 @@ SIMPLE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><path d="M0 
 
 
 class TestNothingToDraw:
-    """Absent artwork produces no markup, not an empty box."""
+    """Absent or invalid SVG produces no markup."""
 
     def test_a_gang_type_with_no_artwork_renders_nothing(self):
         assert safe_artwork("") == ""
@@ -31,7 +27,7 @@ class TestNothingToDraw:
 
 
 class TestWhatSurvives:
-    """Real artwork comes through, normalised for drawing inline."""
+    """Valid SVG retains its geometry and uses the surrounding text colour."""
 
     def test_the_drawing_itself_is_kept(self):
         cache.clear()
@@ -48,9 +44,9 @@ class TestWhatSurvives:
         assert 'fill="currentColor"' in safe_artwork(SIMPLE)
 
     def test_the_same_markup_twice_is_cleaned_once(self):
-        """Cached against a hash of the markup, so a table of gangs
-        sharing a type pays for the cleaning once. Editing the artwork
-        lands on a different key, so nothing has to be invalidated."""
+        """Cache by markup so repeated drawings are sanitised once and edited markup
+        uses a different key.
+        """
         cache.clear()
         with mock.patch(
             "n26.core.templatetags.artwork.sanitize_inline_svg",
@@ -73,11 +69,7 @@ class TestWhatSurvives:
 
 
 class TestWhatDoesNot:
-    """Artwork is user input that has been round-tripped through a database.
-
-    The allowlist is the platform's and has its own suite; these check that
-    this filter is really wired to it rather than marking raw markup safe.
-    """
+    """Treat stored artwork as untrusted input and enforce the shared SVG allowlist."""
 
     def test_a_script_and_its_contents_are_gone(self):
         cache.clear()
@@ -114,7 +106,7 @@ class TestWhatDoesNot:
 
 
 class TestThroughATemplate:
-    """The filter as a template uses it, since that is its only caller."""
+    """Template rendering uses sanitised artwork and preserves empty output."""
 
     def test_hostile_markup_does_not_reach_the_page(self):
         cache.clear()

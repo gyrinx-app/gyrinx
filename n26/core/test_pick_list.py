@@ -78,9 +78,11 @@ class TestThePickListsProps:
     def test_without_script_every_box_posts_including_the_addable_ones(
         self, offer, settings
     ):
-        """Before the island mounts, and for a reader with no script, the
-        page draws the boxes itself; the ones not on the list yet sit in
-        noscript, so only a reader without script sees them."""
+        """Render listed choices before the island mounts.
+
+        Keep addable choices in noscript so only readers without JavaScript
+        see the extra boxes.
+        """
         from unittest import mock
 
         from n26.core.templatetags import react

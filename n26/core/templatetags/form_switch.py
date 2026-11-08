@@ -1,4 +1,4 @@
-"""JSON props for the form switch React draws in place of the Alpine track."""
+"""Build JSON props for the React form switch."""
 
 from django import template
 
@@ -8,7 +8,7 @@ SIZES = ("xs", "sm", "md", "lg", "xl", "2xl")
 
 
 def _flag(value, default):
-    """A cotton boolean, or the string a template printed for one."""
+    """Parse a Cotton boolean or its rendered string value, using the supplied default for None or empty input."""
     if isinstance(value, bool):
         return value
     if value is None or value == "":
@@ -27,7 +27,7 @@ def form_switch_props(
     css_class="",
     input_id="",
 ):
-    """The opening state of one switch. None and the string false are off."""
+    """Build the switch's initial state, using each flag's default for None or empty input."""
     chosen = size if size in SIZES else "md"
     return {
         "name": "" if name is None else str(name),

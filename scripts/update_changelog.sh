@@ -3,27 +3,23 @@
 
 set -e
 
-# Check for arguments
 if [ $# -eq 0 ]; then
     CHANGELOG_FILE="CHANGELOG.md"
 else
     CHANGELOG_FILE="$1"
 fi
 
-# Color codes for output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 echo -e "${GREEN}Updating $CHANGELOG_FILE with recent commits...${NC}"
 
-# Check if changelog file exists
 if [ ! -f "$CHANGELOG_FILE" ]; then
     echo -e "${YELLOW}Changelog file not found: $CHANGELOG_FILE${NC}"
     echo "Creating new changelog file..."
     SINCE_DATE="2 weeks ago"
 else
-    # Find the last date in the changelog
     LAST_DATE=$(grep -E "^### [0-9]{4}-[0-9]{2}-[0-9]{2}" "$CHANGELOG_FILE" | head -1 | sed 's/### //')
 
     if [ -z "$LAST_DATE" ]; then
@@ -41,7 +37,6 @@ else
     fi
 fi
 
-# Check if there are any new commits
 NEW_COMMITS=$(git log --since="$SINCE_DATE" --oneline 2>/dev/null | wc -l)
 
 if [ "$NEW_COMMITS" -eq 0 ]; then
@@ -51,17 +46,13 @@ fi
 
 echo -e "${GREEN}Found $NEW_COMMITS new commits since $SINCE_DATE${NC}"
 
-# Get recent commits for context
 echo -e "${GREEN}Gathering recent commits...${NC}"
 RECENT_COMMITS=$(git log --since="$SINCE_DATE" --date=format:"%Y-%m-%d" --pretty=format:"%ad %h %s" | sort -r)
 
-# Read the current changelog
 CURRENT_CHANGELOG=$(cat "$CHANGELOG_FILE")
 
-# Call LLM to generate the updated changelog
 echo -e "${GREEN}Calling LLM to generate updated changelog...${NC}"
 
-# Create the prompt for LLM
 PROMPT="Please analyze these git commits and generate the COMPLETE updated changelog content.
 
 Current changelog file content:
@@ -92,18 +83,13 @@ Instructions:
 
 Important: Insert new entries right after the '## Recent Changes' heading, before any existing date entries."
 
-# Create temporary file for the updated changelog
 TEMP_FILE=$(mktemp)
 
-# Call llm and save to temp file
 echo "$PROMPT" | llm -m claude-3.5-sonnet > "$TEMP_FILE"
 
-# Check if the output looks like a valid changelog
 if grep -q "# " "$TEMP_FILE" && grep -q "## Recent Changes" "$TEMP_FILE"; then
-    # Backup the original
     cp "$CHANGELOG_FILE" "$CHANGELOG_FILE.bak"
 
-    # Replace with the new content
     mv "$TEMP_FILE" "$CHANGELOG_FILE"
 
     echo -e "${GREEN}Changelog updated successfully!${NC}"

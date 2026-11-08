@@ -229,8 +229,9 @@ def hire_card(request, pk, profile):
     """Render a privately cached preview for an authorised gang owner.
 
     Validate profile visibility and selected option sets. An optional entry must
-    name this profile, but ownership of its collection is checked only when
-    performing the hire. Repeated option parameters compose the preview.
+    name this profile; previews do not check whether the gang carries its collection.
+    Listing POSTs, dialog GETs and hire POSTs validate named collection offers.
+    Repeated option parameters compose the preview.
     Cache for five minutes because previews derive only from library content.
     """
     from django.shortcuts import get_object_or_404

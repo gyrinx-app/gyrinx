@@ -1,9 +1,5 @@
-"""The books audit: every gang checked against its ledger, changing nothing.
-
-The audit walks the estate on the batched runner. Proven here: a gang
-whose books agree passes and the record ends DONE; a gang whose pinned
-rating has drifted from its ledger lands in the record's failures with
-the discrepancy in words, and is untouched by the audit itself.
+"""Verify the batched ledger audit: reconciled gangs complete successfully, while
+inconsistent pinned values fail the record without repairing the gang.
 """
 
 import pytest
@@ -37,8 +33,7 @@ def audit(record):
 
 
 class TestTheAudit:
-    """Reads everything, changes nothing: agreement passes, drift is
-    named on the record."""
+    """Record ledger discrepancies without changing player data."""
 
     def test_a_gang_whose_books_agree_passes(
         self, gang_type, player, person_type, default_pack, record
@@ -67,4 +62,4 @@ class TestTheAudit:
         assert str(gang.pk) in record.summary["failures"]
         assert "rating pinned" in record.summary["failures"][str(gang.pk)]
         gang.refresh_from_db()
-        assert gang.rating != 0  # untouched, still the drifted pin
+        assert gang.rating != 0

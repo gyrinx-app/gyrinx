@@ -1,10 +1,5 @@
-"""What a strip of tab links must put in the HTML.
-
-No database: a component is a template and a set of props, and everything
-claimed here is decided before a request exists. The assertions are substrings
-that can only be there if the behaviour worked — a destination that is a real
-link, and a current tab that says which one it is to something reading the page
-aloud rather than only to an eye reading its colour.
+"""Tab-link markup provides navigable destinations, accessible current-page state and
+responsive overflow controls.
 """
 
 import json
@@ -28,8 +23,7 @@ TABS = [
     },
 ]
 
-#: Enough tabs for the narrow strip to fold: two are drawn whole, and only
-#: from three does the switcher appear.
+#: Three tabs exceed the default narrow-strip limit of two.
 THREE = TABS + [
     {
         "label": "Dust Falls",
@@ -41,25 +35,19 @@ THREE = TABS + [
 
 
 def render(source: str, **context) -> str:
-    """Compile a call site the way the template loader would, then render it.
-
-    Cotton's `<c-…>` tags are rewritten by a loader, so a template built from a
-    string never sees them. Running the compiler by hand is what lets a test
-    write the call site it is testing.
-    """
+    """Compile Cotton tags before rendering an inline template."""
     return Template(CottonCompiler().process(source)).render(Context(context))
 
 
 def overflow(html):
-    """The rows the narrow strip's switcher island is handed."""
+    """Read the narrow-strip switcher items from its React props."""
     soup = BeautifulSoup(html, "html.parser")
     host = soup.select_one("[data-react-module*='/quick-switcher-']")
     return json.loads(soup.find(id=host["data-react-props"]).string)["items"]
 
 
 class TestTheStrip:
-    """A tab is a link to a page, because what is behind it is a whole
-    render rather than a panel already on the screen."""
+    """Tabs link to server-rendered pages rather than switching local panels."""
 
     def test_every_tab_is_a_link_to_its_own_url(self):
         html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
@@ -69,10 +57,7 @@ class TestTheStrip:
     def test_the_current_tab_says_so_without_relying_on_its_colour(self):
         html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
         assert 'aria-current="page"' in html
-        # Twice for one current tab — once per strip, since both are always
-        # in the HTML and CSS picks which one shows. Never on the other tab:
-        # a strip where every tab is current tells a reader nothing about
-        # where they are.
+        # Wide and narrow strips both render; each marks only the current tab.
         assert html.count('aria-current="page"') == 2
 
     def test_the_strip_names_what_it_is_choosing_between(self):
@@ -82,38 +67,32 @@ class TestTheStrip:
     def test_a_shortened_label_keeps_its_full_name_as_a_tooltip(self):
         html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
         assert 'title="Ash Waste Nomads Equipment List"' in html
-        # A name that was not shortened gets no tooltip: repeating the label
-        # in a hover is a promise of more that turns out to be the same words.
+        # Omit tooltips when they would repeat an unshortened label.
         assert 'title="Trading Post"' not in html
 
 
 class TestTheNarrowStrip:
-    """Below the sm breakpoint, up to :narrow_tabs tabs are drawn whole —
-    two unless the call site raises it. Past that, the current tab stands
-    alone with the rest behind a switcher whose rows are the same real
-    links. A strip that holds three can wrap if its labels are long."""
+    """Show all tabs up to narrow_tabs, defaulting to two.
+
+    Above that threshold, show the current tab and a switcher containing the
+    remaining links.
+    """
 
     def test_two_tabs_are_both_drawn_rather_than_one_and_a_menu(self):
         html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
-        # "+1 more" takes the room the other tab would, and says less: the
-        # narrow strip draws it, so the uncurrent tab is a link twice — once
-        # per strip — and there is no switcher to open.
         assert "more" not in html
         assert "data-quick-switcher" not in html
         assert html.count('href="?list=2"') == 2
 
     def test_the_switcher_says_how_many_more_there_are(self):
         html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=THREE)
-        # From three tabs the menu is worth opening: it never holds fewer
-        # than two.
         assert "+2 more" in html
         assert "data-quick-switcher" in html
 
     def test_the_other_tab_is_still_a_real_link_behind_the_switcher(self):
         html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=THREE)
-        # The wide strip's copy and the switcher's noscript strip: real <a>s
-        # to the uncurrent tab whichever strip shows and whether or not
-        # script ran. The switcher's panel draws the same row from its props.
+        # Both the wide strip and noscript fallback retain links; the island receives
+        # the same destinations.
         assert html.count('href="?list=2"') == 2
         assert {"label": "Trading Post", "href": "?list=2"} in overflow(html)
 
@@ -126,8 +105,7 @@ class TestTheNarrowStrip:
         html = render(
             '<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=flipped
         )
-        # The full name rides into the menu: the wide strip's link, the
-        # switcher's noscript row, and the row its panel draws from props.
+        # Keep full tooltips in both rendered links and switcher props.
         assert html.count('title="Ash Waste Nomads Equipment List"') == 2
         assert overflow(html)[0]["title"] == "Ash Waste Nomads Equipment List"
 
@@ -138,9 +116,8 @@ class TestTheNarrowStrip:
             {"label": "Dust Falls", "href": "?list=3", "current": False},
         ]
         html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=tabs)
-        # Escaped exactly once: a value written into a component attribute is
-        # escaped twice over, the name displays wrong, and the href loses the
-        # ampersand between its query parameters.
+        # Escape labels and query strings once so names and parameter separators
+        # survive.
         assert "Kit &amp; gear" in html
         assert 'href="?list=1&amp;page=2"' in html
         assert "amp;amp;" not in html
@@ -150,8 +127,6 @@ class TestTheNarrowStrip:
             '<c-n26.tab-links label="Which list" :tabs="tabs" :narrow_tabs="3" />',
             tabs=THREE,
         )
-        # Three primary choices stay in view on a phone: each uncurrent tab
-        # is a link once per strip, and there is no menu to open.
         assert "more" not in html
         assert "data-quick-switcher" not in html
         assert html.count('href="?list=3"') == 2
@@ -172,7 +147,7 @@ class TestTheNarrowStrip:
             tabs=THREE,
         )
         two = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
-        # So that three short labels fit a 320px phone on one row.
+        # Reduce padding so three short labels fit a 320px viewport.
         assert padding(three) == {"px-2"}
         assert padding(two) == {"px-3"}
 
@@ -181,8 +156,7 @@ class TestTheNarrowStrip:
             '<c-n26.tab-links label="Which list" :tabs="tabs" narrow_tabs="3" />',
             tabs=THREE,
         )
-        # Without the colon the value arrives as the string "3". Compared as
-        # a string it would hide the other two tabs and draw no switcher.
+        # Coerce a literal narrow_tabs attribute from text before comparing counts.
         assert "more" not in html
         assert html.count('href="?list=3"') == 2
 
@@ -199,15 +173,12 @@ class TestTheNarrowStrip:
         html = render(
             '<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS[:1]
         )
-        # A menu of nothing is a control that opens to say it had nothing
-        # to offer.
         assert "more" not in html
         assert "data-quick-switcher" not in html
 
 
 class TestTheBusySpinner:
-    """A strip whose pages take seconds to build can name the element that
-    gives way to a spinner, so a click is seen to have landed."""
+    """Optional busy wiring identifies the content replaced by a loading indicator."""
 
     def test_a_busy_strip_carries_the_wait_wiring_and_the_spinner(self):
         html = render(
@@ -223,24 +194,17 @@ class TestTheBusySpinner:
 
 
 class TestTheSearchBarsButton:
-    """The submit appears exactly where clicking it does something. A bar
-    that narrows rows already on the page has nothing to submit, and a
-    button that does nothing is worse than no button."""
+    """Search bars need submit controls only when they have a destination."""
 
     def test_a_bar_with_somewhere_to_go_keeps_its_button(self):
         html = render('<c-n26.search-bar action="/n26/gangs/" name="q" />')
         assert 'type="submit"' in html
 
     def test_a_nested_bar_has_no_button(self):
-        """Nested is inside somebody else's form: a real submit would post
-        theirs, so there is nothing a button here could ever do."""
+        """A nested live filter must not submit the surrounding form."""
         html = render('<c-n26.search-bar :live="True" :nested="True" model="query" />')
         assert 'type="submit"' not in html
-        # The clear button is the only one left, and it acts on the field's
-        # contents rather than pretending to be an action.
         assert len(BeautifulSoup(html, "html.parser").find_all("button")) == 1
-        # The field itself is untouched — narrowing as you type is the whole
-        # behaviour a nested bar has.
         assert 'x-model="query"' in html
 
     def test_a_live_bar_with_nowhere_to_submit_has_no_button(self):
@@ -249,11 +213,12 @@ class TestTheSearchBarsButton:
 
 
 class TestTheSearchBarsEnterKey:
-    """Enter in a live box that has no Search button of its own does
-    nothing. The filter already runs as you type; Enter would otherwise
-    submit the surrounding form and activate its first Buy or Hire —
-    even a row the filter has hidden. A nested bar that is the filter
-    of a GET form is not live, so Enter still submits that search."""
+    """Prevent Enter in live filters without a search destination so it cannot submit
+    an unrelated surrounding form.
+
+    Allow Enter when the search has a submit destination or belongs to a non-live
+    GET form.
+    """
 
     def test_a_nested_live_bar_swallows_enter(self):
         html = render('<c-n26.search-bar :live="True" :nested="True" model="query" />')

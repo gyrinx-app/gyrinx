@@ -1,9 +1,7 @@
-"""Weapon traits: content rows, defaults on weapon profiles, computed reads.
-
-The parameter is the annotation — Knockback (5+) and Knockback (6+) are two
-rows. Traits are never copied player-side: the profile's set is the truth,
-so a content fix reaches every existing weapon. No rules text anywhere —
-the rulebook's words are copyrighted (n26/AGENTS.md).
+"""Verify parameterised weapon traits, profile defaults and computed card output. Trait
+changes apply to existing weapons because player assignments reference library content
+rather than copying trait rows. Store names and parameters without copied rulebook
+prose; see n26/AGENTS.md.
 """
 
 import pytest
@@ -37,7 +35,7 @@ def traits(default_pack):
 
 @pytest.fixture
 def combat_shotgun(traits):
-    """Salvo and shredder ammo, traits as the rulebook prints them."""
+    """Two ammunition profiles with different trait sets."""
     return create_weapon(
         "Combat shotgun",
         profiles=[
@@ -60,10 +58,10 @@ class TestTraitRows:
             create_trait("Knockback", "6+")
 
     def test_a_trait_stores_no_rules_text(self):
-        """The copyright constraint, pinned structurally: name, annotation,
-        pricing numbers and content plumbing — nothing that could hold the
-        rulebook's words. Grow this set only deliberately, and never for a
-        field meant to carry the book's prose."""
+        """Keep the non-relation fields limited to trait identity, prices, ordering and
+        authoring metadata. library_author_help permits author guidance, not copied
+        rulebook wording.
+        """
         fields = {f.name for f in Trait._meta.get_fields() if not f.is_relation}
         assert fields == {
             "id",
@@ -73,25 +71,18 @@ class TestTraitRows:
             "archived_at",
             "name",
             "annotation",
-            # The reference price every assignable carries — numbers and a
-            # flag, no prose. See design/collections.md.
+            # Assignable pricing metadata; see n26/design/collections.md.
             "price",
             "trade_point_price",
             "is_exclusive",
-            # Order within its home category (a skill's D6 number) — an
-            # integer, no prose.
+            # Order within the home category.
             "position",
-            # Tells two same-named traits apart for an author. Not
-            # prose about the rule, and never seen by a player — the
-            # money-words suite guards that it cannot leak.
+            # Author-facing disambiguation, excluded from player wording.
             "qualifier",
-            # Whether players are shown it yet — a switch, no prose. See
-            # n26/library/staged.py.
+            # Staging controls visibility; see n26/library/staged.py.
             "staged",
-            # The one deliberate prose field: authoring help for whoever
-            # wields this while building other content, never the book's
-            # wording — the field's own help_text carries that guardrail,
-            # and this comment is the conscious decision this test demands.
+            # Authoring guidance is the only prose field; its help text forbids copied
+            # rulebook wording.
             "library_author_help",
         }
 
@@ -103,7 +94,7 @@ class TestDefaults:
         assert shredder.trait_names == ["Rapid Fire (1)", "Template"]
 
     def test_the_weapon_level_question_is_derived(self, combat_shotgun, traits):
-        """ "A weapon with the X trait" means any of its profiles has it."""
+        """A weapon has a trait when any of its profiles has that trait."""
         assert combat_shotgun.has_trait("Knockback")
         assert combat_shotgun.has_trait("template")  # case-insensitive
         assert not combat_shotgun.has_trait("Melee")
@@ -111,13 +102,13 @@ class TestDefaults:
     def test_a_content_fix_reaches_every_existing_weapon(
         self, combat_shotgun, traits, gang_type, make_profile
     ):
-        """The reason traits are computed rather than copied."""
+        """Changing a library profile's traits must update cards for weapons already owned."""
         player = User.objects.create_user("player")
         gang = found_gang("The Bad Girls", gang_type, owner=player, budget=1000)
         mini = hire(gang, make_profile("Ganger"), "Yolanda", paid=55)
         give_weapon(mini, combat_shotgun, paid=35)
 
-        # Errata: salvo ammo's Knockback becomes 5+.
+        # Change the library trait after the weapon has been assigned.
         salvo = combat_shotgun.profiles.get(name="Salvo ammo")
         salvo.traits.set([traits["knockback5"]])
 

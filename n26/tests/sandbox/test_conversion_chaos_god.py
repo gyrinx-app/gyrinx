@@ -1,10 +1,6 @@
-"""The Chaos God conversion, proven on a prod-shaped world.
-
-Two doors, one slot type: a Hidden built into Chaos Helot Cult offers
-the Chaos Gods menu, and the Chaos Corrupted affiliation offers the
-same menu. After the conversion those are two slot rows of one type,
-the four gods are pickables with nothing moved (they have no payload),
-and every page still says the same things.
+"""Convert a hidden Chaos God offer and the Chaos Corrupted affiliation’s offer into two
+slots of one type. The four gods become pickables, existing answers are retained, and
+page text stays consistent.
 """
 
 import pytest
@@ -47,11 +43,10 @@ def world(prod_shape, owner):
 
 
 def build_prod_shape():
-    """The system as production holds it: two Chaos God offers, one
-    menu of four gods with no payload, Chaos Corrupted still an
-    Affiliation. The Helot hidden is itself named Chaos God — the
-    same word as the slot — so the two slot rows are told apart by
-    kind (Hidden) rather than by the hidden's name."""
+    """Build both Chaos God offers over the same four gods, retaining Chaos Corrupted as an
+    Affiliation. The hidden carrier shares the slot’s name, so its converted slot uses
+    the Hidden kind as its qualifier.
+    """
     gods = {name: create_affiliation(name) for name in GODS}
     menu = section_of(
         create_collection("Chaos Gods", entries=[(gods[name], {}) for name in GODS]),
@@ -79,7 +74,7 @@ def build_prod_shape():
     )
     house_type = create_gang_type("Escher", starting_credits=2000)
 
-    # Fossils / other systems the conversion must not swap.
+    # Unrelated and legacy rows must remain unchanged.
     modifier(
         "a detached Chaos God offer",
         targets_gang(),
@@ -172,14 +167,13 @@ class TestThePlan:
 
     def test_it_rewrites_the_archived_answer_too(self, world):
         said = "\n".join(plan_chaos_god().preview())
-        # Three live answers (helot Dark Prince, corrupted Blood God,
-        # rechosen Architect of Fate) plus the rechosen gang's archived
-        # Plague Lord.
+        # Three live answers and one archived answer on the rechosen gang.
         assert said.count("rewrite pick") >= 4
 
     def test_an_archived_gang_is_rewritten_but_not_held(self, world):
-        """Archived gangs still have their picks moved, but a stale
-        archived gang must not lock or refuse the whole conversion."""
+        """Archived gangs have their picks converted without blocking conversion as live
+        holders.
+        """
         gangs, _, _ = world
         gone = gangs["helot_answered"]
         gone.archive()
@@ -200,9 +194,7 @@ class TestThePlan:
     def test_a_hidden_named_apart_from_the_slot_is_told_apart_by_name(
         self, owner, default_pack
     ):
-        """A hidden not called Chaos God still uses its own name as
-        qualifier. The default fixture matches production; this is the
-        other shape."""
+        """A differently named hidden carrier uses its name as the slot qualifier."""
         shape = build_prod_shape()
         _, _, _, helot_hidden, _, _ = shape
         helot_hidden.name = "Chaos God — Helots"
@@ -357,8 +349,7 @@ class TestTheBehaviourThatMustSurvive:
 
 class TestTheStory:
     def test_a_god_pick_is_reworded_to_chaos_god(self, world):
-        """The story names a pick by its slot type, so a god that used
-        to read as an affiliation now reads as a chaos god."""
+        """The journal names the converted pick by its Chaos God slot type."""
         from n26.core.history import Sub, _kindword
 
         gangs, _, _ = world

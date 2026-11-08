@@ -1,11 +1,5 @@
-"""Deleting emptied Affiliation library rows.
-
-A conversion moves a system onto slots and picks and deletes nothing, so
-its old machinery is still there afterwards: kind rows with their
-modifiers moved away, the menu they were chosen from, the fossil offers,
-the vestigial Hidden. None of it reaches a page any more, which is both
-why it can go and how the going is proved — nothing a reader is told may
-move.
+"""Delete affiliation-conversion leftovers only when no assignments, carriers or other
+content still need them. Gang captures must remain unchanged.
 """
 
 import pytest
@@ -54,9 +48,8 @@ pytestmark = pytest.mark.django_db
 
 
 def build_leftover_world(person_type, owner):
-    """Emptied Affiliation rows, the four menus, two fossil offers, and
-    the vestigial Hidden — the state this deletion runs in, after the
-    conversions have moved the picks.
+    """Build emptied affiliation rows, old menus and offers, and an unused Hidden after
+    their choices have been converted to slots and picks.
     """
     affiliation = create_slot_type(
         "Affiliation", plural_name="Affiliations", allows_repeats=False
@@ -334,8 +327,7 @@ class TestWhatItRefuses:
     def test_a_held_affiliation_offer_is_a_refusal(
         self, default_pack, person_type, owner
     ):
-        """The old question still on a card is not a fossil. Deleting
-        emptied rows would take its answers with it."""
+        """A live affiliation offer still needs its available answers."""
         create_affiliation("Clanless")
         specialist = create_subtype("Specialist")
         modifier(
@@ -383,8 +375,9 @@ class TestWhatItRefuses:
         assert carrier.modifiers.filter(pk=offered.pk).exists()
 
     def test_an_entry_added_after_the_plan_is_a_refusal(self, leftover_world):
-        """A menu's entries cascade with it. An entry that arrived
-        after the plan was read must not ride that delete down."""
+        """Recheck menu entries before a cascading delete so changes after planning are
+        preserved.
+        """
         gang, _, menus, _, _ = leftover_world
         menu = menus["Affiliations"]
         fossils = find()
@@ -400,9 +393,7 @@ class TestWhatItRefuses:
     def test_an_archived_assignment_still_naming_an_affiliation_is_a_refusal(
         self, leftover_world
     ):
-        """The Variant conversion archives a printed None in place, so
-        the Affiliation column still names it. That is not this to
-        clear."""
+        """Archived assignments retain references that this cleanup must preserve."""
         gang, names, _, _, _ = leftover_world
         Assignment.objects.create(
             affiliation=names["None"],
@@ -465,8 +456,9 @@ class TestWhatItRefuses:
         assert_reconciled(gang)
 
     def test_a_marker_a_profile_comes_with_is_left_alone(self, leftover_world):
-        """Nobody holding a marker is not the same as nothing naming it:
-        it can be part of what a profile arrives with."""
+        """Built-in declarations protect a marker even when no assignment currently holds
+        it.
+        """
         gang, _, _, vestigial, _ = leftover_world
         from n26.library.models import Profile
 
@@ -483,11 +475,11 @@ class TestWhatItRefuses:
         apply(fossils)
 
         assert Hidden.objects.filter(pk=vestigial.pk).exists()
-        assert gang_state(gang)  # still builds
+        assert gang_state(gang)
 
 
 class TestAfterTheConversions:
-    """A leftover world built the way the conversions leave it."""
+    """Verify cleanup against the actual conversion output."""
 
     def test_after_the_outcast_conversion_the_emptied_rows_can_go(
         self, default_pack, person_type, owner

@@ -1,18 +1,11 @@
-"""Building blocks for sandbox tests.
+"""Test verbs for authored content and player operations. Re-export the shipped
+n26.library.authoring API and retain compatibility aliases used by existing suites;
+prefer authoring names in new tests. Content defaults to the N26 pack when no pack is
+supplied.
 
-Each action does one thing and returns the object it made, so a test reads as
-a sequence of steps rather than a wall of ``objects.create``. Two layers live
-here:
-
-* **Library-side verbs** graduated to :mod:`library.authoring` — the real
-  authoring API, re-exported. A few keep their old sandbox names and
-  kwargs as thin aliases (``adds`` for ``ef_adds``, ``targets_model``'s
-  keyword filters for the condition verbs) so the example suites read as
-  written; new tests should prefer the authoring names.
-* **Player-side wrappers** over ``n26.operations``, still owned here.
-
-Everything is pack-aware: omit ``pack`` and it lands in N26, exactly as
-admin ingestion would.
+Player wrappers open n26.core.operations or campaign_operation and default the actor to
+the gang or campaign owner. Production operations require callers to choose their actor
+explicitly.
 """
 
 from n26.library.authoring import (  # noqa: F401 — re-exported for the suites
@@ -88,16 +81,11 @@ from n26.library.authoring import (
     targets_weapons as _targets_weapons,
 )
 
-# --- Aliases: the sandbox names the example suites were written in --------
-
 
 def targets_model(with_subtypes=(), when_counter=None, at_least=0):
-    """The model carrying it, optionally narrowed by subtype and by a
-    counter threshold — ``targets_model(when_counter=xp, at_least=5)``.
-
-    Old-grammar alias: keyword filters become nested condition verbs
-    (``n26.library.authoring.targets_model(has_subtypes(…), …)``). For
-    everyone in the gang, use ``targets_every_model``.
+    """Target the bearer with optional subtype and counter-threshold conditions. This
+    compatibility wrapper converts keyword filters into authoring condition verbs; use
+    targets_every_model to reach the whole gang.
     """
     conditions = []
     if with_subtypes:
@@ -113,12 +101,12 @@ def targets_weapons(with_trait=None):
 
 
 def modifier(name, scope, effect, carried_by=None, **kwargs):
-    """Create a modifier and, optionally, hang it on an assignable."""
+    """Create a modifier, optionally attaching it to carried_by."""
     return _modifier(name, scope, effect, attach_to=carried_by, **kwargs)
 
 
 def adds(thing):
-    """An ``AddsAssignable`` naming a subtype, skill, trait or weapon."""
+
     return ef_adds(thing)
 
 
@@ -131,9 +119,9 @@ def changes_stat(stat, mode="worsen", amount=1):
 
 
 def offers_choice(model, from_section=None, label="", will_be_assigned_to="bearer"):
-    """An OffersChoice effect — ``offers_choice(Skill, from_section=primary)``
-    for "a skill from a set that is Primary for this fighter".
-    ``will_be_assigned_to="gang"`` is the Leader-picks-for-the-gang arrow."""
+    """Offer a choice from a model or section. will_be_assigned_to="gang" hosts the result
+    on the gang instead of the bearer.
+    """
     return ef_offers_choice(
         model,
         from_section=from_section,
@@ -143,42 +131,30 @@ def offers_choice(model, from_section=None, label="", will_be_assigned_to="beare
 
 
 def places(category, section):
-    """A PlacesCategory effect: for the bearer, that set sits under this
-    tier of the section's collection — ``places(powers, skills_primary)``."""
+    """Place the category within a section for the bearer, such as powers in a Primary
+    skill section.
+    """
     return ef_places(category, section)
 
 
 def places_the_chosen(section):
-    """The carrier-relative placement: whatever set the carrier's chosen
-    choice is homed in sits under this tier — a Venator rank slot."""
+    """Place the category containing the carrier's chosen item within the supplied section."""
     return ef_places_choice(section)
 
 
 def requires_companions(for_each, at_least, of):
-    """A composition ask — ``requires_companions(champion, 3, hive_scum)``."""
+
     return ef_requires_companions(for_each, at_least, of)
 
 
 def allows_at_most(at_most, thing):
-    """A composition ceiling — ``allows_at_most(2, aberrant)``, and
-    ``allows_at_most(0, brute)`` for a ban."""
+    """Limit how many of the specified content a gang may hold; zero represents a ban."""
     return ef_allows_at_most(at_most, thing)
 
 
-# --- Gangs and assignments ----------------------------------------------
-#
-# Writing player data goes through n26.operations — these are thin wrappers
-# so a sandbox test reads as a flow rather than as plumbing. They default the
-# actor to the gang's owner; n26.operations deliberately does not, so an
-# action on someone else's gang is never mis-attributed by omission.
-
-
 def found_gang(name, gang_type, owner=None, budget=None, actor=None, **kwargs):
-    """Found a gang: create it, then give it its type and what that brings.
-
-    ``budget`` overrides the gang type's ``starting_credits``. Left unset
-    by both, founding is unlimited: players buy what they own, and the
-    gang's number is its rating.
+    """Create a gang and found it through the domain operation. None uses the gang type's
+    starting_credits; when both are None, credits are unlimited.
     """
     from n26.core.models import Gang
     from n26.core.operations import operation
@@ -199,8 +175,9 @@ def found_gang(name, gang_type, owner=None, budget=None, actor=None, **kwargs):
 
 
 def found_campaign(name, campaign_type, owner=None, actor=None, **kwargs):
-    """Found a campaign on a type: the row, its own pack and additions,
-    and the first line of its log — what the set-up screen does."""
+    """Create the campaign through campaign_operation, including its pack, additions type
+    and founding event.
+    """
     from n26.core.campaigns import campaign_operation
     from n26.core.models import Campaign
 
@@ -211,8 +188,7 @@ def found_campaign(name, campaign_type, owner=None, actor=None, **kwargs):
 
 
 def join_campaign(gang, campaign, actor=None):
-    """Put a gang into a campaign, as the campaign's add-a-gang screen does:
-    both of the campaign's types land on the gang with their built-ins."""
+    """Join a campaign and grant its campaign-type and additions carriers to the gang."""
     from n26.core.operations import operation
 
     with operation(gang, actor=actor or campaign.owner) as op:
@@ -220,9 +196,9 @@ def join_campaign(gang, campaign, actor=None):
 
 
 def join_campaign_after_deletion(gang, campaign, actor=None):
-    """Leave a deleted gang playing a campaign, as deleting a gang did
-    before it took the gang out of its campaign first. Joining refuses a
-    deleted gang, so the gang joins and is then deleted again."""
+    """Build an archived gang with active campaign membership for malformed-state tests.
+    Temporarily unarchive it to join, then archive it again.
+    """
     from n26.core.models import Gang
 
     Gang.objects.filter(pk=gang.pk).update(archived=False)
@@ -233,8 +209,7 @@ def join_campaign_after_deletion(gang, campaign, actor=None):
 
 
 def open_founding(gang, actor=None):
-    """Start the gang's Spend founding TP action, as its owner does from the
-    Actions square. A new gang does not have it open."""
+    """Open the gang's Spend founding TP activity."""
     from n26.core.models import Activity
     from n26.core.operations import operation
 
@@ -251,7 +226,7 @@ def hire(gang, profile, model_name, paid=0, actor=None, **kwargs):
 
 
 def hire_with_option(gang, profile, model_name, option=None, actor=None, **kwargs):
-    """Hire, letting the profile's own pricing decide what it costs."""
+    """Hire using the profile's pricing and selected option."""
     from n26.core.operations import operation
 
     with operation(gang, actor=actor or gang.owner) as op:
@@ -275,11 +250,8 @@ def give_weapon(miniature, weapon, paid=0, actor=None, **kwargs):
 
 
 def attach(weapon_assignment, accessory, paid=None, actor=None, **kwargs):
-    """Bolt an accessory onto a weapon — a sight, suspensors.
-
-    A purchase hosted on the weapon's own row, which is what the
-    equipment screen's dialog writes. Left unpriced it charges the
-    library's figure; naming ``paid`` is the owner's own price.
+    """Buy an accessory hosted on the weapon assignment. Use the library price unless paid
+    is explicitly supplied.
     """
     from n26.core.operations import operation
 
@@ -321,7 +293,7 @@ def remove(assignment, actor=None, note=""):
 
 
 def choose(anchor, chosen, actor=None, **kwargs):
-    """Make an offered choice — pick a specialisation."""
+
     from n26.core.operations import operation
 
     gang = anchor.gang_root
@@ -330,21 +302,16 @@ def choose(anchor, chosen, actor=None, **kwargs):
 
 
 def buy(miniature, line=None, *, thing=None, entry=None, actor=None, **kwargs):
-    """Buy for a model — a browsed line, or freely (the get-out).
-
-    ``option=`` names what was chosen where the thing offers a choice.
-
-    A line that counts Trade Points counts against the gang's open
-    visit, which is the decision the equip screen makes: what an action
-    has spent is what points back at it, so a test buying through this
-    wrapper has to record the same thing a click would.
+    """Buy a browsed line or directly named content for a model. option selects among the
+    item's offered alternatives. For a Trade Point line, record the gang's open visit
+    under its operation lock, matching the equip flow.
     """
     from n26.core.operations import operation
 
     gang = miniature.gang
     with operation(gang, actor=actor or gang.owner) as op:
-        # Under the gang's own line, as the equip screen reads it: which
-        # visit is open can have changed since the page decided what to ask.
+        # Read the open visit under the operation lock because it can change after the
+        # page was rendered.
         if line is not None and kwargs.get("activity") is None:
             if getattr(line, "charges_trade_points", False):
                 kwargs["activity"] = gang.open_visit
@@ -352,11 +319,8 @@ def buy(miniature, line=None, *, thing=None, entry=None, actor=None, **kwargs):
 
 
 def visit_trading_post(gang, visitors=(), brought=None, actor=None):
-    """Perform the Visit Trading Post action.
-
-    ``brought`` states what the visit is worth outright, for a test that
-    wants a figure rather than a cast; otherwise it is what the visitors
-    bring between them.
+    """Open a trading-post visit with the supplied contributors. brought overrides their
+    calculated allowance when a test needs a fixed figure.
     """
     from n26.core.operations import operation
 
@@ -365,7 +329,7 @@ def visit_trading_post(gang, visitors=(), brought=None, actor=None):
 
 
 def start_action(gang, kind, trade_points=None, actor=None):
-    """Start one of the gang's actions — founding it, a trip to the post."""
+
     from n26.core.operations import operation
 
     with operation(gang, actor=actor or gang.owner) as op:
@@ -381,7 +345,7 @@ def complete_action(gang, kind, actor=None):
 
 
 def leave_trading_post(gang, actor=None):
-    """Finish the action. Whatever it had left is lost."""
+    """Close the visit and discard its unspent Trade Points."""
     from n26.core.operations import operation
 
     with operation(gang, actor=actor or gang.owner) as op:
@@ -389,7 +353,7 @@ def leave_trading_post(gang, actor=None):
 
 
 def select(miniature, thing, actor=None, note=""):
-    """Take on a skill or a power — free, and nothing causes it."""
+    """Select a skill or power for free without a causing assignment."""
     from n26.core.operations import operation
 
     gang = miniature.gang
@@ -398,7 +362,7 @@ def select(miniature, thing, actor=None, note=""):
 
 
 def tally(assignment, change, actor=None, note=""):
-    """Change a counter's value — earn XP, mark a kill."""
+
     from n26.core.operations import operation
 
     gang = assignment.gang_root
@@ -407,7 +371,7 @@ def tally(assignment, change, actor=None, note=""):
 
 
 def move(assignment, to, actor=None, note=""):
-    """Re-home between a model, the stash, and a weapon to bolt it onto."""
+    """Move an assignment between a model, stash or compatible weapon host."""
     from n26.core.operations import operation
 
     gang = assignment.gang_root
@@ -416,7 +380,7 @@ def move(assignment, to, actor=None, note=""):
 
 
 def refund(assignment, actor=None, note=""):
-    """Take something back and return what was paid — not just remove it."""
+    """Return the recorded purchase payment and remove the assignment."""
     from n26.core.operations import operation
 
     gang = assignment.gang_root
@@ -425,7 +389,7 @@ def refund(assignment, actor=None, note=""):
 
 
 def sell(assignment, actor=None, note=""):
-    """Sell something on for half of what it is worth. Returns the proceeds."""
+    """Sell the assignment and return the proceeds."""
     from n26.core.operations import operation
 
     gang = assignment.gang_root
@@ -434,7 +398,7 @@ def sell(assignment, actor=None, note=""):
 
 
 def create_assignment_set(miniature, name, assignments):
-    """A named selection of the model's equipment — one Model Card."""
+    """Create and validate a named equipment selection for one model card."""
     from n26.core.models import AssignmentSet
 
     selection = AssignmentSet.objects.create(miniature=miniature, name=name)
@@ -452,8 +416,9 @@ def add_asset(campaign, asset, name="", actor=None):
 
 
 def assign_asset(campaign_asset, gang, actor=None):
-    """Assign an asset to a gang playing the campaign, as the campaign
-    page's Assign does: campaign line first, then the gang's."""
+    """Assign an asset to an active gang membership through campaign_operation, locking the
+    campaign before the gang.
+    """
     from n26.core.campaigns import campaign_operation
     from n26.core.models import CampaignMembership
 
@@ -475,8 +440,9 @@ def unassign_asset(campaign_asset, actor=None):
 
 
 def remove_from_campaign(gang, campaign, actor=None):
-    """Take a gang out of a campaign, as the campaign page's Remove from
-    campaign does: campaign line first, then the gang's."""
+    """Remove an active gang membership through campaign_operation, locking the campaign
+    before the gang.
+    """
     from n26.core.campaigns import campaign_operation
     from n26.core.models import CampaignMembership
 
@@ -518,7 +484,7 @@ def transfer_asset(campaign_asset, gang, actor=None):
 
 
 def add_campaign_asset_type(campaign, label, ownership="pooled", plural="", actor=None):
-    """Declare an asset type on the campaign's own campaign type."""
+    """Add an asset type through the campaign operation."""
     from n26.core.campaigns import campaign_operation
 
     with campaign_operation(campaign, actor=actor or campaign.owner) as act:
@@ -536,7 +502,7 @@ def create_campaign_asset(
 
 
 def add_campaign_counter(campaign, name, opening=0, actor=None):
-    """Give every gang in the campaign a counter opening at a value."""
+    """Grant each campaign gang a counter with the specified starting value."""
     from n26.core.campaigns import campaign_operation
 
     with campaign_operation(campaign, actor=actor or campaign.owner) as act:
@@ -544,7 +510,7 @@ def add_campaign_counter(campaign, name, opening=0, actor=None):
 
 
 def add_campaign_label(campaign, name, options, actor=None):
-    """Ask every gang in the campaign one question with fixed options."""
+    """Give campaign gangs a label with fixed options."""
     from n26.core.campaigns import campaign_operation
 
     with campaign_operation(campaign, actor=actor or campaign.owner) as act:
@@ -552,9 +518,7 @@ def add_campaign_label(campaign, name, options, actor=None):
 
 
 def roll_asset(campaign, table, gang=None, rolled=None, rng=None, actor=None):
-    """Roll on an asset table for the campaign's pool, or for one gang's
-    starting asset where a gang is named, as the campaign page's two Roll
-    dialogs do."""
+    """Roll on an asset table for the campaign pool or the specified gang's starting asset."""
     from n26.core.campaigns import campaign_operation
     from n26.core.models import CampaignMembership
 
@@ -568,8 +532,7 @@ def roll_asset(campaign, table, gang=None, rolled=None, rng=None, actor=None):
 
 
 def open_table(campaign, table, actor=None):
-    """Let every gang in the campaign roll on a table, as the Tables page's
-    tick does."""
+    """Allow campaign gangs to roll on this table."""
     from n26.core.campaigns import campaign_operation
 
     with campaign_operation(campaign, actor=actor or campaign.owner) as act:
@@ -577,8 +540,7 @@ def open_table(campaign, table, actor=None):
 
 
 def close_table(campaign, table, actor=None):
-    """Stop every gang in the campaign rolling on a table the arbitrator
-    opened, as unticking does."""
+    """Withdraw campaign access to a previously opened table."""
     from n26.core.campaigns import campaign_operation
 
     with campaign_operation(campaign, actor=actor or campaign.owner) as act:

@@ -1,17 +1,13 @@
-"""Delete the last player assignments left by the Affiliation conversions.
+"""Delete obsolete optional and duplicate Affiliation assignments after conversion.
 
-The conversions deliberately preserved two kinds of old row.  Variant's
-``None`` assignment was archived so an optional slot would still read as
-unanswered, and a doubled Outcast assignment was left as a spare when another
-assignment already settled the question.  Both still point at the retired
-Affiliation library rows and therefore keep those rows from being deleted.
+Recognise archived Variant None assignments and live spare Outcast assignments
+already superseded by another pick. These references can protect retired
+library content from deletion.
 
-This is a deliberately narrow repair.  It recognises only the two shapes
-measured in production, proves that their books are empty and that nothing
-depends on them, then deletes the assignment together with its ledger entry
-and history events.  Every affected gang must reconcile; an archived assignment
-must render identically, while a live spare may remove only its own obsolete
-line from the gang sheet.
+Require empty ledger records and no dependants before deleting an assignment
+and its entry and events. Verify reconciliation for every affected gang.
+Archived copies must render identically; a live spare may remove only its
+own obsolete display line.
 """
 
 from dataclasses import dataclass
@@ -295,10 +291,7 @@ def apply(plan):
 
 
 def apply_one(gang_id):
-    """One gang's deletion as it stands now, committed on its own.
-    Returns the line the report carries for it. The entry for a run that
-    visits gangs across deliveries, where the plan is read afresh per
-    gang rather than carried from the preview."""
+    """Rederive and delete one gang's obsolete assignments in its own transaction."""
     current = find(gang_id)
     if current.problems:
         return (

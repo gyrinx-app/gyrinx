@@ -1,29 +1,13 @@
-"""Moving a pick onto the pickable its slot's picklist now offers.
+"""Repoint live selections to equivalent pickables in their current slot's picklist.
 
-A pick names the pickable that was picked and the slot that asked. The
-slot draws from a picklist, and pointing the slot at a different list
-moves nothing already picked: the pick goes on naming the pickable it
-named, which the list the slot now reads may not hold at all.
+A slot's changed picklist does not alter existing selections. This repair
+requires exactly one same-name, same-slot-type replacement on the current
+list when the selected pickable is absent. This distinguishes Champion
+Archetype choices from gang-wide choices that share their names.
 
-That is what the Outcast archetypes leave behind. A Champion's Archetype
-and the gang's were picked from one list, so one pickable carried both
-readings; splitting them gives the Champion's slot a list of its own
-holding a pickable of the same name for each archetype, and every
-Champion's pick still names the gang's. Such a pick reads as chosen and
-draws its name, and everything under it — the skill sets it places, the
-powers it offers — is the gang's reading rather than the Champion's.
-
-The repair finds every live pick whose slot puts the pick on the model
-that made it, where the slot's picklist does not hold what was picked
-and does hold exactly one pickable of the same slot type under the same
-name — and points the pick at that one. Nothing else changes: the pick
-still names the assignment that asked and the slot it settles, and it is
-still caused by what caused it, so it still goes when that goes.
-
-An archived pick is counted and left alone: it draws nothing, and
-rewriting history is not a repair. No money moves — a pickable is priced
-at nothing and every pick's entry pins zero — and each gang is proved to
-reconcile before its own move commits.
+Preserve the pick's source, slot and cause. Leave archived picks unchanged.
+Selections must have zero-valued entries, and every affected gang must
+reconcile before commit.
 """
 
 from dataclasses import dataclass
@@ -33,7 +17,7 @@ from django.db.models import Exists, OuterRef
 
 
 class Refused(Exception):
-    """The repair found something other than the fault it was written for."""
+    """The current assignments do not satisfy this repair's eligibility criteria."""
 
 
 @dataclass(frozen=True)
@@ -105,12 +89,10 @@ def _adrift(archived=False):
 
 
 def _same_name_on_the_list(pick):
-    """The one pickable on the slot's picklist that goes by the same
-    name and belongs to the same slot type — or what is wrong instead.
+    """Find one same-name, same-slot-type pickable in the current picklist.
 
-    Matching is by the name a card prints, because that is the whole of
-    what a player picked: two pickables of one name are told apart for
-    authors by their qualifier, which never reaches anyone playing.
+    Match the player-visible name; author qualifiers distinguish content but are
+    not shown in the choice. Report missing or ambiguous matches.
     """
     from n26.library.models import Pickable
 
@@ -136,8 +118,7 @@ def _same_name_on_the_list(pick):
 
 
 def find(gang_id=None):
-    """What stands to be moved, gang by gang. ``gang_id`` narrows the
-    plan to that one gang."""
+    """Build a per-gang repair plan, optionally restricted to gang_id."""
     adrift = _adrift()
     archived_adrift = _adrift(archived=True)
     if gang_id is not None:
@@ -179,11 +160,9 @@ def find(gang_id=None):
 
 
 def apply(adrift):
-    """Move what the plan names, gang by gang, and prove each gang's
-    books whole.
+    """Apply each gang's repair in its own transaction and verify reconciliation.
 
-    Each gang is its own transaction: one that cannot be made whole is
-    left exactly as it stood and reported, and the rest are repaired.
+    Report failures without changing those gangs or preventing other repairs.
     """
     if adrift.problems:
         raise Refused("not moved: " + "; ".join(adrift.problems))
@@ -197,10 +176,7 @@ def apply(adrift):
 
 
 def apply_one(gang_id):
-    """One gang's move as it stands now, committed on its own. Returns
-    the line the report carries for it. The entry for a run that visits
-    gangs across deliveries, where the plan is read afresh per gang
-    rather than carried from the preview."""
+    """Rederive and apply one gang's repair atomically, returning its report."""
     current = find(gang_id)
     if current.problems:
         return (
@@ -214,15 +190,12 @@ def apply_one(gang_id):
 
 
 def _repoint_one(gang_id, moves):
-    """One gang's move, committed or rolled back on its own. Returns the
-    line the report carries for it."""
+    """Replace one gang's eligible pick references and verify reconciliation atomically."""
     from n26.core.models import Assignment, Gang
     from n26.core.reconcile import check_gang, repin_everything
 
     with transaction.atomic():
-        # The gang first, so nothing lands on its books while its picks
-        # are moving; then the plan again, because it was read before
-        # this transaction opened.
+        # Lock the gang before rederiving the plan from current selections.
         gang = Gang.objects.select_for_update().get(pk=gang_id)
         standing = dict(find(gang_id).gangs)
         if standing.get(gang_id) != moves:

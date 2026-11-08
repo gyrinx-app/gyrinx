@@ -9,22 +9,17 @@
 #
 # Requires: curl, jq. Set GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES=1 in the env.
 #
-# errexit is deliberately NOT enabled. The contract is to exit 0 having printed
-# a JSON document in every circumstance, so a stray non-zero status from any
-# command must not terminate the script; each step is checked explicitly instead.
+# The credential contract requires JSON output and exit status 0 on failure.
+# Check each step explicitly rather than enabling errexit.
 set -uo pipefail
 
 SOCKET="${CURSOR_AGENT_SOCKET:-/run/cursor/api.sock}"
 AUD="${GOOGLE_EXTERNAL_ACCOUNT_AUDIENCE:-}"
 OUT="${GOOGLE_EXTERNAL_ACCOUNT_OUTPUT_FILE:-}"
 
-# The retry budget must finish inside the executable timeout the credential
-# config allows, or the process is killed part-way through and the failure
-# document never reaches stdout -- the very outcome exiting 0 exists to avoid.
-# Worst case is ATTEMPTS x MAX_TIME plus the waits between them: eleven seconds,
-# against a timeout the config sets at fifteen. Raise the two together, and keep
-# the margin: the worst case only arrives when the socket hangs rather than
-# refusing, which is exactly when the failure document matters most.
+# The retry budget must leave time to print a failure before the configured
+# executable timeout. Three 3-second attempts and two waits take 11 seconds;
+# the credential configuration allows 15 seconds.
 ATTEMPTS=3
 MAX_TIME=3
 RETRY_WAIT=1
@@ -108,16 +103,12 @@ expiry=$(printf '%s' "$payload" | jq -r '.expires_at // empty' 2>/dev/null) \
 # the quotes.
 case "$expiry" in
   '' | *[!0-9]*) emit_failure "mint response carried no usable expiry" ;;
-  # Twelve digits or more is no time in seconds anyone will see, and a value too
-  # large for shell arithmetic makes the bounds below fail rather than compare --
-  # which, with errexit off, would pass it through untested.
+  # Reject values that could overflow shell arithmetic before comparing them.
   ????????????*) emit_failure "mint response expiry is implausibly large; expected epoch seconds" ;;
 esac
 
-# Google wants an absolute time in seconds. A relative lifetime would read as a
-# 1970 expiry and a value in milliseconds would cache a token long past its
-# death, and neither announces itself -- so both are rejected here rather than
-# left to surface as an inexplicable authentication failure later.
+# Google requires an expiry in epoch seconds. Reject relative lifetimes and
+# millisecond timestamps to avoid caching expired tokens or retaining them too long.
 now=$(date +%s)
 if [ "$expiry" -le "$now" ]; then
   emit_failure "mint response expiry is not in the future; expected epoch seconds"
@@ -129,19 +120,13 @@ result=$(jq -nc --arg t "$token" --argjson e "$expiry" \
   '{version:1, success:true, token_type:"urn:ietf:params:oauth:token-type:id_token", id_token:$t, expiration_time:$e}') \
   || emit_failure "could not build the credential document"
 
-# Cache for the library. Cursor allows 30 mints a minute per machine and tokens
-# last five minutes, so letting it reuse a live token matters.
-#
-# Best effort throughout: a token in hand must reach stdout even if it cannot be
-# stored. The file is created by mktemp beside its destination and renamed into
-# place, because the nominated path can sit in a shared directory where another
-# process may have pre-placed a symlink; rename(2) replaces such a link rather
-# than writing through it, and mktemp opens at mode 600 to begin with.
+# Cache live tokens to reduce mint requests. A cache failure must not suppress
+# the credential response. Create a mode-600 temporary file beside the target
+# and rename it so a pre-existing symlink is replaced rather than followed.
 case "$OUT" in
   '') ;;
   /*) ;;
-  # A relative path would land in whatever directory the library happened to
-  # invoke this from, which is nobody's intent.
+  # The auth library's working directory is not a stable cache location.
   *)
     echo "warning: ignoring a relative cache path: ${OUT}" >&2
     OUT=""

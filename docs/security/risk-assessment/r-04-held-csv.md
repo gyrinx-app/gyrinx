@@ -16,8 +16,8 @@
 
 ## Why this rating
 
-[UploadedSheet](../../../n26/library/models/staging.py) uses the default file storage. [Production storage settings](../../../gyrinx/storage_settings.py) put that storage in the media bucket with unsigned URLs, and the [bucket setup](../../gcs-cdn-setup.md) describes public object reads. Staff-only authoring routes do not gate a direct object request. [store_sheet](../../../n26/library/ingest.py) uses a fixed name for each sheet kind, so an object key can be predicted. Draft source files are internal, but this record does not assume they contain credentials or personal data. The live bucket policy has not been queried.
+[UploadedSheet](../../../n26/library/models/staging.py) uses the default file storage. [Production storage settings](../../../gyrinx/storage_settings.py) put that storage in the media bucket with unsigned URLs, and the [bucket setup](../../gcs-cdn-setup.md) describes public object reads. Staff-only authoring routes do not gate a direct object request. New uploads have unpredictable keys, but legacy fixed names remain and name secrecy is only a secondary control. Draft source files are internal, but this record does not assume they contain credentials or personal data. The live bucket policy has not been queried.
 
 ## Treatment
 
-Use a separate private bucket or equivalent storage backend for held CSVs, with access mediated by staff authorization. Verify deployed bucket IAM and direct unauthenticated access with a synthetic object. Give new objects unpredictable names as a secondary defense, while addressing the separate integrity risk in [R-09](r-09-held-csv-integrity.md). Assess existing objects before migration.
+Use a separate private bucket or equivalent storage backend for held CSVs, with access mediated by staff authorization. Verify deployed bucket IAM and direct unauthenticated access with a synthetic object. New objects now have unpredictable names as a secondary defence, while [R-09](r-09-held-csv-integrity.md) tracks their integrity lifecycle. Assess existing objects before migration.

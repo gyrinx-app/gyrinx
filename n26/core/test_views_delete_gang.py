@@ -247,13 +247,9 @@ class TestWhereItStopsAppearing:
         assert [g.name for g in response.context["gangs"]] == []
 
     def test_it_is_gone_from_the_drawer(self, client, tester, gang, delete_url):
-        """Read off the create-gang page, which lists no gangs of its own:
-        on the index or the dashboard the drawer's copy of the row cannot
-        be told from the table's.
+        """Inspect the drawer link on a page without another gang listing.
 
-        The link rather than the name, because the confirmation message
-        rides the next page and names the gang there — which is the point
-        of the message, and would answer this question wrongly.
+        The confirmation message can still contain the archived gang's name.
         """
         client.force_login(tester)
         elsewhere = reverse("n26-create-gang")
@@ -307,13 +303,9 @@ class TestWhereItStopsOpening:
 
 
 class TestWhatIsLeftAlone:
-    """Nothing below the gang is touched.
+    """Gang archival preserves assignments, ledger entries and reconciliation.
 
-    Archiving is the roster leaving, not the history being rewritten. An
-    assignment's rating and a ledger entry's paid credits are true
-    statements about what happened; they would still be true if the gang
-    were shown again, and reconcile still proves the pinned numbers
-    honest afterwards.
+    Only roster visibility changes; recorded payments and rating contributions remain.
     """
 
     def test_the_assignments_stay_live(self, client, tester, gang, ganger, delete_url):

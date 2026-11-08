@@ -1,9 +1,7 @@
-"""Folding stat changes onto a printed value, within the stat's limits.
+"""Apply characteristic changes in acquisition order within authored limits.
 
-A characteristic is never worsened past its minimum or improved past its
-maximum; the part of a change that would take it there is disregarded
-rather than kept for later. No database: a stat is built in memory with
-the flags and limits the shipped definitions carry.
+Discard changes beyond a limit rather than retaining them against later changes.
+In-memory fixtures avoid database access.
 """
 
 from datetime import datetime, timedelta
@@ -27,8 +25,9 @@ from n26.library.models import Stat, Wargear, Weapon
 
 
 def stat(short_name, full_name, **flags):
-    """A stat in memory. The pack is left unset so that nothing here
-    reaches for the database to find the default one."""
+    """Leave pack_id unset so constructing an in-memory stat does not query the
+    default pack.
+    """
     return Stat(pack_id=None, short_name=short_name, full_name=full_name, **flags)
 
 
@@ -62,8 +61,9 @@ class TestWorseningStopsAtTheMinimum:
         assert apply_changes(STRENGTH, "3", injuries)[0] == "1"
 
     def test_a_roll_target_stops_at_its_worst_number(self):
-        """The minimum of a Save is 6+: a higher number, since the stat
-        improves downwards, so the limit is a ceiling on the number."""
+        """An inverted target improves downwards, so its minimum quality is a numeric
+        ceiling.
+        """
         value, _, held = apply_changes(SAVE, "5+", [change(SAVE, "worsen", 3)])
         assert value == "6"
         assert held == "minimum"
@@ -89,8 +89,9 @@ class TestImprovingStopsAtTheMaximum:
 
 
 class TestTheSurplusIsDisregarded:
-    """The part of a change past the limit is not kept for later: what
-    is worsened to the floor and then improved stands one above it."""
+    """Discard changes beyond a limit so later improvements start from the limited
+    value.
+    """
 
     def test_an_improvement_after_the_injuries_lifts_the_stat_off_the_floor(self):
         changes = [change(STRENGTH, "worsen", at=day) for day in range(10)]
@@ -119,8 +120,9 @@ class TestTheSurplusIsDisregarded:
         assert apply_changes(STRENGTH, "3", [second, first])[0] == "7"
 
     def test_a_stat_lifted_off_its_floor_is_no_longer_held_there(self):
-        """Held at a limit describes the value as it stands: once a later
-        change moves it away, the cell can be worsened again."""
+        """Clear the limit indicator when a later change moves the value away from
+        that limit.
+        """
         changes = [change(STRENGTH, "worsen", at=day) for day in range(3)]
         changes.append(change(STRENGTH, "improve", at=10, source="Bionic arm"))
         value, _, held = apply_changes(STRENGTH, "3", changes)
@@ -134,8 +136,7 @@ class TestTheSurplusIsDisregarded:
         assert (value, held) == ("1", "minimum")
 
     def test_a_change_nothing_stored_stands_behind_folds_first(self):
-        """A built-in's change is part of what the card prints, so it
-        lands before anything the model acquired."""
+        """Built-in changes with no acquisition time apply before acquired changes."""
         printed = change(STRENGTH, "improve", source="Brute")
         acquired = [change(STRENGTH, "worsen", at=day) for day in range(3)]
         assert apply_changes(STRENGTH, "3", [*acquired, printed])[0] == "1"
@@ -143,8 +144,9 @@ class TestTheSurplusIsDisregarded:
 
 class TestWhatTheLimitsLeaveAlone:
     def test_a_value_already_past_the_limit_is_not_pulled_back(self):
-        """An owner may set a Strength of 0 by hand; an injury then
-        changes nothing, and neither raises it to 1."""
+        """A worsening change must not raise a manually set value that is already
+        below its minimum.
+        """
         value, _, held = apply_changes(STRENGTH, "0", [change(STRENGTH, "worsen")])
         assert value == "0"
         assert held == "minimum"
@@ -177,8 +179,7 @@ class TestWhatTheLimitsLeaveAlone:
         assert apply_changes(STRENGTH, "3", changes)[0] == "4"
 
     def test_a_set_is_not_held_to_the_limits(self):
-        """A set is authored content, like the printed value: the limits
-        govern what folds on top of it, not the value itself."""
+        """Limits constrain relative changes, not an explicitly authored set value."""
         assert apply_changes(STRENGTH, "3", [change(STRENGTH, "set", 12)])[0] == "12"
 
     def test_no_changes_means_no_touch(self):
@@ -331,15 +332,18 @@ RESPIRATOR = Wargear(pack_id=None, name="Respirator")
 
 
 def held(thing, key, reason=None):
-    """One assignment of ``thing`` on a card built in memory. Two nodes of
-    one instance are two of one thing; a second instance is other content,
-    since content carries its identity from the moment it is made."""
+    """Create a card node for the supplied content instance.
+
+    Repeated nodes share content identity only when they reference the same
+    instance.
+    """
     return Node(thing, key=key, reason=reason)
 
 
 class TestTheCardStacksItsRepeats:
-    """A card built in memory: two of one wargear are one gear line,
-    unless the card is built for a page whose lines carry acts."""
+    """Collapse identical wargear for display while preserving separate assignments
+    on action pages.
+    """
 
     def test_two_of_one_wargear_are_one_gear_line(self):
         card = Card(miniature=None, roots=[held(RESPIRATOR, 1), held(RESPIRATOR, 2)])

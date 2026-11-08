@@ -1,23 +1,13 @@
-"""Asset tables: a table of one Holding asset type's assets that a gang holds.
+"""Asset tables grant gangs access to roll on assets of one Holding type.
 
-The core rulebook's Territory Selection Table is the shape
-(design/house-and-territory-tables.md): the Arbitrator rolls a D66 on a
-table of Territories, and every roll the die can make lands on exactly one
-of them. A table is an assignable a gang holds, because holding one is
-what says the gang may roll on it — and a gang holds one the three ways
-it holds anything: built into its campaign type as the table is created,
-given by a modifier, or built into a campaign's additions. It draws no
-line anywhere.
+Creating a table adds its built-in membership to the campaign type or explicit
+additions type. Gangs can hold tables through stored assignments or computed
+grants. Tables enable roll controls without appearing as ordinary inventory.
 
-What this file holds still: the shared coverage check names gaps,
-overlaps and bandless rows in words, and is what the picklist editor
-already ran; a table on a Possession asset type and an entry of another
-asset type are refused; creating a table builds it into its campaign type
-and archiving, unarchiving and deleting follow a possession's lifecycle; a
-gang joining a campaign of the type holds the table as a stored
-assignment and a pick may grant one as a computed fact; neither the gang
-sheet, the campaign page nor the print view draws it; and the seed
-creates the Territory Selection Table once, whole, and built in.
+Coverage checks report missing rolls, overlaps and entries without bands.
+Authoring rejects Possession tables and entries from another asset type.
+The standard Territory table seed is idempotent.
+See design/house-and-territory-tables.md.
 """
 
 import pytest
@@ -77,8 +67,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def dominion(default_pack):
-    """A campaign type with a Holding asset type and a Possession one, and
-    two Territories to put on a table."""
+    """Create Holding and Possession asset types with two Territories for table entries."""
     campaign_type = create_campaign_type("Dominion")
     territory = add_asset_type(
         campaign_type, "Territory", "pooled", label_plural="Territories"
@@ -110,8 +99,7 @@ def gang_computed(gang):
 
 
 def gang_facts(gang):
-    """The gang as its own scopes see it: stored facts with the computed
-    grants layered on, the way each round of ``compute`` reads them."""
+    """Combine stored gang assignments and computed grants for selector matching."""
     card = build_gang_card(gang)
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
     return _Facts(card, compute(card, index)).model()
@@ -122,7 +110,7 @@ def names(contributions):
 
 
 class Row:
-    """A band with nothing else on it, for checking coverage without rows."""
+    """Represent a roll band without creating database rows."""
 
     def __init__(self, roll_low=None, roll_high=None):
         self.roll_low, self.roll_high = roll_low, roll_high
@@ -132,9 +120,7 @@ class Row:
 
 
 class TestTheCoverageCheck:
-    """One check for every band table: every roll the die can make lands
-    on exactly one row. Gaps, overlaps and rows with no band are named,
-    and a die of nothing has no rolls to cover."""
+    """Report gaps, overlaps and bandless rows against the die's valid outcomes."""
 
     def test_a_whole_d66_table_covers_every_roll_once(self):
         rows = [Row(low, high) for low, high, _ in ENTRIES]
@@ -172,8 +158,7 @@ class TestTheCoverageCheck:
         assert len(said.bandless) == 2
 
     def test_the_picklist_editor_reads_the_same_check(self, default_pack):
-        """The picklist table page's coverage is this function on the
-        list's members — the one statement of the rule."""
+        """Use the shared band-coverage check for picklist editor summaries."""
         from n26.library.views import coverage
 
         slot_type = create_slot_type("Injury")
@@ -269,9 +254,7 @@ class TestEntries:
 
 
 class TestATableIsBuiltIntoItsCampaignType:
-    """Created, the table is built into the type that gives it, the way a
-    possession is; archived or deleted, it is taken out; unarchived, the
-    same membership comes back."""
+    """Manage a table's built-in membership when creating, archiving, unarchiving or deleting it."""
 
     def test_creating_a_table_builds_it_in(self, dominion, d6_table, default_pack):
         (member,) = dominion["type"].built_in_members
@@ -349,9 +332,7 @@ class TestATableIsBuiltIntoItsCampaignType:
 
 
 class TestAGangHoldsTheTable:
-    """Joining a campaign of the type puts the table on the gang as a
-    stored assignment; a pick may grant one as a computed fact; both read
-    as "holds this table" on the gang's facts, and neither draws a line."""
+    """Stored assignments and computed grants both satisfy table-access selectors without inventory rows."""
 
     @pytest.fixture
     def campaign(self, dominion, d6_table, arbitrator):
@@ -375,9 +356,7 @@ class TestAGangHoldsTheTable:
     def test_a_pick_may_grant_a_table_and_taking_it_back_removes_it(
         self, dominion, gang_type, owner, default_pack
     ):
-        """A journal's table reaches every gang of its House through a
-        modifier on the House pick: targets the gang alone, gives the
-        table. Un-picking retracts it."""
+        """A gang pick grants its table while selected; removing the pick retracts that access."""
         journal = create_asset_table(
             "Goliath Territories", dominion["territory"], dice="d6"
         )
@@ -438,9 +417,7 @@ class TestAGangHoldsTheTable:
 
 
 class TestNothingDrawsATable:
-    """The gang sheet, the campaign block on it, the campaign page and
-    the print view all leave the table out; the sheet costs the same
-    with it as without."""
+    """Omit tables from ordinary gang, campaign and print inventory displays."""
 
     @pytest.fixture
     def held(self, dominion, d6_table, arbitrator, gang_type, owner):
@@ -470,16 +447,13 @@ class TestNothingDrawsATable:
         assert "Settlement" in sheet
         for body in (sheet, paper, page):
             assert "Dominion Territories" not in body
-        # The campaign sheet carries the table for its Roll controls, and
-        # draws it nowhere: the gang's lines, rules and assets leave it out.
+        # Keep roll-table access separate from displayed gang rules and assets.
         structure = render_campaign(campaign)
         assert "Dominion Territories" not in str(structure.gangs[0].assets)
         assert "Dominion Territories" not in str(structure.assets[0].entries)
 
     def test_the_founding_page_leaves_it_out(self, dominion, d6_table):
-        """The one built-ins-enumerating surface a player reads: what
-        founding a campaign on this type gives. The table is how a gang
-        comes to roll, not something it starts with."""
+        """Exclude roll-table access from the campaign type's starting-inventory summary."""
         from n26.core.campaigns import summarise_campaign_type
 
         create_asset("Settlement", dominion["settlement"])
@@ -492,10 +466,7 @@ class TestNothingDrawsATable:
     def test_the_sheet_costs_the_same_however_many_tables_are_held(
         self, dominion, arbitrator, gang_type, owner, default_pack
     ):
-        """A kind an assignment names is hydrated in one narrow pass, so a
-        gang holding three tables builds its sheet in the same number of
-        queries as a gang holding one — the cost is per kind, never per
-        table."""
+        """Hydrate the table assignment kind in one pass so extra tables add no queries."""
         one = create_campaign_type("Dominion with one")
         turf = add_asset_type(one, "Turf", "pooled")
         create_asset_table("Turf table", turf, dice="d6")
@@ -524,10 +495,7 @@ class TestNothingDrawsATable:
 
 
 class TestTheTerritorySelectionTable:
-    """What every install ships with: one D66 table of the core
-    rulebook's Territories, whole, built into the Territory campaign type.
-    The data migration never runs under the test settings, so the same
-    code seeds it here."""
+    """Seed the complete Territory Selection Table and its campaign built-in without data migrations."""
 
     def test_it_creates_the_table_its_entries_and_the_territories(self, default_pack):
         lines, made = seed_territory_table(apps)
@@ -592,9 +560,7 @@ class TestTheTerritorySelectionTable:
         assert ruins.income == 30
 
     def test_a_same_named_asset_of_another_type_is_skipped_and_said(self, default_pack):
-        """An asset's name is unique in its pack whatever its type, so a
-        Settlement called Old Ruins is found rather than collided with;
-        its entry is left out and the line says so."""
+        """Report and skip an existing asset whose name matches but asset type differs."""
         seed_core_campaign(apps)
         core = CampaignType.objects.get(name=CAMPAIGN_TYPE)
         settlement = core.asset_types.get(label_singular="Settlement")
@@ -627,9 +593,7 @@ class TestTheTerritorySelectionTable:
 
 
 class TestTheAuthoringPages:
-    """A Holding asset type lists its tables on the campaign type's page
-    with a form that adds one; a table's own page lists its entries with
-    their bands under the coverage check, adds one, and takes one off."""
+    """Author Holding tables from the campaign type page and edit their entries under a coverage summary."""
 
     @pytest.fixture
     def author(self, client):
@@ -684,9 +648,7 @@ class TestTheAuthoringPages:
     def test_a_table_under_a_possession_type_is_a_mistyped_address(
         self, author, client, dominion
     ):
-        """The page draws no tables block under a Possession asset type, so
-        a post naming one is not an author's mistake to be refused in
-        words — it is an address nothing on the page leads to."""
+        """Return 404 for a table-creation POST targeting a Possession type that has no such UI action."""
         settlement = dominion["settlement"]
         response = client.post(
             f"/n26/authoring/campaign-type/{dominion['type'].pk}/",

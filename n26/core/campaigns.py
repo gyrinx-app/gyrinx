@@ -38,10 +38,8 @@ NO_CEILING = "unlimited"
 #: Left as it is: what ``edit_battle`` takes for a stake it is not given.
 KEEP = object()
 
-#: Marks the note on the removal a gang is written when the arbitrator
-#: archives a counter: the value the counter stood at, which the gang's
-#: history prints as "(was 4)". A marker rather than a bare figure, so the
-#: history never mistakes a player's reason for a value.
+#: Structured prefix for counter values recorded at archival. Distinguish
+#: these from player-authored reasons before displaying the previous value.
 ARCHIVED_COUNTER_NOTE_PREFIX = "archived-counter:v1:"
 
 
@@ -993,11 +991,8 @@ class CampaignOperation:
                 f"{asset_type.campaign_type}, not of this campaign's type or "
                 "the campaign's own."
             )
-        # A shared asset type may hold another campaign's own assets, written
-        # into that campaign's pack. Only this campaign's pack and the type's
-        # own are this campaign's to deal in — plus whatever is on a table
-        # the campaign holds, wherever that is filed, which is the same rule
-        # the catalogue reads (``addable_assets``).
+        # Limit asset eligibility to this campaign's allowed packs, plus entries
+        # on held tables. Share the addable_assets rule with discovery.
         if asset.pack_id not in (
             self.campaign.pack_id,
             self.campaign.campaign_type.pack_id,
@@ -1148,9 +1143,7 @@ class CampaignOperation:
                 include_staged=sees_staged(self.actor),
             )
         }:
-            # A staged table the gang holds is one the roller may use only
-            # if they may see staged content: the roll is where a Territory
-            # is newly chosen for the campaign.
+            # New rolls require staged-content permission even when the table is held.
             gang = membership.gang.name
             raise Refusal(
                 f"{gang} cannot roll for a {table.asset_type.label_singular.lower()} "
@@ -1502,11 +1495,8 @@ class CampaignOperation:
             )
         return campaign_asset
 
-    # --- What the arbitrator adds ------------------------------------------
-    #
-    # Everything below writes library content into the campaign's own pack
-    # and onto its additions type, so it reaches member gangs by the path a
-    # gang type's built-ins take. Nothing here touches the shared type.
+    # Campaign additions write only this campaign's pack and additions type;
+    # shared content remains unchanged.
 
     def add_asset_type(
         self, label_singular, ownership, label_plural="", display_group=""
@@ -2284,7 +2274,7 @@ def unarchive_preview(campaign, member):
             materialised_for_id__in=[m.additions_carrier_id for m in memberships],
         )
         .select_related("counter_value")
-        # The newest copy per carrier wins, as ``.last()`` picks it in the act.
+        # Match execution's last-copy selection for each carrier.
         .order_by("pk")
     }
     removals = _last_removals(copies.values())
@@ -2310,8 +2300,7 @@ def unarchive_preview(campaign, member):
             continue
         removal = removals.get(copy.pk)
         if removal is None or removal.batch not in archives:
-            # Removed for another reason: the act leaves it, and a copy
-            # already made for this membership is never granted again.
+            # Do not restore independently removed copies or regrant satisfied members.
             continue
         if member.counter_id:
             held = getattr(copy, "counter_value", None)
@@ -2487,9 +2476,8 @@ def tables_in_play(campaign, *, include_staged=False):
     """
     from n26.library.models import AssetTable, CampaignType, DefaultAssignment
 
-    # The two types' built-in sets are read by query rather than off the
-    # instances in hand: opening a table may have founded the additions'
-    # set a moment ago, on a copy of the type the caller never saw.
+    # Reload built-in sets: opening a table may create additions' set through
+    # a different instance within this transaction.
     sets = CampaignType.objects.filter(
         pk__in=(campaign.campaign_type_id, campaign.additions_id),
         built_ins__isnull=False,

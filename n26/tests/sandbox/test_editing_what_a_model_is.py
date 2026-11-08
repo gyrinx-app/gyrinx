@@ -1,11 +1,6 @@
-"""The owner edits what a model is: its subtypes and its rules.
-
-An owner may add a subtype or rule by hand, and take one away — whatever
-route it arrived by. Both are stored as assignments (reason ``edited``),
-so the history keeps them; what a removal cancels is suppressed at read
-time, never written to, so archiving the owner's edits gives the content's
-own answer back. An added thing has teeth: rules that match on the
-subtype reach the model exactly as if the content had granted it.
+"""Store owner-added subtypes and rules as edited assignments, and suppress removals during
+reads. Reset archives owner edits to restore content-derived state, while added subtypes
+participate in ordinary modifier matching.
 """
 
 import json
@@ -103,12 +98,8 @@ def card_for(miniature):
 
 @pytest.fixture(autouse=True)
 def the_books_stay_honest(yolanda):
-    """Every test here ends with the gang reconciled — edits must never
-    move the books, whatever the test did on the way.
-
-    Fetched fresh: the check compares the instance it is handed, and
-    operations repin through instances of their own, so a cached one
-    would report a drift that is only staleness.
+    """Verify reconciliation after every test using a fresh gang instance, since operations
+    update their own instances.
     """
     yield
     from n26.core.models import Gang
@@ -118,13 +109,13 @@ def the_books_stay_honest(yolanda):
 
 
 def edit(miniature):
-    """Open an operation on the model's gang, as the edit page would."""
+    """Open the model's gang operation as its owner."""
     gang = miniature.membership.gang
     return operation(gang, actor=gang.owner)
 
 
 class TestAddingBySayingSo:
-    """An added subtype is an ordinary free assignment, and it has teeth."""
+    """Owner-added subtypes use free assignments and participate in modifier matching."""
 
     def test_the_card_shows_what_the_owner_added(self, yolanda):
         mounted = create_subtype("Mounted")
@@ -134,8 +125,7 @@ class TestAddingBySayingSo:
         assert card.type_line == "Fighter (Mounted)"
 
     def test_rules_that_match_the_subtype_reach_the_model(self, yolanda):
-        """A gang rule for Mounted models cannot tell an owner's Mounted
-        from a content-granted one."""
+        """Match owner-added subtypes using the same rules as content-granted subtypes."""
         mounted = create_subtype("Mounted")
         modifier(
             "Mounted models gain Hit & Run",
@@ -158,7 +148,9 @@ class TestAddingBySayingSo:
 
 
 class TestTakingAway:
-    """A removal is stored, compiled at read time, and reversible."""
+    """Store reversible removals and apply them during reads without modifying their source
+    assignments.
+    """
 
     def test_a_built_in_rule_goes_quiet_and_stays_in_the_database(self, yolanda):
         gaunt = create_rule("Gaunt")
@@ -172,14 +164,13 @@ class TestTakingAway:
             op.take_away(rehired, gaunt)
 
         assert [line.name for line in card_for(rehired).rules] == []
-        # Suppressed, not written to: the built-in assignment stands.
+        # Preserve the source assignment while suppressing it in computed state.
         assert Assignment.objects.filter(
             miniature_root=rehired, rule=gaunt, removes=False, archived=False
         ).exists()
 
     def test_the_removal_reaches_what_the_thing_was_granting(self, yolanda):
-        """Cutter grants Mounted grants a skill; taking Mounted away
-        takes the skill with it, down the chain."""
+        """Suppress downstream grants when their granting subtype is removed."""
         mounted = create_subtype("Mounted")
         modifier(
             "Mounted grants Hit & Run",
@@ -203,8 +194,9 @@ class TestTakingAway:
         assert card.skills == []
 
     def test_rules_matching_the_removed_subtype_no_longer_reach(self, yolanda):
-        """The removal settles with round 0, so a conditional rule asks
-        its question of a world where the subtype is already gone."""
+        """Apply removals in the initial effect round so conditional rules see the
+        remaining subtypes.
+        """
         mounted = create_subtype("Mounted")
         modifier(
             "Mounted models gain Hit & Run",
@@ -221,8 +213,9 @@ class TestTakingAway:
         assert [s.name for s in card_for(yolanda).skills] == []
 
     def test_a_paid_for_subtype_is_never_hidden(self, yolanda):
-        """Money stands behind it, so the removal is refused and the
-        card goes on showing it — said in the plan, never silently."""
+        """Reject suppression of a purchased assignment in the effect plan while retaining
+        it on the card.
+        """
         mounted = create_subtype("Mounted")
         assign(mounted, miniature=yolanda, paid=75)
         with edit(yolanda) as op:
@@ -251,14 +244,13 @@ class TestTakingAway:
         with edit(yolanda) as op:
             op.take_away(yolanda, mounted)
         card = card_for(yolanda)
-        # Nothing of that name was ever held, and the standing removal
-        # draws nothing either.
+        # A removal assignment is not itself displayed as a subtype.
         assert card.type_line == "Fighter"
         assert [line.name for line in card.subtypes] == []
 
 
 class TestReset:
-    """One act returns a section to what the content says."""
+    """Archive edits for one section to restore its content-derived state."""
 
     def test_reset_archives_the_edits_and_the_content_answer_returns(self, yolanda):
         gaunt = create_rule("Gaunt")
@@ -303,7 +295,7 @@ class TestReset:
 
 
 class TestTheEditPage:
-    """The Subtypes & Rules box on the model's edit page, end to end."""
+    """Exercise the Subtypes & Rules form through the model edit page."""
 
     def _page(self, client, miniature):
         from django.urls import reverse
@@ -316,7 +308,9 @@ class TestTheEditPage:
         return client.post(reverse("n26-edit-fighter", args=[miniature.pk]), data)
 
     def _held(self, page, key):
-        """The section's held options, keyed. None where nothing is."""
+        """Map currently held options by content key, returning an empty mapping for an
+        absent offer.
+        """
         offer = page.context[key]
         return (
             {}
@@ -330,8 +324,7 @@ class TestTheEditPage:
         return {option.key: option for option in page.context[key]}
 
     def test_what_is_held_is_a_box_and_the_rest_is_the_panel(self, client, yolanda):
-        """Two halves: what the card shows is a box to clear, and the
-        rest of the library is what the search panel offers."""
+
         mounted = create_subtype("Mounted")
         gaunt = create_rule("Gaunt")
         assign(gaunt, miniature=yolanda, paid=0)
@@ -345,20 +338,20 @@ class TestTheEditPage:
     def test_every_option_is_a_box_in_the_page_so_no_script_can_add(
         self, client, yolanda
     ):
-        """The panel only ticks boxes that are already there, so every
-        addable thing is a box in the HTML — which is also the whole of
-        the fallback for a reader with no script."""
+        """Render native inputs for addable options so selection remains possible before
+        the React panel mounts.
+        """
         mounted = create_subtype("Mounted")
         gaunt = create_rule("Gaunt")
         assign(gaunt, miniature=yolanda, paid=0)
         client.force_login(yolanda.membership.gang.owner)
         body = self._page(client, yolanda).content.decode()
         assert "Subtypes &amp; Rules" in body
-        # A box carries the key, never the name: a rule's identity takes
-        # in its annotation, and two Leashes differ by nothing else.
+        # Use content keys because rule annotations can distinguish identically named
+        # rules.
         assert f'value="library.subtype:{mounted.pk}"' in body
         assert f'value="library.rule:{gaunt.pk}"' in body
-        # The panel's own row reports that same key rather than the words.
+        # Use the same content key in panel options and native inputs.
         soup = BeautifulSoup(body, "html.parser")
         offered = [
             option["key"]
@@ -423,9 +416,7 @@ class TestTheEditPage:
         assert [line.name for line in card_for(rehired).rules] == ["Gaunt"]
 
     def test_a_gang_held_rule_says_it_comes_from_the_gang(self, client, yolanda):
-        """A rule assigned straight to the gang rides every member's card
-        as a broadcast row — the box must say where it came from, not
-        read as if the owner ticked it themselves."""
+        """Identify the gang as the source of a broadcast rule on each model's edit form."""
         gaunt = create_rule("Gaunt")
         assign(gaunt, gang=yolanda.membership.gang)
         client.force_login(yolanda.membership.gang.owner)
@@ -436,9 +427,9 @@ class TestTheEditPage:
         assert option.detail == "from the gang"
 
     def test_a_paid_for_thing_is_not_offered_to_be_taken_away(self, client, yolanda):
-        """A removal could not shift it, so its box is fixed and says
-        why. Offering the act and then refusing it wrote a removal that
-        changed nothing and reported a loss the card denied."""
+        """Disable purchased assignments with an explanation because take-away cannot
+        remove them; selling uses a separate workflow.
+        """
         mounted = create_subtype("Mounted")
         assign(mounted, miniature=yolanda, paid=75)
         client.force_login(yolanda.membership.gang.owner)
@@ -447,7 +438,7 @@ class TestTheEditPage:
         assert option.is_current
         assert option.fixed_because
         assert "sell" in option.fixed_because
-        # Drawn disabled, so the browser never submits it.
+
         body = page.content.decode()
         box = body.split(f'value="library.subtype:{mounted.pk}"')[1][:200]
         assert "disabled" in box
@@ -455,9 +446,9 @@ class TestTheEditPage:
     def test_a_fixed_box_submitting_nothing_is_not_read_as_a_clearing(
         self, client, yolanda
     ):
-        """A disabled box posts nothing, and its silence must not be
-        taken for a clearing — the whole reason granted things are left
-        out of the difference too."""
+        """Exclude fixed assignments from the removal difference because disabled inputs
+        submit nothing.
+        """
         mounted = create_subtype("Mounted")
         assign(mounted, miniature=yolanda, paid=75)
         client.force_login(yolanda.membership.gang.owner)
@@ -469,14 +460,15 @@ class TestTheEditPage:
         ).exists()
         body = client.get(response.url).content.decode()
         assert "lost Mounted" not in body
-        # Nothing moved, so the page says exactly that.
+
         assert "Saved." in body
 
     def test_clearing_a_thing_both_added_and_granted_takes_it_fully_away(
         self, client, yolanda
     ):
-        """Clearing means gone by every route: archiving the owner's own
-        addition alone would leave a standing grant re-ticking the box."""
+        """Suppress the grant as well as archiving the owner's addition so clearing the
+        option removes every active source.
+        """
         mounted = create_subtype("Mounted")
         client.force_login(yolanda.membership.gang.owner)
         self._post(
@@ -526,7 +518,7 @@ class TestTheEditPage:
 
 
 class TestTheBooksStayHonest:
-    """Edits price nothing, move nothing, and reconcile stays clean."""
+    """Keep ratings reconciled and repeated effect computation stable after edits."""
 
     def test_reconcile_is_clean_after_the_lot(self, yolanda):
         from n26.core.reconcile import assert_reconciled

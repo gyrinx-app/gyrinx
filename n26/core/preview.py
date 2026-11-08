@@ -1,33 +1,15 @@
-"""The scratch card — what pending authoring would do, without doing it.
+"""Preview pending authoring changes inside a transaction that always rolls back.
 
-Step 3 of design/authoring-build-plan.md, and the test of whether the
-fancy scratch-card UI is earnable: *an endpoint that takes the
-form state and gives back card state*. ``preview(state)`` applies the
-pending payloads through the authoring verbs, founds a throwaway gang,
-hires exemplar fighters, computes their cards, serialises what they
-say — and then **rolls the whole transaction back**. The caller's
-database is untouched; the preview is pure reading in effect, bought
-with writes that never commit.
+``preview(state)`` creates temporary content through authoring verbs, founds
+a temporary gang and exemplar fighters, then computes and serialises their
+cards. No preview writes commit.
 
-The ``state`` dict is form state, one step from a POST body:
+``state.create`` defines named content. Modifier form payloads use @Name
+references for temporary objects and attach_to for their carrier.
+``gang`` and ``fighters`` describe the exemplar roster.
 
-* ``create`` — name-only leaves the payloads need but the library
-  doesn't have yet: subtypes, categories, a collection with its
-  sections, the affiliation being authored. Created first, each
-  registered under its name.
-* ``modifiers`` — composer submits (``ModifierComposerForm`` data,
-  ``who-``/``what-``/``conditions-`` prefixes and all), plus an
-  ``attach_to`` naming a created carrier. Anywhere a form field would
-  hold a pk, ``"@Name"`` references a created thing instead — the pk
-  does not exist until the preview runs.
-* ``gang`` / ``fighters`` — the scratch roster: what the gang carries,
-  and each exemplar model's name and subtypes.
-
-``PreviewState`` is the answer, all plain strings and numbers
-(JSON-able): the gang block, one dict per card, every plan step as its
-sentence, and the gang's notes. Invalid payloads raise
-:class:`PreviewError` carrying the form's words, which the endpoint
-returns as a 400 — never a half-applied state either way.
+Return JSON-compatible PreviewState data with cards, plans and notes.
+Invalid payloads raise PreviewError with form validation messages.
 """
 
 import dataclasses
@@ -37,7 +19,7 @@ from django.db import transaction
 
 
 class PreviewError(Exception):
-    """A payload the composer refuses — carries the errors, in words."""
+    """A preview payload failed validation, with its form errors."""
 
     def __init__(self, errors):
         self.errors = errors
@@ -46,12 +28,10 @@ class PreviewError(Exception):
 
 @dataclass
 class PreviewState:
-    """What the scratch gang's cards say. Plain data, JSON-able."""
+    """JSON-compatible display data for the temporary gang and exemplar cards."""
 
     gang: dict = field(default_factory=dict)
-    #: One dict per exemplar fighter, each carrying its own ``plan`` —
-    #: every step as its sentence, so the scratch card can say not just
-    #: what it shows but why. The debugging surface, as text.
+    #: Each exemplar card includes its execution plan for explaining computed output.
     cards: list = field(default_factory=list)
     #: The gang card's own plan steps.
     plan: list = field(default_factory=list)
@@ -87,11 +67,9 @@ def _creators():
 
 
 def _apply_creates(state):
-    """Build the named leaves, registering each under its name.
+    """Create temporary content and register names for modifier references.
 
-    A collection registers its sections too, by their own names — a
-    payload says ``"@Primary"`` exactly as the admin would say
-    "Primary".
+    Register collection section names alongside their parent collection.
     """
     from n26.library import authoring
 

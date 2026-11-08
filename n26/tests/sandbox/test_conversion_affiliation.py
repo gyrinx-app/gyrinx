@@ -1,9 +1,5 @@
-"""The Outcast Affiliation conversion, proven on a prod-shaped world.
-
-A Hidden built into the gang type offers the Affiliations menu; Clan
-House chains a second menu of houses. After the conversion those are
-slots and pickables, the modifiers have moved not copied, and every
-page still says the same things.
+"""Convert the Outcast hidden affiliation offer and dependent House offer to slots and
+pickables. Move their modifiers, retain existing answers and preserve gang captures.
 """
 
 import pytest
@@ -53,8 +49,9 @@ def world(prod_shape, owner):
 
 
 def build_prod_shape(person_type):
-    """The system as production holds it: a Hidden offering Affiliation,
-    four affiliations, Clan House chaining the six houses."""
+    """Build a hidden offering four affiliations, with Clan House offering a dependent menu
+    of six houses.
+    """
     subtypes = {
         "leader": create_subtype("Outcast Leader"),
         "champion": create_subtype("Outcast Champion"),
@@ -117,7 +114,7 @@ def build_prod_shape(person_type):
         offers_choice(Affiliation, from_section=house_section, label="Clan House"),
         carried_by=top["Clan House"],
     )
-    # Fossils: unattached offers the conversion must not swap.
+    # Unattached offers outside the converted system must remain unchanged.
     modifier(
         "a whole-kind Affiliation offer",
         targets_gang(),
@@ -244,14 +241,11 @@ class TestThePlan:
 
     def test_it_rewrites_the_archived_answer_too(self, world):
         said = "\n".join(plan_outcast_affiliation().preview())
-        # Five live answers (clanless, open house, housed top, housed
-        # house, mutant) plus the rechosen gang's live Mutant and its
-        # archived Clanless.
+        # Six live answers and the rechosen gang’s archived Clanless answer.
         assert said.count("rewrite pick") >= 7
 
     def test_an_archived_gang_is_rewritten_but_not_held(self, world):
-        """Archived gangs still have their picks moved, but a stale
-        archived gang must not lock or refuse the whole conversion."""
+        """Convert archived gangs’ answers without treating those gangs as live holders."""
         gangs, _, _ = world
         gone = gangs["clanless"]
         gone.archive()

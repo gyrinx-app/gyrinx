@@ -80,8 +80,7 @@ class TestTradePoints:
         assert "4¢" not in html
 
     def test_a_gang_that_overspent_shows_what_it_owes(self):
-        """Overspending is allowed — the purchase asks first — so the
-        figure has to be able to go below nought and say so."""
+        """Confirmed Trade Point overspend must display a negative remaining balance."""
         html = strip(trade_points_left=-2)
         assert ">-2<" in html
 
@@ -152,8 +151,7 @@ class TestTheCount:
         assert "9¢" not in html
 
     def test_the_count_is_the_control_that_opens_the_tally(self):
-        """One thing to look at and one thing to click: the figure a reader
-        glances at is the button holding the breakdown behind it."""
+        """The roster count itself opens its breakdown."""
         html = self.figures()
         assert "Models in the gang" in html
         assert "Roster breakdown: 9 models in the gang" in html

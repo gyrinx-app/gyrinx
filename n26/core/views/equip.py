@@ -1007,7 +1007,7 @@ ALL_LABEL = "Unrestricted"
 
 ALL_BROWSING = "all equipment"
 
-#: Reserved query value for owned stash content absent from the current catalogue.
+#: Reserved query value for all stash holdings, including gear absent from the catalogue.
 STASH_SCOPE = "stash"
 
 STASH_LABEL = "In stash"
@@ -1049,8 +1049,8 @@ def gang_tabs(collections, chosen, everything, *, stash=False):
 def equip_gang(request, pk):
     """Buy into the owned gang's stash and manage its stored possessions.
 
-    The stash tab includes gear absent from held catalogues. ALL_SCOPE browses
-    the unrestricted library. Stash listings omit model-specific usability notes.
+    The stash tab lists all stash holdings, including gear absent from held catalogues.
+    ALL_SCOPE browses the unrestricted library. Stash listings omit model-specific usability notes.
     """
     from n26.core.listing import build_catalogue, build_stash_catalogue
     from n26.core.owned import possessions

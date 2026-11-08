@@ -1,21 +1,11 @@
-"""Gang Legacy: a slot type authored on the pages, then played.
+"""Author Gang Legacy through its forms, then use it through player pages.
 
-The first example of the slots-and-picks design, walked from an empty
-library to a fighter buying from the equipment list his choice opened.
-Everything an author does here goes through the real authoring pages,
-and everything a player does goes through the real player pages: found,
-hire, choose, equip, and leave.
+The fixture builds a slot type, eight pickables, their picklist and a one-pick
+choice. Profiles receive either an open choice or a default pick. Selecting
+a legacy grants access to its equipment collection.
 
-The shape being proved is the example's — one slot type, its pickables, the
-list that offers them, one choice at 1..1 assigned to the bearer, and a
-second profile carrying the same choice with a starting pick. The house
-names and prices below are content for the walkthrough to stand on;
-which pickables the edition offers, and which profiles carry the choice or
-arrive already settled, are the maintainer's to state.
-
-The engine underneath is ``test_slots_and_picks.py``'s and the authoring
-forms are ``test_authoring_views.py``'s. What is here is the join: that
-the two halves meet, in the order a person would do them.
+This suite covers the integration between authoring, hiring, choosing, buying
+and dismissal. See test_slots_and_picks.py for the engine contracts.
 """
 
 import pytest
@@ -41,9 +31,7 @@ from n26.library.models import (
 pytestmark = pytest.mark.django_db
 
 
-#: The pickables, in the order the list offers them. Eight is the point of
-#: the example — a slot type wide enough that the picker's order is a fact
-#: worth pinning — rather than a claim about the edition's content.
+#: Example picks in display order; this table does not define edition content.
 HOUSES = (
     "Cawdor",
     "Escher",
@@ -55,11 +43,8 @@ HOUSES = (
     "Ogryn",
 )
 
-#: What the stocked lists sell: an item, the price the library prints,
-#: and the price the list itself asks. Two of the eight are stocked —
-#: the one bought from and the one a starting pick opens — because an
-#: empty list has nothing to draw and six more would be six more pages
-#: authored to prove nothing.
+#: Stock for the purchased and default-pick collections:
+#: House -> (item name, reference price, collection price).
 STOCK = {
     "Cawdor": ("Blessed blade", 25, 15),
     "Ironhead Squats": ("Ancestral hammer", 40, 30),
@@ -84,11 +69,7 @@ NO_CONDITIONS = {
 
 @pytest.fixture
 def author(db):
-    """A staff session that writes the library.
-
-    Its own client, so the player's session below is never the author's
-    signed in again: the two halves of this file are two people.
-    """
+    """Use a separate staff client so authoring does not replace the player session."""
     session = Client()
     session.force_login(User.objects.create_user("author", is_staff=True))
     return session
@@ -103,11 +84,9 @@ def owner(db):
 
 
 def posted(session, url, data):
-    """A form submitted and accepted — a redirect, never a redrawn form.
+    """Submit a form and require its success redirect.
 
-    A refusal comes back as a 200 with the words on it, so a fixture that
-    only checked for 200 would build half a slot type and fail somewhere
-    else entirely.
+    Validation errors return 200, which must not count as successful fixture setup.
     """
     response = session.post(url, data)
     assert response.status_code == 302, response.content.decode()[:2000]
@@ -116,8 +95,7 @@ def posted(session, url, data):
 
 @pytest.fixture
 def slot_type(author, default_pack):
-    """The slot type, made on the slot type's create page. Repeats are left
-    off, which is the switch untouched: nobody holds two legacies."""
+    """Create a slot type with repeats disabled through the authoring page."""
     posted(
         author,
         "/n26/authoring/slot-type/new/",
@@ -128,8 +106,7 @@ def slot_type(author, default_pack):
 
 @pytest.fixture
 def house_lists(author, default_pack):
-    """One equipment list per house, and stock on the one that is bought
-    from — priced by the list rather than by the item."""
+    """Create House collections with stock and collection-specific prices for the two used in purchases."""
     lists = {}
     for house in HOUSES:
         name = f"House {house} Equipment List"
@@ -164,8 +141,7 @@ def house_lists(author, default_pack):
 
 @pytest.fixture
 def pickables(author, slot_type, house_lists):
-    """The eight pickables, each made on the slot type's own page and each
-    given its house's equipment list through the modifier composer."""
+    """Create eight legacy picks and grant each its House equipment collection."""
     made = {}
     for house in HOUSES:
         posted(
@@ -192,7 +168,7 @@ def pickables(author, slot_type, house_lists):
 
 @pytest.fixture
 def legacies(author, slot_type, pickables):
-    """The list, and the eight pickables added to it in order."""
+    """Add the legacy pickables to their picklist in HOUSES order."""
     posted(
         author,
         f"/n26/authoring/slot-type/{slot_type.pk}/",
@@ -214,7 +190,7 @@ def legacies(author, slot_type, pickables):
 
 @pytest.fixture
 def choice(author, slot_type, legacies):
-    """The choice itself: one pick, landing on whoever was asked."""
+    """Create a bearer-assigned choice requiring exactly one pick."""
     posted(
         author,
         f"/n26/authoring/slot-type/{slot_type.pk}/",
@@ -253,7 +229,7 @@ def make_profile(author, name, person_type, gang_type, price=HUNTER_PRICE):
 
 @pytest.fixture
 def hunter(author, person_type, gang_type, choice):
-    """Hired plain, the choice arrives open."""
+    """Create a profile with an open built-in choice."""
     profile = make_profile(author, "Hunter", person_type, gang_type)
     posted(
         author,
@@ -266,7 +242,7 @@ def hunter(author, person_type, gang_type, choice):
 
 @pytest.fixture
 def squats_hunter(author, person_type, gang_type, choice, pickables):
-    """The slot-with-default: the same choice, carrying a starting pick."""
+    """Create a profile with a built-in choice and default pick."""
     profile = make_profile(author, "Squats Hunter", person_type, gang_type)
     posted(
         author,
@@ -287,7 +263,7 @@ def squats_hunter(author, person_type, gang_type, choice, pickables):
 
 @pytest.fixture
 def gang(client, owner, gang_type):
-    """Founded through the page that founds one."""
+    """Found the gang through the player page."""
     from n26.core.models import Gang
 
     client.force_login(owner)
@@ -305,7 +281,7 @@ def gang(client, owner, gang_type):
 
 
 def hire(client, gang, profile, name):
-    """The hire dialog's submit, and the model it wrote."""
+    """Submit the hiring form and return its created model."""
     from n26.core.models import Miniature
 
     response = client.post(
@@ -317,24 +293,19 @@ def hire(client, gang, profile, name):
 
 
 def purse(gang):
-    """What the gang has left, read afresh.
-
-    Every act in this file is another request, and the fixture's own
-    instance was read before any of them: the numbers on it are the ones
-    the gang was founded with.
-    """
+    """Reload the gang before reading credits changed by separate requests."""
     gang.refresh_from_db()
     return gang.credits
 
 
 def reconciled(gang):
-    """The pinned totals against the ledger, on the gang as it now stands."""
+    """Reload the gang and compare its stored totals with the ledger."""
     gang.refresh_from_db()
     assert_reconciled(gang)
 
 
 def sheet_of(gang):
-    """The gang sheet as the page draws it, pickers linked."""
+    """Render the gang sheet and add choice-picker links."""
     sheet = render_gang(gang)
     link_slots(gang, sheet, *sheet.models)
     return sheet
@@ -366,7 +337,7 @@ def equip_page(client, miniature, collection=None):
 
 
 def lists_on(gang, name):
-    """The equipment lists a model's card reaches, by name."""
+    """Return the model's computed equipment collection names."""
     from n26.core.card import build_card, build_modifier_index
     from n26.core.effects import compute
     from n26.core.models import Miniature
@@ -378,9 +349,7 @@ def lists_on(gang, name):
 
 
 class TestTheSlotTypeIsBuiltOnItsOwnPages:
-    """An author with an empty library ends with a slot type of eight
-    pickables, a list offering them in order, and a choice drawing on that
-    list — every step a form on a page."""
+    """Authoring forms create the ordered picklist, choice and both profile defaults."""
 
     def test_the_pages_build_the_choice_and_both_profile_defaults(
         self,
@@ -417,8 +386,7 @@ class TestTheSlotTypeIsBuiltOnItsOwnPages:
 
 
 class TestChoosingAHouse:
-    """One click on the picker settles the choice, and what the pickable
-    gives arrives with it."""
+    """Choosing a legacy settles the slot and grants its collection access."""
 
     @pytest.fixture
     def kaustos(self, client, gang, hunter):
@@ -442,8 +410,7 @@ class TestChoosingAHouse:
 
         body = client.get(picker_url(gang, "Kaustos")).content.decode()
 
-        # By key rather than by name: the order is the fact, and a name
-        # can appear anywhere on a page for its own reasons.
+        # Pickable keys identify option rows independently of other name occurrences.
         places = [body.index(f"library.pickable:{pickables[h].pk}") for h in HOUSES]
         assert places == sorted(places)
 
@@ -497,10 +464,7 @@ class TestChoosingAHouse:
     def test_a_pickable_the_list_never_offered_is_not_settled_by_a_post(
         self, client, gang, kaustos, slot_type, default_pack
     ):
-        """The picker re-derives its list on every submit, so a key typed
-        into the form settles nothing. What an owner may still hand over
-        off-list goes through the ordinary give, not through this page.
-        """
+        """Rebuild available choices on POST so an unoffered pickable ID creates no assignment."""
         from n26.library.authoring import create_pickable
 
         stranger = create_pickable("Helmawr", slot_type)
@@ -513,8 +477,7 @@ class TestChoosingAHouse:
 
 
 class TestAChoiceThatArrivesMade:
-    """Grendel, hired from the profile carrying a starting pick: the same
-    assignments Kaustos ends up with, written at the hire."""
+    """Hiring with a default pick creates the settled choice and grants its collection access."""
 
     @pytest.fixture
     def grendel(self, client, gang, squats_hunter):
@@ -561,9 +524,7 @@ class TestAChoiceThatArrivesMade:
 
 
 class TestWhenTheChoiceGoes:
-    """What a pick gives is held by the pick, and the pick is held by the
-    choice: take away what carries the choice and the whole run of it
-    retracts."""
+    """Dismissing the model archives its choice and dependent picks."""
 
     @pytest.fixture
     def kaustos(self, client, gang, hunter, pickables):
@@ -574,8 +535,7 @@ class TestWhenTheChoiceGoes:
     def test_the_fighter_leaving_takes_his_legacy_with_him(
         self, client, gang, kaustos, pickables
     ):
-        """His membership is what carries the choice, so dismissing him
-        must not leave a pick alive on the gang's books."""
+        """Dismissal must not leave live picks or choice assignments on the model."""
         response = client.post(reverse("n26-delete-fighter", args=[kaustos.pk]), {})
 
         assert response.status_code == 302
@@ -590,9 +550,7 @@ class TestWhenTheChoiceGoes:
     def test_taking_the_built_in_off_changes_only_the_next_hire(
         self, author, client, gang, kaustos, hunter
     ):
-        """The library page that withdraws a built-in says it changes
-        what is acquired next. A fighter already carrying the choice
-        keeps it; the one hired afterwards is never offered it."""
+        """Removing a built-in preserves existing choices and omits it from subsequent hires."""
         built_in = DefaultAssignment.objects.get(
             default_set=hunter.built_ins, slot__isnull=False
         )
@@ -606,9 +564,7 @@ class TestWhenTheChoiceGoes:
 
 
 class TestTheWholePageStaysFlat:
-    """The gang page is one fixed run of queries however wide the slot type
-    grows: eight pickables behind a choice must not be eight round trips,
-    and neither must eighty."""
+    """Adding more picklist members must not increase gang-page queries."""
 
     def test_more_pickables_do_not_mean_more_queries(
         self,

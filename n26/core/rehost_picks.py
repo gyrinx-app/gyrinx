@@ -1,26 +1,13 @@
-"""Moving a gang's picks off the models they were written on.
+"""Move misplaced model-hosted picks to their slot's gang destination.
 
-A slot sets where its pick lands: on the bearer, or on the gang where
-the slot is the Leader-picks-for-the-gang arrow. The Outcast Archetype
-slot is that arrow — the Leader is asked, the gang holds the pick, and
-it reaches every member through the gang. A pick is hosted where the
-slot pointed at the moment it was made, and changing the slot moves
-nothing already written: a pick made while the slot pointed at the
-bearer sits on the Leader, and a gang whose pick sits on its Leader
-reads differently from one whose pick sits on the gang.
+A slot's host setting does not move existing picks. Find live model-hosted
+picks whose slot specifies the gang, distinguishing them from deliberate
+per-model choices provided by a gang-owned source.
 
-The repair finds every live pick whose slot points at the gang and which
-sits on a model, and moves it onto the model's gang. Nothing else about the
-pick changes: it still names the assignment that asked and the slot it
-settles, so the Leader's card still reads it as chosen, and it is still
-caused by the Leader's hire, so it still goes when the Leader does.
-Anything the pick caused — a power taken through what it offered — is
-hosted in its own right and stays where it is.
-
-An archived pick on a model is counted and left alone: it draws nothing,
-and moving history is not a repair. Nothing here moves money: every
-pick's entry pins zero, so the books fold as they did, and each gang is
-proved to reconcile before its move commits.
+Move only the pick's host. Preserve its choice identity and cause, so the
+original model's choice remains resolved and source removal still cascades.
+Independently hosted descendants stay on their current hosts. Leave archived
+picks unchanged and verify every affected gang reconciles before commit.
 """
 
 from dataclasses import dataclass
@@ -29,7 +16,7 @@ from django.db import transaction
 
 
 class Refused(Exception):
-    """The repair found something other than the fault it was written for."""
+    """The current assignments do not satisfy this repair's eligibility criteria."""
 
 
 @dataclass(frozen=True)
@@ -91,25 +78,18 @@ def _astray(archived=False):
 
 
 def _asked_of_this_model(pick):
-    """Whether the choice this pick settles was the model's own to make.
+    """Whether the pick originates from this model rather than a gang-owned source.
 
-    A slot pointing at the gang can still put its pick on a model on
-    purpose: a choice the gang carries for each of its members rides
-    every card, and settling it names the fighter whose card was
-    clicked, so that fighter's pick is theirs alone. Such a pick is not
-    stray, and hoisting it onto the gang would make one fighter's choice
-    everyone's. The two are told apart by what asked: a stray pick was
-    asked by the model's own line (its membership, or something it
-    carries), a deliberate one by a line the gang carries that is about
-    nobody in particular.
+    Gang-carried offers can deliberately select onto individual members. Such
+    picks must remain model-hosted; moving them would broadcast one model's
+    selection to the entire gang.
     """
     asked = pick.chosen_for
     return asked is not None and asked.miniature_root_id == pick.miniature_id
 
 
 def find(gang_id=None):
-    """What stands to be moved, gang by gang. ``gang_id`` narrows the
-    plan to that one gang."""
+    """Build a per-gang repair plan, optionally restricted to gang_id."""
     astray = _astray()
     archived_astray = _astray(archived=True)
     if gang_id is not None:
@@ -157,11 +137,9 @@ def find(gang_id=None):
 
 
 def apply(astray):
-    """Move what the plan names, gang by gang, and prove each gang's
-    books whole.
+    """Apply each gang's repair in its own transaction and verify reconciliation.
 
-    Each gang is its own transaction: one that cannot be made whole is
-    left exactly as it stood and reported, and the rest are repaired.
+    Report failures without changing those gangs or preventing other repairs.
     """
     if astray.problems:
         raise Refused("not moved: " + "; ".join(astray.problems))
@@ -175,10 +153,7 @@ def apply(astray):
 
 
 def apply_one(gang_id):
-    """One gang's move as it stands now, committed on its own. Returns
-    the line the report carries for it. The entry for a run that visits
-    gangs across deliveries, where the plan is read afresh per gang
-    rather than carried from the preview."""
+    """Rederive and apply one gang's repair atomically, returning its report."""
     current = find(gang_id)
     if current.problems:
         return (
@@ -192,15 +167,12 @@ def apply_one(gang_id):
 
 
 def _rehost_one(gang_id, ids):
-    """One gang's move, committed or rolled back on its own. Returns the
-    line the report carries for it."""
+    """Move one gang's eligible picks and verify reconciliation in its transaction."""
     from n26.core.models import Assignment, Gang
     from n26.core.reconcile import check_gang, repin_everything
 
     with transaction.atomic():
-        # The gang first, so nothing lands on its books while its picks
-        # are moving; then the plan again, because it was read before
-        # this transaction opened.
+        # Lock the gang before rederiving the plan from current assignments.
         gang = Gang.objects.select_for_update().get(pk=gang_id)
         standing = dict(find(gang_id).gangs)
         if standing.get(gang_id) != ids:
@@ -212,9 +184,7 @@ def _rehost_one(gang_id, ids):
         for pick in Assignment.objects.select_for_update().filter(pk__in=ids):
             pick.miniature = None
             pick.gang = gang
-            # save() derives the gang root from the host and leaves the
-            # model root alone, so the old one is cleared here: a pick
-            # the gang holds is about nobody in particular.
+            # Clear the previous model root before save derives the new gang host.
             pick.miniature_root = None
             pick.save()
             moved += 1

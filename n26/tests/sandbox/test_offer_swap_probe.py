@@ -1,19 +1,7 @@
-"""Swapping one hidden offer for a narrower one, profile by profile.
-
-The Subjugator Patrol Officer pattern: a Specialist subtype grants a
-hidden carrier whose modifier offers the general choice of
-affiliation; one profile with that subtype built in takes the
-general carrier away again and grants a narrower one of its own, so
-its card should ask the same question over a shorter list. The plain
-profile keeps the general offer untouched.
-
-Both ways of building it are covered: the older shape, where a hidden
-carries a modifier offering the choice, and the slots-and-picks shape,
-where the subtype grants a slot. Each asks its question over the right
-menu and each can be answered, because a question a grant put on the
-card is addressed on the written line that chain of grants stands on.
-The plan evidence for the swap — the general offer reached and then
-retracted — is pinned here too.
+"""A Specialist subtype grants a general affiliation offer. The Subjugator profile replaces
+it with a narrower offer while the plain profile keeps the general menu. Hidden-offer
+and slots-and-picks versions must both expose answerable questions anchored on stored
+assignments.
 """
 
 import pytest
@@ -43,9 +31,6 @@ from n26.tests.sandbox.actions import (
 pytestmark = pytest.mark.django_db
 
 
-# --- The content: one subtype, two hiddens, two profiles -------------------
-
-
 @pytest.fixture
 def owner(db):
     return User.objects.create_user("player")
@@ -61,7 +46,7 @@ def affiliations(default_pack):
 
 @pytest.fixture
 def general_menu(affiliations):
-    """The whole menu: all four, in one default section."""
+    """All four affiliations in one default section."""
     collection = create_collection(
         "Affiliation Offer", entries=list(affiliations.values())
     )
@@ -70,7 +55,7 @@ def general_menu(affiliations):
 
 @pytest.fixture
 def general_offer(general_menu):
-    """The hidden carrier every Specialist is granted."""
+    """The hidden carrier granted by the Specialist subtype."""
     hidden = create_hidden("Affiliation Offer (general)")
     modifier(
         "General offer: a affiliation from the whole menu",
@@ -83,8 +68,7 @@ def general_offer(general_menu):
 
 @pytest.fixture
 def specialist(general_offer):
-    """The subtype does not carry the offer itself — it grants the
-    hidden that does, which is the shape under probe."""
+    """The subtype grants the hidden carrier rather than carrying the offer directly."""
     subtype = create_subtype("Specialist")
     modifier(
         "Specialist: the general offer arrives",
@@ -117,7 +101,7 @@ def narrow_offer(narrow_menu):
 
 @pytest.fixture
 def profiles(person_type, gang_type, specialist, general_offer, narrow_offer):
-    """Both ranks are Specialists; only the Subjugator swaps the offer."""
+    """Both profiles are Specialists; only the Subjugator replaces the offer."""
     made = {}
     for key, name in [
         ("plain", "Patrol Officer"),
@@ -157,9 +141,6 @@ def officers(gang, profiles):
     }
 
 
-# --- Reading the card the way the pages do ---------------------------------
-
-
 def computed_for(miniature):
     card = build_card(miniature)
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
@@ -171,7 +152,7 @@ def names_on(offer):
 
 
 def questions_on(miniature):
-    """Each choice on the card, with the names its picker would list."""
+    """Read each card choice and the names available in its picker."""
     computed = computed_for(miniature)
     return [
         (slot, names_on(build_choice_offer(slot, computed)))
@@ -180,8 +161,7 @@ def questions_on(miniature):
 
 
 class TestThePlainPatrolOfficer:
-    """The general offer arrives through the Specialist grant and lists
-    the whole menu."""
+    """The Specialist grant supplies the complete menu."""
 
     def test_the_card_asks_one_question_over_the_whole_menu(self, officers):
         ((slot, names),) = questions_on(officers["plain"])
@@ -191,8 +171,7 @@ class TestThePlainPatrolOfficer:
 
 
 class TestTheSubjugatorPatrolOfficer:
-    """Taking the granted carrier away cancels the question it put up,
-    and the narrow carrier's question stands alone."""
+    """Removing the general carrier leaves only the narrow question."""
 
     def test_the_card_asks_one_question_over_the_short_menu(self, officers):
         ((slot, names),) = questions_on(officers["subjugator"])
@@ -215,7 +194,7 @@ class TestTheSubjugatorPatrolOfficer:
             step for step in plan if str(step.source) == "Affiliation Offer (general)"
         )
         assert general.outcome == "retracted"
-        # The narrow carrier's own offer stands.
+
         narrow = next(
             step
             for step in plan
@@ -225,12 +204,9 @@ class TestTheSubjugatorPatrolOfficer:
 
 
 class TestTheSwapWithTheHiddenBuiltIn:
-    """The other possible wiring of the original experiment: the general
-    hidden arrives as a *built-in* of each profile — a stored assignment
-    — rather than through the subtype. It behaves the same way: the
-    removal silences the stored hidden's question on the Subjugator, and
-    the narrow hidden the profile's own modifier grants asks an anchored
-    question of its own. Either wiring of the pattern works."""
+    """A stored built-in general carrier can also be replaced by the narrow carrier granted
+    by the profile.
+    """
 
     @pytest.fixture
     def built_in_profiles(self, person_type, gang_type, general_offer, narrow_offer):
@@ -280,12 +256,9 @@ class TestTheSwapWithTheHiddenBuiltIn:
 
 
 class TestWhetherTheQuestionCanBeSettled:
-    """Both ranks' questions can be answered. A choice is settled against
-    a stored assignment, and a hidden that arrives by grant is computed
-    and has none — so the question is addressed on the written line its
-    chain of grants stands on: the Specialist subtype for the general
-    offer, and the profile itself for the narrow one the Subjugator
-    grants. The list is right on both ranks and so is the address."""
+    """Granted hidden carriers have no stored assignment. Their questions use the stored
+    subtype or profile anchoring the grant chain.
+    """
 
     def test_each_ranks_question_is_anchored_on_what_its_chain_stands_on(
         self, officers, specialist
@@ -293,8 +266,8 @@ class TestWhetherTheQuestionCanBeSettled:
         ((plain, _),) = questions_on(officers["plain"])
         ((subjugator, _),) = questions_on(officers["subjugator"])
 
-        # The general offer hangs off the subtype that granted it; the
-        # narrow one off the profile whose modifier granted it.
+        # The stored subtype anchors the general offer; the stored profile anchors the
+        # narrow offer.
         assert plain.anchor.assignment.assignable == specialist
         assert subjugator.anchor.assignment.assignable == (
             officers["subjugator"].membership.profile
@@ -310,8 +283,7 @@ class TestWhetherTheQuestionCanBeSettled:
     def test_the_narrow_question_settles_from_the_screen(
         self, gang, officers, owner, client, affiliations
     ):
-        """The whole point of an address: a player can click the question
-        and the pick lands."""
+        """The picker submits the narrow choice against its stored anchor."""
         from n26.core.models import Assignment
         from n26.core.reconcile import assert_reconciled
         from n26.core.render import render_gang
@@ -342,11 +314,9 @@ class TestWhetherTheQuestionCanBeSettled:
 
 
 class TestTheSameSwapBuiltAsSlotsAndPicks:
-    """The migration's answer to the pattern: the general slot arrives
-    from the subtype, the Subjugator takes it away and grants its own
-    narrow slot. Every question is anchored on the stored assignment
-    that granted it, so — unlike the hidden-offer build above — the
-    picker has an address and the choice can actually be settled."""
+    """The slot version also replaces the general question with a narrow, answerable
+    question anchored on its stored grant source.
+    """
 
     @pytest.fixture
     def slotted(self, person_type, gang_type, default_pack):

@@ -1097,8 +1097,8 @@ export function SiteNavAccount({
 }
 
 /**
- * Cap displayed counts at max. With label, announce the uncapped count followed
- * by label as a suffix.
+ * Hide zero counts and cap displayed counts at max. With label, announce the
+ * uncapped count followed by label as a suffix.
  */
 export function CountBadge({
     count,

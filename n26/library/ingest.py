@@ -31,6 +31,7 @@ import csv
 import io
 import random
 import re
+import secrets
 from collections import Counter as TallyCounter
 from dataclasses import dataclass, field
 
@@ -391,10 +392,15 @@ class SheetRefused(ValueError):
 def store_sheet(owner, sheet, upload):
     """Store an author's CSV upload for one sheet type.
 
-    Validate UTF-8 encoding and require at least one data row. Replace the existing
-    upload record and delete the previous file only after the transaction commits.
+    Validate UTF-8 encoding and require at least one data row. Give the bytes an
+    unpredictable object name, replace the existing upload record and clean up the
+    previous file only after the transaction commits.
     """
-    from n26.library.models.staging import MAX_SHEET_BYTES, UploadedSheet
+    from n26.library.models.staging import (
+        MAX_SHEET_BYTES,
+        UploadedSheet,
+        schedule_file_cleanup,
+    )
     from n26.write_pause import write_guard
 
     if sheet not in SHEET_NAMES:
@@ -427,11 +433,17 @@ def store_sheet(owner, sheet, upload):
         superseded = held.file.name
         held.filename = upload.name or f"{sheet}.csv"
         held.lines = len(rows)
-        held.file.save(f"{sheet}.csv", ContentFile(raw), save=False)
+        held.file.save(
+            f"{sheet}/{secrets.token_hex(16)}.csv",
+            ContentFile(raw),
+            save=False,
+        )
         held.save()
         if superseded and superseded != held.file.name:
-            transaction.on_commit(
-                lambda storage=held.file.storage, name=superseded: storage.delete(name)
+            schedule_file_cleanup(
+                held.file.storage,
+                superseded,
+                using=held._state.db,
             )
     return held
 
@@ -455,8 +467,8 @@ def rows_of(held):
 def discard_sheets(owner, sheets=None):
     """Delete selected uploads and return the number removed.
 
-    Delete stored files after the database transaction commits. Omitting sheets
-    selects all of the author's uploads.
+    Delete stored files after the database transaction commits and no other
+    row refers to them. Omitting sheets selects all of the author's uploads.
     """
     from n26.library.models.staging import UploadedSheet
     from n26.write_pause import write_guard
@@ -467,13 +479,6 @@ def discard_sheets(owner, sheets=None):
     with transaction.atomic(), write_guard():
         uploads = list(held.select_for_update())
         UploadedSheet.objects.filter(pk__in=[upload.pk for upload in uploads]).delete()
-        for upload in uploads:
-            if upload.file.name:
-                transaction.on_commit(
-                    lambda storage=upload.file.storage, name=upload.file.name: (
-                        storage.delete(name)
-                    )
-                )
     return len(uploads)
 
 

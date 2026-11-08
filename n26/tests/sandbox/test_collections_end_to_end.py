@@ -1,16 +1,6 @@
-"""A gang, its lists, and everything it buys — collections end to end.
-
-Three surfaces, one shape: the gang list you hire from, the equipment
-list you always buy from, and the Trading Post you visit. Each is a
-collection; each browses to the same structure; the same `op.buy` spends
-against all of them.
-
-Prices are the rulebook's where the rulebook has them (autogun 20/TP 0,
-boltgun 55/TP 2, heavy stubber 70/TP 2). Gang-list entries and house
-prices are invented — those live in supplements, not the core book.
-
-Run with ``-s`` to read the rendered output; the prints are the point of
-this file as much as the assertions.
+"""Gang lists, house equipment lists and Trading Posts share collection browsing and
+purchase operations. Fixtures use illustrative gang profiles and house-price overrides;
+run with -s to inspect the printed catalogue and ledger output.
 """
 
 import pytest
@@ -39,9 +29,7 @@ pytestmark = pytest.mark.django_db
 
 
 def browse_the_post():
-    """The default Trading Post, authored once per test database (two
-    sweeps: every weapon, every wargear) — and bought on TRADING_POST terms,
-    because being a trading post is how you buy it, not what it is."""
+    """Reuse or create the default Trading Post and browse it on TRADING_POST terms."""
     from n26.library.models import Collection
     from n26.tests.sandbox.actions import create_trading_post
 
@@ -49,11 +37,8 @@ def browse_the_post():
     return browse(post or create_trading_post(), TRADING_POST)
 
 
-# --- Showing things ------------------------------------------------------
-
-
 def show(view, indent=""):
-    """A collection, as a catalogue."""
+    """Print a collection catalogue and return the text for assertions."""
     lines = [f"{indent}┌─ {view.name}"]
     for section in view.sections:
         lines.append(f"{indent}│ {section.name or '(uncategorised)'}")
@@ -73,12 +58,9 @@ def find(view, name):
     return next(line for line in view.all_lines() if line.name == name)
 
 
-# --- The content library -------------------------------------------------
-
-
 @pytest.fixture
 def weapon_shape(db):
-    """SR / LR / Str / AP / L — the shape every weapon profile prints in."""
+    """Weapon columns used by this fixture."""
     shape = StatlineType.objects.create(name="Weapon")
     for position, (short, full, flags) in enumerate(
         [
@@ -100,7 +82,7 @@ def weapon_shape(db):
 
 @pytest.fixture
 def taxonomy(db):
-    """Where everything sorts — fixed per item, shared by every list."""
+    """Item-owned categories shared across collections."""
     return {
         "auto": create_category("Ranged Weapons", "Auto/Stub Weapons", position=0),
         "bolt": create_category("Ranged Weapons", "Bolt Weapons", position=1),
@@ -114,7 +96,7 @@ def taxonomy(db):
 
 
 def arm(name, shape, category, cost, trade_point_price=0, stats=(), **kwargs):
-    """A weapon with one free profile, priced and given its statline."""
+    """Create a priced weapon with one default profile and optional stats."""
     weapon = create_weapon(
         name,
         profiles=[(name, 0)],
@@ -140,10 +122,10 @@ def arm(name, shape, category, cost, trade_point_price=0, stats=(), **kwargs):
 
 @pytest.fixture
 def catalogue(weapon_shape, taxonomy):
-    """Ten priced things: five the house carries, five only the Post has."""
+    """Five items on the house list and five available only through the Trading Post."""
     tax = taxonomy
     return {
-        # On the Escher equipment list.
+        # House-list items.
         "autogun": arm(
             "Autogun", weapon_shape, tax["auto"], 20, 0, ("8", "24", "3", "-", "1")
         ),
@@ -164,7 +146,7 @@ def catalogue(weapon_shape, taxonomy):
         "chem": create_wargear(
             "Escher chem-synth", price=30, is_exclusive=True, category=tax["kit"]
         ),
-        # Trading Post only — never on the house list.
+        # Trading Post items absent from the house list.
         "boltgun": arm(
             "Boltgun", weapon_shape, tax["bolt"], 55, 2, ("12", "24", "4", "-1", "2")
         ),
@@ -196,11 +178,7 @@ def catalogue(weapon_shape, taxonomy):
 
 @pytest.fixture
 def equipment_list(catalogue):
-    """The house list: five things, most at a price the house sets.
-
-    House prices are overrides — a fix to the reference price does not
-    reach through them, which is the agreed consequence of the design.
-    """
+    """House-price overrides remain independent of later reference-price changes."""
     return create_collection(
         "House Escher Equipment List",
         entries=[
@@ -215,10 +193,8 @@ def equipment_list(catalogue):
 
 @pytest.fixture
 def gang_list(person_type, gang_type, taxonomy, equipment_list):
-    """Three fighters and two hangers-on, in two categories.
-
-    Every profile carries the house list in its built-ins, so hiring one
-    is what gives that fighter somewhere to buy from.
+    """Five profiles across fighter and hanger-on categories, each with built-in house-list
+    access.
     """
     made = {}
     entries = [
@@ -245,9 +221,6 @@ def gang_list(person_type, gang_type, taxonomy, equipment_list):
     return collection, made
 
 
-# --- The story -----------------------------------------------------------
-
-
 class TestTheThreeSurfaces:
     def test_the_gang_list_groups_hangers_on_apart(self, gang_list):
         collection, _ = gang_list
@@ -255,8 +228,7 @@ class TestTheThreeSurfaces:
 
         assert "Gang Fighters" in text
         assert "Hangers-on" in text
-        # Priced by composition, not a stored field: a profile's price is
-        # its rating plus its sets.
+
         assert find(browse(collection), "Escher Matriarch").credits == 120
         assert find(browse(collection), "Rogue Doc").credits == 80
 
@@ -268,7 +240,7 @@ class TestTheThreeSurfaces:
         assert find(view, "Lasgun").credits == 10  # reference 15
         assert find(view, "Stiletto knife").credits == 20  # no override
         assert find(view, "Escher chem-synth").is_exclusive is True
-        assert "25cr / E" in text  # priced by the house, still list-only
+        assert "25cr / E" in text  # House-price override with exclusive availability.
 
     def test_the_trading_post_carries_what_the_house_does_not(self, catalogue):
         view = browse_the_post()
@@ -276,13 +248,13 @@ class TestTheThreeSurfaces:
 
         names = {line.name for line in view.all_lines()}
         assert {"Boltgun", "Heavy stubber", "Plasma gun"} <= names
-        # Exclusive things are never at the Post, list or no list.
+        # Exclusive items are excluded from Trading Post access.
         assert "Escher chem-synth" not in names
-        # And it sells at reference: the house discount is the house's.
+        # The Trading Post uses the reference price.
         assert find(view, "Autogun").credits == 20
 
     def test_one_item_sorts_the_same_on_both(self, equipment_list, catalogue):
-        """The taxonomy belongs to the item, so the two surfaces agree."""
+        """The item’s category determines its placement in both collections."""
 
         def home_of(view):
             for section in view.sections:
@@ -335,7 +307,7 @@ class TestFoundingAndEquipping:
         print(gang_to_text(gang))
 
         gang.refresh_from_db()
-        # House prices, not reference: 15 + 10 + 20 + 10.
+        # The selected house prices total 55.
         assert gang.rating == 265 + 55
         assert_reconciled(gang)
 
@@ -344,8 +316,8 @@ class TestFoundingAndEquipping:
         buy(crew["leader"], entry=find(house, "Autogun").entry)
 
         post = browse_the_post()
-        # A browsed line is the whole purchase: the thing, the price, the
-        # Trade Points this surface charges. Nothing is disassembled.
+        # Pass the browsed line to preserve this access route’s credit and Trade Point
+        # prices.
         buy(crew["champion"], find(post, "Boltgun"))
         buy(crew["leader"], find(post, "Photo-goggles"))
 
@@ -364,7 +336,7 @@ class TestFoundingAndEquipping:
         post = browse_the_post()
         buy(crew["champion"], find(post, "Boltgun"))
 
-        # And the get-out: something weird, off any list, at a made-up price.
+        # Direct purchases can record a custom price without a collection source.
         buy(
             crew["ganger"],
             thing=find(post, "Plasma gun").thing,
@@ -379,19 +351,19 @@ class TestFoundingAndEquipping:
             str(entry.assignable): entry
             for entry in [a.ledger_entry for a in gang.assignments.all()]
         }
-        # Bought through a list: the price and the source are both kept.
+        # Retain the collection entry and price paid.
         assert entries["Autogun"].paid == 15
         assert entries["Autogun"].bought_from == autogun.entry
-        # Trade Points are remembered, which is what makes refunds possible.
+        # Recorded Trade Points support refunds.
         assert entries["Boltgun"].trade_points == 2
-        # Bought off-list: no source, and nothing objected to the price.
+        # Direct purchase without a collection source.
         assert entries["Plasma gun"].paid == 1
         assert entries["Plasma gun"].bought_from is None
         assert_reconciled(gang)
 
 
 class TestVenatorsAndLegacy:
-    """A Venator uses from their own list *and* their Legacy's."""
+    """Legacy profiles add collection access alongside the Venator’s own list."""
 
     @pytest.fixture
     def venator_list(self, catalogue):
@@ -451,7 +423,9 @@ class TestVenatorsAndLegacy:
         show(browse(equipment_list), indent="  ")
 
     def test_a_legacy_is_an_association_not_a_second_hire(self, venators, gang_list):
-        """It brings lists, not a second helping of free kit."""
+        """A legacy adds collection access without materialising another profile’s
+        equipment.
+        """
         from n26.core.render import build_model_card
 
         gang, champion = venators
@@ -483,7 +457,7 @@ class TestVenatorsAndLegacy:
 
 
 class TestCustomViews:
-    """Narrowing a list — a search box and a whole catalogue are one screen."""
+    """Collection filters preserve the browsable view structure."""
 
     def test_by_price(self, equipment_list):
         view = narrow(browse(equipment_list), credits=(0, 15), name="Under 15cr")
@@ -497,7 +471,7 @@ class TestCustomViews:
         assert "Under 15cr" in text
 
     def test_by_trade_points(self, catalogue):
-        """Exclusive items drop out: "E" is not a number in any range."""
+        """Exclusive items are excluded from numeric Trade Point ranges."""
         view = narrow(browse_the_post(), trade_points=(0, 1), name="Easy to find")
         show(view)
 
@@ -535,8 +509,7 @@ class TestCustomViews:
         }
 
     def test_a_narrowed_view_is_still_a_view(self, equipment_list):
-        """Same type in, same type out — so the same renderer draws it, and
-        narrowing composes."""
+        """Filtering returns the same view type and can be applied repeatedly."""
         whole = browse(equipment_list)
         once = narrow(whole, credits=(0, 20))
         twice = narrow(once, credits=(0, 10))
@@ -545,8 +518,7 @@ class TestCustomViews:
         assert {line.name for line in twice.all_lines()} == {"Lasgun", "Mesh armour"}
 
     def test_narrowing_keeps_the_sections(self, equipment_list, taxonomy):
-        """Sections and categories survive, so a filtered list still reads
-        like the list it came from."""
+        """Filtered results retain their source sections and categories."""
         view = narrow(browse(equipment_list), credits=(0, 15))
         assert [section.name for section in view.sections] == [
             "Armour & Equipment",

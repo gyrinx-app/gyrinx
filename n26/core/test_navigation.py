@@ -1,15 +1,8 @@
-"""The switchers: what each one lists, and what it costs.
+"""Switcher destinations, ownership boundaries and query counts.
 
-They are drawn on every screen that belongs to one gang, so both of those are
-load-bearing — a list that included somebody else's gangs or somebody else's
-fighters would be a leak, and a query that grew with the roster would grow on
-every page. The page carries the first page of each list; the rest is read
-from ``switcher_rows`` as the list scrolls, under the same rules.
-
-Which siblings a switcher offers depends on what the control sits beside. The
-bar names the gang and offers the reader's others; a heading naming a fighter
-offers the gang's other fighters, because the useful move from the middle of
-equipping one is to the next one.
+Verify initial destinations and paginated switcher_rows use the same visibility
+rules. Gang switchers offer the viewer's gangs; fighter switchers offer the
+current gang's roster on the corresponding screen.
 """
 
 import pytest
@@ -101,9 +94,7 @@ class TestWhoseGangsAreListed:
         assert switcher.label == "The Ashen Choir"
 
     def test_the_gang_you_are_on_is_in_the_first_page(self, tester, make_gang):
-        """Named last in the alphabet, so it sits on a later page — and a
-        switcher that opens without the page it is on says the reader is
-        nowhere."""
+        """Include the current gang even when its sorted position falls on a later page."""
         for index in range(SWITCHER_PAGE + 2):
             make_gang(f"Gang {index:02d}")
         here = make_gang("Zzz, the last one")
@@ -113,8 +104,7 @@ class TestWhoseGangsAreListed:
 
 
 class TestWhatItCosts:
-    """One query for the drawer and the bar between them, and the same one
-    however many gangs the reader has."""
+    """Drawer and bar share one gang query regardless of list size."""
 
     def test_the_list_is_read_once_per_request(
         self, tester, make_gang, django_assert_num_queries
@@ -224,8 +214,7 @@ def hire(tester, make_profile, make_statline):
 
 
 class TestWhichFightersAreListed:
-    """The heading on a fighter's screen switches fighters, and the set is
-    the gang's roster — not the reader's, and not everyone's."""
+    """Fighter switchers list only the current gang's roster."""
 
     def test_it_lists_the_gangs_own_fighters(self, make_gang, hire):
         gang = make_gang("The Ashen Choir")
@@ -258,9 +247,7 @@ class TestWhichFightersAreListed:
         assert [item.label for item in switcher.items] == ["Vex"]
 
     def test_every_row_leads_to_the_screen_it_is_drawn_on(self, make_gang, hire):
-        """Switching fighter keeps the job: from the skills screen the rows
-        are skills screens, and a reader picking their way down the roster
-        is not dropped into a different task halfway."""
+        """Switching fighters preserves the current workflow screen."""
         gang = make_gang("The Ashen Choir")
         here = hire(gang, "Vex")
         other = hire(gang, "Karn")
@@ -336,9 +323,7 @@ class TestTheBar:
     def test_the_bar_is_an_index_that_reads_the_rest_of_the_list(
         self, client, tester, make_gang
     ):
-        """The switcher mounts as an island holding the first page and the
-        address of the rest, so a reader with more gangs than fit is never
-        stuck with the ones the page happened to send."""
+        """Pass the initial page and source URL so every gang remains reachable."""
         import json
 
         from bs4 import BeautifulSoup
@@ -365,9 +350,7 @@ class TestTheBar:
     def test_a_fighters_screen_names_the_gang(
         self, client, tester, make_gang, make_profile, make_statline
     ):
-        """Equipping someone shows the gang in the bar: the fighter is named
-        by the heading below it, and the way out a player wants is sideways
-        to their other gang."""
+        """The bar names the gang while the page heading names its fighter."""
         from n26.core.operations import operation
 
         here = make_gang("The Ashen Choir")
@@ -423,9 +406,7 @@ class TestTheHeading:
     def test_the_gang_sheet_offers_the_others_beside_its_name(
         self, client, tester, make_gang
     ):
-        """The same set as the bar, because the heading is the gang. Named
-        differently, because two controls announced identically tell a reader
-        who cannot see where they sit nothing about either."""
+        """Repeated gang switchers use distinct accessible names."""
         here = make_gang("The Ashen Choir")
         client.force_login(tester)
         body = client.get(reverse("n26-gang", args=[here.pk])).content.decode()
@@ -530,12 +511,9 @@ class TestTheColourScheme:
         assert 'aria-label="Toggle dark mode"' not in body
 
     def test_a_visitor_with_no_account_menu_keeps_the_toggle(self, rf):
-        """Signed out there is no menu to put the rows in, and a reader who
-        cannot change the scheme at all is worse off than one with a button.
+        """Signed-out layout rendering must retain a theme toggle without an account menu.
 
-        The layout is rendered on its own: the edition's gate sends anonymous
-        visitors to log in, so this branch has no page to be reached from and
-        would otherwise be exercised by nothing.
+        Render the layout directly because the edition gate redirects anonymous visitors.
         """
         from django.contrib.auth.models import AnonymousUser
         from django.template.loader import render_to_string
@@ -593,9 +571,7 @@ class TestWhoseCampaignsAreListed:
         assert switcher.label == "Ashfall"
 
     def test_the_campaign_you_are_on_is_in_the_first_page(self, tester, make_campaign):
-        """Named last in the alphabet, so it sits on a later page — and a
-        switcher that opens without the page it is on says the reader is
-        nowhere."""
+        """Include the current campaign even when it sorts beyond the first page."""
         for index in range(SWITCHER_PAGE + 2):
             make_campaign(f"Campaign {index:02d}")
         here = make_campaign("Zzz, the last one")

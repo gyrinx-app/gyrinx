@@ -1,21 +1,11 @@
-"""Activities: gang actions that span several requests, opened and later closed.
+"""Track gang activities that span requests through opening and closing events.
 
-Some actions in the rules take more than one click: founding and equipping a gang,
-spending a model's hire-time Trade Points, or visiting the Trading Post.
-Purchases made while one is open count against it, and pages need to show
-whether it is open. An ``Activity`` covers one of these from its opening
-event to its closing event.
+Purchases record the activity whose allowance they use. Boundary events
+name the gang or model rather than an assignment, so they do not affect
+ledger-entry reconciliation.
 
-Apart from its kind, target and Trade Points, the model stores only the
-boundaries. ``opened`` and ``closed`` point at two
-ledger events, and what the activity did is the ledger between them. Those
-events name the gang or the model performing the action, not an assignment,
-so they take no part in the fold that reproduces each ledger entry
-(``n26.core.reconcile``).
-
-Database constraints allow one open activity of each kind per gang, or per
-model for hire-time activities. With two open, a purchase made in between
-could not be attributed to either.
+Constraints permit one open activity per gang and kind, or per model and
+kind for hire-time activities, to keep purchase attribution unambiguous.
 """
 
 from django.db import models
@@ -68,9 +58,7 @@ class Activity(Base):
         verbose_name_plural = "activities"
         ordering = ["created"]
         constraints = [
-            # One open activity per kind per gang. A purchase counts against
-            # the open activity of its kind, so two open would make it
-            # ambiguous.
+            # Permit one open activity per gang and kind so purchase attribution is unambiguous.
             models.UniqueConstraint(
                 fields=["gang", "kind"],
                 condition=models.Q(closed__isnull=True, miniature__isnull=True),
@@ -102,12 +90,9 @@ class Activity(Base):
 
 
 def note_for(kind, figure=None):
-    """The note for the event opening or closing an activity of this kind.
+    """Encode the activity kind and optional Trade Point figure in its journal note.
 
-    The kind comes first, so the history can name the activity without a
-    join. A figure follows where there is one: the Trade Points a visit
-    brought when it opened, or had left when it closed. Otherwise the note
-    is the kind alone.
+    Keeping the kind in the note lets history identify the activity without a join.
     """
     if figure is None:
         return str(kind)

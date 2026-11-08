@@ -1,21 +1,10 @@
-"""Skills, skill sets, placements, and Wyrd powers.
+"""Skill and power categories share collection browsing and placement rules.
 
-The design (design/collections.md gets the log):
-
-* a skill set is a **home category** — the taxonomy every collection
-  shares; a skill's D6 number is its position within the set;
-* the catalogue is a **collection with sweeps** — one for skills, one
-  for powers;
-* a category is fundamental, its **section is dynamic**: ``PlacesCategory``
-  modifiers carried by the profile (declared sets) or by a subtype (the
-  Wyrd reveal) say where each set sits for this fighter, folded off the
-  card like everything else, with "Other" as the browse-time fallback;
-* the picker is a **regrouping of a browse**: sections come from the
-  fighter's placements, skill sets are the categories beneath.
-
-The proof point: Wyrd powers are NOT skills — a different kind entirely —
-yet they show up in the fighter-sectioned views with no special casing:
-set-ness lives in the Category and the sweep, not in the kind.
+Skill positions supply their D6 order. Profile and subtype modifiers place
+categories into collection sections for each model, with a default section
+for unplaced categories. Offers narrow that computed view by section.
+Skill and power choices create assignments anchored to their granting source.
+See design/collections.md.
 """
 
 import pytest
@@ -105,22 +94,13 @@ def library(sets):
 
 @pytest.fixture
 def catalogue(library):
-    """The one collection: every skill and every power, by sweep.
-
-    The proof point in fixture form — the powers arrive via a second
-    sweep line, and nothing downstream knows or cares that they are a
-    different kind.
-    """
+    """Create one collection sweeping both skills and powers."""
     return create_collection("Skills & Powers", contains=[Skill, Power])
 
 
 @pytest.fixture
 def tiers(catalogue):
-    """The collection's schema: its tiers, their order, and the default.
-
-    Declared once — placements then pick "Primary (Skills & Powers)" by
-    row, never restating a string and a magic number.
-    """
+    """Create ordered section rows used directly by category placements."""
     return {
         "primary": section_of(catalogue, "Primary", 0),
         "secondary": section_of(catalogue, "Secondary", 1),
@@ -130,8 +110,7 @@ def tiers(catalogue):
 
 @pytest.fixture
 def wyrd(sets, tiers):
-    """The Wyrd subtype: places the powers family under Secondary
-    ("Wyrds treat the Wyrd Powers as a Secondary Skill Set")."""
+    """Place the power family under Secondary through a Wyrd subtype modifier."""
     subtype = create_subtype("Wyrd")
     modifier(
         "Wyrd reveals the powers",
@@ -144,9 +123,7 @@ def wyrd(sets, tiers):
 
 @pytest.fixture
 def gang_sister(make_profile, sets, tiers):
-    """A fighter entry with declared sets: Agility and Cunning under
-    Primary, Savant under Secondary — modifiers on the profile, exactly
-    like the reveal, each picking a tier row from the schema."""
+    """Place Agility and Cunning under Primary and Savant under Secondary on the profile."""
     profile = make_profile("Escher Gang Sister", price=55)
     for category, tier in [
         (sets["agility"], tiers["primary"]),
@@ -203,8 +180,7 @@ class TestTheGradedView:
         assert categories_in(view, "Secondary") == ["Savant"]
 
     def test_unplaced_sets_gather_under_other(self, gang, gang_sister, catalogue):
-        """Inherent and the unrevealed powers sit in Other — visible in the
-        data, collapsible by a surface. We inform, not police."""
+        """Keep unplaced categories visible under the default Other section."""
         fighter = hire_with_option(gang, gang_sister, "Yolanda")
         view = view_for(fighter, catalogue)
 
@@ -213,9 +189,7 @@ class TestTheGradedView:
         assert "Wyrd Powers" in categories_in(view, "Other")
 
     def test_the_d6_numbers_are_the_positions(self, gang, gang_sister, catalogue):
-        """Random generation is 'roll against the set': an item's position
-        within its home category is its D6 number, and the listing shows in
-        that order — not alphabetically."""
+        """Order skills by their category positions rather than alphabetically."""
         fighter = hire_with_option(gang, gang_sister, "Yolanda")
         view = view_for(fighter, catalogue)
 
@@ -248,7 +222,7 @@ class TestTheGradedView:
 
 
 class TestTheWyrdProofPoint:
-    """Powers are not skills, and nothing here special-cases them."""
+    """Apply the same category-placement browsing rules to powers and skills."""
 
     def test_the_wyrd_subtype_reveals_the_powers_at_secondary(
         self, gang, gang_sister, catalogue, wyrd
@@ -280,9 +254,7 @@ class TestTheWyrdProofPoint:
     def test_wargear_granting_wyrd_reveals_transitively(
         self, gang, gang_sister, catalogue, wyrd
     ):
-        """The mount-grants-Mounted precedent: a charm grants the Wyrd
-        subtype computedly, and the subtype's own reveal fires through
-        the fixed point. Two hops, no rows."""
+        """A computed Wyrd grant applies the subtype's power placement without storing another assignment."""
         charm = create_wargear("Warp-touched Charm")
         modifier("Charm makes a Wyrd", targets_model(), adds(wyrd), carried_by=charm)
 
@@ -295,9 +267,7 @@ class TestTheWyrdProofPoint:
     def test_a_psy_gheist_out_places_the_subtype(
         self, gang, make_profile, sets, tiers, catalogue, wyrd
     ):
-        """Profile places powers under Primary (position 0); the subtype
-        places them under Secondary (position 1). Lowest section position
-        wins — ordering from the schema, not a rule here."""
+        """Resolve competing placements to the section with the lowest position."""
         psy_gheist = make_profile("Psy-Gheist", price=90)
         modifier(
             "Psy-Gheist: powers under Primary",
@@ -334,9 +304,7 @@ class TestTheSchemaIsTheCollections:
     def test_placements_are_scoped_to_their_collection(
         self, gang, gang_sister, sets, catalogue, library
     ):
-        """A placement aims at a section row, and section rows belong to
-        a collection — so a placement into some other collection's schema
-        never leaks into this view."""
+        """A placement into another collection's section must not affect this collection's view."""
         other_collection = create_collection("Somewhere Else", contains=[Skill])
         elsewhere_primary = section_of(other_collection, "Primary", 0)
         exotic = make_exotic = create_subtype("Exotic")
@@ -357,8 +325,7 @@ class TestTheSchemaIsTheCollections:
         assert "Brawn" in categories_in(there, "Primary")  # placed THERE
 
     def test_the_default_section_is_content_too(self, gang, make_profile, library):
-        """A collection that names its own fallback: unplaced categories
-        fall where the schema says, not where code says."""
+        """Place ungraded categories under the collection's declared default section."""
         from n26.library.models import Power, Skill
 
         stash = create_collection("The Long List", contains=[Skill, Power])
@@ -371,7 +338,7 @@ class TestTheSchemaIsTheCollections:
     def test_a_collection_with_no_declared_default_still_works(
         self, gang, make_profile, library
     ):
-        """The code-level "Other", last — a safety net, not the design."""
+        """Use the Other fallback when the collection declares no default section."""
         from n26.library.models import Skill
 
         bare = create_collection("Bare List", contains=[Skill])
@@ -384,8 +351,7 @@ class TestKnowingAPower:
     def test_a_wyrd_chooses_a_power_like_a_specialist_chooses(
         self, gang, gang_sister, library, wyrd
     ):
-        """Same machinery as the Specialist: the offer is a computed slot,
-        what was chosen is a stored assignment caused by the anchor."""
+        """Resolve a computed power offer by storing a pick assignment caused by its anchor."""
         from n26.library.models import OffersChoice
 
         modifier(
@@ -408,18 +374,12 @@ class TestKnowingAPower:
 
         choose(anchor, library["powers"]["Terrify"])
         card = card_with_effects()
-        # Once chosen for, the question folds away and the pick is a
-        # power in the Powers row — the same fold a settled skill
-        # question does.
+        # Move a selected power into the Powers row and hide its settled choice.
         assert card.power_choices == []
         assert "Terrify (Double)" in [p.name for p in card.powers]
 
     def test_a_power_question_is_clickable(self, gang, gang_sister, library, wyrd):
-        """The question in the Powers row leads to its picker.
-
-        A question drawn where a reader can click it and left without an
-        address is the one failure the card cannot show: the row looks
-        exactly like the one beside it and nothing happens."""
+        """Link the unresolved Powers-row choice to its picker."""
         from n26.core.views.choose import link_slots
         from n26.library.models import OffersChoice
 
@@ -454,7 +414,7 @@ class TestKnowingAPower:
         assert "Powers: Quickening (Basic, Continuous)" in text
 
     def test_powers_are_priced_like_anything_else(self, gang, gang_sister, sets):
-        """Route 6: some powers are bought. The mixin already did the work."""
+        """Record bought powers through the ordinary payment and rating rules."""
         from n26.tests.sandbox.actions import buy
 
         paid_power = create_power("Ember Storm", "Double", price=30)
@@ -467,9 +427,10 @@ class TestKnowingAPower:
 
 
 class TestWhoMayUseWhat:
-    """ "(Fighter Or Walker Only)" as data: an OR-list of profile types
-    and subtypes on the item, empty meaning everyone. Marks ride the
-    views; nothing is ever removed or blocked."""
+    """Match any allowed type or subtype and show failed use restrictions as notes.
+
+    Empty restriction lists permit everyone.
+    """
 
     @pytest.fixture
     def walker(self, db):
@@ -526,14 +487,13 @@ class TestWhoMayUseWhat:
         assert note.about == library["skills"]["Clamber"]
         assert note.level == "warning"
         assert "only" in note.text
-        # Noted, not missing: we inform, never police.
+        # Keep restricted lines visible with use notes.
         assert self.line(noted, "Clamber") is not None
 
     def test_the_or_reaches_subtypes(
         self, gang, library, catalogue, beast_type, gang_type, walker, person_type
     ):
-        """ "(Person Or Walker Only)": a Walker beast qualifies via the
-        subtype even though its type does not match."""
+        """A matching subtype satisfies the restriction even when the profile type does not match."""
         from n26.library.models import Profile
         from n26.tests.sandbox.actions import restrict_use
 
@@ -559,7 +519,7 @@ class TestWhoMayUseWhat:
         beast_type,
         gang_type,
     ):
-        """Servo-legs grant Walker computedly; walker-only skills follow."""
+        """Include computed subtypes when evaluating use restrictions."""
         from n26.library.models import Profile
         from n26.tests.sandbox.actions import restrict_use
 
@@ -592,8 +552,7 @@ class TestWhoMayUseWhat:
     def test_roll_12_is_a_narrow(
         self, gang, gang_sister, library, catalogue, person_type, beast_type, gang_type
     ):
-        """ "Any set — but not what your Type/Subtype cannot use":
-        narrow(marked, usable=True), grades ignored."""
+        """Filter the full browse by use warnings without applying placement tiers."""
         from n26.library.models import Profile
         from n26.tests.sandbox.actions import restrict_use
 
@@ -649,14 +608,7 @@ class TestWhoMayUseWhat:
 
 
 class TestPickingASkill:
-    """A Leader arrives with a skill from a set that is Primary for them.
-
-    The last step of the collections design: the offer names a *tier row* — the
-    same ``CollectionSection`` a placement aims at — so what a fighter may
-    pick is their own view with one section showing. No second
-    mechanism, no access table, and the list differs per fighter
-    because their placements do.
-    """
+    """Offer a skill from the model's own Primary section using its computed placements."""
 
     @pytest.fixture
     def leader(self, tiers):
@@ -727,9 +679,7 @@ class TestPickingASkill:
         ]
 
     def test_a_narrowed_offer_does_not_caption_every_set(self, yolanda, catalogue):
-        """One tier is named by the question itself — "Primary skill" —
-        so captioning each set with it would print that word down the
-        whole page."""
+        """Omit repeated tier captions when the offer heading already names the single tier."""
         from n26.core.render import build_choice_offer
 
         computed = self.computed_for(yolanda)
@@ -760,8 +710,7 @@ class TestPickingASkill:
         assert slot.chosen_name == "Catfall"
 
         card = build_model_card(yolanda, computed=self.computed_for(yolanda))
-        # A settled skill question is a skill: it joins the Skills row
-        # with the rest, and the question stops being asked.
+        # Move a selected skill into the Skills row and hide its settled choice.
         assert card.skill_choices == []
         assert "Catfall" in [s.name for s in card.skills]
 
@@ -776,9 +725,7 @@ class TestPickingASkill:
         assert "Catfall" not in [s.name for s in card.skills]
 
     def test_an_off_list_pick_is_still_allowed(self, yolanda, library):
-        """Inform, don't police: the narrowing shortens the list a picker
-        shows; it is not a rule. The owner may hand a Brawn skill
-        to a Gang Sister, and the slot reads as settled."""
+        """Direct operations can record an off-list pick; offer narrowing controls the displayed choices."""
         anchor = yolanda.assignments.get(subtype__name="Leader")
         choose(anchor, library["skills"]["Bull Charge"])
 
@@ -787,9 +734,7 @@ class TestPickingASkill:
     def test_a_wargear_that_grants_a_set_widens_the_offer(
         self, yolanda, sets, tiers, catalogue, library
     ):
-        """Transitive, like the Wyrd reveal: anything that places a set
-        under Primary widens what the Leader may pick, with no change
-        here."""
+        """Equipment placements can add Primary sets to the same computed offer."""
         manual = create_wargear("Combat manual")
         modifier(
             "Combat manual: Brawn under Primary",
@@ -843,14 +788,10 @@ class TestPickingASkill:
 
 
 class TestWhereAQuestionSits:
-    """The label picks the row a question is drawn in.
+    """Place unlabelled skill and power offers beside their held content.
 
-    A question labelled "Skills" or "Powers" sits in that row of the
-    card, beside what the fighter already has; any other label is a row
-    of its own, headed by exactly what the author wrote. Unlabelled, the
-    kind stands in the same way — a skill question with the skills, a
-    power question with the powers. One rule, so an author reading a
-    card can tell where a question went by looking at what they typed.
+    Skills and Powers labels use those rows too; custom labels create separate
+    choice rows with the authored heading.
     """
 
     @pytest.fixture
@@ -885,17 +826,14 @@ class TestWhereAQuestionSits:
         assert card.choices == []
 
     def test_any_other_label_is_a_row_of_its_own(self, yolanda):
-        """ "Bonecrusher Wyrd Powers" is a heading the author wrote for
-        this question, and the card honours it rather than folding the
-        question away under Powers."""
+        """Preserve a custom choice label as a separate heading rather than folding it into Powers."""
         self.offer_power(yolanda, label="Bonecrusher Wyrd Powers")
         card = self.card_of(yolanda)
         assert card.power_choices == []
         assert [line.kind_label for line in card.choices] == ["Bonecrusher Wyrd Powers"]
 
     def test_a_settled_power_question_is_a_power(self, yolanda, library):
-        """The question stops being asked and the pick joins the Powers
-        row — the same fold the Skills row does."""
+        """Hide the settled choice and display its selected power in the Powers row."""
         anchor = self.offer_power(yolanda)
         choose(anchor, library["powers"]["Terrify"])
 

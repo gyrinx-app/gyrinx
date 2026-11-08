@@ -1,53 +1,27 @@
-"""Where a row sits under the catalogue's headings, and how rows gather there.
+"""Group catalogue and hire entries by their authored category and section.
 
-An assignable's home is its own data: a ``Category``, inside a
-``Section`` heading. So every surface that shows rows under headings is
-grouping the same way — a catalogue, the gang list you hire from —
-and this is the one place that grouping is written down. What differs
-between them is what a row *is* and what order rows take within a
-category, which are the two things :func:`group_by_home` is told.
+Callers supply row values and within-category ordering. The common grouping
+uses each category's section and keeps uncategorised content visible at the end.
 """
 
-#: What the section of homeless rows is called on screen. The grouping
-#: itself has no name for it, because "no category" is what the content
-#: actually says; a picker that draws its sections as tabs needs a word
-#: to put on the tab, and an unnamed section would be one nobody could
-#: reach. Named here so every surface calls it the same thing.
+#: Shared visible label for uncategorised content, including section tabs.
 UNCATEGORISED = "Uncategorised"
 
 
 def group_by_home(homed_rows, *, section, category, order):
-    """Group ``(home, row)`` pairs into sections of categories.
+    """Group ``(Category or None, row)`` pairs into ordered sections and categories.
 
-    ``home`` is the row's ``Category``, or ``None`` where the content
-    filed it nowhere. ``section(name, categories)`` and
-    ``category(name, rows)`` build the two containers the calling
-    surface draws, and ``order`` is how rows sort within a category —
-    nothing here knows what a row is or what its containers are called.
+    ``section`` and ``category`` construct caller-specific containers; ``order``
+    sorts rows within a category.
 
-    **A section is drawn once.** Every category filed under it goes in
-    one group, whatever the categories' own positions are. Ordering the
-    categories alone and starting a new group each time the heading
-    changed let two sections' categories alternate, and the same section
-    then opened over and over with its rows split between the copies —
-    a reader saw one heading two or three times down the page, each with
-    a chevron of its own, and only the first of them open.
+    Group sections by name using their earliest position. Tabs use the same name
+    keys, so equal section names must form one heading. Gather all categories
+    under each section once, even when category positions interleave.
+    Categories are dictionary keys and group by equality. Their names are unique
+    only within a section.
 
-    Sections are keyed by name, which is what a strip of tabs keys them
-    by: two tabs reading alike is worse than a long one, and a section
-    the strip cannot draw is a section whose rows are unreachable. Two
-    sections sharing a name are therefore one heading, ordered by the
-    earliest of them.
-
-    Categories are keyed by identity, not by name. A category name is
-    only unique within its section — the rulebook has Esoteric weapons
-    under both Ranged and Close combat — so matching on the string would
-    fold two different categories into one.
-
-    Homeless rows gather at the end under an empty heading — missing a
-    category is a content gap to show, not an error to hide. What that
-    heading is called on screen is the surface's business: pass
-    :data:`UNCATEGORISED` through ``section`` where a name is needed.
+    Place uncategorised rows last under an empty heading. Callers can substitute
+    UNCATEGORISED where a visible tab label is required.
     """
     #: section name -> (its earliest position, {category: rows})
     sections = {}

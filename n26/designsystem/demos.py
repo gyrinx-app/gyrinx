@@ -3,6 +3,11 @@ Render and display source from the same file.
 
 Numeric filename prefixes set display order. Leading title, note and layout comments
 supply metadata; missing titles use the filename and notes are optional.
+
+For example, start a demo template with::
+
+    {# title: Variants #}
+    {# note: Primary and secondary buttons. #}
 """
 
 from __future__ import annotations
