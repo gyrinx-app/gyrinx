@@ -129,6 +129,19 @@ def _load_rolls(monkeypatch, *rolls):
 
 def _start(client, advancement):
     client.force_login(advancement.owner)
+    if getattr(advancement, "cycle_context", None):
+        with operation(
+            advancement.gang,
+            actor=advancement.owner,
+            cycle_context=advancement.cycle_context,
+        ) as op:
+            record = op.start_action(
+                advancement.fighter,
+                advancement.action,
+                uuid4(),
+                allowance=advancement.allowance,
+            )
+            return op.save_action_choices(record, outcome=advancement.outcome, terms={})
     url = reverse(
         "n26-action-start", args=[advancement.fighter.pk, advancement.action.pk]
     )
@@ -1081,6 +1094,32 @@ def _story(advancement):
 class TestApplyingByHand:
     """Mark an externally applied result to consume its earned use and clear the available-action indicator."""
 
+    def test_reopening_an_applied_use_keeps_its_historical_cycle(
+        self, advancement, past_cycle_context
+    ):
+        context = past_cycle_context(advancement.gang)
+        with operation(
+            advancement.gang, actor=advancement.owner, cycle_context=context
+        ) as op:
+            record = op.apply_allowance_by_hand(
+                advancement.fighter,
+                advancement.action,
+                uuid4(),
+                allowance=advancement.allowance,
+            )
+        original = record.cycle_id
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            record = op.reopen_action(record)
+        assert record.cycle_id == original
+        assert record.cycle.phase.name == "Occupation Phase"
+        assert set(record.ledger_events.values_list("cycle_id", flat=True)) == {
+            original
+        }
+        assert record.ledger_events.filter(
+            kind=LedgerEvent.Kind.ACTION_USE_REOPENED
+        ).exists()
+        assert_reconciled(advancement.gang)
+
     def test_marking_an_unused_use_preserves_the_fighter_replays_refuses_and_reopens(
         self, client, advancement
     ):
@@ -1365,6 +1404,51 @@ class TestApplyingByHand:
 
 class TestAdvancementHoldsAndUndo:
     """XP corrections retain one earned use and every recorded roll."""
+
+    def test_correction_and_undo_keep_the_records_past_cycle_context(
+        self, client, monkeypatch, advancement, past_cycle_context
+    ):
+        advancement.cycle_context = past_cycle_context(advancement.gang)
+        record = self._complete(client, monkeypatch, advancement)
+        original_cycle = record.cycle_id
+        corrected_skill = _choose_result(
+            client,
+            advancement,
+            record,
+            advancement.results["secondary"],
+            stage="correct",
+        )
+        reviewed = client.post(
+            corrected_skill, {"skill_id": str(advancement.skills["secondary"].pk)}
+        )
+        page = client.get(reviewed.url)
+        assert (
+            client.post(
+                reviewed.url, {"review": page.context["form"]["review"].value()}
+            ).status_code
+            == 302
+        )
+        record.refresh_from_db()
+        from n26.core.advancements import advancement_undo_snapshot
+
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.undo_action(record, expected=advancement_undo_snapshot(record))
+        record.refresh_from_db()
+        assert record.cycle_id == original_cycle
+        assert record.cycle.phase.name == "Occupation Phase"
+        batches = record.ledger_events.values_list("batch", flat=True)
+        events = LedgerEvent.objects.filter(gang=advancement.gang, batch__in=batches)
+        assert set(events.values_list("cycle_id", flat=True)) == {original_cycle}
+        assert set(events.values_list("campaign_id", flat=True)) == {
+            record.cycle.campaign_id
+        }
+        assert record.ledger_events.filter(
+            kind=LedgerEvent.Kind.ACTION_USE_CORRECTED
+        ).exists()
+        assert record.ledger_events.filter(
+            kind=LedgerEvent.Kind.ACTION_USE_UNDONE
+        ).exists()
+        assert_reconciled(advancement.gang)
 
     @pytest.mark.parametrize("stage", ["unused", "started", "rolled", "reviewed"])
     def test_lowering_xp_holds_the_use_and_raising_it_restores_the_same_flow(

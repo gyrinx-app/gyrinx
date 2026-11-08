@@ -1013,13 +1013,8 @@ class TestBattlesOnTheCampaignsPage:
         seat(elsewhere, gang.owner)
         client.post(f"/n26/campaigns/{elsewhere.pk}/gangs/add/", {"gang": str(gang.pk)})
 
-        drawn = client.get(
-            f"/n26/campaigns/{campaign.pk}/battles/new/"
-        ).content.decode()
-        # Check the option value: the previous request's flash message can contain the
-        # gang name even when the picker excludes it.
-        assert f'value="{gang.pk}"' not in drawn
-        assert "No gangs in this campaign yet" in drawn
+        response = client.get(f"/n26/campaigns/{campaign.pk}/battles/new/")
+        assert response.context["battle_editor"]["choices"]["gangs"] == []
 
     def test_a_battle_needs_a_date(self, client, campaign):
         response = client.post(f"/n26/campaigns/{campaign.pk}/battles/new/", {})

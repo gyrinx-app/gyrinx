@@ -9,6 +9,7 @@ from n26.core.models.action_record import (
 from n26.core.models.activity import Activity
 from n26.core.models.assignment import Assignment
 from n26.core.models.assignment_set import AssignmentSet
+from n26.core.models.battle_command import BattleCommand
 from n26.core.models.built_in_propagation import BuiltInPropagationTask
 from n26.core.models.campaign import (
     Battle,
@@ -60,6 +61,7 @@ __all__ = [
     "Base",
     "BuiltInPropagationTask",
     "Battle",
+    "BattleCommand",
     "BattleCrew",
     "Campaign",
     "CampaignAsset",

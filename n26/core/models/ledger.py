@@ -141,6 +141,15 @@ class LedgerEvent(Base):
     gang's whole history is one indexed query.
     """
 
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        super().clean()
+        if self.cycle_id and self.cycle.campaign_id != self.campaign_id:
+            raise ValidationError({"cycle": "The cycle belongs to another campaign."})
+        if self.action_record_id and self.action_record.cycle_id != self.cycle_id:
+            raise ValidationError({"cycle": "Use the action record's selected cycle."})
+
     class Kind(models.TextChoices):
         PURCHASED = "purchased", "Purchased"
         ADDED = "added", "Added"
@@ -284,6 +293,13 @@ class LedgerEvent(Base):
         null=True,
         blank=True,
         related_name="gang_events",
+    )
+    cycle = models.ForeignKey(
+        "n26.CampaignCycle",
+        on_delete=models.RESTRICT,
+        null=True,
+        blank=True,
+        related_name="ledger_events",
     )
     #: The battle this happened in, if any. Set only when recording a
     #: battle's outcome; purchases and hires between battles leave it null.

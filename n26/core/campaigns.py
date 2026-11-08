@@ -391,6 +391,7 @@ class CampaignOperation:
         result="not_recorded",
         winners=(),
         scenario_rolls=None,
+        cycle=KEEP,
     ):
         """Record a battle without applying rewards or changing any gang.
 
@@ -414,8 +415,10 @@ class CampaignOperation:
         scenario, gangs, winners = self._battle_details(
             scenario=scenario, result=result, gangs=gangs, winners=winners
         )
+        selected_cycle = self._battle_cycle(cycle)
         battle = Battle.objects.create(
             campaign=self.campaign,
+            cycle=selected_cycle,
             date=date,
             scenario=scenario,
             result=result,
@@ -429,6 +432,27 @@ class CampaignOperation:
             note=f"{scenario} on {date.isoformat()}",
         )
         return battle
+
+    def _battle_cycle(self, target, *, existing=None):
+        from n26 import flags
+        from n26.core import cycles
+        from n26.core.models import CampaignSchedule
+        from n26.core.operations import Refusal
+
+        if target is KEEP:
+            if existing is not None:
+                return existing.cycle
+            if not flags.enabled(flags.CYCLE_TRACKING, self.actor):
+                return None
+            header = (
+                CampaignSchedule.objects.select_related("current_cycle")
+                .filter(campaign=self.campaign)
+                .first()
+            )
+            return header.current_cycle if header else None
+        if not flags.enabled(flags.CYCLE_TRACKING, self.actor):
+            raise Refusal("Cycle tracking is not available to this account.")
+        return cycles.resolve_selection(self, target) if target is not None else None
 
     def _require_recorder(self):
         from n26.core.campaign_permissions import may_record_campaign
@@ -664,6 +688,7 @@ class CampaignOperation:
         stake=KEEP,
         stake_awarded_to=KEEP,
         stake_revision=None,
+        cycle=KEEP,
     ):
         """Amend the battle record, retaining its gang history.
 
@@ -708,6 +733,8 @@ class CampaignOperation:
             getattr(stake, "pk", None),
             getattr(stake_awarded_to, "pk", None),
         ) != (battle.stake_id, battle.stake_awarded_to_id)
+        selected_cycle = self._battle_cycle(cycle, existing=battle)
+        cycle_changed = getattr(selected_cycle, "pk", None) != battle.cycle_id
         before = (battle.scenario, battle.date, battle.result)
         if (
             before == (scenario, date, result)
@@ -715,15 +742,18 @@ class CampaignOperation:
             and set(battle.winners.values_list("pk", flat=True))
             == {gang.pk for gang in winners}
             and not stake_changed
+            and not cycle_changed
         ):
             return battle
         if stake_changed:
             self._settle_stake(battle, stake, stake_awarded_to, gang_ids)
         battle.scenario, battle.date, battle.result = scenario, date, result
+        battle.cycle = selected_cycle
         battle.revision += 1
         battle.save(
             update_fields=[
                 "scenario",
+                "cycle",
                 "date",
                 "result",
                 "revision",

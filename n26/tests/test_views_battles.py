@@ -426,7 +426,11 @@ class TestBattlePages:
         assert "winners" in form.errors
         assert list(form["gangs"])[0].data["selected"]
         assert list(form["winners"])[0].data["selected"]
-        assert response.content.decode().count(" checked") == 2
+        import json
+
+        values = response.context["battle_editor"]["values"]
+        assert json.loads(values["gangs"]) == [str(gang.pk)]
+        assert json.loads(values["winners"]) == [str(gang.pk)]
         battle.refresh_from_db()
         assert battle.result == "not_recorded"
 

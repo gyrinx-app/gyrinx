@@ -179,6 +179,13 @@ class ActionRecord(Base):
     gang = models.ForeignKey(
         "n26.Gang", on_delete=models.CASCADE, related_name="action_records"
     )
+    cycle = models.ForeignKey(
+        "n26.CampaignCycle",
+        on_delete=models.RESTRICT,
+        null=True,
+        blank=True,
+        related_name="action_records",
+    )
     fighter = models.ForeignKey(
         "n26.Miniature", on_delete=models.CASCADE, related_name="action_records"
     )

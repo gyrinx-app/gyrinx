@@ -16,7 +16,7 @@ from django.views.decorators.http import require_POST
 from n26.core.battle_permissions import may_record_gang
 from n26.core.campaign_permissions import may_record_outcome
 from n26.core.campaigns import battle_stake, campaign_operation
-from n26.core.forms import BattleForm, BattleOutcomeForm
+from n26.core.forms import BattleOutcomeForm
 from n26.core.models import (
     Battle,
     BattleCrew,
@@ -37,7 +37,7 @@ def battle_or_404(campaign, pk):
             Battle.objects.prefetch_related(
                 Prefetch("gangs", queryset=Gang.objects.select_related("gang_type")),
                 "winners",
-            ),
+            ).select_related("cycle__phase"),
             campaign=campaign,
             pk=pk,
         )
@@ -68,6 +68,15 @@ class BattleParticipant:
 def battle(request, pk, battle_pk):
     campaign = _any_campaign_or_404(request, pk)
     found = battle_or_404(campaign, battle_pk)
+    from n26 import flags
+
+    cycle_attribution = None
+    if found.cycle_id and flags.enabled(flags.CYCLE_TRACKING, request.user):
+        cycle_attribution = {
+            "name": found.cycle.name,
+            "phase": found.cycle.phase.name,
+            "href": found.cycle.get_absolute_url(),
+        }
     winners = {gang.pk for gang in found.winners.all()}
     active_gang_ids = set(
         campaign.memberships.filter(left__isnull=True).values_list("gang_id", flat=True)
@@ -153,6 +162,7 @@ def battle(request, pk, battle_pk):
         {
             "campaign": campaign,
             "battle": found,
+            "cycle_attribution": cycle_attribution,
             "participants": participants,
             "request_key": uuid4(),
             "recorded": recorded,
@@ -172,44 +182,10 @@ def battle(request, pk, battle_pk):
 
 @login_required
 def edit_battle(request, pk, battle_pk):
-    campaign = _own_campaign_or_404(
-        request, pk, with_owner_badge=request.method == "GET"
-    )
-    found = battle_or_404(campaign, battle_pk)
-    if found.archived:
-        raise Http404("This battle is archived")
-    # Existing participants remain available after leaving the campaign.
-    playing = (
-        Gang.objects.filter(
-            Q(
-                campaign_memberships__campaign=campaign,
-                campaign_memberships__left__isnull=True,
-            )
-            | Q(battles=found)
-        )
-        .distinct()
-        .order_by("name")
-    )
-    form = BattleForm(
-        request.POST if request.method == "POST" else None,
-        playing=playing,
-        battle=found,
-    )
-    if request.method == "POST" and form.is_valid():
-        try:
-            with campaign_operation(campaign, actor=request.user) as act:
-                act.edit_battle(found, **form.cleaned_data)
-        except Refusal as exc:
-            form.add_error(None, str(exc))
-        else:
-            messages.success(request, "Battle updated.")
-            return redirect("n26-battle", pk=campaign.pk, battle_pk=found.pk)
-    _badge_a_redrawn_page(request, campaign)
-    return render(
-        request,
-        "n26/add_battle.html",
-        {"campaign": campaign, "battle": found, "form": form},
-    )
+    """The arbitrator edits battle metadata, participants and outcome."""
+    from n26.core.views.battle_editing import editor
+
+    return editor(request, pk, battle_pk)
 
 
 @dataclass(frozen=True)

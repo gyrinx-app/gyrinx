@@ -6,6 +6,7 @@ its transition and notification obligations. Battle and action writers can resol
 a cycle inside their existing campaign transaction without advancing it.
 """
 
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, replace
 from uuid import UUID
 
@@ -580,6 +581,20 @@ def resolve_selection(act, target):
         raise Refusal(str(exc)) from exc
     _persist(act, before, change)
     return CampaignCycle.objects.get(campaign=act.campaign, pk=selected.id)
+
+
+@contextmanager
+def action_operation(campaign, gang, *, actor, target):
+    """Select a cycle and apply an action in one campaign-before-gang transaction."""
+    from n26.core.cycle_context import CycleContext
+    from n26.core.operations import operation
+
+    with campaign_operation(campaign, actor=actor) as act:
+        selected = resolve_selection(act, target)
+        with operation(
+            gang, actor=actor, cycle_context=CycleContext.from_cycle(selected)
+        ) as op:
+            yield op
 
 
 def status_changed(act, status):

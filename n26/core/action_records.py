@@ -8,6 +8,7 @@ from django.db.models import Case, Q, When
 
 from n26.core.access import actions_for
 from n26.core.action_payments import Balance, Quote, QuotedLine, Resource
+from n26.core.fields import to_ulid
 from n26.core.models import (
     ActionAllowance,
     ActionRecord,
@@ -458,7 +459,12 @@ def start_action(op, fighter, action, request_key, allowance=None, *, by_hand=Fa
         gang=op.gang, request_key=request_key
     ).first()
     if existing is not None:
-        if existing.fighter_id != fighter.pk or existing.action_id != action.pk:
+        context_cycle = op.cycle_context.cycle_id if op.cycle_context else None
+        if (
+            existing.fighter_id != fighter.pk
+            or existing.action_id != action.pk
+            or str(existing.cycle_id or "") != str(context_cycle or "")
+        ):
             raise Refusal("That request key belongs to another action use.")
         return existing
     if not op.counter_tracking_active:
@@ -525,6 +531,7 @@ def start_action(op, fighter, action, request_key, allowance=None, *, by_hand=Fa
     source_assignment = _source_assignment(fighter, action)
     record = ActionRecord.objects.create(
         gang=op.gang,
+        cycle_id=to_ulid(op.cycle_context.cycle_id) if op.cycle_context else None,
         fighter=fighter,
         action=action,
         allowance=allowance,
