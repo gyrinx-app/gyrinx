@@ -13,6 +13,8 @@ import {
     type Ref,
 } from "react";
 import cotton from "../generated/cotton.json";
+import { useBusyControl } from "./Busy";
+export { BusyControlScope, Spinner } from "./Busy";
 
 /** A native modal using Cotton styles and React lifecycle handling. */
 export function Dialog({
@@ -83,6 +85,7 @@ export function Dialog({
 }
 
 export function Button({
+    busy = false,
     variant = "default",
     size = "default",
     className = "",
@@ -91,7 +94,9 @@ export function Button({
 }: ComponentProps<"button"> & {
     variant?: keyof typeof cotton.button;
     size?: "default" | "sm" | "xs";
+    busy?: boolean;
 }) {
+    const busyProps = useBusyControl(busy);
     const recipe =
         size === "xs"
             ? cotton.buttonExtraSmall
@@ -101,6 +106,7 @@ export function Button({
     return (
         <button
             {...props}
+            {...busyProps}
             type={type}
             className={`${recipe[variant]} ${className}`}
         />
@@ -111,6 +117,7 @@ export type ButtonLinkSize = keyof typeof cotton.buttonLinkBySize;
 export type ButtonLinkVariant = keyof typeof cotton.buttonLinkBySize.md;
 
 export function ButtonLink({
+    busy = false,
     variant = "default",
     size = "md",
     className = "",
@@ -119,10 +126,13 @@ export function ButtonLink({
     href: string;
     variant?: ButtonLinkVariant;
     size?: ButtonLinkSize;
+    busy?: boolean;
 }) {
+    const busyProps = useBusyControl(busy);
     return (
         <a
             {...props}
+            {...busyProps}
             className={`${cotton.buttonLinkBySize[size][variant]} ${className}`}
         />
     );

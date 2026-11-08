@@ -1,5 +1,5 @@
 import { Fragment, createContext, useContext, type ReactNode } from "react";
-import { Button, ButtonLink, Icon } from "./index";
+import { Button, ButtonLink, Icon, Spinner } from "./index";
 import { ActionMenu } from "./ActionMenu";
 import cotton from "../generated/cotton.json";
 import { Tooltip } from "./Tooltip";
@@ -39,6 +39,7 @@ export type CardControls = {
     csrfToken: string;
     frozen: boolean;
     countersFrozen?: boolean;
+    pendingTally?: string;
     onTally: (assignment: string, change: number, name: string) => void;
 };
 export const CardControlsContext = createContext<CardControls | null>(null);
@@ -433,6 +434,14 @@ function DetailPart({ part }: { part: Part }) {
                         >
                             +
                         </Button>
+                        <span className="ms-1 inline-flex size-3 shrink-0">
+                            {controls.pendingTally ===
+                                part.control.assignment && (
+                                <Spinner
+                                    label={`Saving ${part.control.name}`}
+                                />
+                            )}
+                        </span>
                     </span>
                 )}
             </>

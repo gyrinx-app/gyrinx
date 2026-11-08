@@ -117,12 +117,9 @@ export function EditAssetType(
                             type="submit"
                             variant="success"
                             disabled={pending}
+                            busy={pending}
                         >
-                            {pending
-                                ? "Saving…"
-                                : uncertain
-                                  ? "Retry save"
-                                  : "Save asset type"}
+                            {uncertain ? "Retry save" : "Save asset type"}
                         </Button>
                     )}
                     <ButtonLink href={props.back} variant="ghost">

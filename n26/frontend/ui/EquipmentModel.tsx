@@ -50,12 +50,14 @@ export function EquipmentModel({
     csrfToken,
     frozen,
     countersFrozen,
+    pendingTally,
     onTally,
 }: {
     model: EquipmentModelData;
     csrfToken: string;
     frozen: boolean;
     countersFrozen: boolean;
+    pendingTally?: string;
     onTally: (assignment: string, change: number, name: string) => void;
 }) {
     return (
@@ -72,6 +74,7 @@ export function EquipmentModel({
                     csrfToken={csrfToken}
                     frozen={frozen}
                     countersFrozen={countersFrozen}
+                    pendingTally={pendingTally}
                     onTally={onTally}
                 />
                 {!!model.panels.length && (
@@ -265,24 +268,27 @@ export function EquipmentModel({
                     </div>
                 )}
             </div>
-            <nav
-                aria-label="This model's screens"
-                className="mt-3 flex items-stretch"
-            >
-                {model.tabs.map((tab) => (
-                    <a
-                        key={tab.href}
-                        href={tab.href}
-                        aria-current={tab.current ? "page" : undefined}
-                        className={
-                            cotton.modelCard.tab[
-                                String(tab.current) as "true" | "false"
-                            ]
-                        }
-                    >
-                        {tab.label}
-                    </a>
-                ))}
+            <nav aria-label="This model's screens" className="mt-3">
+                <div className={cotton.modelCard.tabStrip}>
+                    {model.tabs.map((tab) => (
+                        <a
+                            key={tab.href}
+                            href={tab.href}
+                            aria-current={tab.current ? "page" : undefined}
+                            className={
+                                cotton.modelCard.tab[
+                                    String(tab.current) as "true" | "false"
+                                ]
+                            }
+                        >
+                            <span className="truncate">{tab.label}</span>
+                        </a>
+                    ))}
+                    <span
+                        aria-hidden="true"
+                        className={cotton.modelCard.tabEnd}
+                    />
+                </div>
             </nav>
         </div>
     );

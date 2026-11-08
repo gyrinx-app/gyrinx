@@ -196,6 +196,15 @@ long chosen values and crowded headers, then exercise the actual workflow. The
 paired cards at `/n26/design/react/model-preview/` provide database-free fixtures
 for this comparison. Record specific differences and their resolution in the PR.
 
+Pending controls use the existing `data-busy` stylesheet. React owns those
+attributes through `Button`'s `busy` prop or `BusyControlScope`; the native busy
+guard respects their `data-busy="off"` owner. Keep labels, dimensions and pending
+retry feedback stable. Reserve space for inline counter progress and price
+differences, and retain an existing preview while reading its replacement. Delay
+responses in browser checks and compare control and neighbour rectangles before
+and during loading. Include cancellation, retries and both screen widths; a fast
+successful request can hide a loading-induced layout shift.
+
 Select one complete renderer for each request. During a short rollback period,
 both renderers can call the same Python behaviour, but never mount both and hide
 one. Name the removal follow-up if it cannot be included in the cutover PR. Delete

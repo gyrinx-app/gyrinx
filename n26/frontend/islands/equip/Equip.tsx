@@ -10,6 +10,7 @@ import {
     Breadcrumbs,
     Button,
     ButtonLink,
+    BusyControlScope,
     CatalogueFrame,
     EquipmentRow,
     equipmentDraft,
@@ -62,11 +63,14 @@ export function Equip(initial: EquipProps) {
     const tallyQueue = useRef<EquipDraft[]>([]);
     const [queueNotice, setQueueNotice] = useState("");
     const [loading, setLoading] = useState(false);
+    const [inlinePending, setInlinePending] = useState(false);
+    const [busyControl, setBusyControl] = useState<string | null>(null);
     const [notice, setNotice] = useState("");
     const [retry, setRetry] = useState("");
     const read = useRef<AbortController | null>(null);
     const root = useRef<HTMLDivElement>(null);
     const trigger = useRef<HTMLElement | null>(null);
+    const clicked = useRef<HTMLElement | null>(null);
     const heading = useRef<HTMLHeadingElement>(null);
     const returnFocus = useRef(false);
     const stopTallyQueue = useCallback(() => {
@@ -86,12 +90,12 @@ export function Equip(initial: EquipProps) {
         else heading.current?.focus();
     }, [generation]);
     const refreshPanel = useCallback(
-        async (url: string) => {
+        async (url: string, control: string | null = null) => {
             read.current?.abort();
             const controller = new AbortController();
             read.current = controller;
             setLoading(true);
-            setNotice("");
+            setBusyControl(control);
             setRetry(url);
             try {
                 const target = new URL(url, window.location.href);
@@ -122,6 +126,7 @@ export function Equip(initial: EquipProps) {
                         "The equipment details could not be loaded. Try again.",
                     );
                 if (controller.signal.aborted) return;
+                setNotice("");
                 setPage(data.page);
                 setDraft(
                     data.page.dialog
@@ -198,7 +203,7 @@ export function Equip(initial: EquipProps) {
             menu?.parentElement?.querySelector<HTMLButtonElement>(
                 'button[aria-haspopup="menu"]',
             ) || anchor;
-        void refreshPanel(url.href);
+        void refreshPanel(url.href, trigger.current.dataset.busyId || null);
     }
     function navigationValues() {
         const params = new URLSearchParams(window.location.search);
@@ -216,7 +221,9 @@ export function Equip(initial: EquipProps) {
         parts: Array<{ key: string; paid: string }>,
     ) {
         if (frozen || tallyActive.current || loading) return;
-        trigger.current = document.activeElement as HTMLElement;
+        trigger.current =
+            clicked.current || (document.activeElement as HTMLElement);
+        setBusyControl(trigger.current?.dataset.busyId || null);
         const surcharge = purchase.choices
             .flatMap((group) => group.options)
             .filter((option) => selection.includes(option.key))
@@ -291,11 +298,14 @@ export function Equip(initial: EquipProps) {
         setGeneration((value) => value + 1);
         window.history.replaceState(window.history.state, "", page.listingHref);
     }
-    return (
+    const content = (
         <div
             ref={root}
             onClick={open}
             onClickCapture={(event) => {
+                clicked.current = (
+                    event.target as Element
+                ).closest<HTMLElement>("button, a[href]");
                 if (
                     (frozen || tallyActive.current) &&
                     (event.target as Element).closest("a[href]")
@@ -345,6 +355,11 @@ export function Equip(initial: EquipProps) {
                         csrfToken={page.csrfToken}
                         frozen={frozen || loading}
                         countersFrozen={loading || (frozen && !tallyMode)}
+                        pendingTally={
+                            tallyMode && inlinePending
+                                ? draft?.values.assignment
+                                : undefined
+                        }
                         onTally={(assignment, change, name) => {
                             if ((frozen && !tallyActive.current) || loading)
                                 return;
@@ -391,7 +406,14 @@ export function Equip(initial: EquipProps) {
                         {retry && (
                             <Button
                                 size="sm"
-                                onClick={() => void refreshPanel(retry)}
+                                disabled={loading}
+                                onClick={(event) =>
+                                    void refreshPanel(
+                                        retry,
+                                        event.currentTarget.dataset.busyId ||
+                                            null,
+                                    )
+                                }
                             >
                                 Try again
                             </Button>
@@ -401,7 +423,9 @@ export function Equip(initial: EquipProps) {
                         </ButtonLink>
                     </Alert>
                 )}
-                {loading && <p role="status">Loading equipment details…</p>}
+                <span className="sr-only" role="status">
+                    {loading ? "Loading equipment details…" : ""}
+                </span>
                 <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-[11rem_minmax(0,1fr)]">
                     <aside className="flex flex-col gap-4 self-start">
                         <EquipmentRail tabs={page.scopeTabs} />
@@ -550,9 +574,19 @@ export function Equip(initial: EquipProps) {
                 onPage={setPage}
                 onDismiss={dismiss}
                 onFrozen={setFrozen}
+                onInlinePending={setInlinePending}
                 onQueueBlocked={stopTallyQueue}
                 queueNotice={queueNotice}
             />
         </div>
+    );
+    return (
+        <BusyControlScope
+            value={
+                loading || (inlinePending && !tallyMode) ? busyControl : null
+            }
+        >
+            {content}
+        </BusyControlScope>
     );
 }

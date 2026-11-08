@@ -91,6 +91,7 @@ export function Command({
     onPage,
     onDismiss,
     onFrozen,
+    onInlinePending,
     onQueueBlocked,
     queueNotice,
 }: {
@@ -100,6 +101,7 @@ export function Command({
     onPage: (page: EquipProps) => void;
     onDismiss: () => void;
     onFrozen: (frozen: boolean) => void;
+    onInlinePending: (pending: boolean) => void;
     onQueueBlocked: () => void;
     queueNotice: string;
 }) {
@@ -111,6 +113,8 @@ export function Command({
     const [destination, setDestination] = useState<"model" | "stash" | null>(
         null,
     );
+    const [showDialog, setShowDialog] = useState(false);
+    const [pendingNotice, setPendingNotice] = useState("");
     const form = useWorkflowForm({
         values: draft?.values ?? blankValues(page),
         errors: {},
@@ -166,6 +170,10 @@ export function Command({
         },
     });
     const { values, setValues, frozen, pending, uncertain } = form;
+    const notice = form.notice || (pending ? pendingNotice : "");
+    useEffect(() => {
+        if (!pending) setPendingNotice(form.notice);
+    }, [pending, form.notice]);
     useEffect(() => {
         if (destination && values.to === destination && !frozen) {
             element.current?.requestSubmit();
@@ -186,8 +194,20 @@ export function Command({
             element.current?.requestSubmit();
         }
     }, [draft?.auto, uncertain]);
-    if (!values.action) return null;
     const matchesDraft = draft?.values.request_key === values.request_key;
+    const inlineCommand =
+        matchesDraft &&
+        !!draft?.auto &&
+        !showDialog &&
+        !uncertain &&
+        !form.hasErrors;
+    useEffect(() => {
+        if (uncertain || form.hasErrors || !matchesDraft) setShowDialog(true);
+    }, [uncertain, form.hasErrors, matchesDraft]);
+    useEffect(() => {
+        onInlinePending(pending && inlineCommand);
+    }, [pending, inlineCommand, onInlinePending]);
+    if (!values.action) return null;
     const dialog = matchesDraft ? draft?.dialog : null;
     const question = matchesDraft ? draft?.question : null;
     const recovered = !matchesDraft || (uncertain && !dialog && !question);
@@ -251,18 +271,14 @@ export function Command({
         if (dialog.kind === "reassign" && values.to === "stash")
             details.push("To: stash");
     }
-    if (
-        values.action === "tally" &&
-        matchesDraft &&
-        !uncertain &&
-        !form.hasErrors
-    )
+    if (inlineCommand)
         return (
             <form
                 ref={element}
                 onSubmit={form.save}
                 data-equip-command
                 data-busy="off"
+                className="hidden"
             >
                 <input
                     type="hidden"
@@ -272,9 +288,6 @@ export function Command({
                 {Object.entries(values).map(([name, value]) => (
                     <input key={name} type="hidden" name={name} value={value} />
                 ))}
-                <p role="status" className="text-sm text-muted">
-                    Saving counter change…
-                </p>
             </form>
         );
     return (
@@ -324,7 +337,7 @@ export function Command({
                     }
                 />
             ))}
-            {form.hasErrors && (
+            {(form.hasErrors || notice) && (
                 <div
                     ref={form.summary}
                     role="alert"
@@ -334,7 +347,7 @@ export function Command({
                     <FieldErrors
                         errors={[
                             ...Object.values(form.errors).flat(),
-                            ...(form.notice ? [form.notice] : []),
+                            ...(notice ? [notice] : []),
                         ]}
                     />
                 </div>
@@ -588,16 +601,16 @@ export function Command({
                     </>
                 )}
                 {!recovered && !question && !dialog && (
-                    <p>
-                        {pending
-                            ? "Saving…"
-                            : "Retry this change to confirm its result."}
-                    </p>
+                    <p>Retry this change to confirm its result.</p>
                 )}
             </fieldset>
             <FormActions>
                 {hasStashDestination && (
-                    <Button disabled={frozen} onClick={() => submitTo("stash")}>
+                    <Button
+                        busy={pending && values.to === "stash"}
+                        disabled={frozen}
+                        onClick={() => submitTo("stash")}
+                    >
                         To the stash
                     </Button>
                 )}
@@ -614,21 +627,23 @@ export function Command({
                                 : "success"
                         }
                         disabled={pending}
+                        busy={
+                            pending &&
+                            (!hasStashDestination || values.to !== "stash")
+                        }
                     >
-                        {pending
-                            ? "Saving…"
-                            : uncertain
-                              ? "Retry change"
-                              : recovered
-                                ? "Retry earlier change"
-                                : label}
+                        {uncertain
+                            ? "Retry change"
+                            : recovered
+                              ? "Retry earlier change"
+                              : label}
                     </Button>
                 )}
                 <Button variant="ghost" disabled={frozen} onClick={onDismiss}>
                     Cancel
                 </Button>
             </FormActions>
-            {(uncertain || form.notice) && (
+            {(uncertain || notice) && (
                 <div className="flex flex-wrap gap-3">
                     <Button
                         size="sm"

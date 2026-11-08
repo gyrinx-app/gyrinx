@@ -9,6 +9,7 @@ import {
 import cotton from "../generated/cotton.json";
 import { useAnchoredPlacement, useDismiss } from "./anchoredPanel";
 import { Glyph } from "./glyph";
+import { useBusyControl } from "./Busy";
 
 export type ActionMenuItem = {
     label: string;
@@ -62,6 +63,7 @@ export function ActionMenu({
     align = "start",
     minWidth = "12rem",
 }: ActionMenuProps) {
+    const busyProps = useBusyControl();
     const triggerId = useId();
     const panelId = useId();
     const root = useRef<HTMLDivElement>(null);
@@ -172,8 +174,10 @@ export function ActionMenu({
     return (
         <div ref={root} className="contents">
             <button
+                {...busyProps}
                 ref={button}
                 type="button"
+                disabled={!!busyProps["aria-busy"]}
                 className={
                     trigger === "inline-chevron"
                         ? cotton.modelCard.menuTrigger

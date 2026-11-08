@@ -187,7 +187,12 @@
         "click",
         function (event) {
             var target = element(event.target);
-            if (!target || !target.closest('[data-busy="on"]')) return;
+            if (
+                !target ||
+                optedOut(target) ||
+                !target.closest('[data-busy="on"]')
+            )
+                return;
             event.preventDefault();
             event.stopPropagation();
         },

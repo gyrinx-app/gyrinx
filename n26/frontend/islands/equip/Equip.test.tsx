@@ -176,6 +176,9 @@ test("rapid counter clicks queue distinct commands and uncertainty stops unsent 
     await userEvent.click(add);
     await userEvent.click(add);
     await userEvent.click(add);
+    const progress = screen.getByRole("status", { name: "Saving Ammo" });
+    expect(add.nextElementSibling?.contains(progress)).toBe(true);
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("dialog")).toBeNull();
     await act(async () => rejectFirst(new TypeError("lost")));
@@ -430,16 +433,30 @@ test("pending commands prevent duplicate submits and dismissal", async () => {
             }),
     );
     vi.stubGlobal("fetch", fetcher);
-    render(<Equip {...page} />);
-    await userEvent.click(screen.getByRole("button", { name: "Buy Harness" }));
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.submit(dialog.querySelector("form")!);
-    fireEvent(dialog, new Event("cancel", { cancelable: true }));
+    const { container } = render(<Equip {...page} />);
+    const buy = screen.getByRole("button", { name: "Buy Harness" });
+    await userEvent.click(buy);
+    expect(buy.getAttribute("data-busy")).toBe("on");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.submit(container.querySelector("[data-equip-command]")!);
+    fireEvent.click(buy);
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect((buy as HTMLButtonElement).disabled).toBe(true);
+    await act(async () =>
+        finish(response({ errors: { __all__: ["Not enough credits."] } }, 422)),
+    );
+    const dialog = await screen.findByRole("dialog");
+    const submit = within(dialog).getByRole("button", { name: "Buy" });
+    await userEvent.click(submit);
+    expect(submit.getAttribute("data-busy")).toBe("on");
+    fireEvent(dialog, new Event("cancel", { cancelable: true }));
+    expect(screen.getByRole("dialog")).toBe(dialog);
     expect(
-        (screen.getByRole("button", { name: "Cancel" }) as HTMLButtonElement)
-            .disabled,
+        (
+            within(dialog).getByRole("button", {
+                name: "Cancel",
+            }) as HTMLButtonElement
+        ).disabled,
     ).toBe(true);
     await act(async () =>
         finish(response({ errors: { __all__: ["Not enough credits."] } }, 422)),
@@ -450,6 +467,34 @@ test("pending commands prevent duplicate submits and dismissal", async () => {
     ).toBe(false);
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("an uncertain retry keeps its warning and dialog while its button shows progress", async () => {
+    let finish!: () => void;
+    vi.stubGlobal(
+        "fetch",
+        vi
+            .fn()
+            .mockRejectedValueOnce(new TypeError("Lost response"))
+            .mockImplementationOnce(
+                (_href, options) =>
+                    new Promise<Response>((resolve) => {
+                        finish = () =>
+                            resolve(completed(options.body.get("request_key")));
+                    }),
+            ),
+    );
+    render(<Equip {...page} />);
+    await userEvent.click(screen.getByRole("button", { name: "Buy Harness" }));
+    const dialog = await screen.findByRole("dialog");
+    const warning = screen.getByText(/The save may have completed/);
+    const retry = within(dialog).getByRole("button", { name: "Retry change" });
+    await userEvent.click(retry);
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    expect(warning.isConnected).toBe(true);
+    expect(retry.getAttribute("data-busy")).toBe("on");
+    await act(async () => finish());
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 });
 
 test("a confirmation uses its own key and an explicitly unchecked rating value", async () => {
@@ -698,6 +743,33 @@ test("owned-panel navigation carries current section and expanded entry without 
             .getByRole("button", { name: /Autogun in stash/ })
             .getAttribute("aria-expanded"),
     ).toBe("true");
+});
+
+test("a delayed panel read keeps progress in its initiating control", async () => {
+    let finish!: (response: Response) => void;
+    const fetcher = vi.fn().mockImplementation(
+        () =>
+            new Promise<Response>((resolve) => {
+                finish = resolve;
+            }),
+    );
+    vi.stubGlobal("fetch", fetcher);
+    const { container } = render(<Equip {...page} />);
+    await userEvent.click(
+        screen.getByRole("button", { name: "Show Autogun in stash (1)" }),
+    );
+    const link = screen.getByRole("link", { name: "Sell" });
+    await userEvent.click(link);
+    expect(link.getAttribute("aria-busy")).toBe("true");
+    expect([...container.querySelectorAll('[data-busy="on"]')]).toEqual([link]);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(link);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    await act(async () =>
+        finish(response({ page: { ...page, dialog: sell } })),
+    );
+    await screen.findByRole("dialog", { name: "Sell Autogun?" });
+    expect(link.getAttribute("data-busy")).toBe("off");
 });
 
 test("a failed panel read has plain feedback and can be retried", async () => {

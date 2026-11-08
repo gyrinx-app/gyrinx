@@ -132,6 +132,15 @@ Use `Tooltip` in its small Cotton style for short card facts and provenance.
 Reserve a popover for structured explanations such as a rating breakdown. An
 informational preview prompt becomes a ghost button only when a picker URL exists.
 
+Keep loading feedback in the initiating control. Use `Button`'s `busy` prop or
+`BusyControlScope` with the shared `data-busy` styling; keep the label and control
+dimensions stable. Reserve inline space for counter progress and price differences.
+Keep an existing preview visible while its replacement loads. Avoid page-level
+loading paragraphs and transient saving dialogs. Delay responses in the browser
+and compare control and neighbour rectangles before and during reads, saves and
+retries at phone and desktop widths. Confirm cancellation still reaches React
+through the native busy guard.
+
 Switch the complete workflow to one renderer per request. Do not mount both
 renderers and hide one. Remove obsolete code after checking every caller; name
 any short-lived rollback cleanup. Independent shared chrome can stay unchanged.

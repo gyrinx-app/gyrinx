@@ -5,8 +5,17 @@ import { Preview, type PreviewCache } from "./Preview";
 export function Catalogue(props: CatalogueData) {
     const [cache] = useState<PreviewCache>(() => new Map());
     const preview = useCallback(
-        (href: string, selection: string[]) => (
-            <Preview href={href} selection={selection} cache={cache} />
+        (
+            href: string,
+            selection: string[],
+            onLoading: (loading: boolean) => void,
+        ) => (
+            <Preview
+                href={href}
+                selection={selection}
+                cache={cache}
+                onLoading={onLoading}
+            />
         ),
         [cache],
     );

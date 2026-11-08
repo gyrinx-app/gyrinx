@@ -99,12 +99,13 @@ export function ManageCredits(
             aria-busy={pending}
             footer={
                 <FormActions>
-                    <Button type="submit" variant="success" disabled={pending}>
-                        {pending
-                            ? "Saving…"
-                            : uncertain
-                              ? "Retry save"
-                              : "Save"}
+                    <Button
+                        type="submit"
+                        variant="success"
+                        disabled={pending}
+                        busy={pending}
+                    >
+                        {uncertain ? "Retry save" : "Save"}
                     </Button>
                     <ButtonLink href={props.back} variant="ghost">
                         Cancel

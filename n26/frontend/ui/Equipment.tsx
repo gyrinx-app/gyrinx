@@ -267,15 +267,6 @@ export function EquipmentRow({
     ) {
         return (
             <div className="n26-cp-price flex shrink-0 items-center justify-end gap-1.5 text-sm text-ink-900 dark:text-ink-100">
-                {raw !== "" && Number(raw) !== part.price && (
-                    <span
-                        className="text-xs text-muted"
-                        title={`Listed at ${part.price}¢`}
-                    >
-                        {Number(raw) > part.price ? "+" : "−"}
-                        {Math.abs(Number(raw) - part.price)}¢
-                    </span>
-                )}
                 <input
                     className={equip.priceInput}
                     type="number"
@@ -287,6 +278,21 @@ export function EquipmentRow({
                     value={raw}
                     onChange={(event) => change(event.target.value)}
                 />
+                <span
+                    className="inline-block w-14 shrink-0 whitespace-nowrap text-left text-xs text-muted"
+                    title={
+                        raw !== "" && Number(raw) !== part.price
+                            ? `Listed at ${part.price}¢`
+                            : undefined
+                    }
+                >
+                    {raw !== "" && Number(raw) !== part.price && (
+                        <>
+                            {Number(raw) > part.price ? "+" : "−"}
+                            {Math.abs(Number(raw) - part.price)}¢
+                        </>
+                    )}
+                </span>
             </div>
         );
     }

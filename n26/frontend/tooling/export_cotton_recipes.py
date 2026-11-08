@@ -688,14 +688,36 @@ def model_card_recipe():
         },
         "panels": classes('<c-ui.card padding="none" />', "div")[0],
         "foundingMark": classes("<c-n26.founding-mark />", "span")[0],
-        "tab": {
-            str(current).lower(): class_name(
+        "tabStrip": _without(
+            class_name(
                 next(
                     attrs
                     for tag, attrs in elements
-                    if tag == "a" and (attrs.get("aria-current") == "page") == current
+                    if tag == "div" and "sm:hidden" in attrs.get("class", "").split()
                 )
+            ),
+            "sm:hidden",
+        ),
+        "tabEnd": class_name(
+            next(
+                attrs
+                for tag, attrs in elements
+                if tag == "span" and "order-last" in attrs.get("class", "").split()
             )
+        ),
+        "tab": {
+            str(current).lower(): _without(
+                class_name(
+                    next(
+                        attrs
+                        for tag, attrs in elements
+                        if tag == "a"
+                        and (attrs.get("aria-current") == "page") == current
+                    )
+                ),
+                "px-3",
+            )
+            + " px-2 sm:px-3"
             for current in (False, True)
         },
     }
@@ -1926,6 +1948,9 @@ def recipes():
         "workflowPage": workflow_page_recipe(),
         "modelPreview": model_preview_recipe(),
         "modelCard": model_card_recipe(),
+        "spinner": classes(
+            '<c-ui.spinner size="xs" color="ink" />', "svg", "circle", "path"
+        ),
         "gangFigures": gang_figures_recipe(),
         "hireCatalogue": hire_catalogue_recipe(),
         "equipment": equipment_recipe(),

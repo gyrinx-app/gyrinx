@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
     Button,
     isModelPreview,
@@ -7,7 +7,14 @@ import {
 } from "../../ui";
 
 export type PreviewCache = Map<string, ModelPreviewProps>;
-type ReadState = { key: string; card?: ModelPreviewProps; error?: string };
+type ReadState = {
+    key: string;
+    card?: ModelPreviewProps;
+    previous?: ModelPreviewProps;
+    previousError?: string;
+    retrying?: boolean;
+    error?: string;
+};
 class PreviewError extends Error {}
 
 export function previewAddress(href: string, selection: string[]) {
@@ -18,10 +25,12 @@ export function Preview({
     href,
     selection,
     cache,
+    onLoading,
 }: {
     href: string;
     selection: string[];
     cache: PreviewCache;
+    onLoading?: (loading: boolean) => void;
 }) {
     const key = previewAddress(href, selection);
     const region = useRef<HTMLElement>(null);
@@ -42,7 +51,12 @@ export function Preview({
         }
         const controller = new AbortController();
         let current = true;
-        setRead({ key });
+        setRead((previous) => ({
+            key,
+            previous: previous.card || previous.previous,
+            previousError: previous.error || previous.previousError,
+            retrying: previous.key === key && previous.retrying,
+        }));
         async function load() {
             try {
                 const response = await fetch(key, {
@@ -94,37 +108,49 @@ export function Preview({
     }, [key, attempt, cache]);
     const current: ReadState =
         read.key === key ? read : { key, card: cache.get(key) };
+    const loading = !current.card && !current.error;
+    const shown = current.card || read.card || read.previous;
+    const error =
+        current.error ||
+        (loading ? read.error || read.previousError : undefined);
+    useLayoutEffect(() => {
+        onLoading?.(loading && !read.retrying);
+    }, [loading, read.retrying, onLoading]);
     return (
         <section
             ref={region}
             aria-label="Model preview"
             tabIndex={-1}
             className="focus-ring"
-            aria-busy={!current.card && !current.error}
+            aria-busy={loading}
         >
-            {current.card ? (
+            {!error && shown ? (
                 <>
-                    <ModelPreview {...current.card} />
+                    <ModelPreview {...shown} />
                     <p className="sr-only" role="status">
-                        Preview loaded.
+                        {loading ? "Updating preview…" : "Preview loaded."}
                     </p>
                 </>
-            ) : current.error ? (
+            ) : error ? (
                 <div role="alert">
-                    <p>{current.error}</p>
+                    <p>{error}</p>
                     <Button
                         size="sm"
+                        busy={loading && !!read.retrying}
+                        disabled={loading}
                         onClick={() => {
                             region.current?.focus();
+                            setRead((previous) => ({
+                                ...previous,
+                                retrying: true,
+                            }));
                             setAttempt((value) => value + 1);
                         }}
                     >
                         Retry preview
                     </Button>
                 </div>
-            ) : (
-                <p role="status">Loading preview…</p>
-            )}
+            ) : null}
         </section>
     );
 }
