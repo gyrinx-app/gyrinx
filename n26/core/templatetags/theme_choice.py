@@ -4,7 +4,6 @@ from django import template
 
 register = template.Library()
 
-# Each scheme with its words and drawing, in the order the control shows them.
 CHOICES = (
     ("light", "Light", "sun"),
     ("dark", "Dark", "moon"),
@@ -14,8 +13,7 @@ CHOICES = (
 
 @register.simple_tag
 def theme_choice_props(storage_key="theme", css=""):
-    """Where the choice is kept, which the page's head script must share,
-    the schemes offered, and a caller's classes for the group."""
+    """Build theme choices and group classes using the same storage key as the page's head script."""
     return {
         "storageKey": str(storage_key or "theme"),
         "defaultMode": "system",

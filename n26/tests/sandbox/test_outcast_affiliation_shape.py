@@ -1,20 +1,6 @@
-"""The Affiliation shape: a choice the gang itself is offered.
-
-The second example of the slots-and-picks design. A gang type carrying a
-choice in its built-ins, so a gang founded from it is offered one from
-the moment it exists; the pick lands on the gang, and what it gives is
-scoped to the ranks it names. One of the pickables opens a second choice,
-and changing the first retracts it.
-
-Sandbox content shaped like a gang list that works this way — an
-Affiliation slot type, four pickables, ranks named Leader, Champion, Ganger
-and Hive Scum. Which affiliations the edition offers, which ranks each
-one reaches, and what the lists hold are the maintainer's to state; what
-is proved here is the shape.
-
-The library is built with the authoring verbs, because the authoring
-pages are ``test_gang_legacy.py``'s walkthrough and this file is about
-the playing. Everything a player does goes through the real pages.
+"""A gang-level affiliation slot grants rank-scoped collection access. One pick opens a
+dependent House slot; replacing it retracts that slot and its answer. Content is
+authored through library verbs and choices are submitted through player pages.
 """
 
 import pytest
@@ -50,16 +36,14 @@ from n26.tests.sandbox.actions import found_gang
 pytestmark = pytest.mark.django_db
 
 
-#: The four pickables, in the order the list offers them. Illustrative:
-#: what a gang of outcasts may affiliate with is content.
+#: Affiliation choices in display order.
 AFFILIATIONS = ("Clanless", "Clan House", "Mutant", "Aranthian")
 
-#: The houses the chained choice offers, once Clan House is the pick.
+#: House choices available after selecting Clan House.
 CLAN_HOUSES = ("Cawdor", "Escher", "Van Saar")
 
-#: The ranks, and the price each is hired at. Hive Scum is the rank no
-#: affiliation names: a suite that scoped a give to everyone would prove
-#: nothing about scoping.
+#: Ranks and hire prices. Hive Scum receives no affiliation effects, providing an
+#: unmatched scope.
 RANKS = (
     ("Outcast Leader", 120),
     ("Outcast Champion", 90),
@@ -67,11 +51,10 @@ RANKS = (
     ("Hive Scum", 20),
 )
 
-#: Who the Aranthian list is opened to — every rank but the scum.
+#: Ranks granted Aranthian collection access.
 ARANTHIAN_RANKS = ("Outcast Leader", "Outcast Champion", "Outcast Ganger")
 
-#: What the two stocked lists sell. A list with nothing on it draws no
-#: tab, so the surface a give is read off needs something in stock.
+#: Stock is required for the granted collection to appear as an equipment tab.
 ARANTHIAN_STOCK = ("Aranthian sidearm", 35)
 CAWDOR_STOCK = ("Blessed blade", 25)
 
@@ -88,23 +71,19 @@ def ranks(default_pack):
 
 @pytest.fixture
 def slot_type(default_pack):
-    """One affiliation per gang, so the slot type refuses repeats."""
+    """Repeated affiliations produce guidance rather than blocking a choice."""
     return create_slot_type("Affiliation", allows_repeats=False)
 
 
 @pytest.fixture
 def house_slot_type(default_pack):
-    """The slot type the chained choice draws on."""
+    """Slot type for the dependent House choice."""
     return create_slot_type("Clan House", plural_name="Clan Houses")
 
 
 @pytest.fixture
 def house_choice(house_slot_type, ranks):
-    """The second choice: which house, offered once Clan House is picked.
-
-    Assigned to the gang like the first, because a gang affiliates with
-    a house rather than a fighter doing so.
-    """
+    """Choosing Clan House grants this House slot to the gang."""
     houses = create_picklist(
         "Clan Houses",
         house_slot_type,
@@ -131,9 +110,9 @@ def house_choice(house_slot_type, ranks):
 
 @pytest.fixture
 def affiliations(slot_type, ranks, house_choice):
-    """The four pickables. Aranthian gives its list to three of the four
-    ranks; Clan House gives the second choice; Clanless gives nothing,
-    which is a perfectly good pickable."""
+    """Four pickables: Aranthian grants collection access, Clan House grants a slot, and
+    Clanless carries no modifiers.
+    """
     made = {name: create_pickable(name, slot_type) for name in AFFILIATIONS}
     modifier(
         "Aranthian: its equipment list",
@@ -148,9 +127,8 @@ def affiliations(slot_type, ranks, house_choice):
         ),
         attach_to=made["Aranthian"],
     )
-    # The gang is what affiliates, so the second choice is given to the
-    # gang. Given to its models instead it would be a choice per member,
-    # which is a different thing entirely.
+    # The House slot belongs to the gang, so it is asked once rather than once per
+    # model.
     modifier(
         "Clan House: which house",
         targets_gang(),
@@ -162,8 +140,7 @@ def affiliations(slot_type, ranks, house_choice):
 
 @pytest.fixture
 def outcasts(slot_type, affiliations):
-    """The gang type, carrying the choice in its built-ins: founding is
-    what asks it, and the pick belongs to the gang."""
+    """Founding assigns a single-pick affiliation slot to the gang."""
     offered = create_picklist("Affiliations", slot_type)
     for position, name in enumerate(AFFILIATIONS):
         add_picklist_member(offered, affiliations[name], position=position)
@@ -189,7 +166,7 @@ def gang(owner, outcasts):
 
 @pytest.fixture
 def crew(gang, ranks, person_type):
-    """One model of each rank, hired straight in."""
+    """Hire one model of each rank."""
     from n26.tests.sandbox.actions import hire
 
     made = {}
@@ -213,7 +190,7 @@ def sheet_of(gang):
 
 
 def picker_url(gang, label):
-    """Where the gang's own choice row leads, or None once it is gone."""
+    """Return the gang choice’s picker URL, or None when the choice is absent."""
     line = next(
         (line for line in sheet_of(gang).questions if line.kind_label == label), None
     )
@@ -247,8 +224,9 @@ def equip_page(reader, miniature, collection=None):
 
 
 class TestTheGangIsTheOneAsked:
-    """A choice built into the gang type is the gang's own. It is drawn
-    once, on the gang's card, and no member's card repeats it."""
+    """The gang-level choice appears once on the gang card, without repeating on member
+    cards.
+    """
 
     def test_founding_is_what_offers_it(self, reader, gang):
         assert chosen_for(gang, "Affiliation") is None
@@ -274,11 +252,7 @@ class TestTheGangIsTheOneAsked:
         assert body.count(picker_url(gang, "Affiliation")) == 1
 
     def test_the_shortfall_is_the_gangs_news(self, reader, gang, crew):
-        """The under-min note belongs to whoever was offered the choice.
-
-        Read off the built sheet: no page prints these notes yet, so this
-        is the note existing rather than the note being seen.
-        """
+        """The gang sheet owns the note for its unanswered required slot."""
         assert "Affiliation — 0 of 1 chosen" in [
             note.text for note in render_gang(gang).remarks
         ]
@@ -292,8 +266,7 @@ class TestTheGangIsTheOneAsked:
 
 
 class TestChoosingAnAffiliation:
-    """The picker offers the list, one click settles it, and the pick is
-    the gang's — not the card's that drew the control."""
+    """The picker saves the chosen assignment on the gang."""
 
     def test_the_picker_offers_the_four_in_order(self, reader, gang, affiliations):
         body = reader.get(picker_url(gang, "Affiliation")).content.decode()
@@ -305,8 +278,7 @@ class TestChoosingAnAffiliation:
         assert places == sorted(places)
 
     def test_the_picker_adds_no_lead_the_author_did_not_write(self, reader, gang):
-        """The lead under the heading is the slot's authored introduction;
-        with none written, the page makes up no line of its own."""
+        """A slot without an authored introduction adds no generated introductory text."""
         body = reader.get(picker_url(gang, "Affiliation")).content.decode()
 
         assert f"For {gang.name}." not in body
@@ -344,8 +316,7 @@ class TestChoosingAnAffiliation:
 
 
 class TestWhatTheGangsPickReaches:
-    """The pick is the gang's, so its gives are broadcast — and scoped, so
-    they stop at the ranks the pickable names."""
+    """Gang-level picks affect only the fighter ranks their modifiers target."""
 
     @pytest.fixture
     def affiliated(self, reader, gang, crew, affiliations):
@@ -370,8 +341,7 @@ class TestWhatTheGangsPickReaches:
         assert "Aranthian Equipment List" not in body
 
     def test_no_members_card_draws_a_line_for_it(self, reader, gang, affiliated):
-        """What the gang holds reaches every member and is listed on
-        none of them: the gang's card is where its own things are said."""
+        """The gang’s equipment is not repeated as member equipment."""
         for card in sheet_of(gang).models:
             assert [line.name for line in card.equipment] == []
 
@@ -382,14 +352,7 @@ class TestWhatTheGangsPickReaches:
 
 
 class TestOnePickOpensAnother:
-    """A pickable may give a further choice. Making the first offers the
-    second, and changing the first takes the second away with everything
-    it settled — the chain retracts through what caused it.
-
-    Removing a pick outright is the engine's own act and is proved in
-    ``test_slots_and_picks.py``; what a player has on the page is the
-    rechoose, which is the same removal with a replacement behind it.
-    """
+    """Replacing a pick retracts dependent choices, answers and computed effects."""
 
     @pytest.fixture
     def clan_house(self, reader, gang, crew, affiliations):
@@ -413,8 +376,7 @@ class TestOnePickOpensAnother:
 
         for house in CLAN_HOUSES:
             assert f"House {house}" in body, house
-        # By key: the page's heading is the label "Clan House", which is
-        # also what one of the affiliations is called.
+        # Compare keys because Clan House also appears as the page heading.
         for name in AFFILIATIONS:
             assert f"library.pickable:{clan_house[name].pk}" not in body, name
 
@@ -436,9 +398,9 @@ class TestOnePickOpensAnother:
     def test_changing_the_first_takes_the_whole_chain(
         self, reader, gang, crew, clan_house
     ):
-        """A Mutant gang affiliated with a house is not a thing the
-        content can express, so nothing of the house may survive the
-        change: not the second choice, not its pick, not what it gave."""
+        """Changing affiliation removes the House question, its live answer and its
+        collection access.
+        """
         choose(reader, gang, "Clan House", _house("Cawdor"))
 
         choose(reader, gang, "Affiliation", clan_house["Mutant"])
@@ -454,15 +416,14 @@ class TestOnePickOpensAnother:
 
 
 def _house(name):
-    """One of the houses the chained choice offers."""
+    """Find a pickable offered by the dependent House choice."""
     from n26.library.models import Pickable
 
     return Pickable.objects.get(name=f"House {name}")
 
 
 class TestTheGangPageStaysFlat:
-    """A gang page is one fixed run of queries whatever the slot type holds:
-    a list that grows is rows to read, never round trips to make."""
+    """Adding available pickables must not add gang-page queries."""
 
     def test_more_pickables_do_not_mean_more_queries(
         self, reader, gang, crew, affiliations, slot_type, django_assert_num_queries

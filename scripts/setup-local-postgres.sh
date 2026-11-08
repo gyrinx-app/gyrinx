@@ -1,7 +1,7 @@
 #!/bin/bash
 # One-time setup: install local Postgres + pgAdmin and create the gyrinx_main database.
 #
-# This replaces Docker Postgres for local development.  Run once per machine.
+# Run once per machine for local development without Docker Postgres.
 #
 # Usage:
 #   ./scripts/setup-local-postgres.sh
@@ -75,10 +75,8 @@ elif [ -z "$CURRENT_PROVIDER" ]; then
 fi
 
 if [ "$needs_reinit" = true ]; then
-  # If PGDATA exists with content we're about to destroy, require explicit
-  # confirmation.  This script otherwise wipes the cluster silently when it
-  # finds a libc-locale Postgres install, which would be catastrophic for a
-  # developer who installed Homebrew Postgres for unrelated work.
+  # Reinitialisation deletes all databases, including any unrelated local data.
+  # Require confirmation before replacing a populated cluster.
   if [ -d "$PG_DATA" ] && [ -n "$(ls -A "$PG_DATA" 2>/dev/null || true)" ]; then
     echo
     echo "WARNING: existing cluster at $PG_DATA uses a non-ICU locale provider."
@@ -167,10 +165,7 @@ else
   brew install --cask pgadmin4
 fi
 
-# Write a servers.json describing the local cluster and import it directly
-# into pgAdmin's SQLite config via the bundled setup.py CLI.  Avoids the
-# "Something went wrong" failure of the GUI Import/Export dialog and
-# means the server shows up the next time pgAdmin starts.
+# Import the server through pgAdmin's bundled CLI so it is available on startup.
 PGADMIN_SERVERS_FILE="${HOME}/.gyrinx/pgadmin-servers.json"
 mkdir -p "$(dirname "$PGADMIN_SERVERS_FILE")"
 cat > "$PGADMIN_SERVERS_FILE" <<JSON
@@ -255,9 +250,8 @@ if [ -n "$DUMP_FILE" ] && [ -f "$DUMP_FILE" ]; then
     echo "Database already has ${TABLE_COUNT} tables. Skipping restore."
   else
     echo "Restoring from Docker dump..."
-    # pg_restore can emit non-fatal warnings (e.g. role/ACL missing) when
-    # --no-owner --no-acl is in effect.  Capture its exit code so genuine
-    # failures (e.g. corrupt dump) surface, while still allowing warnings.
+    # Keep the restore status despite tail's status. Cross-version restores can
+    # report warnings, so print a non-zero status without aborting setup.
     set +o pipefail
     pg_restore --no-owner --no-acl -d gyrinx_main "$DUMP_FILE" 2>&1 | tail -20
     restore_status=${PIPESTATUS[0]}

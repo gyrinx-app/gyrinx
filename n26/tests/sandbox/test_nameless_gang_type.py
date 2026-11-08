@@ -1,14 +1,6 @@
-"""The nameless gang type, and the repair that retires it.
-
-An ingest planned a gang type from a blank Gang cell, so a ``GangType``
-with no name stood in the pack — foundable by default, drawn as an empty
-card sorting before every real type, and foundable into a gang of
-nothing. Nothing may author such a row and the create page does not
-offer one that already stands; what is left is what to do with the gangs
-already founded on it, and they are not alike. One nobody played is
-deleted. One somebody played is repointed to the list its models were
-really hired from, which is what it has been all along. One nobody can
-read is left exactly as it stands.
+"""Reject blank gang-type names and repair existing unnamed types. Delete untouched gangs,
+repoint gangs whose profiles identify one foundable list, and preserve gangs with
+ambiguous sources.
 """
 
 import pytest
@@ -36,13 +28,13 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def nameless(db, default_pack):
-    """The row as production holds it: no name, no badge, foundable."""
+    """Create the invalid legacy row directly, bypassing authoring validation."""
     return GangType.objects.create(name="")
 
 
 @pytest.fixture
 def escher(db, default_pack):
-    """A real gang list, with something to hire off it."""
+    """A named, foundable gang type."""
     return create_gang_type("Escher", starting_credits=1000)
 
 
@@ -53,17 +45,14 @@ def escher_ganger(escher, person_type):
 
 @pytest.fixture
 def founded_on_it(nameless, owner):
-    """A gang of nothing — founded on the empty card and untouched since."""
+    """A gang with no activity after founding on the unnamed type."""
     return found_gang("A Gang Of Nothing", nameless, owner=owner)
 
 
 @pytest.fixture
 def played_on_it(nameless, owner, escher_ganger):
-    """The same founding, then played: models hired off a real list.
-
-    Nothing stops a gang hiring from a list its own type does not name,
-    so a gang founded on nothing gets filled from somewhere real — which
-    is what tells the repair what it has been all along.
+    """Hire profiles from a named list into a gang founded on the unnamed type, providing
+    an unambiguous repair target.
     """
     gang = found_gang("Played As Escher", nameless, owner=owner)
     hire(gang, escher_ganger, "One", paid=50)
@@ -94,8 +83,7 @@ class TestTheCreatePageDoesNotOfferOne:
 
 
 class TestWhitespaceIsNoNameEither:
-    """A name of nothing but spaces draws the identical empty card, so
-    every guard treats it as the blank it looks like."""
+    """Whitespace-only names receive the same validation and repair as empty names."""
 
     @pytest.fixture
     def padded(self, db, default_pack):
@@ -161,8 +149,7 @@ class TestReadingWhatStandsOnIt:
 
 
 class TestRepointing:
-    """A played gang is what its models say it is. Saying so must take
-    nothing away and must leave the gang's books straight."""
+    """Repointing preserves owned models, rating and reconciliation."""
 
     def test_it_keeps_everything_the_gang_owns(self, played_on_it, escher):
         was_rating = played_on_it.rating
@@ -175,15 +162,12 @@ class TestRepointing:
         assert {
             m.pk for m in Miniature.objects.filter(membership__gang=played_on_it)
         } == models
-        # Not "no less than": built-ins arrive free, so a repoint cannot
-        # move the rating at all, and anything that does is a regression.
+        # New built-ins must not change the existing rating.
         assert played_on_it.rating == was_rating
         assert_reconciled(played_on_it)
 
     def test_the_new_type_brings_its_built_ins(self, played_on_it, escher):
-        """A gang type hands its gang things through the founding
-        assignment, so a repoint that did not found again would leave the
-        gang without what its type gives."""
+        """Repointing updates the founding assignment and grants the new type’s built-ins."""
         escher.built_ins = authoring.create_default_set(
             "Escher built-ins", members=[create_rule("Wise")]
         )
@@ -201,13 +185,8 @@ class TestRepointing:
         assert_reconciled(played_on_it)
 
     def test_the_gang_keeps_its_own_founding_act(self, played_on_it, escher, owner):
-        """Founding is something the owner did, and the history says so.
-
-        A repoint that deleted the founding assignment would take that
-        act with it — entry and event cascade — and write a new one,
-        dated today, in the name of whoever ran the repair. The owner
-        would open their history and find their hires first and a
-        stranger creating their gang last.
+        """Preserve the original founding assignment, event, date and actor instead of
+        replacing them with a repair event.
         """
         from n26.core.history import build
 
@@ -223,8 +202,7 @@ class TestRepointing:
         assert (still.pk, still.created, still.actor_id) == was
         assert still.actor_id == owner.pk
 
-        # And it now says what the gang really is, because the history
-        # reads the assignment as it stands rather than any stored wording.
+        # History reads the updated founding assignment.
         acts = build(played_on_it, viewer=owner)
         opening_act = acts[0]
         told = "".join(span.text for span in opening_act.spans)
@@ -235,9 +213,9 @@ class TestRepointing:
     def test_a_gang_with_no_founding_counts_nothing_of_anybody_elses(
         self, played_on_it, escher
     ):
-        """Asked what a founding caused when there is no founding, the
-        question becomes "caused by nothing" — which every assignment
-        anybody was ever given answers."""
+        """A missing founding must not match unrelated assignments whose caused_by is also
+        NULL.
+        """
         played_on_it.founding = None
         played_on_it.save(update_fields=["founding", "modified"])
 
@@ -249,8 +227,9 @@ class TestRepointing:
     def test_the_nameless_type_goes_once_nothing_stands_on_it(
         self, played_on_it, founded_on_it, escher
     ):
-        """One gang of each kind on the same type: the untouched one is
-        deleted, the played one repointed, and only then may the type go."""
+        """Delete the untouched gang and repoint the played gang before removing their
+        unnamed type.
+        """
         report = apply(find())
 
         assert not Gang.objects.filter(pk=founded_on_it.pk).exists()
@@ -263,8 +242,7 @@ class TestRepointing:
     def test_a_gang_read_from_no_one_list_is_left_standing(
         self, played_on_it, nameless, person_type
     ):
-        """Models from two lists, and nobody can say which the gang is.
-        It keeps what it has, and so does the type it names."""
+        """Profiles from multiple lists provide no unambiguous repair target."""
         other = create_gang_type("Goliath", starting_credits=1000)
         hire(
             played_on_it,
@@ -291,9 +269,7 @@ class TestRepointing:
     def test_a_list_nobody_can_found_is_not_a_target(
         self, nameless, owner, person_type
     ):
-        """Hired guns and pets carry profiles off lists nobody plays as.
-        A gang moved onto one of those would be a gang no player could
-        have made, so it is left standing instead."""
+        """Non-foundable profile lists cannot become replacement gang types."""
         hangers_on = create_gang_type("Dramatis Personae", foundable=False)
         gang = found_gang("Odd One", nameless, owner=owner)
         hire(
@@ -312,8 +288,9 @@ class TestRepointing:
     def test_an_untouched_gang_still_goes_beside_one_left_standing(
         self, played_on_it, founded_on_it, nameless, person_type
     ):
-        """Per gang, not all or nothing: the unreadable one holding up
-        the type must not hold up the empty one's deletion."""
+        """An ambiguous gang protects its type without preventing deletion of another
+        untouched gang.
+        """
         other = create_gang_type("Goliath", starting_credits=1000)
         hire(
             played_on_it,
@@ -327,8 +304,7 @@ class TestRepointing:
         assert not Gang.objects.filter(pk=founded_on_it.pk).exists()
         assert Gang.objects.filter(pk=played_on_it.pk).exists()
         assert GangType.objects.filter(pk=nameless.pk).exists()
-        # The record must still name the gang it destroyed, even though
-        # the type it stood on outlived it.
+        # The report names deleted gangs even when their type remains.
         assert any("deleted gangs" in line for line in report)
         assert_reconciled(played_on_it)
 
@@ -368,8 +344,7 @@ class TestRefusing:
     def test_an_assignment_naming_it_on_no_such_gang_is_refused(
         self, nameless, escher, owner
     ):
-        """``Assignment.gang_type`` is PROTECT, so the delete would fail
-        anyway — refusing in words beats a crash, and says how many."""
+        """Report protected gang_type references before attempting deletion."""
         elsewhere = found_gang("Somewhere Else", escher, owner=owner)
         Assignment.objects.create(gang_type=nameless, gang=elsewhere)
 
@@ -385,9 +360,7 @@ class TestRefusing:
     def test_a_row_naming_the_type_on_a_repointed_gang_is_refused(
         self, played_on_it, nameless
     ):
-        """A repointed gang keeps its own assignments, so one of those
-        naming the nameless type would still name it when the delete
-        came — and PROTECT would fail the whole run."""
+        """Preserved assignments must not retain references to the type being deleted."""
         Assignment.objects.create(gang_type=nameless, gang=played_on_it)
 
         found = find()
@@ -403,10 +376,9 @@ class TestRefusing:
     def test_a_founding_that_granted_something_is_left_alone(
         self, played_on_it, escher
     ):
-        """Taking back what a type gave means unwinding purchases that
-        hang off it and saying in the ledger that they went, which is a
-        refund's work. This repair repoints a founding that granted
-        nothing, and says so rather than deleting quietly."""
+        """Existing caused assignments require a separate refund operation and prevent this
+        repair.
+        """
         Assignment.objects.create(
             rule=create_rule("A Gift"),
             gang=played_on_it,
@@ -424,8 +396,7 @@ class TestRefusing:
         assert played_on_it.gang_type_id != escher.pk
 
     def test_a_nameless_type_in_another_pack_is_left_alone(self, db, default_pack):
-        """Names are unique per pack, and another pack's rows are
-        somebody's content rather than this accident."""
+        """The repair is limited to the default pack."""
         theirs = authoring.create_pack("Someone Else's")
         GangType.objects.create(name="", pack=theirs)
 
@@ -444,8 +415,7 @@ class TestApplying:
 
         assert not GangType.objects.filter(name="").exists()
         assert not Gang.objects.filter(pk=founded_on_it.pk).exists()
-        # The founding assignment rode the gang down; the real gang beside
-        # it is untouched.
+        # Dependent founding rows are deleted; unrelated gangs and types remain.
         assert not Assignment.objects.filter(gang_root=founded_on_it).exists()
         assert Gang.objects.filter(pk=kept.pk).exists()
         assert GangType.objects.filter(pk=named.pk).exists()
@@ -454,10 +424,9 @@ class TestApplying:
     def test_a_plan_read_before_the_world_moved_is_refused(
         self, founded_on_it, escher_ganger
     ):
-        """A gang's assignments cascade rather than protect, so a gang
-        hired into between reading the plan and deleting would ride the
-        delete down. The plan is read again inside the transaction, and
-        anything that has moved refuses."""
+        """Recheck the plan inside the transaction before cascading deletion can remove
+        newly added assignments.
+        """
         stale = find()
         assert stale.ok
         hire(founded_on_it, escher_ganger, "Somebody At All", paid=50)
@@ -470,8 +439,7 @@ class TestApplying:
         assert_reconciled(founded_on_it)
 
     def test_a_layout_saved_since_the_plan_was_read_refuses_too(self, founded_on_it):
-        """The preview promises everything that dies by count, and a
-        print layout cascades with its gang."""
+        """New print layouts change the planned cascade and require a fresh plan."""
         from n26.core.models import PrintConfig
 
         stale = find()
@@ -495,8 +463,7 @@ class TestApplying:
 
 
 class TestRefoundTheVerb:
-    """``operation.refound`` is a verb of its own, and a second caller
-    would not have this repair's proof that the old type gave nothing."""
+    """refound independently refuses existing grants, even when called outside the repair."""
 
     def test_it_refuses_a_founding_that_granted_something(
         self, played_on_it, escher, owner
@@ -513,9 +480,7 @@ class TestRefoundTheVerb:
             with operation(played_on_it, actor=owner) as op:
                 op.refound(escher)
 
-        # In memory as well as in the database: a caller that catches the
-        # refusal and carries on must not hold a gang saying it is
-        # something the database says it is not.
+        # Refusal must preserve the in-memory instance as well as the database row.
         assert played_on_it.gang_type_id != escher.pk
         played_on_it.refresh_from_db()
         assert played_on_it.gang_type_id != escher.pk

@@ -395,7 +395,7 @@ def _fill_addresses(sheet, campaign, *, yours, viewer, request=None, current_url
 
 
 def _recent_acts(campaign, viewer):
-    """Build the latest acts, return them oldest first, and count the remainder."""
+    """Build the latest acts, return them newest first, and count the remainder."""
     from n26.core.history import (
         campaign_history,
         campaign_history_size,
@@ -417,7 +417,7 @@ def _rolling(campaign, sheet, asked):
     table = next((t for t in sheet.assets if t.asset_type_id == asked), None)
     if table is None or not table.tables:
         return None
-    # Territories default to three per gang; custom asset types have no default count.
+    # Territories default to three per gang; custom asset types default to one.
     label = table.plural.lower()
     lead = f"Add unclaimed {label} to the campaign pool."
     count_help = "Choose how many to add to the unclaimed pool, up to 100 at a time."

@@ -1,12 +1,7 @@
-"""Changing an option after the hire — the later edit ChosenProfileOption
-was stored for.
-
-``op.rechoose`` swaps which of its sets a carrier is taken with: the
-departing set's rows leave the way a refund leaves, the arriving set
-materialises exactly as at hire, and the price difference lands on the
-carrier's own entry as one amendment — on paid and list and rating
-alike, in either direction. Everything here reconciles after every act,
-because the books are the point of doing this as an operation.
+"""Verify changing selected option sets after hiring. Remove departing grants, materialise
+arriving grants and apply the price difference to the carrier's recorded payment, list
+price and rating. Refund paid attachments removed with an option, and preserve unrelated
+built-ins.
 """
 
 import pytest
@@ -54,7 +49,7 @@ def weapons(default_pack):
 
 @pytest.fixture
 def khimerix(person_type, gang_type, weapons, default_pack):
-    """A profile with one choose-one group of three priced sets."""
+
     profile = Profile.objects.create(
         name="Khimerix", profile_type=person_type, gang_type=gang_type, price=210
     )
@@ -81,7 +76,7 @@ def khimerix(person_type, gang_type, weapons, default_pack):
 
 
 def sets_of(profile):
-    """The profile's sets by name, for naming a selection in a test."""
+
     return {
         option.default_set.name: option.default_set for option in profile.options.all()
     }
@@ -147,9 +142,9 @@ class TestSwappingAChoice:
         assert_reconciled(gang)
 
     def test_leaving_a_set_and_returning_restores_its_kit(self, gang, khimerix):
-        """Re-taking a set is an acquisition, and what is bought arrives.
-        The copies the first tenure left archived are history — they
-        never stand in for the kit the owner is paying for again."""
+        """Reacquiring an option must create live grants rather than reusing archived
+        copies from a previous selection.
+        """
         eruption = sets_of(khimerix)["Eruption breath"]
         beast = hire_with_option(gang, khimerix, "Vhast", option=eruption)
         gang.refresh_from_db()
@@ -166,8 +161,7 @@ class TestSwappingAChoice:
         assert copies.count() == 2
         assert copies.filter(archived=False).count() == 1
         gang.refresh_from_db()
-        # The 25cr difference came back on leaving and went out again on
-        # returning.
+        # The option difference is refunded and then charged again.
         assert gang.credits == cash
         assert_reconciled(gang)
 
@@ -212,8 +206,8 @@ class TestSwappingAChoice:
         with pytest.raises(NotEnoughCredits):
             rechoose(gang, beast, sets_of(khimerix)["Eruption and razors"])
 
-        # The instances carry the unwound operation's in-memory repins;
-        # what the books say is what the database kept.
+        # Reload after rollback because model instances can retain cached totals from
+        # the failed operation.
         gang.refresh_from_db()
         beast.refresh_from_db()
         assert weapon_names(beast) == ["Chemical cloud breath", "Talons"]
@@ -222,8 +216,9 @@ class TestSwappingAChoice:
         assert_reconciled(gang)
 
     def test_a_rechosen_fighter_matches_a_fresh_hire(self, gang, khimerix):
-        """The equivalence that makes this safe to offer: changing your
-        mind lands exactly where deciding right the first time did."""
+        """Rechoosing must produce the same live equipment, rating and payment as hiring
+        with that selection.
+        """
         eruption = sets_of(khimerix)["Eruption and razors"]
         changed = hire_with_option(gang, khimerix, "Changed")
         rechoose(gang, changed, eruption)
@@ -241,9 +236,7 @@ class TestSwappingAChoice:
 
 class TestWhatTheDepartingSetTookAlong:
     def test_paid_kit_inside_a_departing_row_is_refunded(self, gang, khimerix):
-        """A sight bought onto an option's weapon comes back when the
-        option goes: the money was the player's, and the row it rode
-        leaves the roster."""
+        """Refund paid equipment attached to a departing option weapon."""
         beast = hire_with_option(gang, khimerix, "Vhast")
         talons = Assignment.objects.get(
             miniature_root=beast, weapon__name="Talons", archived=False
@@ -257,7 +250,7 @@ class TestWhatTheDepartingSetTookAlong:
         rechoose(gang, beast, sets_of(khimerix)["Eruption and razors"])
 
         gang.refresh_from_db()
-        # 15 back for the charm, 50 out for the dearer option.
+        # Refund the attachment while charging the option upgrade.
         assert gang.credits == cash + 15 - 50
         charm = Assignment.objects.get(wargear=sight)
         assert charm.archived is True
@@ -267,13 +260,11 @@ class TestWhatTheDepartingSetTookAlong:
 class TestAmmoRidesTheRightGun:
     @pytest.fixture
     def gunner(self, person_type, gang_type, default_pack):
-        """Built-ins bring the launcher; an any-of option adds paid ammo
-        for it — the set grants a profile of a gun it does not bring."""
+        """A built-in launcher with an optional set granting its priced ammunition."""
         from n26.library.models import WeaponProfile
 
         launcher = create_weapon("Grenade launcher", profiles=[("Frag", 0)])
-        # Priced, so it is not a free profile the gun auto-grants: the
-        # option set is the only way this round arrives.
+        # Price the profile so only the selected option grants it.
         smoke = WeaponProfile.objects.create(
             name="Smoke", weapon=launcher, price=10, position=1
         )
@@ -320,7 +311,7 @@ class TestAmmoRidesTheRightGun:
         assert not Assignment.objects.filter(
             weapon_profile=smoke, miniature_root=fighter, archived=False
         ).exists()
-        # The gun the built-ins brought stays.
+        # Retain the launcher granted independently by built-ins.
         assert Assignment.objects.filter(
             miniature_root=fighter, weapon__isnull=False, archived=False
         ).exists()

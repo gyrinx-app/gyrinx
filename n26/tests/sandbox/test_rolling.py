@@ -1,17 +1,11 @@
-"""Rolling on a roll table, and the record it leaves.
+"""Record rolls before picks and retain both in gang history.
 
-A choice whose list is a roll table is rolled for on its own pick
-screen. The roll goes on the gang's history the moment it is made —
-before anything is picked for it, whether or not anything ever is — and
-the pick that follows names the roll, so the history reads "rolled 24"
-with "Out Cold" beneath it, and a roll nothing followed stands alone,
-which is what a second roll looks like to whoever reads it.
+Generated and manually entered rolls must be valid for the die. A pick can
+reference a roll for the same slot and model. Prevent multiple live picks
+from using one roll, while allowing a replacement after its pick is removed.
 
-Two ways to the same record: the die rolled here, or a roll made at the
-table and entered. Both are checked against the die, both are applied
-once, and neither decides what may be picked — the rules substitute
-results, so every row stays on offer and the record shows the roll
-beside whatever was picked.
+Rolls highlight results without restricting the player's selection. Group a
+pick with its roll when both belong in the displayed history window and day.
 """
 
 import random
@@ -157,7 +151,7 @@ def act_saying(gang, fragment):
 
 
 class TestTheDice:
-    """Each die rolls what its table can be read by, and nothing else."""
+    """Generated rolls must belong to the table's valid die outcomes."""
 
     @pytest.mark.parametrize("dice", list(Dice))
     def test_every_roll_is_one_the_table_can_hold(self, dice):
@@ -278,7 +272,7 @@ class TestThePickNamesItsRoll:
         assert_reconciled(gang)
 
     def test_a_roll_is_refused_on_a_choice_that_is_not_a_slots(self, gang, krago):
-        """An offer has no dice; a roll handed to one is a caller's mistake."""
+        """A recorded roll requires a slot-backed choice."""
         from n26.library.models.modifier import OffersChoice
 
         event = roll_for(krago, "Lasting Injuries", rolled=24)
@@ -296,16 +290,14 @@ class TestThePickNamesItsRoll:
                 )
 
     def test_the_landing_row_is_not_enforced(self, gang, krago, injuries):
-        """The rules substitute results — "counts as Out Cold" — so the
-        roll does not fence what is picked; the record shows both."""
+        """Allow substituted results while preserving the entered roll on the pick."""
         event = roll_for(krago, "Lasting Injuries", rolled=51)
         out_cold = result_named(injuries["table"], "Out Cold")
         made = pick(krago, "Lasting Injuries", out_cold, roll=event)
         assert made.roll.roll == 51
 
     def test_a_roll_for_another_choice_is_refused(self, gang, krago, injuries):
-        """A roll made for the vehicle table cannot be spent on the
-        fighter's choice, however the post was assembled."""
+        """Reject a roll recorded for another slot."""
         damage = Slot.objects.get(name="Lasting Damage")
         with operation(gang, actor=gang.owner) as op:
             stray = op.roll(damage, miniature=krago, rolled=24)
@@ -316,8 +308,7 @@ class TestThePickNamesItsRoll:
     def test_a_roll_made_on_another_fighters_card_is_refused(
         self, gang, gang_type, fighter_type, krago, injuries
     ):
-        """The operation holds the card scoping too, so no caller — not
-        only the page — can hand one fighter's roll to another's pick."""
+        """Enforce model identity in the operation as well as the page."""
         profile = create_profile("Second Ganger", fighter_type, gang_type, price=50)
         other = hire(gang, profile, "Nix", paid=50)
         theirs = roll_for(other, "Lasting Injuries", rolled=24)
@@ -389,10 +380,7 @@ class TestTheHistoryTellsTheRoll:
     def test_a_pick_whose_roll_is_outside_the_window_folds_under_nothing(
         self, gang, krago, injuries, campaign_type
     ):
-        """A campaign log cut to its newest acts may hold the pick and
-        not the roll it came from; the pick then stands on its own and
-        names the roll, rather than folding under whatever act happens
-        to be there."""
+        """Display the pick as its own act when the limited history window excludes its roll."""
         from n26.tests.sandbox.actions import found_campaign, join_campaign
 
         campaign = found_campaign("The Cut", campaign_type, owner=gang.owner)
@@ -419,8 +407,7 @@ class TestTheHistoryTellsTheRoll:
 
 
 class TestAStandingGrantNamesTheFighter:
-    """A pick that stands as its own act is the fighter gaining the
-    effect, not the person who recorded it."""
+    """Name the model receiving a pick rather than the user recording it."""
 
     def test_the_fighter_gained_the_effect(self, client, owner, gang, krago, injuries):
         made = pick(
@@ -492,15 +479,13 @@ class TestThePickScreen:
         client.force_login(owner)
         page = client.get(address).content.decode()
         assert "Roll a D66" in page
-        # Enter in the field must reach the Enter act, not Roll: the first
-        # submit button in the form decides, so an unseen one comes first.
+        # Put the Enter submit first so pressing Enter in the field cannot trigger Roll.
         assert page.index('value="enter"') < page.index('value="roll"')
         assert 'min="' not in page.split("Your own roll")[0][-600:]
         assert "The roll you made yourself" in page
         assert "or add a result by hand" in page
         assert 'name="rolled"' in page
-        # The range is a hint in the field, never a browser constraint —
-        # one bounded field would stop every other button on the form.
+        # Use range help text instead of bounds that would block other form actions.
         assert "(11–66)" in page
         assert 'min="11"' not in page
 
@@ -535,8 +520,7 @@ class TestThePickScreen:
         assert "Manual roll." in page
         assert 'aria-label="A die showing 2"' in page
         assert 'aria-label="A die showing 4"' in page
-        # One result: the panel carries its Add as the main act, and the
-        # table below stays whole rather than lifting a "Landed on" group.
+        # Offer the single landed result in the panel while keeping the full table below.
         assert 'aria-label="Add Out Cold"' in page
         assert page.index('aria-label="Add Out Cold"') < page.index("or add a result")
         assert "The rest of the table" not in page
@@ -557,8 +541,7 @@ class TestThePickScreen:
         page = client.get(f"{address}?roll={event.pk}").content.decode()
         assert "Already applied: Out Cold." in page
         assert f'name="roll" value="{event.pk}"' not in page
-        # The Roll controls come back, since this roll is done with — and
-        # the panel offers nothing of its own, so there is one Roll.
+        # An applied roll restores one Roll control and omits the panel's Add action.
         assert "Roll a D66" in page
         assert page.count('value="roll"') == 1
 
@@ -604,8 +587,7 @@ class TestThePickScreen:
         )
         assert "Rolled high enough for" in page
         assert "Above the roll" in page
-        # Several results open: no single Add in the panel, so the lifted
-        # group's own Adds are the main act.
+        # Multiple landed results use their own Add controls in the highlighted group.
         assert page.index("Rolled high enough for") < page.index(
             'aria-label="Add Toughness"'
         )
@@ -614,8 +596,7 @@ class TestThePickScreen:
     def test_a_full_choice_offers_no_roll(
         self, client, owner, gang, gang_type, fighter_type, default_pack
     ):
-        """A roll for a choice that takes no more picks would be one the
-        next Add refuses, so the controls are not drawn."""
+        """Omit roll controls when the choice cannot accept another pick."""
         kind = create_slot_type("Scar")
         table = create_picklist("Scar Table", kind, dice="d6", roll_selects="band")
         scar = create_pickable("Scar", kind)
@@ -646,9 +627,7 @@ class TestThePickScreen:
     def test_a_choice_of_one_lifts_the_row_rather_than_adding_from_the_panel(
         self, client, owner, gang, gang_type, fighter_type, default_pack
     ):
-        """Radios post under the name a panel button would, so a choice of
-        one is settled from the lifted row and its Save, never a second
-        control with the same name."""
+        """Single-choice radios submit through Save without a duplicate Add control in the result panel."""
         kind = create_slot_type("Fate")
         table = create_picklist("Fate Table", kind, dice="d6", roll_selects="band")
         for low, name in ((1, "Doomed"), (4, "Blessed")):
@@ -701,8 +680,7 @@ class TestThePickScreen:
     def test_a_roll_made_for_another_fighter_is_no_such_roll(
         self, client, owner, gang, gang_type, fighter_type, krago, address, injuries
     ):
-        """One Slot row serves every fighter, so the slot alone would let
-        Krago's roll be drawn on, and spent from, another fighter's page."""
+        """Check model identity as well as the shared slot when resolving a page's roll."""
         profile = create_profile("Second Ganger", fighter_type, gang_type, price=50)
         other = hire(gang, profile, "Nix", paid=50)
         theirs = roll_for(other, "Lasting Injuries", rolled=24)

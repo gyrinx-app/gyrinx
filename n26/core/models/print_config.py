@@ -1,19 +1,11 @@
-"""Print configs — what one print run of a gang includes.
+"""Save a gang's selected models, weapons and optional print sections.
 
-A config names a selection over the gang: which models get a card, which
-of each model's weapons show, and whether the gang header, the stash,
-and the notes strip (notes, picture, space to write) print at all. It is
-display state only, like ``AssignmentSet``: it moves no money, changes no
-rating and does not go through ``n26.operations``.
+Print configs are display state: they change no money or rating and use
+plain saves rather than operations. Stored selections do not automatically
+include later acquisitions or hires.
 
-Selections are literal: a config prints exactly what was ticked, and
-nothing acquired later joins it. A model hired after a config was saved
-is not on it until someone reopens the config and ticks the model. This
-is deliberate: a saved config does not grow when the gang does.
-
-Each gang has at most one unnamed config: the scratch config, rewritten
-by every ad-hoc print so unsaved prints do not accumulate. Naming it saves
-it; the same row then appears in the saved list.
+Each gang has at most one unnamed scratch config, reused by ad-hoc prints.
+Naming it preserves the same row as a saved config.
 """
 
 from django.db import models

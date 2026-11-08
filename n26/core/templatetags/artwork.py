@@ -1,17 +1,9 @@
-"""Drawing stored artwork without trusting it.
+"""Sanitise stored SVG artwork before rendering it inline.
 
-A gang type's badge is a block of SVG that somebody uploaded and storage handed
-back, so it is user input however staff-only the surface was. Drawn inline —
-which is what lets it take the colour of the text it sits in — the browser will
-run whatever is in it, so it goes through the platform's allowlist on the way
-out. Cleaning at render rather than at save means the stored file stays
-faithful to what the author made, and a tighter allowlist takes effect on
-artwork that is already there.
-
-The sanitiser is ``gyrinx.svg`` rather than a copy here. What is safe to put in
-a page is a property of SVG and of the browser, not of either edition's content
-model, and a security boundary is the last thing that should exist twice and
-drift.
+Uploaded artwork remains untrusted even when submitted by staff. Apply
+the shared gyrinx.svg allowlist on cache misses, then cache the cleaned
+markup by its raw SVG hash. Cache hits reuse that markup; allowlist changes
+require expiry or invalidation of existing entries.
 """
 
 from hashlib import sha256
@@ -33,16 +25,13 @@ _CACHE_PREFIX = "n26-artwork:"
 
 @register.filter
 def safe_artwork(value):
-    """Sanitise stored SVG markup and mark the result safe.
+    """Sanitise SVG markup and return a safe string, or empty for unusable input.
 
     Usage::
 
         {{ gang_type.artwork|safe_artwork }}
 
-    Returns an empty string for anything blank or unusable, so a gang type with
-    no artwork draws nothing at all rather than an empty box. No trailing
-    ``|safe`` — the return is already marked, and adding one to the *raw* value
-    by mistake is exactly what this exists to prevent.
+    Do not append safe to raw artwork; this filter performs the required sanitisation.
     """
     if not value:
         return ""

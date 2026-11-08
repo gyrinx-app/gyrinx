@@ -1451,7 +1451,7 @@ def _may_be_chosen(edges):
 
 
 def _once(sentences):
-    """Deduplicate identical sentences."""
+    """Deduplicate by text, keeping the first sentence and its metadata."""
     seen, kept = set(), []
     for sentence in sentences:
         if sentence.text in seen:

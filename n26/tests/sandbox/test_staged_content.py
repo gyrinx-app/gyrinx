@@ -1,14 +1,6 @@
-"""Staged content, as players and authors meet it.
-
-An author writes a new gang type, a fighter, a weapon, a skill and a pick,
-and stages each. A player meets none of them anywhere they add to a gang:
-the create-gang cards, the hire screen, the equipment lists and the
-Trading Post, the skills screen, the pick screen. The author meets every
-one of them exactly where the player would once it is live, and so does a
-player the staged-content flag is open to. What a gang already holds is
-drawn for everyone, staged or not. Releasing selected content is one act, and
-an import can hold back what it makes. (n26/library/staged.py, and
-design/collections.md on hiding content from some viewers.)
+"""Staging restricts discovery and new selection to staff or enabled testers. Already-held
+content remains visible to all readers. Cover founding, hiring, equipment, skills,
+choices, campaign assets, table results, publication and ingestion.
 """
 
 from uuid import uuid4
@@ -57,9 +49,6 @@ def key_of(thing):
     return f"{thing._meta.label_lower}:{thing.pk}"
 
 
-# --- The people ---------------------------------------------------------------
-
-
 @pytest.fixture
 def player(db):
     return User.objects.create_user("player")
@@ -83,9 +72,6 @@ def tester(db):
     user = User.objects.create_user("tester")
     user.groups.add(group)
     return user
-
-
-# --- The content, live and staged side by side --------------------------------
 
 
 @pytest.fixture
@@ -135,11 +121,8 @@ def skills(default_pack):
 
 @pytest.fixture
 def profiles(gang_type, person_type, make_statline, skills, house_list):
-    """The gang's Ganger, live, and a Nomad Runner nobody has put live.
-
-    Every gang of the type founds with the house list, and a Ganger's
-    grid places Combat under Primary — so the skills screen has
-    something to list.
+    """A live Ganger and staged Nomad Runner. Built-in collection access and a Combat
+    placement populate equipment and skill screens.
     """
     gang_type.built_ins = create_default_set("Escher kit", members=[house_list])
     gang_type.save()
@@ -223,12 +206,10 @@ def legacy_offer(gang, include_staged):
     }
 
 
-# --- Creating a gang ----------------------------------------------------------
-
-
 class TestCreatingAGang:
-    """A staged gang type is not on the cards for a player, and the id is
-    refused if typed; an author and a flagged player are offered it."""
+    """Ordinary players cannot discover or submit staged gang types; staff and enabled
+    testers can.
+    """
 
     def test_a_player_is_not_offered_it_and_cannot_found_on_it(
         self, client, player, gang_type, staged_type
@@ -266,7 +247,7 @@ class TestCreatingAGang:
     def test_open_to_everyone_the_flag_offers_it_to_every_player(
         self, client, player, gang_type, staged_type
     ):
-        """A rehearsal of the release, with a way back."""
+        """The everyone flag exposes staged content without publishing its rows."""
         FeatureFlag.objects.create(
             slug=STAGED_CONTENT,
             name="Staged content",
@@ -275,9 +256,6 @@ class TestCreatingAGang:
         client.force_login(player)
         body = client.get(reverse("n26-create-gang")).content.decode()
         assert "Ash Wastes Nomads" in body
-
-
-# --- Hiring -------------------------------------------------------------------
 
 
 class TestHiring:
@@ -308,7 +286,7 @@ class TestHiring:
 
         assert response.status_code == 200
         assert not Miniature.objects.filter(membership__profile=runner).exists()
-        # The card behind the row is not drawn for them either.
+        # The preview endpoint also rejects the staged profile.
         assert (
             client.get(reverse("n26-hire-card", args=[gang.pk, runner.pk])).status_code
             == 404
@@ -335,8 +313,7 @@ class TestHiring:
     def test_an_archived_line_offers_its_fighter_to_nobody(
         self, client, author, authors_gang, profiles
     ):
-        """Archiving a line takes the offer off the list for every reader,
-        author included; only staging is a question of who is looking."""
+        """Archived collection entries are unavailable to every viewer, including staff."""
         mercs = create_collection(
             "Mercenaries", entries=[(profiles["ganger"], {"price_override": 30})]
         )
@@ -365,9 +342,6 @@ class TestHiring:
         body = client.get(hire_url(authors_gang[0])).content.decode()
         assert "Mercenaries" in body
         assert "Nomad Runner" in body
-
-
-# --- Equipping ----------------------------------------------------------------
 
 
 class TestEquipping:
@@ -416,8 +390,9 @@ class TestEquipping:
     def test_archived_gear_is_off_every_list_for_everyone(
         self, client, author, authors_gang, house_list, trading_post, gear
     ):
-        """Archiving is off every discovery surface whoever is looking —
-        a listed line, a swept gun, and a round under a gun alike."""
+        """Archiving removes explicit entries, selector results and weapon profiles from
+        discovery for all viewers.
+        """
         from n26.library.authoring import add_weapon_profile
 
         hotshot = add_weapon_profile(
@@ -441,17 +416,13 @@ class TestEquipping:
     def test_what_a_gang_already_holds_is_drawn_for_everyone(
         self, client, authors_gang, gear
     ):
-        """The gate is where things are chosen, never where they are drawn:
-        a stranger reading the author's roster sees the staged gun on it."""
+        """Staging restricts acquisition, not public display of already-owned equipment."""
         gang, fighter = authors_gang
         give_weapon(fighter, gear["caliver"], paid=90)
 
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
 
         assert "Plasma caliver" in body
-
-
-# --- Skills -------------------------------------------------------------------
 
 
 class TestSkills:
@@ -484,9 +455,6 @@ class TestSkills:
         ).exists()
 
 
-# --- Choosing -----------------------------------------------------------------
-
-
 class TestChoosing:
     def test_a_staged_pick_is_offered_to_authors_only(self, players_gang, authors_gang):
         _, theirs = legacy_offer(players_gang[0], include_staged=False)
@@ -497,8 +465,7 @@ class TestChoosing:
     def test_an_archived_pick_is_offered_to_nobody(
         self, players_gang, authors_gang, legacy
     ):
-        """Archiving is off every discovery surface for every reader; only
-        staging is a question of who is looking."""
+        """Archived pickables are unavailable even when staged content is included."""
         legacy["cawdor"].archive()
         _, theirs = legacy_offer(players_gang[0], include_staged=False)
         _, ours = legacy_offer(authors_gang[0], include_staged=True)
@@ -521,9 +488,7 @@ class TestChoosing:
     def test_a_staged_line_on_the_picklist_is_held_back_too(
         self, players_gang, authors_gang, legacy
     ):
-        """A picklist line and the pickable it names are staged apart: a
-        live pickable a staged line offers is off the list for a player,
-        exactly as a staged entry is off its collection."""
+        """Picklist membership and the pickable itself have independent staging gates."""
         from n26.library.models import PicklistMember
 
         stage(PicklistMember.objects.get(pickable=legacy["cawdor"]))
@@ -547,13 +512,10 @@ class TestChoosing:
         assert "Van Saar" in client.get(href).content.decode()
 
 
-# --- The edit boxes, the accessory dialog, ammo lines ------------------------------
-
-
 class TestTheModelsEditPage:
-    """The Special rules box offers every rule the library has — every live
-    one. A staged rule is on it for authors alone, and a save naming it
-    from a player assigns nothing."""
+    """Rule editing offers staged content only to authorised viewers and rechecks submitted
+    choices.
+    """
 
     @pytest.fixture
     def rules(self, default_pack):
@@ -594,8 +556,7 @@ class TestTheModelsEditPage:
 
 
 class TestTheAccessoryDialog:
-    """What may be bolted onto a gun is offered from a dialog on the equip
-    screen and checked again on the click."""
+    """Accessory discovery and attachment both respect staging."""
 
     @pytest.fixture
     def sights(self, default_pack):
@@ -645,8 +606,7 @@ class TestTheAccessoryDialog:
 
 
 class TestAmmoLines:
-    """A gun's paid rounds are listed under it at the Trading Post; a staged
-    round is under it for authors alone."""
+    """Staged weapon profiles appear only to authorised viewers."""
 
     @pytest.fixture
     def hotshot(self, gear):
@@ -672,12 +632,8 @@ class TestAmmoLines:
         assert "Hotshot" in body
 
 
-# --- Campaigns ----------------------------------------------------------------
-
-
 class TestCampaigns:
-    """The types a campaign is set up on, and the assets one hands out, are
-    offered on the same terms as everything else."""
+    """Campaign types and asset choices use the same staging gate."""
 
     @pytest.fixture
     def types(self, default_pack):
@@ -763,13 +719,10 @@ class TestCampaigns:
         ).exists()
 
 
-# --- Rolling ------------------------------------------------------------------
-
-
 class TestRollingOnATable:
-    """A roll lands only on lines the reader may see: a player's roll onto
-    a staged result reads as no result, not as a name they were never
-    offered."""
+    """A staged roll result is unavailable to ordinary players even when their physical
+    roll names its position.
+    """
 
     @pytest.fixture
     def injuries(self, default_pack):
@@ -787,7 +740,7 @@ class TestRollingOnATable:
         return {"table": table, "slot": Slot.objects.get(name="Lasting Injury")}
 
     def roll_page(self, client, gang, fighter, injuries):
-        """Enter a 24 at the fighter's injury table and open the page on it."""
+        """Submit a physical roll of 24 and open its recorded result."""
         from n26.core.card import build_card, build_modifier_index
         from n26.core.effects import compute
         from n26.core.models import LedgerEvent
@@ -827,9 +780,6 @@ class TestRollingOnATable:
         assert "Out Cold" in page
 
 
-# --- Releasing ----------------------------------------------------------------
-
-
 class TestPuttingSelectedContentLive:
     def test_one_act_and_a_player_meets_all_of_it(
         self, client, player, players_gang, staged_type, house_list, gear, skills
@@ -858,9 +808,6 @@ class TestPuttingSelectedContentLive:
         )
         _, offered = legacy_offer(gang, include_staged=False)
         assert offered == {"Cawdor", "Van Saar"}
-
-
-# --- Importing ----------------------------------------------------------------
 
 
 class TestAnImportCanHoldBackWhatItMakes:
@@ -892,10 +839,10 @@ class TestAnImportCanHoldBackWhatItMakes:
         assert result.staged is True
         assert Profile.objects.exists() and not Profile.objects.live().exists()
         assert Weapon.objects.exists() and not Weapon.objects.live().exists()
-        # The lines that offer the gear are held back with it.
+        # New collection entries are staged with their equipment.
         assert CollectionEntry.objects.exists()
         assert not CollectionEntry.objects.live().exists()
-        # Reached only through the fighters and the gear: nothing to hold back.
+        # Referenced collections and categories retain their existing publication state.
         assert Collection.objects.exists()
         assert not Collection.objects.filter(staged=True).exists()
         assert not Category.objects.filter(staged=True).exists()

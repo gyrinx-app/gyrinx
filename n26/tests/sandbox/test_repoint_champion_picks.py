@@ -1,16 +1,6 @@
-"""Moving a pick onto the pickable its slot's picklist now offers.
-
-A slot draws from a picklist, and pointing the slot at a different list
-moves nothing already picked: the pick goes on naming what was picked,
-which the list the slot now reads need not hold at all. The repair
-points such a pick at the pickable of the same name on the slot's own
-list, keeping everything that says which choice it settles and why it
-exists, and proves each gang's books whole before it commits.
-
-The fault is planted in the shape it takes: one picklist serves a
-Champion's own Archetype choice, the pick is made through the page, and
-the slot is then pointed at a list of Champion archetypes carrying the
-same names.
+"""Repair Champion picks after their slot switches picklists. Match a unique same-named
+pickable on the current list, preserve host and choice links, and reconcile each gang
+before committing.
 """
 
 import pytest
@@ -44,8 +34,7 @@ pytestmark = pytest.mark.django_db
 CHAMPION_PRICE = 90
 GANGER_PRICE = 50
 
-#: The names the two lists share — a pick made from one has to land on
-#: the same name on the other.
+#: Names shared by the original and replacement lists.
 NAMES = ("Brawler", "Wyrd")
 
 
@@ -59,13 +48,13 @@ def slot_type(default_pack):
     return create_slot_type("Archetype", allows_repeats=False)
 
 
-#: What the Champion's own archetype gives the model that picked it.
+#: Rule granted by the Champion’s Brawler pick.
 PAYLOAD = "Duellist"
 
 
 @pytest.fixture
 def shared(slot_type):
-    """The archetypes as one list held them, serving both choices."""
+    """Pickables on the original shared list."""
     return {
         name: create_pickable(name, slot_type, qualifier="Archetype") for name in NAMES
     }
@@ -80,7 +69,7 @@ def shared_list(slot_type, shared):
 
 @pytest.fixture
 def champion_archetypes(slot_type):
-    """The Champion's own five, under the same names."""
+    """Same-named Champion pickables carrying their own modifiers."""
     made = {
         name: create_pickable(name, slot_type, qualifier="Champion Archetype")
         for name in NAMES
@@ -105,9 +94,7 @@ def champion_list(slot_type, champion_archetypes):
 
 @pytest.fixture
 def champion_slot(slot_type, shared_list):
-    """The Champion is asked and the Champion holds the pick. Which list
-    it draws from is set by each test, because the fault is a slot
-    pointed at one list and then the other."""
+    """A bearer-hosted slot initially drawing from the shared list."""
     return create_slot(
         "Archetype (Champion)",
         slot_type,
@@ -120,8 +107,7 @@ def champion_slot(slot_type, shared_list):
 
 @pytest.fixture
 def champion_profile(person_type, gang_type, champion_slot):
-    """The slot reaches the Champion through a modifier on their profile,
-    so the assignment that asks is their membership."""
+    """The profile modifier grants the slot on the Champion’s membership anchor."""
     profile = create_profile("Champion", person_type, gang_type, price=CHAMPION_PRICE)
     modifier(
         "Champion: the model is asked its Archetype",
@@ -160,8 +146,7 @@ def reader(client, owner):
 
 @pytest.fixture
 def console(db):
-    """The maintenance console, as a superuser sees it. Its own client,
-    because the player's is signed in as the gang's owner."""
+    """A separate superuser client for maintenance-console checks."""
     from django.test import Client
 
     superuser = User.objects.create_superuser("root", "root@example.com", "x")
@@ -193,7 +178,7 @@ def chosen_on(gang, name):
 
 
 def choose(reader, gang, name, pickable):
-    """Settle the one choice on this model's card, through the page."""
+    """Submit the model card’s single choice through its picker."""
     (line,) = card_of(gang, name).questions
     response = reader.post(line.href, {"thing": f"library.pickable:{pickable.pk}"})
     assert response.status_code == 302, response.content.decode()
@@ -202,8 +187,7 @@ def choose(reader, gang, name, pickable):
 
 @pytest.fixture
 def adrift(reader, gang, champion, champion_slot, shared, champion_list):
-    """A pick made from the shared list, under a slot that now draws
-    from the Champion's own."""
+    """Choose from the shared list, then switch the slot to the Champion list."""
     pick = choose(reader, gang, "Champion", shared["Brawler"])
     assert pick.miniature == champion
     assert pick.caused_by == champion.membership
@@ -225,8 +209,7 @@ class TestFindingWhatIsOffTheList:
     def test_a_pick_of_a_slot_that_hands_the_gang_the_pick_is_not_named(
         self, reader, gang, champion, champion_slot, shared, champion_list
     ):
-        """Where the gang holds the pick, moving it is the gang's own
-        repair and not this one."""
+        """Gang-hosted slots are outside this Champion-pick repair."""
         choose(reader, gang, "Champion", shared["Brawler"])
         champion_slot.assigned_to = "gang"
         champion_slot.save(update_fields=["assigned_to"])
@@ -264,8 +247,7 @@ class TestFindingWhatIsOffTheList:
     def test_a_pick_with_no_match_on_the_list_refuses(
         self, reader, gang, champion, champion_slot, shared, slot_type
     ):
-        """Nothing of that name to move to is not this fault, and the
-        move cannot run at all while one stands."""
+        """A missing same-name target prevents the repair."""
         pick = choose(reader, gang, "Champion", shared["Wyrd"])
         _point_slot_at(
             champion_slot,
@@ -325,9 +307,7 @@ class TestMovingThePick:
     def test_one_gang_visited_on_its_own_moves_what_it_holds_now(
         self, gang, adrift, champion_archetypes
     ):
-        """A run that visits gangs across deliveries reads each gang
-        afresh rather than carrying the preview's plan; a gang with
-        nothing left says so rather than refusing."""
+        """Per-gang delivery reads current rows and tolerates already-completed repairs."""
         assert (
             apply_one(gang.pk)
             == f"gang {gang.pk}: moved 1 pick onto its slot's own pickables"
@@ -341,9 +321,9 @@ class TestMovingThePick:
     def test_a_gang_that_stopped_passing_the_checks_is_skipped_when_visited(
         self, gang, adrift, champion_list, slot_type
     ):
-        """Between the preview and the visit the list may gain a second
-        pickable of the same name; which one the pick means cannot be
-        read, so the visit leaves the gang alone rather than guessing."""
+        """A newly ambiguous same-name match must skip the gang instead of choosing a
+        target.
+        """
         add_picklist_member(
             champion_list,
             create_pickable("Brawler", slot_type, qualifier="Second Champion"),
@@ -363,8 +343,7 @@ class TestMovingThePick:
         assert chosen_on(gang, "Champion") == "Brawler"
 
     def test_the_champion_now_reads_its_own_archetype(self, gang, champion, adrift):
-        """What the repair is for: until the pick names the Champion's
-        own pickable, what that pickable says reaches nobody."""
+        """Repointing activates the Champion pickable’s own modifiers."""
         assert PAYLOAD not in rules_on(champion)
 
         apply(find())
@@ -410,9 +389,7 @@ class TestMovingThePick:
 
 
 class TestAGangThatCannotBeMadeWhole:
-    """A gang is moved in its own transaction and proved before it
-    commits. One that does not reconcile, or whose picks changed while
-    the plan stood, is left exactly as it was and named on the report."""
+    """Roll back repairs that fail reconciliation or whose picks changed after planning."""
 
     def test_a_gang_that_does_not_reconcile_is_rolled_back(
         self, gang, champion, adrift, shared, monkeypatch
@@ -450,8 +427,7 @@ class TestAGangThatCannotBeMadeWhole:
 
 
 class TestSeveralGangsAndSeveralPicks:
-    """Each gang is its own line and its own transaction, and a gang
-    with two Champions moves both picks."""
+    """Repair every eligible pick in each gang’s separate transaction."""
 
     @pytest.fixture
     def crowd(

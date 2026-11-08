@@ -28,12 +28,10 @@ def pick_list_props(
     save="",
     reset_form="",
 ):
-    """A pick list as plain data: its groups, the options it can add, and
-    what its buttons say.
+    """Build grouped checkbox options and controls as plain island props.
 
-    ``addable`` is the rest of the library, offered by the switcher and
-    listed once ticked. Everything here is display data; which ticks the
-    view accepts is decided again when the form arrives.
+    ``addable`` supplies initially unlisted options. The view validates submitted
+    choices independently of these display values.
     """
     groups = getattr(offer, "groups", None) or []
     return {

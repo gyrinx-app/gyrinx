@@ -1,15 +1,6 @@
-"""Weapon accessories: wargear that changes the gun it hangs off.
-
-The book's seven accessories (topic 19) attach one-per-weapon and modify
-that weapon — a telescopic sight improves its short range, suspensors
-change its handling. Structurally an accessory was always expressible
-(a wargear assigned with the weapon's assignment as parent); what was
-missing was a scope meaning "the weapon I am attached to" —
-``TargetsAttachedWeapon``, positional rather than factual, anchored on
-the carrier node so two identical sights each reach their own gun.
-
-Deferred with the weapon-slots feature: suspensors' slot-cost change.
-One-per-weapon is informational, later.
+"""Weapon accessories are wargear parented to a weapon assignment. TargetsAttachedWeapon
+applies their effects to that weapon, using the carrier node to distinguish identical
+accessories on different guns.
 """
 
 import pytest
@@ -74,8 +65,7 @@ def gang(gang_type):
 
 @pytest.fixture
 def ganger(make_profile):
-    """One profile, hired more than once — two of the same entry would
-    trip the library's unique name."""
+    """Reuse one library profile for both hired models."""
     return make_profile("Ganger", price=50)
 
 
@@ -98,11 +88,8 @@ def make_gun(name, weapon_stats):
 
 
 def reconciled(gang):
-    """Check the books against the database rather than the caller's copy.
-
-    An operation repins the gang it looked up, which is never the object
-    a fixture is holding — so a test that handed its own copy over would
-    be comparing a stale cache with a fresh sum and failing for that.
+    """Reload the gang before reconciling because operations update their own locked
+    instance.
     """
     from n26.core.models import Gang
 
@@ -110,7 +97,7 @@ def reconciled(gang):
 
 
 def books(gang):
-    """The gang, its stash and its credits as they now stand."""
+    """Reload gang and stash balances."""
     from n26.core.models import Gang
 
     return Gang.objects.select_related("stash").get(pk=gang.pk)
@@ -124,7 +111,7 @@ def drawn(miniature):
 
 class TestAnAccessory:
     def test_it_reaches_only_its_own_weapon(self, fighter, sight, weapon_stats):
-        """The point of the scope: two guns, one sight — one changed."""
+        """Only the weapon carrying the sight receives its range modifier."""
         scoped = give_weapon(fighter, make_gun("Lasgun", weapon_stats), paid=15)
         give_weapon(fighter, make_gun("Autogun", weapon_stats), paid=20)
         attach(scoped, sight, paid=25)
@@ -151,16 +138,14 @@ class TestAnAccessory:
         (line,) = card.weapons[0].accessories
         assert line.name == "Telescopic sight"
         assert line.rating == 25
-        # It goes where the gun goes, so it counts in what the gun is
-        # worth — a screen totalling weapons must not leave it unaccounted
-        # for on the fighter.
+        # Accessory contributions are included in the weapon’s extras and total rating.
         assert card.weapons[0].extras_rating == 25
         assert card.weapons[0].total_rating == 40
         fighter.refresh_from_db()
         assert fighter.rating == 50 + 15 + 25
 
     def test_two_sights_on_two_guns_stay_apart(self, fighter, sight, weapon_stats):
-        """One content row, two attachments — each anchored to its node."""
+        """Each attachment of the same accessory has a separate scope anchor."""
         first = give_weapon(fighter, make_gun("Lasgun", weapon_stats), paid=15)
         second = give_weapon(fighter, make_gun("Autogun", weapon_stats), paid=20)
         attach(first, sight, paid=25)
@@ -211,10 +196,9 @@ class TestAnAccessory:
 
 
 class TestWhatFitsWhere:
-    """The bracket in the accessory's name, as data — informing, never
-    policing. "Focusing Crystal (Las Weapons Only)" is a home-category
-    restriction; "Suspensors (Weapons Marked With * Only)" is the
-    two-slot asterisk."""
+    """Accessory fit declarations produce guidance: Inform rather than police. Category
+    restrictions and two-slot weapon restrictions are represented as selectors.
+    """
 
     @pytest.fixture
     def las_weapons(self, db):
@@ -272,8 +256,7 @@ class TestWhatFitsWhere:
     def test_attaching_anyway_is_still_allowed(
         self, las_weapons, fighter, weapon_stats
     ):
-        """Inform, never police: the note is for the listing; the owner
-        may bolt anything to anything."""
+        """Fit notes advise without preventing attachment."""
         crystal = create_weapon_accessory("Focusing Crystal", fits_category=las_weapons)
         heavy = give_weapon(fighter, make_gun("Heavy stubber", weapon_stats), paid=70)
 
@@ -282,9 +265,9 @@ class TestWhatFitsWhere:
 
 
 class TestBuyingOneOntoAGunAlreadyOwned:
-    """An accessory is bought onto the weapon's own row rather than onto
-    the fighter, which is what makes selling the gun reach it and its
-    effects land on that gun alone."""
+    """Parent accessories to weapon assignments so their effects and sale follow that
+    weapon.
+    """
 
     def test_it_hangs_off_the_weapon_and_counts_towards_the_fighter(
         self, gang, fighter, sight, weapon_stats
@@ -302,8 +285,7 @@ class TestBuyingOneOntoAGunAlreadyOwned:
     def test_nobody_naming_a_price_pays_the_librarys(
         self, gang, fighter, sight, weapon_stats
     ):
-        """The dialog submits which accessory and never its price, so the
-        figure has to come from the library."""
+        """Without a submitted price, attachment uses the library price."""
         gun = give_weapon(fighter, make_gun("Lasgun", weapon_stats), paid=15)
         before = books(gang).credits
 
@@ -315,8 +297,7 @@ class TestBuyingOneOntoAGunAlreadyOwned:
         reconciled(gang)
 
     def test_an_owner_may_pay_their_own_price(self, gang, fighter, sight, weapon_stats):
-        """Haggling moves the credits and never the rating: a sight bought
-        cheap is still twenty-five credits of sight."""
+        """A discount changes credits paid without reducing the rating contribution."""
         gun = give_weapon(fighter, make_gun("Lasgun", weapon_stats), paid=15)
 
         bolted = attach(gun, sight, paid=10, list_price=25, discount=15)
@@ -327,13 +308,13 @@ class TestBuyingOneOntoAGunAlreadyOwned:
 
 
 class TestSellingTheGunUnderIt:
-    """A sale takes the whole subtree, so an accessory the gang means to
-    keep has to leave the gun first. Both answers are real ones; which a
-    click meant is the seller's to say."""
+    """Selling a weapon removes its accessory subtree unless detachable accessories are
+    moved to the stash first.
+    """
 
     @pytest.fixture
     def kitted(self, fighter, sight, weapon_stats):
-        """A lasgun with a telescopic sight on it: 15¢ of gun, 25¢ of sight."""
+        """A weapon contributing 15 rating with an accessory contributing 25."""
         gun = give_weapon(fighter, make_gun("Lasgun", weapon_stats), paid=15)
         return gun, attach(gun, sight)
 
@@ -354,9 +335,9 @@ class TestSellingTheGunUnderIt:
     def test_a_stashed_accessory_is_worth_what_it_always_was(
         self, gang, fighter, kitted
     ):
-        """A move never re-prices. The rating leaves the fighter and
-        arrives in the stash unchanged, because the stash counts towards
-        the gang's wealth where the roster counts towards its rating."""
+        """Moving an accessory transfers its unchanged rating contribution from the fighter
+        to the stash.
+        """
         gun, bolted = kitted
 
         move(bolted, gang.stash)
@@ -370,8 +351,7 @@ class TestSellingTheGunUnderIt:
         assert bolted.ledger_entry.rating_contribution == 25
 
     def test_the_gun_alone_pays_for_the_gun_alone(self, gang, kitted):
-        """Fifteen credits of gun halves to eight, and nothing is paid for
-        what the gang kept."""
+        """The weapon alone sells for half its contribution, rounded up."""
         gun, bolted = kitted
         before = books(gang).credits
 
@@ -388,7 +368,7 @@ class TestSellingTheGunUnderIt:
         gun, bolted = kitted
         before = books(gang).credits
 
-        # Forty credits of gun and sight, halved.
+        # Half the combined rating contribution.
         proceeds = sell(gun)
 
         assert proceeds == 20
@@ -403,8 +383,7 @@ class TestSellingTheGunUnderIt:
         reconciled(gang)
 
     def test_what_each_answer_pays_can_be_asked_before_either_happens(self, kitted):
-        """The confirmation quotes a figure against each answer, so both
-        have to be priceable without anything being written."""
+        """Compute sale proceeds with and without retained accessories without writing."""
         from n26.core.operations import detachable_children, sale_of
 
         gun, bolted = kitted
@@ -417,9 +396,9 @@ class TestSellingTheGunUnderIt:
     def test_a_sight_the_gun_came_with_is_not_the_gangs_to_keep(
         self, gang, fighter, sight, weapon_stats
     ):
-        """What a purchase brought belongs to the package. Removing what
-        caused a row removes it, so offering to stash one would be
-        offering something the sale takes straight back."""
+        """A caused default accessory is removed with its cause and cannot be retained as
+        detachable equipment.
+        """
         from n26.core.models import Reason
         from n26.core.operations import detachable_children, operation
 
@@ -431,12 +410,13 @@ class TestSellingTheGunUnderIt:
 
 
 class TestFittingItToAnotherGun:
-    """The other half of surviving a sale: a stashed accessory is gear
-    waiting for a gun, and it goes back onto one."""
+    """Stashed accessories can be attached to another weapon without changing their
+    recorded rating contribution.
+    """
 
     @pytest.fixture
     def stashed(self, gang, fighter, sight, weapon_stats):
-        """A sight that has been through a sale and sits in the stash."""
+        """A detached sight retained after selling its weapon."""
         gun = give_weapon(fighter, make_gun("Lasgun", weapon_stats), paid=15)
         bolted = attach(gun, sight)
         move(bolted, gang.stash)
@@ -461,8 +441,7 @@ class TestFittingItToAnotherGun:
     def test_its_effects_now_reach_the_new_gun(
         self, gang, second_fighter, stashed, weapon_stats
     ):
-        """The scope is positional — the weapon it is attached to — so
-        re-fitting it re-aims it with nothing else edited."""
+        """Moving the accessory changes the weapon reached by its positional scope."""
         autogun = give_weapon(
             second_fighter, make_gun("Autogun", weapon_stats), paid=20
         )
@@ -489,7 +468,8 @@ class TestFittingItToAnotherGun:
         now = books(gang)
         assert now.credits == before
         assert stashed.ledger_entry.rating_contribution == 25
-        # Out of the gang's wealth and into what the roster is worth.
+        # The contribution moves from stash rating to fighter rating; gang wealth is
+        # unchanged.
         assert now.stash.rating == 0
         assert second_fighter.rating == 50 + 20 + 25
         reconciled(gang)
@@ -497,8 +477,7 @@ class TestFittingItToAnotherGun:
     def test_a_gun_may_be_handed_a_sight_it_does_not_suit(
         self, gang, second_fighter, stashed, weapon_stats
     ):
-        """Inform, never police. Fitting shortens a list of accessories;
-        it is not a rule, and a move is not where one would be kept."""
+        """Fit restrictions remain advisory when moving an accessory."""
         heavy = give_weapon(
             second_fighter, make_gun("Heavy stubber", weapon_stats), paid=70
         )
@@ -511,9 +490,7 @@ class TestFittingItToAnotherGun:
     def test_a_weapons_own_profile_cannot_be_unbolted(
         self, gang, fighter, weapon_stats
     ):
-        """A profile names one gun and is nothing away from it, so the
-        move is refused in a sentence rather than leaving a profile
-        somewhere nothing can read it."""
+        """A weapon profile must remain parented to its weapon."""
         from n26.core.operations import Refusal
 
         gun = give_weapon(fighter, make_gun("Lasgun", weapon_stats), paid=15)

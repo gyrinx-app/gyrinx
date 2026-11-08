@@ -1,22 +1,6 @@
-"""The Outcast affiliation, chosen through the pages a player clicks.
-
-The 2026 Outcast gang list: at creation the gang chooses one of four
-affiliations — Clanless, Clan House, Mutant, Aranthian — and exactly one;
-a Clan House gang then chooses which of the six Houses it affiliates
-with, and that second question exists only because of the first pick.
-Each affiliation's benefit is list access scoped by rank.
-
-test_outcast_gang.py proves the structures; this file proves the flow as
-clicked: the gang sheet offers the choice, the picker page lists exactly
-the right options at each step and nothing else, one click chooses, and
-changing the choice replaces it — with everything the old pick caused
-retired along with it.
-
-What the rules say that this deliberately does not model: Clanless TP
-grants (the Trade Point budget design is parked), and the Mutant
-per-rank purchase counts (two for Leaders and Champions, one for
-Gangers) — access is granted and counting is a player matter until a
-carry-limit design exists.
+"""Choose and replace an Outcast affiliation through player pages, including the dependent
+Clan House choice and rank-scoped equipment access. This fixture omits Clanless Trade
+Point grants and Mutant purchase-count rules.
 """
 
 import pytest
@@ -64,8 +48,7 @@ def subtypes(db):
 
 @pytest.fixture
 def house_lists(db):
-    """Six lists, one per House. Escher's holds a pet, because the rule
-    says the access includes Pets and a pet is just wargear on the list."""
+    """Six House lists; Escher includes wargear representing a pet."""
     return {
         house: create_collection(
             f"House {house} Equipment List",
@@ -78,10 +61,8 @@ def house_lists(db):
 
 @pytest.fixture
 def affiliations(subtypes, house_lists):
-    """The four top-level affiliations, each with its printed benefit.
-
-    Clanless is a bare token: its benefit is Trade Points, which the app
-    does not budget yet, so choosing it grants nothing and says nothing.
+    """Four affiliations with rank-scoped collection access. Clanless has no modifiers in
+    this fixture.
     """
     leaders_and_champions = [subtypes["leader"], subtypes["champion"]]
 
@@ -122,8 +103,7 @@ def affiliations(subtypes, house_lists):
             ],
         ),
     }
-    # The chained pick rides the Clan House pick, so the "which House?"
-    # question exists exactly while that affiliation is the chosen one.
+    # The Clan House affiliation carries the dependent House question.
     modifier(
         "Clan House: choose one of the six Houses",
         targets_gang(),
@@ -135,8 +115,9 @@ def affiliations(subtypes, house_lists):
 
 @pytest.fixture
 def outcasts(affiliations):
-    """The gang type: a hidden carrier in its built-ins asks the
-    affiliation question from the moment of founding."""
+    """Build a hidden affiliation offer, then convert it to a gang-level slot before
+    founding.
+    """
     top, _ = affiliations
     picks = create_collection(
         "Affiliations", entries=[(top[name], {}) for name in AFFILIATIONS]
@@ -187,7 +168,7 @@ def crew(gang, subtypes, person_type):
 
 
 def slot_line(gang, kind_label):
-    """The slot as the gang sheet draws it, or None once it is gone."""
+    """Find the gang-sheet choice row by kind label, or return None."""
     return next(
         (line for line in render_gang(gang).choices if line.kind_label == kind_label),
         None,
@@ -199,9 +180,9 @@ def picker_url(gang, kind_label):
 
 
 def as_pickable(chosen, kind_label="Affiliation"):
-    """The conversion re-says affiliations as pickables; the fixture still
-    hands the old row, so the picker is given the pickable of that name
-    on the slot type that question uses."""
+    """Find the converted pickable matching the original affiliation and the choice’s slot
+    type.
+    """
     if isinstance(chosen, Pickable):
         return chosen
     slot_type = "Clan House" if kind_label == "Clan house" else kind_label
@@ -226,27 +207,14 @@ def top_level_rows(gang):
 
 
 class TestAnAnswerArrivingTwice:
-    """A question taking one answer holds one answer, however the second
-    arrives.
-
-    Answering replaces what stands, so the two acts — take back, write —
-    have to be one act. The gang is held for the length of it and the
-    card is computed inside that hold, so a second answer waits for the
-    first and then reads what the first wrote. Two clicks land one row,
-    whether they arrive one after the other or together.
-    """
+    """Concurrent answers to a single-pick question must leave one live answer."""
 
     @pytest.mark.django_db(transaction=True)
     def test_two_answers_at_once_still_leave_one(
         self, monkeypatch, owner, gang, affiliations
     ):
-        """The double click, as it happens.
-
-        Both requests are made to read the open question before either is
-        allowed to write, which is the ordering that used to produce two
-        rows: each looked, each saw nothing standing, and each wrote. The
-        reading is synchronised rather than merely the posting, so the
-        race is forced rather than hoped for.
+        """Synchronise both initial question reads before allowing either request to
+        continue, forcing competing answers to the same open question.
         """
         import threading
         from importlib import import_module
@@ -266,8 +234,7 @@ class TestAnAnswerArrivingTwice:
         landed = []
 
         def read_then_wait(gang, key):
-            """Hold each request at its first look, so neither writes
-            until both have seen the question open."""
+            """Block each request’s first read until both have found the open question."""
             found = read_slot(gang, key)
             with guard:
                 first_look = threading.current_thread().ident not in has_read
@@ -295,13 +262,11 @@ class TestAnAnswerArrivingTwice:
         for click in clicks:
             click.join(timeout=60)
 
-        # A thread still running is a request that never came back —
-        # a deadlock or a stall, which a row count alone would not show.
+        # A live thread after the timeout indicates a stalled request.
         assert [click.is_alive() for click in clicks] == [False, False]
         assert went_wrong == []
-        # Both clicks were taken. One row because the second replaced the
-        # first, not because a click was turned away — a refusal comes
-        # back to the picker rather than to the gang.
+        # Both requests must succeed; a refusal would redirect to the picker instead of
+        # the gang.
         gang_page = reverse("n26-gang", args=[gang.pk])
         assert [(r.status_code, r["Location"]) for r in landed] == [
             (302, gang_page),
@@ -312,7 +277,7 @@ class TestAnAnswerArrivingTwice:
 
 
 class TestTheAffiliationPicker:
-    """The first question: four things on offer, and only those."""
+    """The top-level picker offers only the four affiliations."""
 
     def test_the_gang_sheet_offers_the_choice_from_founding(self, client, owner, gang):
         line = slot_line(gang, "Affiliation")
@@ -352,7 +317,7 @@ class TestTheAffiliationPicker:
 
 
 class TestOnlyOneAffiliation:
-    """One question, one pick: picking again replaces, never stacks."""
+    """Choosing again replaces the previous affiliation."""
 
     def test_changing_the_pick_replaces_it(self, client, owner, gang, affiliations):
         top, _ = affiliations
@@ -367,7 +332,7 @@ class TestOnlyOneAffiliation:
 
 
 class TestTheChainedHousePick:
-    """The second question exists exactly while Clan House is chosen."""
+    """The House question exists only while Clan House is chosen."""
 
     def test_no_house_question_until_clan_house_is_chosen(
         self, client, owner, gang, affiliations
@@ -416,10 +381,7 @@ class TestTheChainedHousePick:
     def test_changing_the_affiliation_retires_the_house_pick_too(
         self, client, owner, gang, affiliations
     ):
-        """The House pick is caused by the Clan House pick, so
-        replacing the affiliation must not leave a stray House behind —
-        a Mutant gang affiliated with Escher is not a thing the rules
-        can express."""
+        """Replacing Clan House removes its dependent House choice and answer."""
         top, houses = affiliations
         client.force_login(owner)
         pick(client, gang, "Affiliation", top["Clan House"])
@@ -433,7 +395,7 @@ class TestTheChainedHousePick:
 
 
 class TestWhatEachAffiliationOpens:
-    """The printed benefit of each pick, read off a member's card."""
+    """Each affiliation grants the collections authored for its target ranks."""
 
     def test_mutants_open_the_mutation_list_to_every_rank(
         self, client, owner, gang, crew, affiliations

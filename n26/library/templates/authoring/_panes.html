@@ -1,6 +1,7 @@
 {% comment %}
 Render generated scope, effect and condition forms from composer.
-Adding a condition uses URL state; removing submits unsaved values and redirects with the remaining state without saving.
+Adding a condition uses URL state. Removal submits unsaved values without saving,
+then redirects with the remaining state or renders the POST if the URL is too long.
 {% endcomment %}
 <c-n26.form-section title="Who it reaches">
     {# Existing modifiers retain their scope and effect kinds; creation uses the kind picker. #}

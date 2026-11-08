@@ -60,9 +60,7 @@ def test_the_sheet_builds_the_gang_card_once(client, tester, gang, monkeypatch, 
 
 
 def test_the_way_to_the_gang_list_is_named_for_what_it_offers(client, tester, gang):
-    """The screen it leads to holds a reader through several hires, so the
-    control says so. Hiring a vehicle is its own control and stays
-    singular — that one is a single act."""
+    """The list label supports repeated hiring; the vehicle action remains singular."""
     client.force_login(tester)
     body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
     assert "Hire Fighters" in body
@@ -86,9 +84,7 @@ def test_draws_each_member(client, tester, gang, make_profile, make_statline):
 def test_the_figures_carry_the_roster_count_and_its_breakdown(
     client, tester, gang, make_profile, make_statline
 ):
-    """The sheet keeps the same figures the model screens do: the wealth
-    strip and, beside it, the count of models the gang fields, holding the
-    tally of ranks and ratings a reader occasionally checks."""
+    """Show wealth, roster count, ranks and ratings through the shared summary."""
     profile = make_profile("Ganger", price=55)
     make_statline(profile)
     with operation(gang, actor=tester) as op:
@@ -274,13 +270,9 @@ def test_a_weapon_with_no_stats_of_its_own_gives_its_name_the_whole_row(
 def test_a_named_profile_opens_with_a_dash_under_its_weapon(
     client, tester, gang, make_profile, make_statline
 ):
-    """The book prints an ammo type as a dash and a name beneath the gun it
-    belongs to, and the card says it the same way: with no mark, a reader has
-    only a few pixels of indent to tell an ammo type from a gun of its own.
-    The weapon's own row carries no mark, so the two cannot be confused.
+    """Mark named ammunition profiles distinctly beneath their weapon.
 
-    The mark is decorative, so a card read aloud announces the ammo type's
-    name and not a stray hyphen.
+    The decorative dash must not enter the accessible name.
     """
     from n26.library.authoring import add_weapon_profile, create_weapon
 
@@ -426,11 +418,7 @@ class TestStashActions:
     def test_a_confirmation_here_asks_for_the_whole_page(
         self, client, tester, gang, kit
     ):
-        """Answering an act with the parts of a screen that changed only
-        works on a screen built to receive them: what comes back names the
-        places it stands in for, and this page has none of them. Told to act
-        in place, it would take the act and show nothing for it, leaving the
-        panel standing and the address somewhere else entirely."""
+        """A page without partial-update hosts must receive full-page confirmation responses."""
         _, bolted = kit
 
         client.force_login(tester)

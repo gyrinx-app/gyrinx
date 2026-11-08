@@ -1,14 +1,9 @@
-"""A campaign's assets: who holds them, and what holding one does for
-the gang.
+"""Campaign holdings affect the holder without creating gang-owned assignments.
 
-An asset whose type's ownership is Holding is a holding, not a possession.
-The campaign owns the asset; its row says which gang holds it. The gang
-never owns it — no assignment, no ledger entry, nothing on its rating — and
-assigning or unassigning is the holder changing under the campaign's line
-plus a journal-only GAINED or LOST event on the gang. While held, the
-campaign's asset is a carrier on the gang's card: its library asset's
-modifiers run, credited to it, so a Reputation contribution raises the reading
-and a rule appears among the gang's rules for as long as the gang holds it.
+The campaign asset names the holding gang. Assignment and unassignment write
+journal-only GAINED and LOST events without payment or rating contributions.
+While held, the library asset supplies modifiers to the gang and its members,
+credited to the campaign asset. Unassignment removes those computed effects.
 See design/campaign-assets.md.
 """
 
@@ -60,8 +55,7 @@ def player():
 
 @pytest.fixture
 def core(default_pack):
-    """The Territory campaign type as it ships: Reputation at 1, a Settlement built
-    in, and Territory as its Holding asset type."""
+    """Load the shipped Territory campaign with Reputation, Settlement and a Holding asset type."""
     seed_core_campaign(apps)
     return CampaignType.objects.get(name="Territory campaign")
 
@@ -108,8 +102,7 @@ def rival(gang_type, campaign):
 
 @pytest.fixture
 def campaign_assets(campaign, old_ruins):
-    """Old Ruins twice over, the second with a name of its own in this
-    campaign."""
+    """Create two campaign copies of Old Ruins, one with a campaign-specific name."""
     return [
         add_asset(campaign, old_ruins),
         add_asset(campaign, old_ruins, name="Old Ruins by the sump"),
@@ -126,8 +119,7 @@ def reputation(gang):
 
 
 class TestTheCampaignsAssets:
-    """Adding and removing assets are the campaign's own acts: no gang is
-    touched, and only the campaign's log records them."""
+    """Adding and removing unclaimed campaign assets writes only the campaign log."""
 
     def test_both_sit_unclaimed(self, campaign_assets, campaign):
         pool = list(campaign.campaign_assets.all())
@@ -178,8 +170,7 @@ class TestTheCampaignsAssets:
     def test_archiving_the_asset_retracts_nothing(
         self, campaign_assets, gang, old_ruins
     ):
-        """The campaign lists every asset it has whether or not the library
-        still offers it: archiving hides it from new additions only."""
+        """Archive library content without removing its campaign copies or held effects."""
         assign_asset(campaign_assets[0], gang)
         old_ruins.archive()
         pool = list(campaign_assets[0].campaign.campaign_assets.select_related("asset"))
@@ -188,9 +179,7 @@ class TestTheCampaignsAssets:
 
 
 class TestAssigningAndUnassigning:
-    """Assigning is one column changing under the campaign's line and a
-    journal-only event on the gang, GAINED; unassigning is the reverse,
-    LOST. Neither moves money."""
+    """Change the holding membership and write journal-only GAINED or LOST events without moving money."""
 
     def test_assigning_records_the_holder_and_nothing_else(
         self, campaign_assets, gang, old_ruins
@@ -222,9 +211,7 @@ class TestAssigningAndUnassigning:
     def test_both_histories_tell_the_gain(
         self, campaign_assets, gang, campaign, arbitrator
     ):
-        """The gang's history says what the gang gained, with the actor in
-        front as every line has; the campaign's log says where the asset
-        went, naming the gang in the sentence and nobody as the actor."""
+        """The gang history names its gain and actor; the campaign log names the receiving gang without an actor prefix."""
         assign_asset(campaign_assets[0], gang)
         gang_acts = build(gang)
         assert sentences(gang_acts)[-1] == "gained the territory Old Ruins"
@@ -233,7 +220,7 @@ class TestAssigningAndUnassigning:
         assert sentences(acts)[-1] == "Old Ruins went to The Ashen Choir"
         assert acts[-1].gang_name == ""
         assert acts[-1].actor == ""
-        # The asset's name leads to this exact holding, in both.
+        # Both histories link the asset name to this campaign holding.
         anchor = reverse(
             "n26-campaign-asset", args=[campaign.pk, campaign_assets[0].pk]
         )
@@ -279,8 +266,7 @@ class TestAssigningAndUnassigning:
     def test_a_removed_asset_keeps_its_place_in_the_history(
         self, campaign_assets, gang
     ):
-        """The campaign's asset goes, the event's link to it goes with it,
-        and the note still names what the gang gained and lost."""
+        """Preserve gain and loss descriptions after deleting the campaign asset and clearing its event links."""
         assign_asset(campaign_assets[1], gang)
         unassign_asset(campaign_assets[1])
         remove_asset(campaign_assets[1])
@@ -293,9 +279,7 @@ class TestAssigningAndUnassigning:
 
 
 class TestWhatHoldingDoes:
-    """The holding gang's card reads the campaign's asset as a carrier: the
-    library asset's computed effects run while it is held and stop when it
-    is unassigned, each credited to the campaign's asset by name and type."""
+    """Apply the held asset's computed effects and credit its campaign name and type until unassignment."""
 
     def test_territory_adds_one_reputation_while_held(self, campaign_assets, gang):
         assert reputation(gang) == 1
@@ -330,15 +314,13 @@ class TestWhatHoldingDoes:
             ("Territory", "Old Ruins by the sump", 30)
         ]
         assert block.holdings[0].campaign_asset_id == str(campaign_assets[1].pk)
-        # Held, never owned: the gang's own rows do not list it.
+        # Display the holding separately from the gang's owned possessions.
         assert "Old Ruins by the sump" not in [row.name for row in block.lines]
 
     def test_a_modifier_aimed_at_every_model_reaches_the_fighters(
         self, campaign_assets, gang, old_ruins, make_profile, make_statline
     ):
-        """The campaign's asset rides each member's card as the gang's guest, so a
-        rule the territory gives every model shows on the fighter's card
-        — and goes when the territory does."""
+        """Apply holding modifiers targeting every model to member cards until unassignment."""
         modifier(
             "Old Ruins: Scavengers",
             targets_every_model(),
@@ -356,8 +338,7 @@ class TestWhatHoldingDoes:
         assert "Scavenger" not in [line.name for line in vex.rules]
 
     def test_the_stored_value_is_untouched(self, campaign_assets, gang):
-        """A contribution is read, never written: the counter's own value
-        stays at what the type opened it at."""
+        """Compute counter contributions without modifying the stored opening value."""
         assign_asset(campaign_assets[0], gang)
         counter = gang.assignments.get(counter__name="Reputation")
         assert counter.counter_value.value == 1
@@ -381,15 +362,12 @@ class TestWhatHoldingDoes:
 
 
 class TestTheAssetsOnTheCampaignPage:
-    """The campaign page lists every asset under its asset type with its
-    holder; the acts are the arbitrator's, and the holding gang's owner may
-    hand an asset back."""
+    """List assets by type and holder with arbitrator controls and an unassign action for the holding gang's owner."""
 
     def test_the_gang_sheet_links_the_campaign_and_its_assets(
         self, client, campaign_assets, gang, campaign
     ):
-        """A signed-in reader gets the way through to the campaign and to
-        the assets section a holding belongs to."""
+        """Link signed-in readers to the campaign and its assets section."""
         assign_asset(campaign_assets[0], gang)
         client.force_login(gang.owner)
 
@@ -479,9 +457,7 @@ class TestTheAssetsOnTheCampaignPage:
     def test_the_add_beside_an_asset_type_offers_that_type_alone(
         self, client, campaign, old_ruins, arbitrator
     ):
-        """The Add beside the Territories table narrows the form to
-        territories, and says so; an asset type that is not one of the
-        campaign's Holding types is ignored rather than refused."""
+        """Filter additions by a campaign Holding type; ignore an unrelated type parameter."""
         from n26.library.authoring import add_asset_type, create_campaign_type
 
         racket = add_asset_type(campaign.additions, "Racket", "pooled")
@@ -517,9 +493,7 @@ class TestTheAssetsOnTheCampaignPage:
     def test_the_add_form_offers_every_holding_of_the_campaign(
         self, client, campaign, old_ruins, arbitrator, core
     ):
-        """What the form offers is read through the asset types: every
-        Holding asset of the campaign's type and of its own additions, and
-        nothing of another campaign type or of a Possession type."""
+        """Offer holdings from the campaign type and its additions, excluding unrelated types and possessions."""
         from n26.library.authoring import add_asset_type, create_campaign_type
 
         racket = add_asset_type(campaign.additions, "Racket", "pooled")
@@ -785,8 +759,7 @@ class TestTheAssetsOnTheCampaignPage:
     def test_every_act_lands_back_on_the_assets_section(
         self, client, campaign_assets, gang, campaign, arbitrator
     ):
-        """Assign, unassign and remove all return to the campaign page
-        opened at its assets, since that is where the assets are listed."""
+        """Return asset commands to the campaign page's assets section."""
         client.force_login(arbitrator)
         membership = gang.campaign_memberships.get(left__isnull=True)
         back = reverse("n26-campaign", args=[campaign.pk]) + "#assets"

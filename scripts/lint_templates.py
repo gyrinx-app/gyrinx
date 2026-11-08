@@ -9,14 +9,12 @@ import re
 import sys
 from pathlib import Path
 
-# Directories to scan
 TEMPLATE_DIRS = [
     Path("n23/core/templates"),
     Path("gyrinx/templates"),
     Path("gyrinx/pages/templates"),
 ]
 
-# Files/dirs to skip
 SKIP_PATTERNS = [
     "debug/design_system.html",  # Design system page intentionally shows deprecated patterns
     "__pycache__",
@@ -90,7 +88,6 @@ def lint_file(path: Path) -> list[tuple[int, str, str, str]]:
     for line_num, line in enumerate(content.splitlines(), 1):
         for pattern, message, severity in RULES:
             if re.search(pattern, line):
-                # Skip if it's in a comment
                 stripped = line.strip()
                 if stripped.startswith("{#") or stripped.startswith("<!--"):
                     continue

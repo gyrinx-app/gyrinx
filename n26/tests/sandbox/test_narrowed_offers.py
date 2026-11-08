@@ -1,18 +1,8 @@
-"""A list that offers one of its lines to only some fighters.
+"""Collection-entry restrictions apply only to that collection's offer.
 
-The books restrict lines per list. A Goliath equipment list prints "Heavy
-rock saw (Forge-born only)"; the Genestealer Cults and Corpse Grinder
-Cults lists offer the same saw to anyone. So the restriction is a fact
-about the *offer* and not about the saw, and it lives on the collection's
-entry.
-
-What a player saw when it lived on the saw instead: a Corpse Grinder
-browsing their own equipment list found the rock saw marked "usable by
-Goliath Forge-born only" — a restriction their book never prints.
-
-The item's own restriction is the other fact, and stays: a saddle no
-model without a mount can use is true wherever the saddle is offered. A
-fighter must satisfy both, and failing either is noted, never refused.
+Another list can offer the same item without inheriting the entry restriction.
+Item-wide restrictions apply wherever the item appears. Evaluate both and
+show failures as notes while leaving purchases available.
 """
 
 import pytest
@@ -44,7 +34,7 @@ def computed_for(miniature):
 
 
 def line_for(collection, miniature, name):
-    """One line of a collection as this fighter reads it, notes and all."""
+    """Return a named collection line with use notes for this model."""
     view = with_use_notes(browse(collection), usability_for(computed_for(miniature)))
     return next(line for line in view.all_lines() if line.name == name)
 
@@ -68,8 +58,7 @@ def gang(gang_type, player):
 
 @pytest.fixture
 def ranks(make_profile):
-    """Two fighter entries of one gang: the rank the book names in the
-    bracket, and one it does not."""
+    """Create two profile entries so only one matches the collection restriction."""
     return {
         "forge_born": make_profile("Goliath Forge-born", price=50),
         "bruiser": make_profile("Goliath Bruiser", price=80),
@@ -88,7 +77,7 @@ def saw(db):
 
 @pytest.fixture
 def goliath_list(saw, ranks):
-    """The list that prints the bracket: one entry, narrowed."""
+    """Create one collection entry restricted to the Forge-born profile."""
     listing = create_collection("Goliath Equipment List")
     restrict_use(add_entry(listing, saw), ranks["forge_born"])
     return listing
@@ -124,20 +113,18 @@ class TestOneListsOwnBracket:
     def test_another_lists_offer_of_the_same_item_says_nothing(
         self, gang, ranks, goliath_list, cult_list
     ):
-        """The bug in one test: the Goliath list's bracket must not reach
-        a gang whose book offers the saw to anyone."""
+        """Do not apply one collection's entry restriction to another collection."""
         bruiser = hire_with_option(gang, ranks["bruiser"], "Krug")
 
         assert line_for(cult_list, bruiser, "Heavy rock saw").notes == ()
 
     def test_the_saw_itself_is_left_open(self, goliath_list, saw):
-        """Nothing about the item changed — which is the whole point."""
+        """Entry restrictions must not mutate the shared item's use restrictions."""
         assert saw.usable_by_words() == ""
         assert str(saw.usable_by_selector()) == "anything"
 
     def test_the_line_is_marked_and_still_bought(self, gang, ranks, goliath_list):
-        """Inform, never police: the owner may buy off-bracket, and the
-        books add up afterwards."""
+        """Allow a purchase with restriction notes and preserve ledger totals."""
         bruiser = hire_with_option(gang, ranks["bruiser"], "Krug")
         line = line_for(goliath_list, bruiser, "Heavy rock saw")
 
@@ -158,8 +145,7 @@ class TestTheTwoRestrictionsCompose:
 
     @pytest.fixture
     def narrowed_both_ways(self, saw, mounted, ranks, goliath_list):
-        """A saw only a Mounted model can wield anywhere, that this list
-        offers to Forge-born alone."""
+        """Restrict the shared saw to Mounted models and this entry to Forge-born profiles."""
         restrict_use(saw, mounted)
         return goliath_list
 
@@ -176,8 +162,7 @@ class TestTheTwoRestrictionsCompose:
     def test_the_named_rank_still_hears_the_items_own_restriction(
         self, gang, ranks, narrowed_both_ways
     ):
-        """Being on the list's bracket says nothing about being able to
-        wield the thing."""
+        """Matching the entry restriction does not bypass the item restriction."""
         forge_born = hire_with_option(gang, ranks["forge_born"], "Slag")
 
         (note,) = line_for(narrowed_both_ways, forge_born, "Heavy rock saw").notes
@@ -187,8 +172,7 @@ class TestTheTwoRestrictionsCompose:
     def test_satisfying_the_item_leaves_only_the_lists_word(
         self, gang, ranks, person_type, saw, goliath_list
     ):
-        """The item restricted to something everyone here is — its
-        question is asked, and chosen for."""
+        """Show only the entry restriction when the model satisfies the item restriction."""
         restrict_use(saw, person_type)
         bruiser = hire_with_option(gang, ranks["bruiser"], "Krug")
 
@@ -200,8 +184,7 @@ class TestTheTwoRestrictionsCompose:
 
 
 class TestASweptLineHasNoOffer:
-    """A sweep has no entry, so there is nothing to narrow: what the
-    criteria caught is offered to everyone at reference prices."""
+    """Sweeps have no entry-specific restrictions and retain ordinary reference pricing."""
 
     @pytest.fixture
     def everything(self, saw, goliath_list):
@@ -220,8 +203,7 @@ class TestASweptLineHasNoOffer:
     def test_the_items_own_restriction_still_reaches_a_swept_line(
         self, gang, ranks, saw, everything
     ):
-        """Which is the difference between the two facts, in one pair of
-        tests: only the item's travels."""
+        """Apply item restrictions to swept lines even though they have no entry restrictions."""
         restrict_use(saw, create_subtype("Mounted"))
         bruiser = hire_with_option(gang, ranks["bruiser"], "Krug")
 
@@ -231,8 +213,7 @@ class TestASweptLineHasNoOffer:
 
 
 class TestWhatAnEntryOfThisCollectionAsks:
-    """``entry_asks`` is the seam: the entry form and the page's tables
-    both read it, so they cannot disagree about what an entry may say."""
+    """Use entry_asks for both entry forms and definition tables so their fields agree."""
 
     def test_a_list_asks_for_its_prices_and_who_it_offers_to(self, db):
         equipment_list = create_collection("Goliath Equipment List")
@@ -246,17 +227,13 @@ class TestWhatAnEntryOfThisCollectionAsks:
         )
 
     def test_a_menu_asks_for_nothing_but_the_item(self, db):
-        """A menu's entries are what a question offers rather than
-        things anybody acquires: no price, and nobody to narrow to —
-        which models are asked at all is the offering modifier's word."""
+        """Non-pricing menus expose no entry overrides; the offering modifier controls their recipients."""
         menu = create_collection("Corruptions", prices_its_entries=False)
 
         assert menu.entry_asks() == ()
 
     def test_the_asks_are_every_extra_an_entry_can_state(self, db):
-        """The superset a surface drops the unasked-for fields from — so
-        a new ask cannot be added to one collection's form and forgotten
-        on another's."""
+        """Keep the catalogue's entry fields aligned with the shared ENTRY_ASKS definition."""
         from n26.library.models.collection import ENTRY_ASKS
 
         assert set(create_collection("Catalogue").entry_asks()) == set(ENTRY_ASKS)
@@ -318,10 +295,7 @@ class TestNarrowingAnOfferThroughThePages:
 
 
 class TestTheItemsOwnBracketIsNotedOnTheCollectionPage:
-    """The definition table is the list's own word about its own lines,
-    and the item's restriction is not the list's — but an author working
-    a list meets it there, as a line marked for a gang the list never
-    named. So the table says it, and says where it is changed."""
+    """Show item-wide restrictions separately from entry restrictions and link to the item editor."""
 
     def test_a_restricted_items_line_says_so_and_links_the_items_page(
         self, author, saw, ranks, cult_list
@@ -390,8 +364,7 @@ class TestTheItemsOwnBracketIsNotedOnTheCollectionPage:
                 ).content.decode()
             return len(captured), body
 
-        # The first request of a session pays for the session itself,
-        # so it is not the one measured.
+        # Warm the session before measuring query growth.
         small_listing = listing_of(3)
         queries_for(small_listing)
         small, _ = queries_for(small_listing)
@@ -402,8 +375,7 @@ class TestTheItemsOwnBracketIsNotedOnTheCollectionPage:
 
 
 class TestAnEntryIsEditedOnItsOwnPage:
-    """Correcting a line — its price here, who this list offers it to —
-    without taking it off and listing it again."""
+    """Edit an entry's price and recipient restrictions without replacing the listed item."""
 
     def entry_of(self, listing):
         from n26.library.models import CollectionEntry
@@ -491,10 +463,7 @@ class TestAnEntryIsEditedOnItsOwnPage:
     def test_a_refusal_about_the_whole_submission_is_printed_once(
         self, author, saw, goliath_list, monkeypatch
     ):
-        """The form include prints a refusal that is about no one box,
-        so the page wrapper must not print it too. No box on this form
-        can provoke one today, so the row's own sense check is made to
-        refuse."""
+        """Inject a model-wide validation error to verify the page prints non-field errors once."""
         from django.core.exceptions import ValidationError
 
         from n26.library.models import CollectionEntry
@@ -547,20 +516,12 @@ class TestAnEntryIsEditedOnItsOwnPage:
 
 
 class TestTheItemsOwnBracketIsTypedOnItsPage:
-    """The other half of the pair, and where it is written.
-
-    "Wyld bow (Wyld Runner only)" is a fact about the bow, so its own
-    page is where it is said — asked for when the bow is made and again
-    whenever it is changed. Before this, the only way in was a
-    spreadsheet import, which is how a fact belonging to one list came to
-    be written on the item every list shares.
-    """
+    """Create and edit item-wide use restrictions on the item's own authoring page."""
 
     def test_the_create_page_asks_who_may_use_it(self, author):
         body = author.get("/n26/authoring/weapon/new/").content.decode()
 
-        # Named for what an author is choosing, not for the column: on a
-        # weapon's page "profiles" would be taken for the weapon's own.
+        # Label profile restrictions as fighter entries to distinguish them from weapon profiles.
         assert "Usable by fighter entries" in body
         assert "Usable by types" in body
         assert 'name="usable_by_profiles"' in body
@@ -600,9 +561,7 @@ class TestTheItemsOwnBracketIsTypedOnItsPage:
     def test_editing_replaces_the_list_rather_than_adding_to_it(
         self, author, saw, ranks
     ):
-        """A multi-select carries the whole answer, so a rank it stops
-        naming stops being named. Added to instead, a restriction typed
-        once could never be corrected."""
+        """Replace the submitted multi-select set so removed recipients no longer remain allowed."""
         restrict_use(saw, ranks["forge_born"])
 
         saved = author.post(
@@ -638,9 +597,7 @@ class TestTheItemsOwnBracketIsTypedOnItsPage:
         assert str(saw.usable_by_selector()) == "anything"
 
     def test_a_skill_is_narrowed_on_its_own_page_too(self, author, ranks):
-        """The bracket a skill's heading prints — "(Fighter Or Walker
-        Only)" — asked for on the page that makes one, because it is the
-        same question about the same four lists."""
+        """Expose the same use-restriction fields when creating skills."""
         from n26.library.models import Skill
 
         walker = create_subtype("Walker")
@@ -654,8 +611,7 @@ class TestTheItemsOwnBracketIsTypedOnItsPage:
         assert Skill.objects.get(name="Mounted Charge").usable_by_words() == "Walker"
 
     def test_what_is_typed_reaches_a_buyer(self, author, gang, ranks, saw):
-        """End to end: a restriction typed on the item's page is what a
-        fighter browsing a list that offers it is told."""
+        """Show the saved item restriction when a model browses a collection containing it."""
         plain = create_collection("Trade Row", entries=[saw])
         author.post(
             f"/n26/authoring/weapon/{saw.pk}/",
@@ -675,9 +631,7 @@ class TestTheItemsOwnBracketIsTypedOnItsPage:
 
 
 class TestSayingWhoMayUseAThing:
-    """Two verbs write the four lists, and they differ in what leaving
-    them out means: one adds an allowed thing, the other states the whole
-    list."""
+    """restrict_use adds allowed recipients; set_usable_by replaces each supplied recipient set."""
 
     def test_restricting_use_adds_one_at_a_time(self, saw, ranks):
         restrict_use(saw, ranks["forge_born"])
@@ -697,8 +651,7 @@ class TestSayingWhoMayUseAThing:
         assert saw.usable_by_words() == "Goliath Bruiser"
 
     def test_a_list_not_named_is_left_as_it_was(self, saw, ranks):
-        """Saying nothing about an arm is not the same as emptying it: a
-        form that draws one picker must not silently open the others."""
+        """Leave recipient sets unchanged when set_usable_by omits their arguments."""
         from n26.library.authoring import set_usable_by
 
         walker = create_subtype("Walker")
@@ -731,9 +684,7 @@ class TestSayingWhoMayUseAThing:
 
 
 def _makes(spec):
-    """The model a spec's verb writes, or None where it writes no row of
-    its own — a scope or an effect verb names no model and has no name
-    field to read one off."""
+    """Resolve a spec's created model from its model field or identity source."""
     if spec.model is not None:
         return spec.model
     named = spec.fields.get(spec.identity)
@@ -741,10 +692,10 @@ def _makes(spec):
 
 
 def restricting_verbs():
-    """Every verb that writes a row carrying the four use lists, by name —
-    found by reflection, so a new kind that carries them is checked the
-    day it is authorable. Names rather than specs: a spec holds function
-    objects, whose printed form differs between test workers."""
+    """Discover names of authoring verbs that create models with use restrictions.
+
+    Return stable names because spec function representations differ across workers.
+    """
     from n26.library.models.assignable import UsableBy
     from n26.library.specs import specs
 
@@ -756,11 +707,7 @@ def restricting_verbs():
 
 
 class TestEveryKindThatRestrictsUseAsksForIt:
-    """A discovering guard. A kind carrying the use lists whose form does
-    not ask for them can only be restricted by a spreadsheet — which is
-    how a Goliath-only line came to be written on an item three gangs
-    list. The form asks, so the fact can be typed where it belongs.
-    """
+    """Require forms for every discovered use-restricted kind to expose all recipient sets."""
 
     def test_there_is_something_to_check(self):
         assert {"create_weapon", "create_skill", "create_wargear"} <= set(
@@ -783,9 +730,7 @@ class TestEveryKindThatRestrictsUseAsksForIt:
 
     @pytest.mark.parametrize("name", restricting_verbs(), ids=str)
     def test_each_list_names_the_verb_that_replaces_it(self, name):
-        """An edit form writes a set through the verb that owns it, and
-        finds the verb on the spec field. Without one the page refuses
-        rather than replacing a set nobody decided the meaning of."""
+        """Declare the replacement verb on every editable recipient-set field."""
         from n26.library.models.assignable import USABLE_BY_LISTS
         from n26.library.specs import specs
 
@@ -800,9 +745,7 @@ class TestScaling:
     def test_noting_narrowed_offers_costs_no_more_queries_as_a_list_grows(
         self, gang, ranks
     ):
-        """The entries' own use lists load with the listing, exactly as
-        the items' do — so a list where every line is narrowed costs what
-        an open one does."""
+        """Load entry restrictions with the listing so adding restricted entries adds no queries."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -829,11 +772,7 @@ class TestScaling:
 
 
 class TestANamedProfileCanBeNarrowedOnItsOwn:
-    """The book restricts a round without restricting the gun: an
-    assault grenade launcher's "krak grenades (Stimmer only)" under a
-    launcher anyone may carry. The restriction is the profile's own —
-    true wherever that round is offered — and the line the listing
-    prints under the gun is noted like any other."""
+    """Apply a weapon profile's restriction independently of its unrestricted parent weapon."""
 
     @pytest.fixture
     def launcher(self, default_pack):
@@ -881,9 +820,7 @@ class TestANamedProfileCanBeNarrowedOnItsOwn:
     def test_noting_a_narrowed_round_costs_no_query_per_line(
         self, gang, ranks, launcher, krak
     ):
-        """The profile's lists load with the listing as every other
-        kind's do, so a list of restricted rounds costs what an open one
-        does."""
+        """Load weapon-profile restrictions with the listing rather than querying per round."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 

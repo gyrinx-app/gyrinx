@@ -1,17 +1,8 @@
-"""Weapon-category scopes: "Van Saar gangs get an AP improvement of 1 on
-all Las weapons".
+"""Weapon scopes can filter by category, traits and named weapons.
 
-A rule of that shape names no trait. What the weapons have in common is
-where they sort — the Las Weapons category their kind is homed in — so a
-weapon-targeting scope narrows by category as well as by trait, and by
-both at once when a rule wants the weapons that satisfy each.
-
-The category lives on the weapon, while what a modifier reaches is a
-weapon's profiles. A profile has no home of its own and takes its gun's,
-which is what lets "all Las weapons" mean every profile of every Las
-weapon.
-Both halves of the selector say so: the tests here pin the matching, and
-a sweep of the same category pins the query.
+Weapon profiles inherit their weapon's category. In-memory matching and
+collection sweeps must select the same profiles. Values within one filter
+are alternatives; separate filters must all match.
 """
 
 import pytest
@@ -45,9 +36,7 @@ from n26.tests.sandbox.actions import (
 
 pytestmark = pytest.mark.django_db
 
-#: The printed weapon profile, minus traits and pricing. AP is inverted
-#: because improving it means a lower number: an AP of -1 improved by one
-#: is -2, which is the better gun.
+#: AP is inverted: improving -1 by one produces -2.
 WEAPON_STATS = [
     ("SR", "Short Range", {"is_inches": True}),
     ("LR", "Long Range", {"is_inches": True}),
@@ -89,7 +78,7 @@ def solid_projectile(default_pack):
 
 @pytest.fixture
 def make_gun(weapon_statline_type):
-    """A gun with one profile, homed where the book files it."""
+    """Create a weapon and profiles with the supplied category, AP and traits."""
 
     def _make(name, category, armour_piercing=-1, profiles=(("", 0),), traits=()):
         weapon = create_weapon(name, profiles=profiles, category=category)
@@ -144,7 +133,7 @@ def fighter(gang, make_profile):
 
 
 def guns_of(miniature):
-    """Each weapon line on the card, by name, with its effects worked out."""
+    """Return computed weapon display lines indexed by name."""
     card = build_card(miniature, with_statlines=True)
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
     drawn = build_model_card(miniature, card=card, computed=compute(card, index))
@@ -156,8 +145,7 @@ def ap_of(weapon):
 
 
 class TestAHouseImprovesOneCategoryOfWeapon:
-    """The Van Saar case, end to end: a rule the gang type carries, an AP
-    improvement, and Las weapons the only ones that get it."""
+    """Apply the gang type's AP modifier only to weapons in the Las category."""
 
     @pytest.fixture
     def house_rule(self, gang_type, las_weapons, armour_piercing):
@@ -187,8 +175,7 @@ class TestAHouseImprovesOneCategoryOfWeapon:
     def test_the_improvement_says_where_it_came_from(
         self, gang, fighter, lasgun, house_rule
     ):
-        """A changed number on a card names its source, so a player can
-        see the house rule rather than a value they cannot account for."""
+        """Display the gang type as the computed AP change's source."""
         give_weapon(fighter, lasgun, paid=15)
 
         cell = guns_of(fighter)["Lasgun"].profiles[0].statline.get("AP")
@@ -208,14 +195,7 @@ class TestAHouseImprovesOneCategoryOfWeapon:
 
 
 class TestAGunThatPiercesNothingYet:
-    """A weapon printed with no Armour Piercing still takes the house's
-    improvement, and comes out at -1.
-
-    The dash is the case the rule is written for: the book prints "-" on
-    exactly the plain lasguns a house's AP improvement is worth having
-    on. Read as "not a number", such a gun quietly kept its dash and the
-    rule looked as though it had not applied.
-    """
+    """Treat absent or dash AP as zero when applying an improvement."""
 
     @pytest.fixture
     def house_rule(self, gang_type, las_weapons, armour_piercing):
@@ -241,8 +221,7 @@ class TestAGunThatPiercesNothingYet:
     def test_a_stat_nobody_filled_in_improves_the_same_way(
         self, gang, fighter, weapon_statline_type, las_weapons, house_rule
     ):
-        """Printed the same as a dash, so it must behave the same: the
-        row is simply absent rather than holding "-"."""
+        """An absent AP row must improve in the same way as a stored dash."""
         gun = create_weapon("Lascarbine", profiles=[("", 0)], category=las_weapons)
         gun.statline_type = weapon_statline_type
         gun.save()
@@ -255,9 +234,7 @@ class TestAGunThatPiercesNothingYet:
     def test_a_range_the_weapon_does_not_have_is_left_alone(
         self, gang, gang_type, fighter, make_gun, las_weapons, long_range
     ):
-        """A distance is not a quantity that can be zero. A weapon with
-        no long range has no band to extend, and a rule that adds inches
-        must not invent one."""
+        """A range modifier must not create a missing weapon range band."""
         modifier(
             "Van Saar: focused optics",
             targets_weapons(in_categories(las_weapons)),
@@ -275,8 +252,7 @@ class TestAGunThatPiercesNothingYet:
 
 
 class TestTheTraitFilterIsUntouched:
-    """Narrowing by trait behaves exactly as it did before there was a
-    second filter — the category is an addition, not a replacement."""
+    """Trait filters match independently of category filters."""
 
     @pytest.fixture
     def melee(self, default_pack):
@@ -309,8 +285,7 @@ class TestTheTraitFilterIsUntouched:
 
 
 class TestBothFiltersTogether:
-    """Two filters on one scope stack: a weapon must be homed in the
-    category *and* carry the trait. Either alone is not enough."""
+    """A weapon must match both the category and trait filters."""
 
     @pytest.fixture
     def unstable(self, default_pack):
@@ -358,8 +333,7 @@ class TestBothFiltersTogether:
 
 
 class TestAnUnfilteredScopeStillMeansEveryWeapon:
-    """Saying nothing narrows nothing — the default-open rule the whole
-    scope grammar shares."""
+    """A scope with no filters matches every weapon."""
 
     def test_both_weapons_are_reached(
         self, gang, gang_type, fighter, lasgun, autogun, armour_piercing
@@ -380,10 +354,7 @@ class TestAnUnfilteredScopeStillMeansEveryWeapon:
 
 
 class TestASweepFindsTheLinesOfACategory:
-    """The query half of the same sentence. A collection sweeping weapon
-    profiles by category collects the lines of the guns homed there,
-    because a line sorts where its gun does — the answer the in-memory
-    match gives, asked of the database."""
+    """Collection sweeps select profiles through their weapon's category."""
 
     def test_the_sweep_collects_las_lines_and_no_others(
         self, las_weapons, lasgun, autogun
@@ -395,9 +366,7 @@ class TestASweepFindsTheLinesOfACategory:
 
 
 class TestComposingCategoryRulesInTheApp:
-    """The authoring composer, where the naming rule bites: a modifier
-    left unnamed is called after its carrier and its scope, and one
-    carrier may not hold two modifiers of the same name."""
+    """Generated modifier names include scope filters to distinguish rules on the same carrier."""
 
     #: A prefilled formset's bookkeeping, as the browser sends it back.
     @staticmethod
@@ -443,9 +412,7 @@ class TestComposingCategoryRulesInTheApp:
         armour_piercing,
         default_pack,
     ):
-        """Both are an AP improvement on the same house, so the category
-        is the only thing telling their names apart. Without it in the
-        name the second would be refused by the unique-name rule."""
+        """Different category filters must produce distinct modifier names on one carrier."""
         assert (
             self.compose(client, gang_type, las_weapons, armour_piercing).status_code
             == 302
@@ -473,10 +440,7 @@ class TestComposingCategoryRulesInTheApp:
         armour_piercing,
         default_pack,
     ):
-        """A filter naming more values says more in the name it writes.
-        Two rules on one house, one for Las and one for Las or Solid
-        Projectile, differ only in that — and the second would be refused
-        outright if the extra value went unsaid."""
+        """Include every alternative category so overlapping filters still produce distinct names."""
         assert (
             self.compose(client, gang_type, las_weapons, armour_piercing).status_code
             == 302
@@ -498,9 +462,7 @@ class TestComposingCategoryRulesInTheApp:
     def test_reopening_a_category_rule_keeps_its_narrowing(
         self, author, client, gang_type, las_weapons, armour_piercing, default_pack
     ):
-        """The page fills its chips from the stored scope. A narrowing it
-        cannot read back is one the next save silently drops, leaving a
-        rule that reaches every weapon in the game."""
+        """Reload stored category filters into the form so saving preserves their scope."""
         self.compose(client, gang_type, las_weapons, armour_piercing)
         (made,) = gang_type.modifiers.all()
 
@@ -528,9 +490,7 @@ class TestComposingCategoryRulesInTheApp:
 
 
 class TestAFilterMayNameSeveralValues:
-    """Any one of the values in a filter is enough, and every filter must
-    be satisfied. "Las or Plasma weapons" is one filter naming two
-    categories; "Las weapons that are also Unstable" is two filters."""
+    """Match any value within a filter and require every separate filter to match."""
 
     @pytest.fixture
     def plasma_weapons(self, default_pack):
@@ -616,8 +576,7 @@ class TestAFilterMayNameSeveralValues:
     def test_two_filters_of_one_kind_must_both_be_answered(
         self, gang, gang_type, fighter, make_gun, solid_projectile, armour_piercing
     ):
-        """Alternatives live inside a filter, so wanting both is two of
-        them — the same rule the model scope's conditions follow."""
+        """Separate trait filters require both traits rather than either alternative."""
         unwieldy = create_trait("Unwieldy")
         unstable = create_trait("Unstable")
         both = make_gun("Plasma cannon", solid_projectile, traits=[unwieldy, unstable])

@@ -1,4 +1,4 @@
-"""The checkbox card posts its box, and React draws the same card over it."""
+"""Checkbox-card props and fallback markup retain the same values and selections."""
 
 import json
 
@@ -12,7 +12,7 @@ from n26.core.templatetags.checkbox_card import checkbox_card_props
 
 
 def render(source: str, **context) -> str:
-    """Compile a call site the way the template loader would, then render it."""
+    """Compile Cotton tags before rendering an inline template."""
     return Template(CottonCompiler().process(source)).render(Context(context))
 
 
@@ -88,7 +88,7 @@ def test_the_card_is_an_island_over_the_same_checkbox():
     assert "h-full" in box.find_parent("div", class_="rounded-box")["class"]
     assert "border-accent" in box.find_parent("div", class_="rounded-box")["class"]
     assert host.find(attrs={"data-checkbox-body": True}) is None
-    # The host is transparent to layout, so the card stays the grid's item.
+    # The island host must not add a layout box around a grid card.
     assert "contents" in host["class"]
     assert "x-data" not in html
     assert ":inert" not in html
@@ -96,7 +96,9 @@ def test_the_card_is_an_island_over_the_same_checkbox():
 
 
 def test_nested_ticks_and_meta_are_data_drawn_twice():
-    """React draws the ticks from props; the fallback draws the same rows."""
+    """Nested checkbox values and metadata must match between React props and
+    fallback markup.
+    """
     weapons = (
         CheckboxCardItem("weapons", "lasgun", "Lasgun", True, "15¢"),
         CheckboxCardItem("weapons", "stiletto", "Stiletto knife"),
@@ -130,7 +132,6 @@ def test_nested_ticks_and_meta_are_data_drawn_twice():
     assert [row["value"] for row in rows] == ["lasgun", "stiletto"]
     assert [row.has_attr("checked") for row in rows] == [True, False]
     assert "85¢" in host.find("label").get_text()
-    # The card is clear, so the fallback body is dimmed until React mounts.
     assert "opacity-50" in body["class"]
     assert "x-data" not in html
 
@@ -143,7 +144,7 @@ def test_nested_ticks_and_meta_are_data_drawn_twice():
     ],
 )
 def test_server_drawn_markup_is_refused(inside, refused):
-    """React does not take server-drawn markup as children."""
+    """React children use structured props rather than server-rendered child markup."""
     with pytest.raises(ValueError, match=refused):
         render(
             '<c-n26.checkbox-card name="open" value="table-1" label="Goliath">'
@@ -193,7 +194,9 @@ def test_a_printed_false_is_clear_in_the_face_and_the_props(static):
 
 
 def test_a_plain_string_keeps_its_entities():
-    """Only escaped template output is decoded. A :prop string is its text."""
+    """Decode escaped template output while preserving entities in plain Python prop
+    values.
+    """
     html = render(
         '<c-n26.checkbox-card name="open" value="1" :label="label" />',
         label="Fish &amp; chips",

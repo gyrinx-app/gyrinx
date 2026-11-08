@@ -1,12 +1,7 @@
-"""Merging a duplicate into the row it duplicates.
-
-A weapon imported twice stands as two rows for one thing. Fighters have
-bought the duplicate, a list offers it, a built-in set brings it, so it
-cannot be deleted — and what those fighters have is the real thing
-under the wrong row. Merging (``n26/library/merging.py``) points every
-reference at the survivor, gang by gang, each gang proved to reconcile,
-and deletes the duplicate with the last gang. Lines follow by name; one
-with no counterpart refuses in words. Nobody's money moves.
+"""Verify merging duplicate weapon content into a survivor without changing recorded
+payments or ratings. Repoint library and player references, match weapon profiles by
+name and refuse unmatched profiles. Process affected gangs before deleting the
+duplicate; see n26/library/merging.py.
 """
 
 import pytest
@@ -47,7 +42,7 @@ def player(db):
 
 @pytest.fixture
 def shotgun(default_pack):
-    """The real row: named lines, one of them paid."""
+    """Surviving weapon with two free profiles and one priced profile."""
     return create_weapon(
         "Shotgun",
         price=35,
@@ -57,7 +52,7 @@ def shotgun(default_pack):
 
 @pytest.fixture
 def duplicate(default_pack):
-    """The import's second copy: the same lines, all free."""
+    """Duplicate weapon with matching profile names but all profiles free."""
     return create_weapon(
         "Shotgun",
         price=35,
@@ -98,7 +93,7 @@ class TestPlanning:
 
         assert plan.ok, plan.refusals
         assert [part.name for part in plan.gangs] == [theirs.name]
-        # The weapon and its three free lines.
+        # Include the weapon and its three granted profiles.
         assert plan.gangs[0].assignments == 4
         assert {name for _, name, _ in plan.lines} == {
             "scatter ammo",
@@ -184,8 +179,8 @@ class TestMerging:
             lines = Assignment.objects.filter(parent=weapon).values_list(
                 "weapon_profile__name", flat=True
             )
-            # The three lines followed by name; the survivor's paid acid
-            # line was theirs already, so nothing else arrives.
+            # Map existing profiles by name without granting another copy of the
+            # survivor's priced profile.
             assert sorted(lines) == ["acid ammo", "scatter ammo", "solid ammo"]
         assert (
             set(
@@ -241,7 +236,8 @@ class TestMerging:
 
         response = client.post(merge_page(duplicate), {"into": str(shotgun.pk)})
 
-        # Nothing on a gang: done in the request, back on the survivor.
+        # Without player references, merge within the request and return to the
+        # survivor.
         assert response["Location"] == f"/n26/authoring/weapon/{shotgun.pk}/"
         assert not Backfill.objects.exists()
         assert not Weapon.objects.filter(pk=duplicate.pk).exists()

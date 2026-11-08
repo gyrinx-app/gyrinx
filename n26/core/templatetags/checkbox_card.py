@@ -11,7 +11,7 @@ register = template.Library()
 
 
 def _flag(value):
-    """A cotton boolean, or the string a template printed for one."""
+    """Parse a Cotton boolean or its rendered string value."""
     if isinstance(value, bool):
         return value
     if value is None or value == "":
@@ -21,25 +21,19 @@ def _flag(value):
 
 @register.filter
 def checkbox_card_flag(value):
-    """checked as a boolean, for the server-drawn face and the props alike."""
+    """Return the same checked boolean for server markup and React props."""
     return _flag(value)
 
 
 def _filled(value):
-    """Whether a slot or attrs renders to anything.
-
-    Cotton's attrs is an object, truthy even when it holds no attribute, so
-    it is judged by what it prints.
-    """
+    """Check rendered content because Cotton attrs objects are truthy even when empty."""
     return bool(str(value or "").strip())
 
 
 def _text(value):
-    """Plain text for React.
+    """Return plain text for React, decoding escaped SafeData once.
 
-    A Cotton string attribute arrives already escaped, and React escapes again
-    when it draws, so that is decoded here, once. A plain Python string, as a
-    :prop passes it, is left alone: its entities are its text.
+    Preserve entities in ordinary Python strings because they are literal text.
     """
     if value is None:
         return ""
@@ -73,15 +67,14 @@ def checkbox_card_props(
     body="",
     attrs="",
 ):
-    """The card's checkbox, its header words, and the nested ticks it holds.
+    """Build checkbox-card props from text and typed nested items.
 
-    None and the string false are off. An empty value stays empty: a missing
-    value attribute would post the browser's default of on.
+    Preserve an empty checkbox value so submission does not use the browser
+    default of on. None and the string false disable the checked flag.
 
-    React draws the card from these props alone. It does not take
-    server-drawn markup as children, so a body slot, markup in meta, or extra
-    root attributes are refused: pass the nested ticks as items and meta as
-    text, or draw the card static.
+    React uses these props without retaining server markup as children. Reject
+    body content, HTML in meta and extra root attributes; use static rendering
+    when those are required.
     """
     if _filled(body):
         raise ValueError(

@@ -1,9 +1,7 @@
-"""Startup checks.
+"""Check assignable and condition model wiring during startup.
 
-The important one: every kind of assignable must have a column on
-``Assignment``. Without it, a new content model could be created, look
-perfectly assignable, and silently be impossible to assign. Better to
-refuse to start.
+Every assignable kind needs an Assignment field. Reject incomplete wiring
+before content can be created that cannot be assigned.
 """
 
 from django.apps import apps
@@ -49,13 +47,10 @@ def every_assignable_has_a_column(app_configs, **kwargs):
 
 @register()
 def every_condition_is_folded(app_configs, **kwargs):
-    """A condition model no scope folds would be silently dead.
+    """Require every condition model in its scope's CONDITIONS tuple.
 
-    Scopes fold exactly the reverse relations named in their
-    ``CONDITIONS`` tuple. A new condition model that FKs a scope but
-    isn't named there would store rows ``as_selector()`` never reads —
-    content that looks written but does nothing. Better to refuse to
-    start, the same stance as the assignable-column check above.
+    as_selector reads only those reverse relations. Missing registration would
+    store authored conditions without applying them.
     """
     from n26.library.models.modifier import (
         TargetsAttachedWeapon,

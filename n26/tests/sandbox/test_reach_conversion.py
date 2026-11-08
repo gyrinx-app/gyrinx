@@ -1,9 +1,5 @@
-"""The reach conversion's decisions, pinned.
-
-Migration 0061 converts every stored targets-the-model scope to whichever
-reach preserves what it was doing, read off its carriers. The suite never
-runs data migrations (--nomigrations), so the decision function is proven
-here directly, against content authored the way the library authors it.
+"""Verify the reach migration's carrier-based decision using authored content. Call
+say_the_reach directly because pytest runs with --nomigrations.
 """
 
 from importlib import import_module
@@ -30,7 +26,7 @@ say_the_reach = import_module(
 
 
 def _model_scoped(name):
-    """A bearer-reach modifier, the shape every pre-conversion row has."""
+    """Create the bearer-reach scope that the migration interprets from its carriers."""
     return modifier(
         name,
         targets_model(),
@@ -88,9 +84,7 @@ class TestWhatTheConversionDecides:
     def test_a_pickable_nobody_has_picked_for_a_gang_stays_the_bearer(
         self, default_pack
     ):
-        """A pickable cannot be built in, so only its live picks say
-        where it is used — and with none, the decision is the bearer,
-        reached without a crash."""
+        """Pickables have no built-in carriers. Without a gang pick, retain bearer reach."""
         from n26.library.authoring import create_pickable, create_slot_type
 
         made = _model_scoped("Guild payload")

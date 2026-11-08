@@ -36,10 +36,9 @@ def test_rejects_negative_credits(gang_type):
 
 
 def test_rating_may_be_below_zero(gang_type):
-    """A pinned rating is a sum over a signed ledger, and gear priced
-    below nothing makes a contribution negative. The column holds what
-    the ledger holds; whether the sum ever should be negative is the
-    content's business, not the column's."""
+    """Allow a signed rating because the ledger may contain negative-priced
+    equipment.
+    """
     gang = Gang(name="Skint", gang_type=gang_type, rating=-1)
     gang.full_clean(exclude=["owner"])
 
@@ -65,7 +64,7 @@ def test_a_gang_type_knows_its_gangs(gang_type):
 
 
 def test_is_not_pack_scoped(gang_type):
-    """core is user data — no pack FK, unlike everything in content."""
+    """Gangs are player data and have no content-pack foreign key."""
     assert not hasattr(Gang, "pack")
 
 

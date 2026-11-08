@@ -1,12 +1,7 @@
-"""The pages that build a weapon's own lines into a set.
-
-The generic built-in picker never offers a weapon profile — a line
-means nothing apart from its gun — so adding one is a page that knows
-the gun. A gun member's own address settles it outright; a set's
-address asks for the weapon first and carries it in the address, and
-the member written there anchors the way an import would: to the set's
-one matching gun, to nothing where the set brings none, refused where
-it brings several.
+"""Verify weapon-profile authoring for built-in sets. A weapon-member URL identifies its
+anchor directly; a set URL first selects a weapon. Set-level additions anchor to one
+matching member, remain unanchored when none exists, and refuse ambiguous duplicate
+weapons.
 """
 
 import pytest
@@ -52,8 +47,7 @@ def gun_member_of(carrier):
 
 
 class TestTheGunMembersOwnPage:
-    """The address names the gun member, so which gun a line rides is
-    settled by where the author clicked."""
+    """Use the weapon member in the URL to anchor added profiles to the intended copy."""
 
     def test_it_lists_the_priced_lines_and_not_the_free_ones(
         self, client, author, gunner
@@ -64,8 +58,8 @@ class TestTheGunMembersOwnPage:
         text = page.content.decode()
         assert "Smoke" in text
         assert "Choke" in text
-        # The free line arrives with the gun on its own, so it is not
-        # offered — the page says why instead.
+        # Free profiles are granted automatically with the weapon, so only priced
+        # additions are offered.
         assert "Frag" not in text
         assert "Free profiles are not listed" in text
 
@@ -88,9 +82,9 @@ class TestTheGunMembersOwnPage:
     def test_two_lines_added_in_turn_nest_in_add_order(
         self, client, author, gunner, launcher
     ):
-        """Within one gun, order is the order the lines were added: each
-        takes the next end-of-set position, and the listing nests by the
-        anchor rather than by position adjacency."""
+        """Append profiles in insertion order and nest them by weapon anchor rather than
+        requiring adjacent set positions.
+        """
         gun = gun_member_of(gunner)
         for name in ("Smoke", "Choke"):
             client.post(
@@ -133,7 +127,7 @@ class TestTheGunMembersOwnPage:
         )
         gun_row = next(row for row in comes_with["parts"] if row["label"] == "Launcher")
         assert [line["label"] for line in gun_row["children"]] == ["Smoke"]
-        # The line is under its gun, not beside it.
+
         assert all(row["label"] != "Smoke" for row in comes_with["parts"])
         assert gun_row["add_profile_url"]
 
@@ -145,9 +139,9 @@ class TestTheGunMembersOwnPage:
 
 
 class TestTheSetsOwnDoor:
-    """A set that does not bring the gun still arms it: the weapon is
-    picked first, carried in the address, and the member lands
-    unanchored — riding whatever matching gun the acquirer holds."""
+    """A set without the weapon can grant an unanchored profile for an existing matching
+    weapon. Preserve the selected weapon in request state.
+    """
 
     @pytest.fixture
     def smoke_rounds(self, person_type, gang_type, launcher, default_pack):

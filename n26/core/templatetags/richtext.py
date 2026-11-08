@@ -1,10 +1,7 @@
-"""Rendering rich text without trusting it.
+"""Sanitise stored editor HTML whenever it is displayed.
 
-Adapted from ``safe_rich_text`` in the main gyrinx app. Anything a rich text
-editor produces is user input that has been round-tripped through a database, so
-it is sanitised at render time rather than on the way in: the stored value stays
-faithful to what the author wrote, and a change to the allowlist takes effect on
-existing content instead of only on whatever is saved next.
+Keep the authored value in storage. Rendering with the current allowlist
+protects existing content when sanitisation rules change.
 """
 
 import re
@@ -158,14 +155,13 @@ _DROP_WITH_CONTENT = re.compile(
 
 @register.filter
 def safe_rich_text(value):
-    """Sanitise editor HTML and mark the result safe.
+    """Sanitise editor HTML and return a safe string.
 
     Usage::
 
         {{ page.body|safe_rich_text }}
 
-    No trailing ``|safe`` — the return is already marked, and adding one to the
-    *unsanitised* value by mistake is exactly the failure this exists to prevent.
+    Do not mark the raw value safe; this filter performs the required sanitisation.
     """
     if not value:
         return ""

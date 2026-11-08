@@ -35,7 +35,7 @@ def gang(gang_type, owner):
 
 
 def share_host(body, url):
-    """The island whose fallback link shares `url`, or None."""
+    """Return the host, props and fallback link sharing url, or None."""
     soup = BeautifulSoup(body, "html.parser")
     for host in soup.select("[data-react-fallback]"):
         props_tag = soup.find(id=host.get("data-react-props"))

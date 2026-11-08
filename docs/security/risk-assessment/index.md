@@ -2,7 +2,7 @@
 
 | Metadata | Value |
 | --- | --- |
-| Baseline | 2026-11-07; repository revision bdce46108 plus fixes in this PR |
+| Baseline | 2026-11-07; origin/main revision 162be7c8b plus controls marked as verification pending |
 | Scope | Material application, media, task, and deployment outcomes represented by the threat inventory |
 | Rating basis | Residual exposure after controls visible in this branch; deployed cloud policy is unverified unless stated |
 | Review trigger | New entry point, storage policy, privileged role, task handler, deployment path, or relevant incident |
@@ -13,7 +13,7 @@ Likelihood is **low** when a strong control or unusual access is needed, **mediu
 
 These are scenario ratings, not measured frequencies. A code-supported conditional risk needs a production configuration check before its likelihood can be firm. A risk with a fix in a PR stays here until deployment and residual exposure are verified.
 
-R-03 and R-05 have code changes in this PR but remain active until deployment and residual checks support [archiving](archive/index.md). Accepted risks also remain active with a named decision owner and next review date.
+R-03, R-05 and R-09 have implemented or proposed code controls but remain active until deployment and residual checks support [archiving](archive/index.md). Accepted risks also remain active with a named decision owner and next review date.
 
 | ID | Outcome | Likelihood | Impact | Priority | State | Evidence confidence |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -25,7 +25,7 @@ R-03 and R-05 have code changes in this PR but remain active until deployment an
 | [R-06](r-06-public-overload.md) | Repeated public reads exhaust serving capacity | Medium | High | High | Residual | High for incident mechanism; medium for current edge policy |
 | [R-07](r-07-impersonation-audit.md) | Impersonated action cannot be attributed directly to its operator | Medium | Medium | Medium | Open | Medium |
 | [R-08](r-08-deployment.md) | Compromised build or deploy authority changes production code | Low | Critical | High | Needs control validation | Low for deployed IAM, high for code path |
-| [R-09](r-09-held-csv-integrity.md) | Held CSV key collision changes or removes another author's source file | Medium | High | High | Open | High for code path; medium for live storage |
+| [R-09](r-09-held-csv-integrity.md) | Held CSV key collision changes or removes another author's source file | Low after fix | High | Medium | Verification pending | High |
 
 ## Screening and consolidation
 
@@ -34,6 +34,6 @@ The [threat inventory](../threats/index.md) covers all six STRIDE categories. Ea
 ## Highest-value follow-ups
 
 1. Apply the same current-session MFA requirement to N26 staff authoring as to Django admin (R-01).
-2. Give held CSV uploads unique object keys and preserve legacy shared objects until no row references them (R-09).
+2. Deploy and verify unique held-CSV keys and reference-aware legacy cleanup, then archive R-09.
 3. Move held ingest files to private storage; verify live bucket IAM and object access first (R-04).
 4. Verify the deployed Pub/Sub sender identity, source protection, build/deploy IAM, and edge throughput policy (R-05, R-08, R-06).

@@ -24,7 +24,7 @@ this page never rolls.
         identify one model and offer, so they cannot be reused for another model.
         {% endcomment %}
         {% if returning %}
-            {# Preserve the validated return target across submission. #}
+            {# Carry the raw return target; the view validates it for redirects. #}
             <input type="hidden" name="return" value="{{ returning }}">
         {% endif %}
         {% if miniature %}

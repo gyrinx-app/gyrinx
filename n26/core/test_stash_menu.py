@@ -1,8 +1,5 @@
-"""A stash line's menu, as entries for the action menu.
-
-No database: the order and the separators come from the acts alone. The
-other acts come first, then each danger act with a separator above it when
-the line offers more than one act.
+"""Stash menus preserve ordinary action order, then append danger actions with
+separators when multiple actions exist.
 """
 
 import pytest
@@ -16,7 +13,7 @@ def act(label, tone=SECONDARY):
 
 
 class TestTheStashMenu:
-    """Danger acts go last, each under a separator once there is a choice."""
+    """Place danger actions last; omit the separator for a single action."""
 
     def test_the_others_come_first_and_each_danger_act_gets_a_separator(self):
         menu = stash_menu(

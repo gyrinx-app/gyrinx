@@ -1,9 +1,6 @@
-"""The founding budget may not be exceeded (core rules).
-
-The one place the operations layer rejects rather than informs: an
-overspend raises a plain-language error at the operation boundary and the
-whole transaction unwinds — previously it died as a database
-IntegrityError when the credits pin went negative.
+"""Reject purchases and hires that exceed available credits with a readable
+NotEnoughCredits error. The whole operation must roll back, preserving the gang's
+credits and existing assignments.
 """
 
 import pytest
@@ -41,14 +38,15 @@ class TestTheBudgetCeiling:
         assert "100¢ budget" in str(caught.value)
 
     def test_nothing_is_half_bought(self, gang, make_profile):
-        """The refusal unwinds the whole operation."""
+        """A refused hire must leave no model or partial assignment."""
         expensive = make_profile("Matriarch", price=150)
 
         with pytest.raises(NotEnoughCredits):
             hire_with_option(gang, expensive, "Yolanda")
 
         assert Miniature.objects.count() == 0
-        # The gang's founding survives; the refused hire wrote nothing.
+        # Keep the gang founding assignment while excluding assignments from the refused
+        # hire.
         assert Assignment.objects.filter(gang_type__isnull=True).count() == 0
         gang.refresh_from_db()
         assert gang.credits == 100

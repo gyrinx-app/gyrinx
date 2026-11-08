@@ -1,12 +1,8 @@
-"""The account menu as the account-menu island's props.
+"""Build ordered account-menu island props for shared platform destinations.
 
-The menu is an ordered list of items the island draws as they come: the
-reader's name, separators, links, headed groups, the theme choice and posting
-rows. A section draws the break above itself, so one that is absent leaves no
-rule behind; a headed group needs no rule, because its heading is the break.
-
-Its rows are the platform's account pages, notifications and impersonation:
-the account concerns N26 shares with the platform, reached by URL name.
+Items include links, headed groups, theme controls and POST actions.
+Each section draws its own separator so omitted sections leave no stray rule.
+Resolve account, notification and impersonation destinations by URL name.
 """
 
 from django import template
@@ -28,10 +24,9 @@ def _url(name):
 
 @register.simple_tag(takes_context=True)
 def account_menu(context, compact=False):
-    """The signed-in reader's menu, or ``None`` for a visitor.
+    """Build the signed-in user's menu, or return None for an anonymous visitor.
 
-    ``compact`` is the platform account pages' shorter menu: no name line,
-    the admin as a single row, and no rule over the way out.
+    ``compact`` omits the name, reduces admin links and removes the exit separator.
     """
     request = context.get("request")
     user = getattr(request, "user", None)

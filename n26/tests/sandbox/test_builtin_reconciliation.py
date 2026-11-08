@@ -1,12 +1,8 @@
-"""Reconciling a carrier against its sets — built-ins as desired state.
+"""Reconcile a carrier's built-ins using materialisation provenance.
 
-``Operation.reconcile_defaults`` re-reads what a carrier's sets say it
-should hold and creates only what is missing, judged by provenance
-alone: a copy naming the member and the carrier. Run twice it creates
-nothing; an owner's own copy of the same thing never stands in for a
-built-in; an archived copy still satisfies, because what an owner
-parted with is never handed back. This is what lets a built-in added
-to a profile later reach the fighters already hired from it.
+Create only members without a copy naming both the member and carrier.
+Archived copies still satisfy their members; independent copies do not.
+Repeated reconciliation creates nothing once all members are satisfied.
 """
 
 import pytest
@@ -71,7 +67,7 @@ def ganger(person_type, gang_type, default_pack):
 
 
 def member_named(carrier, name):
-    """The built-in membership whose thing prints ``name``."""
+    """Find a built-in member by its assignable's displayed name."""
     return next(
         member
         for member in carrier.built_ins.members.all()
@@ -80,8 +76,7 @@ def member_named(carrier, name):
 
 
 def reconcile(gang, carrier, **kwargs):
-    """A bare reconcile pass — hosted on the gang for a gang-hosted
-    carrier about no model, the same inference rechoose makes."""
+    """Reconcile within an operation, inferring the gang host for gang-hosted carriers."""
     if carrier.miniature_root_id is None and carrier.gang_id is not None:
         kwargs.setdefault("gang", carrier.gang)
     with operation(gang, actor=gang.owner) as op:
@@ -89,8 +84,7 @@ def reconcile(gang, carrier, **kwargs):
 
 
 def copies_by_member(carrier):
-    """Copy counts keyed by member, archived included — the provenance
-    pairs are what idempotency is asserted over, not a bare copy count."""
+    """Count materialised copies by member, including archived assignments."""
     counts = {}
     for copy in Assignment.objects.filter(materialised_for=carrier):
         counts[copy.materialised_from_id] = counts.get(copy.materialised_from_id, 0) + 1
@@ -98,8 +92,7 @@ def copies_by_member(carrier):
 
 
 class TestReconcilingTwiceCreatesNothing:
-    """The engine is idempotent: a pass over a settled carrier is a no-op,
-    and a member added later arrives exactly once."""
+    """Existing members are idempotent; newly added members materialise once."""
 
     def test_a_second_pass_over_a_fresh_hire_creates_nothing(self, gang, ganger):
         fighter = hire(gang, ganger, "Ana", paid=50)
@@ -129,8 +122,7 @@ class TestReconcilingTwiceCreatesNothing:
 
 
 class TestAnOwnersOwnCopyNeverStandsIn:
-    """Satisfaction is provenance, not appearance: an independent copy of
-    the same thing does not block the grant, and the duplicate stands."""
+    """Independent copies do not satisfy a built-in member's provenance requirement."""
 
     def test_an_independent_copy_does_not_block_the_grant(
         self, gang, ganger, default_pack
@@ -153,8 +145,7 @@ class TestAnOwnersOwnCopyNeverStandsIn:
 
 
 class TestWhatAnOwnerPartedWithStaysGone:
-    """An archived copy still satisfies its member — removing or selling
-    a grant is settled, never quietly undone by a later reconcile."""
+    """Archived copies satisfy their members so reconciliation does not restore removed grants."""
 
     def test_an_archived_copy_blocks_the_regrant(self, gang, ganger):
         fighter = hire(gang, ganger, "Ana", paid=50)
@@ -178,8 +169,7 @@ class TestWhatAnOwnerPartedWithStaysGone:
 
 
 class TestAnOwnersRemovalIsMachinery:
-    """A ``removes`` assignment suppresses a thing; it is not a copy of
-    one. It never satisfies a member, and the grant never disturbs it."""
+    """Removal assignments remain active and cannot satisfy built-in members."""
 
     def test_a_take_away_never_satisfies_and_survives_the_grant(
         self, gang, ganger, default_pack
@@ -245,9 +235,7 @@ class TestWeaponsArriveWhole:
 
 
 class TestAmmoFindsItsGun:
-    """A weapon-profile member stacks on a gun's assignment. An anchored
-    member names its gun member and lands on that member's own copy; an
-    unanchored one rides whatever matching gun the host holds."""
+    """Anchored profiles attach to their built-in weapon copy. Unanchored profiles can use another matching held weapon."""
 
     @pytest.fixture
     def launcher(self, default_pack):
@@ -255,8 +243,7 @@ class TestAmmoFindsItsGun:
 
     @pytest.fixture
     def smoke(self, launcher):
-        """The launcher's priced line — never free, so only a member or
-        a purchase brings it."""
+        """Create a priced weapon profile that requires a built-in grant or purchase."""
         return WeaponProfile.objects.create(
             name="Smoke", weapon=launcher, price=10, position=1
         )
@@ -288,7 +275,7 @@ class TestAmmoFindsItsGun:
         choke_copy = Assignment.objects.get(
             weapon_profile=choke, miniature_root=fighter, archived=False
         )
-        # Neither gun starves: each line sits on the gun its member names.
+        # Each anchored profile attaches to its own weapon member's copy.
         assert smoke_copy.parent_id == first_gun.pk
         assert choke_copy.parent_id == second_gun.pk
 
@@ -300,8 +287,7 @@ class TestAmmoFindsItsGun:
     def test_a_twin_add_without_an_anchor_is_refused_in_words(
         self, gang, person_type, gang_type, launcher, smoke
     ):
-        """Two matching gun members and no anchor is unanswerable, so
-        the verb refuses rather than deciding which gun for good."""
+        """Require an explicit anchor when multiple built-in weapon members match."""
         profile = create_profile("Twin gunner", person_type, gang_type, price=50)
         add_built_in(profile, launcher)
         add_built_in(profile, launcher)
@@ -313,8 +299,7 @@ class TestAmmoFindsItsGun:
     def test_a_single_gun_add_anchors_itself(
         self, gang, person_type, gang_type, launcher, smoke
     ):
-        """With one matching gun member there is nothing to ask — the
-        add settles on it, the way an import resolves."""
+        """Infer the anchor when exactly one live weapon member matches."""
         profile = create_profile("Gunner", person_type, gang_type, price=50)
         gun_member = add_built_in(profile, launcher)
 
@@ -325,9 +310,7 @@ class TestAmmoFindsItsGun:
     def test_an_add_never_anchors_to_a_removed_gun(
         self, gang, person_type, gang_type, launcher, smoke
     ):
-        """A gun an author took off the set no longer brings anything,
-        so naming it as an anchor is refused in words — and an unnamed
-        add settles past it to nothing, the cross-set meaning."""
+        """Reject archived weapon anchors and leave an unanchored profile available for cross-set matching."""
         profile = create_profile("Gunner", person_type, gang_type, price=50)
         gun_member = add_built_in(profile, launcher)
         gun_member.archive()
@@ -338,9 +321,7 @@ class TestAmmoFindsItsGun:
         assert add_built_in(profile, smoke).gun_member_id is None
 
     def test_a_set_founded_whole_anchors_its_lines(self, launcher, smoke):
-        """Founding a set with a gun and its line in one statement —
-        what an import does — settles the anchor the same way an add
-        does: every member goes through the one verb."""
+        """Resolve profile anchors through the same authoring verb when creating a complete set."""
         default_set = create_default_set("Gun kit", members=[launcher, smoke])
 
         line = default_set.members.get(weapon_profile=smoke)
@@ -349,9 +330,7 @@ class TestAmmoFindsItsGun:
     def test_a_founded_sets_lines_anchor_whatever_order_was_stated(
         self, launcher, smoke
     ):
-        """A line before its gun in the founding statement still anchors:
-        anchors resolve against the completed set, and the stated order
-        survives as each member's position."""
+        """Resolve anchors against the complete set while preserving declared member order."""
         default_set = create_default_set("Gun kit", members=[smoke, launcher])
 
         line = default_set.members.get(weapon_profile=smoke)
@@ -360,9 +339,7 @@ class TestAmmoFindsItsGun:
         assert line.gun_member.position == 1
 
     def test_a_twin_founding_refuses_whole(self, launcher, smoke):
-        """Founding a set whose line has two guns to ride is refused,
-        and nothing of the set survives — not the guns that were written
-        before the refusal, and not the set itself."""
+        """Roll back the entire new set when profile anchors are ambiguous."""
         from n26.library.models import DefaultAssignmentSet
 
         with pytest.raises(ValidationError):
@@ -373,9 +350,7 @@ class TestAmmoFindsItsGun:
     def test_an_anchored_line_never_rides_a_hand_given_gun(
         self, gang, person_type, gang_type, launcher, smoke
     ):
-        """The anchor is a receipt, not a preference: with the built-in
-        gun's copy removed, the line is skipped rather than rehomed onto
-        another gun of the same type the owner holds."""
+        """Skip a profile whose exact built-in weapon copy was removed instead of attaching it to an independent copy."""
         profile = create_profile("Gunner", person_type, gang_type, price=50)
         gun_member = add_built_in(profile, launcher)
         fighter = hire(gang, profile, "Ana", paid=50)
@@ -519,8 +494,7 @@ class TestCountersOpenOnce:
 
 
 class TestStoredEffectsRunOnce:
-    """Stored effects fire inside ``assign``, so a satisfied member must
-    be skipped before assign runs at all — a false miss breeds pets."""
+    """Skip satisfied members before assignment so stored effects cannot create duplicate pets."""
 
     def test_a_pet_riding_a_built_in_is_spawned_exactly_once(
         self, gang, ganger, person_type, gang_type, default_pack
@@ -576,9 +550,7 @@ class TestGangAndStashHostedCarriers:
 
 
 class TestLegacyProfilesBringOnlyLists:
-    """A Legacy association brings equipment lists and nothing else, and
-    a bare reconcile derives that from the carrier's role — no caller
-    has to remember to narrow it."""
+    """Infer collection-only reconciliation from the legacy carrier's role."""
 
     def test_a_bare_reconcile_of_a_legacy_carrier_brings_only_collections(
         self, gang, ganger, person_type, gang_type, default_pack
@@ -645,9 +617,7 @@ class TestChosenSetsGrowLater:
 
 
 class TestBuiltInsOfBuiltIns:
-    """A copy a set creates is an arrival of its own: a subtype granted by
-    a profile brings the counters built into the subtype, caused by the
-    subtype's copy — the same provenance the propagation pass writes."""
+    """Materialised grants bring their own built-ins, recording the granted copy as carrier and cause."""
 
     @pytest.fixture
     def spyrer(self, default_pack):

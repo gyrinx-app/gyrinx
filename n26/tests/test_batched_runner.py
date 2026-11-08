@@ -1,15 +1,6 @@
-"""The batched runner: large work as many short, resumable deliveries.
-
-``run_batched`` walks an ordered work-list committing each row alone,
-writes its position onto the ``Backfill`` record after every batch, and
-picks up from that position on the next delivery. Proven here with a
-plain work-list and a recording ``do_one``: a run finishes and records
-DONE; a spent budget hands the rest to a fresh delivery — after the
-lock is released — and nothing is done twice; a failing row is recorded
-and stepped past, and struck off if a later walk settles it; a cancel
-between batches stops the run where it stands; and the attempt count is
-reset by every recorded batch, so only attempts that die before getting
-anywhere exhaust it.
+"""Verify resumable maintenance batches, cursor persistence, retry accounting and
+cancellation. Each item commits independently, and follow-up deliveries start only after
+releasing the run lock.
 """
 
 from contextlib import contextmanager
@@ -30,8 +21,7 @@ LOCK_KEY = 999_826_031
 
 @pytest.fixture(autouse=True)
 def lock_key(monkeypatch):
-    """The runner looks its lock up in the one auditable registry, so
-    the test operation registers its key there like any real one."""
+    """Register the test operation's advisory lock in the runner's lock registry."""
     monkeypatch.setitem(maintenance.LOCK_KEYS, OPERATION, LOCK_KEY)
 
 
@@ -45,8 +35,9 @@ def record(db):
 
 @pytest.fixture
 def rows(db):
-    """Twenty-five rows with unique, orderable primary keys. Any table
-    serves; the runner only ever reads pks."""
+    """Provide 25 uniquely ordered primary keys; the runner does not depend on the model
+    type.
+    """
     User.objects.bulk_create(
         User(username=f"batched-runner-row-{n:03d}") for n in range(25)
     )
@@ -67,8 +58,7 @@ def run(record, rows, do_one, again=None, **kwargs):
 
 
 class TestARunThatFits:
-    """One delivery is enough: everything settles once and the record
-    ends DONE with the counts telling the whole story."""
+    """Complete all work in one delivery and record final counts."""
 
     def test_it_settles_everything_once_and_records_done(self, record, rows):
         seen = []
@@ -83,9 +73,9 @@ class TestARunThatFits:
 
 
 class TestASpentBudget:
-    """An attempt past its budget records the cursor and summons a
-    fresh delivery, which continues exactly where it stopped — so the
-    run finishes without any row being settled twice."""
+    """Persist progress before scheduling another delivery, without repeating completed
+    items.
+    """
 
     def test_the_rest_is_handed_to_fresh_deliveries_and_nothing_repeats(
         self, record, rows
@@ -120,9 +110,9 @@ class TestASpentBudget:
     def test_the_fresh_delivery_is_summoned_only_after_the_lock_is_freed(
         self, record, rows, monkeypatch
     ):
-        """The delivery the hand-back summons must never find the lock
-        still held — it would stand down, acknowledge its message, and
-        leave the record RUNNING with nothing left to finish it."""
+        """Release the lock before enqueueing the continuation; otherwise it can skip a
+        locked run and leave no delivery to finish it.
+        """
         order = []
         real_lock = maintenance._single_flight
 
@@ -145,8 +135,9 @@ class TestASpentBudget:
 
 
 class TestAFailingRow:
-    """A broken row is written down and stepped past — and struck off
-    again if a later walk settles it."""
+    """Record item failures while continuing; clear an earlier failure when replay
+    succeeds.
+    """
 
     def test_it_is_recorded_and_the_rest_still_settle(self, record, rows):
         bad = sorted(rows.values_list("pk", flat=True))[12]
@@ -167,9 +158,7 @@ class TestAFailingRow:
         assert len(seen) == 24
 
     def test_a_row_that_settles_on_a_later_walk_is_struck_off(self, record, rows):
-        """A crash can replay a batch whose failure was already
-        recorded; the replay settling the row must clear the entry, or
-        the run ends FAILED over a row that is actually fine."""
+        """Clear a recorded failure when a replay succeeds so the run can finish DONE."""
         bad = sorted(rows.values_list("pk", flat=True))[3]
         Backfill.objects.filter(pk=record.pk).update(
             summary={"failures": {str(bad): "broke last time"}}
@@ -183,9 +172,7 @@ class TestAFailingRow:
 
 
 class TestCancel:
-    """An operator's cancel is an ending, endings are final, and the
-    run finds out at its next progress write — stopping where it
-    stands, with everything already settled staying settled."""
+    """Observe cancellation between batches and preserve completed work."""
 
     def test_a_cancel_lands_between_batches_and_the_settled_stay_settled(
         self, record, rows
@@ -208,9 +195,9 @@ class TestCancel:
     def test_a_cancel_while_handed_back_stops_the_next_delivery_at_the_claim(
         self, record, rows
     ):
-        """A run waiting between deliveries has nothing running to
-        interrupt; the cancel lands on the record, and the summoned
-        delivery finds it ended and settles nothing more."""
+        """Reject the next delivery after cancellation while preserving the previous
+        batch's work.
+        """
         seen = []
         run(record, rows, seen.append, budget=timedelta(0))
         assert len(seen) == 10
@@ -224,9 +211,7 @@ class TestCancel:
 
 
 class TestTheAttemptCount:
-    """``_claim`` serves both run shapes: every recorded batch resets
-    the count, so only attempts dying before any progress exhaust it,
-    and a record that has ended refuses the claim outright."""
+    """Reset attempt accounting on recorded progress and reject terminal runs."""
 
     def test_attempts_without_progress_exhaust_the_cap(self, record):
         for _attempt in range(MAX_ATTEMPTS):
@@ -237,9 +222,9 @@ class TestTheAttemptCount:
         assert "without getting anywhere" in why_not
 
     def test_a_recorded_batch_starts_the_count_over(self, record, rows):
-        """A long run is many deliveries; each one claims afresh, and
-        the progress its predecessor recorded is what keeps the run
-        from reading as stuck."""
+        """Recorded batch progress allows more deliveries than the no-progress attempt
+        limit.
+        """
         for _delivery in range(MAX_ATTEMPTS + 2):
             run(record, rows, lambda pk: None, budget=timedelta(0))
             record.refresh_from_db()
@@ -255,10 +240,9 @@ class TestTheAttemptCount:
 
 
 class TestACallableWorkList:
-    """A work-list read under the lock: a callable that returns the
-    queryset to walk, refuses in its own words, or writes the ending
-    itself and returns nothing to walk. What ``do_one`` says about a row
-    becomes a line of the record's report."""
+    """Evaluate callable work lists under the run lock and retain item report lines. A
+    callable may refuse work or record a terminal result itself.
+    """
 
     def test_it_is_read_under_the_lock_and_walked(self, record, rows, monkeypatch):
         order = []
@@ -312,8 +296,7 @@ class TestACallableWorkList:
         assert touched == []
 
     def test_nothing_to_walk_with_no_ending_written_fails_the_record(self, record):
-        """A record left RUNNING with no delivery coming would wait for
-        ever; the runner ends it and says why."""
+        """Fail a callable that returns no work without recording a terminal state."""
         run(record, lambda: None, lambda pk: None)
 
         record.refresh_from_db()

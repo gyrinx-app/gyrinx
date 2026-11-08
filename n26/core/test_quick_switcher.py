@@ -162,11 +162,10 @@ class TestStayingOnTheScreen:
 
 
 class TestMovingThroughItFromTheKeyboard:
-    """Open, two letters, Down, Enter — and the reader's hands never leave the
-    filter box. Nothing a server-rendered test can do presses a key, so what is
-    pinned here is the wiring each step of that journey stands on. Every piece
-    can be dropped in an edit and leave a page that still serves 200 with a
-    switcher whose arrow keys do nothing."""
+    """Static keyboard integration checks for filtering, highlighting and activation.
+
+    These tests verify bindings and event handling without pressing browser keys.
+    """
 
     def test_the_filter_box_is_what_answers_the_keys(self):
         """Focus lands in the box when the panel opens and stays there, so the
@@ -177,9 +176,7 @@ class TestMovingThroughItFromTheKeyboard:
         assert '@keydown="keys($event)"' in html
 
     def test_the_arrows_move_the_highlight_rather_than_the_focus(self):
-        """The dropdown this panel sits inside answers an arrow key by putting
-        real focus on a row, which takes the caret out of the box mid-word.
-        Keeping the key from it is what leaves the reader still typing."""
+        """Stop dropdown arrow handling from moving focus away from the filter input."""
         html = panel()
         assert "event.key === 'ArrowDown' || event.key === 'ArrowUp'" in html
         assert "event.stopPropagation();" in html
@@ -234,11 +231,7 @@ class TestMovingThroughItFromTheKeyboard:
         )
 
     def test_nothing_is_highlighted_until_a_key_asks_for_it(self):
-        """The top row is usually the thing the reader is already on, so a
-        highlight sitting there on open offers Enter as a way back to where
-        they are — and competes with the tick already saying which row that
-        is. Each open starts with the highlight cleared along with the
-        query."""
+        """Clear query and highlight on open so Enter has no implicit destination."""
         html = panel()
         assert "active: ''," in html
         assert (
@@ -303,12 +296,7 @@ class TestTheChord:
         )
 
     def test_the_chord_listens_on_the_window_in_the_capture_phase(self):
-        """A listener on the switcher itself would only hear keys the reader
-        had already brought to it, and the whole point is reaching it from
-        wherever focus happens to be. Capture, because on the way up any
-        handler between the key's target and the window could stop the
-        event, and a chord that works everywhere except inside one widget
-        reads as broken."""
+        """Capture the shortcut at window scope so focused widgets cannot block it."""
         html = self.chorded()
         assert "window.addEventListener('keydown', this.chord, true);" in html
 
@@ -338,8 +326,7 @@ class TestTheChord:
         assert "this.dropdownMenu ? this.close() : this.open();" in html
 
     def test_the_chevron_advertises_the_chord(self):
-        """The tooltip for a reader with a pointer to hover, aria-keyshortcuts
-        for one whose page is being read aloud."""
+        """Expose the shortcut through both the tooltip and aria-keyshortcuts."""
         html = self.chorded()
         assert 'title="Your other gangs (⌥⇧F)"' in html
         assert 'aria-keyshortcuts="Alt+Shift+F"' in html

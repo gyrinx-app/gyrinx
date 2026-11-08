@@ -1,18 +1,11 @@
-"""Actions on screen — what a gang has open, and how to start one.
+"""Build display structures for open activities and available next steps.
 
-An ``n26.core.models.Activity`` is the state: which act is open, and the two
-events that bracket it. This module is the other half — the plain
-structures a template draws them by, so that every action reads the same
-way whatever it is. Founding and equipping the gang and a trip to the
-trading post are the same shape on screen: a title, where the act stands,
-a sentence of help, and one button that moves it on.
+Activity records hold their state and opening or closing events. These
+dataclasses describe titles, balances, help and controls without HTML.
 
-``ActivitiesSquare`` gathers them into the one place a gang's page reports
-them: stacked with the stash in the roster grid's first cell, so what is
-open is read beside what it is being spent on. The gang's story stays on
-the history page. The square links there and does not list acts.
-
-What the square costs is the gang's open actions. Nothing here knows HTML.
+``ActivitiesSquare`` occupies the roster's first cell beside the stash,
+including when no activity is open. It links to history without listing
+events. Reads use the gang's cached open activities.
 """
 
 from dataclasses import dataclass
@@ -24,9 +17,7 @@ COMPLETE = "Complete action"
 #: What the owner is waiting for before they complete the founding.
 FOUNDING_HELP = "Complete when you have finished hiring and equipping the gang. Unspent Trade Points become unavailable."
 
-#: What being part-way through the founding lets an owner do, under the
-#: title. The help beside the button says when to finish; this says what
-#: finishing takes away, which is the half a reader needs before they do.
+#: Explain the allowance available while founding remains open.
 FOUNDING_ABOUT = (
     "While this action is open, fighters with founding Trade Points can spend "
     "them at the Trading Post."
@@ -38,29 +29,17 @@ VISIT_HELP = "Complete when you have finished at the Trading Post. Unspent Trade
 
 POST_BATTLE_HELP = "Record XP, credits and each model's results after a battle."
 
-#: How many acts the square prints. Enough to say what has been going on
-#: without becoming the history page, which is one click away.
+#: Maximum entries in the compact history read.
 SNAPSHOT = 5
 
 
 @dataclass(frozen=True)
 class ActivityCard:
-    """One open action as a screen draws it.
+    """An open activity's title, facts and completion control.
 
-    ``facts`` is the tally under the title, where the action has figures
-    to show — what it brought, what has gone, what is left. An action
-    with none is drawn without one rather than with a row of zeroes.
-
-    ``act`` is what the button posts, so one field says which control was
-    clicked and the card carries the value for the act it offers.
-
-    ``about`` is a sentence under the title saying what the action lets its
-    owner do while it stands open — the other half of ``help``, which says
-    when to end it. An action with nothing to explain carries none.
-
-    ``marked`` says the founding mark is drawn beside the title: the same
-    shape that stands beside every founding Trade Point figure, so a reader
-    meets one feature rather than four unrelated screens.
+    ``facts`` contains available balance figures. ``act`` identifies the command.
+    ``about`` explains the open activity; ``help`` explains completion.
+    ``marked`` displays the shared founding allowance symbol.
     """
 
     title: str
@@ -76,12 +55,7 @@ class ActivityCard:
 
 @dataclass(frozen=True)
 class VisitLine:
-    """An open Visit Trading Post action, in one line.
-
-    A line rather than a card: what the visit is worth is decided and
-    spent on its own page, and this says only that it is open and how
-    much is left before a reader goes anywhere.
-    """
+    """An open Trading Post visit's remaining points and destination."""
 
     trade_points_left: int
     href: str
@@ -89,12 +63,9 @@ class VisitLine:
 
 @dataclass(frozen=True)
 class HistoryLine:
-    """One act from the gang's story, as the square prints it.
+    """A history entry with actor and sentence separated for display.
 
-    ``told`` is the sentence with the actor left off, so a screen can
-    draw who did it apart from what they did the way the history page
-    does. The sentence is the history's own — the square tells nothing a
-    second way.
+    Reuse the history renderer's wording.
     """
 
     when: object
@@ -104,12 +75,10 @@ class HistoryLine:
 
 @dataclass(frozen=True)
 class Step:
-    """One next step available to the owner, with a description and a control.
+    """An available task with description and control.
 
-    ``told`` says what stands, in a sentence naming the model where one
-    model is what it is about. ``verb`` is the button. Exactly one of
-    ``href`` and ``post`` is set: a step that asks a question first is a
-    link to it, and a step that acts on the click is a form.
+    Exactly one of ``href`` and ``post`` is set, selecting navigation or
+    immediate submission.
     """
 
     told: str
@@ -120,24 +89,11 @@ class Step:
 
 @dataclass(frozen=True)
 class ActivitiesSquare:
-    """What a gang has open, what is waiting to be done, and the ways to
-    start something.
+    """Open activities, ordered next steps and starting controls for the roster.
 
-    Drawn as one square in the roster grid, ahead of the stash. It is
-    there whether or not anything is open: a square that came and went
-    would move every card after it, and "nothing is open" is worth
-    saying to a reader deciding what to do next.
-
-    An **action** is something running that the owner opened, and it has
-    an end. A **step** in ``to_do`` may be required work, such as a ransom,
-    or an optional workflow, such as recording a battle's results. Required
-    work comes first. "No action is open." appears only when neither an
-    open action nor a next step is available.
-
-    ``start_founding`` is where the start form posts, and is empty while
-    a founding action is open.
-
-    ``history_href`` opens the gang's history. The square does not list acts.
+    Required tasks precede optional workflows. Display the empty state only
+    when neither an activity nor next step exists. ``start_founding`` is
+    empty while founding is open; ``history_href`` links to the history.
     """
 
     founding: ActivityCard | None = None
@@ -153,8 +109,7 @@ class ActivitiesSquare:
 
 
 def open_card(kind, at, *, help="", about="", facts=(), marked=False, activity_id=""):
-    """One open action's card. The name comes from the kind, so a screen
-    cannot call an action something the ledger does not."""
+    """Build an activity card using its canonical kind label."""
     return ActivityCard(
         title=kind.label,
         action=at,
@@ -167,11 +122,7 @@ def open_card(kind, at, *, help="", about="", facts=(), marked=False, activity_i
 
 
 def founding_card(gang, at):
-    """The gang's open Spend founding TP action, or None.
-
-    The gang reads all its open actions in one query and holds them, so
-    a page drawing this beside the visit's figure pays for one.
-    """
+    """Return the open founding activity using the gang's cached activity read."""
     from n26.core.models import Activity
 
     kind = Activity.Kind.FOUNDING
@@ -189,19 +140,11 @@ def founding_card(gang, at):
 
 
 def founding_blocks_visit(gang, seen):
-    """Whether the way into a Trading Post visit is shut for now.
+    """Whether open founding should disable a new Trading Post visit.
 
-    A gang holds one action of each kind and performs them one at a
-    time, so a control that would start a visit beside an open founding
-    is a control that would be refused. It is drawn dead with a reason
-    rather than led to a page that says no.
-
-    ``seen`` is whether this reader may close the founding action. Shutting
-    the button for anyone else would take visits away with nothing offered
-    in its place.
-
-    Reads the gang's open actions, which a screen drawing this has
-    normally asked for already.
+    ``seen`` means the viewer can close founding. Only disable the visit for
+    those viewers, who have an available way to finish the blocking activity.
+    Use cached open activities when already loaded.
     """
     from n26.core.models import Activity
 
@@ -209,12 +152,7 @@ def founding_blocks_visit(gang, seen):
 
 
 def visit_card(receipt, at):
-    """The open Visit Trading Post action, as its own page draws it.
-
-    Takes the receipt rather than the gang: what the visit brought and
-    what it has left is one arithmetic (``n26.core.trading``), and a card
-    that worked it out a second way could disagree with the page it sits on.
-    """
+    """Build a Trading Post card from the receipt's existing balance calculation."""
     from n26.core.models import Activity
 
     return open_card(
@@ -223,11 +161,7 @@ def visit_card(receipt, at):
 
 
 def history_lines(gang, viewer=None, limit=SNAPSHOT):
-    """The gang's last few acts, newest first, in the history page's words.
-
-    The sentences are built by the history's own builder, so a short list
-    and the history page cannot describe one act two ways.
-    """
+    """Build recent entries through the same renderer as the full history."""
     from n26.core import history
 
     return tuple(
@@ -251,12 +185,9 @@ def activities_square(
     ransoms=(),
     post_battle_at="",
 ):
-    """The gang page's Actions square: what is open, and what may start.
+    """Build the roster's open activities and starting controls from existing reads.
 
-    The visit is read off the sheet rather than the gang, because what an
-    open one has left is a ledger query and the sheet has already asked
-    it. The founding action costs nothing beyond that: the gang read
-    every action it has open in one go, and the sheet already asked.
+    Reuse the sheet's visit balance and the gang's cached open activities.
     """
     # Empty destinations withhold the corresponding controls and state.
     # Opening the panel for another feature must not open founding access.
@@ -283,12 +214,10 @@ def activities_square(
 
 
 def steps_waiting(sheet, *, clean_house_at="", ransoms=(), post_battle_at=""):
-    """Available next steps, with required work before optional workflows.
+    """Return authorised required tasks before optional post-battle recording.
 
-    A ransom comes first however many there are: unpaid, the model dies,
-    and Clean House is the end of the same cycle. Both are drawn only
-    where the reader may act. Optional post-battle recording follows them.
-    Empty addresses withhold their controls independently.
+    Ransoms precede Clean House because unpaid ransom can kill the model at
+    the cycle's end. Empty URLs suppress individual controls.
     """
     from n26.core.status import Status
 

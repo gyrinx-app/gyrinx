@@ -57,8 +57,9 @@ URL.
     {% endif %}
     {% if ransoming %}
         {% comment %}
-        Offer D6 × 10 ransom values and eligible payees. Failure to pay records death
-        and sends equipment to the stash.
+        Offer D6 × 10 ransom values and eligible payees. Choosing "Could not pay"
+        records death and sends equipment to the stash. A refused Pay leaves the
+        model held for ransom.
         {% endcomment %}
         <c-n26.dialog title="Pay the ransom for {{ ransoming.miniature.name }}"
                       action="{% url 'n26-pay-ransom' ransoming.miniature.pk %}{% if status_back %}?back={{ status_back }}{% endif %}"

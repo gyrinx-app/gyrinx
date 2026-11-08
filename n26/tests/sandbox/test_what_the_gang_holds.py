@@ -1,24 +1,9 @@
-"""What the gang holds reaches its models, however the gang came by it.
+"""Computed gang grants can apply effects to member models.
 
-The gang's own rows ride every member's card, so a rule built into the
-gang type has always reached the fighters. This suite is the other half of
-that sentence: a thing the gang was **given** — an alliance's rule, the
-hidden carrier a house's rules hang off, a list a territory opens — reaches
-them in exactly the same way, because from the point of view of applying
-effects there is no difference between arriving built in and arriving by a
-modifier.
-
-One *gives* aimed at the gang is therefore the whole authoring step. The
-rule lands on the gang's sheet, and whatever the rule itself does —
-sharpens the fighters' blades, opens a list, shifts a characteristic —
-happens to every member. What the gang's guest never does is draw a line on
-a fighter's card, add to anybody's rating, or make its stored effects the
-fighter's news: the thing belongs to the gang, and the gang says all three
-once.
-
-The corner it was written for: a house rule that improved every fighter's
-weapons did nothing at all, and the fighter's own plan showed the
-gang-aimed step skipped, with no mention of the rule anywhere.
+Gang-scoped grants are broadcast to model computations just like stored gang
+assignments. Their modifiers run under their own scopes, but their rows, rating
+and stored-effect descriptions remain on the gang sheet. ``targets_gang_alone``
+grants do not broadcast. Suppressing a source retracts its computed grants.
 """
 
 import pytest
@@ -64,8 +49,7 @@ pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
 @pytest.fixture
 def gang_type(db):
-    """The house whose rules these are. Overrides the shared fixture so the
-    profiles ``make_profile`` builds belong to this house."""
+    """Override the shared gang type so profiles created by make_profile belong to this house."""
     return create_gang_type("Escher", starting_credits=1000)
 
 
@@ -81,11 +65,7 @@ def weapon_skill(person_statline_type):
 
 @pytest.fixture
 def matriarchy(backstab, weapon_skill):
-    """The house rule, and the two things it does to a fighter.
-
-    The modifiers hang on the *rule*, which is what the book prints the
-    behaviour under — so it does the same wherever a gang picks it up.
-    """
+    """Attach weapon-trait and model-stat modifiers to the house rule."""
     rule = create_rule("Matriarchy")
     modifier(
         "Matriarchy: the fighters' blades bite",
@@ -104,8 +84,7 @@ def matriarchy(backstab, weapon_skill):
 
 @pytest.fixture
 def charter(gang_type, matriarchy):
-    """The gang type's founding row: a hidden carrier that gives the rule to
-    the gang. One aim, and the whole house has it."""
+    """Build the charter into the gang type and grant its rule with gang scope."""
     hidden = create_hidden("Escher gang rules")
     modifier(
         "Escher: the gang has Matriarchy",
@@ -130,7 +109,7 @@ def gang(charter, gang_type):
 
 @pytest.fixture
 def crew(gang, make_profile, knife):
-    """Two armed fighters, so "every member" means more than one."""
+    """Hire two armed fighters to check effects reach every member."""
     profile = make_profile("Escher Ganger", price=55)
     made = {}
     for name in ("Yolanda", "Vandal"):
@@ -140,7 +119,7 @@ def crew(gang, make_profile, knife):
 
 
 def computed_for(miniature):
-    """One model's card, computed the way every screen computes it."""
+    """Return a model card and its computed effects."""
     card = build_card(miniature, with_statlines=True)
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
     return card, compute(card, index)
@@ -158,7 +137,7 @@ def gang_computed(gang):
 
 
 def traits_on(miniature, weapon_name="Stiletto knife"):
-    """What a fighter's gun prints, computed traits and all."""
+    """Return the first weapon profile's displayed traits."""
     weapon = next(w for w in drawn_for(miniature).weapons if w.name == weapon_name)
     return sorted(trait.name for trait in weapon.profiles[0].traits)
 
@@ -173,7 +152,7 @@ def stat_changes_on(miniature, stat):
 
 
 class TestARuleTheGangIsGiven:
-    """One *gives* aimed at the gang, and the rule works on every fighter."""
+    """Gang-granted rules apply their modifiers to every eligible fighter."""
 
     def test_the_gang_holds_the_rule(self, gang, crew):
         assert [line.name for line in render_gang(gang).rules] == ["Matriarchy"]
@@ -191,8 +170,7 @@ class TestARuleTheGangIsGiven:
             ]
 
     def test_the_fighters_plan_names_the_rule(self, gang, crew):
-        """Not merely that it works: the rule is a step in the fighter's own
-        plan, so the trace says where the trait came from."""
+        """Include broadcast rule modifiers in the fighter's computation plan."""
         _, computed = computed_for(crew["Yolanda"])
         steps = [step for step in computed.plan if str(step.source) == "Matriarchy"]
 
@@ -202,8 +180,7 @@ class TestARuleTheGangIsGiven:
         ]
 
     def test_nothing_of_it_is_written_down(self, gang, crew, matriarchy):
-        """It is worked out on every read: nothing to sell, nothing to
-        reconcile."""
+        """Computed grants create no stored assignment or ledger entry."""
         from n26.core.models import Assignment
 
         assert not Assignment.objects.filter(rule=matriarchy).exists()
@@ -211,7 +188,7 @@ class TestARuleTheGangIsGiven:
 
 
 class TestAListTheGangIsGiven:
-    """A list granted to the gang is somewhere every fighter buys from."""
+    """Every fighter can use a collection granted to the gang."""
 
     @pytest.fixture
     def armoury(self, charter, knife):
@@ -232,8 +209,7 @@ class TestAListTheGangIsGiven:
             ]
 
     def test_the_gang_is_offered_it_once(self, gang, crew, armoury):
-        """The gang reads its own grant and a member reads the gang's, and
-        neither ends up with the list twice."""
+        """Deduplicate collection access when combining the gang and model computations."""
         names = [access.name for access in gang_collections(gang)]
 
         assert names.count("Escher Armoury") == 1
@@ -254,8 +230,7 @@ class TestAListTheGangIsGiven:
 
 
 class TestTwoAims:
-    """The older way of writing it — a *gives* at the gang and another at
-    the model — still leaves the fighter with one of everything."""
+    """Granting a rule to both gang and models applies each modifier once."""
 
     @pytest.fixture
     def also_at_the_model(self, charter, matriarchy):
@@ -277,17 +252,14 @@ class TestTwoAims:
         assert traits_on(crew["Yolanda"]) == ["Backstab"]
 
     def test_the_rule_draws_one_line(self, gang, crew, also_at_the_model):
-        """Aimed at the model as well, the rule really is the fighter's — so
-        it prints on their card, once."""
+        """A direct model grant displays one rule row despite the gang grant."""
         assert [line.name for line in drawn_for(crew["Yolanda"]).rules] == [
             "Matriarchy"
         ]
 
 
 class TestAGrantTheGangKeepsToItself:
-    """The gang carrying it: applied only to the gang, and what it gives
-    the gang does not reach the models — no guest, no echoed step,
-    nothing to buy from."""
+    """Gang-alone grants affect the gang without reaching model computations or collection access."""
 
     @pytest.fixture
     def sealed(self, gang_type, matriarchy, knife):
@@ -335,8 +307,7 @@ class TestAGrantTheGangKeepsToItself:
 
 
 class TestWhatTheGangHoldsIsNotTheFightersToShow:
-    """The guest's protections: it works on the model and belongs to the
-    gang, so the gang is where it is drawn, rated and reported."""
+    """Broadcast grants apply effects without duplicating gang rows, rating or stored-effect descriptions on models."""
 
     def test_the_rule_draws_no_line_on_a_fighters_card(self, gang, crew):
         assert drawn_for(crew["Yolanda"]).rules == []
@@ -360,9 +331,7 @@ class TestWhatTheGangHoldsIsNotTheFightersToShow:
     def test_a_stored_effect_is_the_gangs_news_once(
         self, gang, crew, matriarchy, make_profile
     ):
-        """A note saying the gang gains a Matriarch belongs on the gang's
-        sheet, not on ten fighters' cards: whatever it speaks of was
-        written once."""
+        """Display the gang's stored-effect description once, without duplicating it on model cards."""
         modifier(
             "Matriarchy: the gang gains a Matriarch",
             targets_gang(),
@@ -378,16 +347,11 @@ class TestWhatTheGangHoldsIsNotTheFightersToShow:
 
 
 class TestGainingAndLosingIt:
-    """A guest is there exactly while the gang holds whatever gives it.
-
-    A gang-aimed scope has nothing to narrow to — there is one gang — so
-    "conditionally" means the gang holds the giver or it does not: an
-    alliance signed and later abandoned.
-    """
+    """Broadcast effects remain active only while the gang holds their granting source."""
 
     @pytest.fixture
     def alliance(self, default_pack):
-        """An alliance whose rule sharpens the fighters' blades."""
+        """Grant a gang rule that adds Parry to model weapons."""
         parry = create_trait("Parry")
         rule = create_rule("Guild Drill")
         modifier(
@@ -427,7 +391,7 @@ class TestGainingAndLosingIt:
 
 
 class TestWhoAGuestReaches:
-    """A guest's own scope decides who it lands on, as any carrier's does."""
+    """Broadcast modifiers retain their own targeting scopes."""
 
     @pytest.fixture
     def rank(self, matriarchy):
@@ -448,8 +412,7 @@ class TestWhoAGuestReaches:
         assert [c.name for c in computed.skills] == ["Overwatch"]
 
     def test_it_passes_over_everyone_else(self, gang, crew, rank):
-        """Not silently: the fighter's plan shows the scope asked and
-        refused, as it would for a carrier of their own."""
+        """Record a skipped modifier when a model does not match the scope."""
         _, computed = computed_for(crew["Vandal"])
         step = next(
             step for step in computed.plan if "keeps watch" in step.modifier.name
@@ -460,13 +423,11 @@ class TestWhoAGuestReaches:
 
 
 class TestWhenTheBundleIsCancelled:
-    """A corruption cancels the carrier, and the gang stops holding what it
-    gave — so there is nothing to reach the fighters with."""
+    """Suppressing the source on the gang retracts its broadcast grants."""
 
     @pytest.fixture
     def corruption(self, charter):
-        """One aim: the thing it names is the gang's, so the gang is where
-        it is cancelled, and the fighters follow."""
+        """Suppress the gang's charter so its grants no longer broadcast to models."""
         corrupted = create_affiliation("Chaos Corrupted")
         modifier(
             "Corrupted: the gang loses its rules",
@@ -490,8 +451,7 @@ class TestWhenTheBundleIsCancelled:
         assert stat_changes_on(crew["Yolanda"], weapon_skill) == []
 
     def test_a_cancelled_thing_is_nobodys_guest(self, gang, crew, corruption):
-        """The gang's card settles first, removals and all, so what it no
-        longer holds is never dealt onto a member."""
+        """Complete gang computation before broadcasting its surviving grants to model cards."""
         assign(corruption, gang=gang)
 
         _, computed = computed_for(crew["Yolanda"])
@@ -507,8 +467,7 @@ class TestWhenTheBundleIsCancelled:
 
 
 class TestOneFighterLosingIt:
-    """A removal aimed at the model reaches the guest on that model's card
-    and nobody else's — the gang goes on holding the rule."""
+    """A model-targeted removal suppresses the broadcast grant only for that model."""
 
     @pytest.fixture
     def amulet(self, matriarchy):
@@ -545,8 +504,7 @@ class TestOneFighterLosingIt:
 
 
 class TestTheBudget:
-    """Reading the gang's holdings onto a member's card is reading: the rows
-    are the ones already fetched, and the sums are done in memory."""
+    """Compute broadcast effects in memory from the already loaded card."""
 
     def test_computing_a_fighters_card_asks_nothing(
         self, gang, crew, django_assert_num_queries

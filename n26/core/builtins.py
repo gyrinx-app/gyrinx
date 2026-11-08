@@ -1,21 +1,12 @@
-"""Built-ins as desired state — the read side of materialisation.
+"""Plan required built-in and selected-option assignments without writing.
 
-A carrier — a model's membership, the gang's founding, a bought mount's
-own assignment — draws default assignments from its thing's built-ins
-and from the option sets recorded as taken (``ChosenProfileOption``).
-Each live member of those sets should have a stored copy: an assignment
-whose provenance names the member and the carrier
-(``materialised_from`` / ``materialised_for``).
+A carrier's content and recorded options identify its sets. Each live set
+member requires a copy with matching ``materialised_from`` and
+``materialised_for`` provenance. ``Operation.reconcile_defaults`` creates
+missing copies; previews can display the plan directly.
 
-This module answers, without writing anything, which members already
-have their copy and which are missing. ``Operation.reconcile_defaults``
-creates what a plan says is missing; a preview renders a plan directly.
-
-Satisfaction is judged by provenance alone. An owner's own purchase of
-the same thing never satisfies a member — a visible duplicate is
-accepted rather than one acquisition silently standing in for another —
-and an archived copy still satisfies: the owner parted with the thing,
-and it is never re-granted behind their back.
+An unrelated purchase cannot satisfy a grant requirement. Archived copies
+do satisfy it, preventing automatic replacement of removed equipment.
 """
 
 from dataclasses import dataclass
@@ -24,13 +15,10 @@ from n26.core.models import Assignment, ProfileRole
 
 
 def copies_of(member, carrier, include_archived=True):
-    """The stored assignments one set membership materialised for one
-    carrier — the pair that says whether the member is satisfied there.
+    """Find assignments with matching set-member and carrier provenance.
 
-    This is the one lookup that follows provenance; the member's own
-    archival never enters into it, because an archived member's copies
-    still resolve through the foreign key and unwinds rely on finding
-    them.
+    Do not filter the member's archival: option removal still needs to find
+    copies created by archived members.
     """
     copies = Assignment.objects.filter(
         materialised_from=member, materialised_for=carrier
@@ -52,23 +40,16 @@ def copies_of_set(default_set, carrier, include_archived=True):
 
 
 def is_satisfied(member, carrier, include_archived=True):
-    """Whether this member already has its copy for this carrier.
+    """Whether a copy with this member and carrier provenance exists.
 
-    Archived copies count by default: a grant the owner removed or
-    sold is settled, not something to hand back. A set being taken
-    right now is the one place they do not (``plan_defaults``).
+    Include archived copies by default so background repair cannot recreate
+    removed equipment. Newly selected sets can require live copies instead.
     """
     return copies_of(member, carrier, include_archived=include_archived).exists()
 
 
 def sets_for(carrier, built_ins=True):
-    """The sets a carrier draws default assignments from.
-
-    Its thing's built-ins, then every option set recorded as taken —
-    the same sets whether the carrier is being acquired, re-optioned,
-    or reconciled long after, so a member added to any of them later
-    still counts as owed.
-    """
+    """Return the carrier's built-ins followed by its recorded option sets."""
     sets = []
     if built_ins:
         held = getattr(carrier.assignable, "built_ins", None)
@@ -80,11 +61,9 @@ def sets_for(carrier, built_ins=True):
 
 
 def kinds_for(carrier):
-    """What kinds of member materialise for this carrier, or None for all.
+    """Return grant kinds permitted by the carrier role, or None for all.
 
-    A Legacy profile is an association, not a second hire: it brings
-    the other profile's equipment lists and nothing else — no second
-    helping of free kit however its sets grow.
+    Legacy profiles grant collection access without duplicating equipment.
     """
     from n26.library.models import Collection
 
@@ -116,9 +95,7 @@ class DefaultsPlan:
 
 @dataclass(frozen=True)
 class ReconcileOutcome:
-    """What one reconcile pass did: the plan it worked from, the copies
-    it created, and the members it had to leave unmet — each paired
-    with a sentence saying why."""
+    """A reconciliation plan, created copies and skipped members with reasons."""
 
     carrier: object
     plan: DefaultsPlan
@@ -127,24 +104,16 @@ class ReconcileOutcome:
 
 
 def plan_defaults(carrier, kinds=None, built_ins=True, fresh=(), omit=()):
-    """Walk a carrier's sets and say which members lack their copy.
+    """Identify live set members missing a materialised copy for this carrier.
 
-    Only live members count — an archived member is a built-in an
-    author has taken off, so future acquisitions come without it while
-    every copy it already materialised stands untouched. ``kinds``
-    narrows what is owed; passed as None it is derived from the
-    carrier's role (``kinds_for``).
+    Ignore archived members without retracting their existing copies.
+    ``kinds`` limits assignable kinds, defaulting to the carrier role.
 
-    ``fresh`` names sets the carrier is taking right now, whose members
-    are judged by live copies alone. The archived-copy rule guards
-    against *unattended* re-grants — background reconciling must never
-    re-gift what an owner parted with — while taking a set is an
-    acquisition, and what is bought arrives: the copies a set's earlier
-    tenure left archived are history, not a settled grant.
+    ``fresh`` names newly acquired sets, for which only live copies satisfy
+    a requirement. Ordinary background reconciliation also counts archived copies
+    to avoid replacing equipment the owner removed.
 
-    ``omit`` names members, by primary key, to treat as satisfied
-    whatever provenance says — for a caller that has judged the carrier
-    already holds the thing another way and must not be handed a second.
+    ``omit`` lists member IDs the caller considers satisfied by another route.
     """
     if kinds is None:
         kinds = kinds_for(carrier)

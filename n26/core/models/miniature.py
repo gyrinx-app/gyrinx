@@ -32,27 +32,17 @@ class Miniature(Base, Owned, Rated):
             "Ranks table once ranks are modelled."
         ),
     )
-    #: The owner's own words about this model. Editor HTML, stored as
-    #: written and sanitised on the way out
-    #: (n26.core.templatetags.richtext), so a tightened allowlist reaches
-    #: what was already saved.
+    #: Store editor HTML unchanged and sanitise through the richtext filter
+    #: when rendering, so allowlist updates also apply to saved content.
     notes = models.TextField(blank=True, default="")
     #: The model's story. Same treatment as notes.
     lore = models.TextField(blank=True, default="")
-    #: A picture of the painted model. Surfaces read its URL and never
-    #: the bytes.
+    #: Read the uploaded model image through its URL.
     image = models.ImageField(upload_to="model-images/", blank=True, default="")
-    #: The gang-hosted assignment that brought this model in.
-    #:
-    #: CASCADE because a model with no gang is unreachable: every route
-    #: to one goes through its gang. Leaving a gang archives the
-    #: membership (the roster reads ``membership__archived=False``); the
-    #: cascade fires only when the assignment is genuinely deleted, which
-    #: in practice means the gang was.
-    #:
-    #: Nullable so a miniature can exist without a gang (``gang`` is then
-    #: None), and no cascade reaches it. Hire and clone write the membership
-    #: first, then create the miniature already pointing at it.
+    #: The gang-hosted membership assignment links the model to its gang. Deleting that
+    #: assignment cascades to the model; roster removal archives it instead.
+    #: A nullable membership also permits unhosted models. Hire and clone create
+    #: the membership first, then create the model pointing to it.
     membership = models.OneToOneField(
         "n26.Assignment",
         on_delete=models.CASCADE,
@@ -76,10 +66,10 @@ class Miniature(Base, Owned, Rated):
 
     @property
     def owned_by(self):
-        """The model whose purchase brought this one in — a pet's owner.
+        """Return the owning model from the membership's cause, or None.
 
-        Derived, not stored: the fact already exists in the graph, so there
-        is no second copy to drift.
+        Derive this relationship so moving the granting purchase changes the owner
+        without updating a second stored relationship.
         """
         cause = self.membership.caused_by if self.membership else None
         return cause.miniature_root if cause else None

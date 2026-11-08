@@ -59,10 +59,10 @@ pytestmark = [
 
 @pytest.fixture(scope="module")
 def _prepared_advancement_catalogue(django_db_setup, django_db_blocker):
-    """Real content for ordinary rollback cases, with no shared player state.
+    """Seed content in a rollback-only outer transaction without sharing player
+    state.
 
-    Transactional, sequence-reset and live-server cases cannot use this outer
-    transaction and must remain outside this module's shared catalogue.
+    Transactional, sequence-reset and live-server tests need separate fixtures.
     """
     with django_db_blocker.unblock(), transaction.atomic():
         _seed_fighter_actions()
@@ -74,7 +74,7 @@ def _prepared_advancement_catalogue(django_db_setup, django_db_blocker):
 
 @pytest.fixture
 def make_stat(default_pack):
-    """The fresh Person shape reuses the real catalogue's three matching stats."""
+    """Retrieve the requested stat from the seeded catalogue."""
 
     def make(short_name, full_name, **kwargs):
         if "pack" not in kwargs and "pack_id" not in kwargs:
@@ -86,7 +86,7 @@ def make_stat(default_pack):
 
 @pytest.fixture
 def person_type(person_statline_type):
-    """Each fighter keeps the original three-stat shape on the real Fighter type."""
+    """Use the fixture statline on the catalogue's Fighter profile type."""
     kind = ProfileType.objects.get(name="Fighter", pack_id=person_statline_type.pack_id)
     kind.statline_type = person_statline_type
     kind.save(update_fields=["statline_type", "modified"])
@@ -1564,8 +1564,9 @@ def test_select_any_skill_lists_a_skill_with_no_set(client, user, fighter):
 def test_stat_previews_keep_skill_eligibility_until_a_real_assignment_is_removed(
     fighter,
 ):
-    """Considering a result that removes a rank leaves the current rank intact.
-    A later operation does, and the next options read sees that change."""
+    """Previewing a stat result retains the current subtype and its skill eligibility
+    until an operation removes that assignment.
+    """
     from n26.core.reconcile import assert_reconciled
 
     action, outcome, allowance = _advancement(fighter)

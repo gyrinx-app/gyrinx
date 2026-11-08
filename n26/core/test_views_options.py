@@ -96,10 +96,7 @@ class TestThePage:
     def test_a_profile_with_no_options_gets_no_tab(
         self, client, tester, gang, make_profile, make_statline
     ):
-        """A tab whose page could only say "nothing to choose" is chrome
-        on every fighter for a feature most profiles lack — the strip
-        offers Options only where there is a choice to reopen. The page
-        itself still answers a direct address honestly."""
+        """Hide the Options tab when the profile has no selectable alternatives."""
         plain = make_profile("Juve", price=20)
         make_statline(plain)
         with operation(gang, actor=tester) as op:
@@ -136,9 +133,7 @@ class TestThePage:
     def test_every_act_on_the_card_lands_on_the_edit_face(
         self, client, tester, gang, vex
     ):
-        """This page holds no host for a card's acts, so a counter moved
-        or a choice settled from here lands the reader on the model's
-        own page, as the kit acts and the status badge already do."""
+        """Card commands return to model editing because this page has no command host."""
         from n26.library.authoring import create_counter
 
         with operation(gang, actor=tester) as op:

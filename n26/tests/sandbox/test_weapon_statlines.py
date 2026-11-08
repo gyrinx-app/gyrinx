@@ -1,18 +1,6 @@
-"""Weapon statlines, built from the same machinery as fighter statlines.
-
-The rulebook prints a weapon profile as
-
-    | Name    | SR  | LR  | Str | AP | L | Traits         | Creds | TP |
-    | Boltgun | 12" | 24" | 4   | -1 | 2 | Rapid Fire (1) | 55    | 2  |
-
-and prints multi-profile weapons exactly the way we model them — the weapon
-row carries name and cost, each ammo row carries the stats:
-
-    | Combat shotgun |    |     |   |   |   |                | 35 | 1 |
-    | - salvo ammo   | 4" | 12" | 4 | - | 1 | Knockback (6+) | +0 |   |
-
-Traits, Creds and TP are not stats: cost already lives on the weapon
-profile, and traits are their own concept, still to be designed.
+"""Weapon profiles store stats using the shared statline machinery. Cards preserve declared
+column order, supply dashes for missing values and distinguish named profile rows from
+an unnamed weapon row. Traits and prices are separate from stat cells.
 """
 
 import pytest
@@ -64,7 +52,7 @@ def weapon_statline_type(db):
 
 @pytest.fixture
 def boltgun(weapon_statline_type):
-    """The rulebook's worked example."""
+    """A Boltgun profile with range, Strength, Armour Piercing and Lethality."""
     weapon = create_weapon("Boltgun", profiles=[("Bolt", 0)])
     weapon.statline_type = weapon_statline_type
     weapon.save()
@@ -81,7 +69,7 @@ def boltgun(weapon_statline_type):
 
 @pytest.fixture
 def combat_shotgun(weapon_statline_type):
-    """Two ammo types, as the Shotguns table prints them."""
+    """Two named ammunition profiles with separate statlines."""
     weapon = create_weapon(
         "Combat shotgun", profiles=[("Salvo ammo", 0), ("Shredder ammo", 0)]
     )
@@ -116,7 +104,7 @@ class TestTheShape:
         assert profile.statline.statline_type == weapon_statline_type
 
     def test_the_shape_is_derived_not_stored(self, boltgun):
-        """Same rule as fighters: nothing to drift out of step."""
+        """Derive the statline type from its owner rather than storing a second reference."""
         assert not hasattr(Statline, "statline_type_id")
 
     def test_a_statline_belongs_to_exactly_one_owner(self, boltgun, make_profile):
@@ -211,7 +199,7 @@ class TestOnTheCard:
     def test_more_weapons_do_not_mean_more_queries(
         self, armed, weapon_statline_type, combat_shotgun
     ):
-        """Weapon statlines ride along on the same prefetch as fighter ones."""
+        """Prefetch weapon statlines so query count stays fixed as weapons grow."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -246,15 +234,8 @@ class TestOnTheCard:
 
 
 class TestAStatlineShortOfStats:
-    """A card draws a weapon to the columns its statline type calls for,
-    whatever the statline happens to hold.
-
-    Content can arrive missing a stat — the completeness check lives in
-    ``clean()``, which importers and the authoring verbs never call. Drawn
-    from the stored values alone, such a line is short a cell, and every
-    number after the gap slides one column left: a player reading a Phase
-    sword found its Lethality under Armour Piercing and its last column
-    blank.
+    """Missing stored values must leave a dash in the declared column instead of shifting
+    later cells.
     """
 
     @pytest.fixture
@@ -272,7 +253,7 @@ class TestAStatlineShortOfStats:
         sword = create_weapon("Phase sword", profiles=[("", 0)])
         sword.statline_type = weapon_statline_type
         sword.save()
-        # No Long Range: a melee weapon's authoring simply leaves it out.
+        # Leave Long Range unstored to exercise a missing middle column.
         set_statline(
             sword.profiles.get(),
             short_range="E",
@@ -306,12 +287,7 @@ class TestAStatlineShortOfStats:
     def test_the_columns_come_from_a_line_that_has_some(
         self, armed, weapon_statline_type
     ):
-        """A combi-weapon's own line carries the name and no numbers.
-
-        Sorted first on a card, it used to decide the header for every
-        weapon below it — so the table lost its headings entirely while
-        each row went on printing five stats.
-        """
+        """A weapon heading without stats must not suppress columns needed by its profiles."""
         spear = create_weapon(
             "Combi-spear", profiles=[("", 0), ("melee", 0), ("ranged", 0)]
         )
@@ -340,10 +316,8 @@ class TestAStatlineShortOfStats:
 
 
 class TestTheFourPrintedShapes:
-    """One rule decides how a weapon's lines are drawn: an unnamed
-    profile *is* the weapon, so its stats ride the weapon's own row,
-    and every named one gets a row beneath. Nothing about what was paid
-    for enters into it — these are the four shapes that fall out.
+    """Unnamed profiles display stats on the weapon row; named profiles display beneath it,
+    regardless of purchase price.
     """
 
     @pytest.fixture
@@ -392,7 +366,8 @@ class TestTheFourPrintedShapes:
 
         lines = self.lines_for(fighter)
         heading = next(line for line in lines if line.startswith("Combat shotgun"))
-        assert "SR" not in heading  # a bare heading; the modes carry the stats
+        assert "SR" not in heading  # Named profiles carry the stats below the weapon
+        # heading.
         assert any(line.startswith("- Salvo ammo   SR") for line in lines)
         assert any(line.startswith("- Shredder ammo   SR") for line in lines)
 
@@ -417,8 +392,9 @@ class TestTheFourPrintedShapes:
     def test_named_lines_and_bought_ammo_read_alike(
         self, armed_gang, weapon_statline_type
     ):
-        """Nothing marks a bought line out: it is a named line like the
-        others, save for what it added."""
+        """Purchased ammunition uses the same named-profile layout, with its rating
+        contribution added.
+        """
         gang, fighter = armed_gang
         shotgun = create_weapon(
             "Combat shotgun",
@@ -433,10 +409,7 @@ class TestTheFourPrintedShapes:
         lines = self.lines_for(fighter)
         heading = next(line for line in lines if line.startswith("Combat shotgun"))
         assert "SR" not in heading
-        # Only Short Range is set on these, and the rest of the shape still
-        # prints: a line is drawn to the columns its statline type calls
-        # for, so a stat nobody filled in reads as a dash rather than
-        # sliding the next number under the wrong heading.
+        # Only Short Range is stored; the other declared columns still display dashes.
         assert [line for line in lines if line.startswith("- ")] == [
             '- Salvo ammo   SR 8"  LR -  Str -  AP -  L -',
             '- Shredder ammo   SR 8"  LR -  Str -  AP -  L -',
@@ -444,7 +417,7 @@ class TestTheFourPrintedShapes:
         ]
 
     def test_a_weapon_may_have_only_one_unnamed_line(self, weapon_statline_type):
-        """Two would print as the weapon twice, indistinguishably."""
+        """Multiple unnamed profiles would produce indistinguishable weapon rows."""
         autogun = create_weapon(
             "Autogun", profiles=[("", 0)], statline_type=weapon_statline_type
         )
@@ -453,9 +426,9 @@ class TestTheFourPrintedShapes:
 
 
 class TestValuesAreStoredAsTheyRead:
-    """An author types 8 for a range and means 8". Normalising on save
-    rather than in clean, because objects.create never calls full_clean
-    — the verbs and any importer must land what a form lands."""
+    """Normalise numeric values on save because direct model creation does not call
+    full_clean.
+    """
 
     def test_a_distance_gains_its_mark(self, weapon_statline_type):
         weapon = create_weapon(
@@ -474,7 +447,7 @@ class TestValuesAreStoredAsTheyRead:
         assert statline.stats.get().value == '4"'
 
     def test_a_roll_target_gains_its_plus(self, make_stat):
-        """The other display rule, on the shape that uses it."""
+        """Target stats normalise numeric values with a trailing plus."""
         from n26.library.models import StatlineType, StatlineTypeStat
 
         shape = StatlineType.objects.create(name="Save only")
@@ -488,8 +461,7 @@ class TestValuesAreStoredAsTheyRead:
         assert statline.stats.get().value == "5+"
 
     def test_values_that_are_not_numbers_pass_through(self, weapon_statline_type):
-        """S is the wielder's Strength and E is engaged-only: both are
-        legitimate, and neither is a distance."""
+        """Non-numeric range and Strength expressions remain unchanged."""
         weapon = create_weapon(
             "Chainsword", profiles=[("", 0)], statline_type=weapon_statline_type
         )
@@ -499,16 +471,13 @@ class TestValuesAreStoredAsTheyRead:
 
 
 class TestOneCharacteristicHeadedTwoWays:
-    """A weapon's Strength is the model's Strength — one definition,
-    shared. The book still heads the two tables differently: a model
-    prints S, a weapon prints Str. So the abbreviation belongs to the
-    placement, and a shape says how it heads a column when the stat's
-    own answer is not the one it wants.
+    """Shared Strength definitions can display as S for fighters and Str for weapons
+    through statline-specific heading overrides.
     """
 
     @pytest.fixture
     def shared_weapon_shape(self, fighter_stats):
-        """A weapon shape built on the model's own Strength row."""
+        """A weapon statline reusing the model Strength definition."""
         shape = create_statline_type("Weapon (shared)")
         add_stat_to_statline_type(
             shape, create_stat("SR", "Short Range", is_inches=True)
@@ -542,7 +511,7 @@ class TestOneCharacteristicHeadedTwoWays:
         ]
 
     def test_the_model_who_carries_it_still_prints_s(self, armed, shared_weapon_shape):
-        """The same row, on the shape that did not rename it."""
+        """A weapon heading override does not change the fighter statline."""
         card = build_model_card(armed)
         assert card.statline.get("Str") is None
         assert card.statline.get("S").value == "3"
@@ -558,13 +527,11 @@ class TestOneCharacteristicHeadedTwoWays:
         print("\n" + text)
 
         assert "SR E  Str S+1" in text
-        # The model's own header, where Strength sits between Ballistic
-        # Skill and Toughness, keeps the shorter one.
+        # The model statline retains the shared Stat’s S heading.
         assert "BS    S     T" in text
 
     def test_saying_nothing_keeps_the_stats_own_name(self, armed, fighter_stats):
-        """The default path: a shape that renames nothing prints what
-        each characteristic calls itself."""
+        """Without an override, use the Stat’s short name."""
         shape = create_statline_type("Weapon (plain)")
         add_stat_to_statline_type(shape, fighter_stats["S"])
         stick = create_weapon(

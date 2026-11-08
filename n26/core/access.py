@@ -1,28 +1,14 @@
-"""Which collections a fighter — or the gang itself — can browse.
+"""Discover browsable collections from effective model and gang cards.
 
-There is no access table. Having a list is an assignment (a collection is
-an assignable — see ``n26.library.models.collection``), so a fighter's
-effective collections are **read off the card**:
+Equipment access comes from held collection assignments, including personal
+built-ins, gang-hosted assignments and computed grants. Gang-granted collections
+also reach members through the gang card.
 
-Skills work the other way round and for the same reason. Nobody is
-assigned a skills collection; a fighter reaches one exactly where their
-**grid** — the placements their profile and subtypes carry — puts a
-category into one of its sections. The grid is the access, the way a
-card is the access to an equipment list, so a profile whose grid nobody
-has authored has no skills screen at all.
+Skills access comes from computed category placements into collection sections.
+A profile without those placements has no skills listing.
 
-* collection assignments on their own card — the profile's list arrives
-  via its built-ins at hire, a Legacy profile brings its list the same
-  way;
-* collection assignments hosted on their gang — the shared house list,
-  assigned once;
-* computed grants — a territory or alliance whose modifier adds a
-  collection, present exactly while the granter is. A list granted to the
-  *gang* is one of these too: it rides every member's card the way the
-  gang-hosted assignments do.
-
-Access informs, never polices: this is what a buying UI *offers*, and
-``Operation.buy`` deliberately never consults it.
+Access informs, never polices: these are the collections purchase controls
+offer. ``Operation.buy`` does not enforce this discovery policy.
 """
 
 from dataclasses import dataclass
@@ -141,14 +127,10 @@ def _access_for(miniature, model, access_type, attribute, card=None, computed=No
 
 
 def collections_for(miniature, card=None, computed=None):
-    """Every collection this fighter can browse, in discovery order:
-    their own, then their gang's, then computed grants. First mention of
-    a collection wins, so duplicates collapse towards the more direct
-    source.
+    """Read effective collections from this fighter's stored and computed card.
 
-    A caller that already built this fighter's card — and computed it —
-    passes both, and this reads them instead of paying for the same
-    build twice.
+    First occurrence determines provenance for duplicates. Supply ``card`` and
+    ``computed`` to reuse a build already performed by the caller.
     """
     if card is None:
         card = build_card(miniature)
@@ -156,9 +138,7 @@ def collections_for(miniature, card=None, computed=None):
         index = build_modifier_index(carriers(card))
         computed = compute(card, index)
 
-    # The gang's own lists ride the card now (as broadcast nodes), so one
-    # walk finds a fighter's lists and their gang's alike — no second
-    # query, no second code path.
+    # Broadcast nodes expose gang-held collections during the same walk.
     return _collections_on(card, computed, miniature.gang)
 
 
@@ -173,15 +153,9 @@ def hidden_categories_for(collection, computed):
 
 
 def gang_collections(gang, card=None, computed=None):
-    """Every collection the gang itself carries: assigned to it, or granted.
+    """Read the gang's assigned and computed collections for hire discovery.
 
-    The gang-side twin of :func:`collections_for`, and the same reading of
-    the same two sources — the collection assignments the card holds, then
-    the computed grants an affiliation or a territory makes. A hire screen
-    asks this to find the collections that offer fighters.
-
-    A caller holding the gang's card and its computed form passes both;
-    otherwise both are built here, at the usual fixed cost.
+    Reuse supplied card and computed state, otherwise build both here.
     """
     from n26.core.card import build_gang_card
     from n26.core.effects import compute_gang
@@ -195,26 +169,11 @@ def gang_collections(gang, card=None, computed=None):
 
 
 def _collections_on(card, computed, gang, gang_hosted=False):
-    """The collections a computed card reaches — the shared walk.
+    """Merge stored and computed collection access, then order by collection position.
 
-    Stored assignments first, in the order the card holds them, then the
-    computed grants; first mention of a collection wins, so a list reached
-    twice collapses towards the more direct source. A list something has taken
-    away is not somewhere to buy from: the card no longer shows it, so it
-    opens nothing either.
-
-    The walk's order is then settled by each collection's ``position``,
-    lowest first, and a tie keeps the walk's own order. The gang's own
-    list and the list a variant adds arrive by the same route — a grant a
-    pick carries — so nothing about how a list was come by can say which
-    is the gang's; the number an author writes on the list can. Sorted
-    here, once, so equip, hire and edit agree on which list comes first.
-
-    A held list names whatever brought it, which after founding is the
-    gang *type*; assigned by hand it has no cause, so the gang itself
-    answers for it. ``gang_hosted`` says the card's own assignments are
-    the gang's — true of a gang card, where a model's card marks the same
-    assignments ``broadcast``.
+    Skip suppressed assignments. First occurrence determines provenance for duplicate
+    collections, and equal positions retain discovery order. Gang-hosted sources
+    use their cause's name, or the gang when manually assigned.
     """
     from n26.library.models import Collection
 
@@ -243,10 +202,8 @@ def _collections_on(card, computed, gang, gang_hosted=False):
     for contribution in computed.collections:
         add(contribution.thing, contribution.source, is_computed=True)
 
-    # A list the gang was granted is somewhere its fighters buy from, exactly
-    # as the house list assigned to the gang is. It rides a member's card
-    # as the gang's guest, drawing no line, so it is read from the guests
-    # — of which the gang's own card has none, the grant being its own.
+    # Computed gang grants also provide member collection access. Gang cards
+    # read these as acquisitions; member cards read them as echoed grants.
     for contribution in computed.echoed:
         if isinstance(contribution.thing, Collection):
             add(contribution.thing, contribution.source, is_computed=True)
@@ -256,15 +213,10 @@ def _collections_on(card, computed, gang, gang_hosted=False):
 
 
 def model_collections():
-    """Every collection holding what a model *is* — skills, powers.
+    """Load collections containing selectable model identities or abilities in one query.
 
-    One query, and the caller decides when to pay it: a roster asks once
-    and tests every card against the answer, so a sheet of sixteen costs
-    what a sheet of one does. Asked by family rather than by naming
-    kinds, so a new sort of thing a model selects qualifies its
-    collections the day it exists — and a placement aimed at a *gear*
-    collection's schema, which content may perfectly well write, never
-    opens a skills screen.
+    Use the library family rather than a fixed kind list. Roster callers share
+    this result across cards; equipment placements cannot open a skills listing.
     """
     from n26.library.models import Collection, Family
 
@@ -272,23 +224,14 @@ def model_collections():
 
 
 def placed_collections(computed):
-    """The collections this fighter's grid reaches, by id.
-
-    Pure reading of a computed card — no queries — because a placement
-    already carries the collection section it aims at, and a collection
-    section belongs to one collection.
-    """
+    """Return collection IDs reached by the computed category placements without querying."""
     return {str(placement.section.collection_id) for placement in computed.placements}
 
 
 def selectable_for(computed, among=None):
-    """The collections this fighter may select from: the ones their grid
-    places a category into, kept to those holding what a model is.
+    """Restrict placed collections to families holding model abilities or identity.
 
-    Both halves matter. Without the grid every fighter would be handed
-    the whole skill library, which is the library rather than their own;
-    without the family test a placement into an equipment list's schema
-    would open a skills screen onto gear.
+    Require both effective placement and the family test, excluding equipment collections.
     """
     placed = placed_collections(computed)
     return [

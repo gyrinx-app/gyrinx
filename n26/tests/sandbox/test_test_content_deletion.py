@@ -1,12 +1,6 @@
-"""Deleting content, and the test gangs holding it.
-
-An author stages a gang type, founds a gang on it to check the fighters
-and their kit, and archives the gang when done. Every row that gang
-touched is still protected by it, so nothing the author wrote can be
-deleted — until the gang itself goes. The deletion planner
-(``n26/library/deletion.py``) names that gang as a test gang and takes it
-with the content; a player's gang, or a campaign a player is in, refuses
-in words instead.
+"""Deletion plans may include staff test gangs that hold staged content. Player gangs and
+player campaign links protect content from deletion; applying a plan must delete exactly
+its recorded rows.
 """
 
 import datetime
@@ -65,8 +59,7 @@ def test_weapon(default_pack):
 
 
 def check_with(owner, test_type, test_fighter, test_weapon, name="Checking"):
-    """Found a gang on the type, hire, equip, and archive — what an author
-    does to look at new content, and what a player's Delete gang leaves."""
+    """Found, hire, equip and archive a test gang that holds the authored content."""
     gang = found_gang(name, test_type, owner=owner)
     model = hire(gang, test_fighter, "One", paid=50)
     give_weapon(model, test_weapon, paid=15)
@@ -75,7 +68,7 @@ def check_with(owner, test_type, test_fighter, test_weapon, name="Checking"):
 
 
 class TestNamingTheTestGangs:
-    """A plan says what goes and who holds it, and never writes."""
+    """Planning reports deletions and holders without writing."""
 
     def test_an_unused_row_has_no_holders(self, test_type):
         plan = plan_deletion([test_type])
@@ -112,9 +105,9 @@ class TestNamingTheTestGangs:
     def test_a_purchase_through_a_list_line_does_not_hold_the_line(
         self, player, test_type, test_fighter, test_weapon
     ):
-        """A purchase names the line it was bought through, and the
-        column is emptied when the line goes: the payment still
-        happened. So a player's purchase does not hold a staged line."""
+        """Deleting a collection entry clears the purchase’s reference to it without
+        deleting the payment.
+        """
         from n26.library.authoring import create_collection
         from n26.library.models import CollectionEntry
         from n26.tests.sandbox.actions import buy
@@ -155,7 +148,7 @@ class TestNamingTheTestGangs:
 
         assert plan.ok
         assert [holder.name for holder in plan.test_gangs] == [gang.name]
-        # The weapon's own firing line goes with it, and is promised.
+        # The plan includes the weapon profile.
         assert "firing lines" in plan.counts() or "weapons" in plan.counts()
 
     def test_a_modifier_naming_the_row_goes_when_nothing_standing_carries_it(
@@ -169,14 +162,13 @@ class TestNamingTheTestGangs:
             carried_by=rule,
         )
 
-        # The rule alone: its modifier is not the rule's to take, and
-        # stays as a reusable.
+        # The rule’s modifier remains reusable after its carrier is deleted.
         alone = plan_deletion([rule])
         assert alone.ok
         assert not alone.modifier_ids
 
-        # The rule and the weapon together: the modifier names the weapon
-        # and its only carrier is going, so it goes too, parts first.
+        # With its only carrier and referenced weapon deleted, the modifier and its
+        # parts also go.
         both = plan_deletion([rule, test_weapon])
         assert both.ok
         assert "modifiers" in both.counts()
@@ -222,7 +214,7 @@ class TestNamingTheTestGangs:
 
         assert plan.ok
         assert [holder.name for holder in plan.test_gangs] == ["Mine"]
-        # The campaign stands: nothing being deleted is the campaign's.
+        # The campaign owns none of the content being deleted.
         assert not plan.campaigns
 
     def test_a_staff_gang_that_fought_a_player_is_not_a_test_gang(
@@ -233,7 +225,7 @@ class TestNamingTheTestGangs:
         mine = check_with(author, test_type, test_fighter, test_weapon, "Mine")
         theirs = found_gang("Theirs", create_gang_type("Escher"), owner=player)
         campaign = found_campaign("Dust Falls", campaign_type, owner=author)
-        # A battle's participants need not still belong to the campaign.
+        # Battle participation protects a gang even after it leaves the campaign.
         battle = Battle.objects.create(
             campaign=campaign, date=datetime.date(2026, 9, 9)
         )
@@ -285,14 +277,13 @@ class TestNamingTheTestGangs:
         assert again.same_as(plan)
         assert again.preview() == plan.preview()
         assert [holder.name for holder in again.test_gangs] == ["Checking"]
-        # A record read back is what the act checks the library against,
-        # so it performs from it too.
+        # Apply the serialised plan after checking it against the current library.
         apply(again)
         assert not GangType.objects.filter(pk=test_type.pk).exists()
 
 
 class TestApplying:
-    """The act deletes exactly what the plan names, or nothing."""
+    """Applying a plan deletes all recorded rows or leaves them unchanged."""
 
     def test_the_test_gang_and_the_content_go_together(
         self, author, test_type, test_fighter, test_weapon
@@ -366,8 +357,7 @@ class TestApplying:
 
 
 def table_counts():
-    """Every n26 table's row count, so a delete can be proved to leave
-    nothing behind that was only there because of the gang."""
+    """Count every N26 table to detect dependent rows left behind by deletion."""
     from django.apps import apps
 
     return {
@@ -377,8 +367,9 @@ def table_counts():
 
 
 class TestDeletingAGang:
-    """The first hard delete of a gang: everything only there because of
-    the gang goes, and nothing else moves."""
+    """Deleting a gang removes its dependent rows while preserving shared rows and campaign
+    history.
+    """
 
     def test_everything_hanging_off_the_gang_goes_with_it(
         self, author, player, default_pack, person_type, campaign_type
@@ -419,16 +410,14 @@ class TestDeletingAGang:
         destroy_gang(Gang.objects.get(pk=mine.pk))
 
         after = table_counts()
-        # The campaign's log keeps every line: what happened in it is the
-        # campaign's history, whichever gang it was about.
+        # Campaign history survives deletion of the gang it records.
         assert CampaignEvent.objects.count() == logged
         grew = {
             label: after[label] - settled[label]
             for label in after
             if after[label] != settled[label] and label != "n26.campaignevent"
         }
-        # The campaign's asset line and the payer's own line stay: the
-        # asset is the campaign's, and the payment is the payer's history.
+        # The campaign asset and payer’s payment history survive.
         assert grew == {"n26.campaignasset": 1, "n26.ledgerevent": 1}
         assert (
             LedgerEvent.objects.get(gang=theirs, credits_delta=10).counterpart is None
@@ -444,8 +433,7 @@ class TestDeletingAGang:
 
         destroy_gang(mine)
 
-        # Every foreign key checked at once, which is what proves no row
-        # was left pointing at the gang or its models.
+        # Check all foreign keys for references to deleted rows.
         with connection.cursor() as cursor:
             cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
         assert not Miniature.objects.exists()
