@@ -41,7 +41,7 @@ def _parts_picked(data, key, line):
     try:
         return parts_picked(data, key, line)
     except UnavailableEquipment as error:
-        raise Http404(str(error)) from None
+        raise Http404(error.public_message) from None
 
 
 LIST_SUFFIX = "equipment list"
@@ -347,7 +347,7 @@ def _buy_clicked(
             },
         )
     except UnavailableEquipment as error:
-        raise Http404(str(error)) from None
+        raise Http404(error.public_message) from None
     if result.confirmation is not None:
         return result.confirmation
     if result.refused:

@@ -670,7 +670,7 @@ def _owned_action(request, pk, action):
             include_staged=sees_staged(request.user),
         )
     except UnavailableEquipment as error:
-        raise Http404(str(error)) from None
+        raise Http404(error.public_message) from None
     if result.refused:
         messages.error(request, result.refused)
         return _unchanged(request, back)

@@ -324,6 +324,32 @@ def test_json_endpoints_return_session_failure_without_an_account_redirect(
     assert response["Content-Type"] == "application/json"
 
 
+def test_selection_refusals_return_only_the_explicit_public_message(
+    client, gang, owner, monkeypatch
+):
+    from django.urls import reverse
+
+    from n26.core.equip_purchase import UnavailableEquipment
+
+    error = UnavailableEquipment("Choose the equipment options again.")
+    error.args = ("Private diagnostic details",)
+
+    def unavailable(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr("n26.core.views.equip_react.purchase", unavailable)
+    client.force_login(owner)
+    response = client.post(
+        reverse("n26-equip-stash-command", args=[gang.pk]), {"action": "buy"}
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "errors": {"__all__": ["Choose the equipment options again."]}
+    }
+    assert_reconciled(gang)
+
+
 def test_stable_option_identity_keeps_the_full_payment_when_the_default_reorders(
     gang, owner
 ):

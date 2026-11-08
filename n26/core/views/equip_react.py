@@ -230,7 +230,7 @@ def stash_command(request, pk):
         else:
             raise UnavailableEquipment("Choose an equipment action again.")
     except UnavailableEquipment as error:
-        return JsonResponse({"errors": {"__all__": [str(error)]}}, status=422)
+        return JsonResponse({"errors": {"__all__": [error.public_message]}}, status=422)
     if result.refused:
         gang = _own_gang_or_404(request, pk)
         return JsonResponse(

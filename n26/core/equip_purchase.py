@@ -13,9 +13,10 @@ from n26.core.listing import price_field as _price_field
 from n26.core.owned import thing_key
 from n26.core.prices import BadPrice
 from n26.core.prices import price_typed as parse_price
+from n26.errors import UserFacingError
 
 
-class UnavailableEquipment(Exception):
+class UnavailableEquipment(UserFacingError):
     """A catalogue selection cannot be resolved."""
 
 
