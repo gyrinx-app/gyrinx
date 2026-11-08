@@ -1,13 +1,6 @@
-"""A fighter leaving the roster: deleted, or refunded, kit stashed or not.
-
-The model's edit menu offers two ways out — Delete keeps the money spent,
-Refund returns what was actually *paid* — and each dialog offers the same
-alternative disposal: the kit money was paid for moves to the stash first,
-where every line keeps its pinned rating because a move never re-prices.
-Free and granted things return nothing and never move: a built-in knife in
-the stash is clutter the next hire re-arms without.
-
-Everything here spends or returns money, so every test ends reconciled.
+"""Verify fighter deletion and refunds, including the option to stash paid equipment first.
+Deletion retains spending; refunds return recorded payments. Stashed equipment keeps its
+recorded rating, while free equipment is removed with the fighter.
 """
 
 import pytest
@@ -32,8 +25,7 @@ GUN_PRICE = 30
 
 @pytest.fixture
 def owner(db):
-    """The gang's owner, and the account these pages are asked for
-    as."""
+
     return User.objects.create_user("player")
 
 
@@ -51,8 +43,9 @@ def vex(gang, make_profile, make_statline):
 
 @pytest.fixture
 def armed(vex, default_pack):
-    """Vex with a bought gun and a granted knife: one line money was paid
-    for, one it was not — the pair every disposal rule splits."""
+    """Fighter with a paid gun and a free knife to distinguish salvage and refund
+    eligibility.
+    """
     give_weapon(vex, create_weapon("Autogun", price=GUN_PRICE), paid=GUN_PRICE)
     give_weapon(vex, create_weapon("Knife", price=0), paid=0)
     return vex
@@ -73,7 +66,7 @@ def roster(gang):
 
 
 class TestTheDialogs:
-    """Open is a server state, and the dialog quotes its own arithmetic."""
+    """Represent dialog state in the URL and display the refund calculation."""
 
     def test_the_edit_menu_offers_both_ways_out(self, client, owner, gang, armed):
         client.force_login(owner)
@@ -92,8 +85,9 @@ class TestTheDialogs:
         assert f"?delete={armed.pk}" not in body
 
     def test_the_refund_dialog_quotes_paid_not_worth(self, client, owner, gang, armed):
-        """85¢ paid across fighter and gun; the free knife adds nothing.
-        The stash alternative quotes the fighter alone."""
+        """The full refund includes 55 credits for hiring and 30 for the gun; stashing the
+        gun returns only the hire payment.
+        """
         client.force_login(owner)
         url = reverse("n26-gang", args=[gang.pk])
         body = client.get(f"{url}?refund={armed.pk}").content.decode()
@@ -134,8 +128,9 @@ class TestDeleting:
     def test_stashing_the_kit_keeps_only_what_was_bought(
         self, client, owner, gang, armed
     ):
-        """The gun moves at its pinned rating; the free knife leaves with
-        Vex rather than becoming clutter the next hire re-arms without."""
+        """Keep the paid gun at its recorded rating and remove the free knife with the
+        fighter.
+        """
         client.force_login(owner)
         client.post(delete_url(armed), {"kit": "stash"})
         gang.refresh_from_db()
@@ -158,8 +153,7 @@ class TestRefunding:
     def test_what_was_paid_comes_back_every_credit_and_no_more(
         self, client, owner, gang, armed
     ):
-        """55¢ hire and 30¢ gun return; the granted knife was never paid
-        for and returns nothing — paid, not worth, is the refunded figure."""
+        """Return the recorded hire and gun payments; the free knife contributes no refund."""
         client.force_login(owner)
         client.post(refund_url(armed))
         gang.refresh_from_db()
@@ -175,8 +169,8 @@ class TestRefunding:
         client.post(refund_url(armed), {"kit": "stash"})
         gang.refresh_from_db()
         assert roster(gang) == []
-        # The gun was kept, so its 30¢ stays spent and its rating moves
-        # to the stash; only the hire price returns.
+        # Keep the gun's payment spent and transfer its rating to the stash; refund only
+        # the hire payment.
         assert gang.credits == 1000 - GUN_PRICE
         assert gang.stash_rating == GUN_PRICE
         assert gang.rating == 0
@@ -184,9 +178,9 @@ class TestRefunding:
 
 
 class TestAGangWithNoBudget:
-    """A gang founded without a budget never spent credits, so there is
-    nothing a refund could give back: its edit menu offers Delete alone, and
-    a refund asked for anyway is answered as the deletion it is."""
+    """Unlimited-credit gangs expose deletion without refunds. A direct refund request must
+    follow deletion behaviour without returning credits.
+    """
 
     @pytest.fixture
     def unbudgeted(self, gang):
@@ -203,7 +197,7 @@ class TestAGangWithNoBudget:
     def test_a_refund_address_asks_the_delete_question(
         self, client, owner, unbudgeted, armed
     ):
-        """Cancel, stash, delete — never a 0¢ refund to puzzle over."""
+        """Show deletion choices when the gang has no finite credit budget."""
         client.force_login(owner)
         url = reverse("n26-gang", args=[unbudgeted.pk])
         body = client.get(f"{url}?refund={armed.pk}").content.decode()
@@ -225,16 +219,9 @@ class TestAGangWithNoBudget:
 
 
 class TestTheSameRefundArrivingTwice:
-    """A removal is one act however many times the click reaches the server.
-
-    Two requests for the same act each load the line — with its ledger
-    entry beside it — before either holds the gang's line. The second
-    waits its turn holding a copy that still says the thing is on the
-    roster and paid for. Were the act to trust that copy it would hand
-    the money back again: the entry would fold to minus what it was worth
-    while its pins say zero, and the gang would be paid twice for one
-    refund. Instead the second arrival finds the thing gone and does
-    nothing.
+    """Repeated refund, sale or removal requests can hold independently loaded stale
+    assignments. Recheck under the gang lock so only the first request changes money or
+    history.
     """
 
     @pytest.fixture

@@ -1,18 +1,12 @@
-"""Campaign types and assets — the library kinds a campaign is founded on.
+"""Campaign types declare asset types and built-ins received by member gangs.
 
-A campaign type declares the asset types a campaign of it deals in,
-lists under each asset type the assets of it, and — being assignable, as
-a gang type is — carries built-ins that every member gang gets. An asset
-is one entry in that list: it belongs to one asset type, and so to one
-campaign type, and is authored on the campaign type's page under its
-asset type; its income is a figure on the card and its boons ride it as
-modifiers. The Territory campaign type ships with Settlement as a
-possession, Territory as a holding, and Reputation at 1 built in. See
-design/campaign-assets.md.
+Each asset belongs to one asset type. Possession assets become built-ins;
+Holding assets remain campaign holdings. The shipped Territory campaign
+includes Settlement, Territory and the Reputation and Income counters.
+Asset modifiers supply computed benefits. See design/campaign-assets.md.
 
-The same note settles one rule about packs: content in a pack nobody
-owns may never point at content in a pack somebody does. The library's
-models do not check it; the authoring forms do, once, for every pick.
+Authoring forms reject references from unowned packs to owned packs.
+The model layer does not enforce this cross-pack restriction.
 """
 
 import re
@@ -74,7 +68,7 @@ def author(client):
 
 @pytest.fixture
 def dominion(default_pack):
-    """A campaign type with the two asset types the core rules deal in."""
+    """Create a campaign type with Holding territories and Possession settlements."""
     campaign_type = create_campaign_type("Dominion")
     territory = add_asset_type(
         campaign_type, "Territory", "pooled", label_plural="Territories"
@@ -85,13 +79,11 @@ def dominion(default_pack):
 
 @pytest.fixture
 def owned(db):
-    """A pack somebody owns, with a campaign type, an asset type, an asset and a
-    counter of its own — the content a system row must never point at."""
+    """Create owned campaign content used to test cross-pack reference restrictions."""
     arbitrator = User.objects.create_user("arbitrator")
     pack = create_pack("Sump Rats", owner=arbitrator)
     campaign_type = create_campaign_type("Sump Rats campaign", pack=pack)
-    # No pack named: an asset type joins its type's pack on its own, and
-    # an asset its asset type's.
+    # Asset types inherit the campaign type's pack; assets inherit their asset type's pack.
     kind = add_asset_type(campaign_type, "Rat hole", "pooled")
     asset = create_asset("The Big Hole", kind)
     counter = create_counter("Meat", pack=pack)
@@ -105,8 +97,7 @@ def owned(db):
 
 
 class TestAuthoringACampaignType:
-    """The verbs build a type, its asset types and the assets under them, and
-    refuse the mistakes an author can make in words."""
+    """Create campaign types, asset types and assets through authoring verbs with readable validation errors."""
 
     def test_a_campaign_type_declares_its_asset_types_in_order(self, dominion):
         kinds = list(dominion["type"].asset_types.all())
@@ -137,9 +128,7 @@ class TestAuthoringACampaignType:
     def test_an_asset_is_of_one_asset_type_and_so_in_its_campaign_types_list(
         self, dominion
     ):
-        """The asset type is the whole of how an asset belongs to a campaign
-        type: the type's list of assets is read through its asset types,
-        and there is no second list to add the asset to."""
+        """Derive campaign-type membership through the asset type without a second membership list."""
         ruins = create_asset("Old Ruins", dominion["territory"], income=10)
         settlement = create_asset("Settlement", dominion["settlement"])
 
@@ -184,8 +173,7 @@ class TestAuthoringACampaignType:
         assert dominion["type"].built_ins is None
 
     def test_every_possession_asset_type_gives_its_assets(self, dominion):
-        """The rule is the asset type's ownership, not the word Settlement:
-        a second Possession asset type's assets arrive the same way."""
+        """Build in assets from every Possession asset type, regardless of its label."""
         hideout = add_asset_type(dominion["type"], "Hideout", "held-one-each")
         settlement = create_asset("Settlement", dominion["settlement"])
         bolthole = create_asset("Bolthole", hideout)
@@ -205,16 +193,13 @@ class TestAuthoringACampaignType:
         assert [m.assignable for m in dominion["type"].built_in_members] == [settlement]
 
         settlement.archive()
-        # Nothing ever materialised from the member, so it goes rather
-        # than being archived; the set itself stays for the next thing.
+        # Delete an unused built-in member when its asset is archived; retain the set.
         assert list(dominion["type"].built_in_members) == []
         assert not DefaultAssignment.objects.filter(asset=settlement).exists()
         assert dominion["type"].built_ins is not None
 
     def test_unarchiving_a_possession_gives_it_again(self, dominion):
-        """The mirror of archiving. Nothing had come from the member, so
-        archiving deleted it and unarchiving adds a fresh one — the asset
-        is given to gangs that join from here on, as it was before."""
+        """Recreate the unused built-in member deleted by archiving the possession asset."""
         settlement = create_asset("Settlement", dominion["settlement"])
         settlement.archive()
         assert list(dominion["type"].built_in_members) == []
@@ -225,7 +210,7 @@ class TestAuthoringACampaignType:
         assert DefaultAssignment.objects.filter(asset=settlement).count() == 1
 
     def test_unarchiving_a_holding_gives_nothing(self, dominion):
-        """A holding is never built in, so there is nothing to put back."""
+        """Unarchiving a Holding asset must not create a built-in member."""
         from n26.library.authoring import add_asset_type
 
         cache = add_asset_type(dominion["type"], "Cache", "pooled")
@@ -236,10 +221,7 @@ class TestAuthoringACampaignType:
         assert not DefaultAssignment.objects.filter(asset=loot).exists()
 
     def test_a_possession_is_given_by_a_type_in_its_own_pack(self, dominion, owned):
-        """A campaign writing an asset into its own pack under a shared
-        Possession asset type names its additions type as the giver; the
-        shared type must never hand one campaign's asset to every campaign
-        founded on it."""
+        """Build a campaign-specific possession into its own giver rather than the shared campaign type."""
         with pytest.raises(ValueError, match="own pack"):
             create_asset("Sump Home", dominion["settlement"], pack=owned["pack"])
         assert not Asset.objects.filter(name="Sump Home").exists()
@@ -257,10 +239,7 @@ class TestAuthoringACampaignType:
     def test_the_rule_can_be_run_over_what_already_stands(
         self, dominion, owned, default_pack
     ):
-        """The data migration's pass: a possession authored before the rule,
-        with no member naming it, is built in; one already given is left
-        alone; a campaign's own asset under a shared type goes to that
-        campaign's additions."""
+        """Repair missing possession members idempotently, using campaign additions for campaign-owned assets."""
         from n26.core.models import Campaign
         from n26.library.possessions import build_in_missing
         from n26.tests.sandbox.actions import found_campaign
@@ -291,10 +270,10 @@ class TestAuthoringACampaignType:
             given,
             settlement,
         ]
-        # The pass founded the additions' set on its own copy of the type.
+        # Refresh the caller's instance after the repair created its built-in set.
         campaign.additions.refresh_from_db()
         assert [m.assignable for m in campaign.additions.built_in_members] == [theirs]
-        # A pack no campaign owns gives nothing.
+        # An owned pack without a campaign has no additions type to receive this possession.
         assert not DefaultAssignment.objects.filter(asset=stray).exists()
         assert Campaign.objects.count() == 1
         assert build_in_missing(apps) == []
@@ -302,8 +281,7 @@ class TestAuthoringACampaignType:
     def test_the_pass_founds_one_set_for_a_type_with_several_possessions(
         self, dominion, default_pack
     ):
-        """Two possessions of a type that has no set yet land in one set:
-        the pass reads the type once, not once per asset."""
+        """Create one shared built-in set when repairing several possessions belonging to the same campaign type."""
         from n26.library.possessions import build_in_missing
 
         hideout = add_asset_type(dominion["type"], "Hideout", "held-one-each")
@@ -330,9 +308,7 @@ class TestAuthoringACampaignType:
     def test_archiving_through_the_admin_takes_a_possession_out(
         self, dominion, default_pack
     ):
-        """The admin change form is the one place an asset is archived by
-        a person, and it saves the row rather than calling ``archive``;
-        the admin routes that save through the same rule."""
+        """Apply possession membership updates when the admin saves an archived asset."""
         from django.contrib.admin.sites import AdminSite
         from django.test import RequestFactory
 
@@ -353,8 +329,7 @@ class TestAuthoringACampaignType:
     def test_unarchiving_through_the_admin_gives_a_possession_back(
         self, dominion, default_pack
     ):
-        """Unticking Archived on the same form is how a person brings an
-        asset back, and the admin routes that save through the rule too."""
+        """Restore the possession member when the admin clears the asset's archived flag."""
         from types import SimpleNamespace
 
         from django.contrib.admin.sites import AdminSite
@@ -381,9 +356,7 @@ class TestAuthoringACampaignType:
     def test_a_gang_can_be_assigned_a_campaign_type_and_an_asset(
         self, dominion, gang_type, owner
     ):
-        """The wiring every assignable needs: a column on the gang's
-        assignments for each new kind, so joining a campaign and
-        holding a Settlement can both be ordinary assignments."""
+        """Wire campaign types and possession assets into the assignment model."""
         from n26.core.models import Assignment, Gang
 
         gang = Gang.objects.create(
@@ -400,9 +373,7 @@ class TestAuthoringACampaignType:
 
 
 class TestTheCoreCampaignType:
-    """What every install ships with: the Territory campaign type, its two asset types,
-    a Settlement, and Reputation at 1 — created once, whatever the
-    database already holds."""
+    """Seed the Territory campaign and its assets and counters idempotently."""
 
     def test_it_creates_the_type_its_asset_types_the_settlement_and_reputation(
         self, default_pack
@@ -430,8 +401,6 @@ class TestTheCoreCampaignType:
         ]
         assert core.built_ins.name == "Territory campaign built-ins"
         assert all(row.pack == default_pack for row in (core, settlement, reputation))
-        # One line per row: two counters, the type, two asset types, the
-        # asset, the set, and three members.
         assert len(lines) == 13
 
     def test_running_it_again_creates_nothing(self, default_pack):
@@ -458,9 +427,7 @@ class TestTheCoreCampaignType:
     def test_it_takes_an_existing_reputation_counter_whatever_its_case(
         self, default_pack
     ):
-        """Names are unique per pack without regard to case, so a counter
-        already there as "reputation" is the one the type builds in —
-        creating another would be refused by the database."""
+        """Reuse an existing Reputation counter because names are unique per pack without regard to case."""
         existing = create_counter("reputation")
 
         list(seed_core_campaign(apps))
@@ -472,9 +439,7 @@ class TestTheCoreCampaignType:
     def test_it_gives_the_type_its_words_for_arbitrators_and_authors(
         self, default_pack
     ):
-        """The description is what the set-up screen's card draws; the
-        author help is what the authoring pages draw. Both are ours, about
-        the core rulebook's campaign, and never the book's own words."""
+        """Populate the campaign description and author help from their shared definitions."""
         list(seed_core_campaign(apps))
 
         core = CampaignType.objects.get(name="Territory campaign")
@@ -485,10 +450,10 @@ class TestTheCoreCampaignType:
 
 
 class TestRenamingTheCoreType:
-    """The type every install has was first created under a working name.
-    Renaming it moves the standing row across, built-ins set and all, so a
-    campaign founded on it keeps its type; a database that has already
-    been through this is left as it stands."""
+    """Rename the former core campaign type and built-in set without replacing their rows.
+
+    Preserve existing author descriptions and leave an already migrated database unchanged.
+    """
 
     def test_a_type_under_the_former_name_is_renamed_with_its_built_ins(
         self, default_pack
@@ -508,8 +473,7 @@ class TestRenamingTheCoreType:
         assert rename_core_campaign(apps) == []
 
     def test_a_type_already_renamed_keeps_an_authors_own_words(self, default_pack):
-        """Only a blank text is filled in: an author who has already
-        written the type's description keeps it across every run."""
+        """Fill blank text fields without overwriting the author's existing description."""
         theirs = create_campaign_type("Territory campaign", description="Ours.")
 
         rename_core_campaign(apps)
@@ -519,8 +483,7 @@ class TestRenamingTheCoreType:
         assert theirs.library_author_help == LIBRARY_AUTHOR_HELP
 
     def test_the_built_ins_set_follows_a_type_already_renamed(self, default_pack):
-        """A type renamed by hand keeps a set under the former name; the
-        set is renamed on its own."""
+        """Rename a built-in set still using the former name even if its campaign type was already renamed."""
         renamed = create_campaign_type("Territory campaign")
         renamed.built_ins = DefaultAssignmentSet.objects.create(name=FORMER_BUILT_INS)
         renamed.save()
@@ -531,8 +494,7 @@ class TestRenamingTheCoreType:
         assert renamed.built_ins.name == "Territory campaign built-ins"
 
     def test_nothing_is_renamed_while_both_names_stand(self, default_pack):
-        """Two types cannot share the name, and which of the two is the
-        real one is a question for a person rather than a migration."""
+        """Leave both rows unchanged when the target name already belongs to another campaign type."""
         create_campaign_type("Territory campaign")
         former = create_campaign_type(FORMER_NAME)
 
@@ -546,12 +508,10 @@ class TestRenamingTheCoreType:
 
 
 class TestTheAuthoringPages:
-    """A campaign type has pages in the existing style: a listing, a
-    create page, and a page per row. The type's page lists its asset types
-    and edits each in place, and under each asset type lists the assets of it
-    and adds one more. An asset has no menu entry, listing or create page
-    of its own: it is one entry in the type's list, made on the type's
-    page, and keeps a page of its own for its modifiers."""
+    """Manage asset types and their assets from the campaign-type page.
+
+    Assets have individual modifier pages but no independent listing or create page.
+    """
 
     def test_the_menu_offers_campaign_types_and_not_assets(
         self, author, client, default_pack
@@ -597,9 +557,7 @@ class TestTheAuthoringPages:
     def test_the_type_page_says_what_every_gang_gets_and_offers_no_asset(
         self, author, client, dominion
     ):
-        """The section is labelled for what it is on a campaign type — what
-        every gang is given on joining — and its picker offers no asset: a
-        possession is built in by being created under its asset type."""
+        """List campaign built-ins with a picker excluding assets, whose possession membership is managed automatically."""
         settlement = create_asset("Settlement", dominion["settlement"])
         add_built_in(dominion["type"], create_counter("Reputation"), amount=0)
         page = f"/n26/authoring/campaign-type/{dominion['type'].pk}/"
@@ -623,9 +581,7 @@ class TestTheAuthoringPages:
     def test_the_type_page_offers_counter_rule_and_slot_and_opens_on_counter(
         self, author, client, dominion
     ):
-        """Kit is a model's to be given, so the picker on a campaign type
-        offers only what a campaign gives a gang, and a post naming
-        anything else is refused as no choice."""
+        """Offer gang-compatible counter, rule and slot built-ins and reject an unsupported kind submitted directly."""
 
         from n26.library.authoring import create_weapon
 
@@ -672,7 +628,7 @@ class TestTheAuthoringPages:
         assert response.status_code == 302
 
         made = Asset.objects.get(name="Settlement")
-        # The page founded the type's set on its own copy of the type.
+        # Refresh the caller's instance after the page created its built-in set.
         dominion["type"].refresh_from_db()
         assert [m.assignable for m in dominion["type"].built_in_members] == [made]
         body = client.get(page).content.decode()
@@ -814,9 +770,7 @@ class TestTheAuthoringPages:
     def test_an_asset_is_added_under_an_asset_type_of_this_campaign_type_only(
         self, author, client, dominion, owned
     ):
-        """The block an author types in settles the asset type, so a post
-        naming an asset type of another campaign type is a mistyped
-        address, not a choice."""
+        """Return 404 when the submitted asset-type key belongs to another campaign type."""
         response = client.post(
             f"/n26/authoring/campaign-type/{dominion['type'].pk}/",
             {
@@ -850,9 +804,7 @@ class TestTheAuthoringPages:
     def test_the_type_page_costs_the_same_however_many_assets_it_lists(
         self, author, client, dominion
     ):
-        """The assets under each asset type and their modifier counts are
-        loaded with the asset types, so a type with a dozen assets draws for the same
-        number of queries as one with a single asset."""
+        """Prefetch assets and modifier counts so adding assets adds no page queries."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -868,8 +820,7 @@ class TestTheAuthoringPages:
             )
 
         asset_with_a_boon("Old Ruins")
-        # The first visit pays for caches the process keeps warm afterwards;
-        # only the second and third are compared.
+        # Warm process caches before comparing query counts.
         client.get(page)
         with CaptureQueriesContext(connection) as one:
             client.get(page)
@@ -887,13 +838,11 @@ class TestTheAuthoringPages:
         ruins = create_asset("Old Ruins", dominion["territory"], income=10)
 
         page = client.get(f"/n26/authoring/asset/{ruins.pk}/").content.decode()
-        # The trail runs through the type: Content library, Campaign
-        # types, Dominion, Old Ruins — there is no asset listing to name.
+        # Link the breadcrumb through the campaign type because assets have no listing page.
         assert 'href="/n26/authoring/campaign-type/"' in page
         assert f'href="/n26/authoring/campaign-type/{dominion["type"].pk}/"' in page
         assert 'href="/n26/authoring/asset/"' not in page
-        # The asset type was settled where the asset was made, so the edit form
-        # does not offer it; the rest of the fields are here.
+        # Keep the asset type fixed after creation while allowing the remaining fields to change.
         assert 'name="edit-name"' in page
         assert 'name="edit-income"' in page
         assert 'name="edit-asset_type"' not in page
@@ -934,9 +883,7 @@ class TestTheAuthoringPages:
     def test_a_campaigns_own_assets_stay_off_the_type_pages(
         self, author, client, dominion
     ):
-        """An asset or table an arbitrator writes under a shared asset type
-        lives in the campaign's pack. The type's page and the listing count
-        show the library's own. The campaign still has what it wrote."""
+        """Exclude campaign-owned assets and tables from shared library pages while retaining them in the campaign."""
         create_asset("Old Ruins", dominion["territory"])
         create_asset_table("Core Territories", dominion["territory"], dice="d6")
         arbitrator = User.objects.create_user("arbitrator")
@@ -977,13 +924,10 @@ class TestTheAuthoringPages:
 
 
 def as_a_browser_would_post(body):
-    """The edit form's values as drawn, ready to be sent back.
+    """Extract edit-form values, including textarea content, as a browser would submit them.
 
-    Everything between a textarea's tags is its content, bar the one
-    newline straight after the opening tag, which the parser drops. One
-    thing a browser does that this does not: on submit it rewrites every
-    lone newline in a box to a carriage return and a newline, so a
-    multi-line value comes back from a browser in that form.
+    Discard the initial textarea newline, which HTML parsing ignores. This helper
+    does not normalise remaining lone newlines to CRLF as browser submission does.
     """
     form = body[body.index('name="act" value="edit"') :]
     form = form[: form.index("</form>")]
@@ -1000,10 +944,7 @@ def as_a_browser_would_post(body):
 
 
 class TestTheDescriptionSurvivesBeingSaved:
-    """The box hands back exactly what is stored. Whitespace drawn round
-    the value is content the author is given: typing before or after it
-    stores it, where the save's trimming cannot reach, and the next page
-    draws a fresh layer round that."""
+    """Render textarea values without adding whitespace that would accumulate across saves."""
 
     @pytest.fixture
     def described(self, default_pack):
@@ -1042,8 +983,7 @@ class TestTheDescriptionSurvivesBeingSaved:
         page = f"/n26/authoring/campaign-type/{described.pk}/"
 
         posting = as_a_browser_would_post(client.get(page).content.decode())
-        # The box holds the stored padding and none of its own, so what
-        # the save trims is the author's whitespace and nothing else.
+        # Render only stored whitespace so saving trims the author's padding.
         assert posting["edit-description"] == padded
         client.post(page, posting)
 
@@ -1052,9 +992,7 @@ class TestTheDescriptionSurvivesBeingSaved:
 
 
 class TestSystemContentNeverReferencesOwnedContent:
-    """A row in a pack nobody owns may not point at a row in a pack
-    somebody does; the other way round is fine. Stated once, in the
-    forms, and read by every pick they take."""
+    """Reject form references from unowned packs to owned packs; permit references in the opposite direction."""
 
     def test_the_rule_reads_off_owners_not_names(self, default_pack, owned):
         unowned = create_pack("Another book")
@@ -1069,9 +1007,7 @@ class TestSystemContentNeverReferencesOwnedContent:
     def test_an_asset_added_on_a_system_type_is_system_content(
         self, author, client, dominion, default_pack
     ):
-        """An asset's only reference is its asset type, and the type's page
-        offers only the type's own asset types — so an asset added there can
-        never point into a pack somebody owns, and lands in the type's."""
+        """Create the asset in the campaign type's pack using one of that type's own asset types."""
         territory = dominion["territory"]
         client.post(
             f"/n26/authoring/campaign-type/{dominion['type'].pk}/",
@@ -1156,8 +1092,7 @@ class TestSystemContentNeverReferencesOwnedContent:
     def test_an_asset_type_added_to_an_owned_type_joins_its_pack(
         self, author, client, owned
     ):
-        """The asset type lands in the type's own pack, so a type in a pack
-        somebody owns takes new asset types from the staff page."""
+        """Create an owned campaign type's asset types in the same pack through the staff page."""
         response = client.post(
             f"/n26/authoring/campaign-type/{owned['type'].pk}/",
             {"label_singular": "Sump", "ownership": "pooled"},
@@ -1170,9 +1105,7 @@ class TestSystemContentNeverReferencesOwnedContent:
     def test_a_built_in_on_an_owned_type_is_refused_because_the_set_is_system(
         self, author, client, owned
     ):
-        """A built-in set is written into the default pack whatever its
-        carrier, so a member there would be system content pointing at
-        the owned type that carries it."""
+        """Reject a member whose default-pack built-in set would refer to its owned carrier."""
         reputation = create_counter("Reputation")
         response = client.post(
             f"/n26/authoring/campaign-type/{owned['type'].pk}/",
@@ -1191,8 +1124,7 @@ class TestSystemContentNeverReferencesOwnedContent:
     def test_a_condition_on_a_system_modifier_refuses_an_owned_subtype(
         self, default_pack, owned
     ):
-        """Conditions are part of a modifier the composer writes into the
-        default pack, so the rows they name are held to the same rule."""
+        """Reject an owned subtype referenced by a condition authored into the default pack."""
         from n26.library.authoring import create_subtype
         from n26.library.forms import condition_chip_form
 

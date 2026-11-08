@@ -352,8 +352,7 @@ def page_contents(page):
 def page_introduction(page):
     """Render the separately authored introduction when nonblank.
 
-    The default layout places it above the contents block; article content
-    appears below that block.
+    The default layout places the introduction in the article header.
     """
     introduction = (
         FlatPageOptions.objects.filter(page=page)

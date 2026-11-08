@@ -97,8 +97,8 @@ def pubsub_push_handler(request):
     """Validate a Pub/Sub envelope and execute its registered task.
 
     Return 200 on success, 400 for malformed or unknown tasks, 403 for failed
-    authentication, 429 for database capacity, 503 for paused writes and 500
-    for task failure. Pub/Sub retries non-success responses, including 400.
+    authentication, 429 for database capacity, 503 for denied delivery admission
+    and 500 for task failure. Pub/Sub retries non-success responses, including 400.
     """
     if not _verify_oidc_token(request):
         return HttpResponseForbidden("Unauthorized")

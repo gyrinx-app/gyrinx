@@ -1,8 +1,6 @@
-"""A whole fake gang, end to end: found it, hire a leader, arm them.
-
-This is the first full pass through the stack — content library, assignments,
-hosts, roots, ledger — and it doubles as the shape the design docs describe
-in prose. If this test reads badly, the design reads badly.
+"""Build a gang with a hired fighter, legacy profile, weapon, ammunition and armour. Verify
+assignment hosts and roots, recorded payments, cached ratings, reconciliation and
+archival removal.
 """
 
 import pytest
@@ -36,7 +34,7 @@ def player():
 
 @pytest.fixture
 def library(default_pack, person_type, gang_type, make_profile):
-    """A tiny, entirely fake content library."""
+
     from n26.tests.sandbox.actions import create_wargear
 
     return {
@@ -56,7 +54,7 @@ def gang(gang_type, player):
 
 
 def build_the_tree(gang, library):
-    """The worked example from the design conversation."""
+    """Create the fighter and equipment tree shared by ledger and rating assertions."""
     yolanda = hire(gang, library["hunt_champion"], "Yolanda", paid=130)
     add_legacy_profile(yolanda, library["road_captain"], paid=0)
     shotgun = give_weapon(yolanda, library["shotgun"], paid=60)
@@ -99,16 +97,16 @@ class TestBuildingTheGang:
 
         assert firestorm.parent == shotgun
         assert firestorm.ledger_entry.paid == 30
-        assert firestorm.caused_by is None  # the player chose to buy it
+        assert firestorm.caused_by is None
 
     def test_the_whole_tree(self, gang, library):
         yolanda, shotgun = build_the_tree(gang, library)
 
-        # Excluding the gang's founding, which is not something a player bought.
+        # Exclude the gang founding assignment when counting acquired model content.
         assert Assignment.objects.filter(gang_type__isnull=True).count() == 6
         assert sorted(str(entry.assignable) for entry in ledger_for_gang(gang)) == [
             "Combat Shotgun",
-            "Escher",  # the gang's founding, ledgered free
+            "Escher",  # Gang founding has a zero-value ledger entry.
             "Firestorm ammo (Combat Shotgun)",
             "Mesh Armour",
             "Orlock Road Captain",
@@ -124,8 +122,8 @@ class TestRoots:
         for assignment in Assignment.objects.all():
             assert assignment.gang_root == gang
 
-        # The membership is hosted on the gang, but it is *about* Yolanda —
-        # so the hire cost counts towards her rating.
+        # Membership is hosted on the gang but rooted on the hired model, so its rating
+        # contributes to that model.
         assert yolanda.membership.gang == gang
         assert yolanda.membership.miniature_root == yolanda
         assert Assignment.objects.filter(miniature_root=yolanda).count() == 6
@@ -143,7 +141,7 @@ class TestRoots:
     ):
         build_the_tree(gang, library)
         with django_assert_num_queries(1):
-            # Six purchases plus the gang's founding.
+            # Include six acquired assignments and gang founding.
             assert len(list(ledger_for_gang(gang))) == 7
 
     def test_the_model_ledger_is_one_query(
@@ -179,13 +177,13 @@ class TestHosts:
 
 class TestRating:
     def test_rating_is_live_without_anyone_asking(self, gang, library):
-        """Operations repin at their boundary — no manual recompute needed."""
+        """Operations update cached ratings at their transaction boundary."""
         yolanda, _ = build_the_tree(gang, library)
         gang.refresh_from_db()
         yolanda.refresh_from_db()
 
         assert gang.rating == 130 + 60 + 30 + 15
-        assert yolanda.rating == 235  # the hire counts towards the model
+        assert yolanda.rating == 235  # Include the hire rating.
         assert recomputed_rating(gang) == 235
         assert_reconciled(gang)
 
@@ -243,7 +241,7 @@ class TestRating:
 
 
 class TestRemoval:
-    """Removal archives — the ledger is append-only, so history survives."""
+    """Archive removed assignments while preserving ledger records and history."""
 
     def test_removing_a_weapon_takes_its_profiles_with_it(self, gang, library):
         yolanda, shotgun = build_the_tree(gang, library)
@@ -251,7 +249,7 @@ class TestRemoval:
 
         live = Assignment.objects.filter(archived=False)
         assert sorted(str(a.assignable) for a in live) == [
-            "Escher",  # the gang's founding
+            "Escher",
             "Mesh Armour",
             "Orlock Road Captain",
             "Venator Hunt Champion",
@@ -261,9 +259,9 @@ class TestRemoval:
         yolanda, shotgun = build_the_tree(gang, library)
         remove(shotgun, note="sold to a rival")
 
-        # Nothing is ever deleted. Seven: six purchases and the founding.
+        # Retain all seven ledger entries after archival removal.
         assert LedgerEntry.objects.count() == 7
-        # Excluding the gang's founding, which is not something a player bought.
+        # Exclude the gang founding assignment.
         assert Assignment.objects.filter(gang_type__isnull=True).count() == 6
         removed = LedgerEvent.objects.filter(kind=LedgerEvent.Kind.REMOVED)
         assert removed.count() == 3
@@ -282,10 +280,10 @@ class TestRemoval:
         gang.refresh_from_db()
         yolanda.refresh_from_db()
 
-        # The shotgun and its 30cr ammo stop counting.
+        # Remove the weapon and its paid ammunition from rating.
         assert gang.rating == 130 + 15
         assert yolanda.rating == 145
-        # But removing is not a refund — the money stays spent.
+        # Removal returns no credits.
         assert gang.credits == 1000 - 235
         assert_reconciled(gang)
 

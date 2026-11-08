@@ -1,9 +1,7 @@
-"""Tests for assignable-as-mixin and the per-kind columns on Assignment.
+"""Assignments reference exactly one assignable through a per-kind foreign key.
 
-The mixin means there is no shared assignable table, so Assignment holds one
-nullable foreign key per kind. Two things keep that safe: a database
-constraint that exactly one is set, and a startup check that no kind has
-been forgotten. Both are tested here.
+The abstract assignable mixin has no shared table. Database constraints reject
+ambiguous assignments, and startup checks detect missing kind declarations.
 """
 
 import pytest
@@ -29,7 +27,7 @@ pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
 
 def make_modifier(name):
-    """A minimal valid modifier — one scope, one effect."""
+    """Create a valid modifier with one scope and one effect."""
     return Modifier.objects.create(
         name=name,
         targets_miniature=TargetsMiniature.objects.create(),
@@ -51,7 +49,6 @@ def mesh(db):
 
 class TestTheMixin:
     def test_assignable_is_abstract(self):
-        """It's a property of a content model, not a table of its own."""
         assert Assignable._meta.abstract
         assert not any(
             model._meta.model_name == "assignable" for model in apps.get_models()
@@ -67,7 +64,9 @@ class TestTheMixin:
         assert str(ammo) == "Salvo ammo (Combat Shotgun)"
 
     def test_each_kind_gets_its_own_modifier_table(self, db):
-        """Declared on the abstract mixin, so no polymorphism is needed."""
+        """Fields on the abstract mixin create separate modifier join tables for each
+        concrete kind.
+        """
         mounted = make_modifier("Grants Mounted")
         weapon = Weapon.objects.create(name="Cutter")
         gear = Wargear.objects.create(name="Mesh Armour")
@@ -76,7 +75,6 @@ class TestTheMixin:
 
         assert list(weapon.modifiers.all()) == [mounted]
         assert list(gear.modifiers.all()) == [mounted]
-        # Separate join tables, reachable from the modifier by kind.
         assert list(mounted.library_weapon_set.all()) == [weapon]
         assert list(mounted.library_wargear_set.all()) == [gear]
 
@@ -110,7 +108,7 @@ class TestRouting:
         assert assignment.assignable == mesh
 
     def test_an_unknown_kind_is_refused_with_a_useful_message(self, gang, person_type):
-        # A ProfileType is content, but nothing is ever assigned one.
+        # ProfileType is content but cannot be assigned directly.
         with pytest.raises(ValueError, match="not something a"):
             Assignment(assignable=person_type, gang=gang)
 
@@ -125,7 +123,9 @@ class TestRouting:
     def test_a_whole_queryset_resolves_in_one_query(
         self, gang, mesh, django_assert_num_queries
     ):
-        """The payoff over a loose pointer: joins, not a query per kind."""
+        """Resolve mixed assignment kinds through joins rather than a query for each
+        kind.
+        """
         weapon = Weapon.objects.create(name="Combat Shotgun")
         Assignment.objects.create(assignable=mesh, gang=gang)
         Assignment.objects.create(assignable=weapon, gang=gang)
@@ -136,8 +136,7 @@ class TestRouting:
 
 
 class TestSettlingAChoice:
-    """``chosen_for`` names the assignment that asked, so what answers a
-    choice is read rather than guessed from what kind of thing it is."""
+    """chosen_for records the assignment whose choice a pick answers."""
 
     def test_a_pick_points_at_what_asked(self, gang, db):
         from n26.library.models import Pickable, Picklist, Slot, SlotType
@@ -160,17 +159,15 @@ class TestSettlingAChoice:
         assert list(slot.picks.all()) == [pick]
 
     def test_it_is_the_same_link_the_cause_is(self):
-        """The pick's cause *is* the choice that asked, so the two must
-        agree about what a hard delete does — one protecting what the
-        other cascades would make the row impossible to delete."""
+        """Use matching deletion policies when chosen_for and caused_by reference the
+        same assignment.
+        """
         cause = Assignment._meta.get_field("caused_by")
         chosen_for = Assignment._meta.get_field("chosen_for")
         assert chosen_for.remote_field.on_delete is cause.remote_field.on_delete
 
     def test_the_slot_it_settles_cannot_be_deleted_under_it(self):
-        """The other half of the pair points at content, and content a
-        player's pick names must not vanish out from under them — the
-        rule every assignable column here already follows."""
+        """Protect slot content referenced by an existing player choice."""
         from django.db.models.deletion import PROTECT
 
         named = Assignment._meta.get_field("chosen_for_slot")
@@ -178,10 +175,9 @@ class TestSettlingAChoice:
         assert named.null is True
 
     def test_the_offer_it_settles_gives_way_instead(self):
-        """The other kind of question is part of a modifier, and composing
-        one writes it afresh — so holding the old row would make an author
-        who rewords a question fail for everyone who answered it. The link
-        goes and the answer stays, read by what it is."""
+        """Modifier offers are replaced when reauthored; clear the old reference
+        while retaining the player's answer.
+        """
         from django.db.models.deletion import SET_NULL
 
         named = Assignment._meta.get_field("chosen_for_offer")
@@ -198,7 +194,6 @@ class TestTheStartupCheck:
             assert Assignment._meta.get_field(field)
 
     def test_a_forgotten_kind_is_an_error(self, monkeypatch):
-        """Simulate someone adding an Assignable and not wiring it up."""
         trimmed = dict(ASSIGNABLE_FIELDS)
         trimmed.pop("wargear")
         monkeypatch.setattr(

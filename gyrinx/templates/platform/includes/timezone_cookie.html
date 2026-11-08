@@ -1,8 +1,8 @@
 {% comment %}
     Store the browser's IANA timezone as a fallback for the next request;
     a saved profile timezone takes precedence. Match COOKIE_NAME in
-    gyrinx/timezones.py. Write the raw name because Django does not decode
-    percent-encoded slashes when reading the cookie.
+    gyrinx/timezones.py. Write the raw name so the cookie check below can compare
+    it directly with the browser timezone.
 {% endcomment %}
 <script>
     (function() {

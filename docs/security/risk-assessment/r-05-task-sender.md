@@ -5,7 +5,7 @@
 | ID | R-05 |
 | Last reviewed | 2026-11-07 |
 | Next review | On deployment verification or by 2027-02-07 |
-| Status | Verification pending after code change in this PR |
+| Status | Control implemented; deployment verification pending |
 | Related threats | [T-05](../threats/t-05-task-sender-spoofing.md) |
 | Assets | [A-06](../assets/a-06-service-secrets.md), [A-07](../assets/a-07-task-state.md), [A-02](../assets/a-02-player-data.md) |
 | Likelihood | Low after fix |

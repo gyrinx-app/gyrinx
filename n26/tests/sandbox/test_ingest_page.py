@@ -1,15 +1,10 @@
-"""The Ingest pages: sheets held, a preview, then the rows.
-
-The views are a thin shell over ``n26.library.ingest`` — the planning and
-the writing are tested against that API in ``test_ingest.py``. What is
-asserted here is only what the pages add: that an upload is held so the
-import after it needs no second choosing of the file, that a preview
-writes nothing, that importing writes what the preview said, that a
-blocking problem stops the write, and that the danger zone puts the
-library back to its foundations.
+"""Verify ingest pages around n26.library.ingest: retain uploaded sheets per author,
+preview without content writes, apply valid plans and block invalid imports. Direct
+planning and write behaviour is covered by test_ingest.py.
 """
 
 import json
+import re
 
 import pytest
 from bs4 import BeautifulSoup
@@ -50,13 +45,11 @@ def foundation(default_pack):
 
 
 def upload(text, name):
-    """A CSV as a browser would send it — named, because a real upload
-    always is and Django reads the name off the file."""
+    """Create a named UTF-8 CSV upload matching the browser file field."""
     return SimpleUploadedFile(name, text.strip().encode("utf-8"), "text/csv")
 
 
-#: The four sheets, as a browser would send them: the sheet's own page,
-#: and the file posted to it.
+#: Supported sheet identifiers and their CSV upload fixtures.
 SHEETS = {
     "equipment": (EQUIPMENT_CSV, "equipment.csv"),
     "weapon_profiles": (WEAPON_PROFILES_CSV, "profiles.csv"),
@@ -66,7 +59,7 @@ SHEETS = {
 
 
 def hold(client, sheet, text=None, name=None):
-    """Upload one sheet, the way an author does — one page, one file."""
+
     default_text, default_name = SHEETS.get(sheet, (None, f"{sheet}.csv"))
     return client.post(
         sheet_url(sheet),
@@ -80,20 +73,31 @@ def hold_all(client):
         hold(client, sheet)
 
 
+def share_held_file(held, owner):
+    """Create a second row in the legacy shape where two authors share one key."""
+    return UploadedSheet.objects.create(
+        owner=owner,
+        sheet=held.sheet,
+        filename=held.filename,
+        file=held.file.name,
+        lines=held.lines,
+    )
+
+
 class TestHoldingTheSheets:
-    """One sheet at a time, and the file stays put once given."""
+    """Retain each author's upload until it is replaced or removed."""
 
     def test_the_page_offers_every_sheet_its_own_upload(self, author, client):
         from n26.library.sheets import SHEET_NAMES
 
         body = client.get(URL).content.decode()
-        assert SHEET_NAMES  # there is something to check
+        assert SHEET_NAMES
         for sheet in SHEET_NAMES:
             assert sheet_url(sheet) in body
-        # The sheets are named as the spreadsheet names them.
+
         assert "All Profiles" in body
         assert "Equipment lists" in body
-        # ...and nothing is held yet.
+
         assert "No file uploaded" in body
 
     def test_a_sheets_page_takes_one_file(self, author, client):
@@ -122,7 +126,7 @@ class TestHoldingTheSheets:
         assert held.sheet == "equipment"
         assert held.filename == "equipment.csv"
         assert held.lines > 0
-        # The page names the file, so one export can be told from another.
+        # Show the stored filename so authors can identify their export.
         assert "equipment.csv" in body
 
     def test_holding_a_sheet_writes_no_content(self, author, client):
@@ -146,8 +150,7 @@ class TestHoldingTheSheets:
         assert not held.file.storage.exists(first.file.name)
 
     def test_a_refused_replacement_leaves_the_held_sheet_standing(self, author, client):
-        """An author who uploads the wrong thing over a good sheet still
-        holds the good one."""
+        """Keep the previous valid upload when replacement validation fails."""
         hold(client, "equipment")
         standing = UploadedSheet.objects.get(owner=author)
 
@@ -193,7 +196,7 @@ class TestHoldingTheSheets:
     def test_a_file_that_cannot_be_read_is_refused_beside_the_picker(
         self, author, client
     ):
-        """Refused where the file was chosen, not previewed as nothing."""
+        """Report unreadable input on the upload form without storing an empty sheet."""
         response = client.post(
             sheet_url("equipment"),
             {"file": SimpleUploadedFile("notes.png", b"\x89PNG\r\n\x1a\n\x00\x01")},
@@ -216,7 +219,7 @@ class TestHoldingTheSheets:
         assert client.get(sheet_url("invented")).status_code == 404
 
     def test_one_authors_sheets_are_not_anothers(self, author, client):
-        """Two authors working at once each hold their own set."""
+        """Keep uploaded sheets private to the author who submitted them."""
         hold(client, "equipment")
         other = User.objects.create_user("other", is_staff=True)
         client.force_login(other)
@@ -226,12 +229,89 @@ class TestHoldingTheSheets:
         assert "equipment.csv" not in body
         assert client.get(PREVIEW_URL, follow=True).request["PATH_INFO"] == URL
 
+    def test_two_authors_uploading_the_same_sheet_keep_separate_bytes(
+        self, author, client
+    ):
+        """Give every upload its own unpredictable storage object."""
+        hold(client, "equipment")
+        first = UploadedSheet.objects.get(owner=author)
+
+        other = User.objects.create_user("other", is_staff=True)
+        client.force_login(other)
+        other_csv = EQUIPMENT_CSV.replace("Respirator", "Photo-goggles")
+        hold(client, "equipment", text=other_csv)
+        second = UploadedSheet.objects.get(owner=other)
+
+        assert re.fullmatch(
+            r"ingest-sheets/equipment/[0-9a-f]{32}\.csv",
+            first.file.name,
+        )
+        assert re.fullmatch(
+            r"ingest-sheets/equipment/[0-9a-f]{32}\.csv",
+            second.file.name,
+        )
+        assert first.file.name != second.file.name
+        assert first.text() == EQUIPMENT_CSV.strip()
+        assert second.text() == other_csv.strip()
+
+    def test_replacing_one_legacy_reference_leaves_the_other_importable(
+        self,
+        author,
+        client,
+        foundation,
+        django_capture_on_commit_callbacks,
+    ):
+        """Preserve shared legacy bytes while another author's row still names them."""
+        hold(client, "equipment")
+        first = UploadedSheet.objects.get(owner=author)
+        other = User.objects.create_user("other", is_staff=True)
+        remaining = share_held_file(first, other)
+
+        with django_capture_on_commit_callbacks(execute=True):
+            hold(
+                client,
+                "equipment",
+                text=EQUIPMENT_CSV.replace("Respirator", "Bio-scanner"),
+            )
+
+        assert remaining.file.storage.exists(remaining.file.name)
+        client.force_login(other)
+        response = client.post(PREVIEW_URL, follow=True)
+
+        assert response.status_code == 200
+        assert Wargear.objects.filter(name="Respirator").exists()
+
+    def test_discarding_one_legacy_reference_leaves_the_other_previewable(
+        self,
+        author,
+        client,
+        foundation,
+        django_capture_on_commit_callbacks,
+    ):
+        """Keep a shared legacy object when one author discards their row."""
+        hold(client, "equipment")
+        first = UploadedSheet.objects.get(owner=author)
+        other = User.objects.create_user("other", is_staff=True)
+        remaining = share_held_file(first, other)
+
+        with django_capture_on_commit_callbacks(execute=True):
+            client.post(URL, {"remove": "equipment"})
+
+        assert remaining.file.storage.exists(remaining.file.name)
+        client.force_login(other)
+        response = client.get(PREVIEW_URL)
+
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert "equipment.csv" in body
+        assert "to create" in body
+
 
 class TestPreviewing:
     def test_repeated_previews_name_the_sheets_and_problems_without_writing(
         self, author, client, foundation
     ):
-        """The whole point: upload once, then look as often as you like."""
+        """Reuse stored uploads for repeated read-only previews."""
         hold_all(client)
 
         first = client.get(PREVIEW_URL).content.decode()
@@ -244,13 +324,12 @@ class TestPreviewing:
         assert Profile.objects.count() == 0
         assert "equipment.csv" in first
         assert "fighters.csv" in first
-        # Per-gang pet caps are noted rather than mistaken for restrictions on use.
+        # Report per-gang pet limits separately from usability restrictions.
         assert "not a restriction on use" in first
         assert "Notes:" in first
 
     def test_a_preview_names_a_sheet_that_is_not_held(self, author, client, foundation):
-        """An absence is what an author is checking for, so the sheets
-        left out are named rather than silently skipped."""
+        """Identify omitted sheets explicitly in the preview."""
         for sheet in SHEETS:
             if sheet != "profiles":
                 hold(client, sheet)
@@ -352,9 +431,9 @@ Equipment List,Escher,Wargear,Personal equipment,Respirator,,12,
         assert not Weapon.objects.exists()
 
     def test_a_blocking_problem_writes_nothing(self, author, client, foundation):
-        """A catalogue row typed as a priced weapon profile but naming no
-        profile would lose its price on the way in, so the upload waits
-        rather than landing something wrong."""
+        """A priced weapon-profile row without a profile identifier cannot preserve its
+        price, so block the whole import.
+        """
         equipment = """
 Assignable,Section,Category,Name,Profile,Cost,TP,ID
 Weapon,Close combat weapons,Lances,Frag lance,,-,E,x
@@ -373,13 +452,14 @@ Weapon Profile,Close combat weapons,Lances,Frag lance,,45,E,y
 
         assert Weapon.objects.count() == 0
         assert "Import blocked" in body
-        assert "needs a Profile value" in body  # and says which line
+        assert "needs a Profile value" in body
 
     def test_a_list_line_nothing_defines_is_left_off_not_refused(
         self, author, client, foundation
     ):
-        """The list arrives one entry short, said in the report — the
-        rest of a good upload is not held back for it."""
+        """Report unresolved collection entries as skipped without blocking the rest of the
+        upload.
+        """
         lists = """
 Collection,Title,Section,Category,Name,Profile,Credits,Restrictions,ID
 Equipment List,Escher,Ranged weapons,Web weapons,Web pisol,,90,,x

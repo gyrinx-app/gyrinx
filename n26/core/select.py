@@ -1,33 +1,16 @@
-"""Selectors — saying "these things" once, for both worlds.
+"""Selectors for in-memory matching and database discovery.
 
-The content library keeps needing to express a selection: a *kind* of thing
-(any Affiliation), a *subset* of a kind (weapons with the Melee trait,
-later "a Psychoteric Whispers power"), or a *specific* thing. Each place
-that needs one used to grow its own filter code. This module is the one
-vocabulary, usable in two contexts:
+``selector.matches(target)`` checks an adapted card node or content object.
+``selector.as_q(for_model)`` compiles a database filter for the queried model;
+a trait lookup therefore differs for weapons and weapon profiles.
 
-``selector.matches(target)``
-    In memory, against a wrapped thing — a card node, a piece of content.
+Database discovery sees printed library content. In-memory matching may
+include computed traits and other effective facts, so results can differ.
 
-``selector.as_q(for_model)``
-    Compiled to a database filter, for discovery surfaces: pickers, catalogue
-    pages. Relative to the model being queried, because "has trait X" is
-    ``traits=x`` when filtering weapon profiles and ``profiles__traits=x``
-    when filtering weapons.
-
-**The two contexts may legitimately disagree.** A database query sees the
-library as printed; in-memory matching can see computed reality (a trait a
-skill added). That is the ownership-vs-card distinction, not a bug.
-
-The matrix that is not here, by design: quantifiers are combinators
-(``HasAnyTrait(a, b)`` is spelled ``Any(Has(a), Has(b))``), and ``Has``
-takes any assignable because the instance already carries its kind — so
-there is one ``Has``, not one per model, and per-kind knowledge lives in
-the target adapters and one lookup table instead of a family of classes.
-
-References are not selections: ``AddsAssignable.skill`` and friends stay
-plain foreign keys. ``Exactly`` exists for contexts that need "this one"
-*as a selection*, not to replace them.
+Combine predicates through All, Any and other combinators. Has accepts an
+assignable of any supported kind; adapters and registered lookups provide
+kind-specific behaviour. Exactly represents identity as a selector when a
+plain foreign-key reference is insufficient.
 """
 
 from dataclasses import dataclass
@@ -58,12 +41,10 @@ class NotExpressibleAsQuery(Exception):
 
 @dataclass(frozen=True)
 class Matchable:
-    """A thing plus what it possesses, as selector food.
+    """A target with assignable identities and effective counter values for matching.
 
-    ``assignables`` is a frozenset of :func:`key` results. What counts as
-    possessed is the *adapter's* decision — a card builds targets whose
-    assignables are computed traits; ``matchable`` on a bare piece of
-    content uses what is printed.
+    assignables contains key results. Adapters decide whether these represent
+    printed library facts or computed card facts.
     """
 
     thing: object
@@ -91,13 +72,7 @@ class Matchable:
         )
 
     def counting(self, extra):
-        """This matchable with more added to what its counters read.
-
-        ``extra`` is ``{key(counter): amount}``. A threshold asks what
-        the counter stands at, and what a rule contributes stands there
-        as surely as what was tallied, so the two are summed before
-        anything is asked.
-        """
+        """Add effective counter contributions keyed by counter identity before threshold checks."""
         if not extra:
             return self
         totals = dict(self.counts)
@@ -112,11 +87,9 @@ class Matchable:
 
 
 def matchable(thing, assignables=()):
-    """The default adapter: a thing and, if relevant, its printed traits.
+    """Adapt content and its printed traits for matching.
 
-    ``assignables`` are the assignables the thing possesses beyond what the
-    adapter can see for itself — a fighter's subtypes, say. Callers pass
-    the objects themselves; :func:`key` is internal.
+    Callers can supply additional assignable objects; key conversion stays internal.
     """
     owned = {key(assignable) for assignable in assignables}
     if hasattr(thing, "traits"):
@@ -161,10 +134,7 @@ class HasStatus:
 
 @dataclass(frozen=True)
 class Has:
-    """The target possesses this thing — a trait, a skill, a subtype.
-
-    One leaf for every kind: the instance carries its own kind.
-    """
+    """Match a target possessing the supplied assignable, regardless of its kind."""
 
     thing: object
 
@@ -186,7 +156,7 @@ class Has:
 
 @dataclass(frozen=True)
 class OfKind:
-    """The target is one of these at all — any Affiliation."""
+    """Match any target of the supplied assignable kind."""
 
     model: type
 
@@ -211,11 +181,9 @@ class OfKind:
 
 @dataclass(frozen=True)
 class Exactly:
-    """This one specific thing, as a selection.
+    """Match the target's identity to one specific content object.
 
-    First real use: "(Wyld Runner only)" — an item usable by one fighter
-    *entry*. The fighter matchable's thing is their profile, so being that
-    entry is an ``Exactly``, where having a subtype is a ``Has``.
+    Fighter targets use their profile as identity; subtypes use Has instead.
     """
 
     thing: object
@@ -239,22 +207,10 @@ class Exactly:
 
 @dataclass(frozen=True)
 class HomedIn:
-    """The target's home category is this one.
+    """Match the target's authored category, using a weapon's category for its profiles.
 
-    Its own leaf rather than a ``Has``, because a home is not a
-    possession: every assignable sorts into exactly one category, fixed
-    per item, whatever list shows it (see ``n26.library.models.category``).
-    This is the sweep's "every Weapon in Auto/Stub Weapons", and the leaf
-    family narrowing will reuse — "a Psychoteric Whispers power" is
-    ``All(OfKind(Power), HomedIn(whispers))``.
-
-    **A weapon's profile is the one thing with no home of its own.**
-    It is a profile of a gun rather than an item that sorts anywhere, so
-    it takes its gun's category: "all Las weapons" reaches every profile
-    of every Las weapon. Both halves of the leaf say that — in memory by
-    reading the gun, in SQL by filtering across to it — because a filter
-    that found a profile the matching listing did not show would be two
-    answers to one question.
+    Memory and database implementations follow the same relation. Category is
+    identity metadata rather than a possession, so this is separate from Has.
     """
 
     category: object
@@ -279,14 +235,9 @@ class HomedIn:
 
 @dataclass(frozen=True)
 class LineOf:
-    """The target is a profile of this weapon.
+    """Match weapon-profile targets belonging to one specific weapon.
 
-    Naming a gun, where ``Has`` names something a gun carries and
-    ``HomedIn`` names where guns of its sort file. A weapon-scoped
-    selector is asked about *lines* — an Autogun's own line, a boltgun's
-    warp round — so being the Autogun is a fact about the line's weapon
-    rather than about the line, and ``Exactly(autogun)`` would be false
-    of every line the Autogun has.
+    Exactly would compare profile identity and cannot identify the parent weapon.
     """
 
     weapon: object
@@ -310,11 +261,7 @@ class LineOf:
 
 @dataclass(frozen=True)
 class TakesSlots:
-    """The target is a weapon taking this many slots.
-
-    The book's asterisk: heavy weapons "marked with *" take two slots,
-    and Suspensors fit those alone. A numeric fact, not a possession.
-    """
+    """Match weapons by their numeric slot requirement."""
 
     slots: int
 
@@ -330,11 +277,9 @@ class TakesSlots:
 
 @dataclass(frozen=True)
 class HasTradePointPrice:
-    """The target is offered at the Trading Post — a TP price is set.
+    """Match content with a non-null Trading Post price, including zero.
 
-    Blank means not offered there at all; 0 is a real (free) price, so
-    the test is null-ness, never magnitude. Exclusive items carry no TP
-    price by constraint, so they fall outside this leaf for free.
+    Exclusive content has no Trade Point price by constraint.
     """
 
     def matches(self, target):
@@ -349,12 +294,10 @@ class HasTradePointPrice:
 
 @dataclass(frozen=True)
 class CounterAtLeast:
-    """The target's counter has reached this value.
+    """Match a card's effective counter value against an in-memory threshold.
 
-    What lets effects hang off XP: a scope conditioned on
-    ``CounterAtLeast(xp, 5)`` reveals a promotion offer the moment the
-    tally crosses five, and withdraws it if the value drops. In-memory
-    only — thresholds are asked of cards, not of the library.
+    Computed contributions count alongside stored balances. This selector has no
+    library-query equivalent.
     """
 
     counter: object
@@ -371,12 +314,10 @@ class CounterAtLeast:
 
 
 def specificity(selector):
-    """How conditional a selector is — what evaluation round it belongs to.
+    """Return the selector's evaluation round score.
 
-    0 is unconditional (``Anything``): its answer can never depend on
-    another modifier's output, so it is safe to evaluate first. Each leaf
-    condition scores 1. ``Any`` is alternatives on one axis (max);
-    ``All`` stacks conditions (sum). CSS's idea, one integer.
+    Anything scores zero; each leaf condition scores one. Any takes its maximum
+    child score and All sums child scores.
     """
     if isinstance(selector, Anything):
         return 0

@@ -1,9 +1,6 @@
-"""Arithmetic Django's template language leaves out.
+"""Template arithmetic helpers for operations absent from Django's filters.
 
-Only what a template genuinely cannot express. Django ships ``add`` but has no
-subtract, and its argument cannot itself be a filtered value — so working out a
-colspan from two lengths is impossible without help. That is the whole reason
-this exists.
+These support computed colspans and bounded numeric inputs.
 """
 
 from django import template
@@ -13,11 +10,7 @@ register = template.Library()
 
 @register.filter
 def sub(value, arg):
-    """``{{ wide|sub:narrow }}`` — subtraction, for colspans.
-
-    Non-numeric input yields "" rather than raising, matching how the rest of the
-    template filters behave: a broken colspan should not take a page down.
-    """
+    """Subtract a numeric filter argument, returning empty for invalid input."""
     try:
         return int(value) - int(arg)
     except TypeError, ValueError:
@@ -35,11 +28,9 @@ def at_least(value, minimum):
 
 @register.filter
 def at_most(value, maximum):
-    """Cap a number — ``{{ quoted|at_most:0 }}`` is the least a price box
-    may hold, which is the quote where the quote is below zero.
+    """Cap a coerced number at the supplied upper bound.
 
-    Coerces first, because a value reaches a template as a string as
-    often as a number, and a comparison between the two is not an answer.
+    For negative price quotes, use zero to obtain the permitted minimum.
     """
     try:
         return min(int(value), int(maximum))

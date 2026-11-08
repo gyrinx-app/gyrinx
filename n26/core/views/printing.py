@@ -77,7 +77,7 @@ def _print_rows(
     cards = dict(gang_card.members_under(selection))
     for miniature in miniatures:
         if miniature.pk not in cards:
-            # Build an empty card when the gang derivation has no assignments for this model.
+            # Build the member card omitted by the gang derivation.
             cards[miniature.pk] = build_card(
                 miniature, with_statlines=True, assignment_set=selection
             )

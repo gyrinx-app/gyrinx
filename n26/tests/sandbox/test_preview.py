@@ -1,19 +1,7 @@
-"""The scratch card: preview applies nothing and shows everything.
-
-Step 3 of design/authoring-build-plan.md. The two worked examples from
-the authoring design run end-to-end as *pending* content:
-
-* the **Brawler grid** — ten composer payloads, three scratch subtypes,
-  a collection with its tiers, all created inside the preview — and the
-  scratch Leader's card comes back showing Combat and Savant under
-  Primary, with all ten placement steps in its plan;
-* **Lead the Masses** — a companions ask on a gang-carried rule, and
-  the note fires on a one-Champion, one-Scum scratch roster.
-
-Every test asserts the database holds **exactly the same rows before
-and after**: the preview writes freely inside its transaction and rolls
-the whole thing back, so a broken payload can never leave debris and a
-good one never sneaks content in unsaved.
+"""Verify unsaved authoring previews using scratch content and gangs. Cover Brawler skill
+placements, a companion requirement, invalid payloads and the staff JSON endpoint.
+Compare every model's row count before and after to detect writes escaping the preview
+rollback; see n26/design/authoring-build-plan.md.
 """
 
 import json
@@ -46,7 +34,7 @@ BRAWLER_GRID = {
 
 
 def placement_payload(rank, category, tier, bearer_only=False):
-    """One composer submit: one cell of the grid."""
+    """Composer payload for one rank/category placement."""
     payload = {
         "attach_to": "@Brawler",
         "scope_kind": "targets_model" if bearer_only else "targets_every_model",
@@ -62,7 +50,7 @@ def placement_payload(rank, category, tier, bearer_only=False):
 
 
 def brawler_state():
-    """The whole grid as form state — what the flow would POST."""
+    """Complete preview state for the Brawler placement grid."""
     return {
         "create": [
             *({"kind": "subtype", "name": rank} for rank in BRAWLER_GRID),
@@ -90,7 +78,7 @@ def brawler_state():
 
 
 def row_counts():
-    """Every stored row in every app — the whole database, countable."""
+    """Count rows for every registered Django model."""
     return {
         model._meta.label: model.objects.count()
         for app in apps.get_app_configs()
@@ -129,14 +117,14 @@ class TestTheBrawlerGrid:
 
         (leader,) = result.cards
         placement_steps = [step for step in leader["plan"] if "puts" in step]
-        assert len(placement_steps) == 10  # every cell of the grid ran
+        assert len(placement_steps) == 10
         reached = [step for step in placement_steps if "reached" in step]
-        assert len(reached) == 4  # the Leader's row; the rest skipped
+        assert len(reached) == 4
 
     def test_the_gang_block_is_a_scratch_gang(self, default_pack, unchanged_database):
         result = preview(brawler_state())
         assert result.gang["name"] == "Scratch gang"
-        assert result.gang["rating"] == 0  # exemplars are hired free
+        assert result.gang["rating"] == 0  # Scratch models are hired without payment.
 
 
 class TestLeadTheMasses:
@@ -180,7 +168,7 @@ class TestRefusals:
                     "attach_to": "@Lead the Masses",
                     "scope_kind": "targets_gang",
                     "effect_kind": "ef_requires_companions",
-                    # every what- field missing
+                    # Omit every required effect field.
                 }
             ],
         }
@@ -197,10 +185,8 @@ class TestRefusals:
 
 
 class TestTheEndpoint:
-    """Form state in, card state out — the scratch-card contract.
-
-    The client signs in as staff: preview answers for the authoring
-    pages and wants the same account they do.
+    """The staff-only preview endpoint accepts form state as JSON and returns scratch card
+    data or validation errors.
     """
 
     @pytest.fixture(autouse=True)
@@ -208,9 +194,8 @@ class TestTheEndpoint:
         from django.contrib.auth.models import User
 
         client.force_login(User.objects.create_user("previewer", is_staff=True))
-        # One warm-up request, so the session bookkeeping rows the first
-        # request writes exist before unchanged_database takes its
-        # snapshot — autouse fixtures run ahead of requested ones.
+        # Warm the session before unchanged_database captures row counts. This autouse
+        # fixture runs before requested fixtures.
         client.get("/n26/")
 
     def test_post_gives_back_card_state(self, client, default_pack, unchanged_database):

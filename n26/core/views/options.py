@@ -60,8 +60,8 @@ def fighter_options(request, pk):
     """Reopen hire options and settle replacements through ``Operation.rechoose``.
 
     The original hire's ledger entry records any price difference. Parse options
-    with the hiring parser. Card controls return to the model's edit page because
-    this page has no partial-update hosts.
+    with the hiring parser. Card controls return to the model's edit page for its partial-update hosts;
+    dismissal controls return to this Options page.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.card import build_card, build_modifier_index, carriers
@@ -119,7 +119,8 @@ def fighter_options(request, pk):
     }
     members = roster(gang)
     # Load option provenance so card actions identify the exact owned copy.
-    # Return every card action to the model edit page, which has its update hosts.
+    # Return card actions to the model edit page for its update hosts;
+    # dismissal controls return here.
     own = build_card(miniature, with_statlines=True, with_options=True)
     computed = compute(own, build_modifier_index(carriers(own)))
     edit = reverse("n26-edit-fighter", args=[miniature.pk])

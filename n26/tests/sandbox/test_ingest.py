@@ -1,23 +1,11 @@
-"""The ingest flow, end to end: file in, preview out, rows on the other side.
+"""CSV ingest parsing, planning, preview and application. read_csv produces rows;
+plan_ingest resolves them into planned content and problems; preview produces
+serialisable counts, examples and problems; perform writes the planned changes through
+library authoring verbs.
 
-Each stage is verified on its own interface (design/ingest.md §8):
-
-* ``read_csv`` — the file becomes rows.
-* ``plan_ingest`` — rows become an :class:`IngestPlan`: every library row
-  the upload intends, as data, with problems for what doesn't resolve.
-* ``plan.preview()`` — the plan derives the upload preview: counts by
-  kind, worked examples pairing sheet rows with the objects they plan,
-  the problem list. Plain data, JSON-able.
-* ``perform`` — the plan becomes database rows, through the
-  ``n26.library.authoring`` verbs, and creates exactly what the preview said.
-
-The fixture sheets are miniatures of the real pre-ingest worksheets,
-column for column: the **equipment** catalogue (what exists, and its
-price), the **weapon profiles** (statlines only), the **equipment
-lists** (a named collection per Title) and **All Profiles** (the
-fighters). They join on the ID the sheets compute,
-``Name (Profile) (Category ← Section)``, which is why the fixture holds
-two different weapons both called "Power fist".
+The four fixture sheets contain equipment, weapon statlines, collection entries and
+fighter profiles. Their join keys include name, profile, category and section, allowing
+two weapons named Power fist to remain distinct.
 """
 
 import json
@@ -42,13 +30,8 @@ from n26.library.models.collection import Collection, CollectionEntry
 from n26.library.standard_content import STANDARD_CONTENT
 from n26.tests.fixtures import library_setup
 
-# --- The upload: four small sheets in the real sheets' shape -----------------
-#
-# Miniatures of the team's exports, column for column. The ``ID`` column
-# they carry is the sheets' own join key, printing
-# ``Name (Profile) (Category ← Section)`` — ingest recomputes it from
-# those four columns rather than trusting the cell, so it is here for
-# fidelity, not because anything reads it.
+# Fixture ID cells mirror the spreadsheet join keys. Ingest recomputes those keys from
+# name, profile, category and section instead of reading ID.
 
 EQUIPMENT_CSV = """
 Assignable,Section,Category,Name,Profile,Cost,TP,ID
@@ -101,12 +84,7 @@ Goliath,Supplementary Fighters,Beasts,Sumpkroc,4",4+,-,4,4,2,2,1,5+,4,4,4,4,Figh
 
 
 def catalogue_key(kind, name, profile="", category="", section=""):
-    """The plan key for a catalogue row — how the sheets identify a thing.
-
-    Named here because the key carries the category: two of the fixture's
-    weapons are called "Power fist", and only the category tells them
-    apart.
-    """
+    """Build the catalogue key, including category to distinguish same-name items."""
     return f"{kind}:{ItemId(name, profile, category, section).key}"
 
 
@@ -138,7 +116,7 @@ SIGHT = catalogue_key(
 SUSPENSORS = catalogue_key(
     "WeaponAccessory", "Suspensors", category="Weapon accessories", section=GEAR
 )
-# Typed Wargear on the sheet, but it has a profile — so a weapon.
+# A profile identifies this catalogue row as a weapon despite its Wargear type cell.
 FRAG_GRENADES = catalogue_key(
     "Weapon", "Frag grenades", category="Grenades", section=GEAR
 )
@@ -154,8 +132,9 @@ def entry_key(collection_key, item_key):
 
 @library_setup
 def _seed_ingest_foundation():
-    """The real foundations the sheets resolve against: statline shapes,
-    types, subtypes, skills, XP, gang names and the two swept collections."""
+    """Seed the statline shapes, types, subtypes, skills, XP, gang types and swept
+    collections needed by these sheets.
+    """
     get_default_pack()
     for key in (
         "model-characteristics",
@@ -172,10 +151,8 @@ def _seed_ingest_foundation():
 
 @pytest.fixture(scope="class")
 def _prepared_ingest_foundation(django_db_setup, django_db_blocker):
-    """Share content within a class; each case rolls back its imported rows.
-
-    Class scope keeps missing-seed and clearing scenarios on their own ground.
-    Cases using this foundation need ordinary same-connection rollback isolation.
+    """Share content within each class; individual cases roll back imported rows.
+    Missing-seed and clearing cases use separate foundations.
     """
     with django_db_blocker.unblock(), transaction.atomic():
         _seed_ingest_foundation()
@@ -187,14 +164,15 @@ def _prepared_ingest_foundation(django_db_setup, django_db_blocker):
 
 @pytest.fixture
 def foundation(default_pack, _prepared_ingest_foundation):
-    """Resolve each fresh plan against the class's unchanged real catalogue."""
+    """Resolve each plan against the class’s seeded catalogue."""
 
 
 @pytest.fixture
 @library_setup
 def full_foundation(default_pack):
-    """Clearing must leave every foundation whole, including the action
-    and status tables the upload itself never reads."""
+    """Seed every foundation, including action and status tables, so clearing can verify
+    their preservation.
+    """
     for item in STANDARD_CONTENT.values():
         item.create()
 
@@ -214,26 +192,19 @@ def plan(foundation, sheets):
     return plan_ingest(pack=None, **sheets)
 
 
-# --- Stage 0: standard content is the ground ---------------------------------
-
-
 class TestStandardContentIsTheGround:
     def test_ingest_declares_what_it_stands_on(self):
-        # The seeds ingest resolves against are STANDARD_CONTENT entries —
-        # the generic seed contract in test_foundations.py covers their
-        # behaviour; this pins that ingest's two are among them.
+        # The generic foundation tests cover seed behaviour; this checks that ingest’s
+        # required seeds are registered.
         assert {"progression-counters", "skills-collection"} <= set(STANDARD_CONTENT)
 
     def test_perform_names_the_missing_seed_rather_than_planting_it(
         self, default_pack, sheets
     ):
-        plan = plan_ingest(pack=None, **sheets)  # nothing created
+        plan = plan_ingest(pack=None, **sheets)
         with pytest.raises(LookupError, match="create standard content"):
             perform(plan)
-        assert Weapon.objects.count() == 0  # and the transaction held
-
-
-# --- Stages 1 and 2: file → plan → preview -----------------------------------
+        assert Weapon.objects.count() == 0
 
 
 class TestPlanning:
@@ -248,34 +219,34 @@ class TestPlanning:
         assert autogun.action == "create"
         assert autogun.fields["price"] == 20
         assert autogun.fields["is_exclusive"] is False
-        assert autogun.fields["trade_point_price"] == 0  # 0 is a real TP price
+        assert autogun.fields["trade_point_price"] == 0  # Zero is a valid Trade Point
+        # price.
 
-        # ...and the profiles sheet supplies the statline. A weapon's own
-        # line is unnamed, free and first: the card prints it as the
-        # weapon itself.
+        # The profiles sheet supplies statlines. An unnamed own profile has no separate
+        # price and sorts first.
         own = plan.get(AUTOGUN_OWN)
         assert own.name == ""
         assert own.fields["position"] == 0
         assert own.fields["price"] == 0
         assert own.fields["stats"]["SR"] == '8"'
 
-        # A named line is priced by the equipment sheet, not this one.
+        # Named-profile prices come from the equipment sheet.
         warp = plan.get(WARP_ROUND)
         assert warp.fields["position"] == 1
         assert warp.fields["price"] == 10
         assert warp.fields["trade_point_price"] == 4
 
-        # A weapon with no own line starts at its first named one — the
-        # lance is only ever primed or spent, and neither is a hole.
+        # A weapon without an unnamed own profile starts with its first named profile.
         lance = plan.get(FRAG_LANCE)
-        assert lance.fields["price"] == 0  # "-": the lists price it
+        assert lance.fields["price"] == 0  # The collection entry supplies the price.
         assert lance.fields["is_exclusive"] is True
         assert plan.get(LANCE_PRIMED).fields["position"] == 0
         assert plan.get(LANCE_SPENT).fields["position"] == 1
 
         assert plan.get(POWER_FIST).fields["qualifier"] == "Power weapons"
         assert plan.get(EXO_FIST).fields["qualifier"] == "Exo weapons"
-        assert plan.get(POWER_FIST).fields["price"] == 0  # "-", list-priced
+        assert plan.get(POWER_FIST).fields["price"] == 0  # The collection entry
+        # supplies the price.
         assert plan.get(EXO_FIST).fields["price"] == 105
 
         grenade = plan.get(FRAG_GRENADES)
@@ -284,14 +255,12 @@ class TestPlanning:
         assert grenade.fields["price"] == 30
         assert grenade.fields["trade_point_price"] == 2
 
-        # Nothing was left behind as wargear under the same name...
         assert not [
             p for p in plan.planned if p.kind == "Wargear" and p.name == "Frag grenades"
         ]
-        # ...and it still homes where the lists expect to find it.
+
         assert grenade.fields["category"] == "Category:wargear:grenades"
 
-        # Its statline came across, on the weapon's own unnamed line.
         own = plan.get(
             f"WeaponProfile:{ItemId('Frag grenades', '', 'Grenades', GEAR).key}"
         )
@@ -304,7 +273,6 @@ class TestPlanning:
         assert sight.fields["trade_point_price"] == 1
         assert sight.fields["category"] == "Category:wargear:weapon accessories"
 
-        # And "E" reads the same on an accessory as on anything else.
         assert plan.get(SUSPENSORS).fields["is_exclusive"] is True
         assert plan.get(SUSPENSORS).fields["trade_point_price"] is None
 
@@ -327,11 +295,12 @@ class TestPlanning:
         assert melee.action == "create"
         knockback = plan.get("Trait:knockback:5+")
         assert knockback.fields["annotation"] == "5+"
-        # Melee appears on four sheet rows; the plan holds one trait.
+        # Four sheet rows share one planned Melee trait.
         assert sum(1 for p in plan.planned if p.key == "Trait:melee:") == 1
 
         queen = plan.get("Profile:gang queen")
-        assert queen.fields["price"] == 120  # Rating IS the price (§5a)
+        assert queen.fields["price"] == 120  # The sheet’s Rating column supplies the
+        # base hire price.
         assert queen.fields["stats"]["M"] == '6"'
         assert queen.fields["stats"]["Ld"] == "8"
 
@@ -380,12 +349,10 @@ class TestPlanning:
         assert entry.fields["collection"] == CAWDOR_LIST
         restriction = plan.get(f"Restriction:{entry.key}")
         assert restriction.fields["allows"] == "Profile:way-brethren"
-        # The bracket narrows this list's line, so the plan names the
-        # entry and not the lance every list shares.
+        # The restriction belongs to this collection entry, not the shared weapon.
         assert restriction.fields["entry"] == entry.key
         assert "item" not in restriction.fields
 
-        # A listing that names a Profile sells one profile of a gun.
         assert plan.get(entry_key(GOLIATH_LIST, WARP_ROUND))
 
         assert plan.get(RESPIRATOR).fields["price"] == 15
@@ -402,12 +369,12 @@ class TestPlanning:
             plan.get(entry_key(ESCHER_LIST, POWER_FIST)).fields["price_override"] == 25
         )
 
-        # Ferocious jaws is on no list: a free built-in, and it stays 0.
+        # Unlisted built-in kit retains its zero price.
         assert plan.get(JAWS).fields["price"] == 0
 
         preview = plan.preview()
         assert preview["ok"] is True
-        assert preview["counts"]["Weapon"] == 6  # two named "Power fist"; one a grenade
+        assert preview["counts"]["Weapon"] == 6
         assert preview["counts"]["WeaponProfile"] == 8
         assert preview["counts"]["Profile"] == 3
         assert preview["counts"]["Wargear"] == 2
@@ -422,8 +389,7 @@ class TestPlanning:
         by_sheet = {
             example["source"]["sheet"]: example for example in preview["examples"]
         }
-        # The catalogue row makes the weapon; the statline row makes its
-        # profile and the traits on it. Two sheets, two halves.
+        # Catalogue rows define weapons; statline rows define their profiles and traits.
         equipment_example = by_sheet["equipment"]
         assert equipment_example["row"]["Name"] == "Autogun"
         assert ("Weapon", "Autogun") in {
@@ -432,7 +398,7 @@ class TestPlanning:
 
         statline_example = by_sheet["weapon_profiles"]
         created = {(c["kind"], c["name"]) for c in statline_example["creates"]}
-        assert ("WeaponProfile", "") in created  # the weapon's own, unnamed line
+        assert ("WeaponProfile", "") in created
         assert ("Trait", "Rapid Fire") in created
 
         profiles_example = by_sheet["profiles"]
@@ -451,21 +417,15 @@ class TestPlanning:
 
         preview = plan.preview()
         notes = [p for p in preview["problems"] if p["severity"] == "note"]
-        # A gang-wide cap is not a restriction on *use* at all, so it is
-        # said plainly and carried past rather than bent into the wrong
-        # shape. (A specialisation *is* expressible now, so it becomes a
-        # real restriction rather than a note — see TestProblems.)
+        # Gang-wide caps produce notes because they are not use restrictions. Named
+        # profile restrictions are applied to collection entries.
         assert any("not a restriction on use" in n["message"] for n in notes)
         assert preview["ok"] is True
 
     def test_a_heading_typed_in_another_case_is_the_same_column(
         self, foundation, sheets
     ):
-        """Headings are typed by hand. A column that differs by a
-        capital or a stray space must still be read: matching exactly
-        makes it absent, and everything behind it goes missing while the
-        upload still reports success.
-        """
+        """Column matching ignores surrounding spaces and case."""
         retyped = PROFILES_CSV.replace("Section,Category,", "section, CATEGORY ,", 1)
         planned = plan_ingest(**{**sheets, "profiles": read_csv(retyped)})
 
@@ -475,10 +435,9 @@ class TestPlanning:
     def test_a_heading_the_sheet_invents_reads_after_the_known_ones(
         self, foundation, sheets
     ):
-        """Sections sort by position and then by name, so a heading
-        sharing the gang list's 0 would tie and break alphabetically —
-        interleaving an unexpected section with the gang's own fighters
-        rather than landing after them."""
+        """Unknown fighter sections sort after the gang and supplementary sections rather
+        than sharing their positions.
+        """
         invented = read_csv(
             """
 Gang,Section,Category,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),Starting XP,Rating,Special Rules,Default skills,Default assignment,Primary Skill Sets,Secondary Skill Sets
@@ -491,15 +450,11 @@ Escher,Alliances,Hangers-On,Rogue Doc,5",4+,4+,3,3,1,4,1,6+,6,6,6,6,Fighter,Gang
         assert home.fields["section_position"] == 2
 
 
-# --- Problems: what the plan refuses ------------------------------------------
-
-
 class TestProblems:
     def test_an_unknown_item_on_a_list_is_left_off_not_invented(self, foundation):
-        """A list naming something nothing defines arrives without it —
-        the hand-built items are authored before an import, so this is
-        the ordinary state until they are, not a reason to refuse the
-        rest of the upload."""
+        """An unresolved equipment-list item produces a note and is omitted without
+        blocking the upload.
+        """
         plan = plan_ingest(
             equipment_lists=read_csv(
                 """
@@ -508,7 +463,7 @@ Equipment List,Escher,Ranged weapons,Web weapons,Web pisol,,90,,x
 """
             )
         )
-        assert plan.ok  # said, not refused
+        assert plan.ok
         assert "Web pisol" in plan.problems[0].message
         assert "This entry will be skipped" in plan.problems[0].message
         assert not [p for p in plan.planned if p.kind == "Weapon"]
@@ -519,10 +474,8 @@ Equipment List,Escher,Ranged weapons,Web weapons,Web pisol,,90,,x
         assert CollectionEntry.objects.count() == 0
 
     def test_a_priced_own_line_is_refused(self, foundation):
-        # A weapon's own profile is bought with the weapon, so it
-        # cannot carry a price of its own. A catalogue row typed
-        # "Weapon Profile" that names no profile is asking for exactly
-        # that, and is sent back rather than guessed at.
+        # A Weapon Profile row must name a profile; the unnamed own profile is included
+        # with the weapon and has no separate price.
         plan = plan_ingest(
             equipment=read_csv(
                 """
@@ -536,8 +489,7 @@ Weapon Profile,Close combat weapons,Lances,Frag lance,,45,E,y
         assert "needs a Profile value" in plan.problems[0].message
 
     def test_a_statline_for_nothing_the_catalogue_sells_is_ignored(self, foundation):
-        # Nothing is created either way, so this is said and carried
-        # past — it never invents the weapon (resolve, never create).
+        # Missing profile targets produce notes without creating a weapon.
         plan = plan_ingest(
             weapon_profiles=read_csv(
                 """
@@ -546,14 +498,12 @@ Ranged weapons,Web weapons,Web pistol,,,8",16",3,-,1,Web,x
 """
             )
         )
-        assert plan.ok  # a note, not an error
+        assert plan.ok
         assert "defines no such thing" in plan.problems[0].message
         assert not [p for p in plan.planned if p.kind == "Weapon"]
 
     def test_an_unresolvable_built_in_does_not_block_the_fighter(self, foundation):
-        """Built-in-only kit — exo-suits, hunting rigs, natural weapons —
-        is never sold, so no sheet defines it. The fighter is still worth
-        having, so this is said and the fighter arrives without it."""
+        """Missing built-in kit produces a note; the profile is still imported without it."""
         plan = plan_ingest(
             profiles=read_csv(
                 """
@@ -562,13 +512,12 @@ Escher,Wyld Runner,6",4+,4+,3,3,1,4,1,6+,6,7,7,6,Fighter,Prospect,4,25,,,Exo-sui
 """
             )
         )
-        assert plan.ok  # a note, not an error
+        assert plan.ok
         assert "imported without it" in plan.problems[0].message
         assert plan.get("Profile:wyld runner") is not None
 
     def test_a_rule_in_variants_is_several_rules(self, foundation):
-        """A leash at two distances is two rules sharing a printed name,
-        exactly as a trait is — the annotation is part of the identity."""
+        """Annotations distinguish same-name rule variants."""
         plan = plan_ingest(
             profiles=read_csv(
                 """
@@ -587,8 +536,7 @@ Delaque,Psychoteric Wyrm,4",4+,6+,3,3,2,3,1,6+,7,7,7,7,Fighter,"Beast, Pet",,50,
         assert [r.annotation for r in leashes] == ['3"', '6"']
 
     def test_the_sheet_may_name_the_qualifier_itself(self, foundation):
-        """Where the sheet says which qualifier a fighter takes, that is
-        used verbatim — inference is only the fallback."""
+        """An explicit qualifier takes precedence over an inferred one."""
         plan = plan_ingest(
             profiles=read_csv(
                 """
@@ -607,17 +555,16 @@ Malstrain,Alpha,Malstrain,5",4+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,25,110,,,
     def test_a_restriction_naming_nothing_real_is_said_and_carried_past(
         self, foundation
     ):
-        """A restriction only narrows an item to a fighter. Anything else
-        it names — "(Gunner specialist only)", once a real arm of
-        usable-by and now nothing the library holds — is said, and the
-        item is imported without it."""
+        """An unmatched use restriction produces a note and leaves the imported entry
+        unrestricted.
+        """
         plan = plan_ingest(
             equipment=read_csv(EQUIPMENT_CSV),
             weapon_profiles=read_csv(WEAPON_PROFILES_CSV),
             equipment_lists=read_csv(EQUIPMENT_LISTS_CSV),
         )
 
-        assert plan.ok  # a note, never a block
+        assert plan.ok
         assert any("No profile matches restriction" in p.message for p in plan.problems)
         assert plan.get(f"Restriction:{entry_key(GOLIATH_LIST, EXO_FIST)}") is None
 
@@ -626,9 +573,9 @@ Malstrain,Alpha,Malstrain,5",4+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,25,110,,,
         assert str(fist.usable_by_selector()) == "anything"
 
     def test_two_fighters_claiming_one_identity_are_refused(self, foundation):
-        """Name and qualifier together are the identity. Two rows holding
-        both would be one row — and the second would vanish into the
-        first — so the plan says so rather than quietly losing a fighter."""
+        """Duplicate name-and-qualifier pairs are rejected instead of merging two fighter
+        rows.
+        """
         plan = plan_ingest(
             profiles=read_csv(
                 """
@@ -642,10 +589,9 @@ Malstrain,Alpha,Genestealer Cults,5",4+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,2
         assert any("need different qualifiers" in p.message for p in plan.problems)
 
     def test_a_fighter_with_no_category_arrives_ungrouped(self, foundation):
-        """A sheet that has not said where a fighter belongs is the
-        ordinary state while the edition is being written, so the
-        fighter is imported anyway — the hire list gathers the homeless
-        at the end, and the note says which ones they are."""
+        """Missing category produces a note and places the imported profile in the
+        ungrouped section.
+        """
         plan = plan_ingest(
             profiles=read_csv(
                 """
@@ -654,7 +600,7 @@ Escher,,,Gang Queen,6",3+,3+,3,3,3,4,2,5+,8,8,7,7,Fighter,Leader,61,120,,,,,
 """
             )
         )
-        assert plan.ok  # said, not refused
+        assert plan.ok
         note = plan.problems[0]
         assert note.severity == "note"
         assert "without a category" in note.message
@@ -679,9 +625,7 @@ Chaos Helot Cult,2-5,,4+,,4,5,2,3,2,5+,,,,,,,,,,,,,
     def test_a_row_with_no_gang_is_sent_back_rather_than_founding_a_nameless_type(
         self, foundation
     ):
-        """A gang type planned from a blank Gang cell has no name, and
-        draws on the create-gang page as an empty card that sorts before
-        every real type — with no answer a player could give it."""
+        """Reject a blank Gang cell rather than creating an unnamed gang type."""
         plan = plan_ingest(
             profiles=read_csv(
                 """
@@ -694,9 +638,6 @@ Gang,Section,Category,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),St
         assert any("Missing Gang" in problem.message for problem in plan.problems)
         assert not [row for row in plan.planned if row.kind == "GangType"]
         assert plan.get("Profile:nameless blade") is None
-
-
-# --- Stage 3: plan → rows ------------------------------------------------------
 
 
 class TestPerform:
@@ -718,8 +659,7 @@ class TestPerform:
         assert result.counts() == planned_creates
         assert sum(result.counts().values()) == preview["actions"]["create"]
         assert len(result.updated) == preview["actions"].get("update", 0)
-        # Rows already there (the standard-content subtypes, mostly)
-        # resolve to what the pack holds; nothing is both made and found.
+        # Existing standard-content rows resolve without being recreated.
         already = {
             row.key
             for row in plan.planned
@@ -743,9 +683,8 @@ class TestPerform:
             is None
         )
 
-        # "(Way-Brethren only)" is printed beside the Cawdor list's line,
-        # so it narrows that list's offer — never the lance every list
-        # shares.
+        # The restriction applies to the Cawdor list entry, leaving the shared weapon
+        # unrestricted.
         lance = Weapon.objects.get(name="Frag lance")
         cawdor_list = Collection.objects.get(name="Cawdor Equipment List")
         listed = CollectionEntry.objects.get(collection=cawdor_list, weapon=lance)
@@ -757,11 +696,11 @@ class TestPerform:
         own, warp = autogun.profiles.order_by("position")
         assert own.price == 0 and warp.price == 10
         assert warp.trade_point_price == 4
-        assert own.name == ""  # the weapon's own line prints as the weapon
+        assert own.name == ""
         assert own.statline.as_dict() == {
             "short_range": '8"',
             "long_range": '24"',
-            "strength": "3",  # the one shared Strength row
+            "strength": "3",
             "armour_piercing": "-",
             "lethality": "1",
         }
@@ -794,49 +733,51 @@ class TestPerform:
         assert sight.fits_category is None
         assert sight.fits_asterisked is False
 
-        # It is a listable thing like any other, so a list may offer it.
         escher = Collection.objects.get(name="Escher Equipment List")
         assert CollectionEntry.objects.filter(
             collection=escher, weapon_accessory=sight
         ).exists()
 
-        # And an exclusive one keeps out of the Trading Post.
         assert WeaponAccessory.objects.get(name="Suspensors").is_exclusive is True
 
         from n26.library.standard_content import TRADING_POST_COLLECTION
 
         post = Collection.objects.get(name=TRADING_POST_COLLECTION)
-        assert post.entries.count() == 0  # nothing was listed by hand
+        assert post.entries.count() == 0
 
         swept = {
             item.name
             for selector in post.selectors.all()
             for item in selector.contents(include_exclusive=False)
         }
-        assert "Autogun" in swept  # TP 0 — free there, but offered
+        assert (
+            "Autogun" in swept
+        )  # Offered at zero Trade Points; the credit price still applies.
         assert "Respirator" in swept  # TP 1
-        # An accessory is bought there as readily as the gun it bolts
-        # onto, so its own sweep is part of what makes the post.
+        # The Trading Post selector also includes accessories.
+        # Each assignable kind needs its own selector.
         assert "Telescopic sight" in swept
-        assert "Frag lance" not in swept  # TP "E" — list only
+        assert "Frag lance" not in swept  # Exclusive items are absent from the Trading
+        # Post.
         assert "Phelynx" not in swept
 
-        # And the two halves never both hold, which the database also
-        # refuses (exclusive_has_no_trade_points).
+        # Exclusive and Trade Point-priced states are mutually exclusive in the
+        # database.
         assert not Weapon.objects.filter(
             is_exclusive=True, trade_point_price__isnull=False
         ).exists()
 
         fists = Weapon.objects.filter(name="Power fist").order_by("qualifier")
         assert [w.qualifier for w in fists] == ["Exo weapons", "Power weapons"]
-        # The qualifier is for authors; a card prints the name alone.
+        # The qualifier distinguishes library rows while this rendered card shows only
+        # the name.
         assert {str(w) for w in fists} == {"Power fist"}
 
         queen = Profile.objects.get(name="Gang Queen")
         assert queen.price == 120
         assert queen.stats()["movement"] == '6"'
         assert queen.stats()["weapon_skill"] == "3+"
-        assert queen.stats()["leadership"] == "8"  # plain number, no plus
+        assert queen.stats()["leadership"] == "8"
 
         members = {str(m.assignable) for m in queen.built_ins.members.all()}
         assert {"Leader", "Witch", "Catfall"} <= members
@@ -861,18 +802,19 @@ class TestPerform:
         members = {str(m.assignable) for m in croc.built_ins.members.all()}
         assert members == {"Beast", "Pet", "Ferocious jaws"}
         jaws = croc.built_ins.members.get(weapon__isnull=False).assignable
-        assert jaws.price == 0  # never priced from a list (§5a)
+        assert jaws.price == 0  # Collection prices do not overwrite profile hire
+        # prices.
 
         after = Category.objects.filter(section__name="Skills")
 
-        assert {"Agility", "Combat"} <= before  # already there, not invented here
+        assert {"Agility", "Combat"} <= before
         assert set(after.values_list("name", flat=True)) == before
         assert after.filter(name="Agility").count() == 1
 
     def test_a_restriction_stays_on_the_list_that_prints_it(self, foundation, sheets):
-        """The same item on two lists, one of them bracketed: the other
-        list offers it plainly, and uploading again writes the bracket
-        onto nothing new."""
+        """Use restrictions belong to individual collection entries, leaving other lists
+        and the shared item unrestricted.
+        """
         lists = read_csv(
             EQUIPMENT_LISTS_CSV.replace(
                 "Equipment List,Escher,Ranged weapons,Auto/stub weapons,Autogun,,20,,",
@@ -909,9 +851,6 @@ class TestPerform:
         monkeypatch.setattr(ingest_module._Performer, "_create_modifier", original)
         assert Weapon.objects.count() == 0
         assert Profile.objects.count() == 0
-
-
-# --- Round two: the same file again --------------------------------------------
 
 
 class TestIdempotency:
@@ -958,10 +897,9 @@ class TestIdempotency:
         assert Profile.objects.count() == profiles
 
     def test_replanning_reads_the_entries_lists_in_one_batch(self, foundation, sheets):
-        """Planning looks every line up, one query each, by design. What
-        it must not do is read each entry's own use list on its own
-        besides — so the reads of that list stay the same however many
-        lines the sheets carry."""
+        """Entry lookup may scale per row; reading existing entry restrictions must not add
+        another query per row.
+        """
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -997,10 +935,9 @@ Equipment List,Escher,Wargear,Grenades,Frag grenades,,30,,
     def test_a_heading_already_spelled_differently_is_reused(
         self, foundation, sheets, default_pack
     ):
-        """A pack is unique on a section's lowercased name, so a heading
-        the pack already holds under another casing must be matched, not
-        inserted again — an exact-match lookup misses it, then the insert
-        trips the constraint and takes the whole import down with it."""
+        """Match existing section names without case sensitivity to respect the pack’s
+        lowercased-name uniqueness constraint.
+        """
         from n26.library.models import Section
 
         Section.objects.create(pack=default_pack, name="gang list", position=7)
@@ -1009,15 +946,14 @@ Equipment List,Escher,Wargear,Grenades,Frag grenades,,30,,
 
         headings = Section.objects.filter(pack=default_pack, name__iexact="gang list")
         assert [s.name for s in headings] == ["gang list"]
-        # The one already there keeps the order it had.
+        # Preserve the existing section’s position.
         assert headings.get().position == 7
         assert Category.objects.get(name="Leaders").section == headings.get()
 
     def test_the_same_name_from_another_gang_is_qualified_not_merged(
         self, foundation, sheets
     ):
-        """Two gangs printing one fighter name is normal; the qualifier
-        (§6a) holds both. Authors see it, players never do."""
+        """Gang qualifiers distinguish same-name fighter profiles."""
         perform(plan_ingest(pack=None, **sheets))
         clash_sheet = read_csv(
             """
@@ -1041,28 +977,20 @@ Corpse Grinder Cults,Gang Queen,5",3+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,61,
             ("Corpse Grinder Cults", "Corpse Grinder Cults", 140),
         ]
 
-        # And a third upload of the same clash sheet changes nothing.
         again = plan_ingest(profiles=clash_sheet)
         assert {p.action for p in again.planned} <= {"unchanged", "resolved"}
         assert perform(again).created == {}
 
 
 def edited(csv, was, now):
-    """One of the fixture sheets with a line rewritten — the way a
-    spreadsheet changes between two exports."""
+    """Change one fixture row to represent a corrected spreadsheet export."""
     assert was in csv, was
     return read_csv(csv.replace(was, now, 1))
 
 
 class TestSpottingWhatChanged:
-    """A sheet is re-exported with a correction in it. The upload has
-    to see the correction — and see only the correction.
-
-    Every case here was, before there was any such thing as an update,
-    a row silently skipped. The worst of them were not skips at all but
-    litter: the row a change implied (a new category, a new trait) was
-    made, and the row that should have pointed at it was passed over,
-    so the pack gained taxonomy nothing referred to.
+    """Reimported sheets identify field changes and attach newly required taxonomy to the
+    affected content.
     """
 
     @pytest.fixture
@@ -1092,14 +1020,11 @@ class TestSpottingWhatChanged:
 
 
 class TestThePreviewShowsTheDifference:
-    """A count of changes is not a contract. What the preview owes an
-    author is the difference itself, field by field — because clicking
-    Import applies all of it, and "145 to change" is not something
-    anybody can agree to."""
+    """The preview lists field-level changes before import applies them."""
 
     @pytest.fixture
     def changed(self, foundation, sheets):
-        # Grenades are on no list, so the correction stays one fact.
+        # No collection entry shares this item’s corrected price.
         perform(plan_ingest(pack=None, **sheets))
         return plan_ingest(
             **{
@@ -1157,14 +1082,7 @@ class TestThePreviewShowsTheDifference:
 
 
 class TestApplyingWhatChanged:
-    """Importing a corrected sheet writes the corrections.
-
-    The sheet wins, and it wins visibly: the preview lists every field
-    it would rewrite and Import rewrites exactly those. The contract is
-    the pair of them — a change that happens without appearing in the
-    preview, or a field the preview named and nothing wrote, is the
-    same bug wearing two faces.
-    """
+    """Import applies the field changes listed in the preview."""
 
     @pytest.fixture
     def imported(self, foundation, sheets):
@@ -1237,10 +1155,9 @@ class TestApplyingWhatChanged:
         assert entry.price.credits == 40
 
     def test_a_restriction_added_later_reaches_the_entry(self, imported):
-        """It never did before: the restriction took the entry's "already
-        there" and was skipped, so a list that gained a "<Fighter> only"
-        after its first import stayed open to everyone. It lands on the
-        entry that gained it, and the item stays open."""
+        """A later use restriction updates the existing collection entry without
+        restricting the shared item.
+        """
         plan = plan_ingest(
             **{
                 **imported,
@@ -1266,8 +1183,9 @@ class TestApplyingWhatChanged:
     def test_a_named_profile_restriction_lands_only_on_its_entry_and_repreviews_unchanged(
         self, imported
     ):
-        """A named round's restriction belongs to its list entry. The gun
-        and round remain open, and the same sheet plans no second restriction."""
+        """Restrict the named weapon profile’s collection entry, leaving the gun and
+        profile unrestricted. Replanning makes no further change.
+        """
         plan = plan_ingest(
             **{
                 **imported,
@@ -1307,10 +1225,7 @@ class TestApplyingWhatChanged:
         assert plan.get(f"Restriction:{entry.key}").action == "unchanged"
 
     def test_a_skill_set_moved_between_tiers_is_in_one_tier_afterwards(self, imported):
-        """The live wrong-card case. Added to without retracting, the
-        fighter ends up with Combat in both tiers — which is not
-        untidiness, it is a fighter buying skills more cheaply than the
-        book allows."""
+        """Replacing skill placements removes the old tier instead of retaining both tiers."""
         plan = plan_ingest(
             **{
                 **imported,
@@ -1342,11 +1257,7 @@ class TestApplyingWhatChanged:
     def test_the_motivating_case_the_category_home_lands_and_nothing_is_orphaned(
         self, foundation, sheets
     ):
-        """A fighter imported before its sheet said where it belonged,
-        then the sheet says. The category row was always made; the
-        fighter that should point at it was skipped, so the pack kept
-        gaining headings nothing was filed under.
-        """
+        """A newly supplied category is attached to the existing profile."""
         homeless = read_csv(PROFILES_CSV.replace(",Leaders,Gang Queen", ",,Gang Queen"))
         perform(plan_ingest(**{**sheets, "profiles": homeless}))
 
@@ -1369,10 +1280,9 @@ class TestApplyingWhatChanged:
     def test_a_price_correction_changes_only_named_fields_and_replays_unchanged(
         self, imported
     ):
-        """A price correction is a price correction. Anything an author
-        typed into a column the sheets do not carry is still there
-        afterwards — the sheets are authoritative about what they know
-        and silent about the rest."""
+        """Update sheet-controlled fields while preserving author-written fields absent
+        from the sheets.
+        """
         grenades = Weapon.objects.get(name="Frag grenades")
         grenades.library_author_help = "Ask before repricing these."
         grenades.save()
@@ -1419,9 +1329,9 @@ class TestApplyingWhatChanged:
     def test_a_row_that_vanished_between_preview_and_import_stops_everything(
         self, imported
     ):
-        """Preview and Import are two requests over the same files, and
-        the pack can move in between. Writing a difference onto a row
-        nobody measured is the one outcome worth refusing."""
+        """Reject a missing preview target and roll back the import rather than applying a
+        measured change to another row.
+        """
         plan = plan_ingest(
             **{
                 **imported,
@@ -1438,11 +1348,9 @@ class TestApplyingWhatChanged:
 
 
 class TestWhatASheetStopsNaming:
-    """Each set answers the same question for itself: what happens to a
-    member the sheet no longer names?
-
-    Equipment lists, built-in kit and restrictions retain omitted members.
-    A fighter's skill grid and a weapon's traits are replaced.
+    """Equipment-list entries, built-in kit and use restrictions retain omitted members.
+    Skill placements and weapon traits are replaced. Equipment-list access is handled
+    separately below.
     """
 
     @pytest.fixture
@@ -1484,14 +1392,11 @@ class TestWhatASheetStopsNaming:
         }
         assert "Respirator" in listed
         assert "Autogun" in listed
-        # ...and the item itself is untouched: other lists sell it.
+        # Other lists continue to use the shared item.
         assert Wargear.objects.filter(name="Respirator").exists()
 
     def test_one_gangs_upload_leaves_every_other_gangs_list_alone(self, imported):
-        """The trap in scoping this. A partial upload is a real thing to
-        want — one gang's list, to fix a price — and "delete the entries
-        nothing planned" would empty every list the upload was silent
-        about."""
+        """A partial upload changes only the lists it names."""
         before = {
             collection.name: collection.entries.count()
             for collection in Collection.objects.all()
@@ -1770,9 +1675,7 @@ Equipment List,Escher,Wargear,Personal equipment,Respirator,,15,
         assert any("Local kit 9" in problem.message for problem in plan.problems)
 
     def test_built_in_kit_the_sheet_drops_is_kept_and_said(self, imported):
-        """An author adds the exo-suit no sheet defines. The next export
-        of the fighter's row cannot possibly name it, and must not take
-        it off."""
+        """Retain author-added kit omitted from the sheet and report it as a note."""
         from n26.library import authoring
 
         queen = Profile.objects.get(name="Gang Queen")
@@ -1791,9 +1694,9 @@ Equipment List,Escher,Wargear,Personal equipment,Respirator,,15,
         )
 
     def test_a_restriction_the_sheet_drops_is_kept_and_said(self, imported):
-        """Ingest is add-only: a list falling silent about a bracket is
-        said, and the entry keeps it until an author takes it off on
-        the collection page."""
+        """Omitted use restrictions remain on the collection entry and produce a note
+        explaining how to remove them.
+        """
         without = read_csv(EQUIPMENT_LISTS_CSV.replace("Way-Brethren only", ""))
         plan = plan_ingest(**{**imported, "equipment_lists": without})
         perform(plan)
@@ -1809,9 +1712,7 @@ Equipment List,Escher,Wargear,Personal equipment,Respirator,,15,
         )
 
     def test_a_blank_stat_cell_leaves_the_stored_value_alone(self, imported):
-        """A blank cell is the sheet declining to say, not saying the
-        characteristic is empty. Read the other way, half-filled columns
-        would wipe a statline on their way past."""
+        """Blank stat cells preserve existing values."""
         blanked = read_csv(
             WEAPON_PROFILES_CSV.replace(
                 'Autogun,,,8",24",3,-,1,Rapid Fire (1)',
@@ -1827,11 +1728,8 @@ Equipment List,Escher,Wargear,Personal equipment,Respirator,,15,
 
 
 class TestNothingIsLostQuietly:
-    """The registries a planned row must appear in, discovered rather
-    than listed. Every one of them can be forgotten, and forgetting any
-    of them loses work without saying so: a kind absent from the
-    performing order is planned and skipped, a field absent from the
-    partition is planned and never compared.
+    """Discover planned kinds and fields, then verify that registries cover their
+    application order, classification and write methods.
     """
 
     def test_the_plan_has_real_kinds_all_performable_and_every_field_classified(
@@ -1910,9 +1808,7 @@ class TestNothingIsLostQuietly:
                 assert hasattr(_Performer, method), f"{kind} names {method}"
 
     def test_a_kind_with_nowhere_to_go_is_refused_by_name(self, plan):
-        """The bug class this closes: a planned kind absent from the
-        performing order was skipped without a word, and the upload
-        reported success with part of it never written."""
+        """A missing application-order entry fails by kind name and rolls back the import."""
         import n26.library.ingest as ingest_module
 
         order = [k for k in ingest_module.PERFORM_ORDER if k != "Weapon"]
@@ -1945,8 +1841,7 @@ class TestNothingIsLostQuietly:
 
 
 class TestResolvingAgainstThePack:
-    """A partial upload — a list on its own, say — resolves against what
-    the pack already holds rather than what this run planned."""
+    """Partial uploads resolve references against content already in the pack."""
 
     def test_partial_uploads_resolve_whole_ids_profile_weapons_and_unique_names(
         self, foundation, sheets
@@ -1991,9 +1886,9 @@ Equipment List,Cawdor,Ranged weapons,Somewhere else,Frag lance,,35,,x
 
 
 class TestBuiltInsResolveByNameAlone:
-    """A fighter's built-in kit prints a bare name and no category, so
-    this is the one place resolution cannot use the sheets' ID — and
-    the one place a shared name has to be refused rather than guessed."""
+    """Built-in kit cells contain bare names. Resolve unique weapons, wargear and
+    accessories; report ambiguous names without choosing one.
+    """
 
     FIGHTER = """
 Gang,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),Starting XP,Rating,Special Rules,Default skills,Default assignment,Primary Skill Sets,Secondary Skill Sets
@@ -2008,8 +1903,8 @@ Escher,Scout,6",4+,4+,3,3,1,4,1,6+,6,7,7,6,Fighter,Ganger,4,25,,,Farsight,Agilit
 
         assert plan.ok
         built_ins = plan.get(plan.get("Profile:scout").fields["built_ins"])
-        # The set also holds the subtype and the opening XP; the kit is
-        # whatever resolved to a catalogue row.
+        # The built-in set also contains subtype and starting-XP members; filter those
+        # out when checking kit.
         kit = [
             plan.get(member["item"]).name
             for member in built_ins.fields["members"]
@@ -2018,8 +1913,7 @@ Escher,Scout,6",4+,4+,3,3,1,4,1,6+,6,7,7,6,Fighter,Ganger,4,25,,,Farsight,Agilit
         assert kit == [accessory.name]
 
     def test_a_name_two_kinds_share_is_refused(self, foundation, default_pack):
-        """A sight and a piece of wargear may print one name. Answering
-        by whichever kind is looked up first is no answer."""
+        """A bare name shared by different assignable kinds is ambiguous."""
         from n26.library import authoring
 
         authoring.create_wargear("Farsight", price=10)
@@ -2027,9 +1921,9 @@ Escher,Scout,6",4+,4+,3,3,1,4,1,6+,6,7,7,6,Fighter,Ganger,4,25,,,Farsight,Agilit
 
         plan = plan_ingest(profiles=read_csv(self.FIGHTER))
 
-        assert plan.ok  # a note — the fighter still arrives
+        assert plan.ok
         assert any("imported without it" in p.message for p in plan.problems)
-        # The fighter keeps its subtype and XP; only the kit is missing.
+
         built_ins = plan.get(plan.get("Profile:scout").fields["built_ins"])
         assert not [
             member
@@ -2038,8 +1932,7 @@ Escher,Scout,6",4+,4+,3,3,1,4,1,6+,6,7,7,6,Fighter,Ganger,4,25,,,Farsight,Agilit
         ]
 
     def test_two_rows_of_one_kind_are_refused_too(self, foundation, default_pack):
-        """Same trap within a kind: a qualifier is what tells them
-        apart, and a bare name does not carry one."""
+        """A bare name cannot distinguish two qualified rows of the same kind."""
         from n26.library import authoring
 
         authoring.create_wargear("Farsight", price=10, qualifier="Escher")
@@ -2053,16 +1946,9 @@ Escher,Scout,6",4+,4+,3,3,1,4,1,6+,6,7,7,6,Fighter,Ganger,4,25,,,Farsight,Agilit
     def test_a_weapon_profile_in_the_cell_is_a_note_never_a_member(
         self, foundation, default_pack
     ):
-        """A fighter's cell cannot build in a weapon's extra line: the
-        cell resolves weapons, wargear and accessories only, so a
-        profile's name surfaces as the imported-without-it note and the
-        fighter arrives without it — twin weapons or not. This is why
-        the planner needs no twin-gun ambiguity problem: a plan can
-        never hold a weapon-profile member, and the performer's one
-        entry, ``add_default_member``, anchors or refuses for itself.
-        Whoever makes profile members plannable takes on surfacing that
-        refusal at preview, because the preview is the contract — this
-        test failing is the reminder."""
+        """Built-in cells resolve weapons, wargear and accessories, not weapon profiles.
+        Report the unresolvable profile name while retaining both weapon copies.
+        """
         from n26.library import authoring
         from n26.library.models import DefaultAssignment
 
@@ -2077,7 +1963,7 @@ Escher,Gunner,6",4+,4+,3,3,1,4,1,6+,6,7,7,6,Fighter,,4,25,,,"Autogun, Autogun, W
             )
         )
 
-        assert plan.ok  # a note — the fighter still arrives
+        assert plan.ok
         assert any(
             "'Warp round'" in p.message and "imported without it" in p.message
             for p in plan.problems
@@ -2091,21 +1977,13 @@ Escher,Gunner,6",4+,4+,3,3,1,4,1,6+,6,7,7,6,Fighter,,4,25,,,"Autogun, Autogun, W
 
 
 class TestTheEquipmentListAFighterBuysFrom:
-    """The ``Equipment List`` column on the All Profiles sheet.
-
-    A fighter reaches a list by holding it among its built-ins — access
-    arrives at hire the way a weapon in its hands does — so the column
-    plans one more member of the fighter's built-ins set. The cell
-    carries the Title the equipment-lists sheet gives the list, because
-    that is the word an author has in front of them.
-
-    Access is not kit, and the two places that matters are here: there
-    is one list, so naming one replaces whichever was held; and it is
-    free, so buying rights never reach a fighter's rating.
+    """The All Profiles Equipment List column adds collection access to the profile’s
+    built-ins. Resolve the cell by collection title or full name. A named list replaces
+    existing equipment-list access, preserves other kit and contributes no rating.
     """
 
-    #: The Gang Queen's cell, and the columns either side of it, so a
-    #: rewritten sheet can only mean this one.
+    #: Include adjacent cells so the replacement targets only the Gang Queen’s
+    #: equipment-list cell.
     CELL = ",Catfall,,Escher,"
 
     @pytest.fixture
@@ -2114,9 +1992,8 @@ class TestTheEquipmentListAFighterBuysFrom:
         return sheets
 
     def collections_of(self, profile):
-        # Live members only: a superseded list with materialised copies
-        # is archived rather than deleted, so an archived row may share
-        # the set with its replacement.
+        # Filter archived memberships: provenance may retain the superseded list
+        # alongside its active replacement.
         return [
             str(member.assignable)
             for member in profile.built_ins.members.filter(
@@ -2135,8 +2012,7 @@ class TestTheEquipmentListAFighterBuysFrom:
     def test_a_cell_spelling_the_whole_name_out_means_the_same_list(
         self, foundation, sheets
     ):
-        """Both readings of the column land on one row: the title, and
-        the name the library actually holds."""
+        """Resolve the collection title and full library name to the same row."""
         spelled = edited(PROFILES_CSV, self.CELL, ",Catfall,,Escher Equipment List,")
         plan = plan_ingest(pack=None, **{**sheets, "profiles": spelled})
         built_ins = plan.get(plan.get("Profile:gang queen").fields["built_ins"])
@@ -2151,9 +2027,9 @@ class TestTheEquipmentListAFighterBuysFrom:
     def test_a_title_no_list_carries_is_said_against_the_column_and_the_row(
         self, foundation, sheets
     ):
-        """A typo must not pass as a fighter who buys nowhere in
-        particular. Nothing incorrect is written, so the fighter still
-        arrives — and the report says which cell to fix."""
+        """Report an unknown equipment-list title against its sheet cell and import the
+        profile without list access.
+        """
         typo = edited(PROFILES_CSV, self.CELL, ",Catfall,,Eschur,")
         plan = plan_ingest(pack=None, **{**sheets, "profiles": typo})
 
@@ -2171,8 +2047,7 @@ class TestTheEquipmentListAFighterBuysFrom:
         assert self.collections_of(Profile.objects.get(name="Gang Queen")) == []
 
     def test_a_blank_cell_attaches_nothing_and_is_not_a_problem(self, plan):
-        """The Sumpkroc is a beast: it buys from nothing, which is an
-        empty cell rather than a gap in the sheet."""
+        """A profile without equipment-list access is valid."""
         built_ins = plan.get(plan.get("Profile:sumpkroc").fields["built_ins"])
         assert not [
             member
@@ -2191,8 +2066,7 @@ class TestTheEquipmentListAFighterBuysFrom:
     def test_a_list_already_in_the_pack_is_found_by_a_profiles_only_upload(
         self, imported
     ):
-        """Resolve, never create, across sheets — and across uploads: a
-        sheet naming a list founds no second one."""
+        """A profiles-only upload reuses an existing equipment list."""
         plan = plan_ingest(profiles=read_csv(PROFILES_CSV))
         assert plan.get(ESCHER_LIST).action == "resolved"
 
@@ -2202,9 +2076,7 @@ class TestTheEquipmentListAFighterBuysFrom:
         assert Collection.objects.filter(name="Escher Equipment List").count() == 1
 
     def test_a_fighter_moved_to_another_list_holds_only_the_new_one(self, imported):
-        """Add-only is right for kit and wrong for access. A Gang Queen
-        left holding both lists could buy from either, and nothing on
-        her card would say why."""
+        """A named replacement list removes previous equipment-list access."""
         moved = edited(PROFILES_CSV, self.CELL, ",Catfall,,Cawdor,")
         plan = plan_ingest(**{**imported, "profiles": moved})
 
@@ -2220,8 +2092,7 @@ class TestTheEquipmentListAFighterBuysFrom:
         assert self.collections_of(queen) == ["Cawdor Equipment List"]
 
     def test_moving_the_list_leaves_the_hand_added_kit_alone(self, imported):
-        """The narrow rule stays narrow: one list replaces another, and
-        the exo-suit no sheet defines is still there afterwards."""
+        """Replacing equipment-list access preserves other author-added built-ins."""
         from n26.library import authoring
 
         queen = Profile.objects.get(name="Gang Queen")
@@ -2235,10 +2106,9 @@ class TestTheEquipmentListAFighterBuysFrom:
         assert "Escher Equipment List" not in held
 
     def test_a_superseded_list_goes_and_a_reupload_adds_afresh(self, imported):
-        """A membership only survives its removal when materialised
-        copies name it as provenance; none do here, so the superseded
-        list's membership goes completely — and the original sheet
-        uploaded again plans an ordinary add."""
+        """Without materialised copies requiring provenance, remove the superseded
+        membership entirely. Reimporting the original list creates one new membership.
+        """
         moved = edited(PROFILES_CSV, self.CELL, ",Catfall,,Cawdor,")
         perform(plan_ingest(**{**imported, "profiles": moved}))
         queen = Profile.objects.get(name="Gang Queen")
@@ -2264,9 +2134,7 @@ class TestTheEquipmentListAFighterBuysFrom:
         )
 
     def test_a_column_gone_blank_retracts_nothing(self, imported):
-        """A blank cell is the sheet declining to say, as it is
-        everywhere else. Read as a retraction, one upload of a sheet
-        without the column would take every fighter's list away."""
+        """A blank equipment-list cell preserves existing access and produces a note."""
         blanked = edited(PROFILES_CSV, self.CELL, ",Catfall,,,")
         plan = plan_ingest(**{**imported, "profiles": blanked})
         perform(plan)
@@ -2279,8 +2147,9 @@ class TestTheEquipmentListAFighterBuysFrom:
         )
 
     def test_the_list_adds_nothing_to_what_the_fighter_is_worth(self, imported):
-        """Access is not a purchase. A list that counted would inflate
-        every fighter who buys, by the whole worth of the list."""
+        """Equipment-list access contributes no rating even when the collection has a
+        nonzero price.
+        """
         from django.contrib.auth.models import User
 
         from n26.core.reconcile import assert_reconciled
@@ -2288,8 +2157,8 @@ class TestTheEquipmentListAFighterBuysFrom:
 
         from .actions import found_gang, hire_with_option
 
-        # Priced on purpose, so what keeps it out of the rating is the
-        # built-ins rule rather than a zero that happened to be there.
+        # Use a nonzero collection price to verify the rating exclusion independently of
+        # price.
         Collection.objects.filter(name="Escher Equipment List").update(price=500)
 
         gang = found_gang(
@@ -2302,7 +2171,6 @@ class TestTheEquipmentListAFighterBuysFrom:
             gang, Profile.objects.get(name="Gang Queen"), "Yolanda"
         )
 
-        # She arrives holding the list, and is worth her Rating column.
         assert "Escher Equipment List" in {
             str(assignment.assignable) for assignment in model.assignments.all()
         }
@@ -2313,9 +2181,7 @@ class TestTheEquipmentListAFighterBuysFrom:
 
 
 class TestTheUploadPage:
-    """The page an author uploads from calls each sheet what the
-    spreadsheet calls it — the field names are the planner's words, and
-    an author looking for a file goes by the heading on the tab."""
+    """Upload labels use the spreadsheet tab names."""
 
     def test_the_upload_asks_for_the_sheets_by_their_own_names(
         self, client, default_pack
@@ -2336,12 +2202,8 @@ class TestTheUploadPage:
 
 
 class TestClearing:
-    """Undoing an import, so the next one starts from the same ground.
-
-    The spreadsheets change under us while the edition is being built,
-    so importing has to be repeatable: create, look, clear, create
-    again. What survives a clear is exactly what the foundations page
-    creates.
+    """Clearing removes imported content, preserves standard foundations and permits an
+    identical reimport.
     """
 
     def test_clearing_preserves_foundations_removes_the_import_and_reimports_identically(
@@ -2362,8 +2224,7 @@ class TestClearing:
 
         gone = clear_imported()
 
-        # Every seed still says it is whole — the one contract that
-        # keeps this from being "delete the library".
+        # Clearing must preserve every standard seed’s complete status.
         for key, seed in STANDARD_CONTENT.items():
             assert seed.status() == "complete", key
 
@@ -2375,10 +2236,9 @@ class TestClearing:
         assert not Collection.objects.filter(name__endswith="Equipment List").exists()
         assert gone["weapons"] == 6
 
-        # The standard collections are not an import's to remove.
         assert Collection.objects.filter(name="Trading Post").exists()
         assert Collection.objects.filter(name="Skills & Powers").exists()
-        # Nor the skills, subtypes and gang types the rulebook fixes.
+
         assert Skill.objects.filter(name="Catfall").exists()
         assert Subtype.objects.filter(name="Leader").exists()
 
@@ -2389,10 +2249,8 @@ class TestClearing:
     def test_a_modifier_naming_imported_content_goes_with_it(
         self, full_foundation, sheets
     ):
-        """A modifier holds its scope and effect in tables of their own,
-        and those rows are what hold the trait — so they are what a clear
-        sweeps, and the modifier cascades away with them. Left behind,
-        one authored rule pointing at a trait stops the whole thing.
+        """Clear scope and effect rows referencing imported content, allowing their
+        modifiers to cascade.
         """
         from n26.library import authoring
         from n26.library.ingest import clear_imported
@@ -2411,13 +2269,9 @@ class TestClearing:
         clear_imported()
 
         assert Trait.objects.count() == 0
-        # Every modifier goes with them, bar standard content's own,
-        # which name nothing an import wrote: the visit contributions,
-        # the lasting-effect tables' status effects, and the fighter
-        # advancement results. The
-        # founding-budget ones are not among those: each names the
-        # fighter entries it reaches, so they belong to the import and go
-        # with it.
+        # Retain standard visit-contribution, lasting-effect status and
+        # fighter-advancement modifiers. Founding-budget modifiers reference imported
+        # fighter entries and are removed.
         from n26.library.standard_content import (
             VISIT_CONTRIBUTION_MODIFIERS,
             fighter_advancement_modifiers,
@@ -2435,9 +2289,9 @@ class TestClearing:
     def test_a_reworded_seed_modifier_still_stands_after_a_clear(
         self, full_foundation, sheets
     ):
-        """A clear recognises standard content the way the seed that made
-        it does — by what a modifier raises, never by its name — so
-        rewording one does not put it in the way of the next clear."""
+        """Recognise visit-contribution seed modifiers by their counter effect rather than
+        their names.
+        """
         from n26.library.ingest import clear_imported
         from n26.library.models.modifier import Modifier
         from n26.library.standard_content import visit_contribution_counter
@@ -2474,7 +2328,7 @@ class TestClearing:
 
         with pytest.raises(ProtectedError):
             clear_imported()
-        assert Weapon.objects.exists()  # and the transaction held
+        assert Weapon.objects.exists()
 
         assert count_imported() == before
 

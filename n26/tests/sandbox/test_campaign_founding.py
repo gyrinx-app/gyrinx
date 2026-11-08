@@ -1,17 +1,10 @@
-"""Founding a campaign on a type, and what joining one gives a gang.
+"""Campaign founding creates a private pack and an empty additions type.
 
-A campaign is founded on a shared campaign type and owns, from that
-moment, a pack of its own with an empty additions type in it. A gang
-that joins is assigned both types, gang-hosted and granted, and the
-shared type's built-ins arrive caused by its carrier — on Territory campaign, a
-Settlement and a Reputation counter at 1. The gang sheet draws those
-under the campaign's name, credited to the type that brought them, and
-a staff edit to the shared type reaches every member gang by the same
-propagation that reaches a gang type's members. See
-design/campaign-assets.md.
-
-Leaving is not offered until it can return everything, so the one route
-that would take a gang out refuses in words.
+Joining grants the shared campaign type, the additions type and their built-ins
+to the gang. The gang sheet groups those assignments under the campaign.
+Built-in propagation applies shared-type edits to existing members. Leaving
+removes assignments caused by the membership carriers.
+See design/campaign-assets.md.
 """
 
 import pytest
@@ -49,9 +42,7 @@ def arbitrator():
 
 @pytest.fixture
 def core(default_pack):
-    """The Territory campaign type as it ships: Reputation at 1 and a Settlement
-    built in. The data migration that creates it never runs under the
-    test settings, so the same code seeds it here."""
+    """Seed the standard Territory campaign type because tests skip data migrations."""
     seed_core_campaign(apps)
     return CampaignType.objects.get(name="Territory campaign")
 
@@ -78,7 +69,7 @@ def sentences(acts):
 
 
 def caused_by(carrier):
-    """What a carrier brought, as ``(name, counter value)`` pairs."""
+    """Return assignments caused by this carrier as (name, counter value) pairs."""
     return sorted(
         (
             str(row.assignable),
@@ -89,8 +80,7 @@ def caused_by(carrier):
 
 
 class TestFoundingACampaign:
-    """Founding writes the campaign, its own pack and its additions type
-    together, and opens its log by naming the type."""
+    """Founding creates the campaign, its private pack and additions type in one operation."""
 
     def test_it_is_founded_on_the_type(self, campaign, core):
         assert campaign.campaign_type == core
@@ -110,7 +100,7 @@ class TestFoundingACampaign:
         assert additions.additions_to == campaign
 
     def test_the_additions_type_is_never_offered_to_found_on(self, campaign, core):
-        """It lives in a pack somebody owns, which every picker leaves out."""
+        """Campaign-type selectors exclude content in owned packs."""
         offered = list(CampaignType.objects.selectable())
         assert core in offered
         assert campaign.additions not in offered
@@ -134,8 +124,7 @@ class TestFoundingACampaign:
 
 
 class TestJoiningACampaign:
-    """Joining puts both of the campaign's types on the gang, granted, and
-    lands the shared type's built-ins in the same operation."""
+    """Joining grants both campaign types and their built-ins in one operation."""
 
     def test_the_gang_carries_both_types(self, membership, gang, campaign, core):
         type_carrier = membership.type_carrier
@@ -175,16 +164,14 @@ class TestJoiningACampaign:
         assert {e.campaign for e in granted} == {campaign}
 
     def test_the_gangs_history_tells_the_join_as_one_act(self, membership, gang):
-        """The types and their built-ins ride the joining rather than
-        standing as acts of their own."""
+        """Group the type and built-in grants under the campaign join in gang history."""
         acts = build(gang)
         (joined,) = [
             a
             for a in acts
             if "added the gang to Dust Falls" in "".join(s.text for s in a.spans)
         ]
-        # The campaign's own type rides the joining unnamed: it wears the
-        # campaign's name, and no page names it.
+        # Group the shared campaign type with the join's granted assignments.
         assert sorted((sub.name, sub.kind) for sub in joined.subs) == [
             ("Income", "counter"),
             ("Reputation", "counter"),
@@ -213,8 +200,7 @@ class TestJoiningACampaign:
 
 
 class TestTheGangSheet:
-    """What the campaign gave is drawn under the campaign's name, each
-    thing credited to the type that brought it, and nowhere else."""
+    """Group campaign assignments under the campaign name with their granting-type provenance."""
 
     def test_it_draws_the_campaigns_possessions_under_its_name(self, membership, gang):
         block = render_gang(gang).campaign
@@ -294,8 +280,7 @@ class TestTheGangSheet:
 
 
 class TestEditingTheTypeReachesMemberGangs:
-    """A staff edit to the shared type's built-ins travels to every gang
-    carrying it through the same pass that carries a gang type's edits."""
+    """Propagate shared campaign-type built-in edits to existing member gangs."""
 
     @pytest.fixture(autouse=True)
     def flag(self, db):
@@ -323,9 +308,7 @@ class TestEditingTheTypeReachesMemberGangs:
     def test_a_new_possession_lands_on_a_gang_already_playing(
         self, membership, gang, core, task_queue
     ):
-        """Creating an asset under a Possession asset type is the whole of
-        building it in, and the pass that edit files delivers it to every
-        member gang, credited to the type."""
+        """Creating a Possession asset queues propagation of its built-in grant to member gangs."""
         from n26.library.authoring import add_asset_type, create_asset
 
         with task_queue.capture():
@@ -353,10 +336,7 @@ class TestEditingTheTypeReachesMemberGangs:
     def test_bringing_an_archived_possession_back_gives_it_again(
         self, membership, gang, core, task_queue
     ):
-        """Archiving an asset stops it being given and unarchiving starts
-        it again. The gang that already holds one keeps the one it has:
-        the same membership comes back rather than a second one, so the
-        catch-up pass has nothing to hand it."""
+        """Unarchiving reuses the built-in member and preserves the gang's existing copy."""
         from n26.library.authoring import add_asset_type, create_asset
 
         with task_queue.capture():
@@ -386,7 +366,7 @@ class TestEditingTheTypeReachesMemberGangs:
 
 
 class TestTheLeaveRoute:
-    """Taking a gang out gives back everything its carriers brought."""
+    """Leaving removes assignments caused by the campaign membership carriers."""
 
     def test_it_removes_what_the_carriers_brought(
         self, client, membership, gang, campaign, arbitrator
@@ -402,8 +382,7 @@ class TestTheLeaveRoute:
 
 
 class TestGivingExistingCampaignsTheirPacks:
-    """The data migration's logic: a campaign or membership written before
-    founding and joining gave anything is brought up to what they give."""
+    """Backfill missing campaign packs and membership carriers without duplicating existing grants."""
 
     @pytest.mark.parametrize("tracking", ["absent", "inactive", "historical", "active"])
     def test_counter_openings_follow_the_installations_tracking_state(
@@ -453,8 +432,7 @@ class TestGivingExistingCampaignsTheirPacks:
         assert_reconciled(gang)
 
     def test_a_membership_without_carriers_is_given_them(self, gang, campaign):
-        # A membership as one was written before joining carried anything:
-        # the row and nothing else.
+        # Simulate a membership missing both assignment carriers.
         CampaignMembership.objects.create(campaign=campaign, gang=gang)
 
         lines = give_campaigns_their_packs(apps)

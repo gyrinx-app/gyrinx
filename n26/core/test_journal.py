@@ -1,11 +1,7 @@
-"""Journal-only ledger events: the gang's history beyond its money.
+"""Renames, notes and characteristic changes write journal events through operations.
 
-A rename, a notes edit, a characteristic set by hand price nothing, but
-they are part of the gang's story, so each goes through an operation and
-writes an event with no entry behind it. These tests pin the contract:
-the event stands alone, pinned to its gang, with the actor on it; the
-money invariant never sees it; and an act that changes nothing writes
-nothing.
+These events retain the gang and actor without an assignment or monetary delta.
+Unchanged values produce no event.
 """
 
 import pytest
@@ -21,7 +17,6 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(db):
-    """The signed-in person these tests look at the app as."""
     return User.objects.create_user("player")
 
 
@@ -45,7 +40,7 @@ def vex(tester, gang, make_profile, make_statline):
 
 
 def journal(gang):
-    """The gang's journal-only events, oldest first."""
+    """Read events without an assignment in creation order."""
     return list(
         LedgerEvent.objects.filter(gang=gang, assignment__isnull=True).order_by(
             "created"
@@ -54,7 +49,7 @@ def journal(gang):
 
 
 class TestTheJournalKeepsTheStory:
-    """Acts the books do not price still land in the history."""
+    """Nonmonetary model changes are recorded in the gang history."""
 
     def test_a_rename_writes_an_event_with_both_names_and_the_actor(
         self, tester, gang, vex
@@ -97,14 +92,13 @@ class TestTheJournalKeepsTheStory:
         with operation(gang, actor=tester) as op:
             op.rename(vex, "Mad Vex")
         kinds = [event.kind for event in gang.ledger_events.order_by("created")]
-        # The hire's money events and the rename, one stream: the
-        # journal is the same log the purchases write to.
+        # Purchases and journal-only changes share the gang's ledger-event stream.
         assert LedgerEvent.Kind.RENAMED in kinds
         assert LedgerEvent.Kind.PURCHASED in kinds
 
 
 class TestTheMoneyInvariantNeverSeesTheJournal:
-    """Standalone events have no entry to fold and no deltas to fold in."""
+    """Journal-only events leave reconciliation and recorded spend unchanged."""
 
     def test_reconcile_stays_clean_with_journal_events_present(self, tester, gang, vex):
         from n26.core import reconcile
@@ -137,7 +131,7 @@ class TestTheMoneyInvariantNeverSeesTheJournal:
 
 
 class TestCharacteristicsLandInTheHistory:
-    """The statline boxes write through the operation, cell by cell."""
+    """Characteristic overrides and removals are recorded through operations."""
 
     def _form(self, vex, data):
         from n26.core.forms import statline_override_form_for
@@ -182,7 +176,7 @@ class TestCharacteristicsLandInTheHistory:
 
 
 class TestTheViewsGoThroughTheDoor:
-    """The three converted views land their acts in the journal."""
+    """Rename, notes and characteristic view submissions record journal events."""
 
     def test_renaming_through_the_dialog_lands_in_the_journal(
         self, client, tester, gang, vex

@@ -1,8 +1,8 @@
-"""Selectable base Income belongs to one asset occurrence and its answer.
+"""Selectable base Income belongs to one asset occurrence and its selected pick.
 
-The catalogue amount stays on an ordinary modifier. A holding's override
-substitutes its amount only while that modifier runs through its recorded
-Income option; other standing contributions keep their ordinary arithmetic.
+The catalogue amount remains on an ordinary modifier. A holding override
+replaces that amount only when the recorded Income option applies.
+Other contributions retain their ordinary arithmetic.
 """
 
 from uuid import uuid4
@@ -338,8 +338,8 @@ class TestChoosingTheBaseIncome:
             attach_to=content["asset"],
         )
         card, index = loaded(gang)
-        # Gang authoring currently exposes House conditions. Its existing
-        # pure counter selector proves the engine's later-round contract.
+        # Inject a counter selector to test later computation rounds beyond
+        # the House conditions exposed by gang authoring.
         entries = index.for_thing(card.holdings[0])
         scopes = [row for row, _ in entries if row.pk == threshold.pk]
         scopes[0].targets_gang._compiled_selector = select.CounterAtLeast(
@@ -448,7 +448,7 @@ class TestChoosingTheBaseIncome:
 
 
 class TestIncomeOwnershipAndAncestry:
-    """Nested effects keep the selected answer's occurrence identity."""
+    """Attribute nested effects to the selected pick and its asset occurrence."""
 
     def test_nested_grants_are_attributed_and_retract_with_their_selected_answer(
         self, campaign, gang, content

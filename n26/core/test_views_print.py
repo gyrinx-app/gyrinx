@@ -103,15 +103,11 @@ def no_js_submission(body):
 
 
 def submission(body, untick=()):
-    """The print form's action, method and the pairs a browser sends.
+    """Return the action, method and selected pairs the print form submits.
 
-    The form's own inputs are read from the page: hidden ones, ticked
-    boxes and radios, and text fields. The picker's boxes are read from
-    its props, as the island draws them, its server-drawn body being
-    replaced on mount: a ticked model posts ``fighters``, and a ticked
-    weapon posts ``weapons`` only while its model is ticked, the box
-    being disabled otherwise. ``untick`` holds ids the reader clears
-    first.
+    Read ordinary inputs from HTML and equipment selections from island props.
+    Weapons submit only while their model is selected. ``untick`` identifies
+    selections cleared before submission.
     """
     soup = BeautifulSoup(body, "html.parser")
     host = soup.select_one('[data-react-name="print-picker"]')
@@ -641,12 +637,9 @@ def _as_post(pairs):
 
 
 class TestPrintingSomebodyElsesGang:
-    """Printing a gang and saving a setup on it are two permissions.
+    """Anyone permitted to read a gang can print it; only its owner can save setups.
 
-    Players print rosters for each other, and paper says nothing the sheet
-    has not already shown — so whoever can read a gang can print it. What
-    stays the owner's is the saving: a reader who does not own the gang
-    ticks the same boxes and carries the answer in the address.
+    Non-owners encode their selections in the print URL.
     """
 
     @pytest.fixture
@@ -709,9 +702,7 @@ class TestPrintingSomebodyElsesGang:
         assert "csrfmiddlewaretoken" not in body
 
     def test_the_owners_screen_still_saves(self, client, tester, gang, roster):
-        """The other side of the test above, which alone would stay green
-        if the owner's form regressed to the reader's arm — their Print
-        would then quietly print without saving, or refuse on the token."""
+        """Owner submissions still save the setup before printing."""
         client.force_login(tester)
 
         body = client.get(setup_url(gang)).content.decode()
@@ -1027,9 +1018,7 @@ class TestPrintingSomebodyElsesGang:
     def test_an_unreadable_id_costs_that_id_when_the_owner_saves_too(
         self, client, tester, gang, roster
     ):
-        """The owner's save reads ids the same way the reader's print
-        does. Handed one that is not an id, it drops that one rather than
-        raising the field's refusal up as a 500."""
+        """Ignore each malformed ID during owner saves as during public printing."""
         vex, _ = roster
         client.force_login(tester)
 

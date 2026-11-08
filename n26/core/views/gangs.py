@@ -1472,7 +1472,8 @@ def gang_trade_points(request, pk):
     zero. Reject an empty unconfigured visit and a second open visit. Completing
     discards unspent points. Purchases separately confirm permitted overspending.
 
-    Reuse roster and contribution reads for the picker and any existing receipt.
+    Reuse roster and contribution reads for the picker; read any existing receipt
+    separately from its recorded attendance and spending.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.activities import founding_card, visit_card

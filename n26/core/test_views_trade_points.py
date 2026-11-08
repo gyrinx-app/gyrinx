@@ -132,11 +132,7 @@ class TestTheWayIn:
 
 
 class TestTheFigureThatLeadsHere:
-    """The Trade Points figure in the wealth strip is the way in from the
-    screens where they are spent. It leads somewhere only for the reader
-    who may act on it: a roster opens for whoever holds its address, and
-    offering a stranger a door they would be refused at is worse than
-    offering none."""
+    """Only authorised viewers receive the balance control's action URL."""
 
     def test_the_owners_stash_screen_links_the_figure(self, client, tester, gang):
         client.force_login(tester)
@@ -584,10 +580,7 @@ class TestStartingTheAction:
         assert any("Complete the open" in line for line in told)
 
     def test_the_operation_refuses_it_too(self, client, roster, gang, tester):
-        """The screen shuts the form, and the act behind it refuses on its
-        own account: two clicks on one button arrive together often enough
-        for a state read before the gang's line was taken to be stale by
-        the time the second one writes."""
+        """Revalidate open activity state under lock to reject stale submissions."""
         from n26.core.operations import Refusal, operation
         from n26.core.trading import visitors
 
@@ -907,10 +900,7 @@ class TestFinishingTheAction:
         ).exists()
 
     def test_the_confirmation_lands_where_the_card_was(self, client, roster, gang):
-        """Finishing takes the card away. A confirmation at the top of the
-        page would land nowhere near what the reader was looking at, so it
-        arrives in the space the card just left — above the form that
-        starts the next one."""
+        """Display completion confirmation in the removed activity card's position."""
         start(client, gang, roster["Vex"])
 
         body = client.post(page(gang), {"act": "finish"}, follow=True).content.decode()

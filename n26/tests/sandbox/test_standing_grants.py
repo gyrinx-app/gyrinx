@@ -1,16 +1,7 @@
-"""A default declared on the gang type, reaching every model of one Type.
-
-A gang type carries modifiers that every member's card can find. One
-that targets every model whose Type is Fighter and gives a slot puts
-that slot's choice on every fighter in every gang of the type — the
-moment the modifier is attached, on gangs founded long before it, and
-off again when it is detached. No profile carries the slot as a
-built-in, so nothing is written per model and nothing needs propagating.
-
-The pick a player makes on such a slot anchors on the gang's founding
-assignment, the line the grant stands on. Detaching the grant takes the
-choice off every card but leaves the picks where they are, as plain
-lines: a modifier detached by mistake must not eat a gang's history.
+"""Verify gang-type modifiers that grant slots to matching models without creating
+per-model assignments. Existing gangs see attached grants immediately, with picks
+anchored to the gang founding assignment and hosted on the choosing model. Detaching the
+grant removes the choice while preserving stored picks.
 """
 
 import pytest
@@ -41,7 +32,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def injuries(default_pack):
-    """A slot that takes several picks and repeats, as the tables do."""
+    """Multi-pick slot whose type permits repeated results."""
     slot_type = create_slot_type(
         "Lasting Injury", plural_name="Lasting Injuries", allows_repeats=True
     )
@@ -119,8 +110,9 @@ class TestAGrantOnTheGangType:
     def test_a_gang_founded_before_the_grant_has_it_at_once(
         self, gang, gang_type, injuries, fighter_type, yolanda
     ):
-        """The point of a standing grant: nothing is written per model,
-        so there is nothing to propagate to gangs that already exist."""
+        """Standing grants are computed from library modifiers, so existing gangs need no
+        propagated assignments.
+        """
         assert choice_of(yolanda, "Lasting Injuries") is None
         before = Assignment.objects.count()
         grant(gang_type, injuries["slot"], fighter_type)
@@ -150,9 +142,9 @@ class TestPickingOnAGrantedSlot:
     def test_a_pick_stays_with_the_model_that_made_it(
         self, gang, gang_type, injuries, fighter_type, yolanda
     ):
-        """The anchor is the gang's founding line, so without a host
-        named the pick would land on the gang and ride every fighter's
-        card. The choose page names the model it was made from."""
+        """The anchor belongs to gang founding; supply the choosing model as host so the
+        pick does not appear on every model.
+        """
         grant(gang_type, injuries["slot"], fighter_type)
         other = hire(
             gang,

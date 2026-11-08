@@ -1,4 +1,4 @@
-"""The actual report form saves unfinished work and applies a gang's results once."""
+"""The report form saves drafts and applies each submitted revision once."""
 
 import json
 from datetime import date
@@ -97,7 +97,7 @@ def report_content(make_profile):
 
 @library_setup
 def _seed_report_catalogue():
-    # Keep the original small Person shape, including its unset stat limits.
+    # Use a three-stat Person fixture without seeded stat limits.
     pack = get_default_pack()
     shape = StatlineType.objects.create(name="Person", pack=pack)
     definitions = [
@@ -148,7 +148,7 @@ def gang_type(default_pack, _prepared_report_catalogue):
 
 
 def _report_content():
-    """Fresh instances of the full original catalogue for this case's table."""
+    """Reload shared content for the current test’s fixtures."""
     return (
         Counter.objects.get(name="XP"),
         SlotType.objects.get(name="Lasting injury"),
@@ -244,10 +244,7 @@ def html_fields(response, **changes):
 
 
 def with_first_credits(data, changes):
-    """Read and write the first line of credits as ``credits`` and ``reason``.
-
-    Most tests enter one amount; this keeps them to the words they mean.
-    """
+    """Map credits and reason aliases onto the first credit line."""
     changes = dict(changes)
     line = (data.get("credit_line") or [None])[0]
     if line is not None:
@@ -982,7 +979,7 @@ class TestStartingAndResuming:
 
 
 class TestApplyingAndCorrecting:
-    """A plain first Apply works, while retries and corrections preserve later play."""
+    """Applying a revision is idempotent; corrections preserve later gang changes."""
 
     @pytest.mark.parametrize("standalone", [False, True])
     def test_first_apply_needs_no_separate_check_step(self, client, table, standalone):
@@ -1740,10 +1737,8 @@ class TestRecordResultsEntry:
 
 
 def refresh(client, report, response, model, *, after=None, **changes):
-    """Post the form as a changed select does: htmx, one model's intent.
-
-    ``after`` is an earlier refresh: its version replaces the page's, as
-    the out-of-band swap does in the browser.
+    """Refresh one model section over HTMX. When after is supplied, use that earlier
+    response’s version as the browser’s out-of-band swap would.
     """
     fields = html_fields(response, intent=f"refresh-model:{model.pk}", **changes)
     if after is not None:
@@ -1763,7 +1758,7 @@ def module(response, model):
 
 @pytest.mark.parametrize("table", [1], indirect=True)
 class TestModelModule:
-    """One module per model, worded by its tables, redrawn in place."""
+    """Model sections use their lasting-effect table labels and refresh in place."""
 
     def test_a_vehicle_table_is_named_by_its_own_label(
         self, client, table, make_profile, vehicle_type
@@ -2369,7 +2364,9 @@ class TestMissionResults:
 
 
 class TestMissionResultsAddUp:
-    """Before, the change and After agree, and credits read as totals."""
+    """Counter previews combine starting values, entered changes and result effects;
+    credits display the report total.
+    """
 
     def apply_first(self, client, table, report, **changes):
         page = client.get(editor_url(report))
@@ -2559,7 +2556,8 @@ class TestModelCounters:
         cells = [
             cell.get_text(strip=True) for cell in entry.find_parent("tr").find_all("td")
         ]
-        # Before, the entered change and what the kept result adds make After.
+        # The preview adds the entered counter change and retained result effect to the
+        # starting value.
         assert (cells[1], entry["value"], cells[2], cells[-1]) == ("2", "1", "+1", "4")
         assert "From results" in box.find("thead").get_text()
 

@@ -1,17 +1,8 @@
-"""What a profile comes with, and what may be chosen instead.
-
-The Khimerix is the shape this proves. It carries chemical cloud breath
-and talons as built-ins, and offers two swaps when it joins a roster:
-gaseous eruption breath for the breath, razor-sharp talons for the
-talons, each at +25.
-
-Nothing is ever *replaced*. A choice decides which set materialises at
-hire, and the option not taken simply never comes into being — which is
-what keeps this clear of v1's inherited-then-overridden mess.
-
-Two independent picks are modelled as the combinations, because the choice
-is one-of. A profile is ``(built_ins, [options])``: the built-ins always
-come, and the head of the options list is what a hire takes unasked.
+"""Verify fixed built-ins and selected option sets during hiring. Materialise only the
+selected set; represent two independent swaps as four exclusive equipment combinations
+in this fixture. The first option is the default, while optional one-or-none groups have
+no implicit selection. Prices can come from the profile, built-in set and selected
+options.
 """
 
 import pytest
@@ -60,7 +51,7 @@ def weapons(db):
 
 @pytest.fixture
 def khimerix(person_type, gang_type, weapons, default_pack):
-    """Cost lives on the profile; the option sets price the alternatives."""
+    """Profile with a base price, fixed subtype and priced alternative equipment sets."""
     profile = Profile.objects.create(
         name="Khimerix", profile_type=person_type, gang_type=gang_type, price=210
     )
@@ -69,7 +60,7 @@ def khimerix(person_type, gang_type, weapons, default_pack):
     )
     profile.save()
 
-    # The head of the list is the default — a profile is (built_ins, [options]).
+    # Default to the first option by position.
     for position, (name, members, price) in enumerate(
         [
             ("Standard Khimerix", ["Chemical cloud breath", "Talons"], 0),
@@ -117,11 +108,8 @@ class TestTheDefaultHire:
         assert entries["Talons"].rating_contribution == 0
 
     def test_default_weapons_carry_their_profiles(self, gang, khimerix):
-        """However a weapon arrives, it is the same weapon.
-
-        Granted kit used to land without its free profiles, so a Khimerix's
-        talons drew as a bare nameplate with no statline and no traits while
-        an identical bought weapon drew in full.
+        """Granted weapons need their free profiles just like purchased weapons, including
+        statlines and traits.
         """
         beast = hire_with_option(gang, khimerix, "Growler")
         card = build_model_card(beast)
@@ -145,7 +133,7 @@ class TestChoosingAnOption:
         ]
 
     def test_the_option_not_taken_never_existed(self, gang, khimerix):
-        """Not removed, not archived — simply never created."""
+        """Create no assignments for unselected options, including archived assignments."""
         razors = khimerix.options.get(default_set__name="Razor talons").default_set
         hire_with_option(gang, khimerix, "Growler", option=razors)
 
@@ -159,7 +147,7 @@ class TestChoosingAnOption:
         entry = beast.membership.ledger_entry
         assert entry.paid == 235  # 210 + 25
         assert entry.rating_contribution == 235
-        # And the swapped-in weapon is still free.
+        # Record the surcharge on the hire, leaving its granted weapon with zero paid.
         razor_entry = next(
             e
             for e in ledger_for_gang(gang)
@@ -205,7 +193,7 @@ class TestPricingIsAdditive:
     def test_the_cost_may_live_on_the_built_ins_instead(
         self, gang, person_type, gang_type, weapons
     ):
-        """Every profile has built-ins, so they can carry the price."""
+        """Include the built-in set price when the profile's own price is zero."""
         profile = Profile.objects.create(
             name="Cheap beast",
             profile_type=person_type,
@@ -222,7 +210,7 @@ class TestPricingIsAdditive:
         assert beast.membership.ledger_entry.paid == 90
 
     def test_a_profile_with_no_sets_still_works(self, gang, make_profile):
-        """Everything before this round had neither slot filled."""
+        """Profiles without built-in or option sets still use their own price."""
         plain = make_profile("Escher Ganger", price=55)
         fighter = hire_with_option(gang, plain, "Yolanda")
         assert fighter.membership.ledger_entry.paid == 55
@@ -234,7 +222,7 @@ class TestChoicesAreNotForced:
         assert make_profile("Plain").offers_a_choice is False
 
     def test_a_profile_with_no_options_has_no_default(self, gang, make_profile):
-        """Derived from the list, so an empty list means no default."""
+        """An empty option list has no default selection."""
         plain = make_profile("Plain", price=40)
         assert plain.default_option is None
         assert plain.option_sets() == []
@@ -250,11 +238,8 @@ class TestChoicesAreNotForced:
 
 
 class TestAnOptionalPick:
-    """A one-or-none set — the book's "may take one of the following".
-
-    The alternatives exclude each other, and taking neither is fine:
-    nothing is taken unless the player picks it, so the advertised
-    price never includes it.
+    """A one-or-none group permits at most one selection and contributes nothing to the
+    advertised price until selected.
     """
 
     @pytest.fixture
@@ -332,8 +317,8 @@ class TestRendering:
 
         assert "Growler — 235cr" in text
         assert "Fighter (Exotic Beast)" in text
-        # Kit that came with the hire carries no number: its value is
-        # inside the fighter's own line, and a zero would read as "free".
+        # The hire entry includes granted equipment value; omit a separate zero-price
+        # label that would imply it was free.
         assert "Razor-sharp talons" in text
         assert "— 0cr" not in text
         assert "Talons — " not in text.replace("Razor-sharp talons", "")

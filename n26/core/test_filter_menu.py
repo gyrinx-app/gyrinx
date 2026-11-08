@@ -1,4 +1,6 @@
-"""The filter menu posts its ticks, and React draws the same menu over the trigger."""
+"""Filter-menu props and fallback markup preserve values, labels and caller event
+listeners.
+"""
 
 import json
 
@@ -11,7 +13,7 @@ from n26.core.templatetags.filter_menu import filter_menu_props
 
 
 def render(source: str, **context) -> str:
-    """Compile a call site the way the template loader would, then render it."""
+    """Compile Cotton tags before rendering an inline template."""
     return Template(CottonCompiler().process(source)).render(Context(context))
 
 
@@ -65,5 +67,5 @@ def test_the_menu_is_an_island_and_the_fallback_does_not_open():
     button = host.find("button")
     assert button["aria-expanded"] == "false"
     assert "Category" in button.get_text()
-    # The caller's listener sits outside the island, where Alpine still runs.
+    # Keep caller event listeners outside the markup managed by React.
     assert host.parent["@filter-apply"] == "applied = $event.detail"

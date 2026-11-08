@@ -22,8 +22,8 @@ dialog host by ID and reuse the full-page confirmation structure and tally.
                name="{{ confirmation.confirm_field }}"
                value="{{ confirmation.confirm_value }}">
         {% comment %}
-        Use informational styling because the permitted action needs confirmation or a
-        recording choice.
+        Use the prepared variant: overspend confirmations are warnings, while rating-only
+        confirmations are informational.
         {% endcomment %}
         <c-ui.alert variant="{{ confirmation.variant }}"
                     title="{{ confirmation.heading }}">

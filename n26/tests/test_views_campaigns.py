@@ -1,7 +1,6 @@
-"""The campaign screens, and the flag that decides who reaches them.
-
-Here rather than beside the views because opening the flag means writing the
-site's own row, and only these tests may reach across to the platform.
+"""Verify campaign pages, permissions, invitations, membership, history and query growth
+through their HTTP endpoints. Platform-specific fixtures and account settings belong in
+this test tree.
 """
 
 import re
@@ -41,7 +40,7 @@ def campaign(arbitrator, campaign_type):
 
 
 def founding(campaign_type, **fields):
-    """A set-up form's POST, on the given type."""
+
     return {
         "name": "Dust Falls",
         "budget": "1000",
@@ -52,11 +51,7 @@ def founding(campaign_type, **fields):
 
 
 def seat(campaign, user):
-    """Put somebody at the campaign's table.
-
-    The add-a-gang screen offers the gangs of people who have accepted a
-    place, so a test wanting a gang addable has to seat its owner first.
-    """
+    """Invite the user and accept, making their gangs eligible for campaign addition."""
     from n26.core.campaigns import campaign_operation
 
     with campaign_operation(campaign, actor=campaign.owner) as act:
@@ -65,9 +60,8 @@ def seat(campaign, user):
         act.answer_invitation(user, accepted=True)
 
 
-#: Every address this feature adds that opens on an empty campaign, so a new
-#: one cannot skip the sign-in check below. The screens for taking something
-#: out need a row to name, and are checked in their own tests.
+#: Campaign addresses that work without child rows. Check removal endpoints separately
+#: with their required fixtures.
 def addresses(campaign):
     return [
         "/n26/campaigns/",
@@ -96,7 +90,7 @@ class TestWhoReachesCampaignsAtAll:
 
 
 class TestTheDashboardTab:
-    """The home page's Campaigns tab lists the reader's campaigns."""
+    """List the reader's owned and accepted campaigns on the home page."""
 
     def test_a_reader_with_it_gets_their_campaigns(
         self, client, arbitrator, campaign_type
@@ -117,7 +111,7 @@ class TestTheDashboardTab:
 
 
 class TestSearchingTheList:
-    """The same box the gangs list has, answered the same way."""
+    """Filter the campaign list by the submitted query."""
 
     def test_it_narrows_to_what_was_asked_for(self, client, arbitrator, campaign_type):
         found_campaign("Dust Falls", campaign_type, owner=arbitrator)
@@ -138,8 +132,7 @@ class TestSearchingTheList:
 
 
 class TestALongList:
-    """A paged list without a pager hides everything past the first page,
-    and nothing on the page says so."""
+    """Render pagination controls when campaigns span more than one page."""
 
     @pytest.fixture(autouse=True)
     def _type(self, campaign_type):
@@ -166,14 +159,14 @@ class TestALongList:
         onward = first.context["pages"]["next"]
         assert onward, "no way off the first page"
 
-        # Followed as a reader would, rather than by guessing the address.
+        # Follow the returned pagination link.
         second = client.get(f"/n26/campaigns/{onward}")
         names = {row.name for row in second.context["page"].object_list}
         assert names, "the second page is empty"
         assert names.isdisjoint({row.name for row in first.context["page"].object_list})
 
     def test_the_pager_is_drawn_where_there_is_one(self, client, arbitrator):
-        """The context alone is not proof — the markup has to render it."""
+        """Verify pagination in markup as well as response context."""
         self._many(arbitrator, 30)
         assert "page=2" in client.get("/n26/campaigns/").content.decode()
 
@@ -193,8 +186,9 @@ class TestSettingOneUp:
     def test_founding_gives_it_a_pack_and_an_additions_type(
         self, client, arbitrator, campaign_type
     ):
-        """The pack is the arbitrator's own and the additions type sits
-        in it, empty, named for the campaign."""
+        """Create the arbitrator-owned pack and an empty additions type named for the
+        campaign.
+        """
         client.post("/n26/campaigns/new/", founding(campaign_type))
         made = Campaign.objects.get(name="Dust Falls")
         assert made.pack.owner == arbitrator
@@ -205,8 +199,7 @@ class TestSettingOneUp:
     def test_the_form_offers_the_types_a_campaign_can_be_founded_on(
         self, client, arbitrator, campaign_type, campaign
     ):
-        """The system pack's types, and never a campaign's own additions,
-        which live in a pack somebody owns."""
+        """Exclude campaign additions from the system campaign-type picker."""
         body = client.get("/n26/campaigns/new/").content.decode()
         assert f'value="{campaign_type.pk}"' in body
         assert f'value="{campaign.additions.pk}"' not in body
@@ -214,8 +207,7 @@ class TestSettingOneUp:
     def test_each_card_says_what_founding_on_the_type_gives(
         self, client, arbitrator, default_pack
     ):
-        """The picker reads as choosing a rulebook: the type's description,
-        how each asset type is owned, and what every gang starts with."""
+        """Summarise asset ownership and starting grants on each campaign-type card."""
         from django.apps import apps
 
         from n26.library.core_campaign import seed_core_campaign
@@ -235,9 +227,9 @@ class TestSettingOneUp:
     def test_a_campaign_wide_rule_is_drawn_on_the_card(
         self, client, arbitrator, campaign_type
     ):
-        """A modifier on the type reaches every member gang, so the card
-        says what it does in the words the authoring pages use. A type
-        with nothing built in says nothing about what a gang starts with."""
+        """Show type modifiers even without built-ins; omit a starting-grants sentence when
+        there are none.
+        """
         from n26.library.authoring import (
             create_rule,
             ef_adds,
@@ -267,7 +259,7 @@ class TestSettingOneUp:
         assert not Campaign.objects.exists()
 
     def test_the_page_names_the_type(self, client, campaign):
-        """The description card names the type and who runs the campaign."""
+
         body = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
         assert "Territory campaign" in body
         assert "Arbitrator:" not in body
@@ -287,9 +279,9 @@ class TestSettingOneUp:
     def test_a_blank_budget_means_no_limit_rather_than_zero(
         self, client, arbitrator, campaign_type
     ):
-        """Blank is not a zero, and a campaign that read it as zero would
-        refuse everybody. Clearing the default is how a table that has
-        not agreed a limit says so."""
+        """Clearing the budget default means no agreed limit, represented by None rather
+        than zero.
+        """
         client.post(
             "/n26/campaigns/new/",
             founding(campaign_type, name="Open House", budget=""),
@@ -303,9 +295,9 @@ class TestSettingOneUp:
 
 
 class TestSomebodyElsesCampaign:
-    """The page reads for anybody holding the address; the screens that
-    change it are the arbitrator's, and answer a stranger with 404 rather
-    than 403 — the same way every other page holding player data does."""
+    """Signed-in readers can view active campaigns. Management endpoints and controls
+    remain restricted to the arbitrator; unauthorised edits return 404.
+    """
 
     @pytest.fixture
     def theirs(self, campaign_type):
@@ -319,8 +311,7 @@ class TestSomebodyElsesCampaign:
         assert "Not Yours" in response.content.decode()
 
     def test_it_offers_no_controls(self, client, arbitrator, theirs):
-        """Not a disabled button but nothing at all, so every address that
-        would refuse this reader is absent from what they are given."""
+        """Hide management links that this reader cannot use."""
         drawn = client.get(f"/n26/campaigns/{theirs.pk}/").content.decode()
         for address in (
             f"/n26/campaigns/{theirs.pk}/edit/",
@@ -332,7 +323,7 @@ class TestSomebodyElsesCampaign:
             assert address not in drawn
 
     def test_an_archived_one_is_gone(self, client, arbitrator, theirs):
-        """A link does not keep alive what its arbitrator has put away."""
+
         theirs.archived = True
         theirs.save()
         assert client.get(f"/n26/campaigns/{theirs.pk}/").status_code == 404
@@ -351,12 +342,13 @@ class TestSomebodyElsesCampaign:
         assert theirs.archived is False
 
     def test_it_is_not_listed(self, client, arbitrator, theirs):
-        """Readable at its own address, but not one of the reader's own."""
+        """Being readable by URL does not put a campaign in the reader's own list."""
         assert "Not Yours" not in client.get("/n26/campaigns/").content.decode()
 
     def test_it_can_be_shared(self, client, arbitrator, theirs):
-        """The one control every reader gets: a link to the page itself,
-        which React turns into the share sheet or the clipboard."""
+        """Expose a fallback campaign link that React enhances with sharing or clipboard
+        actions.
+        """
         drawn = client.get(f"/n26/campaigns/{theirs.pk}/").content.decode()
         assert f'href="/n26/campaigns/{theirs.pk}/"' in drawn
         assert 'aria-label="Share"' in drawn
@@ -366,9 +358,9 @@ class TestSomebodyElsesCampaign:
     def test_the_shared_address_reads_for_whoever_is_signed_in(
         self, arbitrator, theirs
     ):
-        """What the link hands on: the page itself, to any signed-in person
-        who follows it, with the same control to pass it further. A visitor
-        who is not signed in is asked to sign in first."""
+        """Sharing preserves the campaign's sign-in requirement and allows any signed-in
+        reader to open its page.
+        """
         bystander = Client()
         assert bystander.get(f"/n26/campaigns/{theirs.pk}/").status_code == 302
 
@@ -453,8 +445,9 @@ class TestEditing:
     def test_an_unlimited_campaign_stays_blank_on_the_edit_form(
         self, client, arbitrator, campaign_type
     ):
-        """The 1000 default is for a campaign being set up. Filling it in
-        on edit would make a campaign that had no limit look as if it did."""
+        """Apply the 1000-credit default only during creation; editing must preserve an
+        unlimited budget.
+        """
         campaign = found_campaign(
             "Open House", campaign_type, owner=arbitrator, budget=None
         )
@@ -466,8 +459,7 @@ class TestEditing:
     def test_a_zero_budget_stays_zero_on_the_edit_form(
         self, client, arbitrator, campaign_type
     ):
-        """Nought is a figure, not an absence: `default` would draw the
-        box empty and a save would clear the limit."""
+        """Preserve zero explicitly: treating it as empty would clear the limit on save."""
         campaign = found_campaign(
             "Broke House", campaign_type, owner=arbitrator, budget=0
         )
@@ -483,8 +475,7 @@ class TestArchiving:
         assert campaign.archived is False
 
     def test_the_post_archives_rather_than_destroys(self, client, campaign):
-        """The row stays: what a campaign recorded is a true statement about
-        what happened, whether or not it is still on show."""
+        """Retain the campaign row and its history after archiving."""
         client.post(f"/n26/campaigns/{campaign.pk}/archive/")
         campaign.refresh_from_db()
         assert campaign.archived is True
@@ -507,7 +498,9 @@ class TestArchiving:
 
 
 class TestCampaignDashboardLayout:
-    """The page leads with play and keeps player administration below the log."""
+    """Show play sections before player administration, with controls appropriate to the
+    reader.
+    """
 
     def test_header_has_only_gangs_and_battles(self, client, campaign):
         drawn = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
@@ -611,9 +604,9 @@ class TestCampaignDashboardLayout:
 
 
 class TestTheLogOnTheCampaignsPage:
-    """What the arbitrator changed, read back off the page they changed it
-    on. Rendered markup rather than a status code: a section that draws
-    nothing still answers 200."""
+    """Verify rendered campaign history, including founding, changed fields, attribution
+    and the recent-entry limit.
+    """
 
     def page(self, client, campaign):
         return client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
@@ -621,8 +614,7 @@ class TestTheLogOnTheCampaignsPage:
     def test_a_fresh_campaign_opens_with_its_founding_line(
         self, client, arbitrator, campaign_type
     ):
-        """No campaign has an empty log: founding writes the first line,
-        and it names the type the campaign runs on."""
+        """Founding supplies the first log entry, including the campaign type."""
         made = found_campaign("Quiet Start", campaign_type, owner=arbitrator)
         drawn = self.page(client, made)
         assert "Log" in drawn
@@ -653,7 +645,7 @@ class TestTheLogOnTheCampaignsPage:
         assert all(actor.get_text(strip=True) == "You" for actor in actors)
 
     def test_saving_an_untouched_form_writes_nothing(self, client, campaign):
-        """A form submits every box it holds. Only what moved is an act."""
+        """Submitting unchanged fields must not create campaign events."""
         client.post(
             f"/n26/campaigns/{campaign.pk}/edit/",
             {"name": campaign.name, "budget": "1000", "summary": campaign.summary},
@@ -663,7 +655,7 @@ class TestTheLogOnTheCampaignsPage:
         ]
 
     def test_only_the_most_recent_acts_are_drawn(self, client, campaign):
-        """The page is a campaign, not its history."""
+        """Limit the dashboard history and disclose how many earlier acts are omitted."""
         for number in range(1, 15):
             client.post(
                 f"/n26/campaigns/{campaign.pk}/edit/",
@@ -671,7 +663,7 @@ class TestTheLogOnTheCampaignsPage:
             )
         drawn = self.page(client, campaign)
         assert drawn.count("renamed the campaign") == LOG_ON_THE_PAGE
-        # Fourteen renames and the founding line, ten of them drawn.
+        # The fixture has 15 acts: founding and 14 renames.
         assert "5 earlier acts not shown" in drawn
 
     def test_the_newest_act_is_drawn_first(self, client, campaign):
@@ -689,7 +681,7 @@ class TestTheLogOnTheCampaignsPage:
     def test_log_timestamps_follow_the_reader_timezone(
         self, client, arbitrator, campaign
     ):
-        """A 06:27 UTC act reads as 02:27 in Eastern Daylight Time."""
+        """A 06:27 UTC event displays as 02:27 in Eastern Daylight Time."""
         from datetime import UTC, datetime
 
         from gyrinx.accounts.models import UserProfile
@@ -715,9 +707,9 @@ class TestTheLogOnTheCampaignsPage:
 
 
 class TestTheFullLog:
-    """The campaign's page draws only its newest acts; the log page draws
-    them all, newest first, a screenful at a time, for whoever the
-    campaign's page opens for."""
+    """Paginate all campaign acts in newest-first order under the campaign's read
+    permissions.
+    """
 
     def rename(self, client, campaign, times):
         for number in range(1, times + 1):
@@ -739,10 +731,9 @@ class TestTheFullLog:
         assert drawn.index("renamed the campaign") < drawn.index("set the campaign up")
 
     def test_a_long_log_is_paged(self, client, campaign, monkeypatch):
-        """Every other parameter rides along, and the last page ends with
-        the founding line."""
-        # By module rather than by dotted path: the views package exports
-        # a ``campaigns`` view under the submodule's own name.
+        """The final page includes the founding entry after all later acts."""
+        # Import the module explicitly because the views package exports a campaigns
+        # function with the same name.
         monkeypatch.setattr(
             import_module("n26.core.views.campaigns"), "LOG_PER_PAGE", 5
         )
@@ -760,7 +751,7 @@ class TestTheFullLog:
 
 
 class TestTheRollOfGangs:
-    """Who is playing, added from the gangs at the campaign's table."""
+    """Manage gangs belonging to the arbitrator or accepted campaign participants."""
 
     @pytest.fixture
     def gang(self, gang_type, campaign):
@@ -856,8 +847,9 @@ class TestTheRollOfGangs:
     def test_a_gang_belonging_to_nobody_at_the_table_is_refused(
         self, client, campaign, gang_type
     ):
-        """The screen offers the gangs of people who have accepted a place,
-        and the POST takes only what the screen would offer."""
+        """Validate POSTed gangs against the same accepted-player set offered by the
+        picker.
+        """
         outsider = found_gang(
             "Not Invited", gang_type, owner=User.objects.create_user("outsider")
         )
@@ -871,8 +863,8 @@ class TestTheRollOfGangs:
         self, client, campaign, gang, arbitrator, campaign_type
     ):
         elsewhere = found_campaign("Sump City", campaign_type, owner=arbitrator)
-        # Seated there too: what is under test is the second join being
-        # refused, not who the other campaign would have offered.
+        # Accept membership in the other campaign so only the existing gang membership
+        # prevents joining.
         seat(elsewhere, gang.owner)
         client.post(f"/n26/campaigns/{elsewhere.pk}/gangs/add/", {"gang": str(gang.pk)})
 
@@ -885,8 +877,9 @@ class TestTheRollOfGangs:
         assert CampaignMembership.objects.filter(gang=gang).count() == 1
 
     def test_joining_gives_the_gang_the_campaigns_types(self, client, campaign, gang):
-        """Both carriers, gang-hosted and granted, pointed at by the
-        membership so what the campaign gave can be found again."""
+        """Membership records both gang-hosted carriers so campaign grants can be removed
+        when the gang leaves.
+        """
         client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
         membership = CampaignMembership.objects.get(gang=gang)
         assert membership.type_carrier.assignable == campaign.campaign_type
@@ -933,7 +926,7 @@ class TestTheRollOfGangs:
     def test_the_post_lands_at_the_top_of_the_campaign_page(
         self, client, campaign, gang
     ):
-        """No fragment: the message bar is at the top, so the reader starts there."""
+        """Omit a fragment so the redirect reveals the confirmation message at the top."""
         client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
         response = client.post(f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/")
         assert response["Location"] == f"/n26/campaigns/{campaign.pk}/"
@@ -944,7 +937,7 @@ class TestTheRollOfGangs:
         client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
         address = f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/"
         client.post(address)
-        # A stale page: the membership has closed, so there is nothing here.
+
         assert client.post(address).status_code == 404
 
     def test_removing_a_gang_that_is_not_playing_answers_404(
@@ -1014,20 +1007,17 @@ class TestBattlesOnTheCampaignsPage:
     def test_only_this_campaigns_gangs_are_offered(
         self, client, campaign, gang, arbitrator, campaign_type
     ):
-        """A picker over every gang there is would let an arbitrator record a
-        battle between gangs that were never in the campaign."""
+        """A battle picker must exclude gangs playing in other campaigns."""
         elsewhere = found_campaign("Sump City", campaign_type, owner=arbitrator)
-        # Seating the owner is only how the gang gets into the other
-        # campaign; what is under test is which gangs the battle picker
-        # offers afterwards.
+
         seat(elsewhere, gang.owner)
         client.post(f"/n26/campaigns/{elsewhere.pk}/gangs/add/", {"gang": str(gang.pk)})
 
         drawn = client.get(
             f"/n26/campaigns/{campaign.pk}/battles/new/"
         ).content.decode()
-        # The gang's id rather than its name: a flash message from the last
-        # request carries the name and would match wherever the picker stood.
+        # Check the option value: the previous request's flash message can contain the
+        # gang name even when the picker excludes it.
         assert f'value="{gang.pk}"' not in drawn
         assert "No gangs in this campaign yet" in drawn
 
@@ -1108,10 +1098,7 @@ class TestBattlesOnTheCampaignsPage:
 
 
 class TestTheCampaignInTheBar:
-    """Every screen belonging to one campaign names it in the app header, as
-    a link, with the switcher beside it — the same as a gang's screens. Read
-    off the rendered markup, because a component that draws nothing still
-    answers 200."""
+    """Render the campaign link and campaign switcher on pages scoped to one campaign."""
 
     @pytest.fixture
     def gang(self, gang_type, campaign):
@@ -1139,8 +1126,7 @@ class TestTheCampaignInTheBar:
 
         for address in self.screens(campaign, gang, battle):
             drawn = client.get(address).content.decode()
-            # The switcher's own menu label: the list page has a search
-            # box with the same placeholder, so that would not tell them apart.
+            # Check the switcher label because a list search can share its placeholder.
             assert "Switch to another campaign" in drawn, address
             assert f'href="/n26/campaigns/{campaign.pk}/"' in drawn, address
 
@@ -1154,7 +1140,9 @@ class TestTheCampaignInTheBar:
     def test_the_list_and_the_setup_screen_keep_the_places_switcher(
         self, client, arbitrator
     ):
-        """Neither is one campaign, so neither names one in the bar."""
+        """Campaign list and creation pages have no individual campaign to name in the
+        header.
+        """
         for address in ("/n26/campaigns/", "/n26/campaigns/new/"):
             drawn = client.get(address).content.decode()
             assert "Switch to another campaign" not in drawn, address
@@ -1174,7 +1162,7 @@ class TestInvitingSomebody:
         assert "vex_ordo" in drawn
 
     def test_an_empty_search_offers_nobody(self, client, campaign, player):
-        """A page that listed every account by default would be a directory."""
+        """Require a search term rather than exposing an account directory."""
         drawn = client.get(self.add_page(campaign)).content.decode()
         assert "vex_ordo" not in drawn
         assert "Type a username to search" in drawn
@@ -1251,9 +1239,7 @@ class TestAnsweringAnInvitation:
         assert "You in?" in drawn
 
     def test_the_home_page_knows_an_invitation_is_waiting(self, client, theirs):
-        """The mark itself is drawn by the tab strip, which Alpine builds in
-        the browser from a registered string — so what is checked here is the
-        view's answer, which is the part that can quietly stop being right."""
+        """Expose the pending invitation count and campaign in the home-page response."""
         response = client.get("/n26/")
         assert response.context["waiting_invitations"] == 1
         assert "Sump Wars" in response.content.decode()
@@ -1284,7 +1270,9 @@ class TestAnsweringAnInvitation:
         assert response["Location"] == f"/n26/campaigns/{theirs.pk}/"
 
     def test_it_will_not_be_sent_somewhere_else(self, client, theirs):
-        """The address to return to arrives in a form, so it is checked."""
+        """Do not redirect an invitation response to an external target supplied by the
+        form.
+        """
         response = client.post(
             f"/n26/campaigns/{theirs.pk}/invitation/",
             {"answer": "accept", "next": "https://example.test/"},
@@ -1304,9 +1292,9 @@ class TestAnsweringAnInvitation:
 
 
 class TestWhatAParticipantSees:
-    """Accepting puts the campaign among the reader's own, because the
-    invitation it arrived on is answered and gone: without this a player
-    who said yes has nothing left pointing at the campaign."""
+    """Accepted campaigns remain in the reader's lists and navigation after the invitation
+    is answered.
+    """
 
     @pytest.fixture
     def theirs(self, arbitrator, campaign_type):
@@ -1334,8 +1322,7 @@ class TestWhatAParticipantSees:
     def test_the_row_names_who_runs_it_and_offers_nothing(self, client, theirs):
         self.accept(client, theirs)
         drawn = client.get("/n26/campaigns/").content.decode()
-        # The name is drawn through <c-n26.user-link>, which wraps it so the
-        # badge the arbitrator holds can follow it.
+        # The user-link component may wrap the account name to include its badge.
         assert "Arbitrator:" not in drawn and ">kesh<" in drawn
         assert reverse("user-profile", args=[theirs.owner.username]) in drawn
         assert f"/n26/campaigns/{theirs.pk}/edit/" not in drawn
@@ -1343,8 +1330,7 @@ class TestWhatAParticipantSees:
     def test_a_question_still_waiting_is_not_one_of_their_campaigns(
         self, client, theirs
     ):
-        """It is drawn on the page as an invitation, which is a different
-        thing from being in the campaign."""
+        """Show pending invitations separately from accepted campaign memberships."""
         assert list(client.get("/n26/campaigns/").context["campaigns"]) == []
 
     def test_declining_leaves_it_out(self, client, theirs):
@@ -1352,8 +1338,7 @@ class TestWhatAParticipantSees:
         assert list(client.get("/n26/campaigns/").context["campaigns"]) == []
 
     def test_searching_finds_it(self, client, theirs):
-        """The list is a join across participants and is deduplicated, so a
-        search over it has to survive both."""
+        """Search must preserve participant joins and campaign deduplication."""
         self.accept(client, theirs)
         response = client.get("/n26/campaigns/", {"q": "Sump"})
         assert [row.pk for row in response.context["campaigns"]] == [theirs.pk]
@@ -1366,8 +1351,7 @@ class TestWhatAParticipantSees:
         )
 
     def test_the_bar_offers_it(self, client, theirs):
-        """The chevron beside a campaign's name is how somebody reaches
-        another of theirs, and a player has no other way through."""
+        """Include accepted campaigns in switcher navigation."""
         from n26.core.navigation import reader_campaigns
 
         self.accept(client, theirs)
@@ -1376,7 +1360,7 @@ class TestWhatAParticipantSees:
         assert [row.pk for row in rows] == [theirs.pk]
 
     def test_they_read_the_log(self, client, theirs, arbitrator):
-        """Everybody who can open the page can read what has happened."""
+
         self.accept(client, theirs)
         response = client.get(f"/n26/campaigns/{theirs.pk}/")
         assert response.context["acts"]
@@ -1388,8 +1372,9 @@ class TestWhatAParticipantSees:
 
 
 class TestAPlayerBringingTheirOwnGang:
-    """The add-a-gang screen read by somebody at the table rather than by
-    the arbitrator: their own gangs, and the budget as the way in."""
+    """Accepted participants may add their own gangs. Campaign budgets provide guidance
+    without blocking addition.
+    """
 
     @pytest.fixture
     def theirs(self, arbitrator, campaign_type):
@@ -1417,8 +1402,7 @@ class TestAPlayerBringingTheirOwnGang:
         assert [row["name"] for row in response.context["gangs"]] == ["My Own"]
 
     def test_they_are_offered_nobody_elses(self, client, theirs, mine, gang_type):
-        """The arbitrator draws on the whole table; a player draws on their
-        own and is not shown what anybody else has."""
+        """Only the arbitrator can select gangs belonging to other accepted participants."""
         found_gang("Not Mine", gang_type, owner=theirs.owner)
         response = client.get(f"/n26/campaigns/{theirs.pk}/gangs/add/")
         assert [row["name"] for row in response.context["gangs"]] == ["My Own"]
@@ -1430,8 +1414,7 @@ class TestAPlayerBringingTheirOwnGang:
         ).exists()
 
     def test_somebody_elses_gang_is_not_on_offer(self, client, theirs, mine, gang_type):
-        """The picker holds the reader's own and nothing else, so naming
-        another is refused by the form rather than by a check after it."""
+        """Reject another owner's gang through the picker form's allowed choices."""
         not_theirs = found_gang(
             "Not Mine", gang_type, owner=User.objects.create_user("stranger")
         )
@@ -1441,12 +1424,12 @@ class TestAPlayerBringingTheirOwnGang:
         assert not CampaignMembership.objects.filter(gang=not_theirs).exists()
 
     def test_a_gang_already_playing_is_not_on_offer(self, client, theirs, mine):
-        """A gang plays one campaign at a time, so offering it would be
-        offering something that gets refused."""
+        """Retain the row marked as playing so the picker can explain why the gang is
+        unavailable.
+        """
         client.post(f"/n26/campaigns/{theirs.pk}/gangs/add/", {"gang": str(mine.pk)})
         response = client.get(f"/n26/campaigns/{theirs.pk}/gangs/add/")
-        # Still listed, because a reader who cannot find a gang is better
-        # told where it went — and hidden to start with by the filter.
+
         assert [row["playing"] for row in response.context["gangs"]] == [True]
         assert not any(row["playing"] is False for row in response.context["gangs"])
 
@@ -1471,7 +1454,7 @@ class TestAPlayerBringingTheirOwnGang:
         rich = found_gang("Too Rich", gang_type, owner=arbitrator)
         rich.credits = 0
         rich.save()
-        # Worth nothing fits a budget of nothing, so put something in it.
+        # Give the gang positive rating so it exceeds the zero budget.
         hire(rich, make_profile("Escher Ganger"), "Yolanda", paid=55)
 
         response = client.post(
@@ -1486,8 +1469,8 @@ class TestAPlayerBringingTheirOwnGang:
 
         said = [str(message) for message in response.context["messages"]]
         assert any("joined" in message for message in said), said
-        # The sum is spelled out, so a reader can check it against the
-        # figures their own gang sheet gives them.
+        # Include the budget calculation so the owner can compare it with the gang
+        # sheet.
         over = next(message for message in said if "over the budget" in message)
         assert "rating 55¢" in over, over
         assert "stash 0¢" in over, over
@@ -1520,8 +1503,9 @@ class TestAPlayerBringingTheirOwnGang:
         assert f"/n26/campaigns/{theirs.pk}/gangs/add/" in response.content.decode()
 
     def test_recording_does_not_grant_campaign_management(self, client, theirs, mine):
-        """The page stopped offering its controls from one flag, so what a
-        participant may do is worth stating rather than assuming."""
+        """Joining with a gang does not grant access to campaign editing, archiving or
+        invitations.
+        """
         self.accept_and_bring(client, theirs, mine)
         drawn = client.get(f"/n26/campaigns/{theirs.pk}/").content.decode()
         for address in (
@@ -1532,7 +1516,7 @@ class TestAPlayerBringingTheirOwnGang:
             assert address not in drawn, address
 
     def test_the_screens_behind_those_controls_refuse_them(self, client, theirs, mine):
-        """Absent from the page is not the same as shut, so each is asked."""
+        """Check endpoint permission separately from hidden management links."""
         self.accept_and_bring(client, theirs, mine)
         for address in (
             f"/n26/campaigns/{theirs.pk}/edit/",
@@ -1572,13 +1556,12 @@ class TestAPlayerBringingTheirOwnGang:
         ).exists()
 
     def accept_and_bring(self, client, campaign, gang):
-        """A participant with a gang of theirs already in the campaign."""
+
         client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
 
 
 class TestTheRollsQueryCount:
-    """One select_related is all that keeps the roll from asking after every
-    gang's stash, and nothing else would notice it going."""
+    """Keep campaign gang-list queries constant as gangs and stash contents increase."""
 
     def test_it_does_not_grow_with_the_gangs(
         self, client, arbitrator, campaign, gang_type, make_profile
@@ -1603,7 +1586,7 @@ class TestTheRollsQueryCount:
                 op.join_campaign(campaign)
 
         seat("One", stashed=True)
-        # Once first, so nothing one-off is counted as part of the page.
+        # Warm the page before measuring so one-off setup queries are excluded.
         client.get(f"/n26/campaigns/{campaign.pk}/")
         with CaptureQueriesContext(connection) as one_gang:
             client.get(f"/n26/campaigns/{campaign.pk}/")
@@ -1617,8 +1600,7 @@ class TestTheRollsQueryCount:
 
 
 class TestTheAddGangScreensQueryCount:
-    """Every row reads its owner and its stash, so two select_related terms
-    are all that keep the list flat. Nothing else would notice them going."""
+    """Load owners and stash data without adding a query for each eligible gang."""
 
     def test_it_does_not_grow_with_the_gangs(
         self, client, arbitrator, campaign, gang_type, make_profile
@@ -1652,7 +1634,9 @@ class TestTheAddGangScreensQueryCount:
 
 
 class TestTheArbitratorsOwnAddGangScreen:
-    """The same list a player sees, over everybody at the table."""
+    """The arbitrator can add gangs belonging to all accepted players, as well as their
+    own.
+    """
 
     @pytest.fixture
     def rich(self, campaign, gang_type, make_profile):
@@ -1679,8 +1663,7 @@ class TestTheArbitratorsOwnAddGangScreen:
     def test_the_newest_touched_gang_comes_first(
         self, client, campaign, rich, gang_type, make_profile
     ):
-        """Ordered by the ledger, because the gang somebody is looking for
-        is nearly always the one they were last working on."""
+        """Order eligible gangs by their latest ledger activity."""
         older = found_gang("Long Untouched", gang_type, owner=rich.owner)
         hire(older, make_profile("Escher Juve"), "Nadia", paid=25)
         hire(rich, make_profile("Escher Champ"), "Vala", paid=80)
@@ -1694,8 +1677,7 @@ class TestTheArbitratorsOwnAddGangScreen:
     def test_it_says_which_gangs_are_already_playing(
         self, client, campaign, rich, arbitrator
     ):
-        """Hidden by the filter to start with, but listed — a reader who
-        cannot find a gang should be told where it went."""
+        """Keep playing gangs in the response data with their availability state."""
         client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(rich.pk)})
         response = client.get(f"/n26/campaigns/{campaign.pk}/gangs/add/")
         assert [row["playing"] for row in response.context["gangs"]] == [True]
@@ -1721,9 +1703,7 @@ class TestTheArbitratorsOwnAddGangScreen:
 
 
 class TestNothingTypedIntoAnAddressIsAServerError:
-    """Ids reach these views from forms and addresses, where anything can be
-    typed. A key column refuses what it cannot parse by raising, so every one
-    of them has to be checked before it reaches a query."""
+    """Malformed IDs must produce a validation message or 404 rather than a server error."""
 
     @pytest.fixture
     def gone(self, campaign):
@@ -1756,8 +1736,7 @@ class TestNothingTypedIntoAnAddressIsAServerError:
 
 
 class TestTheArbitratorIsNotAParticipant:
-    """The model says so, so the write says so — the search screens them out,
-    and a request that goes round the search must not get past this."""
+    """Reject direct invitations to the arbitrator as well as excluding them from search."""
 
     def test_inviting_the_owner_is_refused_in_words(self, client, campaign, arbitrator):
         response = client.post(

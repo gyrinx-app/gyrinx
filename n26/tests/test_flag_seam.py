@@ -1,9 +1,5 @@
-"""The seam onto the site's feature flags, and the group migration behind it.
-
-Lives here rather than beside the code because it reaches across to the
-platform, which only ``n26/tests/`` may do. What it pins is this edition's
-half of the arrangement: the slugs it claims, and the undoing of the group
-migration an earlier allowlist read.
+"""Verify N26 flag registration and safe reversal of the campaign access-group migration.
+Platform integration tests belong here because they import shared site services.
 """
 
 import importlib
@@ -23,23 +19,23 @@ GROUP_NAME = "N26 Campaigns"
 
 class TestWhatThisEditionClaims:
     def test_built_in_propagation_is_registered(self):
-        """The running side of propagation checks this flag; unclaimed,
-        that check would raise instead of standing down."""
+        """Propagation checks require a registered slug; otherwise the platform raises
+        ValueError.
+        """
         assert BUILT_IN_PROPAGATION in known_flags()
 
     def test_staged_content_is_registered(self):
-        """Who sees staged content asks this flag on every screen where a
-        player adds to a gang; unclaimed, every one of them would raise."""
+        """Register staged-content access before player addition screens check it."""
         assert STAGED_CONTENT in known_flags()
 
     def test_the_released_features_are_no_longer_claimed(self):
-        """Campaigns and founding are open to everyone in code, so neither
-        is a slug this edition asks about."""
+        """Campaigns and founding require no feature-flag registration."""
         assert not {"campaigns", "founding"} & known_flags()
 
     def test_the_seam_answers_for_it(self):
-        """A slug with no row is off — the same answer the platform gives,
-        reached through this edition's own door."""
+        """A registered feature with no database record remains disabled through the
+        edition boundary.
+        """
         reader = User.objects.create_user("reader")
         assert enabled(STAGED_CONTENT, reader) is False
 
@@ -54,14 +50,12 @@ class TestWhatThisEditionClaims:
 
 
 class TestUndoingTheGroupMigration:
-    """Reversing must undo the creation and nothing else. The forward
-    operation accepts a group that was already there, so it cannot tell one
-    it made from one it found — and deleting somebody's group would take
-    every membership with it."""
+    """Remove only an empty access group on migration reversal. Existing memberships must
+    survive because the forward operation may reuse a pre-existing group.
+    """
 
     def _reverse(self):
-        # Imported by name because a module starting with a digit is not a
-        # valid identifier, so the import statement cannot reach it.
+        # Import by string because migration module names begin with digits.
         mod = importlib.import_module(
             "n26.core.migrations.0023_an_account_may_be_let_into_campaigns_early"
         )
@@ -73,7 +67,7 @@ class TestUndoingTheGroupMigration:
         assert not Group.objects.filter(name=GROUP_NAME).exists()
 
     def test_a_group_with_members_is_left_alone(self):
-        """Somebody is in it, so it is somebody's."""
+        """Preserve the group and its memberships on reversal."""
         member = User.objects.create_user("member")
         member.groups.add(Group.objects.create(name=GROUP_NAME))
 

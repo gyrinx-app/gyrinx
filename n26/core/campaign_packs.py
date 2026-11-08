@@ -1,39 +1,17 @@
-"""Give every campaign what founding writes, and every playing gang what
-joining writes.
+"""Fill missing campaign types, owned packs, additions and membership carriers.
 
-A campaign is founded on a type and owns a pack holding its additions
-type (``CampaignOperation.found``); a gang that joins is assigned both
-types, with the shared type's built-ins landing caused by its carrier
-(``Operation.join_campaign``). Campaigns and memberships written before
-either existed have none of it, and this fills the gap: each campaign
-missing a type is put on the **Territory campaign** type, the one type
-every install has and the only thing a campaign could have been played as
-before there was a choice; each missing a pack or an additions type is
-given one, named for the campaign as founding names them; and each open
-membership missing a carrier is given it, with the type's built-ins
-landed and a Reputation counter opening at its member's amount.
+Use the Territory campaign type for campaigns without one. Create missing
+packs and additions using founding's naming rules. Give open memberships
+their missing shared-type and additions carriers, including built-ins and
+counter opening values.
 
-The assignments are written here rather than through an operation
-because a migration runs on historical model classes, which an operation
-cannot drive. What is written is the shape ``Operation.assign`` and
-``reconcile_defaults`` give a free gang-hosted grant: the assignment with
-its roots set, a zero-priced ledger entry, a granted event naming the
-campaign, and provenance on every built-in copy so a later propagation
-pass recognises them as satisfied. Nothing is priced, so no gang's rating
-or credits move and the ledger still reconciles.
+Accept historical model classes for migrations. Write the free gang-hosted
+assignment shape directly: roots, zero-valued ledger entry, campaign-linked
+grant event and member provenance. These writes move no credits or rating.
 
-What an operation does beyond writing rows is not done here: no stored
-effect runs, and a weapon lands without its free profiles. Nor are
-two shapes of built-in followed: an extra weapon profile, which needs a
-gun to land on, and a built-in with built-ins of its own. None of these is
-in the Territory campaign type, whose built-ins are a counter and an
-asset. Each is reported rather than half-written, and the propagation pass
-catches up whatever it can.
-
-Everything is matched on what already stands and left alone if it is
-there, so running this twice changes nothing the second time. Written
-against whatever model classes it is handed, so a migration can run it
-on historical ones.
+Do not run stored effects, create free weapon profiles, or recursively
+materialise nested built-ins. Report omitted extra ammunition and nested grants instead of attempting them. The standard Territory type
+requires none of these shapes. Existing objects remain unchanged on rerun.
 """
 
 from uuid import uuid4
@@ -54,8 +32,7 @@ GRANTED = "granted"
 
 
 def give_campaigns_their_packs(apps):
-    """Fill in what founding and joining write, for every campaign, and
-    return one line per row created, so a caller can say what happened."""
+    """Create missing founding and joining structures and return a creation report."""
     lines = []
     Campaign = apps.get_model("n26", "Campaign")
     CampaignMembership = apps.get_model("n26", "CampaignMembership")
@@ -111,9 +88,7 @@ def give_campaigns_their_packs(apps):
 
 
 def _core_type(apps):
-    """The Territory campaign type, created along with the rest of the
-    core campaign content if a database lacks it. A database still holding
-    the type under its former name is not given a second one."""
+    """Find or create the standard Territory type, recognising its stored alias."""
     CampaignType = apps.get_model("library", "CampaignType")
 
     def find():
@@ -133,8 +108,7 @@ def _core_type(apps):
 
 
 def _carry(apps, membership, campaign_type, batch, lines):
-    """One campaign type onto one gang, with its built-ins, as joining
-    writes it. Returns the carrier."""
+    """Create a campaign type carrier and supported built-ins for a gang."""
     Assignment = apps.get_model("n26", "Assignment")
     DefaultAssignment = apps.get_model("library", "DefaultAssignment")
     CounterValue = apps.get_model("n26", "CounterValue")
@@ -189,16 +163,13 @@ def _carry(apps, membership, campaign_type, batch, lines):
 
 
 def _grant(apps, membership, batch, reason, **fields):
-    """One free gang-hosted assignment with its entry and event — what
-    ``Operation.assign`` writes for a grant, on historical classes."""
+    """Write a free gang-hosted assignment with its entry and event using historical models."""
     Assignment = apps.get_model("n26", "Assignment")
     LedgerEntry = apps.get_model("n26", "LedgerEntry")
     LedgerEvent = apps.get_model("n26", "LedgerEvent")
 
     gang = membership.gang
-    # The roots are derived by the live model's save and by nothing else,
-    # so a gang-hosted assignment written here names its gang as its root
-    # by hand.
+    # Historical saves cannot derive roots; set the gang root explicitly.
     assignment = Assignment.objects.create(gang=gang, gang_root=gang, **fields)
     LedgerEntry.objects.create(assignment=assignment, reason=reason)
     LedgerEvent.objects.create(

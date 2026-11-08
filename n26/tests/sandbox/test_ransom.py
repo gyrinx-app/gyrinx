@@ -1,12 +1,7 @@
-"""Credits between gangs, and the ransom that needs them.
-
-A ransomed model (Escape table, 2–4) comes back if the owning gang pays
-the captor D6 × 10 credits, and dies otherwise, its kit to the owner's
-stash (core rules, the Wrap-up and Update Roster). Paying is the first
-thing in n26 that moves credits from one gang to another: one ledger
-event on each gang, each naming the other, the payer's a spend and the
-receiver's credits in. Neither buys anything, so neither has an entry —
-the credits recompute reads them straight off the gang.
+"""Verify ransom payments and paired credit-transfer events. Record the payer's debit and
+receiver's credit directly on their gangs, without purchase ledger entries. Paying
+returns the model in Recovery; an unpaid ransom marks it Dead and stashes eligible
+equipment.
 """
 
 import re
@@ -74,8 +69,7 @@ def gang(gang_type, owner, fighter_type, tables):
 
 @pytest.fixture
 def captors(gang, gang_type, rival, campaign_type):
-    """A rival gang at the same table: only a gang in the campaign can be
-    paid a ransom, so the two share one."""
+    """Rival gang in the same campaign, making it an eligible ransom recipient."""
     captors = found_gang("The Sump Dogs", gang_type, owner=rival, budget=500)
     campaign = found_campaign("Dust Falls", campaign_type, owner=rival)
     join_campaign(gang, campaign)
@@ -196,18 +190,15 @@ class TestATransfer:
         with CaptureQueriesContext(connection) as queries:
             with operation(gang, actor=gang.owner, also=[captors]) as op:
                 op.transfer(captors, 30, note="ransom for Krago")
-        # One statement, both keys, ordered: Postgres locks rows in the
-        # order it returns them, so two payments meeting over the same
-        # gangs queue instead of each holding what the other wants. Two
-        # statements, or no ORDER BY, would quietly bring that back.
+        # Lock both gang rows in one ordered query so concurrent opposite-direction
+        # transfers acquire them consistently.
         locks = [q["sql"] for q in queries if "FOR UPDATE" in q["sql"]]
         keys = re.compile(r"'([0-9a-f]{32})'::uuid")
         first = set(keys.findall(locks[0]))
         assert len(first) == 2
         assert 'ORDER BY "n26_gang"."id" ASC FOR UPDATE' in locks[0]
-        # The receiver's own operation takes its line again inside the
-        # same transaction — already held, so no wait — and nothing later
-        # takes a line the first statement did not.
+        # Receiver operations may relock rows already held in the transaction, but must
+        # not introduce a gang outside the original lock set.
         assert all(set(keys.findall(lock)) <= first for lock in locks[1:])
 
     def test_the_history_says_who_paid_whom(self, gang, captors):
@@ -318,8 +309,9 @@ class TestTheRansom:
     def test_two_clicks_on_pay_pay_once(
         self, client, owner, gang, captors, krago, tables, monkeypatch
     ):
-        """The second of two submits that both read the model as Ransomed
-        finds it already paid for under the gang's lock, and refuses."""
+        """Recheck ransom status under the gang lock so repeated submissions cannot pay
+        twice from stale model instances.
+        """
         from n26.core.views import permissions
 
         hold_for_ransom(krago, tables)

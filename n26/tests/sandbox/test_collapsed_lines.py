@@ -1,18 +1,6 @@
-"""Several of one thing read once, with the count the book writes.
-
-A fighter carrying two respirators, a fighter who selected the same skill
-twice, a stash holding two of one item: each is drawn as one line with
-``(x2)`` after the name, wherever the line carries nothing to click —
-the gang sheet, the print page, the text card, a hire preview. The
-model's own page keeps one line per assignment, because each line there
-carries a menu naming that assignment; so does the owner's stash on the
-gang sheet. Two things that only look alike stay apart: one bought and
-one granted, two pinned at different figures, and kit that brought a pet
-with it, which is one line per pet however many are alike.
-
-The same count format is the one a several-pick slot and a stat tooltip
-already use, so ``Enfeebled (x5)`` and ``Respirator (x2)`` read as one
-rule.
+"""Combine equivalent display-only equipment, skill and rule lines with counts. Editable
+assignment controls remain separate, as do different contributions, provenance, weapons
+in the stash and equipment that creates pets.
 """
 
 import pytest
@@ -78,12 +66,12 @@ def nerves(default_pack):
 
 
 def drawn(gang, name):
-    """The card the gang sheet draws for one model, effects folded in."""
+    """Find a model card on the computed gang sheet."""
     return next(card for card in render_gang(gang).models if card.name == name)
 
 
 class TestGearOnTheCard:
-    """Two of one wargear on a fighter are one gear line counting two."""
+    """Equivalent wargear assignments collapse to a counted display line."""
 
     @pytest.fixture
     def doubled(self, fighter, respirator):
@@ -127,8 +115,7 @@ class TestGearOnTheCard:
         assert "Gear: Respirator (x2)" in text
 
     def test_one_bought_and_one_granted_stay_apart(self, gang, fighter, respirator):
-        """A line saying "from Rebreather kit" of a respirator that was
-        paid for would lie about it, so the two keep their own lines."""
+        """A combined line would obscure which copy came from the granting kit."""
         kit = create_wargear("Rebreather kit", price=20)
         modifier(
             "The kit comes with a respirator",
@@ -175,7 +162,7 @@ class TestGearOnTheCard:
 
 
 class TestSkillsAndRulesOnTheCard:
-    """The rows a kind files itself into stack the same way gear does."""
+    """Repeated skills and rules use counted display lines."""
 
     def test_the_same_skill_twice_is_one_line_with_the_count(self, fighter, nerves):
         select(fighter, nerves)
@@ -208,9 +195,9 @@ class TestSkillsAndRulesOnTheCard:
 
 
 class TestTheStash:
-    """Two of one item in the stash are one line counting two, with the
-    rating of one beside it — except on the owner's sheet, where each
-    line carries a menu naming its own assignment."""
+    """Display-only stash lines show a count and per-item contribution; owner controls
+    retain each assignment.
+    """
 
     @pytest.fixture
     def stashed(self, gang, respirator):
@@ -273,8 +260,7 @@ class TestTheStash:
 
 
 class TestTheHirePreview:
-    """A profile whose built-in kit holds two of one thing previews as
-    one line counting two, as the card it becomes will draw it."""
+    """Hire previews collapse duplicate built-ins the same way as model cards."""
 
     def test_two_of_one_built_in_are_one_line(self, profile, respirator):
         profile.built_ins = create_default_set("Kit", members=[respirator, respirator])
@@ -285,9 +271,9 @@ class TestTheHirePreview:
 
 
 class TestPowersAndCategoryGearOnTheCard:
-    """The two other rows that stack: powers, and gear drawn under a
-    category's own heading. Each reads with its count on the sheet, on
-    paper and in text, as gear and skills do."""
+    """Powers and category-specific gear groups retain counts across screen, print and
+    text.
+    """
 
     @pytest.fixture
     def crush(self, default_pack):
@@ -358,10 +344,7 @@ class TestPowersAndCategoryGearOnTheCard:
 
 
 class TestTheCapture:
-    """A conversion proves itself by comparing a gang's pages before and
-    after. The capture writes a stacked line once per assignment, so two
-    of a thing never compare equal to one, and a conversion that lost
-    the second shows as a difference."""
+    """Captures preserve assignment multiplicity even when display lines collapse."""
 
     def test_two_of_one_wargear_capture_differently_from_one(
         self, gang, fighter, respirator
@@ -391,11 +374,9 @@ class TestTheCapture:
 
 
 class TestABoughtAndAGrantedSkill:
-    """A skill the fighter selected and is also granted by a modifier is
-    two facts, drawn as two lines: the bought one plain, the granted one
-    with the tooltip naming what gave it. They are never stacked into
-    one, since a count would hide which was which, and the grant is
-    never dropped for sharing the bought line's name."""
+    """Keep stored and computed skill lines separate so computed provenance remains
+    visible. Multiple computed grants still collapse.
+    """
 
     @pytest.fixture
     def both(self, fighter, nerves):
@@ -451,10 +432,7 @@ class TestABoughtAndAGrantedSkill:
 
 
 class TestTheTypeLineReadsASubtypeOnce:
-    """The type line states what the model is. A subtype the owner added
-    that a modifier also grants is one fact, and reads once — unlike a
-    skill, where the granted line keeps its place beside the bought one
-    so its tooltip can name what gave it."""
+    """Stored and computed copies of a subtype appear once in the type line."""
 
     def test_a_subtype_both_added_and_granted_reads_once(
         self, gang, fighter, default_pack
@@ -475,11 +453,7 @@ class TestTheTypeLineReadsASubtypeOnce:
 
 
 class TestTwoSkillsOfOneName:
-    """Skills are unique only within a pack, so two packs can each hold a
-    "Nerves of Steel". A model granted both is granted one skill, by
-    name: the effects layer folds same-named grants (one skill from two
-    givers is one skill), and the card's own guard reads the same way, so
-    the two never disagree about what the fighter knows."""
+    """Same-named skills from different packs collapse when granted by modifiers."""
 
     def test_both_granted_read_as_one_skill(
         self, gang, fighter, nerves, other_pack, default_pack
@@ -500,10 +474,9 @@ class TestTwoSkillsOfOneName:
 
 
 class TestWeaponsInTheStash:
-    """A weapon in the stash is never stacked. Its name and its total can
-    agree while the guns differ — one carrying a sight priced at nothing
-    reads the same figure as one without — and the configuration that
-    tells them apart is not this line's to key."""
+    """Stash weapons remain separate because equal names and totals can hide different
+    configurations.
+    """
 
     @pytest.fixture
     def lasgun(self, default_pack):
@@ -540,10 +513,9 @@ class TestWeaponsInTheStash:
 
 
 class TestKitWhoseHiddenPartBringsAPet:
-    """A stored effect need not sit on the line that draws: a hidden
-    carrier can ride a visible piece of kit and bring the pet through it.
-    Two such pieces are two pets, and read as two lines — the whole of
-    what hangs under a line decides whether it stands alone."""
+    """A pet-producing hidden descendant prevents its visible equipment line from
+    collapsing.
+    """
 
     def test_two_copies_are_two_lines(
         self, gang, fighter, person_type, gang_type, default_pack
@@ -568,8 +540,8 @@ class TestKitWhoseHiddenPartBringsAPet:
 
         for _ in range(2):
             held = assign(collar, miniature=fighter, paid=100)
-            # Hosted on the collar itself, as a part is — one host — so
-            # the tag rides under the collar's own line.
+            # Parent the hidden carrier to each collar so its pet belongs to that
+            # collar’s subtree.
             with operation(gang, actor=gang.owner) as op:
                 op.assign(tag, parent=held, caused_by=held)
 

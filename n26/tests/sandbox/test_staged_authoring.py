@@ -1,11 +1,5 @@
-"""The authoring pages' side of staged content.
-
-Where an author holds a row back and where they release it: the switch
-beside a creating form, the badge and button on a row's own page, the
-badge in a kind's listing, the Staged content page with its one-row and
-selected releases, the count on the library index, and the switch on
-the import page. The player-facing effect of all this is pinned in
-``test_staged_content.py``; here only the pages are.
+"""Staging controls across authoring forms, detail pages, listings, bulk release and
+import. Player visibility is covered in test_staged_content.py.
 """
 
 import json
@@ -38,9 +32,7 @@ def staged_props(response):
 
 
 def badges(body):
-    """The words the page's badges carry — a badge wraps its word in
-    whitespace, so the word is read out of the markup rather than matched
-    against it."""
+    """Extract badge text without surrounding markup whitespace."""
     return re.findall(r"<span[^>]*>\s*(Staged|Live)\s*</span>", body)
 
 
@@ -52,7 +44,7 @@ def author(client):
 
 
 def gang_type_form(name, **extra):
-    """The create form's payload for a gang type, as a browser posts it."""
+    """Gang-type create payload as posted by the browser."""
     return {"name": name, "foundable": "on", **extra}
 
 
@@ -67,9 +59,9 @@ class TestTheSwitchBesideACreatingForm:
         assert 'name="staged"' not in body
 
     def test_the_switch_starts_on_in_the_markup_itself(self, client, author):
-        """Posted before any script runs, the form must still say staged:
-        the checkbox carries ``checked`` from the server, not only the
-        state the page's script is seeded with."""
+        """The server renders checked so submission before scripts run still stages the
+        row.
+        """
         body = client.get("/n26/authoring/gang-type/new/").content.decode()
         start = body.index('name="staged"')
         assert "checked" in body[start : body.index(">", start)]
@@ -77,8 +69,7 @@ class TestTheSwitchBesideACreatingForm:
     def test_a_switch_that_starts_off_carries_no_checked_attribute(
         self, client, author
     ):
-        """The other direction: a boolean the form draws off must post
-        nothing, or every off switch would quietly save as on."""
+        """An unchecked checkbox must omit checked so the browser posts no value."""
         body = client.get("/n26/authoring/weapon/new/").content.decode()
         start = body.index('name="is_exclusive"')
         assert "checked" not in body[start : body.index(">", start)]
@@ -147,8 +138,7 @@ class TestARowsOwnPage:
 
 
 class TestAWeaponProfilesOwnPages:
-    """A weapon profile is added and corrected on pages of its own, so
-    the switch and the buttons are there too."""
+    """Weapon-profile create and edit pages expose staging controls."""
 
     @pytest.fixture
     def lasgun(self, default_pack):
@@ -255,8 +245,7 @@ class TestTheStagedContentPage:
         )
 
     def test_a_pk_that_names_nothing_staged_is_refused(self, client, author, held):
-        """A bad link and a live row read the same: this page lists staged
-        rows and nothing else, so neither is a row it can put live."""
+        """Missing and live rows cannot be released from the staged-content page."""
         for pk in ("x", str(held["lasgun"].pk)):
             response = client.post(
                 STAGED_URL, {"act": "put_live", "model": "weapon", "pk": pk}
@@ -381,8 +370,7 @@ class TestTheDocumentationPage:
 
 
 class TestTheIndex:
-    """The card on the library index says how much is staged, leads to the
-    Staged content page, and is tinted while anything is waiting."""
+    """The library index links to staged content and shows its count."""
 
     @staticmethod
     def words(body):

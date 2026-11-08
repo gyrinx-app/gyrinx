@@ -1,8 +1,6 @@
-"""An arbitrator archives a counter or label they added to their campaign.
-
-Archiving takes it off every gang the way leaving the campaign would, for
-that one thing: nothing is deleted or set to zero, every gang's history
-says what it stood at, and the campaign log shows the archive once.
+"""Archive campaign-owned counters and labels while retaining values, choices and history.
+Restore current members’ archived copies and grant new copies to gangs that joined in
+the meantime.
 """
 
 import pytest
@@ -119,7 +117,7 @@ def archive_url(table, kind):
 
 
 class TestArchivingACounter:
-    """Every gang loses the counter and keeps every value it reached."""
+    """Archive current campaign gangs’ copies while retaining their counter values."""
 
     def test_it_comes_off_every_gang_and_the_values_stay(self, table):
         faith = table["faith"]
@@ -143,7 +141,7 @@ class TestArchivingACounter:
 
         kings = sentences(build(table["kings"]))
         assert "removed Faith (was 4)" in kings
-        # The changes that got it there still read as they did.
+        # Earlier tally history remains intact.
         assert "changed Faith — +3, now 4" in kings
         assert "removed Faith (was 1)" in sentences(build(table["wolves"]))
         act = next(
@@ -213,8 +211,9 @@ class TestArchivingACounter:
     def test_a_tally_that_found_the_counter_before_the_archive_moves_nothing(
         self, client, table, monkeypatch
     ):
-        """A tally that read the counter before the archive took the gang's
-        line, and waited for it, must not move the archived value."""
+        """Recheck a counter after acquiring the write lock so a stale form cannot tally an
+        archived assignment.
+        """
         from n26.core.views import permissions
 
         held = copies(table["faith"]).get(gang_root=table["kings"])
@@ -244,8 +243,9 @@ class TestArchivingACounter:
         ).exists()
 
     def test_a_clone_outside_the_campaign_keeps_its_copy(self, table):
-        """A clone of a gang in the campaign carries copies naming the same
-        built-in, but it is another gang and not in the campaign."""
+        """Shared materialisation provenance does not make a non-participating clone part
+        of the campaign archive.
+        """
         from n26.core.operations import clone_gang
 
         clone = clone_gang(table["kings"], name="Rust Kings II", owner=table["player"])
@@ -297,8 +297,9 @@ class TestArchivingACounter:
             archive(table, "counter")
 
     def test_a_gang_still_waiting_for_its_copy_is_left_as_it_is(self, table, gang_type):
-        """A gang whose copy has not reached it yet has nothing taken away
-        and no removal written; once archived, nothing grants it later."""
+        """A missing copy creates no removal event and is not granted after its declaration
+        is archived.
+        """
         from n26.core.models import CampaignMembership
 
         waiting = found_gang("Slow Boat", gang_type, owner=table["player"])
@@ -318,8 +319,7 @@ class TestArchivingACounter:
 
 
 class TestArchivingALabel:
-    """Every gang loses the label and the option it picked, and its history
-    says which option that was."""
+    """Archive current gangs’ labels and choices while preserving their history."""
 
     def test_it_and_its_pick_come_off_every_gang(self, table):
         alignment = table["alignment"]
@@ -342,8 +342,9 @@ class TestArchivingALabel:
             assert_reconciled(gang)
 
     def test_a_clone_outside_the_campaign_keeps_the_label_and_its_options(self, table):
-        """A clone carries the label but is not in the campaign: it keeps its
-        pick, and the options stay there to pick from."""
+        """A non-participating clone retains its label, selected answer and available
+        options.
+        """
         from n26.core.operations import clone_gang
 
         clone = clone_gang(table["kings"], name="Rust Kings II", owner=table["player"])
@@ -384,9 +385,7 @@ class TestArchivingALabel:
 
 
 class TestWhatTheArbitratorCannotArchive:
-    """Only the campaign's own counters and labels can be archived. What
-    the shared type gives, another campaign's, and anything already
-    archived are not found."""
+    """Only active additions owned by this campaign can be archived through these routes."""
 
     def test_only_the_campaigns_own_additions_are_found(self, table, campaign_type):
         campaign = table["campaign"]
@@ -413,8 +412,7 @@ class TestWhatTheArbitratorCannotArchive:
 
 
 class TestThePages:
-    """The settings tab links to a confirm page for each of the campaign's
-    own counters and labels; the confirm page lists what each gang has."""
+    """Settings links to confirmation pages showing the affected gangs and current values."""
 
     def test_the_tab_offers_archive_only_for_the_campaigns_own(self, client, table):
         client.force_login(table["arbitrator"])
@@ -450,7 +448,7 @@ class TestThePages:
             {"gang": "Rust Kings", "value": "Lawful", "muted": False},
         ]
         assert "Nothing picked yet" in label_page.content.decode()
-        # Reading the page changes nothing.
+
         assert copies(table["faith"]).filter(archived=False).count() == 2
 
     @pytest.mark.parametrize("kind", ["counter", "label"])
@@ -463,7 +461,7 @@ class TestThePages:
         member = table["faith"] if kind == "counter" else table["alignment"]
         assert copies(member).filter(archived=False).count() == 0
         assert name not in [row["name"] for row in response.context[f"{kind}s"]]
-        # Posting again finds nothing to archive.
+        # A repeated archive request no longer finds an active addition.
         assert client.post(archive_url(table, kind)).status_code == 404
 
     def test_a_refused_archive_says_why_and_offers_no_button(self, client, table):
@@ -537,7 +535,7 @@ def live_pick(table, gang):
 
 @pytest.fixture
 def propagating(db):
-    """The running side of built-in propagation sits behind a flag."""
+    """Enable delivery of built-in propagation tasks."""
     return FeatureFlag.objects.create(
         slug=BUILT_IN_PROPAGATION,
         name="Built-in propagation",
@@ -546,8 +544,9 @@ def propagating(db):
 
 
 class TestUnarchivingACounter:
-    """Every gang still in the campaign gets the counter back at the value
-    it had; a gang that joined while it was archived gets it new."""
+    """Restore previous values for returning copies and opening values for newly joined
+    gangs.
+    """
 
     def test_each_gang_gets_back_the_value_it_had(self, table):
         archive(table, "counter")
@@ -648,8 +647,9 @@ class TestUnarchivingACounter:
 
 
 class TestUnarchivingALabel:
-    """Every gang still in the campaign gets the label back with the option
-    the archive took from it, and nothing it had already replaced."""
+    """Restore the choices archived by this operation without reviving previously replaced
+    answers.
+    """
 
     def test_each_gang_gets_back_the_option_it_had_picked(self, table):
         archive(table, "label")
@@ -709,8 +709,7 @@ def unarchive_url(table, kind):
 
 
 class TestTheUnarchivePages:
-    """The settings tab lists what is archived, each with a confirm page
-    saying what every gang gets."""
+    """Settings exposes archived additions and previews their returning and new copies."""
 
     def test_the_archive_page_says_it_can_be_undone(self, client, table):
         client.force_login(table["arbitrator"])

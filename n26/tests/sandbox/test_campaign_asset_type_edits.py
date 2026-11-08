@@ -1,8 +1,6 @@
-"""An arbitrator edits the asset types their campaign added itself.
-
-The labels can change at any time. Ownership fixes how every asset of the
-type behaves, so it is fixed once the type has any assets. Asset types that
-come with the campaign type are library content and are not edited here.
+"""Verify arbitrator edits to campaign-authored asset types. Labels remain editable;
+ownership becomes fixed once the type has assets or a roll table. Shared library asset
+types are outside this editor.
 """
 
 import json
@@ -86,10 +84,9 @@ def submit(client, target, data, **kwargs):
 
 
 class TestEditingAnAssetType:
-    """The edit is the campaign's own act, logged once for each save that
-    changes something. Labels can change at any time; the ownership only
-    until the type has an asset or a table. Every decision reads the type
-    as it stands under the campaign's line."""
+    """Record changes once and recheck current values under the campaign lock. Asset or
+    table references fix ownership without preventing label edits.
+    """
 
     def test_new_labels_are_saved_and_logged_with_the_old_name(self, campaign, racket):
         edit(campaign, racket, "Racket", HOLDING, plural="Rackets")
@@ -135,7 +132,7 @@ class TestEditingAnAssetType:
             edit(campaign, racket, "Rakit", POSSESSION, plural="Rakits")
         racket.refresh_from_db()
         assert racket.ownership == HOLDING
-        # The labels still change.
+
         edit(campaign, racket, "Racket", HOLDING, plural="Rackets")
         racket.refresh_from_db()
         assert racket.label_singular == "Racket"
@@ -178,7 +175,7 @@ class TestEditingAnAssetType:
         add_campaign_asset_type(campaign, "Hideout")
         with pytest.raises(Refusal, match="already has an asset type called hideout"):
             edit(campaign, racket, "hideout", HOLDING)
-        # Its own label in another case is its own, not taken.
+        # A case-only change to the same type's label is not a duplicate.
         edit(campaign, racket, "RAKIT", HOLDING, plural="Rakits")
 
     def test_a_blank_label_is_refused(self, campaign, racket):
@@ -192,9 +189,9 @@ class TestEditingAnAssetType:
 
 
 class TestTheAssetTypesTab:
-    """The tab lists the asset types the campaign added itself, each with
-    a link to edit it, and names the shared ones it cannot edit. The More
-    actions menu opens it for the arbitrator alone."""
+    """Link editable campaign types and identify shared types as read-only. Restrict
+    management navigation to the arbitrator.
+    """
 
     def test_it_lists_the_campaigns_own_types_and_names_the_shared_ones(
         self, client, campaign, racket
@@ -242,10 +239,9 @@ class TestTheAssetTypesTab:
 
 
 class TestTheEditPage:
-    """The page opens filled in and saves through the operation. A refusal
-    stays on the form. A fixed ownership is stated rather than offered,
-    and posting another one changes nothing. Shared types have no page,
-    and players reach none of it."""
+    """Prefill current values and show domain refusals as form errors. Ignore posted
+    ownership changes once fixed; reject shared types and unauthorised readers.
+    """
 
     def test_it_opens_filled_in_and_saves(self, client, campaign, racket):
         client.force_login(campaign.owner)

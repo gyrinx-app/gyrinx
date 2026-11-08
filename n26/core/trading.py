@@ -1,30 +1,13 @@
-"""The Visit Trading Post activity — who performs it, and what it adds.
+"""Read Trading Post visit contributions and expenditure from effective cards and ledger events.
 
-A gang's Trade Points are not a standing figure. They arrive when a
-fighter performs the activity, are spent at the post, and what is left is
-lost when the activity is done; the rules also shut the post entirely to a
-gang where nobody performed it. The edition keeps that as an
-``n26.core.models.Activity`` row, open from the click that started the
-visit to the click that ended it, carrying what the visit brought. What
-it has spent is the purchases pointing back at it
-(``n26.core.reconcile.trade_points_spent``), so the story of a visit
-stays what the ledger says, which is already how everything else in this
-edition is described.
+An open Activity records the visit's allowance. Purchases reference it for
+Trade Point spending; closing the activity ends that allowance. A later
+visit starts a separate allowance.
 
-Only the models who add something are offered: picking a fighter who
-adds none is a choice with no consequence, and the form asks one
-question rather than listing a roster to say no to most of it. Equipping
-is the other half and has no such limit — anything the gang bought is
-handed to whoever it is for.
-
-What a model adds is a **counter reading**, not a rank this module
-knows. The library holds a counter, ``Trading Post visit contribution``,
-that no card draws, and a modifier on each rank raises it — 2 on Leader,
-1 on Champion. So the figure is read off the computed card, which means a
-fighter promoted into a rank adds it, one who has lost the rank adds
-nothing, and changing what a rank adds is an authoring edit. A library
-with no such counter offers nobody, and the typed figure is then the only
-way to open a visit.
+Offer fighters with positive readings of the hidden Trading Post visit
+contribution counter. Content modifiers determine those contributions, including
+changes to effective rank. Without the counter, opening requires an entered
+allowance. Purchase destinations remain independent of attendance.
 """
 
 from dataclasses import dataclass
@@ -32,12 +15,10 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Visitor:
-    """One model who could perform the activity, and what they would add.
+    """A potential visitor and effective Trade Point contribution.
 
-    ``rank`` is what the card says raised the figure — the subtype's own
-    name, where one thing raised it. Where several did, it is the figure
-    itself, because no single name would be true. It is what the visit
-    records against the model.
+    rank records the single contributing source name, or the numeric amount
+    when several sources contributed.
     """
 
     miniature: object
@@ -62,21 +43,13 @@ def computed_members(gang):
 
 
 def _readings(gang, counter, computed=None):
-    """Each model's reading of this counter, and what raised it, by id.
+    """Read effective model contributions from cards computed gang-first.
 
-    The gang's cards are built and computed the way the gang sheet builds
-    and computes them — the gang's own card first, since what it holds by
-    grant is dealt onto every member's — so a modifier the gang carries
-    reaches the ranks exactly as it does everywhere else.
-
-    A fixed number of queries however many models are on the roster:
-    ``compute`` touches the database not at all.
+    Share the gang computation and keep query count fixed as the roster grows.
     """
     from n26.core.effects import counter_readings
 
-    # No statlines: nothing here draws a card, and pulling each
-    # profile's characteristics along would be several queries for
-    # figures this never reads.
+    # Omit characteristic prefetches because this read renders no model cards.
     computed = computed_members(gang) if computed is None else computed
     readings = {}
     for miniature_id, fold in computed.items():
@@ -93,12 +66,7 @@ def _readings(gang, counter, computed=None):
 
 
 def _raised_by(computed, counter):
-    """What the card names as raising this counter, where one thing did.
-
-    Empty where several did, or where the figure was tallied rather than
-    contributed: the visit records one name against the model, and a
-    joined-up list of them would not be one.
-    """
+    """Return the one named contribution source, or empty for multiple or stored sources."""
     named = {
         contribution.source
         for contribution in computed.counter_contributions
@@ -108,22 +76,11 @@ def _raised_by(computed, counter):
 
 
 def visitors(gang, going=None, members=None, *, computed=None):
-    """The fighters who could add Trade Points, biggest figure first
-    then by name.
+    """List positive contributors by descending amount, then name.
 
-    ``going`` is the set of model ids the owner has ticked; ``None``
-    opens with all of them ticked, which is what a post-cycle almost
-    always wants. The form itself starts with none ticked, and passes
-    an empty set.
-
-    ``members`` is the gang's roster where the caller already holds it.
-    The page draws every fighter as well as the ones offered, and reading
-    the roster twice is a query for an answer already in hand.
-
-    A model holding both ranks adds the better of the two, because the
-    same fighter cannot perform the activity twice. That is content, not
-    arithmetic here: the modifier on the lesser rank is scoped away from
-    models holding the better one, so the two never add up.
+    going supplies selected model IDs; None selects everyone, while an empty
+    set selects none. Reuse members when the caller already loaded the roster.
+    Content scopes prevent lower and higher ranks from contributing twice.
     """
     from n26.core.render import roster
     from n26.library.standard_content import visit_contribution_counter
@@ -155,18 +112,10 @@ def minted(going):
 
 
 def as_offer(going, label="Who is visiting"):
-    """The visitors as a list of things to tick, under what they add.
+    """Build checkbox options grouped by effective contribution, largest first.
 
-    ``ChoiceOffer`` is the shape the edition already ticks lists in, and
-    ``<c-n26.tick-list>`` draws it with plain checkboxes and no script.
-    Each model's label includes its contribution so the amount stays
-    visible beside the model being selected.
-
-    Grouped by the figure and not by the rank, because the rank is not
-    what this knows — content decides what raises a model's contribution,
-    and two things may raise it by the same amount.
-
-    The bigger figure leads.
+    Keep each model's contribution in its label. Group by the amount rather
+    than rank because modifiers from different sources can produce equal totals.
     """
     from n26.core.render import ChoiceOffer, Choosable, ChoosableGroup
 
@@ -202,17 +151,11 @@ def _adds_each(trade_points):
 
 @dataclass(frozen=True)
 class Contributor:
-    """One fighter who performed the activity, as the receipt names them.
+    """A recorded visitor with the contribution source captured at attendance.
 
-    ``rank`` is what the visit recorded against them — the name of what
-    raised their figure at the time, so a fighter who has since lost the
-    rank is still reported as having gone as it.
-
-    ``miniature`` rides along because the receipt is where an owner goes
-    next: having sent a fighter to the post, the thing they want is that
-    fighter's own equip screen. ``on_roster`` is False for one who has
-    since left — the record of their visit stands, but there is no page
-    left to send anybody to.
+    Retain that source when the fighter later changes rank. ``miniature`` links
+    to equipment while the model remains on the roster; ``on_roster=False``
+    keeps the receipt without offering a stale destination.
     """
 
     name: str
@@ -223,13 +166,7 @@ class Contributor:
 
 @dataclass(frozen=True)
 class Receipt:
-    """An open Visit Trading Post activity, as the figures it is read by.
-
-    Built for the screen rather than stored: what a visit added is the
-    figure on the activity, what it has spent is the ledger's answer, and
-    who went is the events the opening act wrote. Nothing here is a
-    second copy of any of them.
-    """
+    """An open visit's stored allowance, ledger expenditure and recorded visitors."""
 
     available: int
     spent: int
@@ -238,9 +175,7 @@ class Receipt:
 
     @property
     def facts(self):
-        """The visit as a tally: what it added, what has gone, what is
-        left. Drawn by ``<c-n26.tally>``, which the overspend
-        confirmation draws too — one arithmetic, one shape."""
+        """The allowance, spending and remainder in the shared tally structure."""
         from n26.core.confirm import Fact
 
         return (
@@ -251,19 +186,9 @@ class Receipt:
 
     @property
     def summary(self):
-        """What added the figure, as one line — "Leader, Champion × 2".
+        """Summarise named contribution sources in attendance order.
 
-        What raised each fighter's contribution rather than who went,
-        because this sits against the figure they add up to and answers
-        where it came from. Who went is drawn beside it, by name, since
-        that is the different question.
-
-        In the order the visit wrote them, which is the order they were
-        offered in: the bigger figure leads.
-
-        A bare figure stands in the record where several things raised
-        one fighter's contribution, and a figure is not a name to file
-        anybody under, so it is left out of the line.
+        Omit numeric fallback sources, which cannot name a rank or other provider.
         """
         counts = {}
         for one in self.contributors:
@@ -286,13 +211,9 @@ def _still_here(miniature):
 
 
 def receipt_for(gang):
-    """The open visit's figures, or None where the post is shut.
+    """Read the current visit's balance and attendance, or None when closed.
 
-    Read off the activity the gang has open: what it brought is on the row,
-    and who performed it is the batch the opening event stamped on
-    everything that act wrote.
-
-    One query beyond what the figures already cost: who went.
+    Attendance uses the opening event's batch and adds one query beyond balances.
     """
     from n26.core.models import LedgerEvent
 

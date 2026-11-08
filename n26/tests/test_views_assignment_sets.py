@@ -82,7 +82,9 @@ def fields(name="Long range", assignments=(), revision=None):
 
 
 class TestManagingModelCards:
-    """Named selections replace the standard option and leave the books alone."""
+    """Named selections change display preferences without changing equipment or ledger
+    history.
+    """
 
     def test_the_all_equipment_card_shows_all_equipment(self, client, model):
         response = client.get(address(model))

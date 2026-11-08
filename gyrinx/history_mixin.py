@@ -29,7 +29,8 @@ class HistoryMixin(models.Model):
                 history_record.save()
 
     def get_history_diff(self, history_record=None):
-        """Return changed fields as {name: (old, new)}, excluding id and timestamps.
+        """Return changed fields as {name: (old, new)}, excluding only
+        id, created and modified.
 
         Default to the latest history record. Without a previous record, compare
         all included fields against None.

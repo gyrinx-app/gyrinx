@@ -16,8 +16,7 @@ from django.db.models.signals import post_migrate
 from gyrinx.pytest_database import session_creates_test_database
 from gyrinx.site.models import BANNER_CACHE_KEYS
 
-# Re-export the local task-queue driver fixture so tests can request `task_queue`
-# to drive the durable queue in manual mode (inject duplicates/failures/drops).
+# Re-export the manual queue fixture for tests that inject delivery failures.
 from gyrinx.tasks.testing import task_queue  # noqa: F401
 from n23.content.models import (
     ContentBook,
@@ -60,13 +59,9 @@ _CHANGED_TEST_PATHS = pytest.StashKey[ChangedTestPaths]()
 
 
 def pytest_configure(config):
-    """Refuse a sibling worktree's interpreter, then mark the PR's tests core.
+    """Reject a sibling worktree's interpreter and mark changed tests as core.
 
-    A sibling checkout's ``pytest`` on PATH imports that tree's code. Exit
-    before collection so those phantom failures never run. The required CI
-    job runs `pytest -m core`. scripts/changed_test_paths.py lists the test
-    files the change added or modified, plus the directories whose conftest
-    or fixtures module changed, in GYRINX_CHANGED_TEST_PATHS.
+    Read changed paths from GYRINX_CHANGED_TEST_PATHS before collection.
     """
     message = _foreign_venv_message(config.rootpath, sys.executable)
     if message:
@@ -77,11 +72,7 @@ def pytest_configure(config):
 
 
 def pytest_itemcollected(item):
-    """Mark the tests a pull request touched as `core`, so `-m core` keeps them.
-
-    The marker has to land before pytest applies `-m`, which it does as soon
-    as collection finishes.
-    """
+    """Mark changed tests before pytest applies the ``-m`` selection filter."""
     changed = item.config.stash[_CHANGED_TEST_PATHS]
     if not changed:
         return
@@ -96,19 +87,16 @@ def django_test_settings():
         "django.contrib.staticfiles.storage.StaticFilesStorage"
     )
 
-    # Optimize test performance
-    # Disable DEBUG to avoid query tracking overhead
+    # Avoid query tracking overhead.
     settings.DEBUG = False
 
-    # Disable GYRINX_DEBUG to avoid debug UI elements in test output
+    # Keep debug controls out of rendered test output.
     settings.GYRINX_DEBUG = False
 
-    # Disable tracing in tests to avoid loading GCP dependencies
-    # We need to reset tracing state because it was already initialized
-    # during module import with settings_dev.py (which has TRACING_MODE="console")
+    # Settings imports may have initialised tracing already. Reset it to avoid
+    # loading GCP dependencies during tests.
     settings.TRACING_MODE = "off"
 
-    # Reset and reinitialize tracing with the new setting
     from gyrinx import tracing
 
     tracing._reset_tracing()
@@ -135,21 +123,10 @@ def suppress_site_banner_queries():
 
 @pytest.fixture(autouse=True)
 def clear_content_page_ref_cache():
-    """Empty the per-title page-ref cache before every test.
+    """Clear page-reference cache entries so query counts do not depend on prior tests.
 
-    ``ContentPageRef.find_similar`` caches one entry per title in a process-local
-    ``LocMemCache``, and it sits in the fighter-card render path. Nothing else
-    clears it, so its contents at test start depend on which tests ran earlier
-    *in the same xdist worker*, and it keeps filling while a test runs.
-
-    That makes query counts depend on worker history and on how many renders have
-    already happened, which is what made the relative query-count tests in
-    test_crew.py flaky on CI but not locally (#2114).
-
-    Only this cache is cleared. The ``default`` cache deliberately holds the
-    ``BANNER_CACHE_KEYS`` entries from ``suppress_site_banner_queries`` so the banner
-    query stays out of every test's count; clearing that here would put the
-    query back.
+    Clear only this cache: the default cache holds the banner suppression
+    entries needed for stable query counts.
     """
     caches["content_page_ref_cache"].clear()
     yield
@@ -180,17 +157,11 @@ def warm_contenttype_cache(request, django_db_setup, django_db_blocker):
         ContentType.objects.get_for_model(ContentModFighterStat)
 
 
-# Stats that every real environment is guaranteed to have, because data
-# migrations create them: content.0148 seeds the stats that modifications
-# classify, and content.0156 seeds the standard fighter statline. Tests run
-# with --nomigrations, so data migrations never execute and the test database
-# would otherwise have no ContentStat rows at all — mod formatting would then
-# be driven by absent configuration rather than by the definitions production
-# actually holds.
-#
+# Data migrations seed these stat definitions. With --nomigrations, tests must
+# supply them explicitly so modification formatting uses the same classification.
 # field_name -> (short_name, full_name, inverted, inches, modifier, target)
 CANONICAL_CONTENT_STATS = {
-    # From content.0148 — the stats a modification classifies
+    # Stat classifications seeded by content.0148.
     "accuracy_long": ("L", "Long Accuracy", False, False, True, False),
     "accuracy_short": ("S", "Short Accuracy", False, False, True, False),
     "ammo": ("Am", "Ammo", True, False, False, True),
@@ -207,7 +178,7 @@ CANONICAL_CONTENT_STATS = {
     "save": ("Sv", "Save", True, False, False, True),
     "weapon_skill": ("WS", "Weapon Skill", True, False, False, True),
     "willpower": ("Wil", "Willpower", True, False, False, True),
-    # Also from content.0156 — carry no classification flags
+    # Additional content.0156 stats have no classification flags.
     "attacks": ("A", "Attacks", False, False, False, False),
     "strength": ("S", "Strength", False, False, False, False),
     "toughness": ("T", "Toughness", False, False, False, False),
@@ -256,23 +227,12 @@ def _seed_content_stats(**kwargs):
 
 @pytest.fixture(scope="session", autouse=True)
 def content_stat_definitions(request, django_db_setup, django_db_blocker):
-    """Seed the ContentStat rows the data migrations guarantee.
+    """Seed canonical stat definitions and restore them after transactional flushes.
 
-    Stat classification (inverted / inches / modifier / target) is read from
-    ContentStat when a modification is applied. Without these rows every stat
-    would look unconfigured, so tests would exercise a code path that no real
-    environment reaches. Tests needing stats beyond this set create their own.
-
-    Seeding once per session is not enough: a transactional test truncates
-    every table on teardown, which would leave the rest of that worker's
-    transactional tests running against an empty table. Django re-emits
-    post_migrate after that flush — the same hook that restores content types
-    and permissions — so re-seed from there too.
-
-    When no test in the session requests the database, pytest-django does not
-    create a test database and the connection stays on ``DB_NAME``. Seeding
-    then writes into the worktree's dev database, or fails on a fresh one
-    with ``relation content_contentstat does not exist``. Return first.
+    --nomigrations skips the data migrations that supply these rows.
+    Transactional tests clear them on teardown, so post_migrate restores them.
+    Return before connecting when no test requests a database; otherwise the
+    connection would still target the worktree development database.
     """
     if not session_creates_test_database(request.session.items):
         return
@@ -305,9 +265,7 @@ CANONICAL_FIGHTER_STATLINE = {
 }
 
 
-#: Which categories each statline type is the default for, mirroring
-#: production. This is what decides whether a vehicle gets vehicle stats, so
-#: without it tests would give every fighter the same twelve.
+#: Default statline types by category, including distinct crew and vehicle stats.
 CANONICAL_STATLINE_TYPES = {
     "Fighter": {
         "categories": [
@@ -437,18 +395,11 @@ def _seed_fighter_statline_type(**kwargs):
 def fighter_statline_type_definition(
     request, content_stat_definitions, django_db_blocker
 ):
-    """Seed the "Fighter" statline type the data migration guarantees.
+    """Seed default statline types and restore them after transactional flushes.
 
-    Every fighter type gets a statline on save, resolved from its category and
-    falling back to "Fighter". Without this row that lookup fails, so no test
-    fighter would have a statline at all — and the suite would be exercising
-    an arrangement that no real environment has. Re-seeded from post_migrate
-    for the same reason as the stat definitions: a transactional test
-    truncates the table on teardown.
-
-    Skipped, like ``content_stat_definitions``, when the session creates no
-    test database. Without that guard, such a session would write the
-    statline types into ``DB_NAME``.
+    Fighter saves resolve a type from their category, falling back to Fighter.
+    Skip sessions without a test database to avoid writing to the development
+    database.
     """
     if not session_creates_test_database(request.session.items):
         return
@@ -655,12 +606,7 @@ def content_house(make_content_house) -> ContentHouse:
 
 @pytest.fixture
 def make_content_fighter() -> Callable[[str, str, int], ContentFighter]:
-    """Factory for ContentFighter, accepting stat values as keyword arguments.
-
-    Stats are not columns on the fighter any more (#1861) — they live in its
-    statline. Passing `movement='5"'` here still works and writes there, so
-    tests can describe a fighter's stats in one call.
-    """
+    """Create a fighter, writing stat keyword arguments to its statline."""
 
     def make_content_fighter_(
         type: str,
@@ -757,9 +703,8 @@ def content_fighter(content_house, make_content_fighter):
     )
 
 
-#: The stats a materialised statline carries, in card order, and which of them
-#: the card highlights / starts a group with. Mirrors what #1861 Track C1 built
-#: for every template in production.
+#: Statline fields in card order. Mental stats are highlighted; leadership
+#: starts their display group.
 STATLINE_FIELDS = (
     "movement",
     "weapon_skill",
@@ -779,12 +724,7 @@ _HIGHLIGHTED_STATS = {"leadership", "cool", "willpower", "intelligence"}
 
 @pytest.fixture
 def make_statline(content_stat_definitions) -> Callable[..., object]:
-    """Give a ContentFighter a statline, mirroring what Track C1 produced.
-
-    Every template in production has one, and stat overrides are rows keyed to
-    a statline's stats — so a fighter without one cannot be overridden at all.
-    Tests that exercise overrides need this.
-    """
+    """Return or create a fighter statline for tests that need stat overrides."""
     from n23.content.models.statline import (
         ContentStat,
         ContentStatline,
@@ -794,9 +734,7 @@ def make_statline(content_stat_definitions) -> Callable[..., object]:
     )
 
     def make_statline_(content_fighter, fields=STATLINE_FIELDS, name="Fighter"):
-        # A fighter has at most one statline (OneToOne), so a second call --
-        # or a call on a fixture that already has one -- would raise
-        # IntegrityError rather than doing the obvious thing.
+        # The one-to-one relation permits only one statline per fighter.
         existing = getattr(content_fighter, "custom_statline", None)
         if existing is not None:
             return existing
@@ -836,9 +774,7 @@ def make_stat_override(user) -> Callable[..., object]:
         override, _ = ListFighterStatOverride.objects.update_or_create(
             list_fighter=fighter,
             content_stat=type_stat,
-            # Un-archive: reviving a soft-deleted row would otherwise leave it
-            # archived, so the override would not apply and the fixture would
-            # quietly not do what it says.
+            # Revived overrides must be active to affect the statline.
             defaults={
                 "value": value,
                 "owner": owner or fighter.owner,
@@ -949,7 +885,7 @@ def campaign(make_campaign) -> Campaign:
 
 @pytest.fixture
 def house() -> ContentHouse:
-    """Alias for content_house for backward compatibility."""
+    """Create a house that can hire any fighter type."""
     return ContentHouse.objects.create(name="Test House", can_hire_any=True)
 
 
@@ -984,7 +920,6 @@ def make_weapon_with_accessory(content_equipment_categories):
             name="Test Accessory",
             cost=accessory_cost,
         )
-        # No need to link them - tests will add accessory to assignment
 
         return weapon, accessory
 
@@ -1035,7 +970,7 @@ def make_equipment_with_upgrades(content_equipment_categories):
         upgrade = ContentEquipmentUpgrade.objects.create(
             name="Test Upgrade",
             cost=upgrade_cost,
-            equipment=equipment,  # ContentEquipmentUpgrade has FK to ContentEquipment
+            equipment=equipment,
         )
 
         return equipment, upgrade
@@ -1054,21 +989,19 @@ def make_vehicle_equipment(content_equipment_categories, content_house):
             ContentFighter,
         )
 
-        # Create vehicle equipment
         vehicle = ContentEquipment.objects.create(
             name="Test Vehicle",
             cost=str(cost),  # cost is a CharField
             category=content_equipment_categories[0],
         )
 
-        # Create vehicle fighter profile
         vehicle_fighter = ContentFighter.objects.create(
             type="Vehicle",
             house=content_house,
             base_cost=cost,
         )
 
-        # Link them via ContentEquipmentFighterProfile - this makes it a vehicle
+        # This relationship identifies the equipment as a vehicle.
         ContentEquipmentFighterProfile.objects.create(
             equipment=vehicle,
             content_fighter=vehicle_fighter,
@@ -1107,7 +1040,7 @@ def stash_fighter_type(content_house, make_content_fighter):
 
 @pytest.fixture
 def cc_user(user):
-    """A user for content pack operations (group membership no longer required)."""
+    """Return the user for content pack operations."""
     return user
 
 
@@ -1209,11 +1142,9 @@ def pack_rule(pack, cc_user):
 
 @pytest.fixture
 def default_promotions(db):
-    """Seed the default promotion paths (Ganger→Specialist, Specialist→Champion).
+    """Seed promotion paths keyed by (from_category, to_category).
 
-    The test DB is built with --nomigrations, so the data migration that seeds these in
-    real deployments never runs; tests that exercise the data-driven promotion flow seed
-    them explicitly with this fixture. Returns paths keyed by (from_category, to_category).
+    --nomigrations skips the data migration that creates the default paths.
     """
     from n23.content.models import ContentPromotionPath
     from n23.content.models.promotion import seed_default_promotions
@@ -1228,8 +1159,7 @@ def default_promotions(db):
 def leader_nomination_path(db):
     """Seed the generic 'Nominate as leader' path (any category, dynamic Leader targets).
 
-    Like default_promotions, this exists because the test DB is built with
-    --nomigrations, so the deployment seed (0187) never runs in tests.
+    --nomigrations skips the data migration that creates this path.
     """
     from n23.content.models import ContentPromotionPath
     from n23.content.models.promotion import seed_leader_nomination

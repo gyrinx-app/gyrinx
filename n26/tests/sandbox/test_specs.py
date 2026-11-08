@@ -1,21 +1,5 @@
-"""Specs — each verb's parameters as data, proven against real objects.
-
-Step 1 of design/authoring-build-plan.md. Three kinds of test here:
-
-* **The discovering guard** (the money-words pattern): every
-  ``targets_*``/``ef_*``/``op_*`` verb in ``n26.library.authoring`` must
-  have a spec, and a spec may only name parameters the verb actually
-  takes — found by inspection, never listed, so a new verb without a
-  spec fails the suite rather than shipping formless.
-* **Help is sourced, never written**: every sourced field's help must
-  be *literally* the model field's ``help_text``, plus a few literal
-  pins so a source can't quietly go missing or drift.
-* **Every spec compiles a named example object**: the
-  form-shaped data replicating something an example suite built — the
-  Brawler leader row, the XP-75 promotion, the Trazior deployer —
-  compiles through the spec and must say exactly what that object
-  says. Where the example is cheap to rebuild, the spec's output is
-  compared against the very object the suite's own actions create.
+"""Discover authoring verbs and validate their parameter specs, model-sourced help, and
+compiled output against representative scopes, effects and modifiers.
 """
 
 import inspect
@@ -38,12 +22,12 @@ from n26.tests.sandbox.actions import (
 
 pytestmark = pytest.mark.django_db
 
-#: The verb prefixes the guard sweeps — the prefix says when it happens.
+#: Authoring verb prefixes covered by discovery.
 PREFIXES = ("targets_", "ef_", "op_")
 
 
 def prefixed_verbs():
-    """Every authored scope and effect verb, discovered not listed."""
+    """Discover authored scope and effect verbs by prefix."""
     return [
         thing
         for name, thing in inspect.getmembers(authoring, inspect.isfunction)
@@ -53,7 +37,7 @@ def prefixed_verbs():
 
 class TestTheDiscoveringGuard:
     def test_there_is_something_to_check(self):
-        """A guard that discovers nothing guards nothing."""
+        """Discovery must find verbs for the coverage checks to run."""
         found = {verb.__name__ for verb in prefixed_verbs()}
         assert {"targets_model", "ef_adds", "ef_offers_choice", "op_adds_model"} <= (
             found
@@ -71,7 +55,7 @@ class TestTheDiscoveringGuard:
         spec = specs()[name]
         takes = set(inspect.signature(spec.verb).parameters)
         named = set(spec.fields)
-        # A Conditions field fills the verb's *conditions varargs.
+        # Conditions supplies the verb’s conditions varargs.
         for field_name, kind in spec.fields.items():
             if isinstance(kind, Conditions):
                 named.discard(field_name)
@@ -84,10 +68,7 @@ class TestTheDiscoveringGuard:
 
 
 class TestVerbTablesCoverTheColumns:
-    """``_scope_verb`` and ``_effect_verb`` read stored rows back to the
-    verb an author picked, ending in a bare lookup over these tables —
-    a scope or effect model missing from its table would 500 every page
-    that names a modifier's kind, so drift is refused here."""
+    """Every stored scope and effect model must map back to its authoring verb."""
 
     def test_every_scope_column_is_covered(self):
         from n26.library.forms import SCOPE_MODELS
@@ -119,7 +100,7 @@ class TestVerbTablesCoverTheColumns:
 
 
 def scope_conditions():
-    """Every ``(scope model, relation)`` a condition row hangs on."""
+    """Discover each scope model and its condition relations."""
     from n26.library.models import Modifier
     from n26.library.models.modifier import SCOPE_FIELDS
 
@@ -131,10 +112,9 @@ def scope_conditions():
 
 
 class TestAScopeCanBeReadBackAsChips:
-    """A form opened on a scope has to find the rows narrowing it, and
-    it finds them by name: the relation a condition hangs on is the same
-    word as the verb that builds it. Break that pairing and a modifier's
-    page offers to save it with its narrowing quietly dropped."""
+    """Condition relation names must match their authoring verbs so editing a scope
+    preserves its conditions.
+    """
 
     def test_there_is_something_to_check(self):
         assert scope_conditions()
@@ -160,16 +140,15 @@ class TestHelpIsSourcedNeverWritten:
         ]
 
     def test_a_field_with_no_column_carries_its_own_words_and_its_verb(self):
-        """A parameter that is no column of the thing has no field to read
-        help off, so it states its words itself — and names the verb that
-        writes it back, or an edit would drop it in silence."""
+        """Parameters without a model field supply help and name the verb used to save
+        them.
+        """
         from n26.library.specs import Choice, Conditions, Union
 
         checked = 0
         for spec_name, spec in specs().items():
             for field_name, kind in spec.fields.items():
-                # A choice over a fixed set of options names no column
-                # either, and its words are the options' own.
+                # Fixed choices use their option labels rather than model-field help.
                 if isinstance(kind, (Union, Conditions, Choice)):
                     continue
                 if kind.source is not None:
@@ -179,7 +158,7 @@ class TestHelpIsSourcedNeverWritten:
                     f"and the verb that writes it (written_by)."
                 )
                 checked += 1
-        assert checked >= 1  # the guard is guarding something
+        assert checked >= 1
 
     def test_every_sourced_help_is_literally_the_model_fields_words(self):
         checked = 0
@@ -190,11 +169,10 @@ class TestHelpIsSourcedNeverWritten:
                 f"{model_field} instead of sourcing it."
             )
             checked += 1
-        assert checked >= 10  # the guard is guarding something
+        assert checked >= 10
 
     def test_the_pins(self):
-        """Literal pins: if a model's words change, someone chose to
-        change what every admin reads."""
+        """Selected help text is asserted literally to make copy changes explicit."""
         assert specs()["counter_at_least"].fields["counter"].help == (
             "The counter whose value is checked."
         )
@@ -208,11 +186,8 @@ class TestHelpIsSourcedNeverWritten:
         )
 
 
-# --- Compiling the named example objects -----------------------------------
-
-
 class TestTargetsModel:
-    """Against the Outcast and counter suites' scopes."""
+    """Model scopes match those used in the Outcast and counter examples."""
 
     def test_plain_is_cult_of_personalitys_everyone(self, default_pack):
         scope = specs()["targets_model"].compile({})
@@ -223,7 +198,7 @@ class TestTargetsModel:
         scope = specs()["targets_model"].compile(
             {"conditions": [("has_subtypes", {"subtypes": [leader]})]}
         )
-        # The very row the Outcast suite builds, made its way.
+        # Build the comparison row through the Outcast suite’s authoring calls.
         example = sandbox_targets_model(with_subtypes=[leader])
         assert str(scope) == str(example) == "Outcast Leader models"
 
@@ -236,8 +211,7 @@ class TestTargetsModel:
         assert str(scope) == str(example) == "at XP 75+"
 
     def test_the_brawler_champion_row_reaches_the_model_carrying_it(self, default_pack):
-        """The verb is the reach: targets_model is the bearer, and needs
-        no flag to say so."""
+        """targets_model reaches the model carrying the modifier."""
         champion = create_subtype("Outcast Champion")
         scope = specs()["targets_model"].compile(
             {"conditions": [("has_subtypes", {"subtypes": [champion]})]}
@@ -320,8 +294,7 @@ def skills_and_powers(default_pack):
 
 class TestPlacements:
     def test_ef_places_is_the_brawler_grid_cell(self, skills_and_powers):
-        """Brawler × Leader × Combat = Primary — the cell the Outcast
-        suite's ARCHETYPES table writes."""
+        """The Brawler Leader receives Primary access to Combat."""
         from n26.tests.sandbox.actions import create_category
 
         collection, tiers = skills_and_powers
@@ -340,14 +313,14 @@ class TestPlacements:
 
 class TestOffers:
     def test_the_outcast_starting_skill_offer(self, skills_and_powers):
-        """ "a skill from a set that is Primary for this fighter"."""
+        """The skill offer uses categories placed in Primary for this fighter."""
         from n26.library.models import Skill
 
         collection, tiers = skills_and_powers
         effect = specs()["ef_offers_choice"].compile(
             {"model": "skill", "from_section": tiers["primary"]}
         )
-        assert effect.of_kind.model_class() is Skill  # the kind name coerced
+        assert effect.of_kind.model_class() is Skill
         assert str(effect) == (
             "offers a choice of skill from Primary (Skills & Powers)"
         )
@@ -371,9 +344,9 @@ class TestOffers:
 
 
 class TestChoiceLabelsReadAsLabels:
-    """A slot's label is stored the way a card has to show it, so that no
-    renderer has to case it on the way out: the first character is
-    capitalised, and everything after it is left as the author typed it."""
+    """Labels are stored with an initial capital while preserving the remaining authored
+    text.
+    """
 
     def offer(self, label):
         return specs()["ef_offers_choice"].compile(
@@ -381,8 +354,7 @@ class TestChoiceLabelsReadAsLabels:
         )
 
     def stored(self, label):
-        """What the database ends up holding — the point being that the
-        canonical value is written, not computed at read time."""
+        """Read the value stored by the authoring verb."""
         from n26.library.models import OffersChoice
 
         return OffersChoice.objects.get(pk=self.offer(label).pk).label
@@ -391,8 +363,7 @@ class TestChoiceLabelsReadAsLabels:
         assert self.stored("favoured affiliation") == "Favoured affiliation"
 
     def test_capitals_further_along_are_the_authors_and_stay(self, default_pack):
-        """Sentence case, not title case: a name or an acronym inside a
-        label was typed on purpose."""
+        """Initial capitalisation preserves later capitals and acronyms."""
         assert self.stored("affiliation for a Clan House") == (
             "Affiliation for a Clan House"
         )
@@ -401,8 +372,7 @@ class TestChoiceLabelsReadAsLabels:
         assert self.stored("Affiliation") == "Affiliation"
 
     def test_no_label_stays_no_label(self, default_pack):
-        """Blank is a real answer, not a mistake — the kind names the slot
-        instead, and reads as a label too."""
+        """A blank label uses the slot kind as its display label."""
         assert self.stored("") == ""
         assert self.offer("").kind_label == "Affiliation"
 
@@ -425,9 +395,7 @@ class TestCompanionsAndStoredEffects:
 
 class TestTheFullAssembly:
     def test_brawler_leader_combat_primary_all_three_rows(self, skills_and_powers):
-        """The modifier row from the plan's table: WHO and WHAT each
-        compiled from their spec, glued by the modifier verb, hung on
-        the affiliation — the composer's whole save() in miniature."""
+        """Compile scope and effect specs, then attach their modifier to the affiliation."""
         from n26.tests.sandbox.actions import create_affiliation, create_category
 
         collection, tiers = skills_and_powers

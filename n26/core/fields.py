@@ -1,38 +1,18 @@
-"""
-ULID primary keys.
+"""ULID primary keys stored in PostgreSQL UUID columns.
 
-A ULID is 128 bits — a 48-bit big-endian millisecond timestamp followed by 80
-random bits — canonically rendered as 26 Crockford Base32 characters. Same
-width as a UUID, so we store it in a native Postgres ``uuid`` column (16
-bytes) and get the ORM, index, and psycopg support for free.
+ULIDs contain a 48-bit millisecond timestamp and 80 random bits. Their
+128-bit representation fits the native UUID column; Python values display
+as 26 Crockford Base32 characters. Lookups accept either Base32 or UUID
+text, and database tools display the UUID representation.
 
-Why not a ``CharField(26)``: it would be 27 bytes on disk, collate under the
-database's text collation, and compare far more slowly in a B-tree.
+Timestamp-leading bytes keep indexes ordered by creation millisecond. The
+pinned python-ulid generator also orders IDs monotonically within one
+process, including IDs generated in the same millisecond. Across processes,
+only millisecond ordering is guaranteed. Exhausting the random component
+within a millisecond raises an error.
 
-Because the timestamp occupies the high-order bytes and Postgres compares
-``uuid`` values bytewise, ``ORDER BY id`` is creation order, and inserts land at
-the right-hand edge of the index rather than scattering across it like UUIDv4.
-That locality is the main practical win: published benchmarks put time-ordered
-keys around 28% ahead of UUIDv4 on insert throughput, mostly because a random
-key forces the whole PK index to stay resident in the buffer cache.
-
-Ordering is exact, not just millisecond-resolution: ``python-ulid`` 4.x
-generates through a lock-guarded ``StrictMonotonicPolicy``, which increments
-the random component for IDs minted in the same millisecond. Two caveats —
-that guarantee is per-process, so IDs from different workers only order to the
-millisecond; and the strict policy raises if the 80-bit random component
-overflows within one millisecond, which needs a wildly implausible burst.
-``n26/tests.py`` pins both behaviours in case a future release changes the
-default policy.
-
-Python-side values are :class:`ulid.ULID`, rendering as the 26-character Base32
-form — which is what the Django admin puts in its URLs. Lookups accept either
-that or the UUID form. In ``psql`` you will see the hyphenated UUID rendering
-of the same bytes; :func:`ulid.ULID.from_uuid` converts back.
-
-If this ever grows a DRF layer, note that DRF will introspect this as a
-``UUIDField`` and serialise the UUID form unless told otherwise — decide
-deliberately which form is the API contract.
+This field inherits UUIDField, so serializers that infer types from that
+base need explicit handling when their contract requires Base32 output.
 """
 
 import uuid as uuid_module

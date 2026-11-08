@@ -27,7 +27,7 @@ def share_props(
     compact=True,
     query_keys=None,
 ):
-    """The link React shares, and the button shape it draws."""
+    """Build the shared URL and button props."""
     props = {
         "url": "" if url is None else str(url),
         "label": "Share" if label is None else str(label),
@@ -43,7 +43,7 @@ def share_props(
 
 @register.simple_tag
 def share_host_class(css_class=""):
-    """The row that holds the link and, after a copy, its status message."""
+    """Return classes for the row containing the share link and copy status."""
     extra = "" if css_class is None else str(css_class).strip()
     base = "inline-flex items-center gap-2"
     return f"{base} {extra}" if extra else base

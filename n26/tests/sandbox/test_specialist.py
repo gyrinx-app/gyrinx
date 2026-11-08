@@ -1,13 +1,7 @@
-"""Specialist: a subtype that grants the slot asking which field it took.
-
-The slot is computed; only what was picked is stored. "Active but empty"
-is never a written state — it is the absence of a pick beside a computed
-slot, so deferring costs nothing and nothing pending can go stale.
-
-Three layers compose: the subtype (stored) grants the slot (computed);
-the pick (stored, caused by the subtype's assignment) answers it; the
-pickable's own modifier grants the skill (computed). Remove the subtype
-and the whole chain unwinds through machinery that already existed.
+"""Verify a stored Specialist subtype that grants a computed choice slot. Store the chosen
+pick against the subtype assignment and compute the pickable's skill effect. An
+unresolved slot creates no pending row; removing its anchor also removes the pick and
+derived skill.
 """
 
 import pytest
@@ -48,7 +42,7 @@ def specialisation(db):
 
 @pytest.fixture
 def fields(specialisation):
-    """The two a Specialist may take, each granting its own skill."""
+    """Two specialisation pickables, each granting a different skill."""
     made = {}
     for key, name, skill in (
         ("sharpshooter", "Sharpshooter", "Fast Shot"),
@@ -115,11 +109,8 @@ def anchor_of(miniature):
 
 
 def pick(miniature, pickable, source="Specialist"):
-    """Answer the slot the named carrier granted.
-
-    A granted slot has no assignment of its own, so the anchor is the
-    line the grant stands on — which may carry several — and the one
-    being answered is named.
+    """Resolve a slot granted by the named carrier. Computed slots share their carrier's
+    assignment, so pass the specific slot to distinguish multiple grants.
     """
     slot = next(row for row in slots_of(miniature) if row.source == source)
     return choose(slot.anchor.assignment, pickable, slot=slot.slot)
@@ -134,14 +125,14 @@ class TestTheUnresolvedSlot:
         assert choice.is_resolved is False
 
     def test_nothing_pending_is_stored(self, yolanda):
-        """Deferral is free because unresolved is absence, not state."""
+        """An unresolved computed slot needs no stored pick row."""
         assert Assignment.objects.filter(pickable__isnull=False).count() == 0
 
     def test_it_renders_as_a_row_like_any_other_assignable(self, yolanda):
         text = "\n".join(render_model_card(card_for(yolanda)))
         print("\n" + text)
         assert "Specialisation: — (not chosen)" in text
-        # The source is data (it tells two slots apart) but is not shown.
+        # Retain source identity to distinguish slots without displaying it.
         assert "Specialist]" not in text
 
     def test_a_model_without_the_subtype_has_no_slot(
@@ -162,7 +153,9 @@ class TestChoosing:
         assert choice.is_resolved is True
 
     def test_the_pick_is_the_choice_row_not_loose_equipment(self, yolanda, fields):
-        """What was picked draws as the slot's own row, and nowhere else."""
+        """Display the selected pickable as the slot resolution, without adding it to
+        equipment.
+        """
         pick(yolanda, fields["sharpshooter"])
         card = card_for(yolanda)
         assert card.equipment == []
@@ -170,18 +163,20 @@ class TestChoosing:
         text = "\n".join(render_model_card(card))
         print("\n" + text)
         assert "Specialisation: Sharpshooter" in text
-        # It grants a skill computedly, but is itself nobody's equipment.
+
         assert "Equipment:" not in text
 
     def test_the_skill_arrives_computed(self, yolanda, fields):
-        """Stored subtype -> stored pick -> computed skill: three layers."""
+        """Compute the skill from the selected pickable rather than storing another
+        assignment.
+        """
         pick(yolanda, fields["sharpshooter"])
         card = card_for(yolanda)
         (skill,) = card.skills
         assert skill.name == "Fast Shot"
         assert skill.provenance.source == "Sharpshooter"
-        # No sort-of-thing word: "pickable" is plumbing, and a player is
-        # never shown it — the source names the field they took instead.
+        # Display the selected field as the source without exposing the internal
+        # pickable kind.
         assert skill.provenance.source_kind == ""
         assert skill.provenance.computed is True
 
@@ -192,9 +187,7 @@ class TestChoosing:
         assert picked.caused_by == anchor
 
     def test_only_what_the_slot_lists_may_be_picked(self, yolanda):
-        """A refusal rather than an error: the sentence is one a player
-        could be shown, because a screen that drew the click has to say
-        something."""
+        """Reject unavailable choices through the domain Refusal contract."""
         with pytest.raises(Refusal):
             choose(anchor_of(yolanda), Trait.objects.create(name="Melee"))
 
@@ -223,7 +216,7 @@ class TestChangingYourMind:
         (choice,) = card.choices
         assert choice.chosen == "Medicae"
         assert [s.name for s in card.skills] == ["Field Surgery"]
-        # The abandoned pick survives, archived, in the ledger.
+        # Retain the previous pick as an archived assignment.
         assert (
             Assignment.objects.filter(pickable__isnull=False, archived=True).count()
             == 1
@@ -264,8 +257,7 @@ class TestTwoSlots:
         pick(yolanda, fields["sharpshooter"])
 
         card = card_for(yolanda)
-        # Two slots of the same kind — the provenance, though never
-        # displayed, is what keeps them apart.
+        # Distinguish same-kind slots by their carrier provenance.
         by_source = {c.provenance.source: c.chosen for c in card.choices}
         assert by_source == {
             "Specialist": "Sharpshooter",
@@ -274,9 +266,7 @@ class TestTwoSlots:
 
 
 class TestTheOfferAllowList:
-    """Offering a choice of a kind outright is the older mechanism, still
-    used where the answer is any row of a kind rather than a listed one.
-    Its allow-list governs which kinds that may be."""
+    """Direct kind-based offers use an allowlist independently of explicit picklists."""
 
     def test_unofferable_kinds_are_refused_at_authoring_time(self, db):
         from n26.library.models import Weapon
@@ -286,12 +276,12 @@ class TestTheOfferAllowList:
 
     def test_the_granting_modifier_validates_whole(self, db, specialist):
         grant = specialist.modifiers.get()
-        grant.full_clean()  # scope + effect + compatibility all pass
+        grant.full_clean()
 
 
 class TestThePicker:
     def test_the_slot_says_what_may_be_picked(self, yolanda, fields):
-        """The first real database consumer: a choice UI's queryset."""
+        """Read the available pickables from the slot's stored picklist memberships."""
         (slot,) = slots_of(yolanda)
 
         listed = [member.pickable for member in slot.slot.picklist.members.all()]

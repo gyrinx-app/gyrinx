@@ -1,9 +1,6 @@
-"""The model card, built fully in memory and tested without rendering.
-
-The card is the hot read path: a model's profile, weapons, ammo and
-accessories. It must cost a fixed fetch that never grows with the card,
-and every ergonomic read on it — a line's rating, its children, its
-total with extras — must cost none.
+"""Verify the in-memory model card tree, ratings, legacy profiles and removal. Fetch
+queries must stay constant as existing content kinds grow; traversing hydrated nodes and
+reading ratings must issue no extra queries.
 """
 
 import pytest
@@ -60,23 +57,19 @@ class TestBuildingACard:
     def test_it_costs_two_row_queries_and_a_fixed_hydration(
         self, yolanda, django_assert_num_queries
     ):
-        """The model's own rows, then its gang's — the latter ride every
-        member's card so gang-wide rules reach them — then one narrow
-        hydration pass per relation this card actually holds; a kind no
-        row names never queries; and the campaign's tokens the gang
-        holds, which are not assignments. A whole gang costs one fetch
-        for both; see ``build_cards_for_gang``. Pinned so it changes
-        deliberately; the scaling test below is what holds it flat."""
+        """Fetch model and gang assignments, hydrate only relations present on the card,
+        and load campaign holdings. Pin this fixture's query total separately from the
+        growth test below.
+        """
         with django_assert_num_queries(12):
             card = build_card(yolanda)
-            # Walking the whole tree and reading every line costs nothing more.
+            # Walking hydrated nodes and reading ratings must issue no extra query.
             assert sum(node.rating for node in card.all_nodes()) == 255
 
     def test_the_tree_has_the_right_shape(self, yolanda):
         card = build_card(yolanda)
 
-        # What the model owns. The gang's own rows are on the card too, but
-        # marked as the gang's — they carry effects, not belongings.
+        # Broadcast gang rows supply effects without becoming model possessions.
         assert sorted(node.name for node in card.roots if not node.broadcast) == [
             "Combat Shotgun",
             "Mesh Armour",
@@ -103,7 +96,7 @@ class TestBuildingACard:
 
         shotgun = card.find("Combat Shotgun")
         assert shotgun.rating == 60
-        assert shotgun.rating_with_extras == 90  # the paid ammo rides along
+        assert shotgun.rating_with_extras == 90  # Include the paid ammunition rating.
         assert card.find("Stiletto Knife").rating_with_extras == 20
 
     def test_the_card_total_matches_the_pinned_rating(self, yolanda):
@@ -127,7 +120,9 @@ class TestProfilesOnTheCard:
         assert build_model_card(yolanda).profile_type == "Fighter"
 
     def test_a_legacy_profile_is_not_equipment(self, yolanda, library):
-        """It rides the card, but it is not a piece of kit."""
+        """A legacy profile contributes to the card without appearing in its equipment
+        list.
+        """
         from n26.core.render import build_model_card
 
         names = [line.name for line in build_model_card(yolanda).equipment]
@@ -154,10 +149,9 @@ class TestCardsFollowRemoval:
 
 class TestScaling:
     def test_a_big_card_costs_what_a_small_one_does(self, gang_type, player, library):
-        """Query count is a function of the code, not of how much is on
-        the card. Both measurements hold the same *kinds* of thing — a
-        hydration pass only fires for kinds the card names, so the fair
-        comparison grows what is already there."""
+        """Grow duplicate content while holding relation kinds constant. Hydration is per
+        kind, so adding a new kind would change more than roster size.
+        """
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -180,5 +174,5 @@ class TestScaling:
             arm()
         many = measure()
         assert few == many
-        # 31 the model owns, plus the gang's founding riding along.
+        # Count 31 model nodes and the gang founding node.
         assert len(list(build_card(mini).all_nodes())) == 32

@@ -1,20 +1,11 @@
-"""Spending Trade Points a gang has not got: the question, then the act.
+"""Confirm Trade Point overspending before repeating the requested purchase.
 
-The third answer a click can get. A note says something and lets it
-through; a refusal stops it dead; this stops it until the reader says
-they meant it. Credits stay the only enforced resource — nothing here
-refuses, and confirming buys exactly what the first click asked for.
+Finite credit budgets still enforce affordability. Trade Point overspend
+requires explicit agreement through the shared Confirmation structure.
 
-Where nothing is updating the page, the question is a navigation: Back is
-a real answer and a reload does not lose it. Where the screen updates in
-place it is a panel delivered into that page's dialog host, because
-throwing a reader out of a list they are buying from is a worse answer
-than asking them where they stand. Both ask the same question off the
-same ``Confirmation``.
-
-What makes the second post identical to the first is that it carries the
-first one's fields, and what makes that safe is that the view re-derives
-the whole click from the listing anyway.
+Full-page flows navigate to confirmation; partial-update flows render a panel
+in the existing host. Both preserve submitted fields and rederive purchase
+terms from the listing on the confirming submission.
 """
 
 import pytest
@@ -299,9 +290,7 @@ class TestTheQuestionOnAScreenThatUpdatesInPlace:
     def test_the_money_it_delivers_keeps_its_way_to_the_action(
         self, client, gang, fighter, post, buying
     ):
-        """The update redraws the wealth strip, so the Trade Points and
-        Credits figures it delivers must still lead to their pages —
-        otherwise a purchase silently costs the reader the links."""
+        """Updated balance controls retain their Trade Point and credit destinations."""
         body = client.post(
             equip_url(fighter, post), {**buying, "confirmed": "tp-overspend"}, **self.HX
         ).content.decode()

@@ -1,8 +1,7 @@
-"""The roster tally: one list, two readings, and the totals that check them.
+"""Roster summaries group by effective profile and rank while preserving model order
+and totals.
 
-``summarise_roster`` is a pure reduction over the members ``roster``
-returns, so these tests hand it plain namespaces — the contract is
-attribute-shaped, and a database would only slow the point down.
+Simple namespaces supply the attributes used by this pure reduction.
 """
 
 from types import SimpleNamespace
@@ -42,8 +41,7 @@ class TestTheProfilesReading:
         ]
 
     def test_one_profile_at_two_ranks_is_two_rows(self):
-        """Drill-kyn the Specialist and Drill-kyn the Ganger are different
-        answers to "what does this gang field", so they are not merged."""
+        """Keep different ranks separate even when their profile names match."""
         summary = summarise_roster(
             [
                 member("Kin", 45, "Drill-kyn", "Specialist"),
@@ -56,8 +54,7 @@ class TestTheProfilesReading:
         ]
 
     def test_a_group_sits_where_its_first_member_does(self):
-        """The tally keeps the roster's own order: a pet's row lands after
-        its first keeper's, the way the gang list prints them."""
+        """Position each group at its first occurrence in roster order."""
         summary = summarise_roster(
             [
                 member("Doug", 325, "Charter Master", "Leader"),
@@ -73,9 +70,9 @@ class TestTheProfilesReading:
         assert [g.count for g in summary.groups] == [2, 2]
 
     def test_a_refiled_model_groups_under_the_rank_the_roster_sorted_it_at(self):
-        """A rule that moves a model (ChangesCategory) is already folded
-        into the list's order. The tally uses that same rank, so it does
-        not count a model as a Ganger while listing it among Champions."""
+        """Use the effective category so the tally agrees with rule-driven roster
+        placement.
+        """
         champion = SimpleNamespace(name="Champion")
         summary = summarise_roster(
             [
@@ -106,8 +103,7 @@ class TestTheRatingsReading:
         assert summary.count == 2
 
     def test_an_unranked_profile_still_counts(self):
-        """A profile filed nowhere is still fielded: it groups under an
-        empty rank rather than vanishing from the tally."""
+        """Include profiles with no category under an empty rank label."""
         summary = summarise_roster([member("Stray", 10, "Techmite", None)])
         assert summary.groups[0].category == ""
         assert summary.count == 1
