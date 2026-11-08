@@ -132,6 +132,31 @@ class TestFlagAndOwnership:
 
 class TestSharedCommands:
     @pytest.mark.parametrize("native", [False, True])
+    def test_malformed_phase_deletion_returns_validation_without_writing(
+        self, client, campaign, configured, native
+    ):
+        before = campaign.cycle_commands.count()
+        response = post(
+            client,
+            campaign,
+            "delete-phase",
+            {
+                "phase_id": "bad",
+                "expected_revision": configured.revision,
+                "request_key": str(uuid4()),
+            },
+            native=native,
+            phase="bad",
+        )
+        assert response.status_code == (200 if native else 422)
+        errors = (
+            props(response)["editor"]["errors"] if native else response.json()["errors"]
+        )
+        assert errors["phase_id"] == ["Select a valid phase."]
+        assert campaign.cycle_commands.count() == before
+        assert cycles.load(campaign).revision == configured.revision
+
+    @pytest.mark.parametrize("native", [False, True])
     def test_setup_retry_succeeds_after_the_schedule_already_exists(
         self, client, campaign, opened, template, native
     ):

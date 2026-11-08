@@ -17,6 +17,7 @@ from n26.core.cycle_data import (
     steps_from_data,
 )
 from n26.core.cycle_display import editor_url, schedule_url
+from n26.core.fields import to_ulid
 from n26.core.operations import Refusal
 
 
@@ -77,6 +78,14 @@ class CycleEditorForm(forms.Form):
     rewards = StructuredJSONField(required=False)
     steps = StructuredJSONField()
     expected_current = forms.CharField(max_length=26)
+
+    def clean_phase_id(self):
+        value = self.cleaned_data["phase_id"]
+        try:
+            to_ulid(value)
+        except ValueError:
+            raise forms.ValidationError("Select a valid phase.") from None
+        return value
 
     def __init__(self, action, *args, **kwargs):
         super().__init__(*args, **kwargs)
