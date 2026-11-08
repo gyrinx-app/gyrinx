@@ -210,37 +210,31 @@ export function CycleNavigator({
                         <Icon name="chevron-right" />
                     </Button>
                 </div>
-                <div className="grid h-11 shrink-0 grid-cols-2 items-center gap-2">
-                    <div className="min-w-0">
-                        {!selected?.isCurrent && options.currentValue && (
-                            <Button
-                                size="sm"
-                                variant="default"
-                                disabled={moving !== null}
-                                className="h-11 w-full whitespace-normal leading-tight"
-                                onClick={() =>
-                                    onChange(
-                                        JSON.stringify(options.currentValue),
-                                    )
-                                }
-                            >
-                                Return to current cycle
-                            </Button>
-                        )}
-                    </div>
-                    <div className="min-w-0">
-                        {!unassigned && (
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                disabled={moving !== null}
-                                className="h-11 w-full whitespace-normal leading-tight"
-                                onClick={() => onChange("null")}
-                            >
-                                Leave unassigned
-                            </Button>
-                        )}
-                    </div>
+                <div className="flex h-11 shrink-0 items-center justify-end gap-2">
+                    {!selected?.isCurrent && options.currentValue && (
+                        <Button
+                            size="sm"
+                            variant="default"
+                            disabled={moving !== null}
+                            className="whitespace-normal leading-tight"
+                            onClick={() =>
+                                onChange(JSON.stringify(options.currentValue))
+                            }
+                        >
+                            Return to current cycle
+                        </Button>
+                    )}
+                    {!unassigned && (
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={moving !== null}
+                            className="whitespace-normal leading-tight"
+                            onClick={() => onChange("null")}
+                        >
+                            Leave unassigned
+                        </Button>
+                    )}
                 </div>
             </div>
             <div
