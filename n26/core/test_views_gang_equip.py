@@ -276,7 +276,9 @@ class TestBuyingIntoTheStash:
             follow=True,
         )
 
-        assert "Bought Knife for the stash — 10¢." in response.content.decode()
+        assert props(response)["messages"] == [
+            {"text": "Bought Knife for the stash — 10¢.", "tone": "success"}
+        ]
 
     def test_a_buy_stays_on_the_list_it_was_clicked_on(
         self, client, tester, gang, house_list

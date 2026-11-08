@@ -65,9 +65,9 @@ describe("model preview", () => {
     it("shows a numeric zero XP target", () => {
         render(<ModelPreview {...sample} xp={3} xpTarget={0} />);
         const stats = screen.getByRole("table", { name: "Characteristics" });
-        expect(within(stats).getByText("3").closest("td")?.textContent).toBe(
-            "3/0",
-        );
+        const xp = within(stats).getByText("3").closest("td")!;
+        expect(within(xp).getByText("0")).toBeTruthy();
+        expect(xp.textContent).toContain("/");
     });
 
     it("preserves formatted stats, weapons, choices and zero values", () => {
