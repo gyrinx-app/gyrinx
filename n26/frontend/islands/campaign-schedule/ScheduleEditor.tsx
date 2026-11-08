@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fieldErrors } from "../../http/command";
 import {
     Button,
@@ -16,7 +16,14 @@ import { RewardSettings } from "./RewardSettings";
 import type { Editor, Phase } from "./types";
 
 const visible: Record<string, string[]> = {
-    setup: ["template_id", "mode", "current_number"],
+    setup: [
+        "template_id",
+        "mode",
+        "current_number",
+        "date_start",
+        "cycle_interval",
+        "cycle_unit",
+    ],
     template: ["template_id", "mode"],
     cycle: [
         "phase_id",
@@ -29,7 +36,7 @@ const visible: Record<string, string[]> = {
     phase: ["name", "description", "effects"],
     "duplicate-phase": ["name"],
     "save-template": ["name"],
-    plan: ["mode"],
+    plan: ["mode", "date_start", "cycle_interval", "cycle_unit"],
 };
 
 export function ScheduleEditor({
@@ -37,21 +44,32 @@ export function ScheduleEditor({
     phases,
     onNavigate,
     onReload,
+    navigation,
 }: {
     editor: Editor;
     phases: Phase[];
     onNavigate?: (url: string) => void;
     onReload?: () => void;
+    navigation?: {
+        pending: boolean;
+        error: string;
+        retry: () => void;
+        setGuard: (value: boolean) => void;
+    };
 }) {
+    const [confirmed, setConfirmed] = useState(false);
     const [current, setCurrent] = useState(editor.current);
     const [reviewUrl, setReviewUrl] = useState(editor.back);
     const form = useWorkflowForm({
         ...editor,
+        optionalRecoveryFields: ["date_start", "cycle_interval", "cycle_unit", "date_version"],
         onNavigate,
         onReload,
         interpret(status, data) {
-            if (status === 200 && typeof data.nextUrl === "string")
+            if (status === 200 && typeof data.nextUrl === "string") {
+                if (navigation) setConfirmed(true);
                 return { kind: "saved", nextUrl: data.nextUrl };
+            }
             if (
                 status === 409 &&
                 data.code === "revision_conflict" &&
@@ -76,10 +94,22 @@ export function ScheduleEditor({
         },
     });
     const { values, errors } = form;
+    const modeDrafts = useRef<Record<string, string>>({
+        [values.mode]: values.steps,
+    });
+    const setGuard = navigation?.setGuard;
+    useEffect(() => {
+        setGuard?.(form.pending || form.uncertain || confirmed);
+        return () => setGuard?.(false);
+    }, [form.pending, form.uncertain, confirmed, setGuard]);
     const unavailable = editor.context.unavailable === true;
     const change = (name: string, value: string) =>
         form.setValues({ ...values, [name]: value });
-    const fields = new Set(visible[editor.kind] ?? []);
+    const datesOnly =
+        editor.kind === "cycle" && editor.context.datesOnly === true;
+    const fields = new Set(
+        datesOnly ? ["starts_on", "ends_on"] : (visible[editor.kind] ?? []),
+    );
     const text = (
         name: string,
         label: string,
@@ -113,12 +143,72 @@ export function ScheduleEditor({
             <NativeSelect
                 name="mode"
                 value={values.mode}
-                onChange={(event) => change("mode", event.target.value)}
+                onChange={(event) => {
+                    const mode = event.target.value;
+                    if (editor.kind !== "plan") return change("mode", mode);
+                    modeDrafts.current[values.mode] = values.steps;
+                    const proposed =
+                        mode === "repeating"
+                            ? editor.context.patternSteps
+                            : editor.context.fixedSteps;
+                    const steps =
+                        modeDrafts.current[mode] ??
+                        (Array.isArray(proposed)
+                            ? JSON.stringify(proposed)
+                            : values.steps);
+                    form.setValues({ ...values, mode, steps });
+                }}
             >
                 <option value="fixed">Fixed plan</option>
                 <option value="repeating">Repeating pattern</option>
             </NativeSelect>
         </Field>
+    );
+    const dates = "date_start" in editor.values && (
+        <section className="space-y-3" aria-label="Cycle dates">
+            <h3 className="font-semibold">Cycle dates</h3>
+            {text(
+                "date_start",
+                editor.kind === "setup" || editor.context.needsDates
+                    ? "Cycle 1 starts"
+                    : "First projected cycle starts",
+                { type: "date", required: values.date_version === "1" },
+            )}
+            <div className="grid grid-cols-2 gap-3">
+                {text("cycle_interval", "Cycle length", {
+                    type: "number",
+                    min: "1",
+                    max: "520",
+                    required: values.date_version === "1",
+                })}
+                <Field
+                    label="Unit"
+                    htmlFor="cycle-cycle_unit"
+                    errors={errors.cycle_unit}
+                >
+                    <NativeSelect
+                        name="cycle_unit"
+                        value={values.cycle_unit}
+                        onChange={(event) =>
+                            change("cycle_unit", event.target.value)
+                        }
+                    >
+                        <option value="weeks">Weeks</option>
+                        <option value="months">Calendar months</option>
+                    </NativeSelect>
+                </Field>
+            </div>
+            <p className="text-sm text-muted">
+                Each range includes its start and end dates. Saved cycle dates
+                stay unchanged when future timing changes.
+            </p>
+            {editor.context.needsDates === true && (
+                <p className="text-sm">
+                    These settings fill missing dates on saved cycles. Existing
+                    date ranges are retained.
+                </p>
+            )}
+        </section>
     );
     const navigate = (url: string) =>
         (onNavigate ?? ((href) => window.location.assign(href)))(url);
@@ -127,13 +217,23 @@ export function ScheduleEditor({
             title={editor.heading}
             lead={editor.lead}
             formProps={{ method: "post", action: editor.action }}
-            pending={form.pending || form.uncertain}
+            pending={
+                form.pending ||
+                form.uncertain ||
+                confirmed ||
+                navigation?.pending
+            }
             onSubmit={(event) => {
                 if (unavailable && !form.uncertain) event.preventDefault();
                 else void form.save(event);
             }}
             onDismiss={() => {
-                if (!form.pending && !form.uncertain)
+                if (
+                    !form.pending &&
+                    !form.uncertain &&
+                    !confirmed &&
+                    !navigation?.pending
+                )
                     form.conflicted
                         ? form.review(editor.back)
                         : navigate(editor.back);
@@ -177,9 +277,29 @@ export function ScheduleEditor({
                     </p>
                 </div>
             )}
+            {navigation?.pending && (
+                <p role="status" className="text-sm text-muted">
+                    {confirmed
+                        ? "Saved. Updating schedule…"
+                        : "Loading schedule…"}
+                </p>
+            )}
+            {navigation?.error && (
+                <div role="alert" className="text-sm">
+                    <p>{navigation.error}</p>
+                    <Button size="sm" onClick={navigation.retry}>
+                        Try again
+                    </Button>
+                </div>
+            )}
             <div className="max-h-[60vh] overflow-y-auto px-1">
                 <fieldset
-                    disabled={form.frozen || unavailable}
+                    disabled={
+                        form.frozen ||
+                        unavailable ||
+                        confirmed ||
+                        navigation?.pending
+                    }
                     className="space-y-4"
                 >
                     {(editor.kind === "setup" ||
@@ -220,6 +340,7 @@ export function ScheduleEditor({
                                     min: "1",
                                     max: "1000",
                                 })}
+                            {editor.kind === "setup" && dates}
                             {editor.context.activates === true && (
                                 <p className="text-sm">
                                     Setting up cycles starts the chosen cycle
@@ -238,35 +359,47 @@ export function ScheduleEditor({
                         )}
                     {editor.kind === "cycle" && (
                         <>
-                            <Field
-                                label="Phase"
-                                htmlFor="cycle-phase"
-                                errors={errors.phase_id}
-                            >
-                                <NativeSelect
-                                    name="phase_id"
-                                    value={values.phase_id}
-                                    onChange={(event) =>
-                                        change("phase_id", event.target.value)
-                                    }
-                                >
-                                    {phases.map((phase) => (
-                                        <option key={phase.id} value={phase.id}>
-                                            {phase.name} · {phase.count} saved
-                                            cycles
-                                        </option>
-                                    ))}
-                                </NativeSelect>
-                            </Field>
-                            {text("custom_name", "Custom cycle name", {
-                                help: "Leave blank to use its cycle number.",
-                            })}
+                            {!datesOnly && (
+                                <>
+                                    <Field
+                                        label="Phase"
+                                        htmlFor="cycle-phase"
+                                        errors={errors.phase_id}
+                                    >
+                                        <NativeSelect
+                                            name="phase_id"
+                                            value={values.phase_id}
+                                            onChange={(event) =>
+                                                change(
+                                                    "phase_id",
+                                                    event.target.value,
+                                                )
+                                            }
+                                        >
+                                            {phases.map((phase) => (
+                                                <option
+                                                    key={phase.id}
+                                                    value={phase.id}
+                                                >
+                                                    {phase.name} · {phase.count}{" "}
+                                                    saved cycles
+                                                </option>
+                                            ))}
+                                        </NativeSelect>
+                                    </Field>
+                                    {text("custom_name", "Custom cycle name", {
+                                        help: "Leave blank to use its cycle number.",
+                                    })}
+                                </>
+                            )}
                             <div className="grid gap-3 sm:grid-cols-2">
-                                {text("starts_on", "Planned start", {
+                                {text("starts_on", "Start date", {
                                     type: "date",
+                                    required: values.date_version === "1",
                                 })}
-                                {text("ends_on", "Planned end", {
+                                {text("ends_on", "End date", {
                                     type: "date",
+                                    required: values.date_version === "1",
                                 })}
                             </div>
                         </>
@@ -311,7 +444,15 @@ export function ScheduleEditor({
                     )}
                     {editor.kind === "plan" && (
                         <>
+                            {dates}
                             {mode}
+                            {values.mode !== editor.values.mode && (
+                                <p className="text-sm text-muted">
+                                    Review the phase counts below before
+                                    switching modes. Saved cycles and their
+                                    dates are retained.
+                                </p>
+                            )}
                             <PlanSteps
                                 value={values.steps}
                                 phases={phases}
@@ -344,7 +485,9 @@ export function ScheduleEditor({
                     <Button
                         type="submit"
                         variant="success"
-                        disabled={form.pending}
+                        disabled={
+                            form.pending || confirmed || navigation?.pending
+                        }
                     >
                         {form.pending
                             ? "Saving…"
@@ -362,7 +505,12 @@ export function ScheduleEditor({
                 )}
                 <Button
                     variant="ghost"
-                    disabled={form.pending || form.uncertain}
+                    disabled={
+                        form.pending ||
+                        form.uncertain ||
+                        confirmed ||
+                        navigation?.pending
+                    }
                     onClick={() =>
                         form.conflicted
                             ? form.review(editor.back)

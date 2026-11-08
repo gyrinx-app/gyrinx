@@ -20,6 +20,8 @@ from n26.core import schedule as s
 from n26.core.campaign_permissions import may_record_campaign
 from n26.core.campaigns import campaign_operation
 from n26.core.cycle_data import (
+    calendar_data,
+    calendar_from_data,
     cycle_details_data,
     ref_data,
     rewards_from_data,
@@ -156,6 +158,7 @@ def _load_locked(campaign):
         str(header.current_cycle_id),
         campaign.status,
         header.revision,
+        calendar=calendar_from_data(header.date_settings),
     )
 
 
@@ -243,6 +246,7 @@ def _persist(act, before, change, *, command=None, transition_id=None):
         "active_plan_id": after.plan.id,
         "next_position": after.next_position,
         "revision": after.revision,
+        "date_settings": calendar_data(after.calendar),
         "modified": timezone.now(),
     }
     if before is None:
@@ -356,7 +360,9 @@ def _command(campaign, actor, *, kind, inputs, request_key, expected_revision, a
         return result
 
 
-def configure(campaign, *, actor, template_id, current_position, mode, request_key):
+def configure(
+    campaign, *, actor, template_id, current_position, mode, request_key, calendar=None
+):
     def apply(act, before):
         if before is not None:
             raise Refusal("This campaign already has a cycle schedule.")
@@ -370,6 +376,7 @@ def configure(campaign, *, actor, template_id, current_position, mode, request_k
             mode=mode,
             status=act.campaign.status,
             now=timezone.now(),
+            calendar=calendar,
             new_id=_new_id,
         )
         return change, change.schedule.current_cycle_id
@@ -382,6 +389,7 @@ def configure(campaign, *, actor, template_id, current_position, mode, request_k
             "template": str(template_id),
             "current_position": current_position,
             "mode": mode,
+            **({"calendar": calendar_data(calendar)} if calendar is not None else {}),
         },
         request_key=request_key,
         expected_revision=None,
@@ -469,21 +477,45 @@ def delete_phase(campaign, *, actor, phase_id, expected_revision, request_key):
     )
 
 
-def replace_plan(campaign, *, actor, steps, mode, expected_revision, request_key):
+def replace_plan(
+    campaign, *, actor, steps, mode, expected_revision, request_key, calendar=None
+):
     raw_steps = [asdict(step) for step in steps]
+
+    def apply(act, before):
+        dates = calendar
+        if dates is not None:
+            dates = replace(
+                dates,
+                starts_after_order=0 if before.calendar is None else len(before.cycles),
+            )
+            if before.calendar is not None and (
+                dates.interval == before.calendar.interval
+                and dates.unit == before.calendar.unit
+                and dates.starts_on
+                == before.calendar.dates_for(len(before.cycles) + 1)[0]
+            ):
+                dates = before.calendar
+        return s.replace_plan(
+            before,
+            steps=steps_from_data(raw_steps),
+            mode=mode,
+            new_id=_new_id,
+            calendar=dates,
+        ), None
+
     return _command(
         campaign,
         actor,
         kind="replace_plan",
-        inputs={"steps": raw_steps, "mode": mode},
+        inputs={
+            "steps": raw_steps,
+            "mode": mode,
+            **({"calendar": calendar_data(calendar)} if calendar is not None else {}),
+        },
         request_key=request_key,
         expected_revision=expected_revision,
-        apply=lambda act, before: (
-            s.replace_plan(
-                before, steps=steps_from_data(raw_steps), mode=mode, new_id=_new_id
-            ),
-            None,
-        ),
+        apply=apply,
     )
 
 

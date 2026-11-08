@@ -157,6 +157,65 @@ class TestSharedCommands:
         assert cycles.load(campaign).revision == configured.revision
 
     @pytest.mark.parametrize("native", [False, True])
+    def test_quick_date_edits_share_the_cycle_command_and_return_to_the_list(
+        self, client, campaign, configured, native
+    ):
+        query = {"cycle": configured.current_cycle_id, "fields": "dates"}
+        editor = props(client.get(editor_url(campaign, "cycle", **query)))["editor"]
+        assert editor["heading"] == "Edit cycle dates"
+        assert editor["context"]["datesOnly"] is True
+        assert "fields=dates" in editor["commandHref"]
+        assert "fields=dates" in editor["recoveryKey"]
+        data = {**editor["values"], "starts_on": "2050-01-01", "ends_on": "2050-01-07"}
+        response = post(client, campaign, "cycle", data, native=native, **query)
+        assert response.status_code == (302 if native else 200)
+        target = response.url if native else response.json()["nextUrl"]
+        assert (
+            target == schedule_url(campaign) + "#cycle-" + configured.current_cycle_id
+        )
+        changed = cycles.load(campaign)
+        assert changed.current.details.starts_on.isoformat() == "2050-01-01"
+        assert changed.current.details.phase_id == configured.current.details.phase_id
+        assert changed.current.source == configured.current.source
+
+    def test_json_editor_reads_share_dates_permissions_and_the_html_contract(
+        self, client, campaign, configured
+    ):
+        cycle = configured.current
+        url = editor_url(campaign, "cycle", cycle=cycle.id)
+        html = props(client.get(url))["editor"]
+        response = client.get(url, HTTP_ACCEPT="application/json")
+        assert response.status_code == 200
+        editor = response.json()["schedule"]["editor"]
+        assert editor["commandHref"] == html["commandHref"]
+        assert editor["values"]["starts_on"] == cycle.details.starts_on.isoformat()
+        assert editor["values"]["ends_on"] == cycle.details.ends_on.isoformat()
+        assert editor["values"]["date_version"] == "1"
+        assert CampaignCycle.objects.filter(campaign=campaign).count() == 1
+        client.force_login(User.objects.create_user("json-schedule-reader"))
+        assert client.get(url, HTTP_ACCEPT="application/json").status_code == 404
+        read = client.get(
+            schedule_url(campaign), HTTP_ACCEPT="application/json"
+        ).json()["schedule"]
+        assert read["actions"] == {}
+        assert read["rows"][1]["startsOn"]
+
+    @pytest.mark.parametrize("native", [False, True])
+    def test_current_editors_require_both_cycle_dates(
+        self, client, campaign, configured, native
+    ):
+        query = {"cycle": configured.current_cycle_id}
+        editor = props(client.get(editor_url(campaign, "cycle", **query)))["editor"]
+        data = {**editor["values"], "ends_on": ""}
+        response = post(client, campaign, "cycle", data, native=native, **query)
+        assert response.status_code == (200 if native else 422)
+        errors = (
+            props(response)["editor"]["errors"] if native else response.json()["errors"]
+        )
+        assert errors["ends_on"]
+        assert cycles.load(campaign) == configured
+
+    @pytest.mark.parametrize("native", [False, True])
     def test_setup_retry_succeeds_after_the_schedule_already_exists(
         self, client, campaign, opened, template, native
     ):
@@ -325,7 +384,8 @@ class TestDisplayReads:
         assert past.startedAt and past.endedAt and current.startedAt
         assert past.endedAt == current.startedAt
         assert not current.endedAt
-        assert not past.startsOn and not past.endsOn
+        assert past.startsOn == configured.current.details.starts_on.isoformat()
+        assert past.endsOn == configured.current.details.ends_on.isoformat()
 
     def test_dashboard_links_the_current_cycle_and_phase(
         self, client, campaign, configured

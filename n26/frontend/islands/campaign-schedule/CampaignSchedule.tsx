@@ -3,6 +3,7 @@ import {
     ActionMenu,
     Badge,
     Breadcrumbs,
+    Button,
     ButtonLink,
     Card,
     Icon,
@@ -10,6 +11,7 @@ import {
     Table,
 } from "../../ui";
 import { ScheduleEditor } from "./ScheduleEditor";
+import { useScheduleNavigation } from "./useScheduleNavigation";
 import type { Credits, Cycle, Phase, ScheduleProps } from "./types";
 
 export function creditsText(amount: Credits | undefined) {
@@ -32,27 +34,37 @@ function dateText(value: string) {
 }
 
 function CycleDates({ cycle }: { cycle: Cycle }) {
+    const range =
+        cycle.startsOn && cycle.endsOn ? (
+            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                <span className="sr-only">Start date:</span>
+                <time dateTime={cycle.startsOn}>
+                    {dateText(cycle.startsOn)}
+                </time>
+                <span aria-hidden="true">–</span>
+                <span className="sr-only">End date:</span>
+                <time dateTime={cycle.endsOn}>{dateText(cycle.endsOn)}</time>
+            </span>
+        ) : (
+            "Dates not set"
+        );
+    if (!cycle.editHref)
+        return <span className="text-xs text-muted">{range}</span>;
+    const url = new URL(cycle.editHref, window.location.origin);
+    url.searchParams.set("fields", "dates");
     return (
-        <div className="space-y-0.5 text-xs text-muted">
-            {cycle.endedAt ? (
-                <p>Ended {dateText(cycle.endedAt)}</p>
-            ) : cycle.startedAt ? (
-                <p>Started {dateText(cycle.startedAt)}</p>
-            ) : null}
-            {(cycle.startsOn || cycle.endsOn) && (
-                <p>
-                    Planned:{" "}
-                    {cycle.startsOn
-                        ? dateText(cycle.startsOn)
-                        : "No start date"}
-                    {cycle.endsOn ? ` to ${dateText(cycle.endsOn)}` : ""}
-                </p>
-            )}
-        </div>
+        <Link
+            href={url.pathname + url.search}
+            className="inline-block py-1 text-xs"
+            aria-label={`Edit dates for ${cycle.name}`}
+            title="Edit start and end dates"
+        >
+            {range}
+        </Link>
     );
 }
 
-function CycleRow({ cycle, focus }: { cycle: Cycle; focus: boolean }) {
+function CycleRow({ cycle }: { cycle: Cycle }) {
     return (
         <tr
             id={`cycle-${cycle.key}`}
@@ -68,13 +80,7 @@ function CycleRow({ cycle, focus }: { cycle: Cycle; focus: boolean }) {
                     </span>
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                            {cycle.href ? (
-                                <Link href={cycle.href}>{cycle.name}</Link>
-                            ) : (
-                                <span className="font-medium">
-                                    {cycle.name}
-                                </span>
-                            )}
+                            <span className="font-medium">{cycle.name}</span>
                             <Badge
                                 color={
                                     cycle.state === "Current" ? "amber" : "ink"
@@ -91,13 +97,12 @@ function CycleRow({ cycle, focus }: { cycle: Cycle; focus: boolean }) {
                         <div className="mt-1 sm:hidden">
                             <CycleDates cycle={cycle} />
                         </div>
-                        {(cycle.effects || focus) && (
-                            <details
-                                open={focus || undefined}
-                                className="mt-1 text-xs"
-                            >
+                        {(cycle.effects ||
+                            cycle.startedAt ||
+                            cycle.endedAt) && (
+                            <details className="mt-1 text-xs">
                                 <summary className="cursor-pointer text-muted">
-                                    Cycle rules and activity
+                                    More details
                                 </summary>
                                 <div className="mt-1 space-y-1">
                                     {cycle.effects && (
@@ -121,16 +126,13 @@ function CycleRow({ cycle, focus }: { cycle: Cycle; focus: boolean }) {
                                             ).toLocaleString("en-GB")}
                                         </p>
                                     )}
-                                    <Link href={`#phase-${cycle.phaseId}`}>
-                                        Read the phase rules
-                                    </Link>
                                 </div>
                             </details>
                         )}
                     </div>
                 </div>
             </td>
-            <td className="hidden w-44 align-top sm:table-cell">
+            <td className="hidden w-56 align-top sm:table-cell">
                 <CycleDates cycle={cycle} />
             </td>
             <td className="w-10 align-top text-right">
@@ -175,13 +177,11 @@ function PhaseGroup({
     cycles,
     anchor,
     canManage,
-    focusId,
 }: {
     phase: Phase;
     cycles: Cycle[];
     anchor: boolean;
     canManage: boolean;
-    focusId: string;
 }) {
     const heading = `phase-heading-${cycles[0]?.key ?? phase.id}`;
     const projected = cycles.filter(
@@ -262,7 +262,7 @@ function PhaseGroup({
                 )}
             </ActionBar>
             {cycles.length ? (
-                <Table>
+                <Table className="[&_td]:py-1.5!">
                     <caption className="sr-only">{phase.name} cycles</caption>
                     <thead className="sr-only">
                         <tr>
@@ -275,11 +275,7 @@ function PhaseGroup({
                     </thead>
                     <tbody>
                         {cycles.map((cycle) => (
-                            <CycleRow
-                                key={cycle.key}
-                                cycle={cycle}
-                                focus={focusId === cycle.key}
-                            />
+                            <CycleRow key={cycle.key} cycle={cycle} />
                         ))}
                     </tbody>
                 </Table>
@@ -292,7 +288,16 @@ function PhaseGroup({
     );
 }
 
-export function CampaignSchedule(props: ScheduleProps) {
+function ScheduleContent(
+    props: ScheduleProps & {
+        navigation: {
+            pending: boolean;
+            error: string;
+            retry: () => void;
+            setGuard: (value: boolean) => void;
+        };
+    },
+) {
     const phases = new Map(props.phases.map((phase) => [phase.id, phase]));
     // A repeated phase starts another group; grouping by identity would reorder cycles.
     const groups: { phase: Phase; cycles: Cycle[]; anchor: boolean }[] = [];
@@ -376,6 +381,21 @@ export function CampaignSchedule(props: ScheduleProps) {
                     aria-labelledby="cycle-list-heading"
                     className="space-y-3"
                 >
+                    {props.dateSettingsRequired && (
+                        <p className="text-sm">
+                            {props.canManage ? (
+                                <>
+                                    Set cycle dates in{" "}
+                                    <Link href={props.actions.plan}>
+                                        Schedule settings
+                                    </Link>{" "}
+                                    before saving more cycles.
+                                </>
+                            ) : (
+                                "The arbitrator needs to set the saved cycle dates."
+                            )}
+                        </p>
+                    )}
                     <h2 id="cycle-list-heading" className="sr-only">
                         Schedule
                     </h2>
@@ -427,7 +447,6 @@ export function CampaignSchedule(props: ScheduleProps) {
                                     key={group.cycles[0]?.key ?? group.phase.id}
                                     {...group}
                                     canManage={props.canManage}
-                                    focusId={props.focusId}
                                 />
                             ))}
                         </div>
@@ -463,12 +482,46 @@ export function CampaignSchedule(props: ScheduleProps) {
             )}
             {props.editor && (
                 <ScheduleEditor
+                    key={`${props.editor.recoveryKey}:${props.editor.values.request_key}`}
                     editor={props.editor}
                     phases={props.phases}
                     onNavigate={props.onNavigate}
                     onReload={props.onReload}
+                    navigation={props.navigation}
                 />
             )}
+        </div>
+    );
+}
+
+export function CampaignSchedule(props: ScheduleProps) {
+    const navigation = useScheduleNavigation(props);
+    return (
+        <div onClickCapture={navigation.onClick} aria-busy={navigation.pending}>
+            {!navigation.data.editor && navigation.pending && (
+                <p role="status" className="mb-3 text-sm text-muted">
+                    Loading schedule…
+                </p>
+            )}
+            {!navigation.data.editor && navigation.error && (
+                <div role="alert" className="mb-3 text-sm">
+                    <p>{navigation.error}</p>
+                    <Button size="sm" onClick={navigation.retry}>
+                        Try again
+                    </Button>
+                </div>
+            )}
+            {navigation.notices.map((notice, index) => (
+                <p key={index} role="status" className="mb-3 text-sm">
+                    {notice}
+                </p>
+            ))}
+            <ScheduleContent
+                {...navigation.data}
+                onNavigate={navigation.navigate}
+                onReload={navigation.reload}
+                navigation={navigation}
+            />
         </div>
     );
 }

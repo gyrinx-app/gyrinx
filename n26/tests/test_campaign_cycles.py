@@ -3,8 +3,8 @@
 import importlib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
-from datetime import date
-from threading import Barrier, Event, local
+from datetime import date, timedelta
+from threading import Barrier, Event, Lock, local
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -719,6 +719,126 @@ class TestCrossCampaignValidation:
         with pytest.raises(ValidationError, match="phase from this campaign"):
             cycle.full_clean()
         assert cycles.load(campaign) == configured
+
+
+class TestStoredCycleDates:
+    def test_settings_preserve_saved_dates_and_materialisation_stores_future_ranges(
+        self, campaign, owner, configured
+    ):
+        original = configured.cycles
+        start = original[-1].details.ends_on + timedelta(days=8)
+        cycles.replace_plan(
+            campaign,
+            actor=owner,
+            steps=s.editable_steps(configured),
+            mode="repeating",
+            calendar=s.CycleCalendar(start, 2),
+            expected_revision=configured.revision,
+            request_key=uuid4(),
+        )
+        state = cycles.load(campaign)
+        assert state.cycles == original
+        selected = s.project(state)[2]
+        cycles.edit_cycle(
+            campaign,
+            actor=owner,
+            target=selected.ref,
+            details=s.CycleDetails(selected.phase_id),
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        saved = list(campaign.cycles.order_by("order"))
+        assert all(cycle.starts_on and cycle.ends_on for cycle in saved)
+        assert saved[-1].starts_on == selected.starts_on
+        assert saved[-1].ends_on == selected.ends_on
+        assert campaign.cycle_transitions.count() == 0
+
+    def test_overlap_refusal_rolls_back_the_prefix_and_receipt(
+        self, campaign, owner, configured
+    ):
+        target = s.project(configured)[2]
+        original = configured.current.details
+        count = campaign.cycle_commands.count()
+        with pytest.raises(Refusal, match="overlap"):
+            cycles.edit_cycle(
+                campaign,
+                actor=owner,
+                target=target.ref,
+                details=s.CycleDetails(
+                    target.phase_id,
+                    starts_on=original.starts_on,
+                    ends_on=original.ends_on,
+                ),
+                expected_revision=configured.revision,
+                request_key=uuid4(),
+            )
+        assert cycles.load(campaign) == configured
+        assert campaign.cycle_commands.count() == count
+
+    def test_unchanged_settings_preserve_monthly_anchor_and_revision(
+        self, campaign, owner, configured
+    ):
+        first_start = configured.current.details.ends_on + timedelta(days=8)
+        cycles.replace_plan(
+            campaign,
+            actor=owner,
+            steps=s.editable_steps(configured),
+            mode="repeating",
+            calendar=s.CycleCalendar(first_start, unit="months"),
+            expected_revision=configured.revision,
+            request_key=uuid4(),
+        )
+        before = cycles.load(campaign)
+        cycles.replace_plan(
+            campaign,
+            actor=owner,
+            steps=s.editable_steps(before),
+            mode="repeating",
+            calendar=s.CycleCalendar(s.project(before)[0].starts_on, unit="months"),
+            expected_revision=before.revision,
+            request_key=uuid4(),
+        )
+        assert cycles.load(campaign) == before
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_date_edits_cannot_commit_overlapping_ranges(
+    campaign, owner, configured
+):
+    target = s.project(configured)[1]
+    cycles.edit_cycle(
+        campaign,
+        actor=owner,
+        target=target.ref,
+        details=s.CycleDetails(target.phase_id),
+        expected_revision=configured.revision,
+        request_key=uuid4(),
+    )
+    before = cycles.load(campaign)
+    targets = iter(before.cycles[1:])
+    selection = Lock()
+    start = before.cycles[-1].details.ends_on + timedelta(days=8)
+
+    def edit():
+        with selection:
+            selected = next(targets)
+        try:
+            cycles.edit_cycle(
+                campaign,
+                actor=owner,
+                target=s.SavedCycleRef(selected.id),
+                details=replace(
+                    selected.details, starts_on=start, ends_on=start + timedelta(days=6)
+                ),
+                expected_revision=before.revision,
+                request_key=uuid4(),
+            )
+            return "saved"
+        except cycles.CycleConflict:
+            return "stale"
+
+    assert sorted(concurrent(edit)) == ["saved", "stale"]
+    s.validate_cycle_dates(cycles.load(campaign).cycles)
 
 
 @pytest.mark.django_db(transaction=True)

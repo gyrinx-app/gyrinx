@@ -163,6 +163,7 @@ class CampaignSchedule(Base):
     )
     next_position = models.PositiveIntegerField(default=0)
     revision = models.PositiveIntegerField(default=0)
+    date_settings = models.JSONField(default=dict)
 
     def clean(self):
         super().clean()

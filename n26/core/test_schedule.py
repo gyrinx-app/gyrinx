@@ -223,7 +223,7 @@ class TestRepeatingAndReplacement:
         schedule = configured(ids, current=9, mode="repeating")
         assert s.editable_steps(schedule) == schedule.plan.steps
         assert s.project(
-            s.PlanContinuation(schedule.plan, schedule.next_position)
+            s.PlanContinuation(schedule.plan, schedule.next_position, schedule.calendar)
         ) == s.project(schedule)
         assert (
             s.replace_plan(

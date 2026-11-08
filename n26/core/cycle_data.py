@@ -6,6 +6,25 @@ from datetime import date
 from n26.core import schedule as s
 
 
+def calendar_data(calendar):
+    if calendar is None:
+        return {}
+    return {**asdict(calendar), "starts_on": calendar.starts_on.isoformat()}
+
+
+def calendar_from_data(data):
+    if data == {}:
+        return None
+    data = _object(data, {"starts_on", "interval", "unit", "starts_after_order"})
+    try:
+        start = date.fromisoformat(data["starts_on"])
+        return s.CycleCalendar(
+            start, data["interval"], data["unit"], data["starts_after_order"]
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise s.ScheduleError("Enter a valid start date and cycle interval.") from exc
+
+
 def _object(data, fields):
     if not isinstance(data, dict) or data.keys() - fields:
         raise s.ScheduleError("The schedule contains unsupported fields.")

@@ -7,9 +7,10 @@ Callers persist a change under the campaign lock and deliver any transition
 only after commit. This module performs no database writes or reward execution.
 """
 
+from calendar import monthrange
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Literal
 from uuid import uuid4
 
@@ -147,6 +148,7 @@ class PlannedPosition:
 class PlanContinuation:
     plan: Plan
     next_position: int
+    calendar: CycleCalendar | None = None
 
     def __post_init__(self):
         _nonnegative(self.next_position, "Next plan position")
@@ -194,6 +196,64 @@ class CycleDetails:
 
 
 @dataclass(frozen=True)
+class CycleCalendar:
+    starts_on: date
+    interval: int = 1
+    unit: Literal["weeks", "months"] = "weeks"
+    starts_after_order: int = 0
+
+    def __post_init__(self):
+        if type(self.starts_on) is not date:
+            raise ScheduleError("Enter the first cycle's start date.")
+        _positive(self.interval, "Cycle interval")
+        _nonnegative(self.starts_after_order, "Date boundary")
+        if self.unit not in ("weeks", "months"):
+            raise ScheduleError("Select weeks or calendar months.")
+
+    def _boundary(self, index):
+        try:
+            if self.unit == "weeks":
+                return self.starts_on + timedelta(weeks=self.interval * index)
+            month = (
+                self.starts_on.year * 12
+                + self.starts_on.month
+                - 1
+                + self.interval * index
+            )
+            year, month = divmod(month, 12)
+            month += 1
+            return date(
+                year, month, min(self.starts_on.day, monthrange(year, month)[1])
+            )
+        except ValueError, OverflowError:
+            raise ScheduleError(
+                "The cycle dates extend beyond the supported calendar."
+            ) from None
+
+    def dates_for(self, order):
+        index = order - self.starts_after_order - 1
+        _nonnegative(index, "Cycle date position")
+        return self._boundary(index), self._boundary(index + 1) - timedelta(days=1)
+
+
+def validate_cycle_dates(cycles, *, required=True):
+    dated = []
+    for cycle in cycles:
+        start, end = cycle.details.starts_on, cycle.details.ends_on
+        if start is None or end is None:
+            if required:
+                raise ScheduleError(f"Enter both dates for {cycle.name}.")
+            continue
+        dated.append((start, end, cycle.name))
+    dated.sort()
+    for previous, following in zip(dated, dated[1:], strict=False):
+        if previous[1] >= following[0]:
+            raise ScheduleError(
+                f"The dates for {following[2]} overlap {previous[2]}. Choose a range outside the other saved cycles."
+            )
+
+
+@dataclass(frozen=True)
 class Cycle:
     id: str
     order: int
@@ -211,6 +271,8 @@ class ProjectedCycle:
     order: int
     phase_id: str
     source: CycleSource
+    starts_on: date | None = None
+    ends_on: date | None = None
 
     @property
     def name(self):
@@ -227,6 +289,7 @@ class Schedule:
     current_cycle_id: str
     status: Status = "pre_campaign"
     revision: int = 0
+    calendar: CycleCalendar | None = None
 
     def __post_init__(self):
         if self.status not in ("pre_campaign", "in_progress", "post_campaign"):
@@ -255,6 +318,9 @@ class Schedule:
             projected = _at(self.plan, index)
             if cycle.source != projected.source:
                 raise ScheduleError("Saved cycles must retain their plan positions.")
+        validate_cycle_dates(self.cycles, required=self.calendar is not None)
+        if self.calendar is not None:
+            self.calendar.dates_for(len(self.cycles) + 100)
 
     @property
     def current(self):
@@ -388,7 +454,17 @@ def project(
     end = schedule.next_position + limit
     if schedule.plan.mode == "fixed":
         end = min(end, schedule.plan.length)
-    return tuple(_at(schedule.plan, i) for i in range(schedule.next_position, end))
+    return tuple(
+        _dated(_at(schedule.plan, i), schedule.calendar)
+        for i in range(schedule.next_position, end)
+    )
+
+
+def _dated(cycle, calendar):
+    if calendar is None:
+        return cycle
+    start, end = calendar.dates_for(cycle.order)
+    return replace(cycle, starts_on=start, ends_on=end)
 
 
 def _selected(schedule, target):
@@ -408,21 +484,26 @@ def _selected(schedule, target):
         raise ScheduleError(
             "The plan changed. Select a cycle from the current schedule."
         )
-    return _at(schedule.plan, target.position.index)
+    return _dated(_at(schedule.plan, target.position.index), schedule.calendar)
 
 
 def _prefix(schedule, selected):
     if isinstance(selected, Cycle):
         return ()
     return tuple(
-        _at(schedule.plan, i)
+        _dated(_at(schedule.plan, i), schedule.calendar)
         for i in range(schedule.next_position, selected.source.position.index + 1)
     )
 
 
 def _save(projected, new_id):
     return Cycle(
-        new_id(), projected.order, CycleDetails(projected.phase_id), projected.source
+        new_id(),
+        projected.order,
+        CycleDetails(
+            projected.phase_id, starts_on=projected.starts_on, ends_on=projected.ends_on
+        ),
+        projected.source,
     )
 
 
@@ -452,6 +533,8 @@ def _ensure_saved(
     selected = _selected(schedule, target)
     if isinstance(selected, Cycle):
         return ScheduleChange(schedule), selected
+    if schedule.calendar is None:
+        raise ScheduleError("Set cycle date settings before saving a projected cycle.")
     created = tuple(_save(p, new_id) for p in _prefix(schedule, selected))
     changed = replace(
         schedule,
@@ -470,6 +553,7 @@ def configure(
     mode: Mode = "fixed",
     status: Status = "pre_campaign",
     now: datetime | None = None,
+    calendar: CycleCalendar | None = None,
     new_id: NewId = _id,
 ) -> ScheduleChange:
     """Copy a template and explicitly select the initial current cycle.
@@ -481,10 +565,22 @@ def configure(
     phases, plan = _copy_template(
         template, mode=mode, starts_after_order=0, new_id=new_id
     )
+    if calendar is None and now is not None:
+        calendar = CycleCalendar(now.date())
     _at(plan, current_position)
-    cycles = tuple(_save(_at(plan, i), new_id) for i in range(current_position + 1))
+    cycles = tuple(
+        _save(_dated(_at(plan, i), calendar), new_id)
+        for i in range(current_position + 1)
+    )
     schedule = Schedule(
-        campaign_id, phases, plan, len(cycles), cycles, cycles[-1].id, status
+        campaign_id,
+        phases,
+        plan,
+        len(cycles),
+        cycles,
+        cycles[-1].id,
+        status,
+        calendar=calendar,
     )
     transition = None
     if status == "in_progress":
@@ -512,6 +608,12 @@ def edit_cycle(
 ) -> ScheduleChange:
     _phase(schedule, details.phase_id)
     change, selected = _ensure_saved(schedule, target, new_id=new_id)
+    if details.starts_on is None and details.ends_on is None:
+        details = replace(
+            details,
+            starts_on=selected.details.starts_on,
+            ends_on=selected.details.ends_on,
+        )
     if selected.details == details:
         return change
     amended = replace(selected, details=details)
@@ -587,15 +689,60 @@ def delete_phase(schedule: Schedule, phase_id: str) -> ScheduleChange:
 
 
 def replace_plan(
-    schedule: Schedule, *, steps: tuple[PlanStep, ...], mode: Mode, new_id: NewId = _id
+    schedule: Schedule,
+    *,
+    steps: tuple[PlanStep, ...],
+    mode: Mode,
+    new_id: NewId = _id,
+    calendar: CycleCalendar | None = None,
 ) -> ScheduleChange:
+    revision = schedule.revision + 1
+    dated = (
+        set_calendar(schedule, calendar)
+        if calendar is not None
+        else ScheduleChange(schedule)
+    )
+    schedule = dated.schedule
     if mode == schedule.plan.mode and tuple(steps) == editable_steps(schedule):
-        return ScheduleChange(schedule)
+        return dated
     plan = Plan(new_id(), mode, tuple(steps), len(schedule.cycles))
     if plan.id == schedule.plan.id:
         raise ScheduleError("A replacement plan must have a new identity.")
     return ScheduleChange(
-        replace(schedule, plan=plan, next_position=0, revision=schedule.revision + 1)
+        replace(schedule, plan=plan, next_position=0, revision=revision),
+        updated=dated.updated,
+    )
+
+
+def set_calendar(schedule: Schedule, calendar: CycleCalendar) -> ScheduleChange:
+    if calendar == schedule.calendar:
+        return ScheduleChange(schedule)
+    if schedule.calendar is not None:
+        start, _end = calendar.dates_for(len(schedule.cycles) + 1)
+        if start <= max(cycle.details.ends_on for cycle in schedule.cycles):
+            raise ScheduleError(
+                "The first projected cycle must start after all saved cycle dates."
+            )
+    updated = []
+    for cycle in schedule.cycles:
+        if cycle.details.starts_on is None and cycle.details.ends_on is None:
+            start, end = calendar.dates_for(cycle.order)
+            updated.append(
+                replace(
+                    cycle, details=replace(cycle.details, starts_on=start, ends_on=end)
+                )
+            )
+    replacements = {cycle.id: cycle for cycle in updated}
+    return ScheduleChange(
+        replace(
+            schedule,
+            calendar=calendar,
+            cycles=tuple(
+                replacements.get(cycle.id, cycle) for cycle in schedule.cycles
+            ),
+            revision=schedule.revision + 1,
+        ),
+        updated=tuple(updated),
     )
 
 

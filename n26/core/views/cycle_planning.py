@@ -18,6 +18,23 @@ from n26.core.models import CampaignCycle
 from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_404
 
 
+def _respond(request, campaign, display):
+    if request.method == "GET" and "application/json" in request.headers.get(
+        "Accept", ""
+    ):
+        return JsonResponse(
+            {
+                "schedule": display,
+                "notices": [str(message) for message in messages.get_messages(request)],
+            }
+        )
+    return render(
+        request,
+        "n26/campaign_cycles.html",
+        {"campaign": campaign, "schedule_props": display},
+    )
+
+
 def _display(request, campaign, *, focus=None):
     try:
         preview = max(1, min(int(request.GET.get("preview", 12)), 100))
@@ -47,16 +64,8 @@ def cycle_schedule(request, pk, cycle_pk=None):
             focus = get_object_or_404(CampaignCycle, campaign=campaign, pk=cycle_pk)
         except ValidationError:
             raise Http404("No such campaign cycle") from None
-    return render(
-        request,
-        "n26/campaign_cycles.html",
-        {
-            "campaign": campaign,
-            "schedule_props": {
-                **_display(request, campaign, focus=focus),
-                "editor": None,
-            },
-        },
+    return _respond(
+        request, campaign, {**_display(request, campaign, focus=focus), "editor": None}
     )
 
 
@@ -109,13 +118,8 @@ def cycle_editor(request, pk, action):
         conflict=bool(submitted and submitted.conflict),
         current=submitted.current if submitted else None,
     )
-    return render(
-        request,
-        "n26/campaign_cycles.html",
-        {
-            "campaign": campaign,
-            "schedule_props": {**_display(request, campaign), "editor": editor},
-        },
+    return _respond(
+        request, campaign, {**_display(request, campaign), "editor": editor}
     )
 
 
