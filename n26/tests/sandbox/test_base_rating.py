@@ -1,4 +1,4 @@
-"""Owners edit the hire's rating while equipment and advancements keep adding."""
+"""Owners can override base hire rating independently of equipment and advancement contributions."""
 
 import json
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -880,7 +880,7 @@ class TestCloningRatingOverrides:
                 )
                 with operation(destination, actor=gang.owner) as op:
                     op.set_base_rating(balancer, 2**31 - 201)
-            # One integer event cannot cover the whole trip back to the baseline.
+            # A single event delta cannot span this reset to the baseline.
             with operation(destination, actor=gang.owner) as op:
                 op.set_base_rating(clone, 0)
         with operation(destination, actor=gang.owner) as op:

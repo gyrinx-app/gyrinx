@@ -1,10 +1,8 @@
-"""Where a dropdown menu is placed when it sits inside something that scrolls.
+"""Static integration checks for dropdown positioning inside scroll containers.
 
-What does the placing is JavaScript, and nothing here runs it. What can be
-checked from Python is the wiring, and each of these breaks in silence: a
-shell that stops loading the file, a component that calls a function no
-longer defined under that name, or a card menu that quietly goes back to
-being placed the ordinary way and is cut off at the table's edges again.
+These tests do not execute JavaScript. Verify the shell loads the script,
+component calls match exported functions, and card menus opt into the
+positioning that prevents clipping at table edges.
 """
 
 from pathlib import Path

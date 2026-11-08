@@ -1,10 +1,8 @@
-"""Records a change to a built-in set and tracks its async propagation.
+"""Record each built-in edit and the outcome of its asynchronous propagation.
 
-One row per edit, created in the edit's own transaction. Strictly
-forward: PENDING → RUNNING → DONE or FAILED; a retry is a fresh row,
-so the table is a permanent record of every run and how it ended.
-Rows are never shared or reused; :mod:`n26.core.propagation` explains
-why and how the runs work.
+Create the task in the edit transaction. Tasks progress from PENDING to
+RUNNING, then DONE or FAILED. Retrying creates a new row rather than
+reusing a completed or failed task. See n26.core.propagation.
 """
 
 from django.db import models
@@ -14,11 +12,9 @@ from n26.core.models.abstract import Base
 
 
 class BuiltInPropagationTask(Base):
-    # By label, as every core reference into the library is. CASCADE: a
-    # task is meaningless without its set. ``related_name="+"`` only drops
-    # the reverse accessor; the library's reference scan still walks this
-    # edge. Authors never see these rows: nothing downstream matches this
-    # field, and the delete page lists only PROTECT edges.
+    # Cascade tasks with their built-in set. Suppressing the reverse accessor
+    # does not hide this relation from library reference scans. The author-facing
+    # delete page lists PROTECT references rather than these task rows.
     default_set = models.ForeignKey(
         "library.DefaultAssignmentSet",
         on_delete=models.CASCADE,

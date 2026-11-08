@@ -1,7 +1,7 @@
-"""Menus of links, as the action-menu island's props.
+"""Build action-menu island props from server-authorised links.
 
-The server decides which links a reader gets, in what order, and where a
-separator falls. React only draws them and handles the keys.
+The server selects destinations, ordering and separators. React renders
+those props and handles keyboard interaction.
 """
 
 from html import unescape
@@ -63,12 +63,10 @@ def action_menu_props(
     align="start",
     min_width="12rem",
 ):
-    """The action-menu island's props.
+    """Build island props from ordered Action links or link_actions entries.
 
-    ``items`` are :class:`Action` links or entries from :func:`link_actions`,
-    kept in the order given. An item with no address is left out. The props
-    name the trigger's text ``label``, never ``aria-label``: pages count that
-    attribute and the fallback button already carries it.
+    Omit items without URLs. Use ``label`` for trigger text because the fallback
+    button already supplies aria-label.
     """
     return {
         "label": _text(label),

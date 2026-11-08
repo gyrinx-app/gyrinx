@@ -1,32 +1,13 @@
-"""Founding an Outcast gang: archetypes, affiliations, chosen carriers.
+"""Outcast choices assign archetypes and affiliations with scoped modifiers.
 
-Follows the 2026 Outcast gang list (design/outcasts.md). The shape
-inverts the Venator one: where a
-Venator slot carries the meaning and the pick names a tree, an Outcast
-gang picks a **carrier** — an ``Archetype``, an ``Affiliation`` —
-whose whole payload rides the pick as ordinary modifiers. The mapping table lives
-in this file's ``ARCHETYPES`` dict; no code knows it.
+A Leader chooses a gang-assigned archetype that broadcasts to models and is
+removed with the Leader's membership. Champions can choose a bearer-only
+archetype. Leader effects match the shared rank subtype; Champion and Hive
+Scum effects match their specific profiles.
 
-What this pins:
-
-* **Leader → Gang → fighters**: the Leader
-  carries the archetype question, what is chosen is *for the gang*
-  (``OffersChoice.will_be_assigned_to="gang"``), it radiates via the
-  broadcast — and dies with the Leader through the caused_by cascade;
-* the archetype tables per rank, one carrier per printed archetype,
-  **including the Wyrd counts proof** (Wyrd runs one Primary short at
-  every rank; Wyrd Powers supplies it);
-* **how a rank row targets, as the printed sheet has it**: the Leader
-  row hangs off the shared Leader *subtype*, so every Leader variant
-  receives it; the Champion and Hive Scum rows name their *profiles*
-  outright (``is_profile``), so a same-ranked outsider reads nothing;
-* "…all models except Champions": the Champion row reaches **the model
-  carrying it** (``TargetsMiniature.Reach.BEARER``) — what a Champion
-  gets if *they* pick it, inert in the gang's radiated copy;
-* **chained choices**: the chosen Clan House offers the house pick —
-  a slot caused by what another slot settled on, no new machinery;
-* affiliations as scoped access grants;
-* Lead the Masses as a composition *note*, never a removal.
+The content table supplies rank-specific placements, including Wyrd Powers.
+Affiliations can grant collections and follow-up choices. Composition ratios
+produce notes without removing models. See design/outcasts.md.
 """
 
 import pytest
@@ -120,8 +101,7 @@ def skills_collection(sets):
 @pytest.fixture
 @library_setup
 def subtypes(db):
-    """The generic rank vocabulary — shared across gang lists, which is
-    exactly why the Champion and Hive Scum rows cannot hang off it."""
+    """Create shared rank subtypes; profile-specific effects must target profiles separately."""
     return {
         "leader": create_subtype("Leader"),
         "champion": create_subtype("Champion"),
@@ -189,25 +169,19 @@ ARCHETYPES = {
 @pytest.fixture
 @library_setup
 def archetype_type(default_pack):
-    """One slot type for both choices. Nobody takes an archetype twice."""
+    """Use one non-repeating slot type for gang and Champion archetype choices."""
     return create_slot_type("Archetype", allows_repeats=False)
 
 
 @pytest.fixture
 @library_setup
 def archetypes(sets, skills_collection, subtypes, profiles, archetype_type):
-    """One carrier per printed archetype, all three rank rows aboard.
+    """Create each archetype with rank-specific placement modifiers.
 
-    Targeting reads off the printed sheet: the Leader row hangs off the
-    Leader *subtype*, so every Leader variant receives it; the Champion
-    and Hive Scum rows name their *profiles* outright — the rank
-    subtypes are shared vocabulary, and naming the entry keeps a
-    same-ranked outsider out of the archetype's reach.
-
-    The Champion row also reaches only **the model carrying it**: it
-    says what a Champion gets *if they pick this archetype* — inert when
-    it radiates from the gang, active when a Champion carries
-    their own copy. The reach is said, and the content is one table."""
+    Leader modifiers match the shared subtype; Champion and Hive Scum modifiers
+    match their profiles. Champion modifiers use bearer reach so gang broadcasts
+    do not apply the Champion's personal archetype row.
+    """
     _, tiers = skills_collection
 
     scopes = {
@@ -250,8 +224,7 @@ def archetypes(sets, skills_collection, subtypes, profiles, archetype_type):
 @pytest.fixture
 @library_setup
 def affiliation_lists(affiliations):
-    """One small collection per question, so each offer narrows to
-    exactly its own list."""
+    """Create separate offer sections for the affiliation and Clan House choices."""
     affiliation_tokens, house_tokens = affiliations
     made = {}
     for key, name, things in [
@@ -295,8 +268,7 @@ def mutations(db):
 @pytest.fixture
 @library_setup
 def affiliations(subtypes, house_lists, mutations):
-    """Four affiliations; Clan House chains a second pick whose options
-    carry their own payloads (each house token knows its own list)."""
+    """Create affiliation carriers and House carriers with their own collection grants."""
     house_tokens = {}
     for house, house_list in house_lists.items():
         house_tokens[house] = create_affiliation(
@@ -312,7 +284,6 @@ def affiliations(subtypes, house_lists, mutations):
         )
 
     tokens = {
-        # TP grants live in the parked budget design — the token stands.
         "clanless": create_affiliation("Clanless Outcast"),
         "clan_house": create_affiliation("Clan House Outcast"),
         "mutant": create_affiliation(
@@ -337,9 +308,10 @@ def affiliations(subtypes, house_lists, mutations):
 @pytest.fixture
 @library_setup
 def outcasts(subtypes, skills_collection, affiliations, affiliation_lists):
-    """The gang type: the affiliation slot, the gang rules, the ratio
-    ask. The archetype slot is *not* here — it rides the Leader
-    (see ``archetype_question``): Leader → Gang → fighters."""
+    """Build in the affiliation anchor and add gang rules and composition notes.
+
+    Leader profiles grant the separate gang archetype choice.
+    """
     _, tiers = skills_collection
     _, house_tokens = affiliations
     gang_type = create_gang_type("Outcasts")
@@ -399,8 +371,7 @@ def outcasts(subtypes, skills_collection, affiliations, affiliation_lists):
 @pytest.fixture
 @library_setup
 def profiles(outcasts, subtypes, person_type):
-    """The gang list: four Leader variants sharing the Leader subtype,
-    and the Champion and Hive Scum entries the archetype rows name."""
+    """Create four Leader variants with one shared subtype and specific Champion and Hive Scum profiles."""
     made = {"leaders": []}
     for number in (1, 2, 3, 4):
         leader = create_profile(f"Leader {number}", person_type, outcasts, price=100)
@@ -426,17 +397,7 @@ def profiles(outcasts, subtypes, person_type):
 @pytest.fixture
 @library_setup
 def archetype_question(archetypes, profiles, archetype_type):
-    """The pick list, and the two slots that ask it.
-
-    Leader → Gang → fighters: every Leader variant carries the
-    archetype choice, but what is chosen is for the gang — it lands as
-    a gang row, radiates to the members, and dies with the Leader.
-    Champions may choose a different Archetype to their gang's Leader:
-    the same five archetypes, chosen on — and borne by — the fighter.
-
-    One list, asked twice. Where the pick lands is the slot's to say,
-    which is the whole difference between the two.
-    """
+    """Offer one archetype picklist through gang-assigned Leader choices and a bearer-assigned Champion choice."""
     offered = create_picklist(
         "Outcast Archetypes", archetype_type, members=list(archetypes.values())
     )
@@ -622,8 +583,7 @@ class TestTheLeadersChoiceLifecycle:
             "shooting": "Primary",
             "savant": "Secondary",
         }
-        # And nobody else moved: the champion's personal pick radiates
-        # nowhere.
+        # The Champion's personal archetype does not broadcast to other models.
         assert tiers_for(crew["scum"], skills_collection, sets)["combat"] == "Primary"
 
         assert tiers_for(crew["scum"], skills_collection, sets) != {}
@@ -669,17 +629,12 @@ def pick_house(gang, token):
 
 
 def leader_anchor(crew):
-    """The assignment whose assignable (the Leader profile) offers the
-    archetype — the Leader's membership row."""
+    """Return the Leader membership that anchors the archetype choice."""
     return crew["leader"].assignments.get(profile__isnull=False)
 
 
 def pick_archetype(crew, archetype, asked=None):
-    """The Leader → Gang arrow: the Leader chooses; the gang carries it.
-
-    A granted slot has no assignment of its own, so the anchor is the
-    Leader's own row and the slot being answered is named.
-    """
+    """Choose the gang-assigned archetype using the Leader membership and explicit granted slot."""
     return choose(leader_anchor(crew), archetype, slot=_slot_named("Gang archetype"))
 
 
@@ -729,9 +684,7 @@ class TestArchetypes:
         skills_collection,
         sets,
     ):
-        """The Leader row hangs off the shared subtype, so a gang led by
-        any of the four Leader entries lands the same table — and every
-        variant carries the archetype question."""
+        """Match Leader archetype effects through the shared subtype across profile variants."""
         other = found_gang(
             "The Unforgotten", outcasts, owner=User.objects.create_user("meg")
         )
@@ -825,8 +778,7 @@ class TestTheSheet:
 
         text = gang_to_text(gang)
         print("\n" + text)
-        # The Leader's choice, resolved on the Leader's card; the gang
-        # carries what was chosen, so the gang block lists it as a row.
+        # The Leader chooses the gang-assigned archetype, which appears in the gang summary.
         assert "Archetype: Wyrd" in text
         assert "Gang: Outcasts, Wyrd" in text
         assert "Affiliation: Clan House Outcast" in text

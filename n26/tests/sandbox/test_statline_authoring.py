@@ -1,21 +1,7 @@
-"""Typing a fighter's characteristics on the page that authors it.
-
-A profile's statline is a row of small numbers, and it is edited where the
-rest of the profile is edited: same page, same form, same Save. The shape
-of that form is content — it comes from the statline type the profile's
-Type calls for — so no spec describes it and nothing generates it.
-
-The rules this file pins:
-
-* A profile with no statline still shows every box, and filling them in is
-  how a statline comes to exist.
-* An author types the bare thing and the stored value is canonical: 4 for
-  a Movement is held, and shown back, as ``4"``.
-* Almost nothing is refused. ``S`` for the wielder's Strength and ``D6``
-  are as real as ``4``; only what cannot be stored is turned away.
-* An empty box means no value — the one place this parts company with
-  ``set_statline``, which leaves a characteristic it is not told about
-  alone.
+"""Verify characteristic editing in the profile authoring form. Derive fields from its
+profile type, create a statline when values are entered, format values canonically and
+accept symbolic or dice values within storage limits. Clearing a form field removes its
+value; omitted set_statline arguments instead preserve existing values.
 """
 
 import pytest
@@ -33,7 +19,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def author(client):
-    """Staff, because the authoring pages sit behind the admin gate."""
+
     user = get_user_model().objects.create_user(
         "statline-author", "statline-author@example.com", "password", is_staff=True
     )
@@ -43,18 +29,13 @@ def author(client):
 
 @pytest.fixture
 def ganger(person_type, gang_type):
-    """A profile carrying the three-stat shape: a distance, a roll target
-    and a plain number, which is one of each display rule."""
+    """Profile with distance, roll-target and plain-number characteristics."""
     return create_profile("Ganger", person_type, gang_type, price=50)
 
 
 def edit(client, profile, statline=None, **overrides):
-    """Post the profile's page the way the browser does.
-
-    The whole form goes every time — its own fields prefixed ``edit`` and
-    the characteristics prefixed ``statline`` — because that is what a
-    click of Save sends, and a payload naming only the field under test
-    would prove the view tolerates something no browser produces.
+    """Submit the complete profile edit payload with edit-prefixed fields and
+    statline-prefixed characteristics, matching the browser form.
     """
     payload = {
         "act": "edit",
@@ -73,7 +54,7 @@ def edit(client, profile, statline=None, **overrides):
 
 
 def stored(profile):
-    """``{short name: the stored string}`` — what a page would read back."""
+    """Read stored characteristic strings keyed by short name."""
     profile.refresh_from_db()
     return {
         stat.short_name: stat.value for stat in profile.statline.stats.select_related()
@@ -81,11 +62,8 @@ def stored(profile):
 
 
 class TestAProfileWithNoStatline:
-    """The case that matters most, because it is how one gets created.
-
-    Nothing is missing when a profile has no statline: the shape is known
-    from the profile's Type, so every box is there and empty, and filling
-    them in founds the row.
+    """Render fields from the profile type even before values exist. Create no statline
+    when every field remains empty.
     """
 
     def test_every_characteristic_of_the_type_has_a_box(self, author, client, ganger):
@@ -115,10 +93,7 @@ class TestAProfileWithNoStatline:
         assert stored(ganger) == {"M": '4"', "WS": "3+", "T": "3"}
 
     def test_a_value_is_stored_as_the_stat_says_it_reads(self, author, client, ganger):
-        """An author types 4 for a Movement and it lands as 4", because
-        every surface should agree without each one remembering to
-        format. The form does not do this — the value does, on the way
-        into the database, by the same path an importer takes."""
+        """Canonicalise values when storing them, using the same path as imports."""
         edit(client, ganger, statline={"movement": "4"})
 
         assert stored(ganger)["M"] == '4"'
@@ -126,9 +101,7 @@ class TestAProfileWithNoStatline:
     def test_saving_nothing_at_all_leaves_the_profile_without_one(
         self, author, client, ganger
     ):
-        """A profile whose page was opened and saved with the statline
-        untouched has still not been given one — an empty statline of
-        empty values would print a row of dashes on every card."""
+        """Avoid creating an empty statline that would add a row of dashes to cards."""
         edit(
             client,
             ganger,
@@ -140,7 +113,7 @@ class TestAProfileWithNoStatline:
 
 
 class TestChangingAStatlineAlreadyThere:
-    """Editing is the same form, opened on what is stored."""
+    """Prefill the same edit form from stored values."""
 
     @pytest.fixture
     def written(self, ganger):
@@ -150,9 +123,7 @@ class TestChangingAStatlineAlreadyThere:
     def test_the_boxes_open_on_what_is_stored(self, author, client, written):
         body = client.get(f"/n26/authoring/profile/{written.pk}/").content.decode()
 
-        # The canonical value, quote mark and all — the same string the
-        # card prints, so the author is never left wondering whose mark
-        # it is.
+        # Prefill the canonical values, including their distance and target suffixes.
         assert 'value="4&quot;"' in body
         assert 'value="3+"' in body
 
@@ -170,9 +141,9 @@ class TestChangingAStatlineAlreadyThere:
     def test_a_value_resubmitted_untouched_does_not_drift(
         self, author, client, written
     ):
-        """The box shows 4" and posts 4" back. Formatting a value that is
-        already formatted has to be a no-op, or every save would add
-        another quote mark."""
+        """Canonical formatting must be idempotent when the form resubmits an already
+        formatted value.
+        """
         edit(
             client,
             written,
@@ -182,11 +153,9 @@ class TestChangingAStatlineAlreadyThere:
         assert stored(written)["M"] == '4"'
 
     def test_a_cleared_box_takes_the_value_off(self, author, client, written):
-        """The one place this parts company with ``set_statline``. That
-        verb leaves a characteristic it is not told about alone, which is
-        right for a spreadsheet with an absent column and wrong for a
-        person looking at a box: an author who cannot empty one is stuck
-        with a typo forever. A card prints the absence as a dash."""
+        """Blank form input clears the value, unlike an omitted set_statline argument.
+        Display the missing characteristic as a dash.
+        """
         edit(
             client,
             written,
@@ -209,8 +178,7 @@ class TestChangingAStatlineAlreadyThere:
     def test_the_profiles_own_fields_save_in_the_same_click(
         self, author, client, written
     ):
-        """One form, one Save. The statline is not a second thing to
-        remember to submit."""
+        """Save profile fields and characteristics through one form submission."""
         edit(
             client,
             written,
@@ -224,11 +192,8 @@ class TestChangingAStatlineAlreadyThere:
 
 
 class TestWhatAnAuthorMayType:
-    """Almost anything, and the exceptions are about storage, not taste.
-
-    A characteristic is not always a number: a weapon's Strength can be
-    the wielder's own, a value can be rolled. Refusing those would make
-    the editor turn away content the spreadsheet importer accepts.
+    """Accept symbolic and dice values as well as numbers. Reject values that exceed
+    storage limits or contain multiple pasted characteristics.
     """
 
     def test_a_letter_standing_for_something_survives_as_typed(
@@ -248,7 +213,7 @@ class TestWhatAnAuthorMayType:
     ):
         response = edit(client, ganger, statline={"movement": "five inches or so"})
 
-        assert response.status_code == 200  # back on the page, not a 500
+        assert response.status_code == 200
         body = response.content.decode()
         assert "Movement" in body
         assert "longer than 10 characters" in body
@@ -262,9 +227,7 @@ class TestWhatAnAuthorMayType:
         assert "one characteristic" in response.content.decode()
 
     def test_a_refusal_writes_nothing_at_all(self, author, client, ganger):
-        """Both halves of the form save together or not at all — a page
-        that took the new name and dropped the statline would leave the
-        author unsure which of the two clicks had landed."""
+        """Profile and statline changes must commit together or both roll back."""
         response = edit(
             client,
             ganger,
@@ -278,17 +241,16 @@ class TestWhatAnAuthorMayType:
         assert not ganger.has_statline
 
     def test_what_was_typed_is_shown_back_after_a_refusal(self, author, client, ganger):
-        """The box keeps the rejected text. Redrawn from the database it
-        would show the old value, and the author would be reading a
-        complaint about something not on the screen."""
+        """Preserve rejected input in the form so the error refers to text still visible to
+        the author.
+        """
         response = edit(client, ganger, statline={"movement": "five inches or so"})
 
         assert 'value="five inches or so"' in response.content.decode()
 
 
 class TestTheCardShowsWhatWasAuthored:
-    """The point of all of it: what the author typed is what a player's
-    card prints."""
+    """Model cards read the profile's authored characteristics."""
 
     def test_a_hired_model_prints_the_edited_statline(
         self, author, client, ganger, gang_type
@@ -316,9 +278,9 @@ class TestTheCardShowsWhatWasAuthored:
     def test_a_later_edit_reaches_a_card_already_hired(
         self, author, client, ganger, gang_type
     ):
-        """Statlines are read from the library at render time, not copied
-        onto the model at hire. Correcting a profile's characteristics is
-        therefore a correction to every fighter hired from it."""
+        """Read characteristic values from library content at render time so corrections
+        reach existing fighters.
+        """
         edit(client, ganger, statline={"movement": "4"})
         gang = found_gang(
             "The Corrected",

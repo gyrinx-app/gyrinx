@@ -1,23 +1,6 @@
-"""Four printed cards, represented end to end — the four-card challenge.
-
-The challenge: prove the system can represent four real rulebook
-profiles, exactly as the book prints them. Each one leans on
-a different corner of the machinery:
-
-* **Van Saar Ash Wastes 'Arachni-Rig'** — a vehicle; an any-of option
-  group ("may select any of the below"); each gun knocking a point off
-  Attacks via a ``Hidden`` carrier, stacking when both are taken.
-* **Enforcer 'Sanctioner' Pattern Automata** — three sets summing: a
-  one-of melee group (replace claw and/or baton with one pick), and an
-  any-of group of extra grenade types that are **weapon profiles**
-  stacking onto the launcher array from the built-ins.
-* **Ironhead Squat Vartijan Exo-Driller** — a granted skill and a named
-  ``Rule`` side by side (the book prints them apart), plus a plain
-  weapon swap.
-* **Goliath 'Zerker** — two subtypes, a fists swap, an any-of stash.
-
-Everything below is content authoring plus assertions — no special
-casing anywhere. Rule names only, never rules text (n26/AGENTS.md).
+"""Four profile fixtures exercise vehicle stats, independent option groups, weapon-profile
+options and separate skill/rule display. Preview and hired cards must agree for each
+selected configuration.
 """
 
 import pytest
@@ -45,11 +28,8 @@ from n26.tests.sandbox.actions import (
 pytestmark = pytest.mark.django_db
 
 
-# --- The printed statlines -------------------------------------------------
-#
-# Both cards print the same thirteen columns; Fighter and Vehicle are still
-# two StatlineTypes because the *shape* belongs to the profile type — pack
-# data, not code.
+# Fighter and Vehicle fixtures use separate statline types with the same thirteen
+# columns.
 
 STAT_DEFINITIONS = [
     ("M", "Movement", {"is_inches": True}),
@@ -121,7 +101,7 @@ def gang(gang_type):
 
 
 def full_card(miniature):
-    """A hired model's card with its computed effects folded in."""
+    """Build a hired model card with computed effects."""
     card = build_card(miniature, with_statlines=True)
     index = build_modifier_index([n.assignable for n in card.all_nodes()])
     return build_model_card(miniature, card=card, computed=compute(card, index))
@@ -138,18 +118,15 @@ def weapon_names(card):
 
 
 def ammo_names(weapon_line):
-    """Profile names without the weapon-name annotation each carries."""
+    """Read profile names without weapon-name annotations."""
     return [p.name.split(" (")[0] for p in weapon_line.profiles]
 
 
 def _subtype(name):
-    """Brute appears on three of the four cards; subtypes are unique rows."""
+    """Reuse shared subtype rows across the four profile fixtures."""
     from n26.library.models import Subtype
 
     return Subtype.objects.get_or_create(name=name)[0]
-
-
-# --- Van Saar Ash Wastes 'Arachni-Rig' — 275 credits -----------------------
 
 
 @pytest.fixture
@@ -187,17 +164,14 @@ def arachni_rig(vehicle_type, gang_type, default_pack):
     )
     profile.save()
 
-    # The asterisked footnote as data: taking a gun costs an Attack. The
-    # carrier is Hidden — no card row, no catalogue will ever sweep it in — but
-    # the shifted Attacks cell names it, so nothing it does is secret.
+    # Each selected gun adds a hidden modifier reducing Attacks by one.
     attacks = profile.statline_type.stats.get(stat__short_name="A").stat
     conversion = create_hidden(
         "Hardpoint conversion",
         effects=[(_targets_model(), changes_stat(attacks, "worsen", 1))],
     )
 
-    # "It may select any of the below options" — one any-of set; taking
-    # both is two sets, two conversions, minus two Attacks.
+    # Independent hardpoint choices can apply the Attacks reduction twice.
     hardpoints = create_option_group(profile, "Weapon hardpoints", choose="any")
     for position, (name, cost) in enumerate([("Rad gun", 35), ("Plasma gun", 75)]):
         offer_option(
@@ -250,8 +224,7 @@ class TestTheArachniRig:
         assert attacks.value == "3"
         (source,) = attacks.modified_by
         assert source.source == "Hardpoint conversion"
-        # A hidden carrier's name is written to be read; its kind is the
-        # library's plumbing, and a player's tooltip never says it.
+        # The tooltip identifies the carrier by name without exposing the Hidden kind.
         assert source.source_kind == ""
 
     def test_both_guns_stack_to_minus_two(self, gang, arachni_rig):
@@ -290,9 +263,6 @@ class TestTheArachniRig:
         assert promised.statline.get("A").value == delivered.statline.get("A").value
 
 
-# --- Enforcer 'Sanctioner' Pattern Automata — 235 credits -------------------
-
-
 @pytest.fixture
 def sanctioner(fighter_type, gang_type, default_pack):
     profile = Profile.objects.create(
@@ -318,9 +288,7 @@ def sanctioner(fighter_type, gang_type, default_pack):
         intelligence=7,
     )
 
-    # The launcher array arrives with smoke; choke and stun exist as its
-    # further, priced ammo types — exactly the rows a mid-campaign
-    # ``buy_weapon_profile`` would use.
+    # Smoke is the default profile; Choke and Stun are additional priced profiles.
     launcher = create_weapon(
         "Grenade launcher array",
         profiles=[
@@ -364,10 +332,8 @@ def sanctioner(fighter_type, gang_type, default_pack):
     )
     profile.save()
 
-    # The melee set: "replace their pacifier assault claw and/or heavy
-    # shock baton with ONE of the following" — a one-of, so its states are
-    # enumerated: keep both, or drop either or both for the one pick.
-    # Ten sets, not forty: the grenade picks below multiply outside it.
+    # Enumerate ten mutually exclusive melee configurations; grenade options form a
+    # separate group.
     position = iter(range(100))
     offer_option(
         profile,
@@ -390,8 +356,7 @@ def sanctioner(fighter_type, gang_type, default_pack):
                 position=next(position),
             )
 
-    # The additional grenade types: an any-of set whose members are
-    # weapon profiles, stacking onto the array the built-ins bring.
+    # Grenade options add profiles to the built-in launcher.
     grenades = create_option_group(
         profile, "Additional grenade types", choose="any", position=1
     )
@@ -427,8 +392,7 @@ class TestTheSanctioner:
         assert ammo_names(launcher) == ["Smoke grenades"]
 
     def test_the_sets_sum_instead_of_multiplying(self, sanctioner):
-        # Ten melee states plus two grenade toggles: twelve authored sets
-        # where flat one-of combinations would need forty.
+        # Separate groups need twelve authored sets rather than forty full combinations.
         assert sanctioner.options.count() == 12
         groups = sanctioner.grouped_options()
         assert [(g.name if g else None, len(sets)) for g, sets in groups] == [
@@ -458,7 +422,7 @@ class TestTheSanctioner:
             "Choke gas grenades",
             "Stun grenades",
         ]
-        # The ammo says it came with the array, like the free profile does.
+        # Selected profiles retain the launcher as their provenance source.
         choke = next(
             p for p in launcher.profiles if p.name.startswith("Choke gas grenades")
         )
@@ -500,9 +464,6 @@ class TestTheSanctioner:
         )
         with pytest.raises(ValueError, match="at most one"):
             hire_with_option(gang, sanctioner, "Unit 7", option=selection)
-
-
-# --- Ironhead Squat Vartijan Exo-Driller — 280 credits ----------------------
 
 
 @pytest.fixture
@@ -569,7 +530,7 @@ class TestTheExoDriller:
 
         assert card.rating == 280
         assert card.type_line == "Fighter (Brute)"
-        # The book prints Skills and the named rule apart; so does the card.
+        # Skills and named rules use separate card lists.
         assert [s.name for s in card.skills] == ["Bulging Biceps"]
         assert [r.name for r in card.rules] == ["Sensor Suite"]
         assert weapon_names(card) == [
@@ -586,9 +547,6 @@ class TestTheExoDriller:
         assert card.rating == 290
         assert "Heavy bolter" in weapon_names(card)
         assert "Heavy flamer" not in weapon_names(card)
-
-
-# --- Goliath 'Zerker — 175 credits ------------------------------------------
 
 
 @pytest.fixture
@@ -679,9 +637,6 @@ class TestTheZerker:
         assert [e.name for e in card.equipment] == ["Stimm-slug stash"]
 
 
-# --- The whole zoo on one hire screen ---------------------------------------
-
-
 class TestTheHireScreen:
     @pytest.fixture
     def roster(self, gang_type, arachni_rig, sanctioner, exo_driller, zerker):
@@ -693,9 +648,7 @@ class TestTheHireScreen:
 
         rig = by_name["Van Saar Ash Wastes 'Arachni-Rig'"]
         assert rig.base_price == 275
-        # Two sets: the main pick, then the hardpoints. What the
-        # author calls the second one is not here to be asserted on —
-        # a player is shown the options, never the group's own name.
+        # The main group and independent hardpoints have different selection modes.
         assert [g.choose for g in rig.groups] == ["one", "any"]
         assert [o.name for o in rig.groups[1].options] == ["Rad gun", "Plasma gun"]
 
@@ -722,7 +675,7 @@ class TestTheHireScreen:
             return len(captured.captured_queries)
 
         few = measure()
-        # Double the roster: clone the 'Zerker three times.
+        # Add three cloned profiles while preserving their option structure.
         zerker = Profile.objects.get(name="Goliath 'Zerker")
         for index in range(3):
             clone = Profile.objects.create(
@@ -752,15 +705,9 @@ class TestTheHireScreen:
         assert measure() == few
 
 
-# --- A squad, printed --------------------------------------------------------
-
-
 class TestTheSquadOnPaper:
-    """A living demo: the same two profiles, equipped four different ways,
-    with the gang sheet and the ledger printed side by side. Run it to
-    look at it:
-
-        uv run pytest tests/sandbox/test_screenshot_profiles.py -s -k Squad
+    """Print four configurations of two profiles alongside their ledger. Run pytest
+    n26/tests/sandbox/test_screenshot_profiles.py -s -k Squad to inspect the output.
     """
 
     def test_it_all_renders(self, gang, arachni_rig, sanctioner):
@@ -792,10 +739,10 @@ class TestTheSquadOnPaper:
         print("\n" + sheet)
         print(ledger)
 
-        # The two rigs differ only in what was chosen, and it shows.
+        # Selected options change the displayed rating.
         assert "Spinneret — 275cr" in sheet
         assert "Widowmaker — 385cr" in sheet
         assert "Unit Primus — 235cr" in sheet
         assert "Unit Secundus — 380cr" in sheet
-        # Everything the ledger says still adds up.
+
         assert_reconciled(gang)

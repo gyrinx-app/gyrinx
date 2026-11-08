@@ -1,33 +1,8 @@
-"""Ticking a model's skills and powers on their own page.
+"""Verify editing skills and powers through the model page. Both tab modes can reach the
+whole library; placements organise display without restricting selection.
 
-The skills screen selects one thing at a time, at its own address. This is
-a box on the model's edit page instead: every skill and power the library
-holds, ticked where they have it, settled in one click.
-
-The rules this file pins:
-
-* **The placements sort the list; they do not shorten it.** Two tabs
-  draw the same options. The first holds the sets somebody placed in a
-  tier for this model, plus any set they already hold something in, so
-  what is theirs is what they see; the second holds every set the
-  library has. A panel on the first searches what it leaves out, so
-  both listings reach the whole library and which tab a save came from
-  settles nothing.
-* **What is offered can be taken away.** A skill from a set nobody
-  placed can be cleared, which is only true because it is on the list.
-* **Skills and powers alike.** A tier holds whatever the content swept
-  into it, so a family of powers placed for a fighter ticks like a skill
-  set does.
-* **A tick selects and a cleared box takes away**, in one operation: a
-  save that fails writes nothing at all.
-* **What a rule grants is fixed.** It is drawn ticked and disabled,
-  saying what grants it — there is no stored row behind it, so the
-  square never offers a removal it could not do.
-* **An open starting-skill question is answered only by a tick on that
-  question's Choose list.** A Leader asking for a Primary skill is
-  settled by Catfall, not by Connected. A Secondary tick is a standing
-  selection and leaves the question open.
-* None of it is money. Selecting is free, and a gang still reconciles.
+Save selections atomically, preserve granted skills, and resolve a starting-skill choice
+only when a selected skill matches its offer. Selection changes no credits or rating.
 """
 
 import re
@@ -98,7 +73,7 @@ def library(sets):
 
 @pytest.fixture
 def catalogue(library):
-    """The one collection: every skill and every power, by sweep."""
+    """Sweep all skills and powers into one collection."""
     return create_collection("Skills & Powers", contains=[Skill, Power])
 
 
@@ -113,8 +88,7 @@ def tiers(catalogue):
 
 @pytest.fixture
 def gang_sister(make_profile, sets, tiers):
-    """A grid: Agility Primary, Savant Secondary. Brawn is nobody's here,
-    and the powers are unrevealed."""
+    """Place Agility in Primary and Savant in Secondary, leaving Brawn and powers unplaced."""
     profile = make_profile("Escher Gang Sister", price=55)
     for category, tier in [
         (sets["agility"], tiers["primary"]),
@@ -131,7 +105,7 @@ def gang_sister(make_profile, sets, tiers):
 
 @pytest.fixture
 def gridless(make_profile):
-    """A profile nobody has written a grid for — the content gap."""
+    """Profile with no skill placements."""
     return make_profile("Sump Scavenger", price=30)
 
 
@@ -152,7 +126,7 @@ def yolanda(gang, gang_sister, catalogue, tiers):
 
 @pytest.fixture
 def wyrd(sets, tiers):
-    """A subtype that reveals the powers, as a Primary set."""
+    """Subtype placing Wyrd Powers in the Primary tier."""
     subtype = create_subtype("Wyrd")
     modifier(
         "A Wyrd's powers are Primary",
@@ -175,11 +149,8 @@ def key_of(thing):
 
 
 def box(page, thing):
-    """One thing's box, as its attributes read.
-
-    The whole tag, so an assertion about ticked or fixed is about *that*
-    box: a page carrying a dozen of them is checked somewhere whatever
-    the one under test says.
+    """Extract the complete input for one content key so checked and disabled assertions
+    cannot match another skill's control.
     """
     match = re.search(rf"<input[^>]*value=\"{re.escape(key_of(thing))}\"[^>]*>", page)
     assert match, f"no box for {thing} on the page"
@@ -191,12 +162,12 @@ def at_tab(miniature, tab=""):
 
 
 def offer_on(client, miniature, tab=""):
-    """The listing the box draws, on whichever tab the address names."""
+    """Read the skills listing selected by the tab URL."""
     return client.get(at_tab(miniature, tab)).context["skills"]
 
 
 def more_on(client, miniature, tab=""):
-    """What the panel searches: the sets the drawn listing leaves out."""
+    """Read options available through the listing's add panel."""
     return client.get(at_tab(miniature, tab)).context["skills_more"]
 
 
@@ -205,9 +176,9 @@ def named(offer):
 
 
 def post_skills(client, miniature, *ticked, follow=False, tab=""):
-    """Save the skills form as a browser sends it: the act, and one entry
-    per ticked box. Boxes left alone send nothing, which is the whole of
-    how a browser says a thing was cleared."""
+    """Submit the skills action and checked content keys. Unticked or disabled checkboxes
+    submit no value.
+    """
     sent = {"act": "skills", "skills": [key_of(thing) for thing in ticked]}
     if tab:
         sent["tab"] = tab
@@ -229,7 +200,7 @@ def held_by(miniature):
 
 
 class TestWhatTheSquareShows:
-    """The fighter's own view of their collections, tier by tier."""
+    """Build the placed and already-held skill groups for the model."""
 
     def test_it_lists_the_sets_their_grid_reaches(
         self, client, player, yolanda, library
@@ -242,8 +213,7 @@ class TestWhatTheSquareShows:
         assert "Connected" in named(offer)  # Savant is Secondary
 
     def test_each_set_says_which_tier_it_is(self, client, player, yolanda, library):
-        """The tiers are what the square is arranged by, and a set's name
-        does not say which one it sits in."""
+
         client.force_login(player)
         offer = offer_on(client, yolanda)
 
@@ -255,9 +225,7 @@ class TestWhatTheSquareShows:
     def test_the_tier_the_unplaced_fall_into_stays_off_it(
         self, client, player, yolanda, library
     ):
-        """Brawn is nobody's here, so the browse files it under the
-        collection's fallback tier. That tier is not this fighter's grid,
-        and a set another house was graded in is not theirs to take."""
+        """Keep the collection's fallback tier outside the placed-set listing."""
         client.force_login(player)
         offer = offer_on(client, yolanda)
 
@@ -267,8 +235,7 @@ class TestWhatTheSquareShows:
     def test_a_placed_family_of_powers_ticks_like_a_skill_set(
         self, client, player, gang, gang_sister, wyrd, library
     ):
-        """A tier holds whatever the content swept into it, so the square
-        offers powers wherever a fighter's placements put them."""
+        """Use the same placement rules for powers and skills."""
         thalia = hire_with_option(gang, gang_sister, "Thalia")
         assign(wyrd, miniature=thalia)
         client.force_login(player)
@@ -294,10 +261,9 @@ class TestWhatTheSquareShows:
     def test_a_model_no_placement_names_is_asked_about_every_set(
         self, client, player, gang, gridless, catalogue, library
     ):
-        """Nobody has put a set in a tier for them. That is a gap in the
-        content, not a rule about the model: the library is still theirs
-        to take from, so the box opens on the listing holding every set
-        and says why the other one is bare."""
+        """Default gridless models to the full library rather than restricting their
+        available selections.
+        """
         nobody = hire_with_option(gang, gridless, "Nobody")
         client.force_login(player)
         response = client.get(edit_url(nobody))
@@ -309,8 +275,7 @@ class TestWhatTheSquareShows:
     def test_their_own_listing_says_when_no_set_is_theirs(
         self, client, player, gang, gridless, catalogue, library
     ):
-        """Asked for the listing that is empty, the box draws it empty
-        and says so, rather than sending the reader somewhere else."""
+        """Preserve an explicitly requested empty listing and explain its state."""
         nobody = hire_with_option(gang, gridless, "Nobody")
         client.force_login(player)
         page = client.get(at_tab(nobody, OWN_SETS)).content.decode()
@@ -320,9 +285,9 @@ class TestWhatTheSquareShows:
     def test_a_granted_skill_is_drawn_ticked_and_fixed(
         self, client, player, yolanda, sets, library
     ):
-        """A rule gives it, so nothing stored is behind it: the box says
-        what grants it and cannot be cleared, because the square must
-        never offer a removal it could not do."""
+        """Computed grants cannot be removed through this form, so render them checked and
+        disabled with their source.
+        """
         keen = create_subtype("Keen-eyed")
         modifier(
             "Keen-eyed knows how to fall",
@@ -342,13 +307,9 @@ class TestWhatTheSquareShows:
     def test_a_granted_skill_reads_without_a_space_before_its_comma(
         self, client, player, yolanda, library
     ):
-        """A granted skill's name sits inside a tooltip component that
-        carries line breaks of its own; the run joining it to the next
-        skill must swallow those, not let one land beside the comma as a
-        visible gap before the mark. The two separators differ on
-        purpose: a granted skill's comma rides inside its tooltip
-        trigger with a non-breaking space, and a plain skill's comma is
-        followed by a breaking one so the run can wrap between names."""
+        """Keep template whitespace out of comma joins. Granted names retain the comma
+        within the tooltip trigger, while ordinary names allow wrapping after it.
+        """
         keen = create_subtype("Keen-eyed")
         modifier(
             "Keen-eyed knows how to fall",
@@ -362,21 +323,23 @@ class TestWhatTheSquareShows:
         client.force_login(player)
         page = client.get(edit_url(yolanda)).content.decode()
 
-        # The Skills label carries its edit control, so it is not a bare
-        # ">Skills<" run.
+        # The Skills heading also contains an edit control, so match its text across
+        # surrounding markup.
         start = re.search(r">\s*Skills\s*<", page).start()
         row = page[start : page.index(">Gear<", start)]
         assert " ," not in row
-        # Catfall (granted) sorts first: its comma is the trigger's own.
+        # The granted skill owns its comma within the tooltip trigger.
         assert ",&nbsp;" in row
-        # Connected (plain) is next: its comma allows a wrap after it.
+        # The ordinary skill separator permits wrapping after the comma.
         assert "<span>, </span>" in row
         assert "Catfall" in row and "Connected" in row and "Dodge" in row
 
     def test_a_restricted_skill_keeps_its_place_with_a_note(
         self, client, player, yolanda, library
     ):
-        """Inform, never police — the equip page's rule, on this square too."""
+        """Inform rather than police. Display a restriction note while keeping the skill
+        available.
+        """
         from n26.tests.sandbox.actions import restrict_use
 
         restrict_use(library["skills"]["Catfall"], create_subtype("Walker"))
@@ -400,13 +363,12 @@ class TestWhatTheSquareShows:
 
 
 class TestTheRestOfTheLibrary:
-    """Every set is reachable from the box, one tab or one search away."""
+    """Reach unplaced sets through either the complete listing or the add panel."""
 
     def test_the_other_tab_lists_the_sets_nobody_placed(
         self, client, player, yolanda, library
     ):
-        """Brawn is nobody's here, so it is not among her own sets — but
-        it is a set the game has, and the second listing holds it."""
+
         client.force_login(player)
 
         assert "Bull Charge" not in named(offer_on(client, yolanda, OWN_SETS))
@@ -415,9 +377,7 @@ class TestTheRestOfTheLibrary:
     def test_the_other_tab_keeps_the_sets_that_are_theirs(
         self, client, player, yolanda, library
     ):
-        """The wider listing is the whole library, not the remainder of
-        it: a reader who switches tabs to find one skill does not lose
-        sight of what the model already has."""
+        """The full listing includes placed sets as well as unplaced ones."""
         client.force_login(player)
         offer = offer_on(client, yolanda, ALL_SETS)
 
@@ -426,9 +386,9 @@ class TestTheRestOfTheLibrary:
     def test_each_set_says_its_tier_on_the_wider_listing(
         self, client, player, yolanda, sets, tiers, library
     ):
-        """A set nobody placed is filed under the collection's own
-        default tier, and says so, so the reader can tell the two that
-        are theirs from the rest without counting headings."""
+        """Identify unplaced sets by the collection's fallback tier alongside the model's
+        placed tiers.
+        """
         client.force_login(player)
         tier = {
             group.name: group.caption
@@ -442,9 +402,7 @@ class TestTheRestOfTheLibrary:
     def test_the_panel_searches_what_their_own_listing_leaves_out(
         self, client, player, yolanda, library
     ):
-        """The first tab is not a dead end: the sets it does not draw
-        are the ones its search offers, so a skill can be added without
-        leaving it."""
+
         client.force_login(player)
         offered = {option.name for option in more_on(client, yolanda, OWN_SETS)}
 
@@ -452,9 +410,7 @@ class TestTheRestOfTheLibrary:
         assert "Catfall" not in offered
 
     def test_the_wider_listing_needs_no_panel(self, client, player, yolanda, library):
-        """Everything is already a box there, and a search offering what
-        is drawn a few lines above would be a second way to do the same
-        thing."""
+        """The complete listing already displays every option."""
         client.force_login(player)
 
         assert more_on(client, yolanda, ALL_SETS) == []
@@ -462,8 +418,7 @@ class TestTheRestOfTheLibrary:
     def test_a_skill_from_another_set_can_be_selected(
         self, client, player, gang, yolanda, library
     ):
-        """The whole of the ask: a skill nobody placed for her, ticked
-        and saved from the page she was already on."""
+
         client.force_login(player)
         post_skills(client, yolanda, library["skills"]["Bull Charge"], tab=ALL_SETS)
 
@@ -473,8 +428,7 @@ class TestTheRestOfTheLibrary:
     def test_a_skill_from_another_set_can_be_cleared_again(
         self, client, player, gang, yolanda, library
     ):
-        """And the other half of it, which the narrower listing could
-        not do at all: what was selected can be taken away."""
+
         select(yolanda, library["skills"]["Bull Charge"])
         client.force_login(player)
         post_skills(client, yolanda, tab=ALL_SETS)
@@ -485,9 +439,9 @@ class TestTheRestOfTheLibrary:
     def test_a_set_they_hold_something_in_is_drawn_among_their_own(
         self, client, player, yolanda, library
     ):
-        """Held, so it is theirs whatever the placements say — and it is
-        drawn where they will look for it rather than a tab away, since
-        the reader wanting to clear it is looking at what she has."""
+        """Include held unplaced skills in the own-sets view so they remain visible for
+        removal.
+        """
         select(yolanda, library["skills"]["Bull Charge"])
         client.force_login(player)
         offer = offer_on(client, yolanda, OWN_SETS)
@@ -496,9 +450,7 @@ class TestTheRestOfTheLibrary:
         assert "Bull Charge" in named(offer)
 
     def test_a_held_set_is_not_offered_twice(self, client, player, yolanda, library):
-        """Drawn among their own, it is off the panel: a box and a
-        search row for the same skill would be two controls settling one
-        thing."""
+        """Remove already displayed sets from the add panel."""
         select(yolanda, library["skills"]["Bull Charge"])
         client.force_login(player)
         offered = {option.name for option in more_on(client, yolanda, OWN_SETS)}
@@ -520,14 +472,9 @@ class TestTheRestOfTheLibrary:
     def test_a_subtype_in_a_collection_is_not_on_the_listing(
         self, client, player, gang, yolanda, sets, tiers, catalogue, library
     ):
-        """A subtype is the same family as a skill, so a collection may
-        hold one and this box would otherwise offer it — and a save that
-        left it unticked would take it away, by the write that archives
-        a selection rather than the one that records an owner's edit,
-        and from a box whose heading says skills.
-
-        What a model is belongs to the edits box beside this one, so
-        only skills and powers are on the list here.
+        """Restrict this form to skills and powers even when the collection includes
+        subtypes. Subtype edits use a separate operation and must not be cleared by this
+        save.
         """
         from n26.library.authoring import add_entry
 
@@ -589,7 +536,7 @@ class TestSkillsPencil:
 
 
 class TestSavingTheSquare:
-    """The whole flow through the page an owner uses."""
+    """Save additions and removals through the owner's edit endpoint."""
 
     def test_a_ticked_skill_lands_on_the_card(
         self, client, player, gang, yolanda, library
@@ -630,8 +577,7 @@ class TestSavingTheSquare:
     def test_a_cleared_box_takes_the_skill_away(
         self, client, player, gang, yolanda, library
     ):
-        """The row is archived rather than deleted — the ledger goes on
-        saying she once had it — so what the card shows is what changed."""
+        """Archive cleared selections while retaining their ledger history."""
         select(yolanda, library["skills"]["Catfall"])
         client.force_login(player)
         post_skills(client, yolanda)
@@ -642,8 +588,7 @@ class TestSavingTheSquare:
     def test_a_click_keeps_what_was_left_ticked(
         self, client, player, gang, yolanda, library
     ):
-        """Two she knows and one box cleared: settling the whole list must
-        not take away the one nobody touched."""
+
         select(yolanda, library["skills"]["Catfall"])
         select(yolanda, library["skills"]["Connected"])
         client.force_login(player)
@@ -655,9 +600,7 @@ class TestSavingTheSquare:
     def test_a_second_copy_is_never_written(
         self, client, player, gang, yolanda, library
     ):
-        """A duplicate skill means nothing in the game, and a card reading
-        "Catfall, Catfall" is a bug however honestly each row was
-        written."""
+
         select(yolanda, library["skills"]["Catfall"])
         client.force_login(player)
         post_skills(client, yolanda, library["skills"]["Catfall"])
@@ -668,9 +611,9 @@ class TestSavingTheSquare:
     def test_a_granted_skill_survives_a_save_untouched(
         self, client, player, gang, yolanda, library
     ):
-        """Its box is fixed, so a browser submits nothing for it. Reading
-        that silence as a clearing would take away the row of anything a
-        rule also grants — so grants sit outside the difference."""
+        """Disabled grant checkboxes submit nothing; exclude grants from the removal
+        difference.
+        """
         keen = create_subtype("Keen-eyed")
         modifier(
             "Keen-eyed knows how to fall",
@@ -688,9 +631,9 @@ class TestSavingTheSquare:
     def test_a_click_naming_something_off_the_list_writes_nothing(
         self, client, player, gang, yolanda, wyrd, library
     ):
-        """The listing holds what the collection sweeps, which here is
-        skills and powers. A click naming anything else — a subtype — is
-        answered by the list rather than by the ledger."""
+        """Reject keys outside the displayed skills-and-powers contract before writing
+        ledger entries.
+        """
         client.force_login(player)
         post_skills(client, yolanda, wyrd)
 
@@ -700,15 +643,9 @@ class TestSavingTheSquare:
     def test_a_power_from_a_set_nothing_places_can_be_cleared(
         self, client, player, gang, gang_sister, wyrd, library
     ):
-        """Every set is on the listing, so a power selected while a
-        subtype placed its family is still offered once the subtype
-        goes — and what is offered can be taken away.
-
-        The price of that is on show here: an empty save clears it, the
-        way an empty save clears whatever it does not name. A stale form
-        therefore reaches the whole library rather than one corner of
-        it, which is what being able to remove a skill nobody placed
-        costs."""
+        """Keep held powers selectable after their placement source is removed. An empty
+        skills submission clears these ordinary selections across the whole library.
+        """
         from n26.tests.sandbox.actions import remove
 
         thalia = hire_with_option(gang, gang_sister, "Thalia")
@@ -735,8 +672,7 @@ class TestSavingTheSquare:
     def test_saving_the_notes_leaves_the_skills_alone(
         self, client, player, gang, yolanda, library
     ):
-        """Three forms on one page: clicking one must not clear another's
-        answers."""
+        """Only the submitted form action may change its own fields."""
         client.force_login(player)
         post_skills(client, yolanda, library["skills"]["Catfall"])
         client.post(edit_url(yolanda), {"act": "notes", "notes": "<p>Owes Kaine.</p>"})
@@ -753,8 +689,7 @@ class TestSavingTheSquare:
         assert_reconciled(gang)
 
     def test_none_of_it_is_money(self, client, player, gang, yolanda, library):
-        """A selection is earned rather than bought: no credits move, and a
-        skill the rules hand out is worth nothing to the gang."""
+
         client.force_login(player)
         gang.refresh_from_db()
         before = (gang.rating, gang.credits)
@@ -780,9 +715,9 @@ def _live_skill(miniature, skill):
 
 
 class TestAnOpenStartingSkill:
-    """While the card still asks, a tick on that question's Choose list
-    is the starting skill. A Secondary skill is not Primary, so it does
-    not close the question."""
+    """Resolve the starting-skill offer only with a matching selection. Extra skills
+    outside that offer remain ordinary selections.
+    """
 
     @pytest.fixture
     def leader(self, tiers):
@@ -818,8 +753,9 @@ class TestAnOpenStartingSkill:
     def test_replacing_the_starting_skill_keeps_the_question_closed(
         self, client, player, gang, leader_yolanda, library
     ):
-        """Choose Catfall, then Edit to Dodge: the new tick is the
-        starting skill, not a second one beside a reopened prompt."""
+        """Transfer starting-choice provenance to the replacement skill without reopening
+        the choice.
+        """
         catfall = library["skills"]["Catfall"]
         dodge = library["skills"]["Dodge"]
         choose(
@@ -843,8 +779,9 @@ class TestAnOpenStartingSkill:
     def test_a_secondary_tick_does_not_answer_the_question(
         self, client, player, gang, leader_yolanda, library
     ):
-        """Connected is on the edit square (Savant is Secondary) but not
-        on the Choose page for a Primary skill."""
+        """A Secondary skill is selectable here but does not match the Primary
+        starting-skill offer.
+        """
         connected = library["skills"]["Connected"]
         client.force_login(player)
         post_skills(client, leader_yolanda, connected)
@@ -947,9 +884,9 @@ class TestAnOpenStartingSkill:
 
 
 class TestSwitchingTabs:
-    """Which sets are listed is in the address, so a reload draws the
-    same screen and a link points at one. With script the click is
-    answered with the box alone; without it, with the page."""
+    """Store tab state in the URL. Tab-specific htmx requests return a replacement
+    fragment; ordinary page requests return a full page.
+    """
 
     HTMX = {"HX-Request": "true"}
 
@@ -972,8 +909,7 @@ class TestSwitchingTabs:
     def test_an_address_naming_nonsense_opens_their_own(
         self, client, player, yolanda, library
     ):
-        """A hand-typed address settles on the everyday listing rather
-        than drawing nothing."""
+
         client.force_login(player)
         page = client.get(edit_url(yolanda) + "?skills=whatever")
 
@@ -983,9 +919,7 @@ class TestSwitchingTabs:
     def test_a_tab_clicked_with_script_is_answered_with_the_box(
         self, client, player, yolanda, library
     ):
-        """Changing which sets are listed changes nothing else on the
-        page, so nothing else is sent — and the answer says which
-        element it replaces, because a click on a link targets none."""
+        """Return the stable skills host with out-of-band replacement metadata."""
         client.force_login(player)
         answer = client.get(at_tab(yolanda, ALL_SETS), headers=self.HTMX)
         body = answer.content.decode()
@@ -999,8 +933,9 @@ class TestSwitchingTabs:
     def test_the_answer_moves_the_address_to_the_tab_it_opened(
         self, client, player, yolanda, library
     ):
-        """Replaced rather than pushed: a tab is not somewhere to go
-        back to, but a reload must draw what is on screen."""
+        """Replace the current URL so reload preserves the tab without adding a history
+        entry.
+        """
         client.force_login(player)
         answer = client.get(at_tab(yolanda, ALL_SETS), headers=self.HTMX)
 
@@ -1009,9 +944,7 @@ class TestSwitchingTabs:
     def test_the_page_itself_is_never_answered_with_a_fragment(
         self, client, player, yolanda, library
     ):
-        """Only a tab click is: the box is handed back for the act that
-        changes it, and a page asked for as a whole is drawn whole
-        however it was asked for."""
+        """Return the full page unless the request explicitly selects a tab fragment."""
         client.force_login(player)
         body = client.get(edit_url(yolanda), headers=self.HTMX).content.decode()
 
@@ -1030,9 +963,7 @@ class TestSwitchingTabs:
     def test_the_tabs_are_links_that_script_turns_into_clicks(
         self, client, player, yolanda, library
     ):
-        """An ordinary href, so the tab works with no script and can be
-        opened in another window; the htmx attribute beside it is what
-        makes the click stay on the page."""
+        """Retain native href navigation alongside htmx enhancement."""
         client.force_login(player)
         body = client.get(edit_url(yolanda)).content.decode()
 
@@ -1049,18 +980,12 @@ class TestSwitchingTabs:
 
 
 class TestTheQueryBudget:
-    """The square is read with the model's own card, so a fighter who
-    knows everything costs what one who knows nothing costs."""
+    """Keep query counts constant as the library and the model's held skills grow."""
 
     def test_which_tab_is_open_costs_nothing(
         self, client, player, yolanda, sets, library
     ):
-        """One derivation serves both listings, so the tab only picks
-        which of its shapes reaches the template.
-
-        This says nothing about what the widening itself costs — the
-        listing below is what pins that.
-        """
+        """Derive both listings together so selecting a tab adds no queries."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -1071,7 +996,7 @@ class TestTheQueryBudget:
                 assert client.get(at_tab(yolanda, tab)).status_code == 200
             return len(captured.captured_queries)
 
-        # The first reading pays one-time caches that no later one does.
+        # Warm one-time caches before comparing query counts.
         measure(OWN_SETS)
         theirs = measure(OWN_SETS)
         assert measure(ALL_SETS) == theirs
@@ -1079,11 +1004,7 @@ class TestTheQueryBudget:
     def test_the_listing_costs_the_same_however_big_the_library(
         self, client, player, yolanda, sets, library
     ):
-        """What a collection holds is asked in a fixed number of
-        queries, so widening the offer to every set is paid per
-        collection and never per skill. A library that doubles asks
-        the database exactly as much.
-        """
+        """Browse by collection without adding queries per skill."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -1122,7 +1043,7 @@ class TestTheQueryBudget:
 
         for skill in stock[:2]:
             select(yolanda, skill)
-        # The first reading pays one-time caches that no later one does.
+        # Warm one-time caches before comparing query counts.
         measure()
         few = measure()
 
@@ -1143,17 +1064,18 @@ def _skills_url(miniature):
 
 
 def _skills_views():
-    """The skills *module* — ``n26.core.views.skills`` is the view function
-    on the package, which shadows the submodule for a normal import."""
+    """Import the skills submodule explicitly because the package exports a same-named view
+    function.
+    """
     import importlib
 
     return importlib.import_module("n26.core.views.skills")
 
 
 class TestAnsweringDoesNotTouchTheReadPath:
-    """The Choose-list match is a write. Drawing the sheet, the edit
-    page or the skills screen must not browse that list to decide what
-    to show."""
+    """Match the starting-skill offer only during writes. Displaying sheets, edit forms or
+    skill pages must not trigger that additional browse.
+    """
 
     @pytest.fixture
     def leader(self, tiers):
@@ -1237,7 +1159,7 @@ class TestAnsweringDoesNotTouchTheReadPath:
     def test_the_choose_list_lookup_does_not_grow_with_skills_already_held(
         self, client, player, leader_yolanda, sets, library, monkeypatch
     ):
-        """One browse of the offer, not one query per skill on the card."""
+        """Browse the offer once, independently of the number of held skills."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 

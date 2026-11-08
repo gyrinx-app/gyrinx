@@ -319,8 +319,7 @@ class TestWhatTheListCounts:
     def test_an_exclusive_line_is_offered_and_counts_nothing(
         self, client, gang, leader, legacy_list
     ):
-        """Being on the list is the whole of what Exclusive means, so the
-        line stays — and it carries no Trade Point figure to count."""
+        """An explicitly listed Exclusive item remains available without a Trade Point charge."""
         page = client.get(equip_url(leader, legacy_list)).content.decode()
         assert "Hunt banner" in page
 

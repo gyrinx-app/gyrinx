@@ -1,19 +1,12 @@
-"""Buying something with a group of options: the equip page's end of the offer.
+"""Purchase and change equipment options using the server-derived offer.
 
-Some things offer alternatives when they are acquired. A fighter entry
-offers them at hire, and the hire screen has always put them in front of
-a player; a piece of wargear offers them when it is bought, and this is
-that — the same three modes ("one", "any", "one-or-none"), the same
-controls, the same indices read back against the listing the server
-re-derives.
+Support one, any and one-or-none groups. Submitted indices are scoped to
+the purchased line and resolved against its current listing.
 
-The worked case is the Escher Cutter: a mount that comes with grenade
-launchers and will swap them for heavy stubbers or plasma guns, dearer
-by ten and fifteen. The list prices the mount itself its own way, which
-is the case that separates the two numbers involved — what the mount
-costs on this list, and what a swap adds to it.
-
-Rule *names* only; the rulebook's words are copyright (n26/AGENTS.md).
+The Cutter fixture separates the curated base quote from option surcharges:
+its listed price is 150, with weapon upgrades adding 10 or 15. Purchases
+and later changes must preserve the same payment, rating and grant rules
+as direct operations.
 """
 
 import pytest
@@ -43,9 +36,7 @@ from n26.tests.test_react_helpers import equip_props, equipment_rows
 
 pytestmark = pytest.mark.django_db
 
-#: What the author calls the Cutter's second set. Distinctive enough that
-#: no template, price or stylesheet could contain it by accident — a walk
-#: over the page is only as good as the word it looks for.
+# Use a distinctive author-only group label so unrelated page text cannot satisfy the assertion.
 SET_LABEL = "Hull fittings (author's shorthand)"
 
 
@@ -68,12 +59,10 @@ def fighter(gang, make_profile, make_statline):
 
 @pytest.fixture
 def cutter(default_pack):
-    """The mount: comes with a weapon, offers two priced swaps, and has a
-    second set that may be left alone.
+    """Create a mount with weapon alternatives and optional fittings.
 
-    No built-ins. "Comes with X, may replace X with Y" is a pick-one set
-    whose head is X — a built-in would be granted *as well as* the swap,
-    because nothing is ever replaced.
+    Use a one-pick option group for replaceable weapons rather than a built-in,
+    which would be granted alongside the selected alternative.
     """
     mount = create_wargear(
         "Escher Cutter", price=120, category=create_category("Wargear", "Mounts", 0)
@@ -102,12 +91,7 @@ def cutter(default_pack):
 
 @pytest.fixture
 def house_list(gang, cutter):
-    """One curated list, pricing the mount above its reference price.
-
-    The two numbers a swap has to be told apart: 150 is what this list
-    asks for the mount, and 15 is what plasma guns add to it. A house
-    pricing a mount at 150 has not made its swaps free.
-    """
+    """Price the mount at 150 on a curated list while retaining its separate option surcharges."""
     collection = create_collection(
         "House Escher Equipment List", entries=[(cutter, {"price_override": 150})]
     )
@@ -124,9 +108,7 @@ def key_of(thing):
 
 
 def choice_field(thing, group):
-    """The input name one set's controls share, spelt out rather than
-    imported: a test that asks the code under test what it named its
-    fields cannot catch the code renaming them."""
+    """Construct the expected field name independently so implementation renames cannot silently update this assertion."""
     from django.utils.text import slugify
 
     return f"{slugify(key_of(thing))}:option:{group}"
@@ -166,7 +148,7 @@ def weapons_of(fighter):
 
 
 class TestWhatTheRowAsks:
-    """The offer, as the structure a screen is drawn from."""
+    """Describe option groups and surcharges in the catalogue row."""
 
     def test_a_pick_one_set_offers_every_option_with_the_standard_one_marked(
         self, client, owner, fighter, house_list
@@ -188,9 +170,7 @@ class TestWhatTheRowAsks:
     def test_a_surcharge_is_measured_from_the_price_the_row_quotes(
         self, client, owner, fighter, house_list
     ):
-        """The row quotes the mount with its standard guns, so what an
-        option adds is the distance from there: the standard one adds
-        nothing and prints nothing beside it."""
+        """Quote the mount with standard weapons and show only the selected option's additional price."""
         row = cutter_row(client, owner, fighter, house_list)
         launchers, _, plasma = row["purchase"]["choices"][0]["options"]
 
@@ -201,10 +181,7 @@ class TestWhatTheRowAsks:
     def test_a_head_the_author_priced_is_still_in_the_quote_once(
         self, client, owner, gang, fighter, default_pack
     ):
-        """The Trazior shape: both options carry a real price, so the
-        cheaper one is what the quote includes and the dearer one adds
-        only the difference. Counted twice, a swap would be sold at the
-        price of two."""
+        """Include the default option price once in the quote and charge only the upgrade difference."""
         platform = create_wargear("Sentry gun", price=30)
         for name, price in [("Grenade launcher", 45), ("Heavy stubber", 80)]:
             offer_option(
@@ -225,8 +202,7 @@ class TestWhatTheRowAsks:
     def test_a_set_with_nothing_to_pick_asks_nothing(
         self, client, owner, gang, fighter, default_pack
     ):
-        """A pick-one set with one option is taken unasked. Drawing it
-        would ask a reader to consider something they cannot change."""
+        """Apply a single mandatory option without displaying a choice control."""
         harness = create_wargear("Grav harness", price=25)
         offer_option(
             harness, "As standard", thing=create_wargear("Harness webbing", price=0)
@@ -240,9 +216,7 @@ class TestWhatTheRowAsks:
     def test_the_label_the_author_gave_a_set_reaches_nobody(
         self, client, owner, fighter, house_list
     ):
-        """Same rule as the hire row: a set is shown as grouping — the
-        controls together, a rule between sets, a line saying how many to
-        take — and never as a heading naming it."""
+        """Group controls with selection instructions without displaying the author's option-group label."""
         client.force_login(owner)
         body = client.get(equip_url(fighter, house_list)).content.decode()
 
@@ -322,9 +296,7 @@ class TestBuyingASwap:
     def test_the_entry_says_what_the_list_asked_and_what_was_handed_over(
         self, client, owner, gang, fighter, house_list, cutter
     ):
-        """A mount with plasma guns is a dearer mount, not a discounted
-        one — so the surcharge is on both figures and the gap between
-        them is what was agreed at the table."""
+        """Add the option surcharge to both list price and payment, preserving the agreed discount between them."""
         from n26.core.models import LedgerEntry
 
         client.force_login(owner)
@@ -362,8 +334,7 @@ class TestBuyingASwap:
     def test_selling_the_mount_takes_the_guns_it_was_bought_with(
         self, client, owner, gang, fighter, house_list, cutter
     ):
-        """The chosen set materialises *caused by* the purchase, which is
-        what makes it leave with it."""
+        """Remove option grants through their caused_by link to the purchase."""
         client.force_login(owner)
         client.post(
             equip_url(fighter, house_list),
@@ -378,7 +349,7 @@ class TestBuyingASwap:
 
 
 class TestTakingNothingFromAnOptionalSet:
-    """A one-or-none set's None option is a pick, not a missing one."""
+    """Treat explicit None as an empty optional selection rather than a missing mandatory choice."""
 
     def test_the_dispenser_is_left_behind_and_nothing_extra_is_charged(
         self, client, owner, gang, fighter, house_list, cutter
@@ -423,12 +394,7 @@ class TestTakingNothingFromAnOptionalSet:
 
 
 class TestWhatAnOwnedCopySays:
-    """A mount already bought names the guns it was bought with.
-
-    The row above it is about the content — every Cutter there could
-    be — so the answer belongs to the copy: two mounts on one fighter
-    may carry different guns and a heading cannot say both.
-    """
+    """Describe the recorded options on each owned copy so otherwise identical mounts can show different weapons."""
 
     def buy(self, client, owner, fighter, house_list, cutter, **picked):
         client.force_login(owner)
@@ -452,10 +418,7 @@ class TestWhatAnOwnedCopySays:
     def test_the_standard_guns_are_named_though_nobody_picked_them(
         self, client, owner, fighter, house_list, cutter
     ):
-        """A purchase records every set it took, the head of a pick-one
-        set included, so taking what comes as standard is recorded like
-        any other pick. A reader asking what this mount carries is
-        answered whether or not they made a decision."""
+        """Record and display the default one-pick option even when the submitted form omits its controls."""
         self.buy(client, owner, fighter, house_list, cutter)
 
         assert self.chosen(client, owner, fighter, house_list) == [
@@ -481,9 +444,7 @@ class TestWhatAnOwnedCopySays:
     def test_a_set_nobody_took_anything_from_says_nothing(
         self, client, owner, fighter, house_list, cutter
     ):
-        """A one-or-none set left alone is a mount without a dispenser,
-        which is a thing it has not got — and a line saying so would be
-        the page listing everything nobody bought."""
+        """Omit empty optional groups from the owned copy's selected-option description."""
         self.buy(
             client,
             owner,
@@ -520,9 +481,7 @@ class TestWhatAnOwnedCopySays:
     def test_an_any_of_set_names_every_option_taken_from_it(
         self, client, owner, gang, fighter, default_pack
     ):
-        """The third mode: a set a buyer may take as much of as they
-        like, which is the one place several names come from a single
-        set."""
+        """List every selected option from an any-of group."""
         belt = create_wargear("Grenade belt", price=20)
         pouches = create_option_group(belt, "Pouches", choose="any")
         for name, price in [("Frag", 15), ("Krak", 30), ("Smoke", 10)]:
@@ -552,11 +511,7 @@ class TestWhatAnOwnedCopySays:
     def test_kit_that_arrived_without_options_names_none_of_them(
         self, client, owner, gang, fighter, cutter, default_pack
     ):
-        """A mount built into a fighter's own entry is granted whole,
-        with none of its sets resolved and nothing recorded. Answering
-        with a set's head would tell a reader the fighter has launchers
-        that were never assigned to them.
-        """
+        """Do not infer default selections for built-in equipment whose options were never materialised."""
         from n26.library.authoring import add_built_in
 
         rider = create_wargear("Rider's rig", price=0)
@@ -578,11 +533,7 @@ class TestWhatAnOwnedCopySays:
     def test_a_set_two_offers_share_is_named_once(
         self, client, owner, gang, fighter, default_pack
     ):
-        """A taking records the set, not the wording that reached it, so
-        an author offering one set from two places leaves nothing to
-        tell the two apart. It is named where it was spent — naming it
-        again under the second offer would credit the buyer with a
-        fitting they never took."""
+        """Name a recorded set once at its selected offer, even if another offer references the same set."""
         rig = create_wargear("Grav rig", price=40)
         offer_option(rig, "As standard", thing=create_wargear("Rig webbing", price=0))
         offer_option(
@@ -617,14 +568,12 @@ class TestWhatAnOwnedCopySays:
 
 
 class TestWhatTheOwnedCopyDraws:
-    """The same, on the page — where the offer is drawn a second time."""
+    """Render the owned copy's selected options separately from the purchase offer."""
 
     def test_the_page_prints_what_the_copy_took(
         self, client, owner, fighter, house_list, cutter
     ):
-        """The picks run together, which is the substring the radios
-        below cannot make: "Buy another" redraws every option this mount
-        offers, so either name on its own proves nothing."""
+        """Assert the combined selected-option description because individual names also appear in the unselected purchase offer."""
         client.force_login(owner)
         client.post(
             equip_url(fighter, house_list),
@@ -641,9 +590,7 @@ class TestWhatTheOwnedCopyDraws:
     def test_an_owned_copy_never_names_the_set_a_pick_came_from(
         self, client, owner, fighter, house_list, cutter
     ):
-        """Naming the sets would be the tidy way to draw two picks, and
-        it is the one way that is not ours to draw: the label is the
-        author's note to themselves."""
+        """Omit author-only group labels from the selected-option description."""
         client.force_login(owner)
         client.post(
             equip_url(fighter, house_list),
@@ -680,8 +627,7 @@ class TestTheWayToChangeThem:
     def test_something_that_asked_nothing_offers_no_way_to_change_it(
         self, client, owner, gang, fighter, house_list, default_pack
     ):
-        """A set with nothing to pick was taken unasked, so the panel
-        behind such a control would offer one thing."""
+        """Omit Change options when the equipment has no selectable alternatives."""
         knife = create_wargear("Stiletto knife", price=10)
         house_list.entries.create(wargear=knife)
 
@@ -695,8 +641,7 @@ class TestTheWayToChangeThem:
     def test_the_panel_starts_on_what_the_copy_took(
         self, client, owner, fighter, house_list, cutter
     ):
-        """Not on what a buyer would be handed: the reader is changing
-        something, so the controls open on what it is now."""
+        """Initialise change controls from the copy's recorded selections rather than purchase defaults."""
         client.force_login(owner)
         client.post(
             equip_url(fighter, house_list),
@@ -1028,10 +973,7 @@ class TestChangingThem:
     def test_a_swap_between_options_at_one_price_is_still_a_swap(
         self, client, owner, gang, fighter, default_pack
     ):
-        """Two options an author priced the same are a real change that
-        settles nothing. Read from the money, that is indistinguishable
-        from a click that did nothing — so it is read from what is
-        recorded, and the reader is told what they now have."""
+        """Detect changes from recorded selections and confirm the new option even when the price difference is zero."""
         rig = create_wargear("Duct rig", price=30)
         for name in ["Left-handed", "Right-handed"]:
             offer_option(
@@ -1081,8 +1023,7 @@ class TestChangingThem:
     def test_the_guns_it_no_longer_takes_leave_with_the_swap(
         self, client, owner, gang, fighter, house_list, cutter
     ):
-        """Nothing is ever replaced: the departing set's rows go the way a
-        refund goes, so a mount is never carrying two sets of guns."""
+        """Refund and remove departing option grants so the mount does not retain both weapon sets."""
         copy_id = self.bought(client, owner, fighter, house_list, cutter)
         self.change(
             client, fighter, house_list, copy_id, **{choice_field(cutter, 0): "2"}
@@ -1110,8 +1051,7 @@ class TestChangingThem:
     def test_an_upgrade_the_gang_cannot_afford_changes_nothing(
         self, client, owner, gang_type, make_profile, make_statline, cutter
     ):
-        """The refusal unwinds the whole swap rather than leaving the old
-        guns gone and the new ones unpaid for."""
+        """Roll back the complete option change when the gang cannot afford the upgrade."""
         pauper = found_gang("The Skint", gang_type, owner=owner, budget=155)
         profile = make_profile("Waif", price=0)
         make_statline(profile, movement=5, weapon_skill=4, toughness=3)
@@ -1142,9 +1082,7 @@ class TestChangingThem:
 
 
 class TestNamingWhatIsOwnedCostsNothing:
-    """Describing a copy reads the recorded sets and the offer they came
-    from, both already in hand — so a fighter buying more mounts asks the
-    database no more than one who bought a single mount."""
+    """Use prefetched recorded sets and offers to describe owned options without queries per copy."""
 
     def test_it_costs_no_query_per_copy(
         self, client, owner, fighter, house_list, cutter
@@ -1178,8 +1116,7 @@ class TestNamingWhatIsOwnedCostsNothing:
 
 
 class TestAPickTheListingNeverOffered:
-    """A tampered index is a broken link, not a rule to explain — and it
-    buys nothing at all, not even the mount."""
+    """Reject invalid option indices with 404 and create no purchase or grants."""
 
     @pytest.mark.parametrize("tampered", ["3", "-1", "nonsense", "0.5"])
     def test_it_is_refused_and_writes_nothing(
@@ -1199,9 +1136,7 @@ class TestAPickTheListingNeverOffered:
     def test_two_picks_in_one_set_are_refused(
         self, client, owner, gang, fighter, house_list, cutter
     ):
-        """Radios cannot both be clicked, so two values for one set is a
-        tampered form — and one click was never an order for two mounts'
-        worth of guns."""
+        """Reject multiple submitted values for a single-choice group without buying the item."""
         client.force_login(owner)
         response = client.post(
             equip_url(fighter, house_list),
@@ -1216,9 +1151,7 @@ class TestAPickTheListingNeverOffered:
     def test_a_pick_scoped_to_another_listing_rides_along_and_is_ignored(
         self, client, owner, gang, fighter, house_list, cutter, default_pack
     ):
-        """With no script running, a click submits every control on the
-        page. Only the ones scoped to the clicked line may decide
-        anything."""
+        """Ignore another item's option controls when the submitted form buys this item."""
         knife = create_wargear("Stiletto knife", price=10)
         house_list.entries.create(wargear=knife)
 
@@ -1235,8 +1168,7 @@ class TestAPickTheListingNeverOffered:
 
 
 class TestScaling:
-    """The offer rides the listing's own prefetches: a collection full of
-    mounts asks the database no more than a collection with one."""
+    """Prefetch option offers so query count stays fixed as curated or swept lists grow."""
 
     def test_change_options_queries_do_not_grow_with_held_grants(
         self, client, owner, gang, fighter, default_pack
@@ -1344,8 +1276,7 @@ class TestScaling:
         assert page_queries(small) == page_queries(big)
 
     def test_the_same_holds_for_a_swept_listing(self, gang, default_pack):
-        """A trading post finds its stock by rule rather than by row, so
-        its sweep needs the offer prefetched too."""
+        """Prefetch option offers for selector-derived stock as well as explicit entries."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -1386,10 +1317,7 @@ class TestTheActionAndTheScreenAgree:
     def test_a_swap_bought_through_the_page_is_priced_as_the_verb_prices_it(
         self, client, owner, gang, fighter, house_list, cutter, make_profile
     ):
-        """One fighter buys through the equip page, another through
-        ``Operation.buy`` with the set named. The ledger must not be able
-        to tell them apart — the page is a way to the operation, never a
-        second pricing of it."""
+        """Match payment and list price for the same option purchased through the equip page or Operation.buy."""
         from n26.core.models import LedgerEntry
 
         plasma = cutter.options.get(name="Cutter plasma guns").default_set

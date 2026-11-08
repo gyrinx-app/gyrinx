@@ -175,7 +175,7 @@ def test_seed_is_idempotent_and_preserves_higher_opening(campaign):
 
 def test_existing_zero_balance_repair_is_audited_and_idempotent(gang):
     held = reputation(gang)
-    # A balance written before the minimum existed.
+    # Create an inconsistent zero balance to exercise minimum correction.
     CounterValue.objects.filter(assignment=held).update(value=0)
     assert find().gangs == ((gang.pk, gang.name),)
     before = gang.credits

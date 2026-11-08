@@ -564,7 +564,9 @@ class TestPublishedPlaceholders:
 
 
 class TestTheSeparateMaintenanceOperation:
-    """The new console operation previews, records and delivers this repair independently."""
+    """The console operation previews, records and delivers the published-placeholder
+    repair separately from journal seeding.
+    """
 
     @pytest.fixture
     def address(self):

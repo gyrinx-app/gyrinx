@@ -1,11 +1,6 @@
-"""The Variant conversion, proven on a prod-shaped world.
-
-One shared offer on the house gang types (and a vestigial Hidden), menu
-of three corruptions plus None. Chaos Corrupted already grants the
-Chaos God slot. After the conversion that is one optional Variant slot,
-the corruptions are pickables with their modifiers moved not copied,
-None is archived, and every page still says the same things — a printed
-None reading as an unanswered optional slot.
+"""Convert a shared Variant offer to one optional gang-level slot. Move corruption
+modifiers to pickables, archive None answers and preserve captured gang state with None
+treated as unanswered.
 """
 
 import pytest
@@ -75,10 +70,9 @@ def world(prod_shape, owner):
 
 
 def build_prod_shape():
-    """The system as production holds it after the Chaos God conversion:
-    a shared Variant offer on the seven house gang types and a vestigial
-    Hidden, three corruptions plus None, Chaos Corrupted granting the
-    Chaos God slot rather than offering a choice."""
+    """Build seven gang types sharing the Variant offer, plus a legacy Hidden, three
+    corruptions and None. Chaos Corrupted already grants a Chaos God slot.
+    """
     god_type = create_slot_type(
         "Chaos God", plural_name="Chaos Gods", allows_repeats=False
     )
@@ -140,7 +134,7 @@ def build_prod_shape():
     hidden = create_hidden("Variant")
     attach_modifiers_to(hidden, [offer])
 
-    # Fossils / other systems the conversion must not swap.
+    # Unrelated and detached offers must remain unchanged.
     modifier(
         "a detached Variant offer",
         targets_gang(),
@@ -225,15 +219,12 @@ class TestThePlan:
 
     def test_it_archives_every_none_and_rewrites_the_corruptions(self, world):
         said = "\n".join(plan_variant().preview())
-        # Live None, archived None on the rechosen gang, four live
-        # corruptions (chaos, chaos_god, gsc, malstrain) plus the
-        # rechosen Malstrain, no archived corruption.
+        # Archive both None answers and rewrite five live corruption answers.
         assert said.count("archive pick") == 2
         assert said.count("rewrite pick") >= 5
 
     def test_an_archived_gang_is_rewritten_but_not_held(self, world):
-        """Archived gangs still have their picks moved, but a stale
-        archived gang must not lock or refuse the whole conversion."""
+        """Convert archived gangs’ picks without treating them as live holders."""
         gangs, _, _, _, _ = world
         gone = gangs["chaos"]
         gone.archive()
@@ -381,9 +372,9 @@ class TestTheApply:
         assert grants[0].adds_assignable.slot == _variant_slot()
 
     def test_a_planned_archive_that_did_not_land_is_refused(self, world, monkeypatch):
-        """The page proof treats a printed None as unanswered, so it
-        cannot tell a landed archive from a no-op. Apply still has to
-        see that every planned archive actually archived."""
+        """State comparison treats None as unanswered, so separately verify that every
+        planned archive was applied.
+        """
         monkeypatch.setattr(ArchivePick, "perform", lambda self, made: None)
 
         with pytest.raises(ConversionRefused, match="planned archive"):
@@ -459,8 +450,7 @@ class TestTheBehaviourThatMustSurvive:
 
 class TestTheStory:
     def test_a_corruption_pick_is_reworded_to_variant(self, world):
-        """The story names a pick by its slot type, so a corruption that
-        used to read as an affiliation now reads as a variant."""
+        """Journal descriptions use the converted pick’s Variant slot type."""
         from n26.core.history import Sub, _kindword
 
         gangs, _, _, _, _ = world

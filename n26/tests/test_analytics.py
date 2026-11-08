@@ -1,9 +1,6 @@
-"""What this edition records, and what happens when recording goes wrong.
-
-A seam test: the events table is the platform's, and this is the one place
-n26 reaches into it. The claim worth pinning is not that a row appears — it is
-that the row says *gang*, and says *n26*, so nobody reading the dashboard
-mistakes a gang founded here for a list built next door.
+"""Verify N26 analytics events use edition-specific nouns, reference the affected object
+and preserve domain writes when analytics fails. Speculative requests record no events,
+and aggregate actions record one event with counts.
 """
 
 from unittest.mock import patch
@@ -22,7 +19,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(db):
-    """The signed-in person these tests look at the app as."""
+
     return User.objects.create_user("player")
 
 
@@ -45,9 +42,7 @@ def found_one(client, gang_type, name="Rust in Peace", headers=None):
 
 
 class TestASpeculativeFetchIsNotAClick:
-    """Browsers prefetch and prerender pages nobody has opened — the tab
-    strips ask them to — and an event recorded then would count readers
-    who never arrived."""
+    """Exclude browser prefetch and prerender requests from usage counts."""
 
     def test_a_prerender_request_records_nothing(self, client, tester, gang_type):
         client.force_login(tester)
@@ -64,8 +59,7 @@ class TestASpeculativeFetchIsNotAClick:
 
 
 class TestFoundingAGangIsRecorded:
-    """The first thing anyone asks of a new edition is how many people
-    started."""
+    """Record gang creation with the N26 noun and edition."""
 
     def test_the_event_says_gang_and_says_n26(self, client, tester, gang_type):
         client.force_login(tester)
@@ -79,8 +73,7 @@ class TestFoundingAGangIsRecorded:
     def test_it_is_never_filed_under_the_other_editions_word(
         self, client, tester, gang_type
     ):
-        """A gang recorded as a "list" would be counted into n23's graphs,
-        where nothing would look wrong."""
+        """Using the list noun would incorrectly count N26 creation in N23 analytics."""
         client.force_login(tester)
         found_one(client, gang_type)
 
@@ -117,8 +110,7 @@ class TestDeletingAGangIsRecorded:
 
 
 class TestTrackingNeverBreaksWhatItObserves:
-    """A gang is founded or it is not; whether anyone was watching must not
-    come into it."""
+    """Analytics failures must not roll back gang founding."""
 
     def test_a_dead_log_stream_does_not_stop_the_founding(
         self, client, tester, gang_type
@@ -145,8 +137,7 @@ class TestTrackingNeverBreaksWhatItObserves:
 
 
 class TestOneClickIsOneEvent:
-    """A page that wrote an event per row would turn a big roster into a
-    pile of writes."""
+    """Record aggregate actions once rather than creating one event per affected row."""
 
     def test_printing_a_gang_records_one_row_carrying_the_count(
         self, client, tester, gang_type

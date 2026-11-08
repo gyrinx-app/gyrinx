@@ -1,15 +1,7 @@
-"""Pets: wargear that brings another model into the gang.
-
-The first **stored** effect. Everything modifier-shaped so far has been
-computed on read, but a pet cannot be — it has XP, injuries and gear of its
-own, so it needs real rows. The rulebook's Designer's Note says as much:
-pets are treated as wargear, but are put on the roster "so that they can
-keep track of their XP, Lasting Injuries, whether they are In Recovery".
-
-The money: the pet's cost rides on the wargear that brought it, so its
-membership is ledgered at full list price with a full discount — the entry
-says what the pet is worth and that nothing was paid for it there. Gear
-bought for the pet afterwards counts normally, on the pet's own card.
+"""Pet-granting assignments create stored models with their own XP, injuries and equipment.
+The granting purchase carries the payment and rating; the pet membership records its
+full list price with a full discount. Equipment bought for the pet contributes to its
+own rating.
 """
 
 import pytest
@@ -68,7 +60,7 @@ def mastiff_profile(person_type, gang_type, default_pack):
 
 @pytest.fixture
 def mastiff_wargear(mastiff_profile):
-    """Wargear that brings a pet. The wargear carries the whole cost."""
+    """The purchased wargear grants a pet model."""
     wargear = create_wargear("Cyber-mastiff (pet)")
     modifier(
         "Cyber-mastiff wargear brings a pet",
@@ -91,7 +83,7 @@ def yolanda(gang, make_profile):
 
 @pytest.fixture
 def bought(yolanda, mastiff_wargear):
-    """Yolanda buys the pet wargear for 100cr."""
+
     return assign(mastiff_wargear, miniature=yolanda, paid=100)
 
 
@@ -106,7 +98,7 @@ class TestBuyingAPet:
         assert pet.membership.profile.name == "Cyber-mastiff"
 
     def test_it_is_a_real_model_not_a_computed_one(self, gang, bought):
-        """It needs rows: XP, injuries and gear of its own all hang off it."""
+
         pet = pet_of(gang)
         pet.xp = 3
         pet.save(update_fields=["xp"])
@@ -157,7 +149,7 @@ class TestThePetsOwnGear:
         pet.refresh_from_db()
         gang.refresh_from_db()
 
-        assert pet.rating == 15  # the membership is 0, the collar is 15
+        assert pet.rating == 15
         assert [e.name for e in build_model_card(pet).equipment] == ["Spiked collar"]
         assert gang.rating == 55 + 100 + 15
         assert_reconciled(gang)
@@ -188,7 +180,6 @@ class TestSellingTheWargear:
         remove(bought)
         gang.refresh_from_db()
 
-        # The wargear, the pet and the pet's collar all stop counting.
         assert gang.rating == 55
         assert_reconciled(gang)
 
@@ -202,14 +193,9 @@ class TestSellingTheWargear:
         assert "Spiked collar" in names
 
     def test_the_pet_s_gear_is_left_in_limbo(self, gang, bought):
-        """Documents current behaviour, which is not yet the right answer.
-
-        Removing the wargear cascades to the pet's membership, because that
-        was *caused by* the purchase. The collar was not — it is merely
-        hosted on the pet — so it stays unarchived on a model that is no
-        longer on the roster. It correctly stops counting towards rating,
-        but the rulebook says discarded gear goes to the gang's Stash, and
-        the stash does not exist yet. See open questions.
+        """Low-level removal archives the caused membership but leaves independently bought
+        equipment unarchived on the departed pet. That equipment contributes no active
+        roster rating. The removal-page flow handles stashing separately.
         """
         pet = pet_of(gang)
         collar = assign(create_wargear("Spiked collar"), miniature=pet, paid=15)
@@ -219,7 +205,7 @@ class TestSellingTheWargear:
         assert collar.archived is False
         assert pet_of(gang).membership.archived is True
         gang.refresh_from_db()
-        assert gang.rating == 55  # but it does not count
+        assert gang.rating == 55
 
     def test_the_money_stays_spent(self, gang, bought):
         remove(bought)
@@ -586,7 +572,7 @@ class TestRemovingThroughThePetsCard:
 
 class TestGuards:
     def test_stored_effects_do_not_run_at_read_time(self, gang, bought):
-        """compute() must ignore them, or every render would breed pets."""
+        """Computation must not create additional pet models."""
         from n26.core.card import build_card, build_modifier_index
         from n26.core.effects import compute
 
@@ -600,13 +586,7 @@ class TestGuards:
     def test_one_assignment_brings_exactly_one_model(
         self, gang, yolanda, mastiff_profile
     ):
-        """No re-entrancy: assigning once hires once.
 
-        A genuine content cycle — a pet whose own default kit brings a pet —
-        is not constructible yet, because default equipment does not exist.
-        The depth guard in Operation is there for when it does; it is
-        deliberately untested until something can exercise it.
-        """
         another = create_wargear("Second collar")
         modifier(
             "Second collar brings a mastiff",
@@ -639,7 +619,7 @@ class TestRendering:
         assert "Yolanda — 155cr" in text
 
     def test_the_owner_s_card_says_the_wargear_brought_a_model(self, gang, bought):
-        """A stored effect is noted by compute, never run by it."""
+
         sheet = render_gang(gang)
         yolanda = next(card for card in sheet.models if card.name == "Yolanda")
 
@@ -672,11 +652,9 @@ def pet_lines(card):
 
 
 class TestThePetCardNamesItsOwner:
-    """The link between a pet and its keeper is derived, and both cards
-    say it: the pet names its owner, under the profile name, and the
-    gang sheet makes that name a link to the owner's card. Where the
-    collar was bought into the stash there is no owner, and the card
-    says where the collar is instead."""
+    """Derive a pet’s owner from its membership cause. Link to active owner cards on the
+    roster; stash-held purchases display In the stash.
+    """
 
     def test_the_card_carries_the_owner_and_the_owners_id(self, gang, bought, yolanda):
         sheet = render_gang(gang)
@@ -700,7 +678,7 @@ class TestThePetCardNamesItsOwner:
 
         assert f'id="model-{yolanda.pk}"' in body
         assert f'href="#model-{yolanda.pk}"' in body
-        # A control among the others, named for whoever uses a reader.
+        # The owner link has an accessible name alongside its icon.
         assert 'aria-label="Owned by Yolanda"' in body
         assert str(icons.resolve("cat").body) in body
 
@@ -731,9 +709,7 @@ class TestThePetCardNamesItsOwner:
     def test_an_owner_who_has_left_the_roster_is_named_in_words(
         self, client, gang, bought, yolanda
     ):
-        """The collar stays live when its bearer leaves, and the pet still
-        names them — but a link to a card the sheet does not draw lands
-        nowhere, so the name is words."""
+        """Retain the departed owner’s name without linking to an absent roster card."""
         remove(yolanda.membership)
 
         client.force_login(gang.owner)
@@ -746,10 +722,9 @@ class TestThePetCardNamesItsOwner:
     def test_a_pets_own_page_makes_the_same_queries_as_a_fighters(
         self, client, gang, bought, make_profile
     ):
-        """Naming the owner reads the cause of the pet's membership and
-        the model behind it, and both arrive with the page's own read of
-        the model: a pet's page asks the database nothing a plain
-        fighter's page does not."""
+        """Prefetch pet ownership provenance with the model so owner display adds no
+        queries.
+        """
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -775,12 +750,9 @@ class TestThePetCardNamesItsOwner:
 
 
 class TestTheWargearLineNamesThePet:
-    """The kit that brought a pet says which model it brought, after its
-    own name — "Cyber-mastiff (pet) (Fang)" — once the owner has named
-    the pet. Until then the pet's name is its profile's, which the line
-    already says, so it reads bare. The same words go on the stash line,
-    the print page and the text card, and a dead pet comes off the line:
-    the line is what the model carries, and a dead pet is not that."""
+    """Append renamed, living pets to their granting equipment lines across screen, stash,
+    print and text output. Omit names that duplicate the profile name.
+    """
 
     def test_the_line_reads_bare_until_the_pet_is_named(self, gang, bought):
         (line,) = pet_lines(card_of(render_gang(gang), "Yolanda"))
@@ -848,7 +820,7 @@ class TestTheWargearLineNamesThePet:
         sheet = render_gang(gang)
         (line,) = pet_lines(card_of(sheet, "Yolanda"))
         assert line.brought_in == ()
-        # The dead pet keeps its card, and its card still says whose it was.
+        # Retain owner provenance on the dead pet’s card.
         assert card_of(sheet, "Fang").owned_by == "Yolanda"
 
     def test_the_models_own_page_names_the_pet(self, client, gang, bought, yolanda):
@@ -860,8 +832,7 @@ class TestTheWargearLineNamesThePet:
         assert 'aria-label="More for Cyber-mastiff (pet) (Fang)"' in body
 
     def test_a_card_built_alone_looks_the_pet_up_once(self, gang, bought, yolanda):
-        """A card with no roster to hand asks one question for its
-        pets, and a card given the roster's answer asks none."""
+        """An explicit brought_in mapping avoids the standalone card’s pet lookup."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -901,10 +872,9 @@ class TestTheWargearLineNamesThePet:
     def test_two_collars_with_unnamed_pets_are_two_lines(
         self, gang, bought, yolanda, mastiff_wargear
     ):
-        """A line for one collar never stands for another: what each
-        brought is on the roster under its own card, whatever it is
-        called. So two collars whose pets are still named for their
-        profile stay apart, on the card and in the stash alike."""
+        """Keep granting purchases separate even when their unnamed pets produce identical
+        display text.
+        """
         assign(mastiff_wargear, miniature=yolanda, paid=100)
         assign(mastiff_wargear, stash=gang.stash, paid=100)
         assign(mastiff_wargear, stash=gang.stash, paid=100)
@@ -951,8 +921,7 @@ class TestTheWargearLineNamesThePet:
     def test_a_card_with_a_stored_effect_but_no_pet_looks_nothing_up(
         self, gang, yolanda, default_pack
     ):
-        """Moving a counter is a stored effect too, and a card carrying
-        one has no pet to ask after."""
+        """Stored counter effects must not trigger pet lookups."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -1018,9 +987,9 @@ class TestTheWargearLineNamesThePet:
 
 
 class TestAPetBroughtByAHiddenPart:
-    """The purchase that a pet's membership names may be a hidden carrier
-    riding under the visible kit rather than the kit itself. The kit's
-    line names the pet all the same: the whole of the line is asked."""
+    """Trace pet membership provenance through hidden child assignments to the visible
+    equipment line.
+    """
 
     def test_the_kit_line_names_the_pet(self, gang, yolanda, mastiff_profile):
         from n26.tests.sandbox.actions import create_hidden
@@ -1047,10 +1016,9 @@ class TestAPetBroughtByAHiddenPart:
 
 
 class TestKitThatBringsTwoModels:
-    """One piece of kit may carry two model-adding effects, and every
-    model they hire names the same purchase. The line names them all,
-    in roster order — "Twin collar (Fang, Rex)" — and stands alone as
-    any pet-bearing line does."""
+    """One equipment assignment can grant multiple models. Show all renamed pets in roster
+    order and keep the equipment line separate.
+    """
 
     @pytest.fixture
     def twin_collar(self, mastiff_profile, make_profile):
@@ -1126,9 +1094,9 @@ class TestKitThatBringsTwoModels:
 
 
 class TestAModelTheGangBrings:
-    """A collar the gang holds brings its pet to the gang, and its
-    effect rides every member's card as the gang's — so no member's own
-    card has a pet to look up."""
+    """A gang-targeting grant creates a gang pet without making each member’s card perform
+    a pet lookup.
+    """
 
     def test_a_members_lone_card_looks_nothing_up(self, gang, yolanda, mastiff_profile):
         from django.db import connection
@@ -1163,9 +1131,7 @@ class TestAModelTheGangBrings:
 
 
 class TestAnAccessoryThatBringsAModel:
-    """A fitting is an assignable like any other, so one may bring a
-    model. Its line under the weapon names the pet as a gear line would,
-    on the sheet, the print and the text card."""
+    """Accessory lines show the pets they grant in screen, print and text output."""
 
     @pytest.fixture
     def fitted(self, gang, yolanda, mastiff_profile):
@@ -1201,11 +1167,9 @@ class TestAnAccessoryThatBringsAModel:
 
 
 class TestAWeaponThatBringsAModel:
-    """A weapon carries modifiers as any assignable does, so one may
-    bring a model. Its line names the pet after the slot mark wherever
-    the weapon's name is drawn — the sheet, the menu's label, the print
-    card, the print picker and the text card — while a fitting that
-    brought one still names its own."""
+    """Weapon lines append their granted pets after the slot mark. Accessories name their
+    own pets separately.
+    """
 
     @pytest.fixture
     def lash(self, mastiff_profile):
@@ -1296,9 +1260,7 @@ class TestAWeaponThatBringsAModel:
 
 
 class TestARuleThatBringsAModel:
-    """A rule is an assignable too, so one may bring a model, and the
-    Rules row names the pet as the screen draws it — the text card says
-    the same words as the sheet."""
+    """Rules that grant models display the pet names in screen and text output."""
 
     def test_the_text_card_names_the_pet_as_the_sheet_does(
         self, client, gang, yolanda, mastiff_profile
@@ -1323,12 +1285,9 @@ class TestARuleThatBringsAModel:
 
 
 class TestANamedProfileThatBringsAModel:
-    """A weapon's profile is an assignable too, so a named one — paid
-    ammo — may bring a model. The pet is named on the profile's own
-    line, the one with the profile's menu, and not on the weapon's:
-    the sheet, the print card, the text card and the fighter page all
-    put it there. The unnamed line shares the weapon's row, so what it
-    brought is written after the weapon's name."""
+    """Named weapon profiles display their granted pets on the profile line. Pets granted
+    by an unnamed own profile appear on the weapon line.
+    """
 
     @pytest.fixture
     def autogun(self, mastiff_profile):
@@ -1380,9 +1339,8 @@ class TestANamedProfileThatBringsAModel:
         ).content.decode()
         assert 'aria-label="More for Beast rounds (Fang)"' in page
         assert 'aria-label="More for Autogun (Fang)"' not in page
-        # The print picker ticks the whole assignment — the gun and the
-        # rounds print together — so its one label names what the card
-        # draws on two rows.
+        # The print picker selects the whole weapon assignment, including profiles, so
+        # its label combines pet names displayed on separate card lines.
         setup = client.get(reverse("n26-print-setup", args=[gang.pk])).content.decode()
         assert "Autogun (Fang)" in setup
 
@@ -1439,11 +1397,9 @@ class TestANamedProfileThatBringsAModel:
 
 
 class TestTheCaptureNamesThePet:
-    """A conversion proves itself by comparing a gang's pages before and
-    after, and a kit line is what the reader is told: "Collar (Fang)"
-    and "Collar" say different things, so the capture writes the pet's
-    name with the kit's and a conversion that lost the link is a
-    difference rather than a silence."""
+    """State captures include pet names on granting equipment lines and owner information
+    on pet cards, so comparisons detect changes to either relationship.
+    """
 
     def owner_state(self, gang):
         return next(
@@ -1548,12 +1504,10 @@ class TestTheCaptureNamesThePet:
 
 
 class TestAStoredEffectWhoseScopeIsSkipped:
-    """A stored effect runs when its kit arrives, whatever its scope says
-    of the bearer at the time, and the pet it hired stays on the roster
-    after. On a later render the step is skipped for the bearer's card
-    — its scope does not point at them — yet the kit did bring a model,
-    so the bearer's own page still names it: the plan cannot tell a
-    skipped collar that brought nothing from one that did."""
+    """A pet already created by a stored effect remains linked to its purchase even when
+    later computation skips that effect’s scope. Rendering must read membership
+    provenance instead of inferring pet existence from the execution plan.
+    """
 
     def test_a_lone_card_still_names_a_pet_its_skipped_collar_brought(
         self, gang, yolanda, mastiff_profile
@@ -1593,13 +1547,7 @@ class TestAStoredEffectWhoseScopeIsSkipped:
 
 
 class TestPetsAreNamedInTheOrderTheirCardsDraw:
-    """Kit that brought two models names them in the order the sheet
-    draws their cards. A pet whose collar sits in the stash has no
-    keeper to sort beside, so its own rank places it — and a rule that
-    re-files it under another category moves its card, which must move
-    its name on the collar's line with it. That order is settled after
-    every card is computed, so the names are read from the roster as
-    re-filed rather than as first fetched."""
+    """Sort granted pet names using the final roster order after computed category changes."""
 
     def test_a_refiled_pet_moves_in_the_collar_line_too(
         self, gang, make_profile, default_pack

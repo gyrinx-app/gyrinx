@@ -3,9 +3,6 @@
 Separate invocations share test_<DB>_gwN database names and would collide
 during schema creation. Xdist workers use the controller's lock; the
 kernel releases it when the controller exits.
-
-Load this as a pytest plugin rather than from root conftest.py: editing
-that conftest selects the whole suite for the required CI job.
 """
 
 import errno

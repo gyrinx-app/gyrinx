@@ -188,9 +188,9 @@ def _skills_here(request, miniature):
 def _apply_edits(op, miniature, own, computed, field, ticked, *, include_staged=False):
     """Match an editable kind to the submitted checkboxes using current library content.
 
-    Archive cleared owner additions, create removals for other cleared content,
-    restore cleared removals and add newly ticked content through the operation.
-    Skip fixed content.
+    Archive cleared owner additions and create removals for other cleared content.
+    Restore re-ticked content by archiving its removal; add newly ticked content
+    through the operation. Skip fixed content.
     """
     from n26.core.models import Reason
     from n26.core.views.skills import _key

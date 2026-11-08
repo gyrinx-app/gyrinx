@@ -1,9 +1,7 @@
-"""The edition's player-facing forms.
+"""Player-facing forms backed by live N26 library content.
 
-The design system's gallery carries a twin of the create form
-(n26.designsystem.forms) built on a fixed list so it renders against an
-empty database. This is the real one: same fields, same words, but the
-gang types are the library's own.
+``n26.designsystem.forms`` supplies matching gallery examples using fixed
+choices so the gallery can render without populated content.
 """
 
 from html.parser import HTMLParser
@@ -27,14 +25,10 @@ def validate_gang_colour(value):
 
 
 class CreateGangForm(forms.Form):
-    """Founding a gang: what it is called, what it is, and two optional
-    things.
+    """Create a named gang with its type, colour and optional credit budget.
 
-    ``starting_credits`` is the interesting one. Blank does not mean
-    zero and does not mean "use a default" — it means no limit, which
-    is how people play a first game before anyone has agreed a budget.
-    So it is ``required=False`` with no ``initial``, and blank lands as
-    ``starting_credits=None`` on the gang.
+    Blank starting_credits means unlimited and becomes None, with no initial
+    value substituted.
     """
 
     name = forms.CharField(
@@ -42,21 +36,11 @@ class CreateGangForm(forms.Form):
         label="Gang name",
         help_text="You can change this later.",
     )
-    # Narrowed to the types an author has left foundable and has not
-    # archived, and narrowed here rather than where the cards are built, so
-    # the field that validates the submission and the grid that offers it
-    # read the same types. A type turned off or archived is refused on POST
-    # too — a hidden card is still an id someone can type. Only this screen
-    # narrows: a gang founded before a type was turned off still names it
-    # everywhere it is drawn, exactly as archiving retracts nothing a gang
-    # already holds.
+    # Use the same foundable, non-archived types for display and validation.
+    # Hidden IDs remain untrusted POST input. Existing gangs retain their type.
     gang_type = forms.ModelChoiceField(
-        # Nameless is narrowed away as well as unfoundable. A type whose
-        # name is empty — or only whitespace, which draws the same — is an
-        # empty card sorting before every real one, and no answer a player
-        # could give. The verb refuses to author one
-        # (n26.library.authoring.create_gang_type); a row already in a pack
-        # is what this excludes.
+        # Exclude empty or whitespace-only names, which would produce blank cards.
+        # Authoring rejects new ones; discovery must also handle existing content.
         queryset=GangType.objects.filter(foundable=True)
         .unarchived()
         .exclude(name__regex=r"^\s*$"),
@@ -84,23 +68,15 @@ class CreateGangForm(forms.Form):
 
     def __init__(self, *args, include_staged=False, **kwargs):
         super().__init__(*args, **kwargs)
-        # Staged types are offered to whoever may see staged content and
-        # to nobody else — narrowed here, on the field that validates the
-        # submission, for the same reason foundable is: a hidden card is
-        # still an id someone can type.
+        # Apply staged visibility to the validating queryset as well as the cards.
         if not include_staged:
             self.fields["gang_type"].queryset = self.fields["gang_type"].queryset.live()
 
     def gang_type_choices(self):
-        """The cards the view draws for ``gang_type``, one per type.
+        """Build gang-type cards from the same queryset used for field validation.
 
-        The same types the field validates against, said once. Each is a
-        dict rather than a ``(value, label)`` pair because a card shows
-        more than a select option can: the type's badge, and the budget
-        it founds a gang with. ``checked`` is computed here and not in
-        the template — a redisplay after a failed submit has to re-check
-        whatever came back, and comparing a submitted string to a primary
-        key is the kind of thing a template does wrong quietly.
+        Include badge, budget and selected state. Normalise submitted identity here
+        so invalid-form redisplay preserves the selected type.
         """
         submitted = str(self["gang_type"].value() or "")
         return [
@@ -116,44 +92,30 @@ class CreateGangForm(forms.Form):
 
 
 class CloneGangForm(forms.Form):
-    """The one fact a copied gang does not inherit."""
+    """Collect the new gang name for a clone."""
 
     name = forms.CharField(max_length=200, label="Gang name")
 
 
 class CloneFighterForm(forms.Form):
-    """The one fact a copied model may change."""
+    """Collect the copied model's replacement name."""
 
     name = forms.CharField(max_length=200, label="Model name")
 
 
 def _founding_budget(credits):
-    """The line under a gang type's name on the create form.
-
-    Blank starting credits is not zero and not a default — it means the
-    game's usual budget applies — so a type that states nothing says
-    nothing rather than claiming a number it does not have.
-    """
+    """Describe a gang type's stated starting budget, or return empty when unstated."""
     if credits is None:
         return ""
     return f"Founding budget {credits:,}¢"
 
 
 class EditGangForm(forms.Form):
-    """Editing a standing gang: its name, its colour, and the budget.
+    """Edit gang name, colour and budget without changing its founding type.
 
-    The type is not here. It fixed who could be hired and what the
-    founding brought, and those assignments exist — a changed type would
-    claim a history the ledger never wrote.
-
-    The budget's floor is the gang's wealth: everything it owns plus the
-    cash it holds. A budget below that would say the gang owes money it
-    has already spent, and the one hard rule of the money model is that
-    the founding budget may not be exceeded. Blank clears the budget —
-    the gang spends freely again and its number is its rating. What a
-    raised budget leaves over lands in credits, because credits are
-    always the budget less everything spent; setting the budget to
-    exactly the gang's wealth leaves exactly 0¢ in hand.
+    A changed budget must cover current wealth. Existing grants may already
+    exceed an unchanged budget, so unrelated edits remain valid. Blank clears
+    the budget; additional available credits follow from the new finite budget.
     """
 
     def __init__(self, gang, *args, **kwargs):
@@ -180,9 +142,8 @@ class EditGangForm(forms.Form):
 
     def clean_starting_credits(self):
         budget = self.cleaned_data["starting_credits"]
-        # The floor binds the change, not the standing state: granted
-        # content can push a gang's worth past its budget, and a rename
-        # should not be refused over a budget nobody touched.
+        # Validate affordability only when the budget changes; granted content
+        # can exceed an existing budget without blocking an unrelated rename.
         if budget == self.gang.starting_credits:
             return budget
         if budget is not None and budget < self.gang.wealth:
@@ -213,9 +174,7 @@ class HireFighterForm(forms.Form):
     )
 
 
-#: How tall the notes editor on a model's page is, in pixels. Notes are a
-#: line or two most of the time and the boxes under them are what the page
-#: is for, so the editor is short and scrolls; what is written has no limit.
+#: Model notes editor height in pixels; longer notes scroll within it.
 NOTES_EDITOR_HEIGHT = 160
 
 
@@ -248,12 +207,7 @@ class CreditsForm(forms.Form):
 
 
 class FighterNotesForm(forms.Form):
-    """The edit page's notes box.
-
-    Optional, because an emptied box is a real answer — it clears the
-    notes. What the editor produces is stored as written; sanitising
-    happens at render time, which is why nothing here strips tags.
-    """
+    """Edit or clear notes, preserving editor HTML for render-time sanitisation."""
 
     notes = forms.CharField(
         required=False,
@@ -262,12 +216,9 @@ class FighterNotesForm(forms.Form):
 
 
 class PictureForm(forms.Form):
-    """An edit page's picture box, an act of its own.
+    """Replace or clear a picture using the caller's required aspect ratio.
 
-    ``image`` replaces what is stored, ``remove_image`` alone clears
-    it, and a submit carrying neither changes nothing. The ratio is the
-    caller's — a model's picture is portrait, a gang's landscape — and
-    the upload is brought to it on the way in.
+    Without an upload or remove_image, preserve the current picture.
     """
 
     image = forms.ImageField(required=False)
@@ -285,11 +236,9 @@ class PictureForm(forms.Form):
 
 
 class GangNotesForm(forms.Form):
-    """The gang edit page's notes box. One field, one save.
+    """Edit or clear gang notes independently from lore.
 
-    Optional, because an emptied box is a real answer — it clears the
-    notes. Stored as written, sanitised at render. Lore is a form of
-    its own, so saving one cannot throw the other away.
+    Store authored HTML unchanged and sanitise it when displayed.
     """
 
     notes = forms.CharField(
@@ -301,7 +250,7 @@ class GangNotesForm(forms.Form):
 
 
 class GangLoreForm(forms.Form):
-    """The gang edit page's lore box. One field, the notes box's shape."""
+    """Edit gang lore independently from notes."""
 
     lore = forms.CharField(
         required=False,
@@ -312,24 +261,17 @@ class GangLoreForm(forms.Form):
 
 
 class FighterLoreForm(forms.Form):
-    """The edit page's lore box. One field, the notes box's shape."""
+    """Edit model lore independently from notes."""
 
     lore = forms.CharField(required=False, widget=RichText())
 
 
 def statline_override_form_for(profile):
-    """The boxes an owner sets their own model's characteristics in.
+    """Build characteristic override inputs with the authoring editor's value validation.
 
-    The authoring editor's form over the same statline type, with the
-    same refusals — a value has to fit the column, and one box holds one
-    characteristic. The two editors write the same kind of short string,
-    and disagreeing about what can be stored would trip whoever met both.
-
-    What differs is what an empty box means. Here it is not "no value"
-    but "whatever the model's own entry prints", so the printed value is
-    what a box suggests and clearing one gives the entry back. Values
-    are as free as an author's: ``7++`` is the owner's business, and this
-    informs rather than polices.
+    Use the printed characteristic as placeholder. Blank clears an override and
+    restores that printed value; owner-entered characteristic text remains unrestricted
+    beyond the shared storage and format checks.
     """
     from n26.library.forms import statline_form_for
 
@@ -343,11 +285,7 @@ def statline_override_form_for(profile):
     class StatlineOverrideForm(statline_form_for(profile.statline_type)):
         @classmethod
         def opened_on(cls, miniature, data=None, prefix="statline"):
-            """The same form, filled in from what this owner has already set.
-
-            Only the cells they took over are filled: the rest are empty,
-            which is how the form says the entry's own value stands.
-            """
+            """Populate only stored overrides, leaving printed-default cells blank."""
             initial = {
                 override.statline_type_stat.field_name: override.value
                 for override in miniature.stat_overrides.select_related(
@@ -360,21 +298,11 @@ def statline_override_form_for(profile):
             return super().cells(placeholders=placeholders or printed)
 
         def changes(self):
-            """Which cells this submission moves, and what each says.
+            """Return changed overrides as ``(type_stat, value, said)`` tuples.
 
-            One ``(type_stat, value, said)`` per cell that differs from
-            what stood — an empty value clears the override and the
-            entry prints again. A cleared box that held nothing is not a
-            change, and a value retyped as it was is not one either, so
-            saving an untouched form moves nothing and the history stays
-            quiet. Values are compared in canonical form, the same one
-            the override stores, so retyping ``4`` over a stored ``4"``
-            is recognised as the same answer.
-
-            ``said`` is the sentence the history keeps: the value the
-            card showed — the standing override, or the entry's print —
-            then what it becomes. ``Operation.set_stats`` writes both
-            the cells and the sentences.
+            Compare canonical values so equivalent input such as 4 and 4" produces
+            no change. Empty values clear overrides. ``said`` describes the displayed
+            old value and its replacement for Operation.set_stats to journal.
             """
             moved = []
             for type_stat in self.type_stats:
@@ -400,11 +328,7 @@ def statline_override_form_for(profile):
 
 
 class RenameFighterForm(forms.Form):
-    """The one fact a rename changes.
-
-    Required where the hire form's name is not: "you can name them later"
-    is that form's promise, and this form is the later it promised.
-    """
+    """Require a name when explicitly renaming an existing fighter."""
 
     name = forms.CharField(max_length=200, label="Name")
 
@@ -422,14 +346,11 @@ class _SummaryImages(HTMLParser):
 
 
 class CampaignForm(forms.Form):
-    """Form for setting up a campaign and for editing one afterwards.
+    """Edit campaign metadata and its optional starting budget.
 
-    ``budget`` is what a gang should be worth to join: its rating, its
-    stash and its unspent credits. It does not block anyone; a gang worth
-    more can still join and shows an Over budget badge. ``initial`` is
-    1000, so set-up starts there. Edit supplies the stored value, so a
-    campaign with no budget stays blank. Blank means no budget, not zero,
-    and is saved as ``budget=None``.
+    Default new forms to 1000. Preserve blank as None for unlimited budgets.
+    Compare joining gang wealth with the budget for an informational badge,
+    without blocking membership.
     """
 
     name = forms.CharField(
@@ -483,11 +404,11 @@ class EditCampaignForm(CampaignForm):
 
 
 def _foundable_campaign_types(include_staged=False):
-    """The types anybody may found on: the system pack's, unarchived, live
-    unless the reader may see staged content, and never a campaign's own
-    type — that one lives in a pack the arbitrator owns and is filtered out
-    besides, so a system-pack row that came to be a campaign's own would
-    still stay off the list."""
+    """Return system-pack campaign types eligible for new campaigns.
+
+    Exclude archived types, campaign-owned additions and staged types unless
+    the viewer is permitted to see them.
+    """
     return (
         CampaignType.objects.selectable(include_staged=include_staged)
         .filter(additions_to__isnull=True)
@@ -498,11 +419,9 @@ def _foundable_campaign_types(include_staged=False):
 
 
 class FoundCampaignForm(CampaignForm):
-    """Setting a campaign up: the standing facts, and what it is founded on.
+    """Select a campaign's founding type alongside its initial metadata.
 
-    The type is asked once. It fixes what every gang that joins is given,
-    and those assignments exist from the first join on — so the edit form
-    is the plain ``CampaignForm``, and the type is not on it.
+    Exclude type selection from later edits because it determines membership grants.
     """
 
     campaign_type = forms.ModelChoiceField(
@@ -520,25 +439,16 @@ class FoundCampaignForm(CampaignForm):
 
     def __init__(self, *args, include_staged=False, **kwargs):
         super().__init__(*args, **kwargs)
-        # The same narrowing as the cards, on the field that validates the
-        # submission: a staged type is founded on only by a reader it was
-        # offered to. Narrowed here, as the gang type is, so the two forms
-        # read the same way round.
+        # Use the same staged visibility for validation and campaign type cards.
         if not include_staged:
             self.fields["campaign_type"].queryset = self.fields[
                 "campaign_type"
             ].queryset.live()
 
     def campaign_type_choices(self):
-        """The cards the view draws for ``campaign_type``, one per type.
+        """Build campaign-type cards with the field's selected state and setup summary.
 
-        The same types the field validates against, said once, in the
-        shape ``CreateGangForm.gang_type_choices`` uses: ``checked`` is
-        worked out here so a redisplay after a failed submit keeps the
-        reader's pick. Each card carries what founding on the type gives —
-        its description, its asset types, what every gang starts with, and
-        any campaign-wide rules — so the picker reads as choosing a
-        rulebook rather than a name.
+        Use the same queryset for validation, including badges, grants and authored rules.
         """
         from n26.core.campaigns import summarise_campaign_type
 
@@ -550,21 +460,16 @@ class FoundCampaignForm(CampaignForm):
 
 
 class BringGangForm(forms.Form):
-    """A gang from a campaign's table, to put into it.
+    """Validate a gang selected from the queryset authorised by the view.
 
-    The screen draws the list itself, so what the reader is told about it
-    is written there. What this holds is the check: whichever gang comes
-    back must be one the screen was entitled to offer, which is why
-    ``gangs`` has no default — a queryset built without one would accept
-    anything.
+    ``gangs`` is required so omitted filtering cannot accept arbitrary gangs.
     """
 
     gang = forms.ModelChoiceField(
         queryset=None,
         label="Gang",
-        # Reachable only by naming a gang the list did not offer, and drawn
-        # on a page holding no picker — where Django's own wording would
-        # tell the reader to select a valid choice from nothing.
+        # This page has no picker to correct an unoffered gang ID, so use a
+        # specific validation message.
         error_messages={
             "invalid_choice": "That gang is not on this list.",
             "required": "Select a gang to add.",
@@ -618,13 +523,10 @@ def stake_noun(stakes):
 
 
 class ScenarioComponentsMixin:
-    """A generated scenario carried through a form as hidden fields, one
-    per scenario table and side job and named by its key, the same shape
-    as the generator's own address.
+    """Carry generated scenario components in hidden fields keyed by their tables.
 
-    The fields are hidden, so a value that is not on its table is said as
-    one error on the form rather than lost on a field nobody sees. The
-    components reach ``cleaned_data`` as one ``scenario_rolls`` mapping.
+    Validate them into one scenario_rolls mapping. Report invalid hidden values
+    as form-level errors so their messages remain visible.
     """
 
     def __init__(self, *args, catalogue=None, **kwargs):
@@ -672,16 +574,9 @@ class ScenarioComponentsMixin:
 
 
 class BattleForm(ScenarioComponentsMixin, forms.Form):
-    """A battle's identity and participants, and on edit its outcome.
+    """Record battle metadata and participants, with outcome fields only on edit.
 
-    A new battle carries no outcome fields: players add it before the
-    game, choose crews from its page, and record the outcome afterwards
-    by editing it.
-
-    A new battle may also carry a scenario from the generator, as one
-    hidden field per scenario table named by the table's key, the same
-    shape as the generator's own address. They arrive in cleaned_data
-    as one ``scenario_rolls`` mapping.
+    New battles can carry hidden generator components into scenario_rolls.
     """
 
     scenario = forms.CharField(max_length=200, label="Name", required=False)
@@ -872,13 +767,9 @@ class BattleOutcomeForm(forms.Form):
 
 
 class AddAssetForm(forms.Form):
-    """Assets to add to a campaign.
+    """Select eligible Holding assets using the view's required offered queryset.
 
-    The assets offered are the ones the campaign deals in — those of the
-    Holding asset types of its type and of its own additions — so the form
-    cannot add a Settlement or an asset of another campaign type.
-    ``offered`` has no default for the same reason a gang picker has none:
-    a queryset built without one would accept anything.
+    Require the queryset explicitly to prevent accepting unrelated asset IDs.
     """
 
     asset = forms.ModelMultipleChoiceField(
@@ -969,13 +860,8 @@ class AssignAssetForm(forms.Form):
         self.fields["membership"].queryset = playing
 
 
-# --- What the arbitrator adds ------------------------------------------------
-#
-# Small forms for the arbitrator's own controls on the campaign page: each
-# writes one kind of thing into the campaign's pack through
-# ``CampaignOperation``. None of them asks what an asset does beyond its
-# income — an asset here has a name, its words and that figure, and
-# nothing else.
+# Campaign additions are written through CampaignOperation. These forms
+# collect names, prose and income, leaving other effects to library authoring.
 
 
 class AddAssetTypeForm(forms.Form):
@@ -1011,10 +897,9 @@ class AddAssetTypeForm(forms.Form):
 
 
 class EditAssetTypeForm(AddAssetTypeForm):
-    """One of the campaign's own asset types, as it stands.
+    """Edit a campaign-owned asset type while retaining fixed ownership.
 
-    ``ownership_locked`` disables the ownership once it can no longer
-    change, so the form keeps the stored value whatever is posted.
+    ownership_locked disables the field and ignores a submitted replacement.
     """
 
     def __init__(self, *args, ownership_locked=False, **kwargs):
@@ -1025,13 +910,7 @@ class EditAssetTypeForm(AddAssetTypeForm):
 
 
 class NewAssetForm(forms.Form):
-    """A new asset under one of the campaign's asset types.
-
-    ``asset_types`` are the asset types the campaign deals in — the shared
-    type's and the campaign's own — and have no default for the reason
-    every picker here has none: a queryset built without one would accept
-    any asset type at all.
-    """
+    """Create an asset under one of the view's explicitly supplied asset types."""
 
     asset_type = forms.ModelChoiceField(
         queryset=None,
@@ -1092,10 +971,7 @@ class AddLabelForm(forms.Form):
     )
 
     def clean_options(self):
-        """The options as a list: blank lines dropped, each one stripped,
-        and no two the same however they are cased — the library keeps
-        them apart by name, and a player picking between two options
-        that read alike has nothing to go on."""
+        """Strip blank lines and reject case-insensitive duplicate option labels."""
         lines = [line.strip() for line in self.cleaned_data["options"].splitlines()]
         options = [line for line in lines if line]
         if not options:
@@ -1110,21 +986,14 @@ class AddLabelForm(forms.Form):
         return options
 
 
-# --- Asset tables --------------------------------------------------------------
-#
-# The forms behind the two Roll dialogs on the campaign page and the
-# arbitrator's Tables pages. Every picker here takes its queryset from the
-# view, for the reason every campaign picker does: one built without it
-# would accept a table or an asset the campaign has no business with.
+# Require view-supplied querysets for table and asset pickers so submitted
+# IDs remain restricted to this campaign's eligible content.
 
 
 class RollAssetForm(forms.Form):
-    """A roll on one of the tables offered: which table, and the roll
-    where the reader made it themselves rather than here.
+    """Select an offered asset table and optionally enter a manual roll.
 
-    Whether an entered roll is one the die can make is the operation's
-    question, since only it knows which table's die is being rolled by
-    the time both fields are read.
+    The operation validates the result against the selected table's die.
     """
 
     table = forms.ModelChoiceField(
@@ -1202,17 +1071,14 @@ class PoolRollForm(RollAssetForm):
 
 
 class ScenarioGeneratorForm(forms.Form):
-    """What to do with each scenario table: roll it, leave it out, or use
-    a named entry. Every table rolls unless the reader says otherwise.
+    """Choose rolled, omitted or named entries for each scenario table.
 
-    Then any number of side jobs, up to ``SIDE_JOB_LIMIT``, each with one
-    pair of menus: its set, then Roll a D6 or a named job from that set.
-    A side job adds nothing until a set is picked.
+    Tables roll by default. Side jobs require a set selection and may then
+    roll or use a named result, up to SIDE_JOB_LIMIT.
 
-    Read from the query string, since generating saves nothing. A pick's
-    field is ``<key>_pick``, so the table's own key stays free for the
-    result it landed on and a link carries both. ``side_jobs`` is how many
-    side job menus there are.
+    Read from query parameters without saving. ``<key>_pick`` stores the
+    selection while ``<key>`` remains available for the generated result.
+    ``side_jobs`` controls the number of side-job menus.
     """
 
     ROLL = "roll"
@@ -1443,8 +1309,7 @@ class ScenarioGeneratorForm(forms.Form):
         return cleaned
 
     def chosen_picks(self, side_job_picks=None):
-        """The picks that are not the default, for a link to carry, with
-        ``side_job_picks`` in place of the reader's when given."""
+        """Return non-default selections for links, using overridden side-job picks when supplied."""
         picks = self.picks()
         chosen = {
             self.pick_name(table): picks[table.key]
@@ -1458,9 +1323,8 @@ class ScenarioGeneratorForm(forms.Form):
         for place, pick in enumerate(side_job_picks, start=1):
             if pick:
                 chosen[f"{side_job_key(place)}_pick"] = pick
-        # The count also marks a menu set back to Choose a side job set while
-        # the scenario still has side jobs, so the address is not read as
-        # one without menus.
+        # Retain empty side-job menus in the URL even when the scenario already
+        # has generated jobs.
         if len(side_job_picks) > 1 or (
             self.CHOOSE_SET in side_job_picks and self._holds_side_jobs
         ):
@@ -1583,10 +1447,10 @@ class SaveScenarioForm(ScenarioComponentsMixin, forms.Form):
 
 
 class CampaignChoiceMixin:
-    """A campaign to use a generated scenario in, chosen from the campaigns
-    the reader may record in. For the generator outside a campaign, which
-    has to ask. ``campaigns`` has no default: a queryset built without one
-    would accept a campaign the reader has no place in."""
+    """Select a campaign from the caller's authorised recording queryset.
+
+    Require ``campaigns`` explicitly to prevent unfiltered access.
+    """
 
     def add_campaign_field(self, campaigns):
         self.fields["campaign"] = forms.ModelChoiceField(
@@ -1651,9 +1515,10 @@ class ConnectScenarioToBattleForm(ScenarioCampaignForm):
 
 
 class OpenTablesForm(forms.Form):
-    """Which of the tables offered every gang in the campaign may roll on.
-    Unticked is closed; the view reads the difference from what stood
-    before."""
+    """Select which offered tables remain open for member gangs.
+
+    The view applies differences from the current selection.
+    """
 
     open = forms.ModelMultipleChoiceField(
         queryset=None,
@@ -1696,9 +1561,10 @@ class NewTableForm(forms.Form):
 
 
 class TableEntryForm(forms.Form):
-    """One more asset on a table: which, and on a rolled table the band
-    of rolls that lands on it. Whether the band fits the table's die is
-    the table's own check, said above the entries."""
+    """Add an asset and optional roll band to a campaign table.
+
+    Validate each bound against the selected table's die before database writes.
+    """
 
     asset = forms.ModelChoiceField(
         queryset=None,
@@ -1729,12 +1595,7 @@ class TableEntryForm(forms.Form):
         self.table = table
 
     def clean(self):
-        """A band's ends are rolls the table's die can make.
-
-        The library checks that a band has both ends and runs upwards;
-        the column is a small integer, so a number nothing could roll has
-        to be refused here, in words, before it reaches the database.
-        """
+        """Validate roll-band bounds against the selected table's die."""
         from n26.library.models import Dice
 
         cleaned = super().clean()

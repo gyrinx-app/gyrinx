@@ -1,12 +1,7 @@
-"""Counters, with XP as the first one — and effects hanging off values.
-
-XP is a Counter so that the machinery gets
-proven on day one — a threshold-conditioned scope reveals a promotion
-offer at 5 XP and confers a title at 10, computed, withdrawn if the
-value drops. The definition is content; who has one is assignment (XP
-rides the fighter entry's built-ins, opening at the printed Starting
-XP); the running value is player-side state written only by ``tally``,
-one ledger event per change.
+"""Stored counter values, computed contributions and threshold effects. Profiles initialise
+XP from built-ins. Tally writes stored changes to the ledger; contributions are
+calculated on reads. This fixture grants a skill choice at 75 XP and a Veteran rule at
+100 XP, withdrawing them below their thresholds.
 """
 
 import json
@@ -54,7 +49,7 @@ def xp(db):
 
 @pytest.fixture
 def kills(db):
-    """A second counter, so a card has to keep more than one."""
+    """A second counter verifies that cards display multiple counters."""
     return create_counter("Kill Count")
 
 
@@ -65,13 +60,13 @@ def gang(gang_type):
 
 @pytest.fixture
 def queen(make_profile, xp, gang_type):
-    """A fighter entry printing Starting XP 61 — the set member's amount."""
+    """Start at 61 XP, with gang-wide effects at 75 and 100 XP."""
     profile = make_profile("Gang Queen", price=135)
     profile.built_ins = create_default_set(
         "Queen built-ins", members=[(xp, {"amount": 61})]
     )
     profile.save()
-    # The gang-wide rules that hang off the value:
+
     modifier(
         "Promotion offer at 75 XP",
         targets_every_model(counter_at_least(xp, 75)),
@@ -125,11 +120,7 @@ class TestTheTally:
 
 
 class TestWhatTheCardShows:
-    """The XP cell on a card is the counter's value — one number, not two.
-
-    A fighter hired with "Starting XP 61" printed on their entry read
-    0 XP on their card while the counter beside it said 61.
-    """
+    """The statline XP cell and counter controls use the same effective value."""
 
     def test_a_hired_fighters_card_opens_at_their_starting_xp(self, gang, queen):
         yolanda = hire_with_option(gang, queen, "Yolanda")
@@ -150,9 +141,7 @@ class TestWhatTheCardShows:
         assert [line.name for line in drawn(yolanda)[0].equipment] == []
 
     def test_a_counter_draws_a_line_of_its_own(self, gang, queen, kills):
-        """Every counter a model keeps is a line on their card. A
-        Spyrer's Kill Count is granted, stored and tallied like any
-        other, and reads on the card like any other."""
+
         from n26.tests.sandbox.actions import assign
 
         yolanda = hire_with_option(gang, queen, "Yolanda")
@@ -170,8 +159,7 @@ class TestWhatTheCardShows:
         assert drawn(yolanda)[0].counters[0].value == 66
 
     def test_xp_leads_however_the_card_holds_them(self, gang, queen, kills):
-        """XP first: it is the one every model keeps and the one a
-        reader looks for."""
+
         from n26.tests.sandbox.actions import assign
 
         yolanda = hire_with_option(gang, queen, "Yolanda")
@@ -183,23 +171,21 @@ class TestWhatTheCardShows:
         ]
 
     def test_a_line_carries_the_assignment_behind_it(self, gang, queen):
-        """What a control posts to. A card built from library alone has
-        none, which is how it says there is nothing here to change."""
+        """Counter controls need the stored assignment ID; library-only readings have none."""
         yolanda = hire_with_option(gang, queen, "Yolanda")
 
         assert drawn(yolanda)[0].counters[0].assignment_id == str(xp_row(yolanda).pk)
 
     def test_a_line_has_no_address_until_somebody_gives_it_one(self, gang, queen):
-        """Every control is drawn from an href, and nothing here fills
-        one: a gang sheet and a print sheet draw settled numbers."""
+        """Card construction leaves editing links to the caller."""
         yolanda = hire_with_option(gang, queen, "Yolanda")
 
         assert drawn(yolanda)[0].counters[0].href == ""
 
     def test_an_xp_nobody_can_move_is_the_cell_and_not_a_line(self, gang, queen, kills):
-        """XP has a cell with its target in it. The line earns its place
-        by being where the number is changed, so where nothing can be
-        changed it would only say 61 twice."""
+        """Without an editing link, omit the duplicate XP counter line and retain the
+        statline cell.
+        """
         yolanda = hire_with_option(gang, queen, "Yolanda")
         from n26.tests.sandbox.actions import assign
 
@@ -217,15 +203,12 @@ class TestWhatTheCardShows:
 
 
 class TestMovingACounterByHand:
-    """The control on the model's own page, and the address behind it.
-
-    A counter is drawn wherever a card is and moved in one place. The
-    same address serves XP, a Spyrer's Kill Count and the gang's own
-    tallies, because what it names is the assignment.
+    """Counter controls target assignments, allowing one endpoint to handle model and gang
+    counters.
     """
 
     def address(self, miniature):
-        """Where this model's XP is moved from."""
+
         row = Assignment.objects.get(miniature=miniature, counter__name="XP")
         return reverse("n26-tally", args=[row.pk])
 
@@ -238,8 +221,7 @@ class TestMovingACounterByHand:
         assert self.address(yolanda) in page.content.decode()
 
     def test_the_gang_sheet_does_not(self, client, gang, queen, kills):
-        """Changing these quickly, for a roster at a time after a battle,
-        is a screen built for it — not a control the sheet grows."""
+        """The roster displays counter values without per-model tally controls."""
         from n26.tests.sandbox.actions import assign
 
         yolanda = hire_with_option(gang, queen, "Yolanda")
@@ -249,7 +231,7 @@ class TestMovingACounterByHand:
         page = client.get(reverse("n26-gang", args=[gang.pk]))
 
         drawn_there = page.content.decode()
-        # The number is on the sheet; the way to change it is not.
+
         assert "Kill Count" in drawn_there
         assert reverse("n26-tally", args=[counted.pk]) not in drawn_there
 
@@ -270,8 +252,7 @@ class TestMovingACounterByHand:
         assert xp_row(yolanda).counter_value.value == 60
 
     def test_it_floors_at_zero(self, client, gang, queen):
-        """The floor is ``tally``'s own, so a control that has gone
-        stale takes the value to zero rather than below it."""
+
         yolanda = hire_with_option(gang, queen, "Yolanda")
         tally(xp_row(yolanda), -61)
         client.force_login(gang.owner)
@@ -319,8 +300,7 @@ class TestMovingACounterByHand:
         assert xp_row(yolanda).counter_value.value == 61
 
     def test_only_counters_are_tallied(self, client, gang, queen):
-        """Every other assignment has verbs of its own, and none of them
-        is a running number."""
+
         from n26.tests.sandbox.actions import assign
 
         yolanda = hire_with_option(gang, queen, "Yolanda")
@@ -334,8 +314,7 @@ class TestMovingACounterByHand:
         assert response.status_code == 404
 
     def test_a_step_of_nothing_is_not_an_act(self, client, gang, queen):
-        """It would write a ledger event recording that nothing
-        happened. No control offers it; a crafted post is refused."""
+        """Reject crafted zero-step requests without recording an event."""
         yolanda = hire_with_option(gang, queen, "Yolanda")
         client.force_login(gang.owner)
 
@@ -366,10 +345,8 @@ class TestMovingACounterByHand:
 
 
 class TestMovingOneWithoutReloading:
-    """Over htmx the act sends back the card and nothing else.
-
-    Without scripting the same control is an ordinary form post and the
-    whole page is served, so nothing here works only one way.
+    """HTMX tally requests replace the model card out of band. Ordinary form submissions
+    redirect back to the page.
     """
 
     HTMX = {"HTTP_HX_REQUEST": "true"}
@@ -400,14 +377,11 @@ class TestMovingOneWithoutReloading:
     def test_the_card_it_sends_back_returns_to_the_tab_that_was_open(
         self, client, gang, queen
     ):
-        """The control posts the screen it was drawn on, skills tab and
-        all. The card sent back must return its choices and its counters
-        there: a card addressed to the bare Edit page would land the next
-        choice on the default tab instead of the one the reader had open."""
+        """Preserve the current skills tab in refreshed choice and counter return URLs."""
         from urllib.parse import urlencode
 
         yolanda = hire_with_option(gang, queen, "Yolanda")
-        # Up to the offer, so the card has a choice to address.
+        # Reach the skill-offer threshold so refreshed choices have return URLs.
         tally(xp_row(yolanda), 14)
         client.force_login(gang.owner)
         here = f"{reverse('n26-edit-fighter', args=[yolanda.pk])}?skills=all"
@@ -425,8 +399,7 @@ class TestMovingOneWithoutReloading:
         assert parse_qs(urlsplit(pencil["href"]).query)["back"] == [here]
 
     def test_the_card_it_sends_back_still_carries_the_rename(self, client, gang, queen):
-        """It is drawn from the page rather than the card, so a redrawn
-        card is exactly where it could go missing."""
+        """Retain rename controls supplied by the edit view when redrawing the card."""
         yolanda = hire_with_option(gang, queen, "Yolanda")
         client.force_login(gang.owner)
 
@@ -443,10 +416,7 @@ class TestMovingOneWithoutReloading:
         )
 
     def test_the_card_it_sends_back_still_offers_sell(self, client, gang, queen):
-        """The redrawn card is edit mode's, and edit mode's card carries
-        Sell beside each piece of kit. A tick of a counter that took
-        them off would leave the reader with a card missing its acts
-        until they reloaded."""
+        """Retain equipment sale controls when redrawing the edit card."""
         from n26.core.operations import operation
         from n26.core.reconcile import assert_reconciled
         from n26.library.authoring import create_wargear
@@ -465,8 +435,7 @@ class TestMovingOneWithoutReloading:
         assert_reconciled(gang)
 
     def test_the_card_it_sends_back_can_be_acted_on_again(self, client, gang, queen):
-        """A redrawn card whose controls had lost their addresses would
-        move once and then go quiet."""
+
         yolanda = hire_with_option(gang, queen, "Yolanda")
         client.force_login(gang.owner)
 
@@ -477,10 +446,9 @@ class TestMovingOneWithoutReloading:
     def test_the_card_it_sends_back_returns_to_the_page_not_the_act(
         self, client, gang, queen
     ):
-        """The redrawn card is rendered under the act's own address. A
-        control built from that would send a reader with no scripting to
-        a POST-only endpoint, so the screen to return to rides on the
-        line instead."""
+        """Return links must target the originating page rather than the POST-only tally
+        endpoint.
+        """
         yolanda = hire_with_option(gang, queen, "Yolanda")
         page = reverse("n26-edit-fighter", args=[yolanda.pk])
         client.force_login(gang.owner)
@@ -510,9 +478,9 @@ class TestMovingOneWithoutReloading:
         assert parse_qs(urlsplit(pencil["href"]).query)["back"] == [page]
 
     def test_a_refusal_redraws_nothing_and_says_why(self, client, gang, queen):
-        """The card is not redrawn for an act that did not happen; the
-        reason reaches the reader as a toast, which is the only channel
-        into a page that is not re-rendered."""
+        """A refused tally returns no replacement card and reports its reason through
+        HX-Trigger.
+        """
         from unittest.mock import patch
 
         from n26.core.operations import Operation, Refusal
@@ -546,9 +514,7 @@ class TestMovingOneWithoutReloading:
         assert page["Location"] == back
 
     def test_the_page_is_not_open_to_a_signed_out_reader(self, client, gang, queen):
-        """The view is guarded, and the guard is a decorator with a
-        helper directly above it — a place where anything inserted
-        carries the guard off with it."""
+
         yolanda = hire_with_option(gang, queen, "Yolanda")
 
         page = client.get(reverse("n26-edit-fighter", args=[yolanda.pk]))
@@ -557,9 +523,7 @@ class TestMovingOneWithoutReloading:
         assert "/accounts/login/" in page["Location"]
 
     def test_the_page_holds_the_host_the_update_addresses(self, client, gang, queen):
-        """htmx drops an out-of-band element whose id is missing from the
-        page, silently — so opting in and holding the host have to travel
-        together."""
+        """Out-of-band swaps require a matching host on the page."""
         yolanda = hire_with_option(gang, queen, "Yolanda")
         client.force_login(gang.owner)
 
@@ -570,8 +534,9 @@ class TestMovingOneWithoutReloading:
     def test_every_counter_opens_the_amount_dialog_from_a_pencil(
         self, client, gang, queen, kills
     ):
-        """One amount, written down once. The edit page has no one-point
-        buttons left. The pencil is a text button, inline with the number."""
+        """The model edit page uses inline edit links to amount dialogs instead of
+        one-point buttons.
+        """
         from n26.tests.sandbox.actions import assign
 
         yolanda = hire_with_option(gang, queen, "Yolanda")
@@ -655,8 +620,9 @@ class TestMovingOneWithoutReloading:
     def test_a_contribution_stays_outside_the_recorded_change(
         self, client, gang, queen, xp
     ):
-        """The dialog previews the sum the card shows, and the save moves
-        only the half that is written down."""
+        """Preview the effective total but apply the entered change only to the stored
+        value.
+        """
         yolanda = hire_with_option(gang, queen, "Yolanda")
         blooded = create_subtype("Blooded")
         modifier(
@@ -713,8 +679,8 @@ class TestMovingOneWithoutReloading:
             soup = BeautifulSoup(drawn, "html.parser")
             assert soup.find("button", attrs={"aria-label": "Add one to XP"})
             assert soup.find("a", attrs={"aria-label": "Edit XP"}) is None
-            # htmx does not read a form's submitter, so each direction
-            # carries its own change.
+            # Each direction submits its own change value because this HTMX form does
+            # not include the clicked submitter.
             assert 'name="change" value="1"' in drawn
             assert 'name="change" value="-1"' in drawn
 
@@ -739,13 +705,8 @@ class TestMovingOneWithoutReloading:
 
 
 class TestTheNoteFitsTheColumn:
-    """A tally's note is a fixed-width column, and a caller can hand over
-    more than it holds.
-
-    A rule that tallies passes the thing carrying it as the reason, and
-    an assignable's name and annotation are 200 characters each — so a
-    reason can arrive at over 400 into a column of 255. The movement is
-    the half an audit reads, so it is the reason that gives way.
+    """Truncate long reasons to the ledger note’s maximum length while preserving the
+    counter change and resulting value.
     """
 
     def note_of(self, miniature):
@@ -768,7 +729,7 @@ class TestTheNoteFitsTheColumn:
         assert held.endswith("…")
 
     def test_the_movement_survives_it(self, gang, queen):
-        """What the number did is what the log is for."""
+
         yolanda = hire_with_option(gang, queen, "Yolanda")
         tally(xp_row(yolanda), -1, note="y" * 400)
 
@@ -782,11 +743,8 @@ class TestTheNoteFitsTheColumn:
 
 
 class TestTheOtherSurfaces:
-    """Print and text draw the same counters the screen card draws.
-
-    Both read ``counter_lines``, so neither can disagree with the card
-    about which counters a model keeps — nor about XP, which has a cell
-    in the statline on all three and draws a line on none of them.
+    """Text and print use visible counter lines. XP appears once in the statline even when
+    the source card has editing controls.
     """
 
     def test_the_text_card_lists_them(self, gang, queen, kills):
@@ -818,8 +776,7 @@ class TestTheOtherSurfaces:
         assert (groups[0].label, groups[0].text) == ("Kill Count", "0")
 
     def test_the_print_sheet_says_xp_once(self, gang, queen):
-        """It has a cell in the statline above, and a card somebody cuts
-        out has no room to say a number twice."""
+
         from n26.core.printing import detail_groups
 
         yolanda = hire_with_option(gang, queen, "Yolanda")
@@ -829,8 +786,7 @@ class TestTheOtherSurfaces:
         ]
 
     def test_neither_repeats_xp_for_a_card_that_could_be_edited(self, gang, queen):
-        """Paper and text carry no controls, so the line XP draws on the
-        screen it is edited from has nothing to do on either."""
+        """Print and text omit the editing-only XP counter line."""
         from n26.core.printing import detail_groups
         from n26.core.render_text import render_model_card
         from n26.core.views.owned import link_counters
@@ -844,11 +800,7 @@ class TestTheOtherSurfaces:
 
 
 class TestWhatTheHistorySays:
-    """A tally drawn as a sentence: what moved, and where it landed.
-
-    The number on the card is the only thing a reader can check the log
-    against, so the log has to state it.
-    """
+    """History shows the actual counter change, resulting value and optional reason."""
 
     def told(self, gang):
         from n26.core import history
@@ -867,8 +819,7 @@ class TestWhatTheHistorySays:
         )
 
     def test_a_step_that_hit_the_floor_says_where_it_stopped(self, gang, queen):
-        """The movement stated is the one that happened, not the one
-        asked for."""
+        """History records the actual reduction after applying the zero floor."""
         yolanda = hire_with_option(gang, queen, "Yolanda")
         tally(xp_row(yolanda), -100)
 
@@ -881,14 +832,13 @@ class TestWhatTheHistorySays:
         assert any("(won a battle)" in told for told in self.told(gang))
 
     def test_the_note_is_not_printed_under_the_sentence_as_well(self, gang, queen):
-        """The sentence already holds both halves of it."""
+
         from n26.core import history
 
         yolanda = hire_with_option(gang, queen, "Yolanda")
         tally(xp_row(yolanda), +5, note="won a battle")
 
-        # Spans carry their own spacing, so the phrase only reads whole
-        # once they are joined.
+        # Join history spans using their existing spacing.
         tallied = [
             act
             for act in history.build(gang, viewer=gang.owner)
@@ -907,16 +857,16 @@ class TestEffectsHangOffValues:
 
     def test_the_offer_appears_when_xp_crosses_75(self, gang, queen):
         yolanda = hire_with_option(gang, queen, "Yolanda")
-        tally(xp_row(yolanda), +14)  # 75
+        tally(xp_row(yolanda), +14)
 
         card, computed = drawn(yolanda)
         (slot,) = computed.choices
         assert slot.is_resolved is False
-        assert card.rules == []  # the title needs 100
+        assert card.rules == []  # The Veteran rule requires 100 XP.
 
     def test_the_title_appears_at_100_and_names_its_source(self, gang, queen):
         yolanda = hire_with_option(gang, queen, "Yolanda")
-        tally(xp_row(yolanda), +39)  # 100
+        tally(xp_row(yolanda), +39)
 
         card, _ = drawn(yolanda)
         (title,) = card.rules
@@ -934,22 +884,19 @@ class TestEffectsHangOffValues:
         assert card.rules == []
 
     def test_the_plan_shows_the_threshold_round(self, gang, queen):
-        """The debugging surface: why is my promotion not showing?"""
+        """The execution plan identifies the unmet threshold and evaluation round."""
         yolanda = hire_with_option(gang, queen, "Yolanda")
         _, computed = drawn(yolanda)
 
         step = next(s for s in computed.plan if "offers a choice" in s.effect)
-        assert step.ran_in == 1  # conditioned scopes wait for settled facts
+        assert step.ran_in == 1  # Conditioned scopes wait for settled facts.
         assert step.outcome == "skipped"
         assert "at XP 75+" in step.scope
 
 
 class TestARuleThatMovesACounter:
-    """The stored effect: assigning its carrier tallies the bearer's
-    counter, through the ledger. "If selected as the Outcast Leader …
-    starts with 61 XP" — the selection arrives after the hire, so no
-    built-in member can carry the value; the carrier moves it instead.
-    Taking the carrier back never moves it back: a tally is history.
+    """Assigning a carrier applies its stored counter operation once. Removing the carrier
+    does not reverse changes to a pre-existing counter.
     """
 
     @pytest.fixture
@@ -970,7 +917,8 @@ class TestARuleThatMovesACounter:
         from n26.tests.sandbox.actions import assign
 
         yolanda = hire_with_option(gang, queen, "Yolanda")
-        tally(xp_row(yolanda), -51)  # spent down to 10 before the selection
+        tally(xp_row(yolanda), -51)  # Reduce stored XP to 10 before assigning the
+        # carrier.
         assign(leader_mark, miniature=yolanda)
 
         assert xp_row(yolanda).counter_value.value == 61
@@ -985,8 +933,7 @@ class TestARuleThatMovesACounter:
         assign(leader_mark, miniature=yolanda)
 
         event = xp_row(yolanda).ledger_events.filter(kind="tallied").latest("created")
-        # What moved and where it landed, then what caused it. A reader
-        # auditing the number needs both halves.
+        # Include the change, resulting value and carrier name in the event note.
         assert event.note == "+0 → 61: Chosen Leader"
 
     def test_add_and_subtract_move_it_relative(self, gang, xp, make_profile):
@@ -1020,13 +967,13 @@ class TestARuleThatMovesACounter:
         assign(bloodied, miniature=fighter)
         assert xp_row(fighter).counter_value.value == 13
         assign(humbled, miniature=fighter)
-        # The floor is tally's own: a counter never goes below zero.
+
         assert xp_row(fighter).counter_value.value == 0
 
     def test_a_bearer_without_the_counter_gains_it(self, gang, xp, make_profile):
-        """A model whose entry never carried the counter still ends up
-        keeping one — created by the rule, caused by its carrier, so it
-        leaves if the carrier does."""
+        """A counter operation creates a missing counter assignment with provenance
+        pointing to its carrier.
+        """
         from n26.tests.sandbox.actions import (
             assign,
             create_subtype,
@@ -1058,20 +1005,13 @@ class TestARuleThatMovesACounter:
         carrier = assign(leader_mark, miniature=yolanda)
         remove(carrier)
 
-        # The counter row predates the rule, so it stays — and so does
-        # the value the rule set: a tally is history, not state the
-        # carrier holds open.
+        # The pre-existing counter and its changed value survive removal of the carrier.
         assert xp_row(yolanda).counter_value.value == 61
 
 
 class TestWhatAModifierContributes:
-    """The computed counter effect: a figure that follows from what the
-    model is, rather than from anything that happened.
-
-    ``op_changes_counter`` writes once and stands until somebody tallies
-    it back. This is the other half — a reading raised for as long as its
-    carrier is held, worked out on every read and gone the moment the
-    carrier goes. Nothing reaches the ledger.
+    """Counter contributions are computed while their carrier remains effective. They add
+    to stored values without creating counter assignments or tally events.
     """
 
     @pytest.fixture
@@ -1083,7 +1023,7 @@ class TestWhatAModifierContributes:
         return make_profile("Plain Ganger", price=10)
 
     def carrier_adding(self, budget, amount, name):
-        """A subtype whose whole payload is one contribution."""
+        """Create a subtype with one computed counter contribution."""
         subtype = create_subtype(name)
         modifier(
             f"{name} adds {amount}",
@@ -1102,7 +1042,7 @@ class TestWhatAModifierContributes:
         )
 
     def test_a_counter_nobody_holds_still_reads(self, gang, plain, budget):
-        """No assignment, no stored value — the reading is the sum."""
+
         vex = hire_with_option(gang, plain, "Vex")
         assign(self.carrier_adding(budget, 4, "Chosen"), miniature=vex)
 
@@ -1111,20 +1051,18 @@ class TestWhatAModifierContributes:
         assert (line.value, line.assignment_id) == (4, "")
 
     def test_it_is_added_to_what_is_stored(self, gang, queen, xp):
-        """The two halves are summed: 61 tallied, 5 contributed."""
+
         yolanda = hire_with_option(gang, queen, "Yolanda")
         assign(self.carrier_adding(xp, 5, "Blooded"), miniature=yolanda)
 
         card, _ = drawn(yolanda)
         (line,) = [line for line in card.counters if line.name == "XP"]
         assert line.value == 66
-        # The stored half is untouched: nothing was written down.
+
         assert xp_row(yolanda).counter_value.value == 61
 
     def test_a_contributed_xp_moves_the_statline_cell(self, gang, plain, xp):
-        """XP has a cell as well as a line, and the cell reads the
-        counter however the card comes by it. A fighter whose entry
-        carries no XP at all still shows the contributed figure."""
+        """The XP statline cell includes contributions even without a stored XP assignment."""
         vex = hire_with_option(gang, plain, "Vex")
         assign(self.carrier_adding(xp, 7, "Blooded"), miniature=vex)
 
@@ -1132,16 +1070,15 @@ class TestWhatAModifierContributes:
         (line,) = [line for line in card.counters if line.name == "XP"]
         assert (line.value, line.assignment_id) == (7, "")
         assert (card.xp, card.xp_display) == (7, "7/\u2013")
-        # Nothing stored behind it: there is no XP assignment to tally.
+        # The effective XP reading has no stored assignment to tally.
         assert not Assignment.objects.filter(miniature=vex, counter__name="XP").exists()
 
     def test_a_contributed_reading_offers_no_way_to_take_one_off(
         self, client, gang, plain, kills
     ):
-        """A tally can only move what is written down, and it floors at
-        zero. A counter reading 4 purely because a rule contributes to it
-        has nothing to take off, and recording a removal would write a
-        ledger event saying the value went from 0 to 0."""
+        """A negative adjustment cannot reduce a zero stored value, even when contributions
+        make the displayed total positive.
+        """
         vex = hire_with_option(gang, plain, "Vex")
         counted = assign(kills, miniature=vex)
         assign(self.carrier_adding(kills, 4, "Chosen"), miniature=vex)
@@ -1158,12 +1095,11 @@ class TestWhatAModifierContributes:
         )
 
         assert "already 0" in response.context["form"].errors["change"][0]
-        # Nothing written down behind the reading: the 4 is all contributed.
+
         assert getattr(counted, "counter_value", None) is None
 
     def test_a_tallied_reading_can_still_be_reduced(self, client, gang, plain, kills):
-        """The contribution rides on top of a stored value here, so there
-        is something to take off after all."""
+
         vex = hire_with_option(gang, plain, "Vex")
         counted = assign(kills, miniature=vex)
         tally(counted, +1)
@@ -1205,8 +1141,7 @@ class TestWhatAModifierContributes:
         assert [line for line in card.counters if line.name == "Founding budget"] == []
 
     def test_a_cancelled_carrier_contributes_nothing(self, gang, plain, budget):
-        """Not just removal by hand: a rule that takes the carrier away
-        takes its figure with it in the same read."""
+        """Suppressing a carrier removes its contribution in the same computation."""
         chosen = self.carrier_adding(budget, 4, "Chosen")
         renounced = create_rule("Renounced")
         modifier(
@@ -1224,8 +1159,7 @@ class TestWhatAModifierContributes:
         assert self.reading(vex, budget) == 0
 
     def test_nothing_is_written_down(self, gang, plain, budget):
-        """No counter assignment, no stored value, no ledger event — the
-        reading is worked out and never recorded."""
+
         from n26.core.models import LedgerEvent
 
         vex = hire_with_option(gang, plain, "Vex")
@@ -1239,8 +1173,7 @@ class TestWhatAModifierContributes:
 
 
 class TestAThresholdReadsTheWholeReading:
-    """``CounterAtLeast`` asks where a counter stands, and a contribution
-    stands there as surely as a tally does."""
+    """Counter thresholds include computed contributions as well as stored values."""
 
     @pytest.fixture
     def budget(self, db):
@@ -1252,7 +1185,7 @@ class TestAThresholdReadsTheWholeReading:
 
     @pytest.fixture
     def wealthy(self, gang_type, budget):
-        """A gang rule that fires once the budget reaches five."""
+        """Grant a rule while the effective budget is at least five."""
         modifier(
             "Well funded at 5",
             targets_every_model(counter_at_least(budget, 5)),
@@ -1288,12 +1221,8 @@ class TestAThresholdReadsTheWholeReading:
 
 
 class TestWhatTheGangHoldsReachesTheRanks:
-    """The Clanless shape: an affiliation the gang holds, reaching every
-    model of the named ranks and nobody else.
-
-    The affiliation rides each member's card as the gang's, so its
-    modifier runs there — and its scope, not its host, decides who it
-    lands on.
+    """A gang-held affiliation contributes to model counters only where its scope matches
+    their ranks.
     """
 
     @pytest.fixture
@@ -1345,8 +1274,7 @@ class TestWhatTheGangHoldsReachesTheRanks:
         } == {"Boss": 1, "Mags": 1, "Vex": 0}
 
     def test_the_gang_itself_reads_nothing(self, gang, budget, ranks, affiliated):
-        """The scope names models, so the gang's own card is untouched —
-        each fighter's figure is theirs, never a roster total."""
+        """A model-targeting scope does not contribute to the gang’s own counter reading."""
         from n26.core.card import build_gang_card
         from n26.core.effects import compute_gang
 
@@ -1357,8 +1285,9 @@ class TestWhatTheGangHoldsReachesTheRanks:
 
 
 class TestACounterOnlyRulesRead:
-    """``drawn`` off: the counter is on the card so scopes can read it,
-    and no screen shows it or offers to move it."""
+    """A counter with drawn=False remains available to scopes but is omitted from display
+    and editing controls.
+    """
 
     @pytest.fixture
     def budget(self, db):
@@ -1411,8 +1340,7 @@ class TestACounterOnlyRulesRead:
         ]
 
     def test_a_stored_one_is_given_no_control(self, gang, plain, budget, xp):
-        """Assigned and tallied like any other, and still not something
-        the fighter page offers to change."""
+
         from n26.core.views.owned import link_counters
 
         vex = hire_with_option(gang, plain, "Vex")
@@ -1427,8 +1355,7 @@ class TestACounterOnlyRulesRead:
     def test_the_fighter_page_does_not_show_it(
         self, client, gang, plain, budget, kills
     ):
-        """A drawn counter beside it, so the absence is the flag's doing
-        and not the page's."""
+        """Keep a visible counter alongside the hidden counter to isolate the drawn flag."""
         vex = hire_with_option(gang, plain, "Vex")
         counted = assign(budget, miniature=vex)
         assign(kills, miniature=vex)

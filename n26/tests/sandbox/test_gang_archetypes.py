@@ -85,8 +85,7 @@ def owner(db):
 @pytest.fixture
 @library_setup
 def headings(db):
-    """The gang list's own headings — Leader, Champion, Ganger — so the
-    sections a reader sees are the taxonomy's and not this test's."""
+    """Create the gang-list taxonomy headings used by the hiring screen."""
     return {
         name: create_category("Gang List", name, position=position)
         for position, name in enumerate(["Leader", "Champion", "Ganger"])
@@ -101,12 +100,9 @@ def escher(db):
 @pytest.fixture
 @library_setup
 def equipment(db):
-    """Three equipment lists: the house's, the archetype's, and the one
-    the archetype gives its Death-Maidens alone.
+    """Create House, Chem Cults and Death-Maiden equipment collections with one item each.
 
-    Each holds a piece of gear, because a buying screen offers a
-    collection for what it contains: a list holding nothing to buy is
-    not somewhere to buy from, however it was come by.
+    Equipment screens omit collections with no gear to buy.
     """
     made = {}
     for key, name, gear in [
@@ -123,8 +119,7 @@ def equipment(db):
 @pytest.fixture
 @library_setup
 def profiles(escher, headings, person_type, make_statline, equipment):
-    """Every Escher fighter entry, each carrying the house equipment list
-    in its built-ins — the way a house list reaches a fighter."""
+    """Build the House equipment collection into every Escher profile."""
     made = {}
     for name, price, heading in ESCHER:
         profile = create_profile(
@@ -139,9 +134,7 @@ def profiles(escher, headings, person_type, make_statline, equipment):
 @pytest.fixture
 @library_setup
 def house_list(profiles):
-    """The gang list the house comes with: a collection of its fighter
-    entries whose default section is "Gang List", which is what files its
-    fighters as the gang's list rather than as a roster the gang took on."""
+    """Create the curated hire list with a Gang List default section for taxonomy grouping."""
     collection = create_collection("Escher Gang List")
     section_of(collection, "Gang List", 0, is_default=True)
     for name in HOUSE_LIST:
@@ -167,8 +160,7 @@ def chem_list(profiles):
 @pytest.fixture
 @library_setup
 def house(escher, house_list, equipment):
-    """What founding an Escher gang brings: its list of fighters and its
-    equipment list, both built into the gang type."""
+    """Build in the hire list and grant gang-alone access to the House equipment collection."""
     add_built_in(escher, house_list)
     modifier(
         "Escher, the gang alone: adds Escher Equipment List",
@@ -182,8 +174,7 @@ def house(escher, house_list, equipment):
 @pytest.fixture
 @library_setup
 def archetype_slot(db):
-    """The question a house asks: which archetype, or none. Optional, at
-    most one, and answered by the gang rather than by any one fighter."""
+    """Create an optional gang-assigned archetype choice accepting at most one pick."""
     slot_type = create_slot_type("Gang Archetype", allows_repeats=False)
     chem = create_pickable("Chem Cults", slot_type)
     picklist = create_picklist("Escher Gang Archetypes", slot_type, members=[chem])
@@ -202,13 +193,9 @@ def archetype_slot(db):
 @pytest.fixture
 @library_setup
 def chem_cults(house, archetype_slot, chem_list, house_list, equipment, profiles):
-    """The Chem Cults archetype, written out in full.
+    """Replace hire and equipment collections at gang and model scopes.
 
-    Eight rows, in three pairs and a pair: the list it hires from, the
-    list the gang itself buys from, the list its fighters buy from, and
-    the one its Death-Maidens buy from instead. Each pair takes one
-    collection away and gives another, which is the whole of an
-    archetype.
+    Death-Maidens receive a separate equipment collection after the general swap.
     """
     pickable = archetype_slot["pickable"]
     modifier(
@@ -284,6 +271,7 @@ def hire_list_for(gang):
 
 
 def offered(hire_list):
+    """Return offered profile names keyed by section and category."""
     return {
         (section["name"], category["name"]): [
             entry["name"] for entry in category["entries"]
@@ -317,7 +305,7 @@ def row(hire_list, name):
 
 
 def take_the_archetype(gang, pickable):
-    """Answer the gang's own open question, as the picker's press does."""
+    """Choose an archetype through the gang's computed choice."""
     card = build_gang_card(gang, with_statlines=False)
     computed = compute_gang(
         card, build_modifier_index([node.assignable for node in card.all_nodes()])
@@ -329,12 +317,9 @@ def take_the_archetype(gang, pickable):
 
 
 def lists_for(miniature):
-    """What this fighter may buy from, as the equip screen decides it.
+    """Return the model's held collections containing equipment.
 
-    Not every collection a fighter carries is somewhere to buy kit: a
-    gang list is a list of fighters, and the screens ask what a
-    collection *holds* rather than how it was come by. So the gang list
-    riding a member's card never offers itself as somewhere to buy kit.
+    Profile-only gang lists are excluded from equipment browsing.
     """
     return sorted(
         str(collection)
@@ -349,8 +334,7 @@ def gang_lists_for(gang):
 
 
 class TestTheListAGangCarries:
-    """A gang hires from the list it carries, and the screen draws that
-    list as its own — not as a section named after a collection."""
+    """One held gang list uses its taxonomy headings rather than a collection heading."""
 
     def test_the_house_list_keeps_its_headings_even_when_it_offers_nobody(
         self, client, owner, gang, house_list, profiles
@@ -389,9 +373,7 @@ class TestTheListAGangCarries:
     def test_a_gang_type_with_no_list_of_its_own_offers_its_profiles(
         self, client, owner, escher, profiles
     ):
-        """Until a house's list is written down, its gang type's own
-        fighters are the list, so a house nobody has written down yet
-        hires from its gang type's fighter entries."""
+        """Fall back to the gang type's hireable profiles when it has no visible gang-list collection."""
         plain = found_gang("The Unwritten", escher, owner=owner, budget=1000)
         response = screen(client, plain, owner)
         assert offered_names(response.context["hire_props"]["sections"]) == sorted(
@@ -462,8 +444,7 @@ class TestAnArchetypeSwapsTheList:
     def test_a_gang_that_picks_nothing_keeps_the_house_list(
         self, client, owner, gang, chem_cults, profiles
     ):
-        """The archetype is written and unpicked, so the gang hires and
-        buys as any gang of its house does."""
+        """Defining an unselected archetype does not replace the House lists."""
         response = screen(client, gang, owner)
         assert offered_names(response.context["hire_props"]["sections"]) == sorted(
             HOUSE_LIST
@@ -476,17 +457,12 @@ class TestAnArchetypeSwapsTheList:
 
 
 class TestTwoListsAtOnce:
-    """A gang holding two gang lists has no one list, and the screen says
-    so rather than merging them."""
+    """Display multiple held gang lists under distinct collection names."""
 
     def test_each_stands_under_its_own_name(
         self, client, owner, gang, chem_list, profiles
     ):
-        """The author's likeliest slip: giving the archetype's list
-        without taking the house's away. Merged, Death-Maiden would sit
-        under one heading twice at two prices with nothing to tell the
-        rows apart, so instead each list is drawn under its own name.
-        """
+        """Separate simultaneous lists so duplicate profiles with different prices remain distinguishable."""
         assign(chem_list, gang=gang)
 
         response = screen(client, gang, owner)
@@ -526,14 +502,12 @@ class TestTwoListsAtOnce:
 
 
 class TestWhatElseAGangIsOffered:
-    """A collection of fighters that does not name the gang list is an
-    addition to whatever list the gang has, drawn as a block of its own."""
+    """Additional profile collections use separate blocks alongside the gang list."""
 
     def test_a_roster_with_no_section_is_a_block_named_after_itself(
         self, gang, profiles
     ):
-        """A roster authored with no sections at all, which is how every
-        corruption's roster is written."""
+        """Use the collection name when an additional roster has no default section."""
         extra = create_collection("Genestealer Cult Corrupted")
         add_entry(extra, profiles["Chem Wytch"], price_override=200)
         assign(extra, gang=gang)
@@ -547,8 +521,7 @@ class TestWhatElseAGangIsOffered:
     def test_a_roster_naming_its_own_section_is_a_block_of_that_name(
         self, gang, profiles
     ):
-        """An author may give the block a name other than the
-        collection's: the default section is what the screen reads."""
+        """Use an additional collection's default section name for its block."""
         extra = create_collection("Genestealer Cult Corrupted Fighter Additions")
         section_of(extra, "Genestealer Cult Corrupted", 0, is_default=True)
         add_entry(extra, profiles["Chem Wytch"], price_override=200)
@@ -560,8 +533,7 @@ class TestWhatElseAGangIsOffered:
 
 
 class TestTheEquipmentListsFollow:
-    """An archetype changes what its gang buys from, fighter by fighter,
-    and the gang's own list for the stash along with them."""
+    """Apply archetype collection swaps to model purchases and gang stash purchases."""
 
     @pytest.fixture
     def hired(self, gang, profiles, chem_cults):
@@ -596,8 +568,7 @@ class TestWhatTheScreenCosts:
         self, client, owner, gang, house_list, profiles, person_type, headings
     ):
         client.force_login(owner)
-        # Once to warm whatever a first visit settles — the reading being
-        # taken is what a length costs, not what a cold cache does.
+        # Warm first-visit caches before measuring query growth.
         client.get(hire_url(gang))
         with CaptureQueriesContext(connection) as short:
             client.get(hire_url(gang))
@@ -623,17 +594,14 @@ class TestWhatTheScreenCosts:
 
 
 class TestAListNobodyMaySeeIsNotTheList:
-    """A gang list that is staged, or archived, is not a list this reader
-    hires from — so it must not switch the fallback off and leave them
-    with an empty tab. Staff, who see staged content, are offered from
-    it: that is how an author rehearses a house's list before it goes
-    live, while every player goes on hiring from the gang type."""
+    """Ignore staged or archived lists for players so hidden content cannot disable fallback hiring.
+
+    Staff can use staged lists to preview the authored roster.
+    """
 
     @staticmethod
     def rehearsal(escher, profiles, owner):
-        """The house list authored the way the authoring pages author
-        everything: staged, with a staged section and staged entries —
-        and a gang of the house founded on top of it."""
+        """Create a staged gang list, default section and entries, then found a gang with it."""
         collection = create_collection("Escher Gang List", staged=True)
         section_of(collection, "Gang List", 0, is_default=True, staged=True)
         for name in HOUSE_LIST:
@@ -671,9 +639,7 @@ class TestAListNobodyMaySeeIsNotTheList:
 
 
 class TestWhatCountsAsTheGangListsName:
-    """The default section's name is matched the way section names are
-    kept unique — without regard to case — and only on a collection that
-    holds fighters."""
+    """Match the Gang List default section case-insensitively only on profile collections."""
 
     def test_the_name_is_read_however_it_is_cased(self, owner, escher, profiles):
         collection = create_collection("Escher Gang List")
@@ -690,8 +656,7 @@ class TestWhatCountsAsTheGangListsName:
     def test_a_list_of_gear_by_that_name_is_nobodys_gang_list(
         self, owner, escher, profiles
     ):
-        """A gear list given the section name by mistake must not switch
-        the gang type's fighters off and leave an empty tab."""
+        """A gear-only collection named Gang List must not disable profile fallback."""
         gear = create_collection("Oddly named kit")
         section_of(gear, "Gang List", 0, is_default=True)
         add_entry(gear, create_wargear("Odd knife", price=10))
@@ -703,15 +668,12 @@ class TestWhatCountsAsTheGangListsName:
 
 
 class TestSectionsThatShareAName:
-    """Two sections reading alike would be one tab with half its rows
-    unreachable, so they become one section."""
+    """Merge equally named sections so one tab can reach all of their rows."""
 
     def test_a_block_named_after_a_taxonomy_section_joins_it(
         self, gang, house_list, escher, person_type, make_statline
     ):
-        """The house list reaches two taxonomy sections, and a carried
-        collection names the second as its own block. The block and the
-        section are one heading, holding both sets of rows."""
+        """Merge a collection block and taxonomy section sharing the same name."""
         hanger = create_category("Hangers-on", "Shivver", position=0)
         shivver = create_profile(
             "Shivver", person_type, escher, price=80, category=hanger
@@ -748,11 +710,7 @@ class TestSectionsThatShareAName:
 
 
 class TestTheGangSheetDrawsNoLineForTheList:
-    """The gang's hire list is what the hire screen *is*, so it draws no
-    line on the gang sheet: a gang whose house gains a written-down list,
-    or whose archetype swaps one for another, draws the same rows
-    either way. Its equipment list, which is somewhere to buy from, keeps
-    its line."""
+    """Hide gang hire lists from sheet inventory while retaining equipment collection rows."""
 
     def test_an_archetypes_list_draws_no_sheet_row_even_after_withdrawal(
         self, gang, chem_cults, chem_list
@@ -792,8 +750,7 @@ class TestTheGangSheetDrawsNoLineForTheList:
 
 
 class TestASweepThatWasWithdrawn:
-    """A sweep is content like the entries beside it: archived, it
-    gathers nobody, and staged, it gathers nobody for a player."""
+    """Archived profile sweeps contribute no hiring rows."""
 
     def test_an_archived_sweep_offers_none_of_its_fighters(
         self, gang, profiles, headings

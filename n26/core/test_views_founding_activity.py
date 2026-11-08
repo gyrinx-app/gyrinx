@@ -61,7 +61,7 @@ def sheet(gang):
 
 
 def told(gang, viewer=None):
-    """Every act in the gang's history, as the sentences a reader gets."""
+    """Return the gang history as its displayed sentences."""
     return [
         "".join(span.text for span in act.spans) for act in history.build(gang, viewer)
     ]
@@ -159,9 +159,7 @@ class TestClosingAndStartingAgain:
         assert gang.open_activity(FOUNDING) is None
 
     def test_closing_one_already_closed_writes_nothing(self, gang, tester):
-        """Two clicks on one button arrive together often enough. The
-        second holds a copy read before the gang's line was taken and
-        still says open, so the act reads the row again and stands down."""
+        """Reload under the gang lock so a stale close cannot record a second ending."""
         stale = gang.open_activity(FOUNDING)
         with operation(gang, actor=tester) as op:
             op.close_activity(stale)
@@ -288,9 +286,7 @@ class TestTheSquareOnTheGangPage:
         assert f'action="{act_page(gang)}"' in body
 
     def test_the_action_is_marked(self, client, gang):
-        """The founding mark stands beside the title — the same mark the
-        model cards and the allowance block carry, so a reader meets one
-        feature rather than three unrelated screens."""
+        """Use the same founding symbol on the activity, cards and allowance block."""
         body = client.get(sheet(gang)).content.decode()
         title = body.index("Spend founding TP")
 

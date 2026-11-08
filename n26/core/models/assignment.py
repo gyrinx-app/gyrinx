@@ -1,29 +1,17 @@
-"""Assignments — a player's copy of an assignable, attached to something.
+"""An assignment is a player's hosted copy of library content.
 
-An assignment lives in exactly one place: on a gang, on a model, on
-the stash, or on another assignment (a scope on a gun on a fighter).
-That is its *host*, and the database enforces that exactly one is set.
+Database constraints require exactly one host and one assignable. Hosts
+are gangs, models, stashes or parent assignments. Each assignable kind
+has its own nullable foreign key because the library uses a mixin rather
+than a shared table. Startup checks compare these fields with the
+assignable registry. See n26.library.models.assignable.
 
-It also names exactly one **assignable**. Because assignables are a mixin
-rather than a shared table (see ``n26.library.models.assignable``), there is no
-single column to point at — instead there is one nullable foreign key per
-kind, listed in ``ASSIGNABLE_FIELDS``, with a database constraint that
-exactly one is set. A startup check (``n26.checks``) refuses to boot if a
-kind of assignable exists with no column here, so the list cannot silently
-fall behind.
+The host locates the content; caused_by identifies the assignment that
+created it. Removal follows causes recursively. Explicit foreign keys
+retain referential integrity and permit loading assignables through joins.
 
-Beside the host sits the **cause**: the assignment that brought this one —
-a membership bringing a fighter's built-in kit, a purchase bringing what
-came with it. Removal follows the cause chain down, and provenance ("came
-with the Cutter") is read off the same link.
-
-Compared with a generic foreign key, this keeps referential integrity, and
-resolving a whole gang's assignments to their assignables is **one** query
-with a few left joins rather than one query per kind present.
-
-Three **root** columns name the gang, model, and stash at the top of the
-chain, written at save time, so everything on a gang is one indexed query
-at any depth, without walking the chain.
+Save derives gang, miniature and stash roots for indexed subtree reads.
+Membership assignments retain the miniature root set by the hiring operation.
 """
 
 from django.core.exceptions import ValidationError
@@ -32,10 +20,9 @@ from django.db import models
 from n26.core.constraints import NamesAnAssignable, exactly_one_of
 from n26.core.models.abstract import Archived, Base
 
-#: Field on Assignment -> the assignable model it points at. Adding a kind
-#: means a matching nullable FK, a line here, and a migration; ``n26.checks``
-#: compares these paths to the Assignable registry and refuses to boot if
-#: they disagree. ``NamesAnAssignable`` iterates the field names.
+#: Map assignment fields to library models. Adding a kind requires its
+#: nullable foreign key, this registry entry and a migration. Startup checks
+#: compare the registry with the fields; NamesAnAssignable uses its keys.
 ASSIGNABLE_FIELDS = {
     "profile": "library.Profile",
     "weapon": "library.Weapon",
@@ -220,7 +207,7 @@ class Assignment(NamesAnAssignable, Base, Archived):
         related_name="assignments",
     )
 
-    # Where it lives — exactly one of gang, miniature, parent, or stash.
+    # Exactly one host must be set.
     gang = models.ForeignKey(
         "n26.Gang",
         on_delete=models.CASCADE,
@@ -246,32 +233,25 @@ class Assignment(NamesAnAssignable, Base, Archived):
         related_name="hosted_assignments",
     )
 
-    # Why this exists. Removing the cause removes everything it caused.
+    # Removal follows this cause link recursively, independently of the host tree.
     caused_by = models.ForeignKey(
         "self", on_delete=models.CASCADE, null=True, blank=True, related_name="caused"
     )
 
-    # True when this assignment removes its assignable from the model
-    # instead of granting it: an owner's own removal of a subtype or rule.
-    # It never shows as a card line. Assembly compiles it to an
-    # unconditional removal, so the removed item is hidden, not changed,
-    # and returns as soon as this assignment is archived.
+    # Treat this as an owner-authored removal, not a grant or visible card line.
+    # Assembly applies it as an unconditional suppression. Archiving the removal
+    # allows the suppressed content to apply again.
     removes = models.BooleanField(default=False)
 
-    # The assignment that offered the slot this pick fills. It points at an
-    # assignment, not the library Slot, so two slots of one type on one
-    # holder stay independent and a card finds each pick without matching
-    # on kinds. CASCADE to match ``caused_by``, which names the same
-    # assignment: if one link PROTECTed what the other cascades, that
-    # assignment could never be deleted.
+    # Identify the stored anchor that offered this pick. Use CASCADE like
+    # caused_by so one link cannot block deletion required by the other.
+    # Record the library slot separately when one anchor offers several choices.
     chosen_for = models.ForeignKey(
         "self", on_delete=models.CASCADE, null=True, blank=True, related_name="picks"
     )
 
-    # The library Slot this pick fills. One assignment can offer two slots
-    # (two skill-tree choices from one line), so ``chosen_for`` alone
-    # cannot tell them apart. PROTECT stops a Slot being deleted while a
-    # player's pick points at it.
+    # Distinguish multiple slots offered by the same anchor. PROTECT retains
+    # the authored slot while a player pick references it.
     chosen_for_slot = models.ForeignKey(
         "library.Slot",
         on_delete=models.PROTECT,
@@ -294,15 +274,10 @@ class Assignment(NamesAnAssignable, Base, Archived):
     )
     chosen_for_holding_revision = models.PositiveIntegerField(null=True, blank=True)
 
-    # The OffersChoice this pick fills. One assignment may carry two offers
-    # for the same kind of assignable, and the pick alone cannot show which
-    # offer it fills.
-    #
-    # SET_NULL, unlike ``chosen_for_slot``'s PROTECT: a Slot is edited in
-    # place, but an OffersChoice is recreated each time its modifier is
-    # composed. PROTECT would make that edit fail once any gang had picked
-    # from the offer. A pick without this link is matched to an offer by
-    # its assignable instead (``effects._fill_choice_slots``).
+    # Distinguish multiple OffersChoice effects on the same anchor. Composing
+    # a modifier recreates its effect, so SET_NULL permits that edit while
+    # retaining picks. Without the link, effects._fill_choice_slots matches
+    # existing picks to offers by assignable.
     chosen_for_offer = models.ForeignKey(
         "library.OffersChoice",
         on_delete=models.SET_NULL,
@@ -311,13 +286,10 @@ class Assignment(NamesAnAssignable, Base, Archived):
         related_name="+",
     )
 
-    # The ROLLED ledger event this pick came from, where a table was rolled
-    # for it. Null on a pick made without rolling and on anything that is
-    # not a pick. Only one unarchived pick may use a roll, checked by
-    # ``Operation._choose_for_slot`` under the gang's lock. A plain foreign
-    # key, not one-to-one, because an archived pick keeps its roll when a
-    # new pick reuses it. SET_NULL: ledger events are not deleted in normal
-    # use, and a pick stays valid without its roll.
+    # Record the roll used for this pick. Under the gang lock, operations allow
+    # only one unarchived pick per roll. Archived picks retain the link when a
+    # replacement reuses the roll, so this cannot be one-to-one. SET_NULL keeps
+    # the pick if its event is deleted.
     roll = models.ForeignKey(
         "n26.LedgerEvent",
         on_delete=models.SET_NULL,
@@ -326,15 +298,10 @@ class Assignment(NamesAnAssignable, Base, Archived):
         related_name="picks",
     )
 
-    # The built-in set member (``DefaultAssignment``) this assignment was
-    # materialised from, and the carrier it was materialised for: a
-    # model's membership, the gang's founding, or a bought mount's own
-    # assignment. Both are null on purchases, rewards and picks, and on
-    # copies stored without the link, which are matched by shape instead.
-    # The pair records that a member is already materialised on a carrier,
-    # so nothing infers it from reasons or creation order. PROTECT is safe
-    # because a member is archived, never deleted, once anything has been
-    # materialised from it.
+    # Record the DefaultAssignment member and carrier that produced a built-in
+    # copy. Explicit provenance prevents inferring grants from reason or creation
+    # order. Once used, members are archived rather than deleted, allowing
+    # PROTECT to retain the source link.
     materialised_from = models.ForeignKey(
         "library.DefaultAssignment",
         on_delete=models.PROTECT,
@@ -412,25 +379,21 @@ class Assignment(NamesAnAssignable, Base, Archived):
                 ),
                 name="assignment_removes_names_subtype_or_rule",
             ),
-            # One live copy per member per carrier. Archived copies stay
-            # out of it, so an owner who parts with a grant may see it
-            # rematerialised deliberately without the old record blocking.
+            # Limit each member and carrier pair to one live copy while retaining archived copies.
             models.UniqueConstraint(
                 fields=["materialised_from", "materialised_for"],
                 condition=models.Q(archived=False),
                 name="assignment_one_live_materialisation",
             ),
-            # A removal suppresses its assignable instead of granting it,
-            # so it must never satisfy the provenance lookup that says a
-            # built-in member is already materialised for a carrier.
+            # Exclude removal assignments from built-in provenance so suppression
+            # cannot satisfy a grant requirement.
             models.CheckConstraint(
                 condition=models.Q(removes=False)
                 | models.Q(materialised_from__isnull=True),
                 name="assignment_removal_carries_no_provenance",
             ),
-            # Set both provenance fields or neither. A copy with only one
-            # would be missed by both grant lookups and by the unique
-            # constraint (NULLs never collide).
+            # Require both provenance fields together so grant lookups and the
+            # unique constraint cannot miss a partial pair containing NULL.
             models.CheckConstraint(
                 condition=(
                     models.Q(
@@ -456,7 +419,7 @@ class Assignment(NamesAnAssignable, Base, Archived):
 
     @property
     def archive_with(self):
-        """Removal takes the subtree: things hung off this, and things it caused."""
+        """Return hosted children and caused dependants, deduplicated by assignment ID."""
         related = [*self.children.all(), *self.caused.all()]
         return list({a.pk: a for a in related}.values())
 
@@ -492,13 +455,13 @@ class Assignment(NamesAnAssignable, Base, Archived):
         super().save(*args, **kwargs)
 
     def _set_roots(self):
-        """Derive the gang and model at the top of this assignment's chain."""
+        """Derive gang, miniature and stash roots from the host chain."""
         if self.parent_id:
             self.gang_root_id = self.parent.gang_root_id
             self.miniature_root_id = self.parent.miniature_root_id
             self.stash_root_id = self.parent.stash_root_id
         elif self.stash_id:
-            # A move must shed the old roots, not only gain new ones.
+            # Clear the previous miniature root when moving into the stash.
             self.stash_root_id = self.stash_id
             self.gang_root_id = self.stash.gang_id
             self.miniature_root_id = None
@@ -509,7 +472,5 @@ class Assignment(NamesAnAssignable, Base, Archived):
             self.gang_root_id = membership.gang_id if membership else None
         elif self.gang_id:
             self.gang_root_id = self.gang_id
-            # miniature_root is left alone: a membership assignment is hosted on
-            # the gang but is *about* the model it brought in, so what the hire
-            # was worth counts towards that model's rating. n26.operations
-            # sets it.
+            # Preserve miniature_root: a gang-hosted membership contributes to its
+            # model's rating. Operation.hire sets that root explicitly.

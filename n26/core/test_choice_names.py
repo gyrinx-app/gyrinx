@@ -1,8 +1,5 @@
-"""How a several-pick slot writes what it holds.
-
-No database — the line is a join of names, and a repeat is a count
-beside the first of that name, written as the book writes a repeat:
-``Enfeebled (x2)``. The picks stay as they were written.
+"""Repeated choice names use a count beside their first occurrence without changing
+the stored picks.
 """
 
 from types import SimpleNamespace
@@ -15,8 +12,7 @@ def names(*held):
 
 
 class TestTheCountMark:
-    """One rule for every surface that stacks repeats: nothing for one,
-    the book's ``(xn)`` for more."""
+    """Append (xn) for repeated names; omit the mark for a single occurrence."""
 
     def test_one_reads_bare(self):
         assert count_mark(1) == ""

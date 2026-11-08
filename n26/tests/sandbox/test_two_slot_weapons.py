@@ -1,14 +1,8 @@
-"""Two-slot weapons carry the book's asterisk wherever their name is drawn.
+"""Weapons using at least two slots display an asterisk after their name.
 
-The book marks a weapon that takes two of a card's three weapon slots
-with an asterisk after its name. The library stores that as
-``Weapon.slots`` and keeps the asterisk out of the stored name; every
-surface that prints the name — the screen card, the print card, the text
-card, the equip picker, a held copy, the stash — draws ``name`` and then
-``slot_mark``, so the mark is never lost from a surface and never written
-into a name. One slot draws nothing, and so does a grenade's nought: the
-mark means "this takes two". Nothing explains the mark; the book's
-readers know it.
+``Weapon.slots`` stores the count separately from the name. Cards, catalogue
+rows, stash listings, print output and text output use ``slot_mark``.
+Weapons using zero or one slot display no mark.
 """
 
 import json
@@ -38,7 +32,7 @@ from n26.tests.sandbox.actions import (
 
 pytestmark = pytest.mark.django_db
 
-#: The page a reader is on; a held copy's addresses are built from it.
+#: Source page for held-copy action URLs.
 AT = "/n26/fighters/vex/equip/?list=1"
 
 
@@ -59,7 +53,7 @@ def equipment_rows(props):
 
 
 class TestTheMark:
-    """One rule, in one place: two or more slots is an asterisk."""
+    """Two or more slots produce an asterisk; lower counts produce no mark."""
 
     def test_two_slots_is_an_asterisk(self):
         assert slot_mark(2) == "*"
@@ -98,7 +92,7 @@ def fighter(gang, make_profile, make_statline):
 
 @pytest.fixture
 def stubber(default_pack):
-    """An asterisked weapon: two of the card's three slots."""
+    """Create a weapon using two slots."""
     return create_weapon("Heavy stubber", profiles=[("", 0)], price=130, slots=2)
 
 
@@ -109,7 +103,7 @@ def autogun(default_pack):
 
 @pytest.fixture
 def grenades(default_pack):
-    """Grenades take no slot at all, and the book leaves them bare."""
+    """Create grenades using zero slots and displaying no mark."""
     return create_weapon("Frag grenades", profiles=[("", 0)], price=30, slots=0)
 
 
@@ -141,7 +135,7 @@ def weapons_by_name(card):
 
 
 class TestTheStoredName:
-    """The mark is drawn, never stored: the name stays the book's name."""
+    """Store the name without its separately rendered slot mark."""
 
     def test_the_weapon_keeps_a_bare_name_and_says_its_mark_apart(self, stubber):
         assert stubber.name == "Heavy stubber"
@@ -156,9 +150,7 @@ class TestTheStoredName:
 
 
 class TestTheScreenCard:
-    """The gang sheet draws the mark after the name, and the fighter's own
-    page — where the weapon has a menu — gives the menu the same name, so
-    a screen reader hears what a sighted reader sees."""
+    """Card names and accessible weapon-menu labels include the same slot mark."""
 
     def test_the_gang_sheet_carries_the_mark(self, client, gang, armed):
         client.force_login(gang.owner)
@@ -213,8 +205,7 @@ def rows_by_name(catalogue):
 
 
 class TestTheEquipPicker:
-    """A row for sale, a row for something held, and each held copy all
-    carry the weapon's slots, so the picker marks what the card marks."""
+    """Listings, owned rows and individual copies retain the weapon slot count and mark."""
 
     def test_a_listing_carries_its_slots_and_the_mark(self, fighter, house_list):
         rows = rows_by_name(catalogue_for(fighter, house_list))
@@ -262,8 +253,7 @@ class TestTheEquipPicker:
 
 
 class TestThePriceBoxes:
-    """The box a price is typed into is named the way its row is, so a
-    screen reader hears the mark there too."""
+    """Accessible price-field labels include the weapon slot mark."""
 
     def test_a_listings_price_box_is_named_with_the_mark(
         self, client, gang, fighter, house_list
@@ -320,8 +310,7 @@ def stashed(gang, stubber, grenades):
 
 
 class TestTheStash:
-    """The stash draws a line's name the way a card does — on the gang's
-    equip page, on the gang sheet with its actions, and on paper."""
+    """Stash listings preserve slot marks on the catalogue, gang sheet and print page."""
 
     def test_the_stash_line_carries_its_slots(self, stashed):
         stashed.refresh_from_db()
@@ -356,9 +345,7 @@ class TestTheStash:
         assert "Frag grenades*" not in paper
 
     def test_a_reader_who_does_not_own_the_gang_sees_the_mark(self, client, stashed):
-        """The sheet a reader who owns nothing here sees draws the stash
-        without menus, through the same lines a card's kit uses — and
-        the mark goes with the name there too."""
+        """Read-only gang sheets retain slot marks while omitting equipment actions."""
         body = client.get(reverse("n26-gang", args=[stashed.pk])).content.decode()
 
         assert "Heavy stubber*" in body
@@ -367,10 +354,10 @@ class TestTheStash:
 
 
 class TestTwoOfATwoSlotWeapon:
-    """A weapon is never folded into a count — two guns of one name may
-    differ in their ammo, their accessories and their choices — so two of
-    a two-slot weapon are two marked lines. Where a line does stand for
-    more than one, the mark sits between the name and the count."""
+    """Weapon copies retain separate marked rows because their profiles and accessories can differ.
+
+    When a display line includes a count, place the mark before it.
+    """
 
     @pytest.fixture
     def doubled(self, gang, stubber):
@@ -408,8 +395,7 @@ class TestTwoOfATwoSlotWeapon:
         assert "(x2)" not in text
 
     def test_a_line_standing_for_two_puts_the_mark_before_the_count(self, doubled):
-        """Pinned on the text sheet, whose stash line is composed the way
-        the print page's is: name, then the asterisk, then the count."""
+        """Text output orders the weapon name, slot mark and count."""
         sheet = render_gang(doubled)
         first, _ = sheet.stash
         sheet.stash = [replace(first, count=2)]
@@ -420,8 +406,7 @@ class TestTwoOfATwoSlotWeapon:
 
 
 class TestTheDialogs:
-    """A dialog opened from a marked line names the weapon the same way,
-    in its title and wherever it offers the weapon as somewhere to go."""
+    """Dialog titles and weapon destinations include the slot mark."""
 
     def test_selling_asks_with_the_mark(
         self, client, gang, fighter, house_list, stubber
@@ -480,8 +465,7 @@ class TestTheDialogs:
 
 
 class TestAuthoringAWeapon:
-    """A hand-authored weapon can be marked: the authoring page offers the
-    slots field with the model's own help text, and saves what is typed."""
+    """The authoring form exposes the slot count and preserves it when saving."""
 
     @pytest.fixture
     def author(self, client):

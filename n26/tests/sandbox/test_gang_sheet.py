@@ -1,19 +1,6 @@
-"""The gang as a data structure of its own.
-
-A gang gets the same treatment a miniature does (design/gang-sheet.md):
-a data structure holding all its properties, so there is something to
-test against, with the renderable version derived from it. So:
-``GangCard`` is the
-fetch, ``ComputedGang`` is the test interface, and the grown
-``GangSheet`` derives from both — the same three layers a miniature
-has, and the surface gang-level choices (a Venator's ranked skill
-trees) live on.
-
-The load-bearing rule here is **scope symmetry**: a gang-hosted row's
-``TargetsMiniature`` modifiers reach members through the broadcast, as
-ever, and never the gang's own card; a ``TargetsGang`` modifier appears
-exactly once, on the gang's card, and never on any member's. Each card
-says what it hosts (``host_kind``) and scopes read it.
+"""GangCard supplies fetched gang data; ComputedGang applies effects; GangSheet prepares
+display data. Gang-scoped modifiers affect only the gang card, while model-scoped
+modifiers on gang rows reach member cards through broadcast.
 """
 
 import pytest
@@ -66,8 +53,7 @@ def house_list(default_pack):
 
 @pytest.fixture
 def escherish(gang_type, house_list):
-    """A gang type with one of everything a gang card holds: a built-in
-    list, a member-facing rule, and a gang-level choice."""
+    """A built-in collection, a member-facing rule and a gang-level skill choice."""
     from n26.tests.sandbox.actions import create_default_set
 
     gang_type.built_ins = create_default_set("Gang built-ins", members=[house_list])
@@ -111,13 +97,12 @@ def member_computed(miniature):
 
 class TestTheGangCard:
     def test_each_card_says_what_it_hosts(self, gang, yolanda):
-        """The contract scope symmetry hangs off."""
+        """Scope matching distinguishes gang cards from model cards by host_kind."""
         assert build_gang_card(gang).host_kind == GANG
         assert build_card(yolanda).host_kind == MODEL
 
     def test_founding_puts_the_gangs_own_rows_on_its_card(self, gang):
-        """The founding and the house list are first-class rows *here* —
-        on member cards the same rows are broadcast echoes."""
+        """Gang assignments are roots on the gang card and broadcast nodes on member cards."""
         card = build_gang_card(gang)
         assert [node.name for node in card.roots] == ["Escher", "House List"]
         assert not any(node.broadcast for node in card.all_nodes())
@@ -129,9 +114,9 @@ class TestTheGangCard:
         assert aboard is not None and aboard.broadcast
 
     def test_the_stash_is_storage_not_facts(self, gang, house_list):
-        """Stash rows draw on the gang card but are not in ``all_nodes``:
-        nothing in the stash is a fact about the gang, and nothing in it
-        computes (design/gang-sheet.md)."""
+        """Stash rows contribute stash rating but are excluded from the nodes used to
+        compute gang effects.
+        """
         from n26.core.browse import browse
 
         buy(gang.stash, next(browse(house_list).all_lines()))
@@ -163,7 +148,7 @@ class TestScopeSymmetry:
     def test_a_gang_level_offer_never_reaches_a_member(self, gang, yolanda):
         computed = member_computed(yolanda)
         assert [slot.kind_label for slot in computed.choices] == []
-        # Not silently absent: the plan shows the scope asked and refused.
+        # The plan records the gang scope as skipped on a model card.
         step = next(s for s in computed.plan if "names a favoured" in str(s.modifier))
         assert step.outcome == "skipped"
 
@@ -174,8 +159,9 @@ class TestScopeSymmetry:
         assert step.outcome == "skipped"
 
     def test_the_same_rows_work_both_ways(self, gang, yolanda):
-        """One carrier, two scopes, each reaching exactly its own kind of
-        card — the broadcast is unchanged by the gang card existing."""
+        """The same gang carrier can supply modifiers scoped separately to gang and model
+        cards.
+        """
         computed = member_computed(yolanda)
         assert [c.name for c in computed.rules] == ["Nimble"]
         assert [slot.kind_label for slot in gang_computed(gang).choices] == ["Skill"]
@@ -197,13 +183,8 @@ class TestComputedGang:
         assert slot.is_resolved and slot.chosen_name == "Overwatch"
 
     def test_the_same_thing_chosen_twice_draws_a_note(self, gang, escherish):
-        """Two questions, the same thing answering each — incoherent-ish, so
-        it is *said*, never blocked: the owner may do as they please
-        (inform, not police).
-
-        Answered twice over, because an answer settles one question: one
-        Overwatch leaves the second question open and there is nothing
-        repeated to remark on.
+        """Answer both questions with the same skill to produce a duplicate-choice note
+        without blocking either answer.
         """
         modifier(
             "The gang names a second skill",
@@ -232,12 +213,8 @@ class TestComputedGang:
 
 
 class TestTheRosterOrder:
-    """Fighters print in the gang list's own order, not the alphabet's.
-
-    Rank first (the profile's home category, by the taxonomy's
-    positions), name within a rank, and a model somebody's purchase
-    brought in — a pet — directly after its owner. The first edition's
-    roster is the reference order.
+    """Sort fighters by computed category position, then name. Pets follow their owners;
+    vehicles follow fighters.
     """
 
     @pytest.fixture
@@ -251,8 +228,7 @@ class TestTheRosterOrder:
 
     @pytest.fixture
     def ranked_crew(self, gang, ranks, make_profile):
-        """Hired in no particular order, named against the alphabet —
-        so only the rank ordering can put them right."""
+        """Hire in an order and with names that differ from category order."""
         from n26.tests.sandbox.actions import hire_with_option
 
         for name, rank in [
@@ -275,8 +251,7 @@ class TestTheRosterOrder:
         ]
 
     def test_a_pet_rides_with_its_owner(self, ranked_crew, ranks, make_profile):
-        """Ann's pet sorts directly after Ann — not under Pets at the
-        end, and not alphabetically among the fighters."""
+        """A purchased pet sorts immediately after its owner."""
         from n26.core.browse import browse
         from n26.core.models import Miniature
         from n26.tests.sandbox.actions import (
@@ -326,12 +301,7 @@ class TestTheRosterOrder:
         ]
 
     def test_the_ladder_runs_across_sections(self, ranked_crew, make_profile):
-        """A Hanger-on is filed under Supplementary Profiles, a Brute
-        under Gang List — and the roster ranks by the category's own
-        position whichever section holds it, so a supplementary rank can
-        muster before a gang list one. Ranked by section first, every
-        supplementary fighter could only ever sort after the whole gang
-        list."""
+        """Category position determines rank across taxonomy sections."""
         from n26.tests.sandbox.actions import create_category, hire_with_option
 
         brute = create_category("Gang List", "Brute", position=7)
@@ -354,9 +324,7 @@ class TestTheRosterOrder:
         ]
 
     def test_a_rule_may_refile_a_model(self, ranked_crew, ranks, make_profile):
-        """A ganger selected as the gang's Leader sorts with the Leaders,
-        whatever their entry says: the re-filing is computed off the
-        card like any other fact, and goes if its carrier goes."""
+        """A computed category change affects roster order until its carrier is removed."""
         from n26.core.models import Miniature
         from n26.tests.sandbox.actions import (
             assign,
@@ -385,10 +353,9 @@ class TestTheRosterOrder:
     def test_vehicles_sort_after_every_fighter(
         self, ranked_crew, make_profile, vehicle_type
     ):
-        """A vehicle's category numbers it within its own section, and a
-        position that collides with a fighter rank's must not pull the
-        machine up among the crew: the Type puts every vehicle after
-        every fighter, whatever its category says."""
+        """Profile type places vehicles after fighters even when their category positions
+        overlap.
+        """
         from n26.tests.sandbox.actions import create_category, hire_with_option
 
         motor_pool = create_category("Vehicles", "Vehicle", position=0)
@@ -427,15 +394,13 @@ class TestTheSheetDerives:
         ]
         assert [(line.name, line.rating) for line in sheet.stash] == [("Lasgun", 15)]
         assert sheet.stash_rating == 15
-        # The chosen row is drawn as the choice's line, never twice.
+        # The chosen assignment is represented by its choice line.
         assert "Overwatch" not in [line.name for line in sheet.rows]
 
     def test_the_gangs_rules_are_their_own_list(self, gang):
-        """A rule on the gang is dispatched apart from the other rows —
-        the sheet prints rules under their own term, as a model card
-        does. A ``targets_gang`` grant of one folds in beside the stored
-        rows, told apart by provenance: the gang's card carries named
-        rules and standing lists, and those two kinds alone."""
+        """Stored and computed gang rules share the rules list; provenance distinguishes
+        computed grants.
+        """
         assign(create_rule("Chem Dealers"), gang=gang)
         modifier(
             "The house trades in toxins",
@@ -455,8 +420,9 @@ class TestTheSheetDerives:
         assert step.outcome == "reached"
 
     def test_the_gang_may_be_granted_a_standing_list(self, gang):
-        """A collection granted to the gang draws among its rows — an
-        alliance's standing access, gone when the alliance goes."""
+        """A gang-granted collection appears in its rows until the granting carrier is
+        removed.
+        """
         from n26.tests.sandbox.actions import create_collection, remove
 
         bazaar = create_collection("Bazaar Access")
@@ -477,9 +443,7 @@ class TestTheSheetDerives:
         assert "Bazaar Access" not in [line.name for line in sheet.rows]
 
     def test_the_gangs_colour_rides_the_sheet(self, gang):
-        """The mark drawn beside a gang's name comes off the sheet like
-        everything else a page shows, so a heading and the row that
-        opened it cannot disagree about which colour the gang is."""
+        """The sheet exposes the gang’s current colour."""
         assert render_gang(gang).colour == ""
 
         gang.colour = "violet"

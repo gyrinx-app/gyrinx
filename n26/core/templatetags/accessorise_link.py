@@ -7,11 +7,10 @@ register = template.Library()
 
 @register.simple_tag
 def accessorise_link_props(href, copy_id, label, name):
-    """The address the link follows, and the dialog that address opens.
+    """Build a link URL and the matching accessorising dialog ID.
 
-    The dialog id is ``n26-accessorise-`` plus the copy id, the same id
-    ``equip_accessorise.html`` writes on the panel. The click names that
-    panel; without a script the link still goes to ``href``.
+    The ID uses n26-accessorise- plus the copy ID, matching equip_accessorise.html.
+    Without scripting, navigation still follows href.
     """
     return {
         "href": "" if href is None else str(href),

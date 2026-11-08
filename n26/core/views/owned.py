@@ -264,7 +264,7 @@ def _owned_dialog(request, host: EquipHost):
     asks_figures = kind == "refund" or (kind == "remove" and gang.credits_unlimited)
     refunding, paid = refund_of(assignment) if asks_figures else ((), 0)
     points = trade_points_in(refunding)
-    # Unlimited-credit purchases with no refundable founding points use removal.
+    # Unlimited-credit purchases with no refundable Trade Points use removal.
     if kind == "refund" and gang.credits_unlimited and not points:
         kind = "remove"
 

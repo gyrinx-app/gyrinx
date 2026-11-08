@@ -1,16 +1,7 @@
-"""Making choices through the screens.
-
-The engine underneath is pinned elsewhere — ``test_outcast_gang.py`` for
-archetypes and affiliations, ``test_venator_skill_trees.py`` for the
-whole-kind pick, ``test_specialist.py`` for the ordinary one. This file
-is about the surface: that an open slot draws as something to
-click, that clicking it lists what *this* card may pick, and that the
-click writes a row the slot then reads back.
-
-The three questions here are deliberately unalike underneath — a skill
-narrowed to a tier the archetype opens, an archetype whose pick belongs
-to the gang, an affiliation the gang itself is asked — and the screens
-tell them apart by nothing at all. One route, one page, one click.
+"""Shared picker screens for model and gang choices, including tier-limited skills and
+model-triggered gang assignments. Verify addresses, offered options, stored answers,
+replacement, dismissal and restoration. Domain-specific fixtures also have coverage in
+test_outcast_gang.py, test_venator_skill_trees.py and test_specialist.py.
 """
 
 import json
@@ -71,9 +62,6 @@ from n26.tests.sandbox.actions import (
 pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
 
-# --- A gang list small enough to read, wide enough to cover the shapes ----
-
-
 @pytest.fixture
 def owner(db):
     return User.objects.create_user("player")
@@ -117,7 +105,7 @@ def _build_subtypes():
 
 @library_setup
 def _build_archetypes(sets, skills_collection, subtypes):
-    """Two a gang may take, each opening one skill set as Primary."""
+    """Two affiliations, each placing one skill category in Primary."""
     _, tiers = skills_collection
     made = {}
     for name, set_key in [("Brawler", "combat"), ("Gunslinger", "shooting")]:
@@ -153,17 +141,13 @@ def _build_pick_lists(archetypes, affiliations):
 
 @library_setup
 def _build_gang_list(subtypes, skills_collection, pick_lists, affiliations):
-    """The gang type: the gang's own affiliation question, a whole-kind
-    question beside it, and the skill offer every Leader carries."""
+    """Offer two gang affiliation choices and a Primary skill choice for each Leader."""
     _, tiers = skills_collection
     gang_type = create_gang_type("Outcasts")
 
-    # Two questions on one carrier, which is why an address names the
-    # offer as well as the row it hangs off: without it, choosing for one
-    # would read as having settled the other.
-    #
-    # The second names a kind with nothing narrowing it, which is the
-    # branch with no collection to browse.
+    # Include the offer ID in each address so two offers sharing a carrier stay
+    # independent. The second offer has no section restriction and lists the entire
+    # kind.
     questions = create_hidden("Gang questions")
     modifier(
         "Outcasts: the gang takes an Affiliation",
@@ -182,9 +166,8 @@ def _build_gang_list(subtypes, skills_collection, pick_lists, affiliations):
     gang_type.built_ins = create_default_set("Outcast built-ins", members=[questions])
     gang_type.save()
 
-    # Carried by the gang type and scoped to Leaders: the slot lands on
-    # every Leader's card through the broadcast, and each chosen row names
-    # its own fighter.
+    # The gang type broadcasts this offer to every Leader; each answer belongs to its
+    # addressed model.
     modifier(
         "Outcasts: a Leader starts with a Primary skill",
         targets_every_model(has_subtypes(subtypes["leader"])),
@@ -299,7 +282,7 @@ def profiles(gang_list, subtypes, pick_lists, person_type, roster_size):
         )
         profile.save()
         made[key] = profile
-    # What is chosen is the gang's, though the Leader is asked.
+    # The model answers an offer whose result is assigned to the gang.
     modifier(
         "Outcast Leader: chooses the gang's Archetype",
         targets_model(),
@@ -317,12 +300,8 @@ def profiles(gang_list, subtypes, pick_lists, person_type, roster_size):
 @pytest.fixture
 @library_setup
 def whispers(gang_list, subtypes, skills_collection):
-    """A family of powers filed in the skills collection, Primary for
-    Leaders — what a psychic gang list looks like.
-
-    Powers are not skills, and both sit in one collection under one set
-    of tiers: the fighter who browses skills at Primary browses these
-    beside them.
+    """Place a power family in the same collection and Primary tier as skills to verify
+    that skill offers still filter by kind.
     """
     collection, tiers = skills_collection
     family = create_category("Wyrd Powers", "Psychoteric Whispers")
@@ -354,17 +333,10 @@ def crew(gang, profiles):
     return made
 
 
-# --- Reading the slots off the rendered sheet -----------------------------
-
-
 def sheet_slots(gang):
-    """Every slot the gang sheet draws, by label — the gang's own and each
-    member's, exactly as the view assembles them.
-
-    A card keeps the questions asking for a skill in a list of their own,
-    because it draws them in the Skills row rather than among the others.
-    Both lists are read here: where a question is drawn is the card's
-    business, and every one of them is a slot with an address."""
+    """Collect addressed choice lines from the gang sheet and every model card, keyed by
+    label.
+    """
     from n26.core.views.choose import link_slots
 
     sheet = render_gang(gang)
@@ -377,7 +349,7 @@ def sheet_slots(gang):
 
 
 def offer_for(slot_line):
-    """The pick screen's structure for one drawn slot, without the view."""
+    """Build picker options for a rendered choice line without requesting the view."""
     from n26.core.views.choose import find_slot
 
     gang = Assignment.objects.get(pk=slot_line.key.split(":")[1]).gang_root
@@ -390,12 +362,8 @@ def names_on(offer):
 
 
 def _slot_href(gang, miniature, kind_label):
-    """A question's address even once it has been answered.
-
-    A card files an answered skill question into the Skills row rather
-    than drawing it again, so the sheet stops listing it — but the
-    question is still asked and still has an address, which is what a
-    stale page or a second click posts to.
+    """Construct the address of an answered skill question that no longer appears among the
+    card’s open prompts.
     """
     computed = fighter_computed(miniature)
     slot = next(
@@ -427,8 +395,7 @@ def fighter_computed(miniature):
 
 
 class TestAnOpenSlotIsAnInvitation:
-    """A slot nobody has chosen for draws as something to click, and
-    as nothing else: it is not an error and nothing counts it."""
+    """Unanswered offers render picker links when they have stored anchors."""
 
     def test_the_sheet_links_each_open_offer_to_its_own_picker(
         self, client, owner, gang, crew
@@ -443,7 +410,6 @@ class TestAnOpenSlotIsAnInvitation:
         assert not any(line.is_resolved for line in slots.values())
         assert all(line.href for line in slots.values())
 
-        # The two gang questions share a carrier but keep separate addresses.
         assert slots["Affiliation"].href != slots["Favoured set"].href
         client.force_login(owner)
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
@@ -459,8 +425,9 @@ class TestAnOpenSlotIsAnInvitation:
         assert slots["Sorrow: Archetype"].href != slots["Ash: Archetype"].href
 
     def test_a_card_with_no_stored_rows_has_no_address(self, gang_list, profiles):
-        """A hire preview has real offers and nothing to choose against,
-        so its lines are drawn as facts, not as dead controls."""
+        """Hire previews lack stored anchors, so their choice lines have no interactive
+        addresses.
+        """
         from n26.core.card import build_card_from_profile
         from n26.core.render import card_to_model_card
 
@@ -472,13 +439,14 @@ class TestAnOpenSlotIsAnInvitation:
 
 
 class TestWhatOneCardMayPick:
-    """The list is the offer's own, shaped by the card it is offered on."""
+    """Derive options from the offer and the current card’s placements."""
 
     def test_a_narrowed_offer_lists_only_that_tier(
         self, client, owner, gang, crew, archetypes
     ):
-        """Before the archetype, no set is Primary and the skill slot has
-        nothing in it; after it, exactly that archetype's set."""
+        """The Brawler archetype places Combat in Primary; without an archetype, the skill
+        offer is empty.
+        """
         slots = sheet_slots(gang)
         assert offer_for(slots["Sorrow: Primary skill"]).is_empty
 
@@ -504,7 +472,7 @@ class TestWhatOneCardMayPick:
             "Brawler",
             "Gunslinger",
         }
-        # Nothing narrows it, so there is nothing to head the list with.
+        # Whole-kind offers have no collection heading.
         assert [group.name for group in offer.groups] == [""]
 
         client.force_login(owner)
@@ -514,23 +482,14 @@ class TestWhatOneCardMayPick:
 
 
 class TestATierHoldingTwoKinds:
-    """The list is what may be chosen, and only that.
-
-    A tier is not a kind: a Leader whose Primary sets include a family of
-    powers browses skills and powers under the one heading, and the
-    question they carry asks for a skill. A power drawn beside the skills
-    would be a button that cannot work — the slot reads as resolved only
-    where what was chosen matches the offer, so a power would leave the
-    question open with a stray row beside it.
-    """
+    """A tier may contain skills and powers, but a skill offer lists only skills."""
 
     def test_powers_remain_browsable_while_the_skill_question_follows_the_archetype(
         self, gang, crew, archetypes, whispers, skills_collection
     ):
-        """Nothing is hidden from the fighter. The family really is in
-        their Primary tier, so a screen that deals in powers finds it
-        there — it is the skill question, and only that, which declines to
-        offer them."""
+        """Powers remain browsable in Primary while the skill question lists only the
+        archetype’s skills.
+        """
         from n26.core.browse import browse, placements_for, regrouped_by_placement
 
         assert offer_for(sheet_slots(gang)["Sorrow: Primary skill"]).is_empty
@@ -557,13 +516,8 @@ class TestATierHoldingTwoKinds:
 
 
 class TestGettingToTheNextFighter:
-    """A fighter's question carries the gang's other fighters beside the
-    heading; the gang's own questions carry nobody.
-
-    Each row leads to that fighter's equip screen. A slot's address names
-    one card's carrier and one offer, so the page being looked at has no
-    counterpart for anybody else — the kit screen is the fighter page they
-    all have.
+    """Model pickers link the roster switcher to equip pages because another model has no
+    equivalent question address. Gang pickers omit that switcher.
     """
 
     @pytest.mark.parametrize("roster_size", [2], indirect=True)
@@ -581,9 +535,7 @@ class TestGettingToTheNextFighter:
 
     @pytest.mark.parametrize("roster_size", [2], indirect=True)
     def test_the_gangs_own_question_offers_nobody(self, client, owner, gang, crew):
-        """An affiliation belongs to the gang rather than to anyone on the
-        roster, so a list of fighters beside it would offer a switch to
-        somewhere this question does not exist."""
+
         client.force_login(owner)
         body = client.get(sheet_slots(gang)["Affiliation"].href).content.decode()
 
@@ -603,7 +555,7 @@ def gang_anchor(gang, assignable_name, crew):
 
 
 class TestMakingOneChoice:
-    """One click writes one row, and the slot reads it back."""
+    """Picker submissions create assignments that resolve their addressed questions."""
 
     def post(self, client, href, thing):
         return client.post(href, {"thing": f"{thing._meta.label_lower}:{thing.pk}"})
@@ -638,8 +590,7 @@ class TestMakingOneChoice:
     def test_what_the_gang_carries_though_a_fighter_was_asked(
         self, client, owner, gang, crew, archetypes
     ):
-        """The offer says the gang holds what is chosen, so it does — and
-        the Leader's slot still reads as the one that was settled."""
+        """The answer is gang-held while resolving the Leader’s model-anchored offer."""
         client.force_login(owner)
         self.post(
             client, sheet_slots(gang)["Sorrow: Archetype"].href, archetypes["Brawler"]
@@ -653,9 +604,7 @@ class TestMakingOneChoice:
     def test_a_gang_carried_question_is_chosen_for_per_fighter(
         self, client, owner, gang, crew, profiles, archetypes, skills
     ):
-        """The skill offer rides the gang type and reaches every Leader.
-        The chosen row names the Leader whose slot was clicked, and nobody
-        else's slot moves."""
+        """A broadcast offer keeps each Leader’s answer attached to that Leader."""
         choose(gang_anchor(gang, "Outcast Leader", crew), archetypes["Brawler"])
         second = hire_with_option(gang, profiles["leader"], "Ash")
 
@@ -668,9 +617,8 @@ class TestMakingOneChoice:
 
         chosen = Assignment.objects.get(skill=skills["Berserker"])
         assert chosen.miniature == crew["leader"]
-        # Once chosen for, a skill question stops being asked and the skill
-        # named joins that fighter's Skills row. The other Leader is still
-        # being asked, on a slot of her own.
+        # Resolved skills move into the model’s Skills row; the other Leader’s prompt
+        # remains open.
         sorrow = next(c for c in render_gang(gang).models if c.name == "Sorrow")
         assert "Berserker" in [line.name for line in sorrow.skills]
         slots = sheet_slots(gang)
@@ -699,13 +647,12 @@ class TestMakingOneChoice:
     def test_what_was_chosen_dies_with_its_carrier(
         self, client, owner, gang, crew, archetypes
     ):
-        """What was chosen is caused by the row that asked, so retiring
-        the Leader retires the gang's archetype with them."""
+        """Removing the Leader’s membership archives the gang-held answer it caused."""
         client.force_login(owner)
         self.post(
             client, sheet_slots(gang)["Sorrow: Archetype"].href, archetypes["Brawler"]
         )
-        assert gang_computed(gang).choices  # the gang carries the pick
+        assert gang_computed(gang).choices
 
         remove(crew["leader"].assignments.get(profile__isnull=False))
         assert not Assignment.objects.filter(
@@ -716,8 +663,7 @@ class TestMakingOneChoice:
     def test_a_thing_that_is_not_on_offer_writes_nothing(
         self, client, owner, gang, crew, subtypes
     ):
-        """A stale page or a tampered form. The list comes back; nothing
-        is written and nothing is explained at length."""
+
         client.force_login(owner)
         before = Assignment.objects.count()
         response = self.post(
@@ -729,9 +675,7 @@ class TestMakingOneChoice:
 
 
 class TestAClickTheDomainWillNotTake:
-    """A click is met with words, whatever it names. Nothing a reader
-    can send to one of these addresses is worth an error page: the whole
-    of the flow is one list and one button, so the list is the reply."""
+    """Invalid option submissions report a readable refusal and preserve assignments."""
 
     def post(self, client, href, thing):
         return client.post(href, {"thing": f"{thing._meta.label_lower}:{thing.pk}"})
@@ -739,9 +683,7 @@ class TestAClickTheDomainWillNotTake:
     def test_a_power_cannot_be_chosen_for_a_question_about_skills(
         self, client, owner, gang, crew, archetypes, whispers
     ):
-        """A power filed in the fighter's Primary tier, clicked at the
-        skill question. It is not on the list, so the click writes
-        nothing, says why, and comes back to the list."""
+        """Reject a power submitted to a skill offer without creating an assignment."""
         choose(gang_anchor(gang, "Outcast Leader", crew), archetypes["Brawler"])
         client.force_login(owner)
         href = sheet_slots(gang)["Sorrow: Primary skill"].href
@@ -758,10 +700,7 @@ class TestAClickTheDomainWillNotTake:
         )
 
     def test_a_pick_of_the_wrong_kind_is_refused_in_words(self, gang, crew, whispers):
-        """The operation's own guard, under whatever asks it. A pick that
-        cannot resolve the slot is declined with a sentence a player could
-        read, and the transaction unwinds — so no surface can leave a row
-        that settles nothing."""
+        """The operation rejects unsupported choice kinds with Refusal and rolls back."""
         from n26.core.operations import Refusal, operation
 
         before = Assignment.objects.count()
@@ -777,8 +716,7 @@ class TestAClickTheDomainWillNotTake:
 
 class TestAddressesThatShouldNotResolve:
     def test_a_slot_that_no_longer_exists(self, client, owner, gang, crew, archetypes):
-        """A carrier that has gone takes its question with it, and the
-        address stops resolving."""
+
         client.force_login(owner)
         href = sheet_slots(gang)["Sorrow: Archetype"].href
         remove(crew["leader"].assignments.get(profile__isnull=False))
@@ -792,9 +730,7 @@ class TestAddressesThatShouldNotResolve:
         )
 
     def test_a_fighter_from_another_roster(self, client, owner, gang, crew, profiles):
-        """The card in the address must be on the gang in the address —
-        both the reader's here, so this is the roster check and not the
-        ownership one."""
+        """Use two gangs owned by the same user to isolate the roster check from ownership."""
         other = found_gang("The Others", gang.gang_type, owner=owner)
         client.force_login(owner)
         href = sheet_slots(gang)["Sorrow: Archetype"].href
@@ -807,9 +743,9 @@ class TestTheStripCostsNothing:
     def test_pointing_the_slots_at_their_pickers_adds_no_queries(
         self, django_assert_num_queries, gang, crew, profiles
     ):
-        """The address is already on the line; turning it into a URL is
-        arithmetic. A roster that grows must not grow the sheet's query
-        count, slots or no slots."""
+        """Generate choice URLs from prepared lines without database queries as the roster
+        grows.
+        """
         from n26.core.views.choose import link_slots
 
         def budget():
@@ -825,19 +761,13 @@ class TestTheStripCostsNothing:
 
 
 class TestOneLineAskingTwice:
-    """A line may ask two questions of one kind — a primary role and a
-    secondary one — and the answers stay apart.
-
-    Nothing about a pick itself says which question it settles: both take
-    the same sort of thing, and the offers match on kind alone. So the
-    pick names the question, exactly as a slot's pick names its slot, and
-    an answer settles one question and no more.
+    """Two same-kind offers on one carrier retain separate answers. Explicit picks name
+    their offer; legacy unnamed picks resolve one matching, unanswered offer.
     """
 
     @pytest.fixture
     def twice_asked(self, person_type, gang_list, skills_collection):
-        """One subtype, two questions over one kind: a skill from the
-        wide tier, and one from the narrow tier beside it."""
+        """One subtype offers two separately labelled choices of skill."""
         _, tiers = skills_collection
         carrier = create_subtype("Twice Asked")
         for label, section in [
@@ -892,21 +822,18 @@ class TestOneLineAskingTwice:
     def test_a_pick_naming_no_question_settles_one_and_only_one(
         self, gang, twice_asked, skills
     ):
-        """A pick written before questions could be named: the offers'
-        own selectors are all there is to go on, so it settles the first
-        that matches rather than nothing at all — and only that one, so
-        the other question is still there to be answered."""
+        """A legacy unnamed pick resolves the first matching open offer without also
+        resolving the second.
+        """
         vex = hire(gang, twice_asked, "Vex")
         rows = self.rows(vex)
 
-        # Nobody said which question, and the line asks two that would
-        # both take it, so the answer names neither — the shape of every
-        # answer given before a question could be named.
+        # Leave chosen_for_offer unset to exercise legacy same-kind answer matching.
         pick = choose(rows["Primary role"].anchor.assignment, skills["Marksman"])
         assert pick.chosen_for_offer is None
 
         settled = self.rows(vex)
-        # Either question would take it: both offers match on kind alone.
+        # Both offers accept the same kind, so fallback matching resolves only one.
         assert settled["Primary role"].chosen_name == "Marksman"
         assert settled["Secondary role"].chosen_name is None
 
@@ -921,7 +848,7 @@ class TestOneLineAskingTwice:
     def test_an_unnamed_pick_leaves_the_other_question_answerable(
         self, gang, twice_asked, skills
     ):
-        """And the question it left open still answers for itself."""
+
         vex = hire(gang, twice_asked, "Vex")
         rows = self.rows(vex)
         choose(rows["Primary role"].anchor.assignment, skills["Marksman"])
@@ -937,9 +864,7 @@ class TestOneLineAskingTwice:
     def test_an_answer_given_is_never_taken_by_the_other_question(
         self, gang, twice_asked, skills
     ):
-        """An unnamed answer settles whichever question is free, so it must
-        not be the one whose own answer is sitting right there. Answering
-        the second question first is the order that catches it."""
+        """An unnamed answer must not resolve an offer already holding an explicit answer."""
         vex = hire(gang, twice_asked, "Vex")
         rows = self.rows(vex)
         choose(rows["Secondary role"].anchor.assignment, skills["Marksman"])
@@ -954,9 +879,9 @@ class TestOneLineAskingTwice:
     def test_rewording_a_question_does_not_empty_the_cards_that_answered_it(
         self, gang, twice_asked, skills
     ):
-        """Composing a modifier writes its question afresh, so an answer
-        can end up naming a question the card no longer asks. It is read
-        like an unnamed one rather than lost."""
+        """An answer referencing an offer no longer on the card falls back to
+        unnamed-answer matching.
+        """
         from n26.library.models import OffersChoice
 
         vex = hire(gang, twice_asked, "Vex")
@@ -964,7 +889,7 @@ class TestOneLineAskingTwice:
         row = rows["Primary role"]
         choose(row.anchor.assignment, skills["Berserker"], offer=row.offer)
 
-        # The question it named is gone; the answer stays where it is.
+        # Reference an offer absent from the card while retaining the answer.
         gone = OffersChoice.objects.create(
             of_kind=row.offer.of_kind, label="Reworded", from_section=None
         )
@@ -977,9 +902,9 @@ class TestOneLineAskingTwice:
     def test_deleting_the_question_leaves_the_answer_standing(
         self, gang, twice_asked, skills
     ):
-        """An author may delete or recompose a question at any time, and
-        composing writes a new row either way. Whoever answered it keeps
-        their answer, and the page they answered from still works."""
+        """Deleting the offering modifier clears the offer reference without deleting the
+        stored answer.
+        """
         from n26.library.authoring import delete_modifier
         from n26.library.models import Modifier
 
@@ -991,20 +916,13 @@ class TestOneLineAskingTwice:
 
         held = Assignment.objects.get(skill=skills["Berserker"])
         assert held.chosen_for_offer is None
-        # The question is gone, so only the other one is asked — and the
-        # answer is still the gang's, on the ledger where it always was.
+        # Only the remaining offer is computed; the stored answer remains on the ledger.
         assert list(self.rows(vex)) == ["Secondary role"]
         assert_reconciled(gang)
 
 
-# --- Putting an offer out of sight ---------------------------------------
-#
-# A gang list offers picks the player knows they will never take — a
-# Choose they scroll past on every visit. There is nothing to delete: the
-# offer is computed from its carrier, and only what is chosen is ever
-# stored. So the owner dismisses it instead, and the sheet, the model's
-# own page and the printed roster all stop drawing it. It is a guide, not
-# a rule, and a dismissal is a row the owner can take back.
+# Dismissal stores a reversible choice-address preference without removing the authored
+# offer. All readers hide dismissed prompts; owners restore them from edit pages.
 
 
 def dismiss_url(gang, line):
@@ -1254,8 +1172,9 @@ def test_picker_authored_summaries_have_fixed_query_growth(gang, model_choices):
 
 
 class TestTheXBesideAnOpenOffer:
-    """An open offer the owner may dismiss ends in an X. Nobody else is
-    offered one, and an offer holding a pick is not either."""
+    """Owners can dismiss open offers; resolved offers and non-owner views omit dismissal
+    controls.
+    """
 
     def test_each_open_model_choice_has_its_dismiss_form_and_picker_link(
         self, client, owner, gang, crew, model_choices
@@ -1308,9 +1227,9 @@ class TestTheXBesideAnOpenOffer:
 
 
 class TestDismissingAnOffer:
-    """One click, one row, and the offer is gone from every reading of
-    the gang — the owner's sheet, a stranger's, the model's page and the
-    printed roster."""
+    """Store one dismissal per choice address and hide the prompt across roster, model and
+    print views.
+    """
 
     def test_the_offer_leaves_every_screen(self, client, owner, gang, crew):
         client.force_login(owner)
@@ -1372,8 +1291,7 @@ class TestDismissingAnOffer:
     def test_an_offer_holding_a_pick_is_refused(
         self, client, owner, gang, crew, affiliations
     ):
-        """The control was drawn before the pick landed: what was chosen
-        is drawn, and nothing is written."""
+        """Reject a stale dismissal request when the offer already has a pick."""
         client.force_login(owner)
         line = sheet_slots(gang)["Affiliation"]
         client.post(
@@ -1636,7 +1554,7 @@ class TestShowingDismissedOffers:
                 "Dismissed choices" in term.get_text() for term in page.find_all("dt")
             )
             assert "?dismissed=show" not in body
-            # Neither offer is drawn, and neither Restore is.
+
             assert restore_url(gang, slots["Affiliation"]) not in body
             assert slots["Affiliation"].href not in body
 
@@ -1649,7 +1567,7 @@ class TestShowingDismissedOffers:
         assert restore_url(gang, slots["Affiliation"]) in body
         assert restore_url(gang, slots["Sorrow: Archetype"]) not in body
         assert "Dismissed" in body
-        # Shown is not restored: the Choose stays away.
+        # Listing a dismissal does not restore its picker link.
         assert slots["Affiliation"].href not in body
         assert dismiss_url(gang, slots["Affiliation"]) not in body
 
@@ -1721,10 +1639,9 @@ class TestShowingDismissedOffers:
     def test_a_pick_landing_on_a_dismissed_offer_takes_the_dismissal_off(
         self, client, owner, gang, crew, affiliations
     ):
-        """The pick screen is still reachable — an old link, the browser's
-        history — and choosing there is the owner changing their mind: the
-        dismissal goes, so taking the pick back later leaves the offer
-        open rather than hiding it again unasked."""
+        """Picking through an existing link clears the dismissal, so removing that pick
+        leaves the offer visible.
+        """
         client.force_login(owner)
         line = sheet_slots(gang)["Affiliation"]
         client.post(dismiss_url(gang, line))
@@ -1738,16 +1655,14 @@ class TestShowingDismissedOffers:
     def test_a_skill_ticked_on_the_models_page_takes_the_dismissal_off(
         self, client, owner, gang, crew, skills, archetypes
     ):
-        """The pick screen is not the only way to settle an offer: a tick
-        in the skills box on the model's own page writes the same pick,
-        where the skill is on the question's own list. Whichever way it
-        lands, the dismissal goes with it."""
+        """A skill selected through the model’s edit grid also answers a matching open
+        offer and clears its dismissal.
+        """
         from n26.core.views.skills import _key
 
         client.force_login(owner)
         slots = sheet_slots(gang)
-        # Brawler opens Combat as Primary, which is what puts Berserker
-        # on the Primary skill question's list rather than beside it.
+        # Place Combat in Primary so Berserker can answer the starting-skill offer.
         client.post(
             slots["Sorrow: Archetype"].href,
             {"thing": f"library.affiliation:{archetypes['Brawler'].pk}"},
@@ -1761,14 +1676,12 @@ class TestShowingDismissedOffers:
         )
         assert response.status_code == 302
         assert _skills_of(gang, "Sorrow") == ["Berserker"]
-        # The tick settled the question rather than standing beside it.
+
         assert "Sorrow: Primary skill" not in sheet_slots(gang)
         assert dismissed_keys(gang) == set()
 
     def test_a_dead_models_own_page_only_hides_them(self, client, owner, gang, crew):
-        """The model's page draws the same dead card the sheet does: the
-        dismissed offers go, and neither a way to show them nor a
-        Restore is drawn."""
+        """Dead-model pages omit dismissed choices and their restore controls."""
         from n26.core.operations import operation
         from n26.core.status import Status
 
@@ -1785,14 +1698,13 @@ class TestShowingDismissedOffers:
             assert line.href not in page
             assert restore_url(gang, line) not in page
             assert "Dismissed choices" not in page
-            # Nor an X on the offer still open: a dead card cannot show
-            # the way back from a dismissal, so it offers none.
+            # Dead cards omit dismissal controls as well as restore controls.
             assert dismiss_url(gang, still_open) not in page
 
     def test_a_dead_models_dismissed_offers_only_go(self, client, owner, gang, crew):
-        """A dead model's card has nothing to click, so its dismissed
-        offers are neither shown nor offered back — the card draws no
-        control for them, and asking to see them draws no Restore."""
+        """Dead roster cards omit dismissal and restore controls even when dismissed=show
+        is requested.
+        """
         from n26.core.operations import operation
         from n26.core.status import Status
 
@@ -1801,8 +1713,7 @@ class TestShowingDismissedOffers:
         client.post(dismiss_url(gang, line))
         with operation(gang, actor=owner) as op:
             op.set_status(crew["leader"], Status.DEAD)
-        # The dismissal's own confirmation names the control; one plain
-        # read takes it, so the next is the sheet alone.
+        # Consume the dismissal toast before checking the roster alone.
         sheet_body(client, gang)
         body = sheet_body(client, gang, dismissed="show")
         assert "Sorrow" in body
@@ -1813,7 +1724,7 @@ class TestShowingDismissedOffers:
     def test_the_redrawn_card_builds_its_control_from_this_site_only(
         self, rf, owner, gang, crew
     ):
-        """A redrawn box's Restore form returns to this model's Edit page."""
+
         from django.contrib.messages.storage.fallback import FallbackStorage
         from django.contrib.sessions.backends.db import SessionStore
 
@@ -1969,8 +1880,8 @@ class TestShowingDismissedOffers:
         )
         shown = f"{here}?dismissed=show" if screen == "edit" else here
         page = BeautifulSoup(client.get(shown).content, "html.parser")
-        # The gang sheet's stash menus are React action menus, whose links
-        # live in each host's props rather than in anchors.
+        # Stash action links are in React host props rather than server-rendered
+        # anchors.
         hrefs = [link["href"] for link in page.find_all("a", href=True)] + [
             item["href"]
             for host in page.select('[data-react-name="action-menu"]')
@@ -2072,9 +1983,9 @@ class TestWhatItCosts:
     def test_the_sheet_pays_one_query_however_many_are_dismissed(
         self, client, owner, gang, crew, profiles, django_assert_num_queries
     ):
-        """One read of what the gang has dismissed serves the whole sheet:
-        a roster that grows, and a list of dismissals that grows with
-        it, must not grow the count."""
+        """Fetch gang dismissals once for the entire sheet, keeping query count constant as
+        models and dismissals grow.
+        """
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -2086,8 +1997,7 @@ class TestWhatItCosts:
                 client.get(url)
             return len(captured)
 
-        # The first request pays for the session and the caches it warms;
-        # the comparison is between two requests after that.
+        # Warm the session and process caches before comparing query counts.
         queries()
         before = queries()
         for name in ("Ash", "Kite"):

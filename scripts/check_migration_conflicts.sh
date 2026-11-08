@@ -3,9 +3,8 @@
 # Refuse a branch that adds more than one migration leaf to an app.
 #
 # Several leaves per app are allowed on main (see gyrinx/migration_graph.py):
-# branches merge without renaming or repointing and the next generated
-# migration joins them. A single branch adding two leaves means a migration
-# was written by hand on a tree whose other leaf it ignored.
+# branches merge without renaming or repointing, and a generated migration
+# joins the leaves. Each branch may add at most one leaf per app.
 #
 # Compares against origin/main unless MIGRATION_BASE says otherwise. Uses the
 # worktree .venv when present so a plain git commit can run this hook.

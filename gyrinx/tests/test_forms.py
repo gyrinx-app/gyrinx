@@ -202,7 +202,6 @@ def test_group_select_merge_adjacent_groups():
 
     class TestForm(forms.Form):
         fighter = forms.ModelChoiceField(
-            # Interleave houses in the input so grouping must merge them after sorting.
             queryset=ContentFighter.objects.all().order_by("type")
         )
 

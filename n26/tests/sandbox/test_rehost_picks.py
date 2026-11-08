@@ -1,15 +1,6 @@
-"""Moving a gang's picks off the model they were written on.
-
-A pick is hosted where its slot pointed when it was made, and changing
-the slot moves nothing already written: a pick made while the slot
-pointed at the bearer sits on the Leader after the slot points at the
-gang. The repair moves such picks onto the gang, keeping everything
-that says which question they settle and why they exist, and proves
-each gang's books whole before it commits.
-
-The fault is planted in the shape it takes: the slot is granted to the
-Leader by a modifier on their profile, points at the bearer when the
-pick is made through the page, and at the gang afterwards.
+"""Repair picks stored on a model after their slot changes from bearer-hosted to
+gang-hosted. Preserve choice and cause links, and reconcile each gang inside its
+transaction before committing.
 """
 
 import pytest
@@ -54,7 +45,7 @@ def slot_type(default_pack):
     return create_slot_type("Archetype", allows_repeats=False)
 
 
-#: What the gang's archetype gives every member once the gang holds it.
+#: Rule granted to members by the gang-hosted archetype.
 PAYLOAD = "Unstable"
 
 
@@ -72,8 +63,7 @@ def archetypes(slot_type):
 
 @pytest.fixture
 def gang_slot(slot_type, archetypes):
-    """The Leader is asked. Where the pick lands is set by each test,
-    because the fault is a slot pointed at one host and then the other."""
+    """Start with a bearer-hosted slot so tests can create a pick before changing its host."""
     return create_slot(
         "Gang archetype",
         slot_type,
@@ -85,8 +75,9 @@ def gang_slot(slot_type, archetypes):
 
 @pytest.fixture
 def leader_profile(person_type, gang_type, gang_slot):
-    """The slot reaches the Leader through a modifier on their profile,
-    so the assignment that asks is their membership."""
+    """The profile modifier grants the slot, anchored on the Leader’s membership
+    assignment.
+    """
     profile = create_profile(
         "Outcast Leader", person_type, gang_type, price=LEADER_PRICE
     )
@@ -127,8 +118,7 @@ def reader(client, owner):
 
 @pytest.fixture
 def console(db):
-    """The maintenance console, as a superuser sees it. Its own client,
-    because the player's is signed in as the gang's owner."""
+    """Use a separate superuser client for the maintenance console."""
     from django.test import Client
 
     superuser = User.objects.create_superuser("root", "root@example.com", "x")
@@ -143,7 +133,7 @@ def _point_slot_at(slot, host):
 
 
 def rides_as_broadcast(miniature, pickable):
-    """Whether the gang's pick rides this model's card as a broadcast row."""
+    """Check whether this model card broadcasts the gang’s pick."""
     return any(
         node.broadcast and node.assignable == pickable
         for node in build_card(miniature).all_nodes()
@@ -168,7 +158,7 @@ def chosen_on(gang, name):
 
 
 def choose(reader, gang, name, pickable):
-    """Settle the one choice on this model's card, through the page."""
+    """Submit the model card’s single choice through its picker."""
     (line,) = card_of(gang, name).questions
     response = reader.post(line.href, {"thing": f"library.pickable:{pickable.pk}"})
     assert response.status_code == 302, response.content.decode()
@@ -177,8 +167,7 @@ def choose(reader, gang, name, pickable):
 
 @pytest.fixture
 def astray(reader, gang, leader, scum, gang_slot, archetypes):
-    """A pick written while the slot pointed at the bearer, under a slot
-    that now points at the gang."""
+    """Create a bearer-hosted pick, then change its slot to gang-hosted."""
     pick = choose(reader, gang, "Leader", archetypes["Brawler"])
     assert pick.miniature == leader
     assert pick.caused_by == leader.membership
@@ -242,9 +231,9 @@ class TestFindingWhatSitsOnAModel:
     def test_a_pick_made_for_one_model_of_a_gang_carried_choice_refuses(
         self, reader, gang, leader, scum, gang_slot, archetypes, gang_type
     ):
-        """A choice the gang carries for each member rides every card, and
-        settling it names the fighter clicked. That fighter's pick is not
-        stray, whichever way the slot points, and is never hoisted."""
+        """A model-specific answer to a broadcast choice is intentional and must not be
+        moved onto the gang.
+        """
         modifier(
             "Everyone is asked their Archetype",
             targets_every_model(),
@@ -298,9 +287,9 @@ class TestMovingThePick:
         assert_reconciled(gang)
 
     def test_one_gang_visited_on_its_own_moves_what_it_holds_now(self, gang, astray):
-        """A run that visits gangs across deliveries reads each gang
-        afresh rather than carrying the preview's plan; a gang with
-        nothing left says so rather than refusing."""
+        """Per-gang deliveries plan from current rows and tolerate already-completed
+        repairs.
+        """
         assert apply_one(gang.pk) == f"gang {gang.pk}: moved 1 pick onto the gang"
         astray.refresh_from_db()
         assert (astray.gang, astray.miniature) == (gang, None)
@@ -311,9 +300,7 @@ class TestMovingThePick:
     def test_a_gang_that_stopped_passing_the_checks_is_skipped_when_visited(
         self, gang, astray
     ):
-        """Between the preview and the visit the pick may change; one that
-        no longer names the choice it settles cannot be read, so the visit
-        leaves the gang alone rather than moving it."""
+        """Revalidate the pick when visiting the gang and skip invalid rows."""
         Assignment.objects.filter(pk=astray.pk).update(chosen_for=None)
 
         line = apply_one(gang.pk)
@@ -331,8 +318,7 @@ class TestMovingThePick:
     def test_the_gangs_pick_now_rides_every_members_card(
         self, gang, scum, astray, archetypes
     ):
-        """What the repair is for: a pick the gang holds is a fact about
-        every member, and what it gives reaches them through the gang."""
+        """Hosting the pick on the gang broadcasts its effects to every member."""
         assert not rides_as_broadcast(scum, archetypes["Brawler"])
 
         apply(find())
@@ -343,8 +329,7 @@ class TestMovingThePick:
     def test_what_the_pick_caused_stays_where_it_is(
         self, gang, leader, astray, default_pack
     ):
-        """A power taken through what the pick offered is hosted on the
-        Leader in its own right: it goes with the pick, not onto the gang."""
+        """Dependent model assignments keep their host and cause while the pick moves."""
         from n26.library.authoring import create_rule
 
         below = Assignment.objects.create(
@@ -385,9 +370,9 @@ class TestMovingThePick:
 
 
 class TestAGangThatCannotBeMadeWhole:
-    """A gang is moved in its own transaction and proved before it
-    commits. One that does not reconcile, or whose picks changed while
-    the plan stood, is left exactly as it was and named on the report."""
+    """Roll back a gang’s repair if reconciliation fails or its picks changed after
+    planning.
+    """
 
     def test_a_gang_that_does_not_reconcile_is_rolled_back(
         self, gang, leader, astray, monkeypatch
@@ -426,8 +411,7 @@ class TestAGangThatCannotBeMadeWhole:
 
 
 class TestSeveralGangsAndSeveralPicks:
-    """Each gang is its own line and its own transaction, and a gang
-    with two Leaders moves both picks."""
+    """Plan and repair all eligible picks separately for each gang."""
 
     @pytest.fixture
     def crowd(

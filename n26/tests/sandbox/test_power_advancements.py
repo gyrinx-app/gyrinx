@@ -170,7 +170,7 @@ def test_a_saved_roll_from_before_power_support_can_offer_powers(
     record = _start(client, data)
     _post_roll(client, data, record)
     record.refresh_from_db()
-    # Historical roll snapshots predate the new nullable offer field.
+    # Accept saved roll snapshots without the optional power-access field.
     for member in record.terms["advancement_table"]["members"]:
         for modifier in member["modifiers"]:
             effect = modifier[3]

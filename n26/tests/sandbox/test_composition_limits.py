@@ -1,19 +1,7 @@
-"""Composition limits: what a roster should hold at most.
-
-The corrupted-gang rules are written as ranges and as refusals — "0–2
-Genestealer Cult Aberrants may be added", "no Fighters with the Brute
-Subtype may be added from the gang's list", "Leaders and Champions may be
-equipped with up to one Psychic Familiar each". *Notes a limit* says all
-three, because nought of something is how a ban is written.
-
-Nothing is refused. The book turns fighters away; we count what is there,
-say so when the count is past the limit, and stay quiet otherwise — a gang
-inside its allowance should not be told what it is allowed.
-
-Two things get counted, and which one follows the scope. Aimed at the gang
-it is a census of the roster, so "0–2 Aberrants" is one note on the gang's
-sheet. Aimed at a model it is that model's own rows, which is the whole of
-what "each" means in "one Familiar each".
+"""Verify advisory roster and per-model composition limits. Gang-scoped effects count
+roster content; model-scoped effects count each reached model's holdings. Exceeding a
+limit produces a note without blocking acquisition, and zero represents a ban. Omit
+notes while the count is within the limit.
 """
 
 import pytest
@@ -46,8 +34,7 @@ from n26.tests.sandbox.actions import (
 
 pytestmark = pytest.mark.django_db
 
-#: The gang list, and the rank each entry is hired holding. A rank is a
-#: built-in fact of the entry, which is what makes it countable.
+#: Profile fixtures and their built-in ranks used by composition selectors.
 ENTRIES = [
     ("ganger", "Escher Ganger", 55, "ganger"),
     ("leader", "Escher Queen", 120, "leader"),
@@ -58,7 +45,7 @@ ENTRIES = [
 
 @pytest.fixture
 def ranks(default_pack):
-    """The ranks the corruption's limits speak about."""
+
     return {
         name.lower(): create_subtype(name)
         for name in ("Leader", "Champion", "Ganger", "Brute")
@@ -72,21 +59,14 @@ def familiar(default_pack):
 
 @pytest.fixture
 def corruption(default_pack):
-    """One hidden carrier holding everything the corruption says.
-
-    A bundle, the way a house hangs its gang rules off a single thing: the
-    limits arrive together and can be cancelled together, which is what
-    the retraction case needs.
-    """
+    """Group limits on one carrier so a removal effect can retract them together."""
     return create_hidden("Genestealer Cult Corrupted")
 
 
 @pytest.fixture
 def corrupted(corruption):
-    """A gang type founded already corrupted — the carrier is a built-in.
-
-    How a player *picks* a corruption is the affiliation flow's business;
-    these limits read the same however their carrier arrived.
+    """Grant the limit carrier at founding; its acquisition path is independent of
+    composition counting.
     """
     made = create_gang_type("Escher", starting_credits=2000)
     made.built_ins = create_default_set("Escher founding", members=[corruption])
@@ -115,7 +95,7 @@ def gang(corrupted, profiles):
 
 
 def limit_the_roster(carrier, at_most, thing):
-    """The census half: a ceiling on what the whole roster holds."""
+    """Apply a gang-level roster limit."""
     return modifier(
         f"Corrupted: at most {at_most} {thing}",
         targets_gang(),
@@ -125,7 +105,7 @@ def limit_the_roster(carrier, at_most, thing):
 
 
 def limit_each(carrier, at_most, thing, ranks):
-    """The per-model half: a ceiling on every model of these ranks."""
+    """Apply a per-model limit to the supplied ranks."""
     return modifier(
         f"Corrupted: {at_most} {thing} each",
         targets_every_model(has_subtypes(*ranks)),
@@ -135,14 +115,14 @@ def limit_each(carrier, at_most, thing, ranks):
 
 
 def gang_notes(gang):
-    """The gang's sheet notes, computed the way every screen computes them."""
+    """Compute gang-scoped notes through the normal card and modifier pipeline."""
     card = build_gang_card(gang)
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
     return compute_gang(card, index).notes
 
 
 def card_for(miniature):
-    """One model's card, computed the way every screen computes it."""
+    """Build the model display from its card and computed effects."""
     card = build_card(miniature, with_statlines=True)
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
     return build_model_card(miniature, card=card, computed=compute(card, index))
@@ -155,8 +135,7 @@ def member(gang, name):
 
 
 class TestTheGangCensus:
-    """The 0–2 in "0–2 Genestealer Cult Aberrants may be added" — counted
-    over the roster's entries, said once on the gang's own sheet."""
+    """Count matching roster entries once on the gang sheet."""
 
     def test_a_roster_over_the_limit_is_said(self, gang, profiles, corruption):
         limit_the_roster(corruption, 2, profiles["aberrant"])
@@ -171,7 +150,7 @@ class TestTheGangCensus:
         assert note.about == profiles["aberrant"]
 
     def test_a_roster_at_the_limit_says_nothing(self, gang, profiles, corruption):
-        """Two is allowed, and being allowed is not news."""
+
         limit_the_roster(corruption, 2, profiles["aberrant"])
         hire(gang, profiles["aberrant"], "Grix")
         hire(gang, profiles["aberrant"], "Skab")
@@ -198,9 +177,7 @@ class TestTheGangCensus:
 
 
 class TestABanIsAtMostNought:
-    """The "no Fighters with the Brute Subtype may be added from the gang's
-    list" clause — the same effect with nothing allowed, so an author never
-    has to work out whether they are writing a limit or a ban."""
+    """Use the same limit effect with zero allowance to express a ban."""
 
     def test_one_of_a_banned_rank_is_said_in_the_words_of_a_ban(
         self, gang, profiles, corruption, ranks
@@ -224,9 +201,7 @@ class TestABanIsAtMostNought:
 
 
 class TestOneEach:
-    """The "up to one Psychic Familiar each" clause, which reaches Leaders
-    and Champions — a limit on the model, counted over that model's own
-    rows and said on its card."""
+    """Count a model's own equipment and show violations only on its card."""
 
     def test_a_model_with_two_is_told_on_its_own_card(
         self, gang, profiles, corruption, familiar, ranks
@@ -257,9 +232,7 @@ class TestOneEach:
     def test_each_model_is_counted_alone_and_never_as_a_roster(
         self, gang, profiles, corruption, familiar, ranks
     ):
-        """Two Leaders holding one apiece is two allowed models, not a
-        roster two over a limit of one — the difference between this and
-        the census."""
+        """Two models each within their allowance must not trigger a roster-wide total."""
         limit_each(corruption, 1, familiar, [ranks["leader"], ranks["champion"]])
         for name in ("Vesna", "Sorrow"):
             queen = hire(gang, profiles["leader"], name, paid=120)
@@ -273,8 +246,7 @@ class TestOneEach:
     def test_a_model_the_limit_does_not_reach_holds_what_it_likes(
         self, gang, profiles, corruption, familiar, ranks
     ):
-        """The scope is Leaders and Champions, so a Ganger is nobody's
-        business — and a card outside the rule says nothing."""
+        """Models outside the effect's scope receive no limit note."""
         limit_each(corruption, 1, familiar, [ranks["leader"], ranks["champion"]])
         ganger = hire(gang, profiles["ganger"], "Yolanda", paid=55)
         buy(ganger, thing=familiar, paid=25)
@@ -286,9 +258,9 @@ class TestOneEach:
     def test_a_stashed_one_is_nobodys(
         self, gang, profiles, corruption, familiar, ranks
     ):
-        """Only what a model holds counts against a per-model limit. A
-        familiar in the stash is bought and belongs to no fighter, so the
-        Leader carrying one is still carrying one."""
+        """Stashed equipment belongs to no model and does not count against per-model
+        limits.
+        """
         limit_each(corruption, 1, familiar, [ranks["leader"], ranks["champion"]])
         queen = hire(gang, profiles["leader"], "Vesna", paid=120)
         buy(queen, thing=familiar, paid=25)
@@ -302,11 +274,9 @@ class TestOneEach:
 
 
 class TestWhatTheGangHoldsIsNotWhatEachModelHolds:
-    """The gang's own rows ride every member's card so gang-wide rules can
-    reach them. They are the gang's, though, so a count of what a *model*
-    holds passes over them — otherwise one familiar bought by the gang
-    would put every Leader over their limit at once, and the roster's
-    census would read it once per member."""
+    """Broadcast gang assignments supply effects but do not become each model's belongings
+    or duplicate roster counts.
+    """
 
     def test_a_gang_held_one_is_over_nobodys_limit(
         self, gang, profiles, corruption, familiar, ranks
@@ -323,9 +293,7 @@ class TestWhatTheGangHoldsIsNotWhatEachModelHolds:
 
 
 class TestARetractedCarriersLimitGoesWithIt:
-    """A limit stands only while the thing stating it does. Cancel the
-    corruption and the roster stops being over anything — the retraction
-    every computed effect gets."""
+    """Removing the limit carrier retracts its computed notes."""
 
     @pytest.fixture
     def cure(self, corruption):
@@ -351,7 +319,7 @@ class TestARetractedCarriersLimitGoesWithIt:
 
 
 class TestTheAuthoringSurface:
-    """What an author fills in, and what the pickers offer them."""
+    """Verify limit effect fields, supported kinds and composer submission."""
 
     def test_the_verb_reads_as_a_sentence(self, default_pack, ranks):
         from n26.library.specs import specs
@@ -396,9 +364,7 @@ class TestTheAuthoringSurface:
             ef_allows_at_most(1, create_rule("Cult of Personality"))
 
     def test_the_composer_saves_a_census_limit(self, client, profiles):
-        """The whole authoring flow, as a staff author drives it: the two
-        kind pickers, the effect's own two controls, and the row that
-        comes out saying what they filled in."""
+        """Submit the scope and effect controls through the staff modifier composer."""
         from n26.library.models import Modifier
 
         author = User.objects.create_user("author", is_staff=True)

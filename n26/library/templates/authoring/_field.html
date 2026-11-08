@@ -74,7 +74,7 @@ Keep default_if_none to preserve zero, and keep content flush with the tags to a
                     </c-ui.select.native>
                 </c-n26.filter-select>
             {% elif kind == "selectmultiple" %}
-                {# Pass multiple through attrs; size is already a component styling argument. #}
+                {# multiple is a declared Boolean prop; size controls component styling. #}
                 <c-n26.filter-select>
                     <c-ui.select.native name="{{ field.html_name }}"
                                         id="{{ field.auto_id }}"

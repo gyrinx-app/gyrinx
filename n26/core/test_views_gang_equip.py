@@ -556,9 +556,7 @@ class TestTheLibraryTab:
     def test_another_packs_gear_is_not_in_it(
         self, client, tester, gang, library, homebrew
     ):
-        """A discovery surface offers what a reader may newly pick: the
-        standard pack's content, the same question the accessory picker
-        asks."""
+        """Stash discovery offers only content from the standard pack."""
         create_wargear("Bootleg Stimms", price=5, pack=homebrew)
 
         client.force_login(tester)
@@ -569,8 +567,7 @@ class TestTheLibraryTab:
 
 class TestWhoMayReadIt:
     def test_another_owners_gang_is_not_found(self, client, tester, gang_type):
-        """Scoped to the reader's own gangs: whose gangs exist is not
-        something to be probed for, so a stranger's is a 404."""
+        """Return 404 for another owner's gang instead of disclosing its existence."""
         stranger = User.objects.create_user("stranger")
         theirs = Gang.objects.create(
             name="Their Gang", owner=stranger, gang_type=gang_type

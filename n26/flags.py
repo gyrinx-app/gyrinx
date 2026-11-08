@@ -1,21 +1,5 @@
-"""Which of this edition's features are gated, and the one door that asks.
-
-Gating half-built work is the site's business, not an edition's: it is a
-property of shipping software rather than of any one game. One table serves
-both editions, so there is one admin page, one answer to "what is gated right
-now", and no second implementation to drift from the first. A copy here would
-give the two editions separate answers to one question — the same argument
-that keeps analytics and the maintenance console in one place.
-
-What this edition owns is *which* features it has. The slugs are declared
-here and claimed at startup (``n26.core.apps``), the way this edition claims
-its event nouns; the platform holds the state and never names the features.
-
-So this module is the whole of n26's dependency on the platform's flags.
-Every n26 call site goes through it; nothing else in ``n26/`` imports
-``gyrinx.site.flags``. Keeping it to one file means the seam can be read,
-tested and moved in one place, and it is the reason the boundary rule in
-``n26/AGENTS.md`` names this file rather than a package.
+"""Declare N26 feature slugs and expose the shared platform flag checks. Registration
+identifies edition features; access settings remain in the platform FeatureFlag records.
 """
 
 from gyrinx.site.flags import enabled, register_flags, requires_flag, switched_on
@@ -28,13 +12,12 @@ __all__ = [
     "switched_on",
 ]
 
-#: A built-in set change reaching the gangs already holding the set. Shut,
-#: edits still file their passes; nothing runs them until it opens.
+#: Built-in edits still record propagation work while disabled; execution waits until the
+#: flag is enabled.
 BUILT_IN_PROPAGATION = "built-in-propagation"
 
-#: Seeing content an author has staged but not yet put live, everywhere a
-#: player adds to a gang. Staff see it by right; this is how anyone else
-#: does, so a release can be rehearsed with a group before it is made.
+#: Allow non-staff accounts to preview staged content through a selected group. Staff
+#: access is checked separately.
 STAGED_CONTENT = "staged-content"
 
 register_flags(BUILT_IN_PROPAGATION, STAGED_CONTENT)

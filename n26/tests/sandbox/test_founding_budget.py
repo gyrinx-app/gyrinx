@@ -1,22 +1,12 @@
-"""Founding budgets: the Trade Points a model is given as it joins.
+"""Model-specific Trade Point allowances during founding and hire-time actions. Content
+modifiers grant allowances; purchases retain their original buyer and spending action.
+Refunds return Trade Points to that balance, while sales and equipment moves leave them
+spent. Reopening an action preserves earlier spending.
 
-Some gang books give a model an allowance to spend at the Trading Post
-while it joins the roster — a Venator Hunt Leader has 5, an Outcast
-Champion has 3, and a Clanless gang's Leaders and Champions get 1 more.
-Equipment list purchases leave the allowance alone.
-
-Four claims, and each has a test below:
-
-* what a model may spend is content — a counter its gang type and its
-  affiliation raise — so nothing in the code names a rank or a figure,
-  and a model holding two ranks spends the better and not the sum;
-* what it has spent is what points back at any of the gang's Found and
-  equip gang actions, on that model alone;
-* a refund returns to the action the purchase counted against, whenever
-  it is taken, and a sale returns nothing;
-* completing the action and starting it again remembers what was spent,
-  so the allowance is one allowance however many times the action is
-  opened.
+The first completed founding action separates original members from later recruits.
+Later recruits use individual hire-time actions against their lifetime allowance.
+Equipment-list purchases do not spend Trade Points; overspending can be explicitly
+confirmed.
 """
 
 import pytest
@@ -70,8 +60,7 @@ FOUNDING_KIND = Activity.Kind.FOUNDING
 
 
 def hold_as_affiliation(gang, pickable, slot_type):
-    """Put this pickable on the gang the way a converted affiliation
-    sits: a slot the gang holds, then the pick that answers it."""
+    """Assign the affiliation pickable through a gang-held slot."""
     offered = create_picklist("Affiliations", slot_type, members=[pickable])
     slot = create_slot(
         "Affiliation",
@@ -88,10 +77,8 @@ def player():
     return User.objects.create_user("tom")
 
 
-#: The entries each gang list holds, as ``(entry, the subtype naming its
-#: rank)``. Shaped the way the books' lists are: a Venator gang's Hunters
-#: are Specialists, an Outcast gang's Hive Scum is a Ganger and gets
-#: nothing.
+#: Gang-list profiles and their built-in rank subtypes. Hunters are Specialists; Hive
+#: Scum are Gangers.
 GANG_LISTS = {
     "Venators": [
         ("Hunt Leader", "Leader"),
@@ -105,8 +92,7 @@ GANG_LISTS = {
     ],
 }
 
-#: What a gang may also hire, whoever authored it: filed under a heading
-#: of its own, and ranked the same way its own book ranks it.
+#: An allied Champion outside either gang’s own list.
 ALLIES = [("Bone Scrivener", "Champion")]
 
 
@@ -122,11 +108,8 @@ def _build_ranks():
 
 @library_setup
 def _build_budget_library(ranks, make_profile, make_statline):
-    """Two gang lists and one allied entry, then the seed.
-
-    The seed reads the library, so the entries are authored first: a
-    gang's own list is what its founding figures name, and an ally ranked
-    the same way is filed under its own heading and named by nobody.
+    """Author two gang lists and one allied profile before running the seed. Standard
+    grants target each gang’s own profiles rather than every profile sharing its rank.
     """
     from n26.library.authoring import add_built_in, create_category
     from n26.library.models import GangType
@@ -238,8 +221,7 @@ def library(default_pack, _prepared_budget_catalogue):
 
 @pytest.fixture
 def budgets(library):
-    """The seed, run over an authored library — named for what it grants
-    rather than for what it reads."""
+    """Expose the authored catalogue with founding-budget standard content already seeded."""
     return library
 
 
@@ -266,8 +248,7 @@ def gang(venators, player):
 
 @pytest.fixture
 def hire_into(library):
-    """Hire one of the library's entries into a gang, under a name, with
-    any further subtypes assigned to the model itself."""
+    """Hire a named catalogue profile, then assign any additional subtypes."""
 
     def make(gang, entry, name, *rank_rows):
         gang_type, entry_name = entry
@@ -287,8 +268,7 @@ def leader(gang, hire_into):
 @pytest.fixture
 @library_setup
 def kit(db):
-    """Two pieces of wargear, both priced in credits and in Trade Points,
-    and one an equipment list alone stocks."""
+    """Two items with credit and Trade Point prices, plus one exclusive to equipment lists."""
     return {
         "mesh": create_wargear("Mesh armour", price=15, trade_point_price=1),
         "plate": create_wargear("Flak plate", price=40, trade_point_price=3),
@@ -304,7 +284,7 @@ def post(kit):
 @pytest.fixture
 @library_setup
 def legacy_list(kit):
-    """The list a Gang Legacy grants, written out by hand."""
+    """An equipment-list fixture containing all three items."""
     listed = create_collection("House Escher Equipment List")
     for thing in kit.values():
         add_entry(listed, thing)
@@ -316,7 +296,7 @@ def line_for(view, name):
 
 
 def reading(miniature):
-    """What this model may spend, off its computed card."""
+    """Read the model’s total authored allowance from its computed card."""
     card = build_card(miniature, with_options=True)
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
     return budget_granted(compute(card, index))
@@ -358,7 +338,9 @@ def grant_on_hidden(name, amount):
 
 
 def change_before_lock(monkeypatch, change):
-    """Another committed gang operation after the screen read, before its lock."""
+    """Insert a gang operation after the view reads state but before its write acquires the
+    lock.
+    """
     from contextlib import contextmanager
 
     from n26.core import operations
@@ -380,9 +362,8 @@ def change_before_lock(monkeypatch, change):
 
 
 class TestWhatTheBooksGrant:
-    """The figure is a counter reading, raised by the gang type and by
-    what the gang is affiliated with. It names the gang's own entries, so
-    a model hired from somebody else's list reads nothing.
+    """Standard grants match profiles from the gang’s own list; allied profiles sharing
+    their ranks receive no grant.
     """
 
     def test_each_venator_rank_reads_its_own_allowance(self, gang, leader, hire_into):
@@ -391,8 +372,7 @@ class TestWhatTheBooksGrant:
         assert reading(hire_into(gang, ("Venators", "Hunter"), "Tuk")) == 3
 
     def test_an_outcast_hive_scum_may_spend_nothing(self, outcast, player, hire_into):
-        """The Outcast book gives its Leaders and Champions a figure and
-        nobody else one."""
+
         gang = open_founding(
             found_gang("The Unhoused", outcast, owner=player, budget=1000)
         )
@@ -402,10 +382,7 @@ class TestWhatTheBooksGrant:
     def test_an_ally_ranked_champion_may_spend_nothing(
         self, outcast, player, hire_into
     ):
-        """A rank's subtype is carried right across the library, and an
-        allied entry ranked Champion is nobody's Champion but their own.
-        The figure names the gang's own entries, so hiring one in changes
-        nothing about what it may spend."""
+        """An allied Champion does not match the standard grant’s profile restriction."""
         gang = open_founding(
             found_gang("The Unhoused", outcast, owner=player, budget=1000)
         )
@@ -417,9 +394,9 @@ class TestWhatTheBooksGrant:
     def test_a_model_given_a_second_rank_still_spends_the_better_figure(
         self, gang, ranks, hire_into
     ):
-        """The allowance is one allowance, so 5 and 4 do not come to 9.
-        The figures name entries, and a Hunt Leader is one entry however
-        many ranks are hung on the model."""
+        """Adding a Champion subtype to a Hunt Leader does not change its profile-specific
+        allowance.
+        """
         both = hire_into(gang, ("Venators", "Hunt Leader"), "Rasp", ranks["Champion"])
 
         assert reading(both) == 5
@@ -440,9 +417,7 @@ class TestWhatTheBooksGrant:
         assert reading(hire_into(gang, ("Outcast", "Hive Scum"), "Tuk")) == 0
 
     def test_a_clanless_pickable_adds_one_more(self, outcast, player, hire_into):
-        """The live affiliation choice is a pickable. A gang holding
-        that, not the emptied Affiliation row, is who the extra figure
-        must reach."""
+        """Grant the Clanless bonus through the gang-held affiliation pickable."""
         from n26.library.standard_content import STANDARD_CONTENT
 
         slot_type = create_slot_type("Affiliation", "Affiliations")
@@ -460,7 +435,7 @@ class TestWhatTheBooksGrant:
     def test_a_gang_whose_book_grants_none_reads_nothing(
         self, gang_type, player, library, hire_with_escher
     ):
-        """Escher hands nobody an allowance, so its Leader has none."""
+
         escher = open_founding(
             found_gang("The Wire", gang_type, owner=player, budget=1000)
         )
@@ -470,7 +445,7 @@ class TestWhatTheBooksGrant:
 
 @pytest.fixture
 def hire_with_escher(ranks, make_profile, make_statline):
-    """A gang list nobody's founding figures name, ranked all the same."""
+    """Hire a Leader profile outside the standard founding-budget grants."""
 
     def make(gang, name):
         from n26.library.authoring import add_built_in
@@ -499,9 +474,7 @@ class TestWhatCountsAgainstIt:
         assert line.shows_trade_points is True
 
     def test_an_exclusive_line_stays_on_the_equipment_list(self, legacy_list):
-        """An equipment list is exactly where an Exclusive item may be
-        bought, so it is offered — and it carries no Trade Point figure,
-        so it counts nothing."""
+        """Exclusive equipment-list items remain available without a Trade Point price."""
         line = line_for(browse(legacy_list), "Hunt banner")
 
         assert line.is_exclusive is True
@@ -528,8 +501,7 @@ class TestWhatCountsAgainstIt:
     def test_another_models_spending_is_not_this_ones(
         self, gang, leader, hire_into, post
     ):
-        """The allowance belongs to the model, so what one has spent says
-        nothing about what another may."""
+
         kel = hire_into(gang, ("Venators", "Hunt Champion"), "Kel")
         buy_at_founding(leader, line_for(browse(post), "Flak plate"))
 
@@ -538,8 +510,7 @@ class TestWhatCountsAgainstIt:
         assert budget(kel).remaining == 4
 
     def test_a_weapons_paid_rounds_count_with_it(self, gang, leader, post):
-        """A round hangs off the gun and not off the model, and it is
-        still part of what the model spent."""
+
         mesh = line_for(browse(post), "Mesh armour")
         plate = line_for(browse(post), "Flak plate")
         buy_at_founding(leader, mesh)
@@ -549,8 +520,7 @@ class TestWhatCountsAgainstIt:
         assert budget(leader).remaining == 1
 
     def test_spending_past_it_is_allowed(self, gang, leader, post):
-        """Trade Points inform; only credits are refused. Going past the
-        allowance leaves it below zero."""
+        """Trade Point overspending leaves a negative balance: Inform rather than police."""
         for _ in range(2):
             buy_at_founding(leader, line_for(browse(post), "Flak plate"))
 
@@ -559,9 +529,8 @@ class TestWhatCountsAgainstIt:
 
 
 class TestMovingWhatWasBought:
-    """Spend follows the buyer, never the thing. Moving kit about is not
-    a refund, and an owner who stashes a gun has not been handed its
-    Trade Points back.
+    """Equipment moves preserve the original buyer’s spending. Only refunding returns Trade
+    Points.
     """
 
     def test_stashing_preserves_the_buyers_points_and_display_facts(
@@ -601,7 +570,7 @@ class TestMovingWhatWasBought:
 
 
 class TestGivingSomethingBack:
-    """A refund follows the purchase; a sale returns nothing."""
+    """Refund Trade Points to the purchase’s original allowance; selling leaves them spent."""
 
     def test_a_refund_returns_to_the_founding_action(self, gang, leader, post):
         bought = buy_at_founding(leader, line_for(browse(post), "Flak plate"))
@@ -616,11 +585,7 @@ class TestGivingSomethingBack:
     def test_a_purchase_that_paid_only_trade_points_is_refunded_all_the_same(
         self, gang, leader, post
     ):
-        """What decides between a refund and a plain removal is whether
-        anything was handed over, and Trade Points are something. A gang
-        founded with no credit budget hands over nothing else, so treating
-        a nought in the credits column as nothing paid would leave its
-        allowance spent for good."""
+        """A zero-credit purchase still has a refundable Trade Point payment."""
         from n26.core.models import LedgerEvent
 
         bought = buy_at_founding(leader, line_for(browse(post), "Flak plate"), paid=0)
@@ -639,8 +604,7 @@ class TestGivingSomethingBack:
         assert_reconciled(gang)
 
     def test_a_sale_returns_no_trade_points(self, gang, leader, post):
-        """Selling is not undoing: the credits come back at half, and the
-        Trade Points stay spent."""
+
         bought = buy_at_founding(leader, line_for(browse(post), "Flak plate"))
 
         sell(bought)
@@ -652,9 +616,9 @@ class TestGivingSomethingBack:
     def test_a_refund_after_the_action_closed_returns_to_the_allowance(
         self, gang, leader, post
     ):
-        """The refund lands on the action the purchase counted against,
-        which is complete. Starting again still sees those points as
-        returned, because spend is counted across every founding action."""
+        """Refund the original completed action; the next founding action sees the returned
+        points.
+        """
         bought = buy_at_founding(leader, line_for(browse(post), "Flak plate"))
         complete_action(gang, FOUNDING_KIND)
 
@@ -668,10 +632,9 @@ class TestGivingSomethingBack:
 
 
 class TestFinishingAndStartingAgain:
-    """Spend is counted across every founding action, so completing one
-    and starting another leaves what was bought sitting on the
-    allowance. A model hired after the first founding closed has spent
-    nothing yet, and meets its figure whole."""
+    """Reopened founding actions retain prior spending. Models hired after founding
+    completes require their own hire-time actions.
+    """
 
     def test_a_completed_action_hides_the_budget_without_changing_the_grant(
         self, gang, leader
@@ -711,9 +674,9 @@ class TestFinishingAndStartingAgain:
 
 
 class TestTwoAllowancesAtOnce:
-    """The books do not open both at once, but nothing stops an owner
-    doing it. The model's own points go first, and the gang's visit is
-    left alone."""
+    """When personal and gang-visit allowances are both open, personal purchases leave the
+    gang visit unchanged.
+    """
 
     def test_a_founding_purchase_is_not_the_visits(self, gang, leader, post):
         visit_trading_post(gang, brought=6)
@@ -727,8 +690,7 @@ class TestTwoAllowancesAtOnce:
     def test_and_the_visits_purchases_are_not_the_models(
         self, gang, leader, hire_into, post
     ):
-        """A model with no allowance buys against the visit, as it always
-        did."""
+
         visit_trading_post(gang, brought=6)
         vesh = hire_into(gang, ("Allies", "Bone Scrivener"), "Vesh")
 
@@ -740,8 +702,9 @@ class TestTwoAllowancesAtOnce:
 
 
 class TestTheSeed:
-    """Standard content, created on demand: idempotent, matched by what a
-    modifier does rather than by what it is called."""
+    """Seed grants idempotently using modifier effects and scopes rather than display
+    names.
+    """
 
     def test_it_reports_complete_once_run(self, budgets):
         from n26.library.standard_content import STANDARD_CONTENT
@@ -766,9 +729,7 @@ class TestTheSeed:
         assert set(raising.values_list("pk", flat=True)) == before
 
     def test_a_reworded_modifier_is_left_alone(self, budgets, venators):
-        """Matched by name, rewording one and running the seed again
-        would hang a second contribution on the gang type and double what
-        it grants."""
+        """Renaming a seeded modifier must not create a duplicate contribution."""
         from n26.library.standard_content import (
             STANDARD_CONTENT,
             founding_budget_counter,
@@ -829,10 +790,9 @@ class TestTheSeed:
     def test_a_contribution_reaching_the_wrong_models_is_brought_round(
         self, budgets, venators, ranks
     ):
-        """A figure that reached a rank rather than the gang's own entries
-        would hand an allied Champion a Champion's allowance. The seed
-        narrows the modifier already standing to the entries instead of
-        making a second one, so nothing raises the figure twice."""
+        """Repair the existing grant’s scope to target the gang’s own profiles without
+        creating a second contribution.
+        """
         from n26.library.authoring import (
             ef_contributes_to_counter,
             has_subtypes,
@@ -891,8 +851,8 @@ class TestTheSeed:
             }
             for row in raising
         }
-        # The entry is named by the better figure alone. Nothing is left
-        # on this list at the lesser rank, so that figure is gone too.
+        # Only the highest applicable rank grant names the profile. Remove the unused
+        # lower grant when no profiles remain in it.
         assert was_a_champion.pk in named[5]
         assert all(
             was_a_champion.pk not in reached
@@ -949,9 +909,9 @@ class TestTheSeed:
     def test_a_homebrew_gang_type_of_the_same_name_is_not_it(
         self, budgets, homebrew, ranks, make_profile, make_statline
     ):
-        """Names are unique per pack, so somebody's own pack may hold a
-        gang type called Venators. Its entries are not the standard
-        list's and are given no figure."""
+        """A same-name gang type in another pack must not receive the standard pack’s
+        grants.
+        """
         from n26.library.authoring import add_built_in, create_category
         from n26.library.models import GangType, Subtype
         from n26.library.standard_content import (
@@ -979,9 +939,7 @@ class TestTheSeed:
         ).exists()
 
     def test_an_affiliation_the_library_lacks_is_not_created(self, budgets):
-        """Affiliations are authored content. A library without Clanless
-        has no gang holding it either, so the seed leaves it out of the
-        count rather than inventing the row."""
+        """The budget seed does not create missing affiliation content."""
         from n26.library.models import Affiliation
         from n26.library.standard_content import STANDARD_CONTENT
 
@@ -1033,10 +991,9 @@ class TestTheSeed:
     def test_the_pickable_is_preferred_when_both_exist(
         self, budgets, outcast, player, hire_into
     ):
-        """A leftover Affiliation row of the same name is not what a
-        gang holds. The seed hangs the figure on the pickable and takes
-        it off the affiliation; until it has, the check is incomplete
-        even if the affiliation already carries the modifier."""
+        """Prefer the Clanless pickable and remove the old Affiliation row’s contribution
+        to avoid duplicate grants.
+        """
         from n26.library.models import Affiliation
         from n26.library.standard_content import (
             STANDARD_CONTENT,
@@ -1077,8 +1034,9 @@ class TestTheSeed:
     def test_a_homebrew_counter_of_the_same_name_is_not_it(
         self, budgets, homebrew, gang, leader
     ):
-        """Counter names are unique per pack, so a pack of somebody's own
-        may hold one called this. It raises nothing here."""
+        """A contribution to a same-name counter in another pack does not grant a founding
+        allowance.
+        """
         from n26.library.models import Counter
         from n26.library.standard_content import FOUNDING_BUDGET_COUNTER
         from n26.tests.sandbox.actions import (
@@ -1101,7 +1059,7 @@ class TestTheSeed:
 
 
 def sheet_of(gang):
-    """The gang sheet as its owner reads it, from a row of its own."""
+    """Reload the gang before rendering its owner’s roster."""
     from n26.core.models import Gang
     from n26.core.render import render_gang
 
@@ -1113,11 +1071,8 @@ def card_for(gang, name):
 
 
 class TestTheRosterReadInOneGo:
-    """Every model's allowance is worked out for the whole roster at once.
-
-    The reading is already in the fold the cards are drawn from, and what
-    has gone is one sum grouped by whoever spent it — so a gang sheet of
-    sixteen fighters is drawn for what one of two costs.
+    """Use computed roster cards and spending grouped by buyer to keep allowance query
+    counts constant as the roster grows.
     """
 
     def test_a_budgeted_model_carries_its_figure(self, gang, leader):
@@ -1159,8 +1114,7 @@ class TestTheRosterReadInOneGo:
         assert card_for(gang, "Rasp").trade_points_left == 2
 
     def test_spending_past_it_reads_below_nothing(self, gang, hire_into, kit, post):
-        """Trade Points inform and only credits are refused, so a model
-        the owner meant to overspend reports what it is over by."""
+        """Display the negative remaining balance after Trade Point overspending."""
         hunter = hire_into(gang, ("Venators", "Hunter"), "Sull")
         for _ in range(2):
             buy_at_founding(hunter, line_for(browse(post), "Flak plate"))
@@ -1170,13 +1124,7 @@ class TestTheRosterReadInOneGo:
     def test_the_cost_does_not_follow_the_roster(
         self, gang, hire_into, leader, django_assert_num_queries
     ):
-        """Three reads for the allowances however many models carry one:
-        the standard counter, asked once for the roster rather than once
-        a model, and what every model has spent under every founding
-        action, plus the copied-membership check. Which actions the gang has
-        open is another read, paid for the visit's figure whether or not
-        anybody has an allowance.
-        """
+        """Rendering more budgeted models must stay within the same total query count."""
         from n26.core.models import Gang
         from n26.core.render import render_gang
 
@@ -1190,21 +1138,16 @@ class TestTheRosterReadInOneGo:
             hire_into(gang, ("Venators", "Hunt Champion"), name)
         measure()
 
-    #: What drawing this gang's sheet reads. Pinned so it changes
-    #: deliberately: the rows, the fold's own lookups, the gang's open
-    #: actions, the campaign it is playing, the standard counter, the
-    #: copied-membership check and the one sum of what has been spent against the founding action, plus
-    #: the modifier index’s one read of authored status conditions.
+    #: Total query budget for this owner-rendered roster, held constant as models are
+    #: added.
     SHEET = 37
 
     def test_the_allowances_use_four_reads_without_a_prepared_roster(
         self, gang, hire_into, leader, django_assert_num_queries
     ):
-        """The model memberships, the copied-membership check, the standard
-        counter and one sum of what the roster has spent.
-        Which actions the gang has open is not among them: the sheet asks
-        that for the visit's figure whether or not anybody has an
-        allowance."""
+        """With open activities cached, allowance lookup takes four queries independently
+        of roster rendering.
+        """
         from n26.core.card import build_gang_card, build_modifier_index
         from n26.core.effects import compute
         from n26.core.founding import budgets_by_model
@@ -1228,8 +1171,7 @@ class TestTheRosterReadInOneGo:
     def test_a_reader_who_is_not_the_owner_pays_for_none_of_it(
         self, gang, hire_into, leader, django_assert_num_queries
     ):
-        """The figure is the owner's, so a stranger's read of the same
-        roster neither shows it nor spends its three extra reads."""
+        """Non-owner rendering skips the three allowance queries and displays no balances."""
         from n26.core.models import Gang
         from n26.core.render import render_gang
 
@@ -1243,8 +1185,9 @@ class TestTheRosterReadInOneGo:
     def test_a_gang_whose_books_grant_none_asks_nothing(
         self, outcast, player, make_profile, make_statline, django_assert_num_queries
     ):
-        """No card names the counter, so there is nothing to look up —
-        not the gang's open actions, and not the ledger."""
+        """Without computed allowance contributions, budget lookup returns immediately
+        without queries.
+        """
         from n26.core.card import build_gang_card, build_modifier_index
         from n26.core.effects import compute
         from n26.core.founding import budgets_by_model
@@ -1273,16 +1216,11 @@ class TestTheRosterReadInOneGo:
 
 
 class TestTheFigureOnTheGangPage:
-    """The gang page prints what a model has left ahead of its rating.
-
-    An owner deciding who to spend on next reads it off the roster rather
-    than opening every fighter's screen. It is the owner's business, so a
-    reader who does not own the gang is not shown it.
+    """The owner’s roster displays remaining model allowances before rating; other readers
+    see no allowance.
     """
 
-    #: What the hover says. The whole of it, because a
-    #: substring of it would pass on a page that had drawn half a
-    #: sentence.
+    #: Compare the complete tooltip text to catch incomplete rendering.
     HOVER = "This model can spend these Trade Points at the Trading Post while the Spend founding TP action is open."
 
     def page(self, gang):
@@ -1316,8 +1254,7 @@ class TestTheFigureOnTheGangPage:
         assert_reconciled(gang)
 
     def test_a_model_with_no_allowance_shows_nothing(self, client, gang, hire_into):
-        """The ally is ranked Champion by its own book, and no gang's
-        list names it — so nothing on its card raises the counter."""
+        """The allied Champion has no profile-specific founding grant."""
         hire_into(gang, ("Allies", "Bone Scrivener"), "Wren")
 
         assert self.HOVER not in self.body(client, gang)
@@ -1509,7 +1446,8 @@ class TestHireTimeTradePoints:
 
         start_action(gang, FOUNDING_KIND)
         line = line_for(browse(post), "Flak plate")
-        # Reproduce the ledger of a purchase made before personal actions existed.
+        # Reproduce a historical purchase charged to founding before personal actions
+        # were available.
         with operation(gang, actor=gang.owner) as op:
             op.assign(
                 line.thing,
@@ -1889,7 +1827,7 @@ class TestHireTimeTradePoints:
         assert "Kel has 4." in response.content.decode()
         assert not recruit.assignments.filter(wargear=item).exists()
         assert budget(recruit).remaining == 4
-        # The owner can still explicitly accept an overspend.
+
         from n26.core.confirm import CONFIRM_FIELD
 
         response = client.post(at, {**payload, CONFIRM_FIELD: "tp-overspend"})
@@ -1979,7 +1917,7 @@ class TestHireTimeTradePoints:
         profile = library[("Allies", "Bone Scrivener")]
         allied_option = offer_option(profile, "As allied Champion")
         option = offer_option(profile, "As Outcast Champion", thing=hidden)
-        # The setup creates the missing marker grant exactly once.
+
         STANDARD_CONTENT["founding-budgets"].create()
         STANDARD_CONTENT["founding-budgets"].create()
         present, wanted = STANDARD_CONTENT["founding-budgets"].check()
@@ -1994,7 +1932,7 @@ class TestHireTimeTradePoints:
         assert budget(unusual).activity.kind == (
             Activity.Kind.HIRE_TIME if later else FOUNDING_KIND
         )
-        # The same allied profile without the Outcast option gets no grant.
+        # The same allied profile without the Outcast option receives no grant.
         ordinary_ally = hire_with_option(
             gang, profile, "Ally", option=allied_option.default_set
         )

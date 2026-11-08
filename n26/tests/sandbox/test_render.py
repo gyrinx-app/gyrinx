@@ -1,9 +1,5 @@
-"""Rendering a gang: the data structures, then a crude text view of them.
-
-The statline shape follows the rulebook's Escher Gang Sister example
-(04-characteristics-and-profiles): M WS BS S T W I A Sv on one line, then
-Ld Cl Wil Int — the psychology stats, which are highlighted — then Type and
-Current/Target XP.
+"""Render gang and model data as cards, text and ledger lines, including stat ordering,
+rating contributions and acquisition history.
 """
 
 import pytest
@@ -31,9 +27,7 @@ from n26.tests.sandbox.actions import (
 
 pytestmark = pytest.mark.django_db
 
-#: (short, full, flags, first_of_group, highlighted) in card order — the
-#: shipped definitions, so a suite can never stand on a shape the app
-#: cannot produce.
+#: Stat metadata in display order, derived from the shipped definitions.
 FIGHTER_STATS = [
     (
         short,
@@ -167,14 +161,13 @@ class TestTheCard:
         weapon = build_model_card(yolanda).weapons[0]
         contributions = {p.name: p.rating for p in weapon.profiles}
         assert contributions == {
-            # Free with the gun — the mandatory first profile.
+            # Mandatory default profile.
             "Salvo ammo": 0,
-            # Bought separately.
+            # Separately purchased profile.
             "Firestorm ammo": 30,
         }
-        # Deliberately no "is this free" question here: a zero says the
-        # line added nothing to the rating, which is also true of ammo
-        # bundled into a hire that the package price paid 50cr for.
+        # A zero contribution means this line adds no rating; its value may already be
+        # included in a package.
 
     def test_skills_and_equipment_are_split_out(self, yolanda):
         card = build_model_card(yolanda)
@@ -217,11 +210,8 @@ class TestTheGangSheet:
     def test_query_count_does_not_grow_with_the_gang(
         self, yolanda, gang_sister, default_pack
     ):
-        """The real property: more models must not mean more queries.
-
-        Both measurements are of the *same* gang with the *same* kit per
-        model, so only the number of models differs — otherwise a prefetch
-        that only fires for weapons would make the comparison meaningless.
+        """Keep equipment shape constant while adding models, so relation-specific
+        prefetches cannot distort the query-growth comparison.
         """
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
@@ -254,13 +244,7 @@ class TestTheGangSheet:
 
         assert (few_models, many_models) == (2, 12)
         assert few == many, f"{few} queries for 2 models, {many} for 12"
-        # Roughly: the models, the two flat assignment fetches, a narrow
-        # hydration pass per relation the cards hold, the statline
-        # prefetch chain and the shapes it is drawn to, whatever their
-        # owners set by hand, one per assignable kind for the modifier
-        # index, the stash read that wealth includes, what a trading post
-        # allowance has left, the campaign the gang is playing and the
-        # campaign's tokens it holds (design/gang-sheet.md).
+        # Cap the total as well as checking query growth.
         assert many <= 36, f"{many} queries is more than this should ever need"
 
 
@@ -272,12 +256,11 @@ class TestTheTextRenderer:
         assert "Yolanda — 160cr" in text
         assert "Fighter (Ganger, Specialist)" in text
         assert "Combat Shotgun — 90cr (base 60 + extras 30)" in text
-        # A line that added nothing carries no number at all — never the
-        # word "free", which would claim the thing is worth nothing.
+        # Zero contribution omits the amount without describing the profile as free.
         assert "- Salvo ammo" in text
         assert "(free)" not in text
-        # On its own weapon's card a line needs only its own name; the
-        # ledger, where a profile stands alone, still says the weapon.
+        # Weapon cards omit the weapon name from profile lines; standalone ledger lines
+        # retain it.
         assert "- Firestorm ammo (+30cr)" in text
         assert "Skills: Nerves of Steel" in text
         assert "Gear: Mesh Armour" in text
@@ -287,7 +270,7 @@ class TestTheTextRenderer:
         text = "\n".join(render_model_card(build_model_card(yolanda)))
         assert "M     WS    BS    S     T     W     I     A     Sv" in text
         assert '5"    4+    4+    3     3     1     4     1     6+' in text
-        # Highlighted stats are starred by this very basic renderer.
+        # Highlighted headings use asterisks in text output.
         assert "*Ld   *Cl   *Wil  *Int" in text
 
     def test_a_whole_gang_renders(self, yolanda):
@@ -306,7 +289,7 @@ class TestTheLedger:
         view = build_ledger(yolanda.gang)
 
         assert [line.what for line in view.lines] == [
-            # The gang's founding: free, but an acquisition like any other.
+            # Founding is recorded as an acquisition.
             "Escher",
             "Escher Gang Sister",
             "Ganger",
@@ -362,7 +345,7 @@ class TestTheLedger:
         gang.refresh_from_db()
         view = build_ledger(gang)
 
-        # Still there, still says what it cost.
+        # Removed equipment retains its purchase history.
         shotgun = next(line for line in view.lines if line.what == "Combat Shotgun")
         assert shotgun.removed is True
         assert shotgun.paid == 60
@@ -370,11 +353,11 @@ class TestTheLedger:
         assert [event.kind for event in shotgun.events] == ["Purchased", "Removed"]
         assert shotgun.events[-1].note == "traded away"
 
-        # But it stops counting, while the money stays spent.
+        # Removal reduces current rating without refunding the purchase.
         assert view.total_rating == 160 - 90 == gang.rating
         assert view.total_spent == 160
         assert view.credits_remaining == 840
-        assert card.rating == 160  # the card built before removal is unchanged
+        assert card.rating == 160  # Previously built card.
 
     def test_it_is_a_fixed_number_of_queries(
         self, yolanda, gang_type, gang_sister, player
@@ -426,7 +409,7 @@ class TestTheLedgerText:
 
 
 class TestAcquisitionReasons:
-    """Free and granted are different things; the ledger must not conflate them."""
+    """Acquisition reasons distinguish direct assignments from caused grants."""
 
     def test_something_bought_says_bought(self, yolanda):
         view = build_ledger(yolanda.gang)
@@ -435,14 +418,14 @@ class TestAcquisitionReasons:
         assert [e.kind for e in line.events] == ["Purchased"]
 
     def test_something_free_that_nobody_granted_says_free(self, yolanda):
-        """Ganger was assigned directly — nothing caused it."""
+        """The directly assigned subtype has no granting cause."""
         view = build_ledger(yolanda.gang)
         line = next(line for line in view.lines if line.what == "Ganger")
         assert line.reason == "Free"
         assert [e.kind for e in line.events] == ["Added"]
 
     def test_something_another_assignment_brought_says_granted(self, yolanda):
-        """The free ammo came with the gun, so it is caused by it."""
+        """The weapon causes its default profile assignment."""
         salvo = next(
             node
             for weapon in build_card(yolanda).roots
@@ -453,7 +436,7 @@ class TestAcquisitionReasons:
 
         view = build_ledger(yolanda.gang)
         line = next(line for line in view.lines if line.what.startswith("Salvo"))
-        # give_weapon labels these more precisely still.
+        # The helper records the specific default-equipment reason.
         assert line.reason == "Default equipment"
         assert [e.kind for e in line.events] == ["Granted"]
 
@@ -477,9 +460,7 @@ class TestAcquisitionReasons:
 
 
 class TestTheProfileOnTheCard:
-    """A card holds three separate facts about what a model is, and none
-    can be worked out from another: the name its owner gave it, the
-    library entry it was hired from, and its Type."""
+    """A model’s name, library profile and profile type are separate display values."""
 
     def test_all_three_are_distinct(self, yolanda):
         card = build_model_card(yolanda)
@@ -489,8 +470,7 @@ class TestTheProfileOnTheCard:
         assert card.type_line == "Fighter (Ganger, Specialist)"
 
     def test_renaming_the_model_leaves_the_profile_alone(self, yolanda):
-        """The reason the card cannot derive one from the other: an
-        owner renames a miniature the moment they paint it."""
+        """Renaming an owned model does not rename its shared library profile."""
         yolanda.name = "Vesna Krail"
         yolanda.save()
 
@@ -508,8 +488,7 @@ class TestTheProfileOnTheCard:
         assert lines[2].startswith("Fighter (")
 
     def test_a_card_with_no_profile_says_nothing_rather_than_a_dash(self):
-        """A preview built from loose assignables has no entry to name,
-        and a blank draws as nothing."""
+        """Preview cards without a library profile omit the profile line."""
         from n26.core.render import ModelCard, Statline
 
         card = ModelCard(name="Nobody", rating=0, statline=Statline())

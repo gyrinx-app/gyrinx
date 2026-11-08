@@ -325,9 +325,7 @@ class TestRefunding:
     def test_something_nobody_paid_for_refunds_nothing_and_still_goes(
         self, client, tester, gang, fighter
     ):
-        """A gift is not a purchase, so there is nothing to undo — but the
-        thing still leaves the card, because that is the other half of
-        what the act does."""
+        """Refunding a gift removes it without returning credits."""
         gift = create_wargear("Charm", price=15)
         with operation(gang, actor=tester) as op:
             given = op.buy(fighter, thing=gift, paid=0, list_price=15, discount=15)
@@ -492,15 +490,10 @@ class TestAWeaponsOwnProfiles:
 
 
 class TestWhatMayBeClickedOn:
-    """These acts are about kit, and a gang holds a great deal that is not
-    kit — every bit of it an assignment with a primary key of its own.
+    """Equipment commands reject non-possession assignments even through crafted URLs.
 
-    The assignment naming a model's profile *is* the model: selling it would
-    take the fighter off the roster with everything they carry, and pay half
-    the price of the profile for the lot. The one naming the gang's type is
-    the gang. A skill is what a fighter knows, an equipment list is where they
-    buy from. None of them is a possession, and none of these routes will touch
-    one — whatever a hand-made URL says.
+    Profiles, gang types, skills and collections have assignment IDs but cannot
+    be sold or moved as equipment.
     """
 
     @pytest.mark.parametrize(
@@ -621,8 +614,7 @@ class TestWhoMayClick:
         ["n26-sell", "n26-reassign", "n26-refund", "n26-remove", "n26-rechoose"],
     )
     def test_a_get_writes_nothing(self, client, tester, gang, sword, route):
-        """A link that spent money by being followed would be spent by a
-        crawler, a prefetch, or a reload of the wrong page."""
+        """GET requests must not write, including crawlers and browser prefetches."""
         client.force_login(tester)
         gang.refresh_from_db()
         before = gang.credits
@@ -988,10 +980,7 @@ class TestFittingOneBackOntoAGun:
 
 
 class TestFittingOneTheFighterIsCarrying:
-    """An accessory bought on a model's own equip page is loose on the
-    card until somebody bolts it to something. The question is the one the
-    stash asks, narrowed to the guns that model is carrying — and it is
-    asked on its own, so Reassign goes on meaning which model holds it."""
+    """Loose accessories can be fitted only to weapons carried by that model."""
 
     @pytest.fixture
     def loose(self, gang, tester, fighter, sight):
@@ -1655,8 +1644,7 @@ def test_a_copy_cannot_be_edited_after_it_is_built(gang, fighter, tester, sword)
 
 
 def test_the_gangs_own_rows_are_not_the_fighters_to_sell(gang, fighter, tester):
-    """A gang's kit rides every member's card so gang-wide rules reach it.
-    It is still the gang's, and no fighter's row may offer it for sale."""
+    """Broadcast gang equipment cannot be sold through a fighter's commands."""
     from n26.core.card import build_card
     from n26.core.owned import owned_things, thing_key
 

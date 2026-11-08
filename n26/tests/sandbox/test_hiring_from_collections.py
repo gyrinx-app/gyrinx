@@ -1,21 +1,12 @@
-"""Hiring the fighters a collection offers.
+"""Held collections add hireable profiles to the hiring screen at their listed prices.
 
-A corrupted gang gains a roster nobody authored onto its gang list: the
-corruption's affiliation *gives* a collection, and that collection lists
-Genestealer Aberrants and Chaos Spawn at the corruption's own prices. The
-hire screen has to grow a section for it, priced as the list says, the
-moment the gang carries it — and take it away again when it does not.
+Collections can be stored assignments or computed grants. Their entry prices
+appear in rows, previews and dialogs and become the acquisition's list price
+and default rating. Typed payments record a discount against that quote.
 
-The prices are the point. A collection entry's override is what the row
-quotes, what the dialog quotes, what leaves the bank and what the gang is
-worth for holding the fighter. A price typed over it is still a discount
-against *that* quote, because a list's price is a price and not a deal.
-
-The row therefore carries which entry offered it, and the server checks
-the offer was really made. That is not policing the hire — any gang may
-hire anything hireable at reference price, which is what the all-profiles
-scope is for — it is refusing a forged price tag, exactly like a tampered
-option index.
+The server validates that a submitted entry offers the profile and belongs
+to a held collection. Hiring through the unrestricted profile list uses the
+reference price instead.
 """
 
 from json import dumps
@@ -45,10 +36,7 @@ from n26.tests.sandbox.actions import (
 
 pytestmark = pytest.mark.django_db
 
-#: What the corruption offers, and what it asks for each. The prices are
-#: the collection's own — every one of these fighters is written at a
-#: different reference price, so a row quoting the reference would be
-#: visibly wrong rather than accidentally right.
+#: Collection prices differ from the reference price to expose incorrect quoting.
 CORRUPTED = [("Genestealer Aberrant", 120), ("Chaos Spawn", 155)]
 
 #: What each is written at in the library, before any list reprices it.
@@ -62,17 +50,14 @@ def owner(db):
 
 @pytest.fixture
 def beasts(default_pack):
-    """A home category for the corrupted fighters, so the section they
-    land in has categories inside it like every other."""
+    """Create a category for profiles offered through the corruption collection."""
     section = Section.objects.create(name="Corrupted", position=4)
     return Category.objects.create(section=section, name="Beasts", position=0)
 
 
 @pytest.fixture
 def corrupted_profiles(person_type, beasts, make_statline):
-    """The fighters a corruption brings, authored on a gang type of their
-    own — nobody's house list holds them, which is why the collection is
-    the only way to them."""
+    """Create hireable profiles on another gang type to exercise collection access."""
     theirs = create_gang_type("Corrupted")
     made = {}
     for name, _ in CORRUPTED:
@@ -95,8 +80,7 @@ def corrupted_list(corrupted_profiles):
 
 @pytest.fixture
 def corruption(corrupted_list):
-    """The affiliation a corrupted gang carries: targets the gang, gives
-    the collection. The recipe's own shape (library/recipes.md)."""
+    """Grant the hiring collection through a gang-scoped affiliation modifier."""
     affiliation = create_affiliation("Genestealer Cult Corrupted")
     modifier(
         "Corruption opens its roster",
@@ -109,8 +93,7 @@ def corruption(corrupted_list):
 
 @pytest.fixture
 def ganger(make_profile, make_statline):
-    """One ordinary fighter on the gang's own list, so the house sections
-    are there to be counted against."""
+    """Create an ordinary profile so the gang's own hiring sections remain represented."""
     profile = make_profile("Ganger", price=55)
     make_statline(profile, movement=5, weapon_skill=4, toughness=3)
     return profile
@@ -123,8 +106,7 @@ def gang(gang_type, owner, ganger):
 
 @pytest.fixture
 def corrupted_gang(gang, corruption):
-    """The gang with the corruption taken on — the affiliation is a
-    gang-hosted assignment, and its modifier does the rest."""
+    """Assign the affiliation to the gang so its modifier grants collection access."""
     assign(corruption, gang=gang)
     return gang
 
@@ -138,7 +120,7 @@ def sections_of(response):
 
 
 def rows_of(response, section_name):
-    """Every hire entry drawn under one section, by name."""
+    """Return hiring entries from one named section indexed by profile name."""
     return {
         entry["name"]: entry
         for section in response.context["hire_props"]["sections"]
@@ -149,12 +131,12 @@ def rows_of(response, section_name):
 
 
 def click(client, gang, key, **data):
-    """Click Hire on a row, as the picker's form does."""
+    """Submit a hiring-row selection with its option fields."""
     return client.post(hire_url(gang), {"hire": key, **data})
 
 
 def hire_through(client, gang, key, name="", **data):
-    """The dialog's own submit — the request that hires."""
+    """Submit the hiring dialog payload."""
     return client.post(
         hire_url(gang),
         {"request_key": str(uuid4()), "profile": key, "name": name, **data},
@@ -162,8 +144,7 @@ def hire_through(client, gang, key, name="", **data):
 
 
 class TestTheSectionACollectionOffers:
-    """A collection the gang carries is a section of the hire screen,
-    named after the collection, after the house's own sections."""
+    """Append held profile collections after the gang's own hiring sections."""
 
     def test_a_granted_collection_of_fighters_becomes_a_section(
         self, client, owner, corrupted_gang
@@ -177,9 +158,7 @@ class TestTheSectionACollectionOffers:
             "Genestealer Aberrant",
         ]
 
-        # And on the page itself: the tab, the fighter, and the price the
-        # collection asks — a section built but never drawn would pass
-        # every assertion above.
+        # Check rendered content as well as the prepared section structures.
         body = response.content.decode()
         assert "Genestealer Cult Corrupted" in body
         assert "Chaos Spawn" in body
@@ -191,8 +170,7 @@ class TestTheSectionACollectionOffers:
     def test_a_gang_without_the_carrier_is_offered_none_of_it(
         self, client, owner, gang, corruption
     ):
-        """The collection exists and the fighters are hireable; this gang
-        simply was never offered them, so its screen says nothing of it."""
+        """The default screen must omit collections the gang does not hold."""
         client.force_login(owner)
         response = client.get(hire_url(gang))
 
@@ -203,8 +181,7 @@ class TestTheSectionACollectionOffers:
     def test_a_list_assigned_to_the_gang_reads_the_same_way(
         self, client, owner, gang, corrupted_list
     ):
-        """Nothing about the section depends on a modifier having granted
-        it. A list assigned to the gang by hand is carried just as much."""
+        """Stored collection assignments provide the same hiring access as computed grants."""
         assign(corrupted_list, gang=gang)
 
         client.force_login(owner)
@@ -227,8 +204,7 @@ class TestTheSectionACollectionOffers:
     def test_the_rows_sit_under_their_own_home_category(
         self, client, owner, corrupted_gang
     ):
-        """The collection is the heading; inside it the taxonomy still
-        rules, and cheapest comes first as everywhere on this screen."""
+        """Group collection profiles by category and order entries by price."""
         client.force_login(owner)
         response = client.get(hire_url(corrupted_gang))
 
@@ -247,9 +223,7 @@ class TestTheSectionACollectionOffers:
     def test_every_section_drawn_has_a_tab_and_every_row_a_category(
         self, client, owner, corrupted_gang
     ):
-        """The picker's navigation: a section missing from the strip can
-        never be the active tab, and a row registering under a name the
-        category filter does not know is served and never shown."""
+        """Register every displayed section and category so filtering cannot hide otherwise valid rows."""
         client.force_login(owner)
         response = client.get(hire_url(corrupted_gang))
 
@@ -265,10 +239,7 @@ class TestTheSectionACollectionOffers:
     def test_a_list_something_took_away_offers_nothing(
         self, client, owner, gang, corrupted_list, default_pack
     ):
-        """A list a modifier has cancelled is not somewhere to hire from:
-        the row stays in the database and stops being drawn, so the
-        section goes with it — the same reading a fighter's own screens
-        give a suppressed list."""
+        """Suppressing a held collection removes its hiring section without deleting the assignment."""
         from n26.tests.sandbox.actions import create_rule, ef_removes
 
         assign(corrupted_list, gang=gang)
@@ -288,8 +259,7 @@ class TestTheSectionACollectionOffers:
     def test_a_collection_of_gear_offers_no_fighters(
         self, client, owner, gang, default_pack
     ):
-        """Emptiness is the answer. A gang's equipment list is carried the
-        same way and lists no profiles, so it is no part of this screen."""
+        """Omit collections containing no profiles from the hiring screen."""
         from n26.tests.sandbox.actions import create_wargear
 
         kit = create_collection("Corrupted Kit")
@@ -302,9 +272,7 @@ class TestTheSectionACollectionOffers:
     def test_a_sweep_of_profiles_offers_them_at_reference(
         self, client, owner, gang, beasts, corrupted_profiles, default_pack
     ):
-        """The other species of collection: a selector sweeping a category
-        rather than rows written out. Swept fighters are offered at their
-        own price, exactly as a swept line in a browse is."""
+        """Profile sweeps use reference prices when there are no entry overrides."""
         swept = create_collection("Corrupted Menagerie", contains=[(Profile, beasts)])
         assign(swept, gang=gang)
 
@@ -317,8 +285,7 @@ class TestTheSectionACollectionOffers:
     def test_a_fighter_nobody_hires_directly_is_not_offered(
         self, client, owner, gang, corrupted_profiles, default_pack
     ):
-        """A pet arrives behind its collar. Listing it in a collection does
-        not make a Hire button that could work, so no row is drawn."""
+        """Listing a non-hireable profile must not expose a hiring action."""
         collared = corrupted_profiles["Chaos Spawn"]
         collared.hireable = False
         collared.save(update_fields=["hireable"])
@@ -332,8 +299,7 @@ class TestTheSectionACollectionOffers:
 
 
 class TestTheCollectionsPriceIsThePrice:
-    """An entry's override is what the row quotes, what the dialog
-    quotes, what leaves the bank and what the gang is worth for it."""
+    """Use the collection quote consistently for rows, dialogs, payment and default rating."""
 
     def test_the_row_quotes_the_collections_price(self, client, owner, corrupted_gang):
         client.force_login(owner)
@@ -378,7 +344,7 @@ class TestTheCollectionsPriceIsThePrice:
     def test_the_ledger_says_which_row_it_was_bought_through(
         self, client, owner, corrupted_gang, corrupted_list
     ):
-        """The money's provenance, as a purchase records it."""
+        """Record the collection entry as the acquisition's price source."""
         client.force_login(owner)
         key = self.key(client, corrupted_gang, "Chaos Spawn")
         hire_through(client, corrupted_gang, key, name="Thing")
@@ -392,8 +358,7 @@ class TestTheCollectionsPriceIsThePrice:
     def test_the_same_fighter_hired_off_the_all_scope_is_the_reference_price(
         self, client, owner, corrupted_gang, corrupted_profiles
     ):
-        """The override belongs to the list, not to the fighter: reached
-        any other way, the fighter costs what the library says."""
+        """Apply entry overrides only when hiring through that collection."""
         client.force_login(owner)
         hire_through(
             client,
@@ -412,8 +377,7 @@ class TestTheCollectionsPriceIsThePrice:
     def test_a_blank_override_offers_the_usual_price(
         self, client, owner, gang, corrupted_profiles, default_pack
     ):
-        """A blank override is an answer, not a gap: it says "at the usual
-        price", which is the commonest thing an author writes."""
+        """A blank entry override uses the profile's reference price."""
         plain = create_collection("Corrupted Roster")
         add_entry(plain, corrupted_profiles["Chaos Spawn"])
         assign(plain, gang=gang)
@@ -427,8 +391,7 @@ class TestTheCollectionsPriceIsThePrice:
     def test_the_card_behind_the_row_is_drawn_at_the_same_price(
         self, client, owner, corrupted_gang
     ):
-        """A card saying 200 under a row saying 120 is a number that has
-        quietly stopped being true."""
+        """The preview card must use the same collection price as its hiring row."""
         client.force_login(owner)
         response = client.get(hire_url(corrupted_gang))
         entry = rows_of(response, "Genestealer Cult Corrupted")["Genestealer Aberrant"]
@@ -441,9 +404,7 @@ class TestTheCollectionsPriceIsThePrice:
     def test_a_typed_price_is_still_a_discount_against_that_quote(
         self, client, owner, corrupted_gang
     ):
-        """The dialog's box is the purchase's control: what is typed is what
-        leaves the bank, while the collection's price stays the list price
-        and the rating — a haggled fighter is not a lesser fighter."""
+        """Typed payment changes credits spent while preserving the collection quote as list price and rating."""
         client.force_login(owner)
         key = self.key(client, corrupted_gang, "Genestealer Aberrant")
         before = corrupted_gang.credits
@@ -461,12 +422,7 @@ class TestTheCollectionsPriceIsThePrice:
         assert_reconciled(corrupted_gang)
 
     def key(self, client, gang, name):
-        """What the row for ``name`` in the corruption's section submits as.
-
-        Read off the page rather than composed here: the identity a click
-        carries is the page's own, and a test that built its own could
-        pass against a server nothing on screen can reach.
-        """
+        """Read the submitted entry key from the rendered row to test a reachable UI action."""
         response = client.get(hire_url(gang))
         rows = rows_of(response, "Genestealer Cult Corrupted")
         found = rows[name]
@@ -475,9 +431,7 @@ class TestTheCollectionsPriceIsThePrice:
 
 
 class TestAForgedPriceTag:
-    """The offer a click names is checked, never trusted: the entry must
-    exist, name that fighter, and belong to a collection this gang really
-    carries. Anything else is a broken link."""
+    """Validate the submitted entry's existence, profile and collection access before using its price."""
 
     def test_an_entry_from_a_list_the_gang_does_not_carry_is_refused(
         self, client, owner, gang, corrupted_list, corrupted_profiles
@@ -496,8 +450,7 @@ class TestAForgedPriceTag:
     def test_an_entry_naming_another_fighter_is_refused(
         self, client, owner, corrupted_gang, corrupted_list, corrupted_profiles
     ):
-        """The cheap row's price on the dear fighter: the entry is carried
-        and real, and it does not name this profile."""
+        """Reject a valid entry ID paired with a different profile."""
         cheap = corrupted_list.entries.get(
             profile=corrupted_profiles["Genestealer Aberrant"]
         )
@@ -525,8 +478,7 @@ class TestAForgedPriceTag:
     def test_hiring_at_reference_price_is_never_refused(
         self, client, owner, gang, corrupted_profiles
     ):
-        """The line held here is the price tag, not the hire: any gang may
-        hire any hireable fighter, and the all-profiles scope says so."""
+        """A hireable profile remains available at reference price without collection access."""
         client.force_login(owner)
         response = hire_through(
             client,
@@ -543,9 +495,7 @@ class TestAForgedPriceTag:
 
 
 class TestOptionsOnACollectionsRow:
-    """A collection prices the fighter, not what the fighter is built
-    with: an option still adds its own surcharge on top, and the row's
-    controls travel through the click exactly as they do anywhere."""
+    """Option surcharges add to the collection's base profile price."""
 
     @pytest.fixture
     def armed(self, corrupted_profiles, default_pack):
@@ -583,8 +533,7 @@ class TestOptionsOnACollectionsRow:
     def test_a_click_carries_the_pick_and_the_offer_together(
         self, client, owner, corrupted_gang, armed
     ):
-        """Both halves of the row's answer ride the redirect: the option
-        ticked and the offer it was ticked under."""
+        """Preserve the selected option and collection entry through the dialog redirect."""
         from django.utils.text import slugify
 
         client.force_login(owner)
@@ -622,8 +571,7 @@ class TestOptionsOnACollectionsRow:
         )
         fighter = Miniature.objects.get(name="Driller")
         assert fighter.membership.ledger_entry.paid == 145
-        # The set the option names materialises as the hire's own kit, so
-        # what was paid for is on the card.
+        # The chosen option must materialise its equipment on the hired model.
         assert "Heavy rock drill" in [
             line.name for line in build_model_card(fighter).equipment
         ]
@@ -632,9 +580,7 @@ class TestOptionsOnACollectionsRow:
 
     @pytest.fixture
     def mutated(self, armed, default_pack):
-        """A second set of options on the same row, so a selection can be
-        more than one answer — which is what the card behind the row has
-        to price."""
+        """Add another option group to test preview pricing for multiple selections."""
         from n26.tests.sandbox.actions import (
             create_default_set,
             create_option_group,
@@ -652,9 +598,7 @@ class TestOptionsOnACollectionsRow:
     def test_the_card_for_a_selection_is_priced_the_collections_way(
         self, client, owner, corrupted_gang, mutated
     ):
-        """The collection's price stands in for the fighter's own and for
-        nothing else, so every option ticked still adds on top — and the
-        card the row is showing has to say the number the dialog will."""
+        """Price the preview from the collection base plus every selected option surcharge."""
         aberrant, horns = mutated
         drill = aberrant.grouped_options()[0][1][1]
 
@@ -685,10 +629,7 @@ class TestOptionsOnACollectionsRow:
     def test_the_rows_address_names_the_offer_and_nothing_else(
         self, client, owner, corrupted_gang, mutated
     ):
-        """What the row's own address carries is the offer — which list is
-        pricing this fighter. The selection is added to it by the controls,
-        so the two answers stay separate: one is where the price comes
-        from, the other is what was ticked."""
+        """Keep collection entry identity in the base card URL and let controls add selected options."""
         client.force_login(owner)
         response = client.get(hire_url(corrupted_gang))
         row = rows_of(response, "Genestealer Cult Corrupted")["Genestealer Aberrant"]
@@ -699,8 +640,7 @@ class TestOptionsOnACollectionsRow:
 
 
 class TestTheQueryBudget:
-    """The invariance the whole screen is built on: a gang carrying six
-    collections of fighters costs what a gang carrying one does."""
+    """Adding held profile collections must not increase hiring-page queries."""
 
     def another_corruption(self, gang, corrupted_profiles, number):
         """One more collection of the same fighters, carried by the gang."""
@@ -723,10 +663,7 @@ class TestTheQueryBudget:
                 assert client.get(hire_url(corrupted_gang)).status_code == 200
             return len(captured.captured_queries)
 
-        # One collection first, and one request discarded: the count is
-        # about *growth*, and both a gang's first carried list and the
-        # content-type table's first read are one-off steps a real
-        # per-collection query could otherwise hide inside.
+        # Warm collection and content-type caches before comparing query growth.
         self.another_corruption(corrupted_gang, corrupted_profiles, 0)
         measure()
 
@@ -752,9 +689,7 @@ class TestTheQueryBudget:
                 assert client.get(hire_url(corrupted_gang)).status_code == 200
             return len(captured.captured_queries)
 
-        # One request discarded first: the content-type table is read once
-        # per process and cached, and counting that warming as this page's
-        # work would let a real per-profile query hide inside it.
+        # Warm the content-type cache before comparing query growth.
         measure()
 
         few = measure()

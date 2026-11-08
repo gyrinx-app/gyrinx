@@ -1,13 +1,6 @@
-"""This edition's repairs, as the maintenance console offers them.
-
-A seam test: the console is the platform's, the repair is ours, and what
-is proven here is that the two meet — the operation is registered and
-gated, the page shows the plan without writing, applying records what
-happened, and a repair that has been run keeps its name without keeping
-its page.
-
-Each repair's own discipline is proven beside it; this file cares only
-about the door it is triggered through.
+"""Verify N26 repairs through the shared maintenance console: operation registration,
+superuser access, read-only previews, recorded results and labels for retired
+operations. Repair invariants belong beside their implementations.
 """
 
 import ast
@@ -47,7 +40,7 @@ pytestmark = pytest.mark.django_db
 
 
 def _is_atomic(call):
-    """``transaction.atomic(...)`` or a bare ``atomic(...)``."""
+    """Recognise calls named atomic, with or without a module qualifier."""
     if not isinstance(call, ast.Call):
         return False
     func = call.func
@@ -57,7 +50,7 @@ def _is_atomic(call):
 
 
 def _is_atomic_decorator(decorator):
-    """``@transaction.atomic``, ``@atomic``, or either called."""
+    """Recognise bare or called atomic decorators, with or without a module qualifier."""
     if isinstance(decorator, ast.Call):
         return _is_atomic(decorator)
     if isinstance(decorator, ast.Attribute):
@@ -66,8 +59,7 @@ def _is_atomic_decorator(decorator):
 
 
 def _opens_a_transaction(function):
-    """True when the function begins a transaction of its own — as a
-    decorator, or as a ``with`` anywhere in its body."""
+    """Detect atomic decorators or with blocks anywhere in the function's AST."""
     if any(_is_atomic_decorator(d) for d in function.decorator_list):
         return True
     return any(
@@ -89,14 +81,13 @@ LOOPS = (
 
 
 def commits_row_by_row(module_name):
-    """Whether any loop in the module commits per iteration — directly,
-    or by calling a function of the module that opens its own
-    transaction. That is the batched shape, and a run of it under the
-    one-transaction runner has no budget and no cursor."""
+    """Detect loops that open transactions or call local functions containing atomic
+    blocks. Such repairs need a batched runner with a budget and cursor.
+    """
     module = importlib.import_module(module_name)
     here = Path(module.__file__)
-    # A package is read whole: the conversions live in its files, not
-    # in the file that names it.
+    # Inspect package source files recursively because implementations can live outside
+    # __init__.py.
     files = sorted(here.parent.rglob("*.py")) if here.name == "__init__.py" else [here]
     trees = [ast.parse(path.read_text()) for path in files]
     functions = [
@@ -133,13 +124,10 @@ def _calls(function):
 
 
 def tasks_run_in_one_transaction():
-    """Every function in ``n26/maintenance.py`` that calls the
-    one-transaction runner itself, with the modules it imports to do so.
-    Discovered from the source, so a new task is checked without anyone
-    listing it. A task that reaches the runner through a wrapper is
-    covered by the wrapper's own entry. A function calling the runner
-    with no import of its own is listed with no modules, so the check
-    fails on it rather than passing it by."""
+    """Discover functions that call _run_recorded and the modules imported inside each.
+    Retain functions with no imports so the guard fails explicitly instead of skipping
+    them; wrapper functions cover their routed callers.
+    """
     tree = ast.parse(Path(maintenance.__file__).read_text())
     found = []
     for node in ast.walk(tree):
@@ -157,8 +145,9 @@ def tasks_run_in_one_transaction():
 
 
 def one_transaction_route_names():
-    """The routed task names that end in the one-transaction runner,
-    directly or through a wrapper."""
+    """Discover routed tasks that reach _run_recorded, following calls through local
+    wrappers.
+    """
     tree = ast.parse(Path(maintenance.__file__).read_text())
     functions = {
         node.name: node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
@@ -182,12 +171,9 @@ def one_transaction_route_names():
 
 
 class TestTheRunnerDiscipline:
-    """A run through the one-transaction runner must finish inside one
-    delivery. A repair that walks gangs and commits each on its own has
-    outgrown that runner however few gangs it names today: a gang's
-    proof is many queries, and the plan on the day it is run is not the
-    plan on the day it was written. Such repairs go through
-    ``run_per_gang``, whose budget hands the rest to a fresh delivery."""
+    """Single-transaction repairs must fit within one delivery. Repairs committing per gang
+    need run_per_gang so the budget and cursor support continuation as data grows.
+    """
 
     def test_there_is_something_to_check(self):
         assert tasks_run_in_one_transaction()
@@ -214,19 +200,18 @@ class TestTheRunnerDiscipline:
         )
 
     def test_the_guard_reads_the_shapes_it_is_for(self):
-        """The guard is only worth having if it tells the two shapes
-        apart: a module that commits inside a loop, and one that holds
-        everything inside one transaction."""
+        """Check the discovery helper against both per-row and single-transaction
+        implementations.
+        """
         assert commits_row_by_row("n26.core.legacy_affiliation_assignments")
         assert commits_row_by_row("n26.core.rehost_picks")
         assert not commits_row_by_row("n26.library.empty_affiliations")
         assert not commits_row_by_row("n26.library.conversion")
 
     def test_every_route_declares_the_one_attempt_deadline(self):
-        """The warning ``_run_recorded`` writes is measured against this
-        constant, so a route with a different deadline would be judged
-        against the wrong clock. Every routed task that ends in the
-        one-transaction runner is checked, wrappers followed."""
+        """The runtime warning uses ONE_ATTEMPT_DEADLINE, so every route reaching
+        _run_recorded must use the same deadline.
+        """
         seconds = int(ONE_ATTEMPT_DEADLINE.total_seconds())
         one_transaction = one_transaction_route_names()
         assert len(one_transaction) > 2
@@ -246,9 +231,7 @@ class TestTheRunnerDiscipline:
         record = Backfill.objects.create(
             operation=operation.value, status=Backfill.Status.RUNNING
         )
-        # The runner reads the clock through its own module, so only it
-        # sees a run that took most of the deadline; the record's own
-        # timestamps keep the real clock.
+        # Replace only the runner's clock so Backfill timestamps still use real time.
         start = maintenance.timezone.now()
         reads = []
 
@@ -276,9 +259,7 @@ class TestTheRunnerDiscipline:
     def test_a_per_gang_record_page_reads_as_progress_until_it_is_done(
         self, client, superuser
     ):
-        """A gang-by-gang run commits as it goes, so its page says what
-        it has done so far while it runs, and only calls that the whole
-        of what it did once it has ended."""
+        """Label the report as partial progress until the run completes."""
         client.force_login(superuser)
         record = Backfill.objects.create(
             operation=Operation.REPAIR_DOUBLED_REFUNDS.value,
@@ -320,14 +301,15 @@ class TestTheRunnerDiscipline:
 
 
 class TestTheCollectionOrdering:
-    """The repair that sinks the variant equipment lists: every
-    collection on the page with how it reaches a card, one column
-    written, one transaction."""
+    """Preview equipment-list ordering and record the atomic change that places variant
+    lists after house lists.
+    """
 
     @pytest.fixture
     def variant_world(self, default_pack):
-        """A house list a gang type grants, and a variant's list a pick
-        of a slot type that is not a gang archetype grants."""
+        """A gang type grants the house list; a non-archetype pickable grants the variant
+        list.
+        """
         from n26.library.authoring import (
             create_collection,
             create_gang_type,
@@ -453,9 +435,9 @@ def staffer(db):
 
 
 class TestARepairThatHasBeenRun:
-    """A repair whose work cannot recur keeps its slug and loses its
-    page. The slug is what a historical record carries, so dropping the
-    registration would leave old runs reading as a bare slug."""
+    """Retired operations keep their registered labels for historical records while
+    exposing no runnable page.
+    """
 
     RETIRED = (
         Operation.CONVERT_SPECIALISATION,
@@ -484,8 +466,7 @@ class TestARepairThatHasBeenRun:
         assert resolve_operation(operation.value).view is None
 
     def test_a_run_of_one_still_names_itself_on_the_console(self, client, superuser):
-        """The reason the slug stays: the index lists past runs, and a
-        retired repair's run must not read as a bare slug."""
+
         Backfill.objects.create(operation=Operation.SWEEP_ARCHIVED.value)
         client.force_login(superuser)
 
@@ -495,9 +476,9 @@ class TestARepairThatHasBeenRun:
 
 
 class TestTheNamelessGangTypeRetirement:
-    """The repair still on offer: an empty-named gang type an ingest
-    founded from a blank Gang cell, the gang of nothing founded on it,
-    and — where somebody played one — a repoint instead."""
+    """Preview deletion of unused nameless gang types or repoint played gangs when their
+    fighter profiles identify one replacement type.
+    """
 
     @pytest.fixture
     def nameless_world(self, owner, default_pack):
@@ -570,8 +551,9 @@ class TestTheNamelessGangTypeRetirement:
     def test_a_played_gang_is_repointed_rather_than_deleted(
         self, client, superuser, nameless_world, person_type
     ):
-        """The whole point of the operation running at all: a gang
-        somebody has played keeps everything, and stops naming nothing."""
+        """Preserve a played gang by identifying its replacement type from the recruited
+        fighter profile.
+        """
         from n26.core.models import Gang
         from n26.library.models import GangType
         from n26.tests.sandbox.actions import create_profile, hire
@@ -592,8 +574,9 @@ class TestTheNamelessGangTypeRetirement:
     def test_a_gang_nobody_can_read_stops_the_type_going(
         self, client, superuser, nameless_world, person_type
     ):
-        """Two lists in one gang and nobody can say what it is, so the
-        gang and the type it names are both left standing."""
+        """Profiles from multiple gang types make the replacement ambiguous. Preserve both
+        the gang and its nameless type.
+        """
         from n26.core.models import Gang
         from n26.library.models import GangType
         from n26.tests.sandbox.actions import create_gang_type, create_profile, hire
@@ -620,8 +603,6 @@ class TestTheNamelessGangTypeRetirement:
 
 
 class TestTheOutcastAffiliationConversion:
-    """The repair still on offer: the Outcast affiliations become picks."""
-
     def test_the_operation_is_registered_and_named(self):
         registered = {op.operation for op in operations()}
 
@@ -631,8 +612,9 @@ class TestTheOutcastAffiliationConversion:
         assert found.view is convert_outcast_affiliation_view
 
     def test_proof_words_count_holders_when_the_plan_omits_reaches(self):
-        """The confirm dialog must not say “0 gangs” just because a
-        future conversion leaves ``Plan.reaches`` at its default."""
+        """Fall back to holder count when Plan.reaches is unset so confirmation text does
+        not claim zero affected gangs.
+        """
         from n26.library.conversion.base import Plan
         from n26.maintenance import _proof_words
 
@@ -719,8 +701,6 @@ class TestTheOutcastAffiliationConversion:
 
 
 class TestTheChaosGodConversion:
-    """The repair still on offer: the Chaos Gods become picks."""
-
     def test_its_lock_is_not_shared(self):
         keys = list(LOCK_KEYS.values())
         assert len(keys) == len(set(keys))
@@ -803,8 +783,6 @@ class TestTheChaosGodConversion:
 
 
 class TestTheVariantConversion:
-    """The repair still on offer: the Variants become picks."""
-
     def test_its_lock_is_not_shared(self):
         keys = list(LOCK_KEYS.values())
         assert len(keys) == len(set(keys))
@@ -888,8 +866,6 @@ class TestTheVariantConversion:
 
 
 class TestTheEmptyAffiliationDeletion:
-    """The repair still on offer: emptied Affiliation library rows go."""
-
     def test_its_lock_is_not_shared(self):
         keys = list(LOCK_KEYS.values())
         assert len(keys) == len(set(keys))
@@ -1054,12 +1030,13 @@ def leftover_world(default_pack, person_type, owner):
 
 
 class TestTheFoundingActionBackfill:
-    """The repair still on offer: gangs founded before the Found and
-    equip gang action existed are given one."""
+    """Open missing Spend founding TP actions and report gangs visited separately from
+    gangs changed.
+    """
 
     @pytest.fixture
     def old_gang(self, owner, default_pack, gang_type):
-        """A gang as one founded before the action existed."""
+        """Represent a gang with no founding activity by removing its ACTION_OPENED event."""
         from n26.core.models import LedgerEvent
         from n26.tests.sandbox.actions import found_gang
 
@@ -1144,8 +1121,9 @@ class TestTheFoundingActionBackfill:
     def test_the_record_page_labels_what_the_run_walked_and_opened(
         self, client, superuser, old_gang
     ):
-        """The walk and the totals differ, so the page says which is
-        which rather than dumping the summary as it was stored."""
+        """Distinguish visited gangs from opened activities rather than displaying the raw
+        summary dictionary.
+        """
         client.force_login(superuser)
         client.post(reverse("admin:maintenance_n26_open_founding_actions"))
         run = Backfill.objects.get(operation=Operation.OPEN_FOUNDING_ACTIONS)
@@ -1176,15 +1154,9 @@ class TestTheFoundingActionBackfill:
 
 @pytest.fixture
 def restricted_world(default_pack, make_profile):
-    """What the equipment-lists upload left behind, beside what it did
-    not write and must not touch.
-
-    The long las carries a "Van Saar only" bracket on the item, and two
-    collections list it — the shape the upload wrote. The lasgun carries
-    the same kind of bracket but no collection lists it, so it was
-    written by hand. The carapace armour is narrowed to a subtype, which
-    the upload never resolved. And the Van Saar list's own line for the
-    armour is narrowed on the entry, which is the right place.
+    """Listed item-level fighter restrictions are eligible for clearing. Keep an unlisted
+    restricted weapon, subtype-restricted armour and entry-level restrictions as
+    controls that must survive.
     """
     from n26.library.authoring import (
         add_entry,
@@ -1226,9 +1198,9 @@ def restricted_world(default_pack, make_profile):
 
 
 class TestTheItemRestrictionClearing:
-    """The repair: the "<Fighter> only" brackets the upload
-    wrote onto items every list shares come off, item by item, and
-    nothing written by hand or on an entry moves."""
+    """Clear fighter-entry restrictions from listed items using the approved plan. Preserve
+    unlisted items, subtype restrictions and collection-entry restrictions.
+    """
 
     def test_its_lock_is_unique_and_its_slug_is_permanent(self):
         keys = list(LOCK_KEYS.values())
@@ -1251,8 +1223,7 @@ class TestTheItemRestrictionClearing:
         )
 
     def test_it_runs_through_the_one_transaction_runner(self):
-        """Library-only work, in one transaction: the guard reads the
-        module as one that never commits inside a loop."""
+
         assert "clear_item_restrictions" in one_transaction_route_names()
         assert not commits_row_by_row("n26.library.item_restrictions")
 
@@ -1320,9 +1291,9 @@ class TestTheItemRestrictionClearing:
     def test_two_lists_printing_one_name_are_told_apart(
         self, restricted_world, other_pack
     ):
-        """A collection is unique by pack, name and qualifier together,
-        so the plan names each list the way an author would tell them
-        apart — the name alone would fold three lists into one."""
+        """Include pack and qualifier when collection names collide so distinct lists
+        remain identifiable in the plan.
+        """
         from n26.library.authoring import create_collection
         from n26.library.item_restrictions import find
 
@@ -1392,12 +1363,11 @@ class TestTheItemRestrictionClearing:
         assert any("Long las" in line for line in run.summary["report"])
         world = restricted_world
         assert world["long_las"].usable_by_words() == ""
-        # Written by hand: no list carries the lasgun's bracket on its
-        # way past, so it stays.
+        # Unlisted item restrictions are outside the clearing plan.
         assert world["lasgun"].usable_by_words() == "Van Saar Leader"
-        # A subtype, which the upload never wrote.
+        # Subtype restrictions are outside the repair.
         assert world["armour"].usable_by_words() == "Champion"
-        # The entry's own narrowing is the right place, and stays.
+        # Preserve entry-level restrictions.
         assert world["narrowed"].usable_by_words() == "Van Saar Champion"
 
     def test_the_record_page_says_what_it_did(
@@ -1418,9 +1388,9 @@ class TestTheItemRestrictionClearing:
     def test_the_record_page_shows_the_deadline_warning(
         self, client, superuser, restricted_world
     ):
-        """A run that used more than half of one delivery is written up
-        on its record, and the page has to show it, or nobody moves
-        the work before running it again."""
+        """Display the recorded duration warning so the operator can see when a repair
+        should move to a batched runner.
+        """
         client.force_login(superuser)
         client.post(reverse("admin:maintenance_n26_clear_item_restrictions"))
         run = Backfill.objects.get(operation=Operation.CLEAR_ITEM_RESTRICTIONS)
@@ -1439,8 +1409,9 @@ class TestTheItemRestrictionClearing:
     def test_the_record_page_of_a_refused_run_says_what_it_planned(
         self, client, superuser, restricted_world
     ):
-        """A refusal ends the record failed with its preview still on it
-        and no report. The page must not call that a run in progress."""
+        """A failed refusal retains its preview without a completed report. Use
+        planned-work wording rather than progress or completion wording.
+        """
         from n26.library.authoring import restrict_use
         from n26.library.item_restrictions import find
 
@@ -1492,10 +1463,10 @@ class TestTheItemRestrictionClearing:
     def test_the_run_holds_the_listings_that_make_an_item_eligible(
         self, restricted_world
     ):
-        """The items are locked, and so are the entries that list them:
-        a listing taken off while the run is reading would leave it
-        stripping an item no list carries. The proof is the lock on the
-        entry table itself, not a race — one query per kind."""
+        """Lock collection entries as well as items so a concurrent removal cannot
+        invalidate eligibility during clearing. Inspect the FOR UPDATE query instead of
+        coordinating a race.
+        """
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -1527,8 +1498,9 @@ class TestTheItemRestrictionClearing:
     def test_it_refuses_when_an_item_was_restricted_after_the_preview(
         self, restricted_world
     ):
-        """The plan somebody approved is the plan that runs. An item
-        restricted after the preview was read is not swept up by it."""
+        """Reject a changed eligible-item set instead of clearing restrictions the operator
+        never previewed.
+        """
         from n26.library.authoring import restrict_use
         from n26.library.item_restrictions import Refused, apply, find
 
@@ -1561,11 +1533,9 @@ class TestTheItemRestrictionClearing:
     def test_a_redelivery_after_the_clearing_committed_ends_done_not_failed(
         self, restricted_world, superuser
     ):
-        """The clearing commits, then the record is written. A worker
-        cut off between the two leaves the record running, and the
-        queue delivers the task again to a world where the approved
-        items already carry nothing: that is the plan carried out, and
-        the record ends done rather than failed."""
+        """A crash can occur after clearing commits but before the record is updated.
+        Redelivery must recognise the fully applied plan and complete successfully.
+        """
         from n26.library.item_restrictions import apply, find
 
         found = find()
@@ -1594,10 +1564,9 @@ class TestTheItemRestrictionClearing:
     def test_a_plan_only_partly_carried_out_is_still_a_changed_plan(
         self, restricted_world
     ):
-        """Already cleared means every approved item carries nothing.
-        One of two cleared by hand is a plan that changed, and the run
-        refuses rather than clearing the other on a preview nobody saw
-        in this state."""
+        """Treat partial clearing as a changed plan. Only a plan whose approved items are
+        all cleared qualifies as an already-completed retry.
+        """
         from n26.library.authoring import restrict_use
         from n26.library.item_restrictions import Refused, apply, find
 
@@ -1622,8 +1591,9 @@ class TestTheItemRestrictionClearing:
     def test_the_task_reads_the_plan_off_its_own_record(
         self, restricted_world, superuser
     ):
-        """What the task clears is what its record says was approved,
-        not whatever a fresh scan finds when it starts."""
+        """Execute the recorded approval instead of selecting fresh eligible items at
+        delivery time.
+        """
         from n26.library.authoring import restrict_use
         from n26.library.item_restrictions import find
 

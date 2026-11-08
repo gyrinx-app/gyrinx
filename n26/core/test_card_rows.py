@@ -1,13 +1,8 @@
-"""The card-row declarations, held together.
+"""Discover card-row declarations and check their rendering and choice-routing
+connections.
 
-A kind declares where its lines go — ``card_row`` on the library model —
-and four other places must agree: the ModelCard carries a list field per
-declared row, the ComputedCard files grants into a bucket of the same
-name, the card template draws a Choose control for every row that takes
-questions, and whatever points questions at their pickers reaches every
-bucket that holds them. Nothing structural connects them, so this does: the
-kinds are discovered, never listed, and a new declaration that misses a
-step fails here with the step named.
+ModelCard and ComputedCard need matching fields for each declared card row. Choice
+buckets also need template controls and picker links.
 """
 
 import dataclasses
@@ -25,8 +20,7 @@ from n26.core.effects import ComputedCard
 from n26.core.render import ModelCard
 from n26.library.models.assignable import Assignable
 
-#: The card is one component in two files: the frame with its tabs, and the
-#: body holding the rows. A question row is drawn in either.
+#: Choice markup may be in either the card frame or its body include.
 CARD_TEMPLATES = (
     Path(n26.core.__file__).parent / "templates/cotton/n26/model_card/index.html",
     Path(n26.core.__file__).parent / "templates/cotton/n26/model_card/body.html",
@@ -114,8 +108,9 @@ class TestTheCardRows:
             )
 
     def test_a_question_a_weapon_carries_is_linked_and_drawn(self):
-        """An item's own choice draws under the item, so it is not in any
-        bucket — and it still has to reach the picker and the template."""
+        """Item choices render under their item, outside row-level buckets, and still
+        require picker links.
+        """
         from n26.core.render import ChoiceLine, Statline, WeaponLine
         from n26.core.views.choose import link_slots
 
@@ -181,10 +176,9 @@ class TestTheCardRows:
         assert edit.find("a", href="/choose/").get_text(" ", strip=True) == "Choose"
 
     def test_every_question_row_is_pointed_at_its_picker(self):
-        """Drawn is not enough. A question carries its address and a view
-        turns it into a URL, so a bucket nothing links draws a control with
-        nowhere to go — which is worse than not drawing it, because the
-        reader clicks it."""
+        """Every rendered choice control needs a URL, including choices in newly
+        declared buckets.
+        """
         from n26.core.render import ChoiceLine, Statline
         from n26.core.views.choose import link_slots
 

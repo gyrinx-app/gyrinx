@@ -906,7 +906,7 @@ class TestRecordingASkillRoll:
 
 
 class TestCompletingAndCorrecting:
-    """Confirmation settles once; correction changes the pick around that receipt."""
+    """Confirm an advancement once and correct its selected result without repeating payment or consuming another use."""
 
     def test_confirmation_and_correction_preserve_the_use_roll_money_and_history(
         self, client, monkeypatch, advancement
@@ -1079,7 +1079,7 @@ def _story(advancement):
 
 
 class TestApplyingByHand:
-    """A player who gave the result outside Gyrinx clears the waiting mark."""
+    """Mark an externally applied result to consume its earned use and clear the available-action indicator."""
 
     def test_marking_an_unused_use_preserves_the_fighter_replays_refuses_and_reopens(
         self, client, advancement
