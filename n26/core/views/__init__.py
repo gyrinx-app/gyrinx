@@ -97,7 +97,7 @@ from n26.core.views.gangs import (
     rename_fighter,
     use_campaign_budget,
 )
-from n26.core.views.hire import hire_card, hire_fighter
+from n26.core.views.hire import hire_card, hire_command, hire_fighter, hire_preview
 from n26.core.views.history import gang_history
 from n26.core.views.options import fighter_options
 from n26.core.views.owned import (
@@ -239,6 +239,8 @@ __all__ = [
     "gang_other_actions",
     "gangs",
     "hire_card",
+    "hire_command",
+    "hire_preview",
     "hire_fighter",
     "skills",
     "preview_view",

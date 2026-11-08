@@ -1,5 +1,6 @@
 """A confirmed hire is one acquisition, even when its response is lost."""
 
+import json
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from uuid import uuid4
@@ -22,6 +23,7 @@ from n26.core.reconcile import assert_reconciled
 from n26.library.authoring import (
     add_built_in,
     create_interstitial,
+    create_option_group,
     create_pickable,
     create_picklist,
     create_slot,
@@ -301,6 +303,69 @@ class TestSavingOneAcquisition:
         assert_reconciled(gang)
 
 
+class TestStableOptionIdentity:
+    def test_reordering_options_cannot_change_which_one_a_retained_hire_buys(
+        self, gang, owner, profile
+    ):
+        plain = offer_option(profile, "Plain")
+        equipped = offer_option(profile, "Equipped", price=25)
+        data = submission(profile, selection=json.dumps([str(equipped.pk)]))
+        revise(plain, position=2)
+        revise(equipped, position=0)
+
+        result = hire_workflow.change(gang, owner, data)
+        assert result.saved
+        assert result.receipt.paid == 85
+        assert result.receipt.payload["version"] == 2
+        assert list(
+            result.miniature.membership.chosen_options.values_list(
+                "default_set_id", flat=True
+            )
+        ) == [equipped.default_set_id]
+        assert_reconciled(gang)
+
+    def test_equivalent_json_selection_order_recalls_the_same_hire(
+        self, gang, owner, profile
+    ):
+        group = create_option_group(profile, "Equipment", choose="any")
+        first = offer_option(profile, "First", price=10, group=group)
+        second = offer_option(profile, "Second", price=25, group=group)
+        data = submission(
+            profile, selection=json.dumps([str(first.pk), str(second.pk)])
+        )
+        saved = hire_workflow.change(gang, owner, data)
+        assert saved.saved and saved.receipt.paid == 95
+        data["selection"] = json.dumps([str(second.pk), str(first.pk)])
+        replay = hire_workflow.change(gang, owner, data)
+        assert replay.saved and not replay.applied
+        assert replay.receipt.pk == saved.receipt.pk
+        assert_reconciled(gang)
+
+    def test_a_saved_stable_selection_can_be_recalled_after_its_option_is_removed(
+        self, gang, owner, profile
+    ):
+        option = offer_option(profile, "Equipped", price=25)
+        data = submission(profile, selection=json.dumps([str(option.pk)]))
+        saved = hire_workflow.change(gang, owner, data)
+        assert saved.saved
+        option.delete()
+        replay = hire_workflow.change(gang, owner, data)
+        assert replay.saved and not replay.applied
+        assert replay.receipt.pk == saved.receipt.pk
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize("selection", ["{", "{}", "[1]", '["same", "same"]'])
+    def test_an_invalid_stable_selection_never_writes(
+        self, gang, owner, profile, selection
+    ):
+        result = hire_workflow.change(
+            gang, owner, submission(profile, selection=selection)
+        )
+        assert result.form.errors["selection"] == ["Choose the model options again."]
+        assert not HireReceipt.objects.filter(gang=gang).exists()
+        assert not Miniature.objects.filter(membership__gang=gang).exists()
+
+
 class TestTheNativeForm:
     def test_the_confirmation_carries_a_fresh_key_and_cannot_be_cached(
         self, client, gang, owner, profile
@@ -311,7 +376,10 @@ class TestTheNativeForm:
         key = first.context["form"]["request_key"].value()
         assert key != second.context["form"]["request_key"].value()
         page = BeautifulSoup(first.content, "html.parser")
-        assert page.select_one('input[name="request_key"]')["value"] == str(key)
+        host = page.select_one('[data-react-name="hire"]')
+        props = json.loads(page.find(id=host["data-react-props"]).string)
+        assert props["values"]["request_key"] == str(key)
+        assert props["confirmation"] is True
         assert "no-store" in first["Cache-Control"]
 
     def test_a_key_error_is_visible_and_an_invalid_name_keeps_the_same_key(
@@ -333,11 +401,11 @@ class TestTheNativeForm:
         data = submission(profile, name="x" * 201, paid=paid)
         failed = client.post(url(gang), data)
         page = BeautifulSoup(failed.content, "html.parser")
-        assert page.select_one('input[name="paid"]')["value"] == paid
-        assert not page.select_one('input[name="rate"]').has_attr("checked")
-        assert (
-            page.select_one('input[name="request_key"]')["value"] == data["request_key"]
-        )
+        host = page.select_one('[data-react-name="hire"]')
+        props = json.loads(page.find(id=host["data-react-props"]).string)
+        assert props["values"]["paid"] == paid
+        assert props["values"]["rate"] == ""
+        assert props["values"]["request_key"] == data["request_key"]
 
     def test_a_lost_redirect_does_not_duplicate_feedback_or_analytics(
         self, client, gang, owner, profile, monkeypatch

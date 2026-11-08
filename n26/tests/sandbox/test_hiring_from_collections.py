@@ -9,6 +9,8 @@ to a held collection. Hiring through the unrestricted profile list uses the
 reference price instead.
 """
 
+from json import dumps
+from urllib.parse import urlencode
 from uuid import uuid4
 
 import pytest
@@ -114,16 +116,17 @@ def hire_url(gang):
 
 
 def sections_of(response):
-    return [section.name for section in response.context["hire_list"]]
+    return [section["name"] for section in response.context["hire_props"]["sections"]]
 
 
 def rows_of(response, section_name):
     """Return hiring entries from one named section indexed by profile name."""
     return {
-        entry.name: entry
-        for section in response.context["hire_list"]
-        if section.name == section_name
-        for entry in section.all_entries()
+        entry["name"]: entry
+        for section in response.context["hire_props"]["sections"]
+        if section["name"] == section_name
+        for category in section["categories"]
+        for entry in category["entries"]
     }
 
 
@@ -159,7 +162,10 @@ class TestTheSectionACollectionOffers:
         body = response.content.decode()
         assert "Genestealer Cult Corrupted" in body
         assert "Chaos Spawn" in body
-        assert "155¢" in body
+        assert (
+            rows_of(response, "Genestealer Cult Corrupted")["Chaos Spawn"]["basePrice"]
+            == 155
+        )
 
     def test_a_gang_without_the_carrier_is_offered_none_of_it(
         self, client, owner, gang, corruption
@@ -204,12 +210,12 @@ class TestTheSectionACollectionOffers:
 
         (section,) = [
             section
-            for section in response.context["hire_list"]
-            if section.name == "Genestealer Cult Corrupted"
+            for section in response.context["hire_props"]["sections"]
+            if section["name"] == "Genestealer Cult Corrupted"
         ]
-        (category,) = section.categories
-        assert category.name == "Beasts"
-        assert [entry.name for entry in category.entries] == [
+        (category,) = section["categories"]
+        assert category["name"] == "Beasts"
+        assert [entry["name"] for entry in category["entries"]] == [
             "Genestealer Aberrant",
             "Chaos Spawn",
         ]
@@ -222,13 +228,13 @@ class TestTheSectionACollectionOffers:
         response = client.get(hire_url(corrupted_gang))
 
         drawn = set(sections_of(response))
-        assert drawn <= set(response.context["sections"])
+        assert drawn <= set(sections_of(response))
         registrations = {
-            category.name or section.name
-            for section in response.context["hire_list"]
-            for category in section.categories
+            category["name"] or section["name"]
+            for section in response.context["hire_props"]["sections"]
+            for category in section["categories"]
         }
-        assert registrations <= set(response.context["categories"])
+        assert registrations <= set(response.context["hire_props"]["categories"])
 
     def test_a_list_something_took_away_offers_nothing(
         self, client, owner, gang, corrupted_list, default_pack
@@ -274,7 +280,7 @@ class TestTheSectionACollectionOffers:
         response = client.get(hire_url(gang))
         rows = rows_of(response, "Corrupted Menagerie")
         assert sorted(rows) == ["Chaos Spawn", "Genestealer Aberrant"]
-        assert rows["Chaos Spawn"].base_price == REFERENCE
+        assert rows["Chaos Spawn"]["basePrice"] == REFERENCE
 
     def test_a_fighter_nobody_hires_directly_is_not_offered(
         self, client, owner, gang, corrupted_profiles, default_pack
@@ -300,18 +306,20 @@ class TestTheCollectionsPriceIsThePrice:
         response = client.get(hire_url(corrupted_gang))
         rows = rows_of(response, "Genestealer Cult Corrupted")
 
-        assert rows["Genestealer Aberrant"].base_price == 120
-        assert rows["Chaos Spawn"].base_price == 155
+        assert rows["Genestealer Aberrant"]["basePrice"] == 120
+        assert rows["Chaos Spawn"]["basePrice"] == 155
         assert f"{REFERENCE}¢" not in response.content.decode()
 
     def test_the_dialog_quotes_it_too(self, client, owner, corrupted_gang):
         client.force_login(owner)
         key = self.key(client, corrupted_gang, "Genestealer Aberrant")
-        body = client.get(f"{hire_url(corrupted_gang)}?hire={key}").content.decode()
-
-        assert "Hire a Genestealer Aberrant" in body
-        assert "120¢" in body
-        assert 'value="120"' in body  # the price box, pre-filled with the quote
+        delivered = client.get(f"{hire_url(corrupted_gang)}?hire={key}").context[
+            "hire_props"
+        ]
+        assert delivered["confirmation"]
+        assert delivered["values"]["profile_name"] == "Genestealer Aberrant"
+        assert delivered["values"]["quoted"] == "120"
+        assert delivered["values"]["paid"] == "120"
 
     def test_hiring_through_the_section_charges_the_collections_price(
         self, client, owner, corrupted_gang
@@ -376,7 +384,7 @@ class TestTheCollectionsPriceIsThePrice:
 
         client.force_login(owner)
         response = client.get(hire_url(gang))
-        assert rows_of(response, "Corrupted Roster")["Chaos Spawn"].base_price == (
+        assert rows_of(response, "Corrupted Roster")["Chaos Spawn"]["basePrice"] == (
             REFERENCE
         )
 
@@ -387,12 +395,11 @@ class TestTheCollectionsPriceIsThePrice:
         client.force_login(owner)
         response = client.get(hire_url(corrupted_gang))
         entry = rows_of(response, "Genestealer Cult Corrupted")["Genestealer Aberrant"]
-        address = entry.default_option.card_url
+        address = entry["previewHref"]
         assert "entry=" in address
 
-        body = client.get(address).content.decode()
-        assert "120¢" in body
-        assert f"{REFERENCE}¢" not in body
+        card = client.get(address).json()["preview"]
+        assert card["rating"] == 120
 
     def test_a_typed_price_is_still_a_discount_against_that_quote(
         self, client, owner, corrupted_gang
@@ -419,8 +426,8 @@ class TestTheCollectionsPriceIsThePrice:
         response = client.get(hire_url(gang))
         rows = rows_of(response, "Genestealer Cult Corrupted")
         found = rows[name]
-        assert found.key in response.content.decode()
-        return found.key
+        assert found["key"] in response.content.decode()
+        return found["key"]
 
 
 class TestAForgedPriceTag:
@@ -434,7 +441,8 @@ class TestAForgedPriceTag:
 
         client.force_login(owner)
         key = f"{aberrant.pk}-{forged.pk}"
-        assert client.get(f"{hire_url(gang)}?hire={key}").status_code == 404
+        stale = client.get(f"{hire_url(gang)}?hire={key}")
+        assert stale.status_code == 404
         assert click(client, gang, key).status_code == 404
         assert hire_through(client, gang, key, name="Sneaky").status_code == 404
         assert not Miniature.objects.filter(membership__gang=gang).exists()
@@ -516,8 +524,11 @@ class TestOptionsOnACollectionsRow:
         response = client.get(hire_url(corrupted_gang))
         entry = rows_of(response, "Genestealer Cult Corrupted")["Genestealer Aberrant"]
 
-        assert entry.base_price == 120
-        assert [option.total_price for option in entry.options] == [120, 145]
+        assert entry["basePrice"] == 120
+        assert [option["totalPrice"] for option in entry["groups"][0]["options"]] == [
+            120,
+            145,
+        ]
 
     def test_a_click_carries_the_pick_and_the_offer_together(
         self, client, owner, corrupted_gang, armed
@@ -527,18 +538,18 @@ class TestOptionsOnACollectionsRow:
 
         client.force_login(owner)
         response = client.get(hire_url(corrupted_gang))
-        key = rows_of(response, "Genestealer Cult Corrupted")[
-            "Genestealer Aberrant"
-        ].key
+        key = rows_of(response, "Genestealer Cult Corrupted")["Genestealer Aberrant"][
+            "key"
+        ]
         scoped = f"{slugify(key)}:0"
 
         clicked = click(client, corrupted_gang, key, **{scoped: "1"})
         assert clicked.status_code == 302
         assert f"hire={key}" in clicked.url
 
-        body = client.get(clicked.url).content.decode()
-        assert "145¢" in body
-        assert "With a heavy rock drill" in body
+        delivered = client.get(clicked.url).context["hire_props"]
+        assert delivered["values"]["quoted"] == "145"
+        assert "With a heavy rock drill" in delivered["values"]["choice_names"]
 
     def test_the_option_is_charged_with_the_collections_price(
         self, client, owner, corrupted_gang, armed
@@ -547,9 +558,9 @@ class TestOptionsOnACollectionsRow:
 
         client.force_login(owner)
         response = client.get(hire_url(corrupted_gang))
-        key = rows_of(response, "Genestealer Cult Corrupted")[
-            "Genestealer Aberrant"
-        ].key
+        key = rows_of(response, "Genestealer Cult Corrupted")["Genestealer Aberrant"][
+            "key"
+        ]
 
         hire_through(
             client,
@@ -595,20 +606,25 @@ class TestOptionsOnACollectionsRow:
         response = client.get(hire_url(corrupted_gang))
         row = rows_of(response, "Genestealer Cult Corrupted")["Genestealer Aberrant"]
 
-        address = (
-            f"{row.card_url}&option={drill.pk}&option={horns.pk}"
-            if "?" in row.card_url
-            else f"{row.card_url}?option={drill.pk}&option={horns.pk}"
-        )
-        card = client.get(address).context["card"]
-
+        selected = [
+            str(option.pk)
+            for option in aberrant.options.filter(default_set__in=[drill, horns])
+        ]
+        card = client.get(
+            row["previewHref"] + "&" + urlencode({"selection": dumps(selected)})
+        ).json()["preview"]
         quoted = aberrant.price_with([drill, horns], base=120)
         assert quoted == 160
-        assert card.rating == quoted
-        assert [line.name for line in card.equipment] == [
-            "Heavy rock drill",
-            "Iron horns",
+        assert card["rating"] == quoted
+        gear = [
+            line["text"]
+            for detail in card["details"]
+            for part in detail["parts"]
+            if part["kind"] in {"gear", "names"}
+            for line in part["lines"]
         ]
+        assert "Heavy rock drill" in gear
+        assert "Iron horns" in gear
 
     def test_the_rows_address_names_the_offer_and_nothing_else(
         self, client, owner, corrupted_gang, mutated
@@ -618,8 +634,9 @@ class TestOptionsOnACollectionsRow:
         response = client.get(hire_url(corrupted_gang))
         row = rows_of(response, "Genestealer Cult Corrupted")["Genestealer Aberrant"]
 
-        assert f"entry={row.entry.pk}" in row.card_url
-        assert "option=" not in row.card_url
+        entry_key = row["key"].partition("-")[2]
+        assert f"entry={entry_key}" in row["previewHref"]
+        assert "selection=" not in row["previewHref"]
 
 
 class TestTheQueryBudget:

@@ -308,6 +308,12 @@ urlpatterns = [
     # Match the literal new route before the string primary-key route.
     path("gangs/<str:pk>/", views.gang_sheet, name="n26-gang"),
     path("gangs/<str:pk>/hire/", views.hire_fighter, name="n26-hire-fighter"),
+    path("gangs/<str:pk>/hire/command/", views.hire_command, name="n26-hire-command"),
+    path(
+        "gangs/<str:pk>/hire/preview/<str:profile>/",
+        views.hire_preview,
+        name="n26-hire-preview",
+    ),
     path("gangs/<str:pk>/equip/", views.equip_gang, name="n26-equip-gang"),
     # Load preview cards on demand; the initial hire list contains priced rows only.
     path(

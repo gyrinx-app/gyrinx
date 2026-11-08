@@ -227,3 +227,27 @@ must leave no receipt. Retain the written assignment IDs needed to rederive
 onward choice screens; do not store an arbitrary client return URL as a result.
 Keep native form keys required and stable across validation errors. Update real
 POST payloads in tests explicitly, and separately prove missing-key rejection.
+
+For Hire catalogue controls, submit library Option row IDs in `selection`, not
+option positions or default-set IDs. Distinct options can share a default set;
+reordering a catalogue must not change an unsaved choice. Preserve legacy receipt
+payloads when adding a new input format. After a rolled-back operation, reload
+and reauthorise the gang before projecting current figures.
+
+Every retained scalar must be present in the submitted form. A controlled,
+non-posting checkbox can use one hidden field containing either its value or an
+empty string; an omitted unchecked field cannot restore a complete draft.
+`useWorkflowForm.recoverAt` keeps an explicit recovery navigation's draft and
+uses fresh page CSRF on return. Known rejections remain editable; a rejected retry
+does not resolve an earlier uncertain save. Preserve the raw URLSearchParams
+storage format so cached clients can still recover pending commands.
+
+Preserve a native confirmation's populated payment. An untouched React form must
+post the displayed amount, rather than blank input that may resolve to a higher
+quote after a catalogue edit. Keep deliberate blank and zero payments distinct.
+Preserve queued messages' severity and dismissal alongside their text.
+
+Search the whole edition for workflow callers and tests before deleting a shared
+helper. Page contracts also live in colocated `core/test_*.py` modules. Move
+remaining consumers onto the shared parser rather than another view's private
+helper, and preserve browser navigation hints alongside visible controls.

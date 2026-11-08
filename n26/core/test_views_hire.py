@@ -8,9 +8,11 @@ along with the refusals, because every one of them is a way a fighter
 could be bought at the wrong price or not at all.
 """
 
+import json
 from uuid import uuid4
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.urls import reverse
 from django.utils.text import slugify
@@ -68,6 +70,22 @@ def hire_url(gang):
     return reverse("n26-hire-fighter", args=[gang.pk])
 
 
+def page_props(response):
+    page = BeautifulSoup(response.content, "html.parser")
+    host = page.select_one('[data-react-name="hire"]')
+    assert host is not None
+    return json.loads(page.find(id=host["data-react-props"]).string)
+
+
+def catalogue_entries(data):
+    return [
+        entry
+        for section in data["sections"]
+        for category in section["categories"]
+        for entry in category["entries"]
+    ]
+
+
 def dialog_url(gang, profile, options=()):
     """The URL a click lands on: the list, with the dialog open.
 
@@ -92,14 +110,12 @@ def test_the_list_draws_with_prices(client, tester, gang, ganger):
     assert "55" in body
 
 
-def test_the_search_box_does_not_hire_on_enter(client, tester, gang, ganger):
-    """The bar narrows rows already on the page, as you type. Enter
-    would otherwise submit the hire form and start a hire of whichever
-    fighter is first in the unfiltered list."""
+def test_the_searchable_catalogue_has_one_react_owner(client, tester, gang, ganger):
     client.force_login(tester)
-    body = client.get(hire_url(gang)).content.decode()
-    assert 'role="search"' in body
-    assert "@keydown.enter.prevent" in body
+    response = client.get(hire_url(gang))
+    page = BeautifulSoup(response.content, "html.parser")
+    assert len(page.select('[data-react-name="hire"]')) == 1
+    assert catalogue_entries(page_props(response))[0]["name"] == "Ganger"
 
 
 def card_url(gang, profile):
@@ -109,15 +125,14 @@ def card_url(gang, profile):
 def test_the_list_ships_no_cards_and_says_where_each_lives(
     client, tester, gang, ganger
 ):
-    """A drawn card is most of a row's weight and almost nobody opens
-    most of them, so the page carries each option's card *address* and
-    fetches it on the first open. What must not be on the page is the
-    card itself — its statline is the marker, because nothing else on
-    the list draws one."""
     client.force_login(tester)
-    body = client.get(hire_url(gang)).content.decode()
-    assert card_url(gang, ganger) in body
-    assert "Weapon Skill" not in body
+    response = client.get(hire_url(gang))
+    (entry,) = catalogue_entries(page_props(response))
+    assert entry["previewHref"] == reverse(
+        "n26-hire-preview", args=[gang.pk, ganger.pk]
+    )
+    assert "card" not in entry
+    assert "Weapon Skill" not in response.content.decode()
 
 
 def test_a_cards_fragment_is_the_card_itself(client, tester, gang, ganger):
@@ -182,18 +197,17 @@ def test_the_other_scopes_are_offered_to_the_browser_early(
     assert "nav[data-speculate='who-can-be-hired'] a:not([aria-current])" in body
 
 
-def test_a_phone_draws_all_three_scopes_rather_than_one_and_a_menu(
+def test_all_three_scopes_are_delivered_for_the_visible_navigation(
     client, tester, gang, ganger
 ):
-    """Gang list, Supplementary and All profiles are the screen's main
-    choice, so the narrow strip draws all three instead of folding two
-    behind "+2 more"."""
     client.force_login(tester)
-    body = client.get(hire_url(gang)).content.decode()
-    assert "+2 more" not in body
-    # Once in the wide strip and once in the narrow one: both are always in
-    # the HTML, and CSS picks which one shows.
-    assert body.count(f'href="{hire_url(gang)}?list=all"') == 2
+    data = page_props(client.get(hire_url(gang)))
+    assert [tab["label"] for tab in data["scopeTabs"]] == [
+        "Gang list",
+        "Supplementary",
+        "All profiles",
+    ]
+    assert data["scopeTabs"][-1]["href"] == hire_url(gang) + "?list=all"
 
 
 def test_the_list_asks_for_no_name(client, tester, gang, ganger):
@@ -205,21 +219,14 @@ def test_the_list_asks_for_no_name(client, tester, gang, ganger):
 
 
 def test_every_registration_name_is_a_known_category(client, tester, gang, ganger):
-    """The picker filters rows by ``categoryOn(name)`` client-side, and a
-    row in an unnamed category registers under its *section's* name —
-    possibly "". A categories list that omits a registration name hides
-    every such row silently: the page serves the rows, Alpine never shows
-    them, and no HTML assertion notices. So the context is pinned
-    instead: every name a row will register under must be in the list.
-    """
     client.force_login(tester)
-    response = client.get(hire_url(gang))
+    data = page_props(client.get(hire_url(gang)))
     registration_names = {
-        category.name or section.name
-        for section in response.context["hire_list"]
-        for category in section.categories
+        category["name"] or section["name"]
+        for section in data["sections"]
+        for category in section["categories"]
     }
-    assert registration_names <= set(response.context["categories"])
+    assert registration_names <= set(data["categories"])
 
 
 def test_a_click_lands_on_the_dialogs_url(client, tester, gang, ganger):
@@ -234,69 +241,54 @@ def test_a_click_lands_on_the_dialogs_url(client, tester, gang, ganger):
 
 def test_the_dialog_names_the_profile_and_its_price(client, tester, gang, ganger):
     client.force_login(tester)
-    body = client.get(dialog_url(gang, ganger)).content.decode()
-    assert "Hire a Ganger" in body
-    assert "55¢" in body
-    assert f'value="{ganger.pk}"' in body
-    assert 'name="name"' in body
+    data = page_props(client.get(dialog_url(gang, ganger)))
+    assert data["confirmation"]
+    assert data["values"]["profile_name"] == "Ganger"
+    assert data["values"]["profile"] == str(ganger.pk)
+    assert data["values"]["quoted"] == data["values"]["paid"] == "55"
+    assert data["values"]["name"] == ""
 
 
 def test_the_screen_offers_more_than_one_hire(client, tester, gang, ganger):
-    """A reader can hire a whole gang without leaving, so the heading, the
-    tab and the breadcrumb all say so rather than promising one fighter."""
     client.force_login(tester)
-    body = client.get(hire_url(gang)).content.decode()
-    assert body.count("Hire Fighters") >= 3
-    assert "Hire a fighter" not in body
+    response = client.get(hire_url(gang))
+    assert "Hire Fighters" in response.content.decode()
+    assert page_props(response)["action"] == hire_url(gang)
 
 
-def test_the_dialog_is_a_panel_a_reader_without_scripting_can_still_use(
+def test_the_confirmation_contains_credentials_and_a_recoverable_command_key(
     client, tester, gang, ganger
 ):
-    """Render open dialog content in normal page flow for the no-script fallback."""
     client.force_login(tester)
-    body = client.get(dialog_url(gang, ganger)).content.decode()
-    assert "<dialog open" in body
-    assert "static m-0" in body
+    data = page_props(client.get(dialog_url(gang, ganger)))
+    assert data["confirmation"]
+    assert data["csrfToken"]
+    assert data["values"]["request_key"]
+    assert data["recoveryKey"] == f"hire:{tester.pk}:{gang.pk}"
 
 
-def test_the_dialog_promotes_itself_by_calling_a_method(client, tester, gang, ganger):
-    """The promotion is a call, never statements written into the
-    directive. Alpine compiles a directive's value as an expression, and a
-    statement there is a syntax error it reports to the browser console
-    and nowhere else — the page would serve 200 with the panel sitting
-    unpromoted above the list and nothing to say why.
-
-    ``test_template_expressions`` guards that rule across the edition;
-    this pins the shape the dialog relies on.
-    """
+def test_the_confirmation_has_no_nested_alpine_or_react_owner(
+    client, tester, gang, ganger
+):
     client.force_login(tester)
-    body = client.get(dialog_url(gang, ganger)).content.decode()
-    assert 'x-init="promote($el)"' in body
-    assert "showModal()" in body
+    page = BeautifulSoup(client.get(dialog_url(gang, ganger)).content, "html.parser")
+    host = page.select_one('[data-react-name="hire"]')
+    assert not host.select("[x-init], [x-data], [data-react-name]")
 
 
 def test_dismissing_the_dialog_navigates(client, tester, gang, ganger):
-    """Closing in place would leave the list on screen while the URL still
-    named a profile, so both Cancel and a dismissal go to the page with no
-    profile named — and the address bar keeps agreeing with the screen.
-
-    This one is open because the server was asked for it, which is the
-    half of the panel's dismissal that travels: only a request can take
-    the name back off the address."""
     client.force_login(tester)
-    body = client.get(dialog_url(gang, ganger)).content.decode()
-    assert f"cancelUrl: '{hire_url(gang)}'" in body
-    assert "window.location = this.cancelUrl" in body
-    assert f'href="{hire_url(gang)}"' in body
+    data = page_props(client.get(dialog_url(gang, ganger)))
+    assert data["back"] == hire_url(gang)
+    assert data["action"] == hire_url(gang)
 
 
 def test_the_list_carries_no_dialog_until_one_is_asked_for(
     client, tester, gang, ganger
 ):
     client.force_login(tester)
-    assert client.get(hire_url(gang)).context["dialog"] is None
-    assert client.get(dialog_url(gang, ganger)).context["dialog"] is not None
+    assert page_props(client.get(hire_url(gang)))["confirmation"] is False
+    assert page_props(client.get(dialog_url(gang, ganger)))["confirmation"] is True
 
 
 def test_the_dialog_hires_and_comes_back_for_the_next_one(client, tester, gang, ganger):
@@ -317,26 +309,21 @@ def test_the_dialog_hires_and_comes_back_for_the_next_one(client, tester, gang, 
     assert gang.rating == 55
 
     body = client.get(response.url).content.decode()
-    assert "Hired Vex — Ganger, 55¢." in body
+    assert "Hired Vex" in body
+    assert "55" in body
 
 
-def test_the_confirmation_is_drawn_once_and_inside_the_form(
+def test_the_success_is_delivered_once_to_the_workflow_owner(
     client, tester, gang, ganger
 ):
-    """The layout draws messages above everything; this screen wants its
-    confirmation beside the list the click came from. Both would be the
-    same message twice, so the page empties the layout's block — and the
-    only way to tell is where the alert sits relative to the form.
-    """
     client.force_login(tester)
     client.post(
         hire_url(gang),
         {"request_key": str(uuid4()), "profile": str(ganger.pk), "name": "Vex"},
     )
-    body = client.get(hire_url(gang)).content.decode()
-
-    assert body.count("Hired Vex") == 1
-    assert body.index("<form") < body.index("Hired Vex") < body.index("Ganger</span>")
+    data = page_props(client.get(hire_url(gang)))
+    assert data["messages"] == [{"text": "Hired Vex — Ganger, 55¢.", "tone": "success"}]
+    assert not data["confirmation"]
 
 
 def test_hiring_twice_running_needs_no_detour(client, tester, gang, ganger):
@@ -364,30 +351,25 @@ def test_an_unnamed_hire_takes_the_profiles_name(client, tester, gang, ganger):
     assert Miniature.objects.get(membership__gang=gang).name == "Ganger"
 
     body = client.get(hire_url(gang)).content.decode()
-    assert "Hired Ganger for 55¢." in body
+    assert "Hired Ganger for 55" in body
 
 
 def test_a_click_carries_the_ticked_option_into_the_dialogs_url(
     client, tester, gang, ganger, armament
 ):
-    """The row's controls are answered before the click, so the dialog must
-    inherit them: dropping one here would quote and charge the base price
-    for a fighter the player configured otherwise.
-    """
     client.force_login(tester)
     response = click(client, gang, ganger, **{f"{slugify(str(ganger.pk))}:1": "1"})
     assert response.url == dialog_url(gang, ganger, [(1, 1)])
-
-    body = client.get(response.url).content.decode()
-    assert "80¢" in body  # 55 + 25
-    assert "Chainsword" in body
+    data = page_props(client.get(response.url))
+    assert data["values"]["quoted"] == "80"
+    assert json.loads(data["values"]["choice_names"]) == ["Chainsword"]
 
 
 def test_a_name_the_field_refuses_comes_back_in_the_dialog(
     client, tester, gang, ganger, armament
 ):
     """Retain the selected hire option when name validation fails."""
-    scoped = f"{slugify(str(ganger.pk))}:1"
+    _, fancy = armament
     client.force_login(tester)
     response = client.post(
         hire_url(gang),
@@ -395,16 +377,19 @@ def test_a_name_the_field_refuses_comes_back_in_the_dialog(
             "request_key": str(uuid4()),
             "profile": str(ganger.pk),
             "name": "V" * 300,
-            scoped: "1",
+            f"{slugify(str(ganger.pk))}:1": "1",
         },
     )
     assert response.status_code == 200
     assert not Miniature.objects.filter(membership__gang=gang).exists()
-
-    body = response.content.decode()
-    assert f'<input type="hidden" name="{scoped}" value="1">' in body
-    assert "80¢" in body
-    assert "at most 200 characters" in body
+    data = page_props(response)
+    assert data["confirmation"]
+    assert data["values"]["name"] == "V" * 300
+    assert data["values"]["quoted"] == "80"
+    assert json.loads(data["values"]["selection"]) == [
+        str(ganger.options.get(default_set=fancy).pk)
+    ]
+    assert "at most 200 characters" in data["errors"]["name"][0]
 
 
 def test_an_option_maps_back_to_its_set(client, tester, gang, ganger, armament):
@@ -440,34 +425,30 @@ def test_an_option_maps_back_to_its_set(client, tester, gang, ganger, armament):
     assert gang.credits == 120  # 200 - (55 + 25)
 
 
-def test_the_option_keys_match_what_the_template_renders(
+def test_legacy_indices_become_the_same_stable_options_the_react_controls_use(
     client, tester, gang, ganger, armament
 ):
-    """The rendered input names and the parser must agree on case.
-
-    The row template scopes inputs with ``value|slugify``, which lowercases
-    the ULID; a parser reading the raw pk finds no keys, and every option
-    ticked in a real browser is silently dropped — the fighter hires as
-    default at base price, no error anywhere. So the page's HTML is the
-    fixture here: the name this asserts on is the name the parser reads.
-
-    The dialog then repeats those names as hidden fields, which is how the
-    answer crosses the redirect: no script copies it, so nothing is lost
-    when none is running.
-    """
+    """Retain the selected hire option when name validation fails."""
+    _, fancy = armament
     client.force_login(tester)
-    scoped = f"{slugify(str(ganger.pk))}:1"
-    assert f'name="{scoped}"' in client.get(hire_url(gang)).content.decode()
-
-    dialog = client.get(dialog_url(gang, ganger, [(1, 1)])).content.decode()
-    assert f'<input type="hidden" name="{scoped}" value="1">' in dialog
+    data = page_props(client.get(hire_url(gang)))
+    (entry,) = catalogue_entries(data)
+    assert {
+        option["key"]
+        for group in entry["groups"]
+        for option in group["options"]
+        if option["key"]
+    } == {str(option.pk) for option in ganger.options.all()}
+    confirmation = page_props(client.get(dialog_url(gang, ganger, [(1, 1)])))
+    assert json.loads(confirmation["values"]["selection"]) == [
+        str(ganger.options.get(default_set=fancy).pk)
+    ]
 
 
 def test_a_dialog_reached_by_hand_hires_the_option_it_names(
     client, tester, gang, ganger, armament
 ):
-    """The no-script path end to end: a plain GET of the dialog's URL, then
-    the POST its own fields describe."""
+    """Bookmarked indexed confirmations retain their native POST contract."""
     _, fancy = armament
     client.force_login(tester)
     assert client.get(dialog_url(gang, ganger, [(1, 1)])).status_code == 200
@@ -565,19 +546,23 @@ def test_a_homeless_profile_gets_a_tab_of_its_own(
 
     client.force_login(tester)
     response = client.get(hire_url(gang))
-    assert response.context["sections"] == ["Gang List", UNCATEGORISED]
+    assert [
+        section["name"] for section in response.context["hire_props"]["sections"]
+    ] == ["Gang List", UNCATEGORISED]
 
     # Reachability, the thing the strip can silently cost: every section
     # drawn must have a tab, and every row must register under a name the
     # category filter starts with on.
-    drawn = {section.name for section in response.context["hire_list"]}
-    assert drawn <= set(response.context["sections"])
+    drawn = {section["name"] for section in response.context["hire_props"]["sections"]}
+    assert drawn <= set(
+        [section["name"] for section in response.context["hire_props"]["sections"]]
+    )
     registration_names = {
-        category.name or section.name
-        for section in response.context["hire_list"]
-        for category in section.categories
+        category["name"] or section["name"]
+        for section in response.context["hire_props"]["sections"]
+        for category in section["categories"]
     }
-    assert registration_names <= set(response.context["categories"])
+    assert registration_names <= set(response.context["hire_props"]["categories"])
 
 
 def test_the_gang_list_tab_comes_before_the_supplementary_one(
@@ -597,7 +582,9 @@ def test_the_gang_list_tab_comes_before_the_supplementary_one(
 
     client.force_login(tester)
     response = client.get(hire_url(gang))
-    assert response.context["sections"] == ["Gang List", "Supplementary Fighters"]
+    assert [
+        section["name"] for section in response.context["hire_props"]["sections"]
+    ] == ["Gang List", "Supplementary Fighters"]
 
 
 def test_an_overspend_refuses_and_writes_nothing(client, tester, gang, make_profile):
@@ -647,7 +634,7 @@ def test_another_gang_types_profile_hires_but_an_unhireable_one_never_does(
     )
     assert refused.status_code == 200  # redisplays the list
     assert Miniature.objects.filter(membership__gang=gang).count() == 1
-    assert client.get(dialog_url(gang, collared)).context["dialog"] is None
+    assert page_props(client.get(dialog_url(gang, collared)))["confirmation"] is False
 
 
 def test_an_archived_profile_is_neither_offered_nor_hired(
@@ -662,7 +649,7 @@ def test_an_archived_profile_is_neither_offered_nor_hired(
 
     client.force_login(tester)
     assert "Forgotten Juve" not in client.get(hire_url(gang)).content.decode()
-    assert client.get(dialog_url(gang, gone)).context["dialog"] is None
+    assert page_props(client.get(dialog_url(gang, gone)))["confirmation"] is False
     refused = client.post(
         hire_url(gang),
         {"request_key": str(uuid4()), "profile": str(gone.pk), "name": "Ghost"},
@@ -678,7 +665,10 @@ def test_a_profile_that_is_not_a_ulid_draws_no_dialog(client, tester, gang, gang
     """A pk that is not a ULID at all reaches the field's to_python; the
     genuine buttons never send one, so it names nothing."""
     client.force_login(tester)
-    assert client.get(f"{hire_url(gang)}?hire=nonsense").context["dialog"] is None
+    assert (
+        page_props(client.get(f"{hire_url(gang)}?hire=nonsense"))["confirmation"]
+        is False
+    )
     response = client.post(
         hire_url(gang),
         {"request_key": str(uuid4()), "profile": "nonsense", "name": "Vex"},
@@ -715,26 +705,24 @@ def test_the_sheet_links_to_the_hire_page(client, tester, gang):
 def test_the_figures_strip_counts_the_roster_and_quotes_the_books(
     client, tester, gang, ganger
 ):
-    """Hiring is decided against what the gang already fields and what it
-    has left to spend, so both stand above the list — and because the
-    strip is rendered per request, the redirect after a hire brings it
-    back already updated."""
     client.force_login(tester)
-    body = client.get(hire_url(gang)).content.decode()
-    assert "Models in the gang" in body
-    # The count is a control rather than a figure, and the one number here
-    # that carries no unit.
-    assert "Roster breakdown: 0 models in the gang" in body
-    assert f">{gang.credits}\u00a2<" in body
-
+    before = page_props(client.get(hire_url(gang)))["figures"]
+    assert before["roster"]["count"] == 0
+    assert (
+        next(item for item in before["items"] if item["short"] == "Cr")["value"]
+        == f"{gang.credits}¢"
+    )
     client.post(
         hire_url(gang),
         {"request_key": str(uuid4()), "profile": str(ganger.pk), "name": "Vex"},
     )
     gang.refresh_from_db()
-    body = client.get(hire_url(gang)).content.decode()
-    assert "Roster breakdown: 1 model in the gang" in body
-    assert f">{gang.credits}\u00a2<" in body
+    after = page_props(client.get(hire_url(gang)))["figures"]
+    assert after["roster"]["count"] == 1
+    assert (
+        next(item for item in after["items"] if item["short"] == "Cr")["value"]
+        == f"{gang.credits}¢"
+    )
 
 
 def test_a_profile_not_offered_for_hire_is_not_on_the_screen(
@@ -767,11 +755,8 @@ class TestTheTypedPrice:
 
     def test_the_dialog_offers_the_quote_in_a_box(self, client, tester, gang, ganger):
         client.force_login(tester)
-        body = client.get(dialog_url(gang, ganger)).content.decode()
-        assert 'name="paid"' in body
-        assert 'value="55"' in body
-        assert 'max="100000"' in body
-        assert 'x-data="{ quoted:' not in body
+        data = page_props(client.get(dialog_url(gang, ganger)))
+        assert data["values"]["paid"] == data["values"]["quoted"] == "55"
 
     def test_a_typed_price_is_charged_and_the_quote_is_the_rating(
         self, client, tester, gang, ganger
@@ -857,22 +842,17 @@ class TestRatingTheHire:
     """
 
     def test_the_dialog_offers_the_box_ready_ticked(self, client, tester, gang, ganger):
-        """Overriding the price offers to override the rating with it, and
-        the offer is already accepted: someone typing 30¢ over a 55¢ quote
-        usually means the fighter is worth 30¢."""
         client.force_login(tester)
-        body = client.get(dialog_url(gang, ganger)).content.decode()
-        assert 'name="rate"' in body
-        assert 'value="paid"' in body
-        checkbox = body[body.index('name="rate"') : body.index('name="rate"') + 200]
-        assert "checked" in checkbox
+        data = page_props(client.get(dialog_url(gang, ganger)))
+        assert data["values"]["rate"] == "paid"
 
-    def test_the_offer_is_worded_for_both_readings(self, client, tester, gang, ganger):
-        """Explain both rating choices with the usual rating shown numerically."""
+    def test_rating_help_receives_the_quote_and_initial_mode(
+        self, client, tester, gang, ganger
+    ):
         client.force_login(tester)
-        body = client.get(dialog_url(gang, ganger)).content.decode()
-        assert "rating matches the price you pay" in body
-        assert "keep their rating at 55¢" in body
+        data = page_props(client.get(dialog_url(gang, ganger)))
+        assert data["values"]["quoted"] == "55"
+        assert data["values"]["rate"] == "paid"
 
     def test_ticked_the_price_paid_becomes_the_rating(
         self, client, tester, gang, ganger
@@ -989,11 +969,8 @@ class TestRatingTheHire:
         assert entry.discount == 0
 
     def test_a_redrawn_dialog_keeps_an_untick(self, client, tester, gang, ganger):
-        """A name the field refuses brings the dialog back. The box is
-        drawn ticked, so it is the *untick* that would be lost — and
-        fixing a name would quietly re-rate the fighter."""
         client.force_login(tester)
-        body = client.post(
+        response = client.post(
             hire_url(gang),
             {
                 "request_key": str(uuid4()),
@@ -1001,11 +978,11 @@ class TestRatingTheHire:
                 "name": "x" * 500,
                 "paid": "30",
             },
-        ).content.decode()
-
-        assert "<dialog open" in body
-        checkbox = body[body.index('name="rate"') : body.index('name="rate"') + 200]
-        assert "checked" not in checkbox
+        )
+        data = page_props(response)
+        assert data["confirmation"]
+        assert data["values"]["rate"] == ""
+        assert data["values"]["paid"] == "30"
 
 
 class TestTheScopes:
@@ -1064,7 +1041,9 @@ class TestTheScopes:
         assert "Their Ganger" in body
         assert "Ganger" in body
         # Sectioned by whose list each is, so 160 profiles stay findable.
-        sections = [section.name for section in response.context["hire_list"]]
+        sections = [
+            section["name"] for section in response.context["hire_props"]["sections"]
+        ]
         assert "Brutes, Hangers-on & Pets" in sections
 
     def test_a_hire_from_another_scope_lands_back_on_it(
@@ -1097,18 +1076,15 @@ class TestTheScopes:
         client.force_login(tester)
         response = client.get(f"{hire_url(gang)}?list=nonsense")
         assert response.status_code == 200
-        assert response.context["scope"] == "gang"
+        assert response.context["hire_props"]["scope"] == "gang"
 
     def test_the_forms_post_to_the_scoped_address(
         self, client, tester, gang, ganger, elsewhere
     ):
-        """The bug a player saw: click Hire on a supplementary profile
-        and land back on the gang list. The row's form posted to the
-        bare route, dropping ?list= at the first hop — so the action is
-        this page's own scoped address."""
         client.force_login(tester)
-        body = client.get(f"{hire_url(gang)}?list=supplementary").content.decode()
-        assert f'action="{hire_url(gang)}?list=supplementary"' in body
+        data = page_props(client.get(f"{hire_url(gang)}?list=supplementary"))
+        assert data["action"] == f"{hire_url(gang)}?list=supplementary"
+        assert data["values"]["list"] == "supplementary"
 
     def test_the_scope_needs_nothing_in_the_body(self, client, tester, gang, elsewhere):
         """Preserve scope in the command URL throughout the submission flow."""

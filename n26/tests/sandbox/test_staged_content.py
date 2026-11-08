@@ -276,7 +276,10 @@ class TestHiring:
         client.force_login(player)
         runner = profiles["runner"]
         assert (
-            client.get(f"{hire_url(gang)}?hire={runner.pk}").context["dialog"] is None
+            client.get(f"{hire_url(gang)}?hire={runner.pk}").context["hire_props"][
+                "confirmation"
+            ]
+            is False
         )
 
         response = client.post(

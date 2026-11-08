@@ -7,12 +7,19 @@ export type WorkflowResult =
     | { kind: "invalid"; errors: FormErrors }
     | { kind: "conflict"; errors: FormErrors };
 
-function recover(key: string, fields: string[]): URLSearchParams | null {
+const REJECTED_DRAFT = "__workflow_rejected";
+function recover(
+    key: string,
+    fields: string[],
+): { body: URLSearchParams; rejected: boolean } | null {
     try {
         const stored = sessionStorage.getItem(key);
         if (!stored) return null;
         const data = new URLSearchParams(stored);
-        return fields.every((name) => data.has(name)) ? data : null;
+        if (!fields.every((name) => data.has(name))) return null;
+        const rejected = data.get(REJECTED_DRAFT) === "1";
+        data.delete(REJECTED_DRAFT);
+        return { body: data, rejected };
     } catch {
         return null;
     }
@@ -49,7 +56,7 @@ export function useWorkflowForm<
             Object.fromEntries(
                 Object.entries(options.values).map(([key, value]) => [
                     key,
-                    recovery ? recovery.get(key)! : String(value),
+                    recovery ? recovery.body.get(key)! : String(value),
                 ]),
             ) as Values<V>,
     );
@@ -60,18 +67,26 @@ export function useWorkflowForm<
         !recovery && !!options.initialConflict,
     );
     const [pending, setPending] = useState(false);
-    const [uncertain, setUncertain] = useState(!!recovery);
+    const [uncertain, setUncertain] = useState(
+        !!recovery && !recovery.rejected,
+    );
     const [notice, setNotice] = useState(
-        recovery
-            ? "An earlier save has not been confirmed. Retry it before making another change."
-            : "",
+        recovery?.rejected
+            ? "Your earlier draft was not saved. Review it before saving."
+            : recovery
+              ? "An earlier save has not been confirmed. Retry it before making another change."
+              : "",
     );
     const inFlight = useRef(false);
     const saved = useRef(false);
-    const unknownOutcome = useRef(!!recovery);
-    const submitted = useRef<URLSearchParams | null>(recovery);
+    const unknownOutcome = useRef(!!recovery && !recovery.rejected);
+    const submitted = useRef<URLSearchParams | null>(recovery?.body ?? null);
     const summary = useRef<HTMLDivElement>(null);
-    const [failure, setFailure] = useState(0);
+    const [failure, setFailure] = useState(recovery ? 1 : 0);
+    useEffect(() => {
+        // A restored rejected draft has no outstanding write to recover.
+        if (recovery?.rejected) clearRecovery(options.recoveryKey);
+    }, [recovery, options.recoveryKey]);
     useEffect(() => {
         const restore = (event: PageTransitionEvent) => {
             if (
@@ -197,6 +212,38 @@ export function useWorkflowForm<
         unknownOutcome.current = false;
         (options.onNavigate ?? ((href) => window.location.replace(href)))(url);
     }
+    function recoverAt(url: string, element: HTMLFormElement) {
+        if (inFlight.current) return;
+        const retained =
+            unknownOutcome.current && submitted.current
+                ? new URLSearchParams(submitted.current)
+                : new URLSearchParams(
+                      Array.from(new FormData(element), ([name, value]) => [
+                          name,
+                          String(value),
+                      ]),
+                  );
+        retained.delete("csrfmiddlewaretoken");
+        retained.delete(REJECTED_DRAFT);
+        if (!unknownOutcome.current) retained.set(REJECTED_DRAFT, "1");
+        try {
+            if (
+                new URL(url, window.location.href).origin !==
+                window.location.origin
+            )
+                throw new Error();
+            sessionStorage.setItem(options.recoveryKey, retained.toString());
+        } catch {
+            setNotice(
+                "Your browser could not keep this draft for recovery. Allow this site to store data, then try again.",
+            );
+            setFailure((value) => value + 1);
+            return;
+        }
+        // This navigation continues the retained task instead of abandoning it.
+        unknownOutcome.current = false;
+        (options.onNavigate ?? ((href) => window.location.assign(href)))(url);
+    }
     return {
         values,
         setValues,
@@ -207,6 +254,7 @@ export function useWorkflowForm<
         notice,
         save,
         review,
+        recoverAt,
         summary,
         frozen: pending || uncertain || conflicted,
         hasErrors:

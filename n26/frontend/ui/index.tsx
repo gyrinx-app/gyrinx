@@ -22,6 +22,7 @@ export function Dialog({
     onSubmit,
     pending = false,
     returnFocusId,
+    formProps,
 }: {
     title: string;
     lead?: string;
@@ -30,6 +31,10 @@ export function Dialog({
     onSubmit: ComponentProps<"form">["onSubmit"];
     pending?: boolean;
     returnFocusId?: string;
+    formProps?: Omit<
+        ComponentProps<"form">,
+        "children" | "onSubmit" | "className"
+    >;
 }) {
     const ref = useRef<HTMLDialogElement>(null);
     const previous = useRef(document.activeElement);
@@ -58,7 +63,9 @@ export function Dialog({
             }}
         >
             <form
+                {...formProps}
                 onSubmit={onSubmit}
+                data-busy="off"
                 className={cotton.dialog.form}
                 aria-busy={pending}
             >
@@ -217,6 +224,21 @@ export function FieldErrors({ id, errors }: { id?: string; errors: string[] }) {
                     {error}
                 </div>
             ))}
+        </div>
+    );
+}
+
+/** Field help for a control that supplies its own label. */
+export function FieldDescription({
+    id,
+    children,
+}: {
+    id: string;
+    children: ReactNode;
+}) {
+    return (
+        <div id={id} className={cotton.field.description}>
+            {children}
         </div>
     );
 }
@@ -1357,9 +1379,15 @@ export {
     type SwitcherRow,
 } from "./QuickSwitcher";
 export { HelpPopover } from "./HelpPopover";
+export { Tooltip } from "./Tooltip";
+export { GangFigures, type GangFiguresData } from "./GangFigures";
 export { IncomeTooltip, type IncomeTooltipProps } from "./IncomeTooltip";
 export { NameList, type CountedName } from "./NameList";
-export { ModelPreview, type ModelPreviewProps } from "./ModelPreview";
+export {
+    ModelPreview,
+    isModelPreview,
+    type ModelPreviewProps,
+} from "./ModelPreview";
 export {
     useAnchoredPlacement,
     useDismiss,
@@ -1478,3 +1506,14 @@ export function Breadcrumbs({
 }
 
 export { useWorkflowForm, type WorkflowResult } from "./useWorkflowForm";
+
+export {
+    HireCatalogue,
+    type CatalogueData,
+    type HireEntry,
+    type HireSection,
+    type HireGroup,
+    type HireOption,
+} from "./HireCatalogue";
+
+export { Alert, type AlertTone } from "./Alert";

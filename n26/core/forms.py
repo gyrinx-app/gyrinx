@@ -164,11 +164,7 @@ class BaseRatingForm(forms.Form):
 
 
 class HireFighterForm(forms.Form):
-    """Validate the hire's name while the view reads row-specific profile and options.
-
-    The picker submits identity through its Hire button and names option fields
-    per listing, outside this form's fixed field set.
-    """
+    """The optional display name for a hired model."""
 
     name = forms.CharField(
         max_length=200,

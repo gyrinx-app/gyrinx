@@ -67,12 +67,11 @@ def fighter_options(request, pk):
     from n26.core.card import build_card, build_modifier_index, carriers
     from n26.core.effects import compute
     from n26.core.hire import build_hire_entry
-    from n26.core.hire_workflow import chosen_sets
+    from n26.core.hire_workflow import UnavailableHire, chosen_sets, resolve_picks
     from n26.core.operations import Refusal, operation
     from n26.core.owned import EquipHost
     from n26.core.render import roster, summarise_roster
     from n26.core.views.edit import link_model_card
-    from n26.core.views.hire import _picks
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.membership.gang
@@ -81,7 +80,10 @@ def fighter_options(request, pk):
     entry = build_hire_entry(profile)
 
     if request.method == "POST":
-        picks = _picks(request.POST, profile, entry)
+        try:
+            picks = resolve_picks(request.POST, profile, entry)
+        except UnavailableHire:
+            raise Http404("No such option") from None
         entry_row = getattr(miniature.membership, "ledger_entry", None)
         before = entry_row.paid if entry_row is not None else 0
         try:

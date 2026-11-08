@@ -583,15 +583,15 @@ class TestAnOptionalPickOnTheRow:
     def test_taking_nothing_is_not_a_pick(self, grenadier):
         from django.http import QueryDict
 
-        from n26.core.views.hire import _picks
+        from n26.core.hire_workflow import resolve_picks
 
         entry = build_hire_entry(grenadier)
         scope = str(grenadier.pk).lower()
         none_taken = QueryDict(f"{scope}:1=")
-        assert _picks(none_taken, grenadier, entry) == []
+        assert resolve_picks(none_taken, grenadier, entry) == []
 
         one_taken = QueryDict(f"{scope}:1=0")
-        (pick,) = _picks(one_taken, grenadier, entry)
+        (pick,) = resolve_picks(one_taken, grenadier, entry)
         assert pick.option.name == "Choke gas"
 
 
@@ -946,26 +946,40 @@ class TestThePreviewFollowsEveryOption:
 
         assert client.get(both).status_code == 404
 
-    def test_the_row_says_which_set_each_control_stands_for(
+    def test_the_catalogue_exposes_stable_option_identities_for_each_control(
         self, client, hirer, spawn_gang, spawn
     ):
-        """Each option control carries its set ID for composing the preview URL."""
+        """Each option carries its set ID for composing the preview URL."""
+        from bs4 import BeautifulSoup
+
         profile, rolled = spawn
         client.force_login(hirer)
-        body = client.get(hire_screen(spawn_gang)).content.decode()
+        page = BeautifulSoup(client.get(hire_screen(spawn_gang)).content, "html.parser")
+        host = page.select_one('[data-react-name="hire"]')
+        props = json.loads(page.find(id=host["data-react-props"]).string)
+        entries = [
+            entry
+            for section in props["sections"]
+            for category in section["categories"]
+            for entry in category["entries"]
+        ]
+        entry = next(entry for entry in entries if entry["key"] == str(profile.pk))
+        keys = {
+            option["key"]
+            for group in entry["groups"]
+            for option in group["options"]
+            if option["key"]
+        }
+        assert keys == {str(option.pk) for option in profile.options.all()}
+        assert str(rolled["WS"].pk) not in keys
+        assert str(rolled["horns"].pk) not in keys
 
-        assert f'data-set="{rolled["WS"].pk}"' in body
-        assert f'data-set="{rolled["horns"].pk}"' in body
-
-    def test_the_card_follows_the_rows_own_address(
+    def test_the_catalogue_delivers_a_lazy_json_preview_address_without_drawing_cards(
         self, client, hirer, spawn_gang, spawn
     ):
-        """Fetch one card per row whenever its complete selection URL changes."""
         profile, _ = spawn
         client.force_login(hirer)
         body = client.get(hire_screen(spawn_gang)).content.decode()
-
-        assert 'x-effect="fetchIt(card)"' in body
-        assert card_address(spawn_gang, profile) in body
-        # No statline is embedded before the preview fetch.
+        assert reverse("n26-hire-preview", args=[spawn_gang.pk, profile.pk]) in body
         assert "Weapon Skill" not in body
+        assert 'x-effect="fetchIt(card)"' not in body

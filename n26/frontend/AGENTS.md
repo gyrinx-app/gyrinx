@@ -110,3 +110,11 @@ navigation guards; the island interprets each domain response. Only a specific,
 validated revision conflict may enable review of a newer baseline. A general
 409 or validation refusal cannot resolve an earlier uncertain write. Run all
 three consumers' tests when changing this shared lifecycle.
+
+Hire is also a `useWorkflowForm` consumer. For explicit reload or sign-in actions,
+use `recoverAt` to preserve the current draft. A rejected draft can remain
+editable; never downgrade an earlier unknown outcome because a retry was rejected.
+Keep retained URLSearchParams compatible with cached clients and keep every
+expected scalar in the form, including an empty hidden value for an unticked
+controlled checkbox. After changing this lifecycle, run the Hire confirmation
+and recovery tests as well as the other workflow consumers.
