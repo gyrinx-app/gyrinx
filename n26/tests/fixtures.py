@@ -303,6 +303,7 @@ def scenario_content(db):
 @pytest.fixture
 def past_cycle_context(campaign_type):
     """Put a gang in Takeover and return an explicit Occupation context."""
+    from datetime import date
     from uuid import uuid4
 
     from gyrinx.site.models import Availability, FeatureFlag
@@ -336,6 +337,7 @@ def past_cycle_context(campaign_type):
             current_position=4,
             mode="fixed",
             request_key=uuid4(),
+            calendar=schedule.CycleCalendar(date(2026, 11, 1)),
         )
         state = cycles.load(campaign)
         assert state.current_phase.details.name == "Takeover Phase"

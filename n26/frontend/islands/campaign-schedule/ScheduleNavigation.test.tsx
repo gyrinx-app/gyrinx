@@ -196,7 +196,9 @@ test("the list date link opens a two-field editor and preserves the other cycle 
     vi.stubGlobal("fetch", fetch);
     render(<CampaignSchedule {...data()} />);
     await userEvent.click(
-        screen.getAllByRole("link", { name: "Edit dates for Cycle 1" })[0],
+        screen.getAllByRole("link", {
+            name: /Edit dates for Cycle 1: Start date/,
+        })[0],
     );
     await screen.findByRole("dialog", { name: "Edit cycle dates" });
     expect(fetch.mock.calls[0][0]).toBe(edit + "&fields=dates");
@@ -244,6 +246,65 @@ test("Back and Forward fetch fresh editor props without document navigation", as
         document.querySelector<HTMLInputElement>('input[name="request_key"]')
             ?.value,
     ).toBe("fresh-key");
+});
+
+test("rapid Back then Forward cancels the obsolete read even when the editor is still rendered", async () => {
+    let finish!: (response: ReturnType<typeof json>) => void;
+    const slow = new Promise<ReturnType<typeof json>>((resolve) => {
+        finish = resolve;
+    });
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(json(data(editor)))
+        .mockReturnValueOnce(slow);
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...data()} />);
+    await userEvent.click(screen.getByRole("link", { name: "Edit Cycle 1" }));
+    await screen.findByRole("dialog", { name: "Edit cycle" });
+    window.history.back();
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    window.history.forward();
+    await waitFor(() =>
+        expect(window.location.pathname + window.location.search).toBe(edit),
+    );
+    await waitFor(() =>
+        expect(fetch.mock.calls[1][1].signal.aborted).toBe(true),
+    );
+    await act(async () => finish(json(data())));
+    expect(screen.getByRole("dialog", { name: "Edit cycle" })).toBeTruthy();
+    expect(screen.queryByText("Loading schedule…")).toBeNull();
+});
+
+test("a failed cancel read cannot be retried while a save is pending or uncertain", async () => {
+    let reject!: (error: Error) => void;
+    const saving = new Promise<never>((_resolve, fail) => {
+        reject = fail;
+    });
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(json(data(editor)))
+        .mockRejectedValueOnce(new Error("Offline"))
+        .mockReturnValueOnce(saving);
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...data()} />);
+    await userEvent.click(screen.getByRole("link", { name: "Edit Cycle 1" }));
+    await screen.findByRole("dialog", { name: "Edit cycle" });
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await screen.findByRole("button", { name: "Try again" });
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByRole("button", { name: "Try again" })).toHaveProperty(
+        "disabled",
+        true,
+    );
+    await act(async () => reject(new Error("Lost response")));
+    await screen.findByText(/The save may have completed/);
+    expect(screen.getByRole("button", { name: "Try again" })).toHaveProperty(
+        "disabled",
+        true,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(screen.getByRole("dialog", { name: "Edit cycle" })).toBeTruthy();
 });
 
 test("an unreadable editor leaves the current page intact and can be retried", async () => {

@@ -134,7 +134,6 @@ export function useScheduleNavigation(initial: ScheduleProps) {
             window.location.href,
         );
         function restore(event: PopStateEvent) {
-            if (window.location.href === current.current) return;
             const target = event.state?.n26Schedule;
             if (guarded.current) {
                 const distance =
@@ -154,6 +153,11 @@ export function useScheduleNavigation(initial: ScheduleProps) {
             const next = new URL(window.location.href);
             index.current =
                 target?.scope === scope.current ? target.index : index.current;
+            controller.current?.abort();
+            controller.current = null;
+            setPending(false);
+            setError("");
+            retryTarget.current = next.href;
             if (
                 previous.pathname === next.pathname &&
                 previous.search === next.search

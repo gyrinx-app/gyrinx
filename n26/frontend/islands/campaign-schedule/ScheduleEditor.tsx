@@ -62,7 +62,12 @@ export function ScheduleEditor({
     const [reviewUrl, setReviewUrl] = useState(editor.back);
     const form = useWorkflowForm({
         ...editor,
-        optionalRecoveryFields: ["date_start", "cycle_interval", "cycle_unit", "date_version"],
+        optionalRecoveryFields: [
+            "date_start",
+            "cycle_interval",
+            "cycle_unit",
+            "date_version",
+        ],
         onNavigate,
         onReload,
         interpret(status, data) {
@@ -287,7 +292,11 @@ export function ScheduleEditor({
             {navigation?.error && (
                 <div role="alert" className="text-sm">
                     <p>{navigation.error}</p>
-                    <Button size="sm" onClick={navigation.retry}>
+                    <Button
+                        size="sm"
+                        disabled={!confirmed && form.frozen}
+                        onClick={navigation.retry}
+                    >
                         Try again
                     </Button>
                 </div>

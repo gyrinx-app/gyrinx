@@ -435,7 +435,16 @@ def perform(campaign, actor, action, data, query):
 
 def next_url(campaign, action, submitted):
     if submitted.result.cycle_id:
-        return schedule_url(campaign) + "#cycle-" + submitted.result.cycle_id
+        from n26.core.cycle_display import SAVED_PAGE_SIZE
+        from n26.core.models import CampaignCycle
+
+        order = CampaignCycle.objects.values_list("order", flat=True).get(
+            campaign=campaign, pk=submitted.result.cycle_id
+        )
+        page = (order - 1) // SAVED_PAGE_SIZE + 1
+        return (
+            schedule_url(campaign) + f"?page={page}#cycle-" + submitted.result.cycle_id
+        )
     url = schedule_url(campaign)
     if action in ("phase", "duplicate-phase"):
         return url + "#phase-" + submitted.form.cleaned_data["phase_id"]

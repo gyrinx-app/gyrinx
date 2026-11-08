@@ -26,6 +26,7 @@ def configured(ids, *, current=0, mode="fixed", status="in_progress"):
         mode=mode,
         status=status,
         now=NOW,
+        calendar=s.CycleCalendar(NOW.date()),
         new_id=ids,
     ).schedule
 

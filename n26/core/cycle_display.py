@@ -19,6 +19,8 @@ from n26.core.models import (
     CampaignSchedule,
 )
 
+SAVED_PAGE_SIZE = 50
+
 
 def schedule_url(campaign):
     return reverse("n26-campaign-schedule", args=[campaign.pk])
@@ -170,7 +172,7 @@ def _build_locked(campaign, user, *, page, preview, focus):
             ),
         )
         .order_by("order"),
-        50,
+        SAVED_PAGE_SIZE,
     )
     number = page or ((focus.order if focus else current.order) - 1) // 50 + 1
     selected = saved.get_page(number)

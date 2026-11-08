@@ -1,6 +1,7 @@
 """Schedule transports share ownership, revision and durable retry semantics."""
 
 import json
+from datetime import date
 from uuid import uuid4
 
 import pytest
@@ -54,6 +55,7 @@ def configured(campaign, opened, template):
         current_position=0,
         mode="fixed",
         request_key=uuid4(),
+        calendar=s.CycleCalendar(date(2026, 11, 1)),
     )
     return cycles.load(campaign)
 
@@ -80,6 +82,10 @@ def setup_data(template):
         "template_id": str(template.pk),
         "current_number": "1",
         "mode": "fixed",
+        "date_start": "2026-11-01",
+        "cycle_interval": "1",
+        "cycle_unit": "weeks",
+        "date_version": "1",
     }
 
 
@@ -131,6 +137,52 @@ class TestFlagAndOwnership:
 
 
 class TestSharedCommands:
+    def test_edits_and_projected_saves_return_to_the_edited_history_page(
+        self, client, campaign, configured
+    ):
+        cycles.replace_plan(
+            campaign,
+            actor=campaign.owner,
+            steps=configured.plan.steps,
+            mode="repeating",
+            expected_revision=configured.revision,
+            request_key=uuid4(),
+        )
+        state = cycles.load(campaign)
+        target = s.project(state, limit=60)[-1]
+        cycles.edit_cycle(
+            campaign,
+            actor=campaign.owner,
+            target=target.ref,
+            details=s.CycleDetails(target.phase_id),
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        state = cycles.load(campaign)
+        for query in (
+            {"cycle": state.cycles[-1].id},
+            {
+                "plan": state.plan.id,
+                "position": s.project(state)[0].source.position.index,
+            },
+        ):
+            prepared = props(client.get(editor_url(campaign, "cycle", **query)))[
+                "editor"
+            ]
+            response = post(
+                client,
+                campaign,
+                "cycle",
+                {**prepared["values"], "custom_name": "Across history"},
+                **query,
+            )
+            assert response.status_code == 200
+            destination = response.json()["nextUrl"]
+            assert "?page=2#cycle-" in destination
+            listed = props(client.get(destination))
+            assert any(row["name"] == "Across history" for row in listed["rows"])
+        assert cycles.load(campaign).current_cycle_id == configured.current_cycle_id
+
     @pytest.mark.parametrize("native", [False, True])
     def test_malformed_phase_deletion_returns_validation_without_writing(
         self, client, campaign, configured, native
@@ -171,7 +223,8 @@ class TestSharedCommands:
         assert response.status_code == (302 if native else 200)
         target = response.url if native else response.json()["nextUrl"]
         assert (
-            target == schedule_url(campaign) + "#cycle-" + configured.current_cycle_id
+            target
+            == schedule_url(campaign) + "?page=1#cycle-" + configured.current_cycle_id
         )
         changed = cycles.load(campaign)
         assert changed.current.details.starts_on.isoformat() == "2050-01-01"
@@ -425,6 +478,7 @@ class TestRecoveryAfterTheCommandChangesItsOwnPage:
             "template_id": str(template.pk),
             "mode": "fixed",
             "current_number": "1",
+            "date_start": "2026-11-01",
         }
         assert post(client, campaign, "setup", data).status_code == 200
         recovered = props(client.get(editor_url(campaign, "setup")))["editor"]

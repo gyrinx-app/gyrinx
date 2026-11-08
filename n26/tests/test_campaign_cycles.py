@@ -80,6 +80,7 @@ def configured(campaign, owner, template, opened):
         current_position=0,
         mode="fixed",
         request_key=uuid4(),
+        calendar=s.CycleCalendar(date(2026, 11, 1)),
     )
     return cycles.load(campaign)
 
@@ -129,6 +130,20 @@ def concurrent(work):
 
 
 class TestSetupAndAccess:
+    def test_new_setup_without_explicit_dates_is_refused(
+        self, campaign, owner, opened, template
+    ):
+        with pytest.raises(Refusal, match="date settings"):
+            cycles.configure(
+                campaign,
+                actor=owner,
+                template_id=template.pk,
+                current_position=0,
+                mode="fixed",
+                request_key=uuid4(),
+            )
+        assert not CampaignSchedule.objects.filter(campaign=campaign).exists()
+
     def test_seeding_the_template_is_repeatable_and_does_not_opt_existing_campaigns_in(
         self, campaign
     ):
@@ -356,7 +371,11 @@ class TestMaterialisation:
             campaign,
             actor=owner,
             target=s.SavedCycleRef(before.cycles[0].id),
-            details=replace(before.cycles[0].details, starts_on=date(2030, 1, 1)),
+            details=replace(
+                before.cycles[0].details,
+                starts_on=date(2030, 1, 1),
+                ends_on=date(2030, 1, 7),
+            ),
             expected_revision=before.revision,
             request_key=uuid4(),
         )

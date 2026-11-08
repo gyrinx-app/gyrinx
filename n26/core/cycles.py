@@ -367,6 +367,8 @@ def configure(
         if before is not None:
             raise Refusal("This campaign already has a cycle schedule.")
         template = _template_for(actor, template_id)
+        if calendar is None:
+            raise Refusal("Enter cycle date settings before setting up this campaign.")
         if type(current_position) is not int or not 0 <= current_position < MAX_PREFIX:
             raise Refusal("Select an initial cycle within the first 1,000 cycles.")
         change = s.configure(

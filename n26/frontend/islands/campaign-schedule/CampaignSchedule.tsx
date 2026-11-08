@@ -56,7 +56,7 @@ function CycleDates({ cycle }: { cycle: Cycle }) {
         <Link
             href={url.pathname + url.search}
             className="inline-block py-1 text-xs"
-            aria-label={`Edit dates for ${cycle.name}`}
+            aria-label={`Edit dates for ${cycle.name}: ${cycle.startsOn && cycle.endsOn ? `Start date ${dateText(cycle.startsOn)}, end date ${dateText(cycle.endsOn)}` : "Dates not set"}`}
             title="Edit start and end dates"
         >
             {range}

@@ -53,6 +53,7 @@ def table(campaign_type, gang_type, make_profile, counter_tracking):
         current_position=0,
         mode="fixed",
         request_key=uuid4(),
+        calendar=s.CycleCalendar(date(2026, 11, 1)),
     )
     state = cycles.load(campaign)
     return SimpleNamespace(

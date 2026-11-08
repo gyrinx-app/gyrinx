@@ -19,6 +19,134 @@ def configured(*, current=0, calendar=None):
     ).schedule
 
 
+def test_legacy_overlap_can_be_repaired_without_blocking_on_another_old_overlap():
+    legacy = s.configure(
+        s.DEFAULT_TEMPLATE, campaign_id="legacy", current_position=3
+    ).schedule
+    ranges = [(1, 10), (5, 14), (20, 25), (21, 28)]
+    legacy = replace(
+        legacy,
+        cycles=tuple(
+            replace(
+                cycle,
+                details=replace(
+                    cycle.details,
+                    starts_on=date(2026, 11, start),
+                    ends_on=date(2026, 11, end),
+                ),
+            )
+            for cycle, (start, end) in zip(legacy.cycles, ranges, strict=True)
+        ),
+    )
+    selected = legacy.cycles[0]
+    repaired = s.edit_cycle(
+        legacy,
+        s.SavedCycleRef(selected.id),
+        replace(
+            selected.details, starts_on=date(2026, 10, 1), ends_on=date(2026, 10, 7)
+        ),
+    )
+    assert repaired.schedule.cycles[1:] == legacy.cycles[1:]
+    with pytest.raises(s.ScheduleError, match="overlap"):
+        s.edit_cycle(
+            legacy,
+            s.SavedCycleRef(selected.id),
+            replace(
+                selected.details, starts_on=date(2026, 11, 3), ends_on=date(2026, 11, 8)
+            ),
+        )
+
+
+def test_projected_edit_validates_submitted_dates_before_temporary_defaults():
+    state = configured()
+    first = state.current
+    state = s.edit_cycle(
+        state,
+        s.SavedCycleRef(first.id),
+        replace(first.details, starts_on=date(2026, 11, 8), ends_on=date(2026, 11, 14)),
+    ).schedule
+    projected = s.project(state)[0]
+    changed = s.edit_cycle(
+        state,
+        projected.ref,
+        s.CycleDetails(
+            projected.phase_id, starts_on=date(2026, 11, 15), ends_on=date(2026, 11, 21)
+        ),
+    )
+    assert changed.created[-1].details.starts_on == date(2026, 11, 15)
+    with pytest.raises(s.ScheduleError, match="overlap"):
+        later = s.project(state)[1]
+        s.edit_cycle(
+            state,
+            later.ref,
+            s.CycleDetails(
+                later.phase_id, starts_on=date(2026, 11, 22), ends_on=date(2026, 11, 28)
+            ),
+        )
+
+
+def test_initial_calendar_checks_retained_dates_against_the_first_projection():
+    legacy = s.configure(
+        s.DEFAULT_TEMPLATE, campaign_id="legacy", current_position=0
+    ).schedule
+    first = legacy.current
+    legacy = replace(
+        legacy,
+        cycles=(
+            replace(
+                first,
+                details=replace(
+                    first.details,
+                    starts_on=date(2026, 11, 1),
+                    ends_on=date(2026, 11, 20),
+                ),
+            ),
+        ),
+    )
+    with pytest.raises(s.ScheduleError, match="after all saved"):
+        s.set_calendar(legacy, s.CycleCalendar(date(2026, 11, 1)))
+
+
+def test_initial_calendar_fills_each_missing_endpoint_and_preserves_recorded_dates():
+    legacy = s.configure(
+        s.DEFAULT_TEMPLATE, campaign_id="legacy", current_position=1
+    ).schedule
+    legacy = replace(
+        legacy,
+        cycles=(
+            replace(
+                legacy.cycles[0],
+                details=replace(legacy.cycles[0].details, starts_on=date(2026, 11, 2)),
+            ),
+            replace(
+                legacy.cycles[1],
+                details=replace(legacy.cycles[1].details, ends_on=date(2026, 11, 13)),
+            ),
+        ),
+    )
+    updated = s.set_calendar(legacy, s.CycleCalendar(date(2026, 11, 1))).schedule
+    assert [
+        (cycle.details.starts_on, cycle.details.ends_on) for cycle in updated.cycles
+    ] == [
+        (date(2026, 11, 2), date(2026, 11, 7)),
+        (date(2026, 11, 8), date(2026, 11, 13)),
+    ]
+
+
+def test_setup_does_not_derive_planning_dates_from_a_transition_timestamp():
+    from datetime import UTC, datetime
+
+    state = s.configure(
+        s.DEFAULT_TEMPLATE,
+        campaign_id="legacy",
+        current_position=0,
+        status="in_progress",
+        now=datetime(2026, 11, 1, tzinfo=UTC),
+    ).schedule
+    assert state.calendar is None
+    assert state.current.details.starts_on is state.current.details.ends_on is None
+
+
 @pytest.mark.parametrize(
     ("anchor", "index", "start", "end"),
     [
