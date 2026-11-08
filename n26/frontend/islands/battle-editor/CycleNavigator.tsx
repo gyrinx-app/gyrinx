@@ -130,11 +130,8 @@ export function CycleNavigator({
     return (
         <fieldset className="space-y-2" aria-label="Campaign cycle">
             <legend className="mb-2 font-medium">Campaign cycle</legend>
-            <FieldErrors errors={errors} />
-            <div
-                className={`rounded-control border p-3 ${selected?.isCurrent ? "border-accent bg-accent/5" : "border-box-border"}`}
-            >
-                <div className="flex items-center gap-3">
+            <div className="flex h-48 flex-col gap-2">
+                <div className="flex min-h-0 flex-1 items-center gap-3">
                     <Button
                         size="sm"
                         variant="ghost"
@@ -152,15 +149,15 @@ export function CycleNavigator({
                         />
                     </Button>
                     <div
-                        className="min-w-0 flex-1 text-center"
+                        className={`h-full min-w-0 flex-1 overflow-y-auto rounded-control border p-2 text-center ${selected?.isCurrent ? "border-accent bg-accent/5" : "border-box-border"}`}
                         aria-live="polite"
                         aria-atomic="true"
                     >
-                        {selected?.isCurrent && (
-                            <div className="mb-1">
+                        <div className="mb-1 h-6">
+                            {selected?.isCurrent && (
                                 <Badge>Current cycle</Badge>
-                            </div>
-                        )}
+                            )}
+                        </div>
                         <p className="text-lg font-semibold">
                             {selected?.name ??
                                 (unassigned
@@ -213,37 +210,47 @@ export function CycleNavigator({
                         <Icon name="chevron-right" />
                     </Button>
                 </div>
-                <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-                    {!selected?.isCurrent && options.currentValue && (
-                        <Button
-                            size="sm"
-                            variant="primary"
-                            disabled={moving !== null}
-                            onClick={() =>
-                                onChange(JSON.stringify(options.currentValue))
-                            }
-                        >
-                            Use current cycle · {options.current}
-                        </Button>
-                    )}
-                    {!unassigned && (
-                        <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={moving !== null}
-                            onClick={() => onChange("null")}
-                        >
-                            Leave unassigned
-                        </Button>
-                    )}
+                <div className="grid h-11 shrink-0 grid-cols-2 items-center gap-2">
+                    <div className="min-w-0">
+                        {!selected?.isCurrent && options.currentValue && (
+                            <Button
+                                size="sm"
+                                variant="default"
+                                disabled={moving !== null}
+                                className="h-11 w-full whitespace-normal leading-tight"
+                                onClick={() =>
+                                    onChange(
+                                        JSON.stringify(options.currentValue),
+                                    )
+                                }
+                            >
+                                Return to current cycle
+                            </Button>
+                        )}
+                    </div>
+                    <div className="min-w-0">
+                        {!unassigned && (
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={moving !== null}
+                                className="h-11 w-full whitespace-normal leading-tight"
+                                onClick={() => onChange("null")}
+                            >
+                                Leave unassigned
+                            </Button>
+                        )}
+                    </div>
                 </div>
             </div>
-            {selected?.hint && <p className="text-sm">{selected.hint}</p>}
-            {error && (
-                <p role="alert" className="text-sm">
-                    {error}
-                </p>
-            )}
+            <div
+                className="h-16 overflow-y-auto space-y-1 text-sm"
+                aria-live="polite"
+            >
+                <FieldErrors errors={errors} />
+                {selected?.hint && <p>{selected.hint}</p>}
+                {error && <p role="alert">{error}</p>}
+            </div>
         </fieldset>
     );
 }

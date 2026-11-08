@@ -60,7 +60,7 @@ test("current cycle and dates remain clear when moving backwards, forwards and b
         screen.getByRole("button", { name: "Previous cycle" }),
     ).toHaveProperty("disabled", true);
     await userEvent.click(
-        screen.getByRole("button", { name: /Use current cycle/ }),
+        screen.getByRole("button", { name: "Return to current cycle" }),
     );
     await userEvent.click(screen.getByRole("button", { name: "Next cycle" }));
     expect(screen.getByText("Cycle 3")).toBeTruthy();
@@ -70,7 +70,7 @@ test("current cycle and dates remain clear when moving backwards, forwards and b
     );
     expect(screen.getByText("No cycle selected")).toBeTruthy();
     await userEvent.click(
-        screen.getByRole("button", { name: /Use current cycle/ }),
+        screen.getByRole("button", { name: "Return to current cycle" }),
     );
     expect(screen.getByText("Current cycle")).toBeTruthy();
     expect(fetch).not.toHaveBeenCalled();

@@ -256,7 +256,7 @@ test("records participant identities and an explicitly selected projected cycle"
         ),
     ).toBeTruthy();
     expect(
-        screen.getByRole("button", { name: /Use current cycle/ }),
+        screen.getByRole("button", { name: "Return to current cycle" }),
     ).toBeTruthy();
     await userEvent.click(
         screen.getByRole("button", { name: "Record battle" }),
