@@ -360,3 +360,15 @@ def cycle_tracking_switch(db):
         )
 
     return set_open
+
+
+@pytest.fixture
+def opened_cycle_tracking(db):
+    from gyrinx.site.models import Availability, FeatureFlag
+    from n26.flags import CYCLE_TRACKING
+
+    flag, _ = FeatureFlag.objects.update_or_create(
+        slug=CYCLE_TRACKING,
+        defaults={"name": "Campaign cycles", "availability": Availability.EVERYONE},
+    )
+    return flag
