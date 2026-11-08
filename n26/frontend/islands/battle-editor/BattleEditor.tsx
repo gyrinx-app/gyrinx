@@ -316,30 +316,6 @@ export function BattleEditor(props: BattleEditorProps) {
                             }
                         />
                     </Field>
-                    {props.scenario && (
-                        <BattleScenario
-                            {...props.scenario}
-                            disabled={form.frozen}
-                            valueRolls={Object.fromEntries(
-                                scenarioKeys.map((key) => [
-                                    key,
-                                    values[key] ?? "",
-                                ]),
-                            )}
-                            onRollsChange={(rolls) =>
-                                form.setValues((current) => ({
-                                    ...current,
-                                    ...Object.fromEntries(
-                                        scenarioKeys.map((key) => [
-                                            key,
-                                            rolls[key] ?? "",
-                                        ]),
-                                    ),
-                                }))
-                            }
-                            onBusyChange={setScenarioBusy}
-                        />
-                    )}
                     <Field
                         label="Date *"
                         htmlFor="battle-date"
@@ -367,6 +343,33 @@ export function BattleEditor(props: BattleEditorProps) {
                     )}
                     {checkboxList("gangs", "Participants")}
                 </FormSection>
+                {props.scenario && (
+                    <FormSection title="Scenario">
+                        <BattleScenario
+                            {...props.scenario}
+                            disabled={form.frozen}
+                            valueRolls={Object.fromEntries(
+                                scenarioKeys.map((key) => [
+                                    key,
+                                    values[key] ?? "",
+                                ]),
+                            )}
+                            onRollsChange={(rolls) =>
+                                form.setValues((current) => ({
+                                    ...current,
+                                    ...Object.fromEntries(
+                                        scenarioKeys.map((key) => [
+                                            key,
+                                            rolls[key] ?? "",
+                                        ]),
+                                    ),
+                                }))
+                            }
+                            onBusyChange={setScenarioBusy}
+                        />
+                    </FormSection>
+                )}
+
                 {props.editing && (
                     <>
                         {"stake" in values && (

@@ -469,23 +469,27 @@ function ScheduleContent(
                             ))}
                         </div>
                     </Card>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                        {props.previousHref && (
-                            <Link href={props.previousHref}>
-                                Earlier cycles
-                            </Link>
-                        )}
-                        {props.nextHref && (
-                            <Link href={props.nextHref}>
-                                Later saved cycles
-                            </Link>
-                        )}
-                        {props.moreHref && (
-                            <Link href={props.moreHref}>
-                                Show more projected cycles
-                            </Link>
-                        )}
-                    </div>
+                    {(props.previousHref ||
+                        props.nextHref ||
+                        props.moreHref) && (
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                            {props.previousHref && (
+                                <Link href={props.previousHref}>
+                                    Earlier cycles
+                                </Link>
+                            )}
+                            {props.nextHref && (
+                                <Link href={props.nextHref}>
+                                    Later saved cycles
+                                </Link>
+                            )}
+                            {props.moreHref && (
+                                <Link href={props.moreHref}>
+                                    Show more projected cycles
+                                </Link>
+                            )}
+                        </div>
+                    )}
                 </section>
             )}
             {props.editor && (

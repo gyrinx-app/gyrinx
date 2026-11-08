@@ -258,7 +258,15 @@ export function ScheduleEditor({
     return (
         <Dialog
             title={editor.heading}
-            lead={editor.lead}
+            lead={
+                editor.kind === "setup"
+                    ? setupStage === 1
+                        ? "Choose a starting point. You can change its phases, cycle counts and dates before saving."
+                        : setupStage === 2
+                          ? "Set the phases, timing and current cycle for your campaign."
+                          : "Check your schedule before saving its campaign-owned copy."
+                    : editor.lead
+            }
             formProps={{ method: "post", action: editor.action }}
             pending={
                 form.pending ||
@@ -442,7 +450,23 @@ export function ScheduleEditor({
                                                 : "Fixed"}
                                         </dd>
                                         <dt>Cycle 1 starts</dt>
-                                        <dd>{values.date_start}</dd>
+                                        <dd>
+                                            <time dateTime={values.date_start}>
+                                                {values.date_start
+                                                    ? new Date(
+                                                          `${values.date_start}T00:00:00Z`,
+                                                      ).toLocaleDateString(
+                                                          "en-GB",
+                                                          {
+                                                              day: "numeric",
+                                                              month: "short",
+                                                              year: "numeric",
+                                                              timeZone: "UTC",
+                                                          },
+                                                      )
+                                                    : "Not set"}
+                                            </time>
+                                        </dd>
                                         <dt>Cycle length</dt>
                                         <dd>
                                             {values.cycle_interval}{" "}

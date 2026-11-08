@@ -235,6 +235,21 @@ test("saving waits for an adjacent-cycle read to settle", async () => {
     ).toHaveProperty("disabled", false);
 });
 
+test("scenario generation has its own section after the battle metadata", () => {
+    render(<BattleEditor {...props} />);
+    const heading = screen.getByRole("heading", { name: "Scenario", level: 2 });
+    const section = heading.parentElement!.parentElement!;
+    expect(
+        section.contains(
+            screen.getByRole("button", { name: "Generate scenario" }),
+        ),
+    ).toBe(true);
+    expect(
+        section.contains(screen.getByRole("textbox", { name: "Name" })),
+    ).toBe(false);
+    expect(section.contains(screen.getByLabelText("Date *"))).toBe(false);
+});
+
 test("records participant identities and an explicitly selected projected cycle", async () => {
     const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/battle/" }));
     vi.stubGlobal("fetch", fetch);
