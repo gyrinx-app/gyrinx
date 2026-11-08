@@ -54,3 +54,16 @@ payment receipts remain unchanged by subsequent schedule edits.
 
 Cycle selection grants no collection allowance or historical reward entitlement.
 Reward execution and the player post-cycle workflow are separate follow-up work.
+
+## Initial setup and authored templates
+
+An arbitrator chooses a starting template, customises a draft of its phase names
+and pattern, supplies dates and a current cycle, then reviews the schedule before
+the single setup command. The draft makes no writes. Setup copies phase and step
+identities into the campaign; later template edits cannot alter that copy.
+
+Configured campaigns expose schedule, phase and cycle management. They expose no
+template application or export command. Template creation requires a content
+author and the cycle-tracking flag. Authors maintain reusable definitions in the
+staff admin; new admin definitions are shared starting templates. Existing private
+definitions retain their visibility and existing campaign copies remain independent.

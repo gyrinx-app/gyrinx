@@ -8,6 +8,18 @@ export type Rewards = {
     entry_credits: Credits;
 };
 export type Step = { id: string; phase_id: string; count: number };
+export type SetupDefinition = {
+    phases: Array<{
+        id: string;
+        details: {
+            name: string;
+            description: string;
+            effects: string;
+            rewards: Rewards;
+        };
+    }>;
+    steps: Step[];
+};
 export type Phase = {
     id: string;
     name: string;
@@ -44,7 +56,11 @@ export type Editor = {
     errors: Record<string, string[]>;
     initialConflict: boolean;
     current: { revision: number | null; cycle: string; phase: string } | null;
-    templates: Array<{ id: string; name: string }>;
+    templates: Array<{
+        id: string;
+        name: string;
+        definition?: SetupDefinition;
+    }>;
     action: string;
     commandHref: string;
     csrfToken: string;

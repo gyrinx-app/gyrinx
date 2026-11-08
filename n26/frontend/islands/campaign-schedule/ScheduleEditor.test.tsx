@@ -100,6 +100,82 @@ test("end date changes offer an explicit shift and retain it for an exact retry"
     );
 });
 
+
+test("setup previews a template, customises a draft and reviews it before the only write", async () => {
+    const reward = { credits: { fixed: 0, dice: null }, reputation: 0 };
+    const definition = {
+        phases: [
+            {
+                id: "opening",
+                details: {
+                    name: "Opening",
+                    description: "",
+                    effects: "",
+                    rewards: {
+                        win: reward,
+                        draw: reward,
+                        loss: reward,
+                        entry_credits: { fixed: 0, dice: null },
+                    },
+                },
+            },
+        ],
+        steps: [{ id: "step", phase_id: "opening", count: 3 }],
+    };
+    const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
+    vi.stubGlobal("fetch", fetch);
+    render(
+        <ScheduleEditor
+            phases={[]}
+            onNavigate={vi.fn()}
+            editor={{
+                ...editor,
+                kind: "setup",
+                heading: "Set up campaign cycles",
+                templates: [
+                    { id: "template", name: "Starting pattern", definition },
+                ],
+                values: {
+                    request_key: "setup-key",
+                    template_id: "",
+                    setup_definition: "",
+                    mode: "fixed",
+                    current_number: "",
+                    date_start: "2026-11-01",
+                    cycle_interval: "1",
+                    cycle_unit: "weeks",
+                    date_version: "1",
+                },
+            }}
+        />,
+    );
+    await userEvent.selectOptions(
+        screen.getByRole("combobox", { name: "Starting template" }),
+        "template",
+    );
+    expect(screen.getByText(/1. Opening/)).toBeTruthy();
+    await userEvent.click(
+        screen.getByRole("button", { name: "Customise schedule" }),
+    );
+    await userEvent.clear(screen.getByLabelText("Phase 1 name"));
+    await userEvent.type(screen.getByLabelText("Phase 1 name"), "My opening");
+    await userEvent.type(screen.getByLabelText("Current cycle number"), "1");
+    await userEvent.click(
+        screen.getByRole("button", { name: "Review schedule" }),
+    );
+    expect(screen.getByText(/1. My opening/)).toBeTruthy();
+    expect(fetch).not.toHaveBeenCalled();
+    await userEvent.click(
+        screen.getByRole("button", { name: "Set up cycles" }),
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const body = fetch.mock.calls[0][1].body as URLSearchParams;
+    expect(
+        JSON.parse(body.get("setup_definition")!).phases[0].details.name,
+    ).toBe("My opening");
+    expect(definition.phases[0].details.name).toBe("Opening");
+});
+
 test("a lost response freezes the draft and retries the exact command", async () => {
     const fetch = vi
         .fn()

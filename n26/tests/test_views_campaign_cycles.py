@@ -451,21 +451,41 @@ class TestSharedCommands:
         assert response.json()["code"] == "request_key_conflict"
         assert "current" not in response.json()
 
-    def test_private_template_retries_create_one_reusable_copy(
+    def test_configured_campaigns_offer_no_template_controls_or_commands(
         self, client, campaign, configured
     ):
-        values = props(client.get(editor_url(campaign, "save-template")))["editor"][
-            "values"
-        ]
-        data = {**values, "name": "My campaign pattern"}
-        for _ in range(2):
-            assert post(client, campaign, "save-template", data).status_code == 200
+        display = props(client.get(schedule_url(campaign)))
         assert (
-            CampaignScheduleTemplate.objects.filter(
-                owner=campaign.owner, name=data["name"]
-            ).count()
-            == 1
+            "template" not in display["actions"]
+            and "saveTemplate" not in display["actions"]
         )
+        count = campaign.cycle_commands.count()
+        for action in ("template", "save-template"):
+            assert client.get(editor_url(campaign, action)).status_code == 404
+            assert post(client, campaign, action, {}).status_code == 404
+        assert campaign.cycle_commands.count() == count
+
+    def test_setup_customises_an_independent_copy_before_the_only_write(
+        self, client, campaign, template, opened
+    ):
+        import copy
+
+        definition = copy.deepcopy(template.definition)
+        definition["phases"][0]["details"]["name"] = "Campaign opening"
+        definition["steps"][0]["count"] = 2
+        page = props(client.get(editor_url(campaign, "setup")))["editor"]
+        assert page["templates"][0]["definition"] == template.definition
+        assert not CampaignSchedule.objects.filter(campaign=campaign).exists()
+        data = {**setup_data(template), "setup_definition": json.dumps(definition)}
+        assert post(client, campaign, "setup", data).status_code == 200
+        state = cycles.load(campaign)
+        assert state.current_phase.details.name == "Campaign opening"
+        assert state.plan.steps[0].count == 2
+        assert state.phases[0].id != definition["phases"][0]["id"]
+        template.refresh_from_db()
+        assert template.definition["steps"][0]["count"] == 3
+        assert post(client, campaign, "setup", data).status_code == 200
+        assert campaign.cycle_commands.count() == 1
 
     def test_unchanged_future_plan_does_not_replay_consumed_cycles(
         self, client, campaign, configured
