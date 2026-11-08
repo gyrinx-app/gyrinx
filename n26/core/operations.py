@@ -3105,6 +3105,12 @@ class Operation:
         if stored is None:
             raise Refusal("That action use does not belong to this gang.")
         context = CycleContext.from_cycle(stored.cycle) if stored.cycle_id else None
+        if (
+            stored.state == ActionRecord.State.STARTED
+            and self.cycle_context is not None
+            and self.cycle_context != context
+        ):
+            raise Refusal("This action draft belongs to a different cycle.")
         if context and not self.cycle_tracking_active:
             raise Refusal("Cycle tracking is not available to this account.")
         previous, self.cycle_context = self.cycle_context, context

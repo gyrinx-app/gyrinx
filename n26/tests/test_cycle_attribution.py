@@ -389,6 +389,48 @@ def test_projected_action_selection_and_its_prefix_share_one_transaction(
     assert_reconciled(table.gang)
 
 
+@pytest.mark.parametrize("attributed", [False, True])
+def test_selecting_a_different_cycle_cannot_update_a_draft_or_save_a_prefix(
+    table, attributed
+):
+    outcome = a.create_outcome("Prepare", a.apply_changes())
+    action = a.create_action("Cycle preparation", "post_cycle", outcomes=[outcome])
+    with operation(table.gang, actor=table.owner) as op:
+        op.assign(action, miniature=table.fighter)
+    with operation(
+        table.gang,
+        actor=table.owner,
+        cycle_context=table.context if attributed else None,
+    ) as op:
+        record = op.start_action(table.fighter, action, uuid4())
+    before = cycles.load(table.campaign)
+    revision, terms = record.revision, record.terms
+    events = LedgerEvent.objects.count()
+    with pytest.raises(Refusal, match="different cycle"):
+        with cycles.action_operation(
+            table.campaign,
+            table.gang,
+            actor=table.owner,
+            target=s.project(before)[3].ref,
+        ) as op:
+            op.save_action_choices(record, outcome=outcome, terms={"choice": "new"})
+    record.refresh_from_db()
+    assert record.revision == revision and record.terms == terms
+    assert cycles.load(table.campaign) == before
+    assert LedgerEvent.objects.count() == events
+    with operation(
+        table.gang,
+        actor=table.owner,
+        cycle_context=table.context if attributed else None,
+    ) as op:
+        record = op.save_action_choices(
+            record, outcome=outcome, terms={"choice": "original cycle"}
+        )
+    assert record.terms["choice"] == "original cycle"
+    assert str(record.cycle_id or "") == (table.context.cycle_id if attributed else "")
+    assert_reconciled(table.gang)
+
+
 @pytest.mark.django_db(transaction=True)
 def test_concurrent_battle_retries_commit_one_battle_and_one_projected_prefix(table):
     import json
