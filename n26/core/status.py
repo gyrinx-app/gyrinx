@@ -1,10 +1,7 @@
-"""A model's standing between battles: the roster's In Recovery box and
-the states a lasting effect leaves a model in.
+"""Model statuses shared by content effects and player-data operations.
 
-One enum, importable by the library as well as by core, so a content
-effect can name a status without importing a core model. The rules keep
-one tick box on the roster and write everything else on the Lasting
-Injuries line; the app keeps one column and lets the results set it.
+Keep the enum independent of models so library effects can reference it.
+Lasting-effect results may update the model's stored status.
 """
 
 from django.db import models
@@ -59,9 +56,8 @@ def explains(status, vehicle=False):
     return ""
 
 
-#: The badge colour for each status. Colour marks trouble: an active model
-#: stays neutral, recovery is a warning, anything worse is red. A dead
-#: model's card also fades.
+#: Neutral for Active, warning for Recovery, and danger for other statuses.
+#: Dead cards also fade.
 _COLOURS = {
     Status.ACTIVE: "ink",
     Status.RECOVERY: "amber",

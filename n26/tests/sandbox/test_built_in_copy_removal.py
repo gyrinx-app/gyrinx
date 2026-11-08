@@ -1,12 +1,7 @@
-"""Deleting a thing that models already have as a built-in.
-
-A built-in set hands its things to every model hired from the carrier:
-nobody chose them and nobody paid. When an author deletes a thing a set
-handed out by mistake — a skill named after an empty cell, say — the
-copies are a grant being reversed, not history being taken away. Once
-the author has taken the thing out of every set, the delete page names
-the models, removes the copy from each, gang by gang, and deletes the
-thing with the archived memberships (``n26/library/deletion.py``).
+"""Verify deletion of library content with free built-in copies on existing models. Require
+removal from every default set and explicit remove_built_in_copies approval, then
+process affected gangs and delete archived copies with the content. Preserve
+player-selected copies; see n26/library/deletion.py.
 """
 
 import pytest

@@ -75,8 +75,8 @@ NAME_ONLY_HELP = (
 class StagedForm(forms.Form):
     """Choose whether newly authored content is staged, defaulting to staged.
 
-    This separate form is shared by creation and ingest pages; staging is not
-    a parameter on each content creation spec.
+    This separate form is used on creation pages; ingest handles staging separately.
+    Staging is not a parameter on each content creation spec.
     """
 
     staged = forms.BooleanField(

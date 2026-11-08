@@ -1,12 +1,7 @@
-"""A captured model and the Escape table.
-
-The rules resolve a capture straight after the battle: the captured model
-rolls a D6 on the Escape table and is executed, ransomed, or escapes into
-Recovery (core rules, the Wrap-up). The app makes that one more roll
-table on the machinery the injury tables use: the Captured result carries
-a status effect; an authored gang modifier offers Escape while the model
-is Captured. Each Escape result
-sets the status when its pick lands.
+"""Verify captured-model follow-up choices and status history. Injury or damage results
+record capture, an authored conditional slot offers Escape while captured, and selecting
+its result changes status. Preserve result history when later status changes remove the
+conditional choice.
 """
 
 import re
@@ -238,13 +233,14 @@ class TestThePage:
         client.post(address, {"act": "enter", "rolled": "6"})
         event = LedgerEvent.objects.get(kind=LedgerEvent.Kind.ROLLED)
         page = client.get(f"{address}?roll={event.pk}").content.decode()
-        # One pick, so the page is radios with the landed row lifted and
-        # already checked — Save is the Add — rather than a several-pick
-        # list with an Add of its own.
+        # A single-pick slot uses radio options with the rolled result preselected.
         assert "Landed on" in page
         assert page.index("Landed on") < page.index("Daring Escape")
         checked = re.search(r'<input[^>]*name="thing"[^>]*checked[^>]*>', page)
-        assert checked and "Daring Escape" not in checked.group(0)  # value is a key
+        assert checked and "Daring Escape" not in checked.group(0)  # The submitted
+        # value is an
+        # encoded option
+        # key.
         key = re.search(r'value="([^"]+)"', checked.group(0)).group(1)
         assert key == option_key(result_named(tables["escape"], "Daring Escape"))
 
@@ -263,8 +259,9 @@ def lasting_rows(card):
 
 
 class TestLastingEffectRowsOnTheCard:
-    """Every model carries a lasting-effect choice. A card away from the
-    model's own screens draws it only once something has been chosen."""
+    """Keep unresolved lasting-effect controls on model editing screens; other card
+    surfaces show them only after a result is chosen.
+    """
 
     def test_an_unaffected_card_has_no_lasting_effect_row(self, gang, krago, tables):
         card = build_model_card(krago, computed=computed_for(krago))

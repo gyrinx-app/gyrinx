@@ -31,7 +31,7 @@ Review the affected flows whenever an entry point, privilege, data store, extern
 
 ## Close, archive, or reopen
 
-Before archiving, verify the fix in tests and the deployed system, check relevant configuration and historical data, and state any residual risk. Record the deployment or decision date, evidence, owner, and a trigger that would reopen the threat. A code change in this PR alone does not meet that bar: [T-03](threats/t-03-active-upload.md) and [T-05](threats/t-05-task-sender-spoofing.md) remain active until their deployment and residual checks are complete.
+Before archiving, verify the fix in tests and the deployed system, check relevant configuration and historical data, and state any residual risk. Record the deployment or decision date, evidence, owner, and a trigger that would reopen the threat. A code change alone does not meet that bar: [T-03](threats/t-03-active-upload.md) and [T-05](threats/t-05-task-sender-spoofing.md) remain active until their deployment and residual checks are complete.
 
 Move the full threat record to `threats/archive/` with its ID and history. Leave a short pointer at the old path for existing external links, remove the record from the active index and STRIDE table, and add it to the archive index. Archive its risk record only when every linked material threat is closed; otherwise keep the risk active and link to the archived threat. Update relative links, run `npm run lint:markdown` and `npm run lint:mermaid`, and check the rendered PR. The Mermaid parser runs in pre-commit and CI for security-doc changes. Reopening reverses the move with the same ID and history, then re-rates the risk.
 

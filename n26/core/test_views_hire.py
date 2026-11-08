@@ -185,12 +185,10 @@ def test_someone_elses_gang_serves_no_cards(client, gang, ganger):
 def test_the_other_scopes_are_offered_to_the_browser_early(
     client, tester, gang, ganger
 ):
-    """Each scope tab is a whole hire list built and priced, so the page
-    asks the browser to fetch the others on intent. Fetch, never render:
-    these documents run to megabytes, and a hidden built copy per tab
-    behind the visible page is a memory bill the reader never agreed to.
-    The rule names this strip's own nav and leaves out the current tab,
-    which is this page and already built."""
+    """Prefetch alternate scope documents on intent without rendering hidden copies.
+
+    Exclude the current tab, whose document is already loaded.
+    """
     client.force_login(tester)
     body = client.get(hire_url(gang)).content.decode()
     assert '<script type="speculationrules">' in body
@@ -370,6 +368,7 @@ def test_a_click_carries_the_ticked_option_into_the_dialogs_url(
 def test_a_name_the_field_refuses_comes_back_in_the_dialog(
     client, tester, gang, ganger, armament
 ):
+    """Retain the selected hire option when name validation fails."""
     _, fancy = armament
     client.force_login(tester)
     response = client.post(
@@ -429,6 +428,7 @@ def test_an_option_maps_back_to_its_set(client, tester, gang, ganger, armament):
 def test_legacy_indices_become_the_same_stable_options_the_react_controls_use(
     client, tester, gang, ganger, armament
 ):
+    """Retain the selected hire option when name validation fails."""
     _, fancy = armament
     client.force_login(tester)
     data = page_props(client.get(hire_url(gang)))
@@ -1087,8 +1087,7 @@ class TestTheScopes:
         assert data["values"]["list"] == "supplementary"
 
     def test_the_scope_needs_nothing_in_the_body(self, client, tester, gang, elsewhere):
-        """What the form actually sends: the scope rides the posted-to
-        URL, and every hop keeps it."""
+        """Preserve scope in the command URL throughout the submission flow."""
         supplementary, _ = elsewhere
         client.force_login(tester)
         clicked = client.post(
@@ -1107,9 +1106,7 @@ class TestTheScopes:
     def test_the_section_tab_rides_the_round_trip(
         self, client, tester, gang, elsewhere
     ):
-        """The picker's section tab is client state, posted along and
-        echoed back in the redirect — buying from the third tab lands
-        the reader back on the third tab."""
+        """Retain the selected section tab after hiring and redirecting."""
         supplementary, _ = elsewhere
         client.force_login(tester)
         clicked = client.post(

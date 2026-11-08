@@ -101,10 +101,7 @@ class TestTheOrderThingsCome:
 
 
 class TestOneHeadingIsDrawnOnce:
-    """A heading drawn twice is a tab drawn twice, and a strip keys its
-    tabs by name — so one of the pair shows the other's rows and the
-    other becomes unreachable, while a reader meets the same heading
-    again further down the page holding different things."""
+    """Duplicate section headings must combine so name-keyed tabs remain reachable."""
 
     def test_categories_that_would_alternate_still_gather(self):
         # Positions are the whole taxonomy's, so one heading's categories

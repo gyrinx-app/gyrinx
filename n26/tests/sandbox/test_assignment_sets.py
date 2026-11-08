@@ -1,13 +1,7 @@
-"""Multiple cards: the rulebook's equipment sets.
-
-Yolanda owns a Cutter (which grants Mounted), a combat shotgun, and a
-knife — all at once: buying is never blocked and the pool is bought once.
-Named selections split the kit across cards, and each card computes its own
-effects: only the card with the Cutter shows Mounted.
-
-Card *validity* (Mounted's Heavy/Paired weapon rule) was prototyped and
-then deliberately ripped out — warnings/constraints get their own design
-round later. See "Parked designs" in design/assignables.md.
+"""Verify named model cards that select from already owned equipment. Each card computes
+effects and rating using its selection, while the gang ledger retains all purchases.
+Equipment eligibility warnings are outside this suite; see the parked designs in
+n26/design/assignables.md.
 """
 
 import pytest

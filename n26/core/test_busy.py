@@ -56,9 +56,7 @@ class TestEveryPageLoads:
 
 
 class TestTheScriptAndTheStylesheetAgree:
-    """The script writes one attribute; the stylesheet is the only thing that
-    turns it into something a reader can see. Renaming either half alone leaves
-    a button that goes quiet and never looks busy."""
+    """JavaScript and CSS must share the attribute that displays busy state."""
 
     def test_both_halves_name_the_same_state(self):
         assert BUSY_STATE in script()
@@ -86,9 +84,7 @@ class TestWhatTheScriptCanReach:
         assert BUTTON_CLASS in script()
 
     def test_a_control_can_be_kept_out_of_it(self):
-        """The escape hatch is a plain attribute, which means it has to survive
-        the component: an undeclared prop that the template swallowed would
-        leave the control going busy with nothing to say why."""
+        """Preserve the opt-out attribute through component rendering."""
         html = Template(
             CottonCompiler().process(
                 '<c-ui.button type="submit" data-busy="off">Stay</c-ui.button>'

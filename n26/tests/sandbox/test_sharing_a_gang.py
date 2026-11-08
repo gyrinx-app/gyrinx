@@ -1,10 +1,5 @@
-"""A roster somebody else owns: the same gang, without owner controls.
-
-A gang sheet is shareable — the address one player sends another shows
-that gang to whoever opens it, signed in or not. What the reader owns is
-what decides whether the page carries controls that change it. A signed-in
-reader may print what they can see or clone it into a new gang of their own;
-nothing about the source itself is withheld or made editable.
+"""Share gang sheets with authenticated and anonymous readers while restricting edits to
+the owner. Signed-in readers may print or clone the source gang without modifying it.
 """
 
 import pytest
@@ -50,7 +45,7 @@ def ganger(make_profile, make_statline):
 
 @pytest.fixture
 def gang(gang_type, owner, ganger):
-    """A gang worth reading: a fighter with a gun, a counter, spare kit."""
+    """A gang with one armed model, a gang counter and stash equipment."""
     gang = found_gang("The Ashen Choir", gang_type, owner=owner)
     vex = hire(gang, ganger, "Vex", paid=55, actor=owner)
     give_weapon(vex, create_weapon("Autogun", price=30), paid=30, actor=owner)
@@ -90,8 +85,7 @@ class TestWhoMayRead:
 
 
 class TestNothingIsWithheld:
-    """The whole gang, for whoever opens it — a shared roster that hid its
-    money would be a worse answer than not sharing it."""
+    """Show the same roster, counters and stash data to all readers."""
 
     def test_a_stranger_sees_the_fighters_and_their_kit(self, client, gang, at):
         body = read(client, at)
@@ -102,7 +96,6 @@ class TestNothingIsWithheld:
     def test_a_stranger_sees_what_the_gang_is_worth_and_holds(self, client, gang, at):
         body = read(client, at)
 
-        # The counter it keeps, and the kit in its stash.
         assert "Meat" in body
         assert "Ammo crate" in body
 
@@ -118,10 +111,8 @@ class TestNothingIsWithheld:
 
 
 class TestNoSourceControls:
-    """Controls that change the shared gang belong to its owner.
-
-    A signed-in reader's Print and Clone controls have their own class below:
-    both act on something of the reader's rather than changing this gang.
+    """Restrict actions that modify the shared gang to its owner. Print and Clone are
+    checked separately because they do not modify that gang.
     """
 
     def test_the_gang_level_controls_are_the_owners_alone(
@@ -148,10 +139,7 @@ class TestNoSourceControls:
     def test_no_way_through_to_a_screen_that_would_refuse_them(
         self, client, stranger, gang, at
     ):
-        """Not one address on the page leads somewhere a stranger cannot
-        go: the controls are absent rather than broken. Asked of both
-        readers, because signing in changes what the sheet offers and
-        neither of these is what it changes."""
+        """Omit owner-only destinations for both anonymous and signed-in non-owners."""
         signed_out = read(client, at)
         client.force_login(stranger)
         signed_in = read(client, at)
@@ -163,13 +151,8 @@ class TestNoSourceControls:
 
 
 class TestAReadersOwnActions:
-    """What a reader may do without changing the shared gang.
-
-    Players print rosters for each other — not everyone has a printer —
-    and the paper carries nothing the sheet has not already shown, so
-    printing follows reading rather than owning. Cloning likewise writes a
-    new gang owned by the reader and leaves this one alone. Signing in is
-    where the line falls: a visitor may read; a player may print or clone.
+    """Permit signed-in readers to print the roster or create their own clone. Anonymous
+    readers can read but receive neither action.
     """
 
     def test_a_signed_in_stranger_is_offered_print(self, client, stranger, gang, at):
@@ -215,9 +198,7 @@ class TestAReadersOwnActions:
 
 
 class TestAQuestionNobodyHasChosenFor:
-    """A roster with a question nobody has chosen for is honestly
-    incomplete, and a reader should see that — as words, not as a
-    control that would turn them away."""
+    """Display unresolved choices to non-owners as text without editable links."""
 
     @pytest.fixture
     def asked(self, gang, ganger, owner):
@@ -244,5 +225,5 @@ class TestAQuestionNobodyHasChosenFor:
         body = read(client, at)
 
         assert "Choose" in body
-        # The words, with nowhere to go — no anchor wraps them.
+        # Retain the choice label without an anchor.
         assert not re.search(r"<a[^>]*>\s*Choose", body)

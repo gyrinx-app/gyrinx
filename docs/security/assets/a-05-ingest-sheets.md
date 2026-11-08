@@ -13,10 +13,10 @@
 
 ## What must be protected
 
-Staff-uploaded CSV source files held between preview and import. UploadedSheet is owner-scoped in the database, but its FileField uses the production default GCS storage. store_sheet uses one fixed object name per sheet type, so two authors can have separate rows that point to the same stored file. A later upload can overwrite the bytes another author expects, and cleanup can delete a file another row still references. The documented bucket setup grants public object read to every object, and the application has no separate private storage backend for these files.
+Staff-uploaded CSV source files held between preview and import. UploadedSheet is owner-scoped in the database, but its FileField uses the production default GCS storage. New uploads use unpredictable per-upload object keys. Replacement and deletion defer cleanup until commit and retain an object while any row still references it, including legacy rows that share one key. The documented bucket setup grants public object read to every object, and the application has no separate private storage backend for these files.
 
 ## Security properties
 
-- Confidentiality: The CSV bytes should remain limited to the uploading author and authorized staff until deliberate publication. Fixed sheet-type names make direct object lookup easier; storage authorization is still required. Verify live IAM and separate private uploads from public media.
-- Integrity: Keep each author's preview and import bound to the same object; the owner-scoped row alone does not protect the shared object key.
+- Confidentiality: The CSV bytes should remain limited to the uploading author and authorized staff until deliberate publication. Unpredictable new names reduce direct discovery but do not replace storage authorization; legacy fixed names remain. Verify live IAM and separate private uploads from public media.
+- Integrity: Keep each author's preview and import bound to the same object, and preserve legacy shared objects until their final reference is gone.
 - Availability: Retain a held file while any row references it; delete it only after the last reference is gone.

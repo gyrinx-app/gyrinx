@@ -10,18 +10,11 @@ from dataclasses import dataclass
 
 
 def budget_granted(computed):
-    """What this model may spend at founding, read off its computed card.
+    """Read the model's computed contribution to the standard founding counter.
 
-    No query where nothing raises the counter, which is every model in
-    every gang whose books grant no such allowance: the contributions are
-    already on the card, and only one that names this counter is worth
-    asking the library about.
-
-    Pinned to the standard counter, as every reader of one is: counter
-    names are unique per pack, so a homebrew pack's counter of the same
-    name must not stand in for it. That is one query, and only where a
-    contribution named the counter — a model with none pays nothing to
-    find that out.
+    Check contributions before querying so models without an allowance need no
+    lookup. Resolve the counter in its standard pack; same-name homebrew counters
+    do not grant this allowance.
     """
     from n26.library.standard_content import founding_budget_counter
 
@@ -34,9 +27,7 @@ def budget_granted(computed):
 
 
 def _names_the_counter(computed):
-    """Whether anything on this card raises the founding allowance, by
-    the counter's name alone. Settled without a query, which is what
-    keeps a model with no allowance costing what it always did."""
+    """Check loaded contributions for the founding counter name without querying."""
     from n26.library.standard_content import FOUNDING_BUDGET_COUNTER
 
     wanted = FOUNDING_BUDGET_COUNTER.casefold()
@@ -47,9 +38,7 @@ def _names_the_counter(computed):
 
 
 def _raised_by(computed, standard):
-    """What this card raises the standard counter by. Pinned to the row
-    rather than the name: a homebrew pack's counter called the same thing
-    is a different counter and grants nothing here."""
+    """Read contributions to the standard counter identity, excluding same-name homebrew counters."""
     return sum(
         contribution.amount
         for contribution in computed.counter_contributions
@@ -67,9 +56,7 @@ class FoundingBudget:
 
     @property
     def remaining(self):
-        """What is left. Goes negative where the owner said they meant to
-        overspend, which is what the question before such a purchase is
-        for: Trade Points inform, and only credits are refused."""
+        """Return allowance minus spending, including confirmed overspend as a negative balance."""
         return self.granted - self.spent
 
     @property
@@ -88,10 +75,7 @@ class FoundingBudget:
 
     @property
     def facts(self):
-        """The budget as a tally: what it holds, what has gone, what is
-        left. Drawn by ``<c-n26.tally>``, which the Visit Trading Post
-        card and the overspend question draw too — one arithmetic, one
-        shape."""
+        """Return grant, lifetime spending and remainder for the shared tally display."""
         from n26.core.confirm import Fact
 
         return (

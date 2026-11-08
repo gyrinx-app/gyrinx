@@ -1,12 +1,7 @@
-"""What authoring content actually looks like, in raw ORM.
-
-Everywhere else in the sandbox tests uses the helpers in
-``tests/sandbox/actions.py``. This file deliberately does not: it is the
-reference for what a content ingest — or the admin — is really doing, with
-every model spelled out.
-
-Three things are built here: a Khimerix with built-in kit and priced
-options, the Mounted chain of modifiers, and pet wargear.
+"""Reference the ORM relationships behind authored content without the sandbox authoring
+wrappers. Build priced Khimerix options, chained modifiers and pet-generating wargear
+with each model relationship explicit. Other sandbox suites should use
+n26/tests/sandbox/actions.py.
 """
 
 import pytest
@@ -53,7 +48,7 @@ def escher(db):
 
 @pytest.fixture
 def beast_type(db):
-    """A profile type, and the statline shape it fixes."""
+    """Fighter profile type with a four-characteristic statline."""
     shape = StatlineType.objects.create(name="Beast")
     for position, (short, full, flags) in enumerate(
         [
@@ -73,7 +68,7 @@ def beast_type(db):
 
 
 def make_weapon(name):
-    """A weapon and its one mandatory, free profile."""
+    """Create a weapon and its free attack profile."""
     weapon = Weapon.objects.create(name=name, slots=1)
     WeaponProfile.objects.create(
         name="Attack", annotation=name, weapon=weapon, price=0, position=0
@@ -82,7 +77,7 @@ def make_weapon(name):
 
 
 class TestAuthoringAKhimerix:
-    """Built-in kit, plus priced alternatives chosen at hire."""
+    """Author fixed built-ins and priced alternatives selected during hiring."""
 
     @pytest.fixture
     def khimerix(self, beast_type, escher):
@@ -103,7 +98,7 @@ class TestAuthoringAKhimerix:
                 statline=statline, statline_type_stat=type_stat, value=value
             )
 
-        # Always granted. No choice is offered for these.
+        # Grant fixed built-ins independently of the selected option.
         built_ins = DefaultAssignmentSet.objects.create(
             name="Khimerix built-ins", price=0
         )
@@ -121,10 +116,8 @@ class TestAuthoringAKhimerix:
         profile.built_ins = built_ins
         profile.save()
 
-        # The options. One-of, so two independent swaps become four
-        # combinations, priced absolutely rather than as deltas. The head of
-        # the list is what a hire takes unasked — a profile is
-        # (built_ins, [options]), with no separate default slot.
+        # Represent two independent swaps as four exclusive option sets with complete
+        # equipment and set prices. The first option is the default.
         alternatives = [
             ("Standard Khimerix", cloud, talons, 0),
             ("Eruption breath", eruption, talons, 25),
@@ -133,8 +126,8 @@ class TestAuthoringAKhimerix:
         ]
         for position, (name, breath, claws, price) in enumerate(alternatives):
             option_set = DefaultAssignmentSet.objects.create(name=name, price=price)
-            # ``assignable=`` routes to the right column, exactly as it
-            # does on a player's Assignment — same mixin, same API.
+            # assignable selects the concrete content foreign key through the shared
+            # assignment mixin.
             DefaultAssignment.objects.create(
                 default_set=option_set, assignable=breath, position=0
             )
@@ -194,11 +187,11 @@ class TestAuthoringAKhimerix:
 
 
 class TestAuthoringModifiers:
-    """A Modifier is one scope plus one effect, each its own small row."""
+    """Store a modifier scope and effect as related rows."""
 
     def test_the_mounted_chain(self, beast_type, escher):
-        # Mounted grants a skill. Both rows are content; nothing is stored
-        # on a player's model when this fires.
+        # Compute the skill from the subtype modifier without a stored player
+        # assignment.
         mounted = Subtype.objects.create(name="Mounted")
         mounted.modifiers.add(
             Modifier.objects.create(
@@ -210,7 +203,7 @@ class TestAuthoringModifiers:
             )
         )
 
-        # The mount grants Mounted, which is what makes it a chain.
+        # Chain the mount's subtype grant into the subtype's skill grant.
         cutter = Wargear.objects.create(name="Cutter")
         cutter.modifiers.add(
             Modifier.objects.create(
@@ -274,7 +267,7 @@ class TestAuthoringModifiers:
 
 
 class TestAuthoringAPet:
-    """Wargear that brings a model — a stored effect, run at assign time."""
+    """Generate a pet through a stored effect when its wargear is assigned."""
 
     def test_pet_wargear(self, beast_type, escher):
         mastiff = Profile.objects.create(

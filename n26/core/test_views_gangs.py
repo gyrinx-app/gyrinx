@@ -174,12 +174,7 @@ def test_each_row_links_to_its_sheet(client, tester, make_gang):
 
 
 def row_link(body):
-    """The anchor on a row's name — the one carrying .n26-row-link.
-
-    Sliced out rather than searched for, because a gang the reader owns
-    is named in the drawer as well: a bare substring search could not
-    tell the row's copy of the mark from the drawer's.
-    """
+    """Extract the table's n26-row-link, excluding duplicate drawer destinations."""
     link = body[body.index("n26-row-link") :]
     return link[: link.index("</a>")]
 
@@ -240,17 +235,10 @@ def test_the_index_does_not_swallow_founding(client, tester):
 
 
 class TestSearchingForAGang:
-    """`?q=` narrows the list on the server.
+    """Search narrows the paginated list through a shareable q query parameter.
 
-    The table's own box narrows the rows already drawn, which stops being
-    enough the moment someone owns more gangs than a page carries. So the
-    box also submits, and this is what it submits to: a query in the URL,
-    a linkable page, and an answer that does not depend on a script
-    having run.
-
-    What matched is read off the context rather than the markup: a gang
-    the reader owns is named in the bar's switcher too, so its absence
-    from the list is not its absence from the page.
+    Assert context matches because switchers can also name gangs absent from
+    the table.
     """
 
     @staticmethod

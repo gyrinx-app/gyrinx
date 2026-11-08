@@ -1,9 +1,7 @@
-"""The selector library: one vocabulary, two contexts.
+"""Selectors match in-memory targets and compile database filters.
 
-Selecting a kind of thing, a subset of a kind, or a specific thing — each
-works in memory (``matches``) and compiles to a database filter (``as_q``).
-The two contexts may legitimately disagree: queries see the library as
-printed, in-memory targets can carry computed assignables.
+Database filters see stored content; in-memory targets may also expose computed
+assignables.
 """
 
 import pytest
@@ -52,13 +50,14 @@ class TestHas:
         assert not select.Has(melee).matches(select.matchable(gun_profile))
 
     def test_the_instance_carries_its_kind(self, melee, db):
-        """One Has for every kind — a skill works exactly like a trait."""
         skill = Skill.objects.create(name="Fast Shot")
         target = select.matchable(skill, assignables=[skill])
         assert select.Has(skill).matches(target)
 
     def test_computed_possessions_are_the_adapter_s_business(self, melee, gun_profile):
-        """The card can hand in computed traits; the leaf does not care."""
+        """The matchable adapter can supply computed possessions without changing the
+        selector.
+        """
         computed = select.matchable(gun_profile, assignables=[melee])
         assert select.Has(melee).matches(computed)
 
@@ -103,7 +102,7 @@ class TestOfKindAndExactly:
 
 
 class TestLineOf:
-    """Naming a gun, when what is being matched is one of its lines."""
+    """Match weapon profiles by their parent weapon."""
 
     def test_it_matches_every_line_of_that_weapon(self, knife_profile, gun_profile):
         knife = knife_profile.weapon
@@ -113,10 +112,9 @@ class TestLineOf:
         assert not one.matches(select.matchable(gun_profile))
 
     def test_identity_is_not_the_question(self, knife_profile):
-        """Why this leaf exists rather than ``Exactly``: a line is not
-        its gun, so asking whether it *is* the Stiletto knife is false of
-        the knife's own blade — a scope built that way would name a
-        weapon and reach nothing."""
+        """A weapon profile has its own identity; matching the parent weapon requires
+        LineOf rather than Exactly.
+        """
         knife = knife_profile.weapon
 
         assert not select.Exactly(knife).matches(select.matchable(knife_profile))
@@ -137,7 +135,6 @@ class TestCombinators:
     def test_quantifiers_are_composition_not_leaf_variants(
         self, melee, heavy, knife_profile, gun_profile
     ):
-        """HasAnyTrait(a, b) is spelled Any(Has(a), Has(b))."""
         any_of = select.Any(select.Has(melee), select.Has(heavy))
         assert any_of.matches(select.matchable(knife_profile))
         assert any_of.matches(select.matchable(gun_profile))
@@ -155,7 +152,9 @@ class TestCombinators:
     def test_the_mounted_rule_reads_as_one_selector(
         self, melee, heavy, knife_profile, gun_profile
     ):
-        """The parked warnings design, expressed: (Heavy or Paired) weapons."""
+        """Match weapons with either the Heavy or Paired trait using one composed
+        selector.
+        """
         paired = Trait.objects.create(name="Paired")
         forbidden = select.Any(select.Has(heavy), select.Has(paired))
 

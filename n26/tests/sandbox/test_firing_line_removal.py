@@ -1,13 +1,7 @@
-"""Deleting a firing line that fighters already have.
-
-A weapon's free lines ride along with it onto every fighter that has
-the weapon: nobody chose them and nobody paid. When an author deletes
-such a line — one added by mistake, say, to support a bundle the
-modifier already brings — the fighters that have it are not history
-being taken away; they are a grant being reversed. The delete page
-names them, and the line is removed from each, gang by gang, before the
-row goes (``n26/library/deletion.py``). A line somebody paid for
-refuses, as any held row does.
+"""Verify removal of free weapon profiles already granted to fighters. Explicitly approved
+deletions process affected gangs before deleting the library profile; paid profiles
+prevent deletion. Preserve the weapons and their other profiles; see
+n26/library/deletion.py.
 """
 
 import pytest
@@ -45,8 +39,9 @@ def player(db):
 
 @pytest.fixture
 def claw(default_pack):
-    """A weapon with its own line and a second free line that was never
-    needed: the bundle it comes with brings the thing itself."""
+    """Weapon with its own free profile and an additional free profile selected for
+    deletion.
+    """
     return create_weapon(
         "Malcadon slashing claw",
         price=30,
@@ -165,7 +160,7 @@ class TestThePage:
         assert record.status == Backfill.Status.DONE, record.error
         assert not WeaponProfile.objects.filter(pk=incisor.pk).exists()
         assert not Assignment.objects.filter(weapon_profile=incisor).exists()
-        # The weapon and its own line stay on every fighter.
+        # Preserve each weapon and its remaining free profile.
         assert Assignment.objects.filter(gang_root=theirs, weapon=claw).count() == 2
         assert (
             Assignment.objects.filter(
@@ -190,7 +185,7 @@ class TestThePage:
         theirs = armed(player, "Theirs", escher, ganger, claw)
         body = client.get(delete_page(incisor)).content.decode()
         assert "remove it from 1 fighter" in body
-        # A second fighter buys the line after the page was read.
+        # Add a paid holder after preview to check execution-time validation.
         revise(incisor, price=10)
         second = hire(theirs, ganger, "Late", paid=50)
         weapon_line = give_weapon(second, claw, paid=30)
@@ -224,7 +219,7 @@ class TestThePage:
 
         theirs = armed(player, "Theirs", escher, ganger, claw)
         plan = plan_deletion([incisor], remove_free_lines=True)
-        # A second fighter buys the line, paid, after the plan was read.
+        # Add a paid holder outside the approved assignment IDs.
         revise(incisor, price=10)
         second = hire(theirs, ganger, "Late", paid=50)
         weapon_line = give_weapon(second, claw, paid=30)
@@ -232,15 +227,14 @@ class TestThePage:
         plan_now = plan_deletion([incisor], remove_free_lines=True)
         assert not plan_now.ok
 
-        # The gang's own stored lines are still free, so this gang is
-        # settled; the paid one is on a fighter the plan never named,
-        # and the row stays because something still names it.
+        # Remove the approved free copy, but retain the library row while an unapproved
+        # paid copy still references it.
         said = remove_free_lines_from(theirs.pk, plan)
         assert "removed the line from 1 fighter" in said
         assert "deleted" not in said
         assert WeaponProfile.objects.filter(pk=incisor.pk).exists()
 
-        # A stored line that was paid for since fails the gang.
+        # An approved assignment with a recorded payment must refuse removal.
         paid_line = Assignment.objects.get(
             gang_root=theirs, weapon_profile=incisor, parent=weapon_line
         )

@@ -1,14 +1,5 @@
-"""The per-gang runner: a gang-by-gang repair as many short deliveries.
-
-``run_per_gang`` reads a plan once, under the lock, and walks its gangs
-through the batched runner: each gang settles on its own commit, its
-line lands on the record's report, and a spent budget hands the rest to
-a fresh delivery that walks the same list. Proven here with a plan
-built by hand over real gangs: a plan with problems refuses and touches
-nothing; a plan with nothing to do ends DONE with its preview; a plan
-of gangs is walked once with every gang's line recorded; and the plan
-is read exactly once, so a gang appearing mid-run is not visited by
-this run.
+"""Verify per-gang runner plans, refusals, reports and continuation. Record the initial
+gang list once and resume it across deliveries so gangs created mid-run are excluded.
 """
 
 from dataclasses import dataclass, field
@@ -29,8 +20,7 @@ LOCK_KEY = 999_826_032
 
 @pytest.fixture(autouse=True)
 def lock_key(monkeypatch):
-    """The runner looks its lock up in the one auditable registry, so
-    the test operation registers its key there like any real one."""
+    """Register a distinct operation lock for this runner fixture."""
     monkeypatch.setitem(maintenance.LOCK_KEYS, OPERATION, LOCK_KEY)
 
 
@@ -52,8 +42,9 @@ def gangs(owner, gang_type):
 
 @dataclass
 class Plan:
-    """The shape every gang-by-gang plan shares: gangs to visit, problems
-    that refuse the run, and whether there is anything to do."""
+    """Minimal per-gang plan contract: gang IDs, refusal reasons, an empty-plan flag and
+    preview lines.
+    """
 
     gangs: tuple = ()
     problems: tuple = ()
@@ -140,9 +131,8 @@ class TestAPlanOfGangs:
         assert sorted(seen) == sorted(gang.pk for gang in gangs)
         assert len(set(seen)) == len(gangs)
         assert record.summary["gang_ids"] == [str(gang.pk) for gang in gangs]
-        # The preview is the view's to record; the report holds only
-        # what was done, so the record page never shows intent under a
-        # past-tense heading.
+        # The view records the preview separately; the report contains only completed
+        # work.
         assert sorted(record.summary["report"]) == sorted(
             f"gang {gang.pk}: settled" for gang in gangs
         )
@@ -168,8 +158,7 @@ class TestAPlanOfGangs:
 
 
 class TestASpentBudget:
-    """The plan is read once and its gangs recorded; every later delivery
-    walks that list from where the last one stopped."""
+    """Resume the recorded gang list from its saved cursor on every delivery."""
 
     def test_the_plan_is_read_once_and_later_deliveries_walk_the_same_list(
         self, record, gangs, owner, gang_type
@@ -196,9 +185,8 @@ class TestASpentBudget:
         assert record.status == Backfill.Status.RUNNING
         assert len(seen) == 3
 
-        # A gang appearing after the plan was read belongs to the next
-        # run, not this one: where it fell against the cursor would
-        # depend on nothing but its id.
+        # A newly created gang is outside the recorded plan, regardless of where its ID
+        # sorts.
         late = Gang.objects.create(name="Latecomer", owner=owner, gang_type=gang_type)
         planned = list(gangs)
         gangs.append(late)

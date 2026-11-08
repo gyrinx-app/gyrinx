@@ -1,13 +1,8 @@
-"""A model's standing between battles: In Recovery, Critically Injured,
-Captured, Dead — and how a result sets it.
+"""Model status changes are written and journalled through operations.
 
-The rules keep one tick box on the roster and write everything else on
-the Lasting Injuries line. The app keeps one column, ``Miniature.status``,
-written only through an operation and journaled every time. A result's
-effect sets it when the pick lands, so rolling 33 and adding Grievous
-Wound puts the fighter into Recovery in the same act; Clean House at the
-end of the cycle clears every Recovery; a death keeps the model on the
-roster, under its own heading, counting nothing towards the rating.
+Choosing a lasting-effect result can update status in the same operation.
+Clean House clears Recovery. Dead models remain in a separate roster section
+and contribute no rating.
 """
 
 import pytest
@@ -47,8 +42,7 @@ def owner(db):
 
 @pytest.fixture
 def tables(default_pack):
-    """The shipped lasting-effect tables, as Foundations creates them —
-    status effects included."""
+    """Seed lasting-effect tables with their status effects."""
     STANDARD_CONTENT["lasting-effect-tables"].create()
     return {
         "injury": Picklist.objects.get(name="Lasting Injury Table"),
@@ -131,8 +125,7 @@ def sentences(gang):
 
 
 class TestTheSeedAttachesTheOutcomes:
-    """Foundations attaches "marks the model …" to every result the
-    book gives a consequence — once, and never again on a second run."""
+    """Seeding attaches each result's status effect once and remains idempotent."""
 
     def test_every_consequential_result_carries_its_status(self, tables):
         from n26.library.standard_content import LASTING_EFFECT_STATUSES
@@ -202,8 +195,7 @@ class TestAResultSetsTheStatus:
         assert fresh(rig).status == Status.RECOVERY
 
     def test_removing_the_pick_does_not_undo_the_status(self, gang, krago, tables):
-        """Recovery is cleared by Clean House, not by taking the wound
-        off the card."""
+        """Removing an injury pick preserves Recovery; Clean House clears it."""
         from n26.tests.sandbox.actions import remove
 
         pick = add_result(krago, "Lasting Injuries", tables["injury"], "Grievous Wound")
@@ -363,8 +355,7 @@ class TestThePage:
     def test_asked_over_htmx_the_dialog_comes_alone(
         self, client, owner, gang, krago, sheet
     ):
-        """The badge fetches the question; the sheet is not rebuilt, and
-        the address is corrected to the one that draws it on a visit."""
+        """Return the status dialog without rebuilding the sheet and replace the URL for reloads."""
         client.force_login(owner)
         reply = client.get(f"{sheet}?status={krago.pk}", HTTP_HX_REQUEST="true")
         page = reply.content.decode()
@@ -440,8 +431,7 @@ class TestThePage:
             op.set_status(krago, Status.DEAD)
         client.force_login(owner)
         page = client.get(sheet).content.decode()
-        # Krago is named in the square's history as well, so the card is
-        # looked for after the heading rather than by first mention.
+        # History also names Krago; locate the card after the dead-model heading.
         heading = page.index(">Dead/Destroyed<")
         assert page.index("Nix") < heading
         assert "Krago" in page[heading:]
@@ -449,8 +439,7 @@ class TestThePage:
     def test_clean_house_is_offered_in_the_activities_square(
         self, client, owner, gang, krago
     ):
-        """Clean House sits in the Actions square while anyone is In
-        Recovery, and nowhere else on the sheet."""
+        """Offer Clean House once while any model is In Recovery."""
         client.force_login(owner)
         sheet = reverse("n26-gang", args=[gang.pk])
         assert "Clean House" not in client.get(sheet).content.decode()
@@ -471,8 +460,7 @@ class TestThePage:
     def test_a_ransom_is_named_in_the_activities_square(
         self, client, owner, gang, krago, sheet
     ):
-        """A model held for ransom is named there with the way to settle
-        it, because unpaid the model dies."""
+        """Name a ransomed model and link to payment in the gang activities."""
         with operation(gang, actor=owner) as op:
             op.set_status(krago, Status.RANSOMED)
         client.force_login(owner)
@@ -496,8 +484,7 @@ class TestThePage:
     def test_an_active_model_offers_a_quiet_way_in(
         self, client, owner, gang, krago, sheet
     ):
-        """Active is not badged — the word is only news when it is not
-        Active — so the way to set it is a muted control by the others."""
+        """Active models expose a muted status control instead of a warning badge."""
         client.force_login(owner)
         page = client.get(sheet).content.decode()
         assert f"?status={krago.pk}" in page

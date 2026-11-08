@@ -1,18 +1,10 @@
-"""What a fighter may select, and what selecting writes.
+"""Skill access follows category placements into selectable collection sections.
 
-The founding pick has its own suite (``test_skills_and_powers.py``,
-TestPickingASkill). This is the standing half:
-
-* **the grid is the access** — a fighter reaches a skills collection
-  exactly where their placements put a category into one of its
-  sections, and a profile whose grid nobody authored reaches none;
-* **only their tiers** — the browse keeps every unplaced set visible on
-  purpose, and the skills screen drops them: another house's sets are not
-  this fighter's to select;
-* **selecting is free and nobody's consequence** — no credits move, the
-  rating follows the thing's own reference price, and the row is caused
-  by nothing, so swapping the profile that opened the set up never takes
-  one back.
+The skills screen offers the model's placed tiers and omits unplaced sets.
+Standalone selections spend no credits, use the content's reference rating
+and have no cause, so losing access later does not remove them. A selection
+matching an open offer instead settles that offer and records its cause.
+See test_skills_and_powers.py for founding skill-choice coverage.
 """
 
 import re
@@ -100,8 +92,7 @@ def tiers(catalogue):
 
 @pytest.fixture
 def gang_sister(make_profile, sets, tiers):
-    """A grid: Agility Primary, Savant Secondary. Brawn is nobody's here,
-    and the powers are unrevealed."""
+    """Place Agility as Primary and Savant as Secondary, leaving Brawn and powers unplaced."""
     profile = make_profile("Escher Gang Sister", price=55)
     for category, tier in [
         (sets["agility"], tiers["primary"]),
@@ -118,7 +109,7 @@ def gang_sister(make_profile, sets, tiers):
 
 @pytest.fixture
 def gridless(make_profile):
-    """A profile nobody has written a grid for — the content gap."""
+    """Create a profile with no category placements."""
     return make_profile("Sump Scavenger", price=30)
 
 
@@ -161,8 +152,7 @@ def card_for(miniature):
 
 
 class TestTheGridIsTheAccess:
-    """No grant, no built-in, no access table: a fighter reaches a
-    collection where their placements name one of its sections."""
+    """Category placements provide access to selectable collections without a separate grant."""
 
     def test_a_graded_fighter_reaches_the_collection(self, yolanda, catalogue):
         assert selectable_for(computed_for(yolanda)) == [catalogue]
@@ -174,8 +164,7 @@ class TestTheGridIsTheAccess:
     def test_a_wargear_that_places_a_set_opens_the_collection(
         self, gang, gridless, sets, tiers, catalogue
     ):
-        """Standing access is computed, so anything that places a category
-        grants it — and taking that thing away takes the access with it."""
+        """Equipment placements grant collection access only while that equipment remains held."""
         manual = create_wargear("Combat manual")
         modifier(
             "Combat manual: Brawn under Primary",
@@ -193,9 +182,7 @@ class TestTheGridIsTheAccess:
     def test_a_gear_collection_is_never_selectable(
         self, gang, gang_sister, sets, catalogue
     ):
-        """A placement may aim at any collection's schema, including an
-        equipment list's. Selecting is about what a model *is*, so a list
-        of gear never becomes a skills screen however it is placed."""
+        """Placements into an equipment-only collection must not expose a skill-selection screen."""
         gear_list = create_collection("House List", contains=[Wargear])
         gear_primary = section_of(gear_list, "Primary", 0)
         badge = create_subtype("Quartermaster")
@@ -215,8 +202,7 @@ class TestTheGridIsTheAccess:
     def test_asking_the_roster_costs_one_query(
         self, gang, gang_sister, catalogue, library
     ):
-        """A sheet asks which collections hold what a model selects once
-        and tests every card against the answer."""
+        """Load selectable collection kinds once and reuse them across model cards."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -236,13 +222,7 @@ class TestTheGridIsTheAccess:
 
 
 class TestTheWordForIt:
-    """One verb for the act, on every surface that names it: select.
-
-    The screen, the control leading to it and the sentence afterwards each
-    used to say something slightly different — learn, pick, learned — for
-    one act. A reader deciding what a button will do should not have to
-    work out whether three words mean three things.
-    """
+    """Use select consistently in controls, headings and completion messages."""
 
     def test_the_screen_asks_for_a_selection(self, client, player, yolanda, library):
         client.force_login(player)
@@ -267,8 +247,7 @@ class TestTheWordForIt:
     def test_the_pencil_opens_the_checkbox_editor(
         self, client, player, yolanda, library
     ):
-        """The card's Skills row carries the way in, and it is drawn on the
-        model's own page — so the word on it is read before the screen's."""
+        """Link the model card's Skills edit control to its checkbox editor."""
         from bs4 import BeautifulSoup
 
         client.force_login(player)
@@ -281,9 +260,7 @@ class TestTheWordForIt:
         assert set(control["class"]) == set(rename["class"])
 
     def test_no_surface_says_learn(self, client, player, yolanda, library):
-        """A discovering check rather than a list: every rendered word of
-        this feature is swept, so a surface added later cannot quietly
-        reintroduce the old verb."""
+        """Scan rendered feature text for inconsistent skill-selection terminology."""
         client.force_login(player)
         pages = [
             client.get(skills_url(yolanda)).content.decode(),
@@ -314,8 +291,7 @@ class TestWhatTheScreenShows:
         assert "Terrify (Double)" not in names  # the powers are unrevealed
 
     def test_each_set_says_which_tier_it_is(self, client, player, yolanda, library):
-        """The tiers are the whole point of the screen, and a set's name
-        does not say which one it sits in."""
+        """Label each skill set with its placed tier."""
         client.force_login(player)
         offer = client.get(skills_url(yolanda)).context["offer"]
 
@@ -327,8 +303,7 @@ class TestWhatTheScreenShows:
     def test_a_fighter_with_no_grid_gets_a_page_that_says_so(
         self, client, player, gang, gridless, catalogue
     ):
-        """Nothing to select is a thing to say, not a page to withhold: the
-        address names the fighter, and the gap is in the content."""
+        """Render an explanation for missing category placements rather than withholding the model page."""
         nobody = hire_with_option(gang, gridless, "Nobody")
         client.force_login(player)
         response = client.get(skills_url(nobody))
@@ -340,8 +315,7 @@ class TestWhatTheScreenShows:
     def test_a_fighter_with_no_grid_is_not_asked_to_select_anything(
         self, client, player, gang, gridless, catalogue
     ):
-        """No list, so no act at the foot of the page — a Select button with
-        nothing selectable above it is a click that can only fail."""
+        """Omit the submit action when no skills are selectable."""
         nobody = hire_with_option(gang, gridless, "Nobody")
         client.force_login(player)
         body = client.get(skills_url(nobody)).content.decode()
@@ -372,7 +346,7 @@ class TestWhatTheScreenShows:
     def test_a_restricted_skill_keeps_its_place_with_a_note(
         self, client, player, yolanda, library
     ):
-        """Inform, never police — the equip page's rule, on this screen too."""
+        """Keep restricted skills visible with a use restriction note."""
         from n26.tests.sandbox.actions import restrict_use
 
         restrict_use(library["skills"]["Catfall"], create_subtype("Walker"))
@@ -389,13 +363,7 @@ class TestWhatTheScreenShows:
 
 
 class TestGettingToTheNextFighter:
-    """The heading names one fighter, so it carries the way to the others.
-
-    Every row leads to that fighter's own skills screen. Picking skills is
-    a job done down a roster, and a row that landed on a different screen
-    would break off halfway through it — which is also why the screen
-    exists for a fighter with nothing to select.
-    """
+    """Link the roster switcher to each model's own skills page, including models without selectable sets."""
 
     def test_the_gang_s_other_fighters_are_offered(
         self, client, player, gang, gang_sister, yolanda, catalogue
@@ -410,9 +378,7 @@ class TestGettingToTheNextFighter:
     def test_a_fighter_with_nothing_to_select_is_still_offered(
         self, client, player, gang, gridless, yolanda, catalogue
     ):
-        """The row leads to a page that says there is nothing there, which
-        is the reader's answer — a switcher that dropped them would say
-        instead that the fighter is not in the gang."""
+        """Retain gridless models in the switcher and link to their explanatory page."""
         nobody = hire_with_option(gang, gridless, "Nobody")
         client.force_login(player)
         body = client.get(skills_url(yolanda)).content.decode()
@@ -423,24 +389,19 @@ class TestGettingToTheNextFighter:
     def test_the_fighter_whose_screen_this_is_says_so(
         self, client, player, gang, gang_sister, yolanda, catalogue
     ):
-        """A tick is a glyph and a tint is a colour; aria-current is what
-        tells a reader using neither which fighter they are on."""
+        """Use aria-current to identify the selected model independently of icons or colour."""
         hire_with_option(gang, gang_sister, "Mad Donna")
         client.force_login(player)
         body = client.get(skills_url(yolanda)).content.decode()
 
-        # The href, not the bare path: the page posts to its own address
-        # with the collection on the query string, so the path appears in
-        # the form's action before it appears in the switcher.
+        # Match the link href because the same path also appears in the form action.
         hers = body.index(f'href="{skills_url(yolanda)}"')
         assert 'aria-current="page"' in body[hers : body.index("</a>", hers)]
 
     def test_the_control_says_what_it_switches(
         self, client, player, gang, gang_sister, yolanda, catalogue
     ):
-        """Two switchers sit on this screen — the bar's gangs and the
-        heading's fighters — and a reader who cannot see them apart needs
-        their names to differ."""
+        """Give the model and gang switchers distinct accessible labels."""
         hire_with_option(gang, gang_sister, "Mad Donna")
         client.force_login(player)
         body = client.get(skills_url(yolanda)).content.decode()
@@ -451,8 +412,7 @@ class TestGettingToTheNextFighter:
     def test_somebody_else_s_roster_is_not_in_it(
         self, client, player, gang_type, gang_sister, yolanda, catalogue
     ):
-        """A switcher that could name a stranger's fighter would be a way
-        of finding out that they exist."""
+        """Do not expose another owner's models through the switcher."""
         stranger = User.objects.create_user("stranger")
         theirs = found_gang("Other Bad Girls", gang_type, owner=stranger, budget=1000)
         elsewhere = hire_with_option(theirs, gang_sister, "Nobody Of Ours")
@@ -465,13 +425,7 @@ class TestGettingToTheNextFighter:
 
 
 class TestTheWayOut:
-    """Where the screen leads when a reader is done with it.
-
-    The control opening it is drawn on the model's own page and nowhere
-    else, so that page is what a reader came from and what leaving owes
-    them: the gang sheet is a level above the screen they were working
-    on, and the skills control they clicked is not on it.
-    """
+    """Return to the model page from which the skills editor is opened."""
 
     def test_cancel_leads_back_to_the_model_s_own_page(
         self, client, player, yolanda, library
@@ -480,8 +434,7 @@ class TestTheWayOut:
         response = client.get(skills_url(yolanda))
 
         assert response.context["cancel_url"] == edit_url(yolanda)
-        # The last of them: the breadcrumb leads to the same page from the
-        # top of the document, and the footer's way out is the one at the end.
+        # The footer link follows the breadcrumb to the same model page.
         body = response.content.decode()
         out = body.rindex(f'href="{edit_url(yolanda)}"')
         assert "Cancel" in body[out : body.index("</a>", out)]
@@ -489,9 +442,7 @@ class TestTheWayOut:
     def test_selecting_something_lands_on_the_same_page_cancel_does(
         self, client, player, yolanda, library
     ):
-        """A save and a cancel leave by the same door: one of them landing
-        somewhere else would make the footer's two buttons disagree about
-        where the reader was."""
+        """Save and Cancel return to the same model page."""
         catfall = library["skills"]["Catfall"]
         client.force_login(player)
         response = client.post(
@@ -504,8 +455,7 @@ class TestTheWayOut:
     def test_the_breadcrumb_names_the_model_under_the_gang(
         self, client, player, yolanda, library
     ):
-        """The model sits between the gang and this page, as it does on
-        every other screen addressed by one."""
+        """Place the model breadcrumb between its gang and the skills editor."""
         client.force_login(player)
         body = client.get(skills_url(yolanda)).content.decode()
 
@@ -517,9 +467,7 @@ class TestTheWayOut:
     def test_a_fighter_with_nothing_to_select_still_has_the_way_back(
         self, client, player, gang, gridless, catalogue
     ):
-        """That page draws no Cancel — there is nothing to cancel — so the
-        breadcrumb is the whole of the way out, and it has to reach the
-        model whose screen this is."""
+        """Keep a model breadcrumb when no selectable content or Cancel action is shown."""
         nobody = hire_with_option(gang, gridless, "Nobody")
         client.force_login(player)
         body = client.get(skills_url(nobody)).content.decode()
@@ -534,8 +482,7 @@ class TestSelecting:
     def test_a_click_on_the_screen_writes_it(
         self, client, player, gang, yolanda, library
     ):
-        """The whole way through: the button submits an identity, the
-        server re-derives the list and writes what it found."""
+        """Resolve the submitted identity against the server-derived offer before recording the selection."""
         catfall = library["skills"]["Catfall"]
         client.force_login(player)
         response = client.post(
@@ -550,11 +497,7 @@ class TestSelecting:
     def test_a_second_copy_is_refused_however_the_first_arrived(
         self, client, player, gang, yolanda, library
     ):
-        """A duplicate skill means nothing in the game, so the click is
-        refused — and "already has it" covers every route in, a selected
-        one and one granted by a settled choice alike. A card reading
-        "Marksman, Marksman" is a bug however honestly each row was
-        written."""
+        """Refuse a duplicate selection so the card displays one copy of the skill."""
         catfall = library["skills"]["Catfall"]
         select(yolanda, catfall)
         client.force_login(player)
@@ -571,8 +514,7 @@ class TestSelecting:
     def test_a_click_for_something_off_the_list_writes_nothing(
         self, client, player, gang, yolanda, library
     ):
-        """Brawn is nobody's here, so it is not on her screen — and the
-        click is answered by the list rather than by the ledger."""
+        """Reject skills outside the model's placed sets without creating an assignment."""
         off_list = library["skills"]["Bull Charge"]
         client.force_login(player)
         client.post(
@@ -594,8 +536,7 @@ class TestSelecting:
         assert_reconciled(gang)
 
     def test_the_rating_follows_the_thing_s_own_price(self, gang, yolanda, sets):
-        """Zero for a skill the rules hand out; whatever content says for
-        something worth something."""
+        """Record the selected content's reference price as its rating contribution."""
         plain = create_skill("Spring Up", category=sets["agility"])
         dear = create_power("Ember Storm", "Double", category=sets["powers"], price=30)
 
@@ -608,9 +549,7 @@ class TestSelecting:
     def test_a_selected_skill_survives_the_profile_that_placed_the_set(
         self, gang, yolanda, gang_sister, make_profile, library, sets, tiers
     ):
-        """A Legacy profile brings a grid; dropping it takes the tiers
-        away and leaves what was selected from them. An earned skill is not
-        a consequence of a row still being there."""
+        """Removing a legacy profile revokes its access placements but preserves standalone selections."""
         legacy = make_profile("Cawdor Bonepicker", price=40)
         modifier(
             "Bonepicker: Brawn under Primary",
@@ -639,8 +578,7 @@ class TestSelecting:
 
 
 class TestTheSkillsRow:
-    """The two controls a card carries about skills, and where the
-    question asking for one stopped being drawn."""
+    """Display skill offers in the Skills row while retaining other choices in the general choice area."""
 
     @pytest.fixture
     def leader(self, tiers):
@@ -666,8 +604,7 @@ class TestTheSkillsRow:
         assert [line.kind_label for line in card.choices] == []
 
     def test_another_kind_of_question_stays_where_it_was(self, yolanda, tiers):
-        """Only skills moved. An archetype has no row of its own to move
-        into, and is still drawn as a slot."""
+        """Keep non-skill offers in the general choice area."""
         from n26.library.models import Subtype
 
         badge = create_subtype("Outcast")
@@ -713,9 +650,7 @@ class TestTheSkillsRow:
     def test_selecting_a_secondary_skill_on_the_skills_screen_leaves_the_question_open(
         self, client, player, leader_yolanda, library
     ):
-        """Connected is selectable (Savant is Secondary) but is not on
-        the Choose list for a Primary skill, so it is a standing
-        selection and the card keeps asking."""
+        """A standalone Secondary selection does not settle the open Primary skill offer."""
         connected = library["skills"]["Connected"]
         client.force_login(player)
         client.post(
@@ -739,7 +674,7 @@ class TestTheSkillsRow:
         choose(anchor, catfall)
         assignment = leader_yolanda.assignments.get(skill=catfall, archived=False)
         if legacy:
-            # Older assignments kept their cause but did not identify the offer.
+            # Exercise assignments with a cause but no explicit offer identity.
             assignment.chosen_for_offer = None
             assignment.save(update_fields=["chosen_for_offer"])
 

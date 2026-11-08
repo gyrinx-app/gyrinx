@@ -1,26 +1,7 @@
-"""The Archetype shape: two choices over one slot type, reaching differently.
-
-The third example of the slots-and-picks design. One slot type, used twice:
-
-* the leader is offered a choice whose pick belongs to the **gang**, and
-  whose payload reaches every model *except* Champions — the spoken
-  negation the condition grammar carries;
-* a champion is offered a choice of the same slot type whose pick is his
-  own, and reaches nobody else.
-
-What the gang holds is drawn on no member's card unless the pickable
-carries a modifier saying so, and the last two groups here are that
-modifier: the cards its scope reaches list the pick, read only, and the
-content wiring a migration writes builds exactly that shape.
-
-Sandbox content shaped like a gang list that works this way. Which
-archetypes the edition offers, which of them a champion may take, and
-what each one does are the maintainer's to state; the shape is what is
-proved here.
-
-The library is built with the authoring verbs — the authoring pages are
-``test_gang_legacy.py``'s walkthrough — and the playing goes through the
-real pages.
+"""Two archetype choices share a slot type but have separate hosts: the Leader’s pick
+belongs to the gang and reaches non-Champions, while a Champion’s pick belongs to that
+model. Authored display modifiers can show the gang pick on affected member cards
+without adding controls.
 """
 
 import pytest
@@ -58,27 +39,22 @@ from n26.tests.sandbox.actions import found_gang, hire
 pytestmark = pytest.mark.django_db
 
 
-#: What the leader's choice offers, and what the champion's does. One
-#: pickable is on both lists, which is what makes taking it twice a thing
-#: anybody could do.
+#: Gang and Champion menus overlap on Mutant.
 GANG_ARCHETYPES = ("Mutant", "Renegade")
 CHAMPION_ARCHETYPES = ("Mutant", "Duellist")
 
-#: The ranks, and what each is hired at.
+#: Ranks and hire prices.
 RANKS = (
     ("Outcast Leader", 120),
     ("Outcast Champion", 90),
     ("Outcast Ganger", 50),
 )
 
-#: What the gang's archetype gives, to everyone the condition does not
-#: rule out, and what a champion's own gives to him alone.
+#: Rules supplied by gang and personal archetype picks.
 GANG_PAYLOAD = "Unstable"
 CHAMPION_PAYLOAD = "Duellist's Poise"
 
-#: The rank the gang-wide payload steps around. Named as an exception
-#: rather than by listing everyone else, so a rank added later is
-#: reached without anyone revisiting the condition.
+#: Negating the excluded rank also covers ranks added later.
 EXCEPTED = "Outcast Champion"
 
 
@@ -94,16 +70,14 @@ def ranks(default_pack):
 
 @pytest.fixture
 def slot_type(default_pack):
-    """One slot type for both choices. Nobody takes an archetype twice."""
+    """Both choices share duplicate-pick guidance, evaluated separately per holder."""
     return create_slot_type("Archetype", allows_repeats=False)
 
 
 @pytest.fixture
 def archetypes(slot_type, ranks):
-    """The pickables of the slot type, and what two of them do.
-
-    The gang's Mutant reaches every model except Champions; the
-    champion's Duellist reaches whoever picked it and nobody else.
+    """Mutant grants a gang-wide rule excluding Champions; Duellist grants a rule to its
+    own bearer.
     """
     made = {
         name: create_pickable(name, slot_type)
@@ -144,7 +118,7 @@ def gang_choice(slot_type, archetypes):
 
 @pytest.fixture
 def champion_choice(slot_type, archetypes):
-    """Offered to a champion, and his own."""
+    """A Champion-hosted archetype slot."""
     return create_slot(
         "Champion archetype",
         slot_type,
@@ -162,8 +136,9 @@ def champion_choice(slot_type, archetypes):
 
 @pytest.fixture
 def profiles(person_type, gang_type, ranks, gang_choice, champion_choice):
-    """One profile per rank, the leader carrying the gang's choice and
-    the champion carrying his own."""
+    """Each rank has a profile; the Leader carries the gang slot and the Champion carries a
+    personal slot.
+    """
     made = {}
     for name, price in RANKS:
         profile = create_profile(name, person_type, gang_type, price=price)
@@ -222,16 +197,16 @@ def rules_on(miniature):
 
 
 def offer_for(miniature):
-    """The picker for this model's own choice, as the page builds it."""
+    """Build the choice offer for this model’s single slot."""
     computed = computed_card(miniature)
     (slot,) = computed.choices
     return build_choice_offer(slot, computed)
 
 
 class TestTheLeaderIsAskedAndTheGangAnswers:
-    """A slot built into the leader's profile and assigned to the gang:
-    the choice row is drawn where the slot sits, and the pick lands
-    where the slot says."""
+    """The Leader card displays the question while the slot directs its answer onto the
+    gang.
+    """
 
     def test_the_choice_row_is_on_the_leaders_card(self, reader, gang, crew):
         (line,) = card_of(gang, "Outcast Leader").questions
@@ -240,8 +215,7 @@ class TestTheLeaderIsAskedAndTheGangAnswers:
         assert line.chosen is None
 
     def test_the_gangs_own_card_does_not_draw_it(self, reader, gang, crew):
-        """Where a slot is drawn is where it is assigned. The gang
-        answers this one; the gang was not the one asked."""
+        """The gang owns the answer, but the Leader’s assigned slot owns the question."""
         assert sheet_of(gang).questions == []
 
     def test_the_ganger_is_not_asked_at_all(self, reader, gang, crew):
@@ -264,10 +238,7 @@ class TestTheLeaderIsAskedAndTheGangAnswers:
 
 
 class TestReachingEveryoneExceptOneRank:
-    """The payload is scoped by saying who it steps around. Everyone the
-    condition does not name is reached, so a rank hired afterwards is
-    reached too — which is the difference between an exception and a
-    list of everybody else."""
+    """Negated Champion matching includes existing and newly added non-Champion ranks."""
 
     @pytest.fixture
     def mutant(self, reader, gang, crew, archetypes):
@@ -284,8 +255,7 @@ class TestReachingEveryoneExceptOneRank:
     def test_a_rank_that_did_not_exist_yet_is_reached_too(
         self, reader, gang, mutant, person_type, default_pack
     ):
-        """The condition names one rank, so nothing has to be revisited
-        when another is authored."""
+        """A negated Champion condition also includes newly authored ranks."""
         later = create_profile("Hive Scum", person_type, gang.gang_type, price=20)
         add_built_in(later, create_subtype("Hive Scum"))
         scum = hire(gang, later, "Scum", paid=20)
@@ -295,15 +265,13 @@ class TestReachingEveryoneExceptOneRank:
         assert_reconciled(gang)
 
     def test_no_card_draws_a_line_for_the_gangs_pick(self, reader, gang, mutant):
-        """It reaches every model and is listed on none of them: what
-        the gang holds is said on the gang."""
+        """Gang-owned picks are not automatically repeated as member equipment."""
         for card in sheet_of(gang).models:
             assert [line.name for line in card.equipment] == []
 
 
 class TestTheChampionsOwnChoice:
-    """The same slot type, a personal reach: his card asks, his card
-    answers, and nobody else is touched."""
+    """A bearer-hosted choice affects only the Champion holding its answer."""
 
     def test_his_card_asks_it(self, reader, gang, crew):
         (line,) = card_of(gang, EXCEPTED).questions
@@ -334,19 +302,8 @@ class TestTheChampionsOwnChoice:
 
 
 class TestTwoChoicesOfOneSlotTypeOnTwoHolders:
-    """Both choices are of a slot type that refuses repeats, and they sit on
-    two different holders — the gang and the champion.
-
-    What a slot type refusing repeats buys is what one holder says about
-    itself: its picker marks the pickables it has already spent on another
-    of its own choices, and its card notes the same pickable answering two
-    of them. Neither is said here, because there is no holder holding
-    both: one pick is the gang's and the other is the champion's.
-    Marking across holders would be a different rule, and a mark would
-    have no other choice of this holder's to name.
-
-    What one holder holding two of them says is
-    ``test_slots_and_picks.py``'s.
+    """Duplicate-choice marks and notes compare answers belonging to the same holder. Gang
+    and Champion picks do not mark each other.
     """
 
     @pytest.fixture
@@ -369,8 +326,7 @@ class TestTwoChoicesOfOneSlotTypeOnTwoHolders:
     def test_taking_the_same_one_again_is_allowed_and_lands_on_him(
         self, reader, gang, settled, archetypes
     ):
-        """Informing, never policing: the gang is Mutant and so may the
-        champion be. Two picks, two holders, both alive."""
+        """The same pickable can answer choices on separate holders."""
         choose(reader, gang, EXCEPTED, archetypes["Mutant"])
 
         held = Assignment.objects.filter(pickable=archetypes["Mutant"], archived=False)
@@ -387,8 +343,7 @@ class TestTwoChoicesOfOneSlotTypeOnTwoHolders:
 
 
 class TestTheGangPageStaysFlat:
-    """Two choices and a slot type that grows are rows for the page to
-    read, never round trips for it to make."""
+    """More available pickables must not add gang-page queries."""
 
     def test_more_pickables_do_not_mean_more_queries(
         self, reader, gang, crew, archetypes, slot_type, django_assert_num_queries
@@ -416,26 +371,14 @@ class TestTheGangPageStaysFlat:
 
 
 class TestDrawingTheGangsPickOnTheCardsItGoverns:
-    """The gang's archetype, drawn on the cards of the models it governs.
-
-    A pick the gang holds rides every member's card and is listed on
-    none of them. A modifier the pickable carries says otherwise: every
-    model its scope reaches draws the pick as a line of its own. Which
-    models those are is the scope's to say — here everyone but the
-    Champions, who have an archetype of their own — so nothing is read
-    off where the pick happened to land.
-
-    The line is a fact and not a control. The choice is the leader's,
-    and his card is where it is made and changed.
+    """A scoped display modifier shows the gang’s pick as a read-only line on affected
+    member cards. The Leader’s original choice retains its picker.
     """
 
     @pytest.fixture
     def gang_choice(self, slot_type, archetypes):
-        """The leader's question, labelled as itself.
-
-        The label and the slot type read differently on purpose: a drawn
-        pick says what sort of thing was picked by its type's name,
-        where the label names one question among several.
+        """Use a question label distinct from the slot-type label so display rows can be
+        checked separately.
         """
         return create_slot(
             "Gang archetype",
@@ -453,11 +396,7 @@ class TestDrawingTheGangsPickOnTheCardsItGoverns:
 
     @pytest.fixture
     def drawing(self, archetypes, ranks):
-        """One modifier, hung on every archetype the leader may pick.
-
-        They all say the same thing about who sees the line, and a
-        modifier is shared by design.
-        """
+        """Share one scoped display modifier across the gang archetypes."""
         rule = modifier(
             "Archetype: drawn on every model except Champions",
             targets_every_model(has_subtypes(ranks[EXCEPTED], negate=True)),
@@ -478,23 +417,23 @@ class TestDrawingTheGangsPickOnTheCardsItGoverns:
         assert (line.kind_label, line.chosen) == ("Archetype", "Mutant")
 
     def test_the_line_has_nothing_to_click(self, gang, mutant):
-        """The choice belongs to whoever was asked, so this leads
-        nowhere and offers nothing to add."""
+        """Displayed copies have no picker URL or writable choice key."""
         (line,) = card_of(gang, "Outcast Ganger").choices
 
         assert (line.href, line.key) == ("", "")
         assert line.is_full
 
     def test_it_says_the_slot_type_rather_than_the_question(self, gang, mutant):
-        """What sort of thing was picked, never the label of the
-        question that asked for it."""
+        """Display copies use the slot-type label; the original question uses its own
+        label.
+        """
         (drawn,) = card_of(gang, "Outcast Ganger").choices
         (asked,) = card_of(gang, "Outcast Leader").choices
 
         assert (drawn.kind_label, asked.kind_label) == ("Archetype", "Gang archetype")
 
     def test_the_champion_draws_none_of_it(self, gang, mutant):
-        """His own question, still open, and nothing of the gang's."""
+        """The Champion retains only its own open question."""
         lines = card_of(gang, EXCEPTED).choices
 
         assert [(line.kind_label, line.chosen) for line in lines] == [
@@ -502,8 +441,7 @@ class TestDrawingTheGangsPickOnTheCardsItGoverns:
         ]
 
     def test_the_champions_step_says_it_was_skipped(self, mutant):
-        """The plan says the scope stepped around him, rather than
-        leaving a reader to notice that nothing happened."""
+        """The plan records the excluded Champion’s display step as skipped."""
         outcomes = [
             step.outcome
             for step in computed_card(mutant[EXCEPTED]).plan
@@ -540,8 +478,7 @@ class TestDrawingTheGangsPickOnTheCardsItGoverns:
         assert_reconciled(gang)
 
     def test_the_gangs_own_card_is_untouched(self, gang, mutant):
-        """The gang holds the pick and lists it among its own rows, as
-        it did before anything drew it on a fighter."""
+        """The gang retains its owned pick among its own rows."""
         sheet = sheet_of(gang)
 
         assert sheet.questions == []
@@ -550,9 +487,7 @@ class TestDrawingTheGangsPickOnTheCardsItGoverns:
     def test_a_champions_own_pick_of_the_same_archetype_draws_nothing(
         self, reader, gang, crew, drawing, archetypes
     ):
-        """The modifier acts on what the gang holds. A champion picking
-        the same archetype for himself holds it himself, and it stays on
-        his own choice row."""
+        """A bearer-owned pick does not broadcast the gang-pick display to other models."""
         choose(reader, gang, EXCEPTED, archetypes["Mutant"])
 
         assert card_of(gang, "Outcast Ganger").choices == []
@@ -590,13 +525,8 @@ class TestDrawingTheGangsPickOnTheCardsItGoverns:
 
 
 class TestTheWiringTheMigrationWrites:
-    """The same shape, composed by the code a migration runs.
-
-    Production's archetypes are named by id in
-    ``n26.library.archetype_display`` — the one part of it a test cannot
-    stand in for. Everything else is proved here against this file's own
-    content, and the function is handed Django's model registry where the
-    migration hands it a historical one.
+    """Exercise migration wiring with the current model registry and explicit fixture
+    pickable IDs; production IDs remain declared by archetype_display.
     """
 
     @pytest.fixture
@@ -615,8 +545,7 @@ class TestTheWiringTheMigrationWrites:
         assert str(wired.effect) == "draws the pick"
 
     def test_the_reach_it_writes_is_the_one_the_model_declares(self):
-        """The scope's value is written out, because a migration's models
-        carry fields and no choices to read it from."""
+        """Verify the stored migration constant against the current model choice."""
         from n26.library.models import TargetsMiniature
 
         assert EVERY_MODEL == TargetsMiniature.Reach.EVERY_MODEL
@@ -648,16 +577,16 @@ class TestTheWiringTheMigrationWrites:
         )
 
     def test_a_database_without_the_content_is_left_alone(self, db):
-        """A fresh database has no pack, no archetypes and no ranks. The
-        migration runs over it and writes nothing."""
+        """Missing source content leaves the migration wiring unchanged."""
         from n26.library.models import Modifier
 
         assert draw_gang_archetypes(model_registry) is None
         assert Modifier.objects.count() == 0
 
     def test_a_rank_by_that_name_is_what_it_looks_for(self, archetypes, default_pack):
-        """Nothing is written where the rank named is not there — the
-        modifier would reach everyone, Champions included."""
+        """Without the excluded rank, skip wiring rather than granting the rule to
+        everyone.
+        """
         from n26.library.models import Modifier
 
         assert draw_gang_archetypes(model_registry, excepted="Nobody") is None

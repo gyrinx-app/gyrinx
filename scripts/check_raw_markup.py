@@ -1,18 +1,12 @@
 #!/usr/bin/env python3
-"""Monotonic ratchet on hand-written Bootstrap markup.
+"""Enforce per-pattern limits on hand-written Bootstrap markup.
 
-The cotton migration replaces raw class strings with components. Nothing stops
-someone re-introducing `class="btn btn-primary"` in a new template afterwards,
-and by the time anyone notices there are forty of them again. This script pins
-a per-pattern ceiling that may only ever go DOWN.
+    scripts/check_raw_markup.py            # enforce limits
+    scripts/check_raw_markup.py --update   # update the baseline
+    scripts/check_raw_markup.py --list btn # list remaining calls
 
-    scripts/check_raw_markup.py            # enforce (pre-commit + CI via pytest)
-    scripts/check_raw_markup.py --update   # re-baseline after a migration batch
-    scripts/check_raw_markup.py --list btn # show the remaining call sites
-
-Exit 1 when any count EXCEEDS its baseline, or when a baseline is stale (count
-dropped and was not re-baselined) -- the second case keeps the ceiling tight
-instead of letting slack accumulate.
+Exit 1 when a count exceeds its baseline or falls below an outdated baseline.
+Update the baseline after removing raw markup to retain the stricter limit.
 """
 
 import argparse
@@ -24,15 +18,13 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "scripts" / "raw_markup_baseline.json"
 
-# Files that are ALLOWED to contain raw markup, with the reason.
+# Raw markup exemptions and their reasons.
 EXCLUDE = (
     # Component internals: this is where the class strings are supposed to live.
     "gyrinx/templates/cotton/",
-    # The living design-system showcase: its raw class strings ARE the
-    # documentation, and the page renders a table naming them.
+    # The design-system page documents the raw classes it renders.
     "n23/core/templates/core/debug/design_system.html",
-    # Rendered by handler500 in a degraded process; a component-resolution
-    # failure here would 500 the 500 page.
+    # Error pages must render even when component resolution fails.
     "gyrinx/templates/errors/",
     "gyrinx/templates/404.html",
     "gyrinx/templates/500.html",
@@ -61,9 +53,7 @@ PATTERNS = {
 }
 
 
-# Every tree that holds first-party templates: the platform shell plus each
-# edition package. Miss one and the ceiling silently stops policing it — the
-# counts drop below baseline and the check passes while scanning nothing.
+# Scan the platform and N23 templates that use Bootstrap.
 TEMPLATE_ROOTS = ("gyrinx", "n23")
 
 

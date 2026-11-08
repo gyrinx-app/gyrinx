@@ -10,13 +10,15 @@
 | Assets | [A-05: held ingest sheets](../assets/a-05-ingest-sheets.md), [A-03: content catalogue](../assets/a-03-content.md) |
 | Data flow / boundary | [DF-04](../data-flows/staff-authoring.md) and [DF-05](../data-flows/media.md); TB-02 and TB-03 |
 | Risk | [R-09: held CSV integrity](../risk-assessment/r-09-held-csv-integrity.md) |
-| Status | Open; observed fixed object-key design, production storage behavior to confirm |
+| Status | Control implemented; deployment and legacy-reference verification pending |
 | Evidence | [sheet storage and discard](../../../n26/library/ingest.py), [UploadedSheet model](../../../n26/library/models/staging.py), [GCS settings](../../../gyrinx/storage_settings.py), [storage dependency](../../../uv.lock) |
 
 ## Scenario
 
-Two staff authors upload the same sheet type. Their database rows remain owner-scoped, but store_sheet asks default storage to save both files as ingest-sheets/{sheet}.csv. The installed GCS backend overwrites an existing object at that key by default. One author's preview or import can then read the other's CSV. Replacing or discarding a row can also delete the shared object while another row still refers to it. A mistaken import can alter the published catalogue.
+Before unique per-upload keys, two staff authors uploading the same sheet type received owner-scoped database rows but the same storage key. The deployed service does not override the installed GCS backend's overwrite-by-default setting, so one upload could change the bytes another author's preview or import would read. Replacement or deletion could also remove the shared object while another row still referred to it. A mistaken import could alter the published catalogue.
 
 ## Existing controls and uncertainty
 
-Authoring routes are staff-only; ingest validates sheet type, size, UTF-8 and rows, and preview precedes import. Those checks do not make a shared object key owner-specific. This model has not inspected live storage settings or historical object references, so it does not assert that a production collision has already happened.
+Authoring routes are staff-only; ingest validates sheet type, size, UTF-8 and rows, and preview precedes import. Each new upload receives a cryptographically random key. Replacement, discard, direct deletion and cascade deletion schedule cleanup after commit and delete only when no UploadedSheet row still names the object.
+
+A read-only production review on 2026-11-07 found five UploadedSheet rows, four distinct object keys and one shared-key group. It inspected no filenames or contents and changed no data. The shared reference confirms that compatibility is required, but it does not establish that the stored bytes were overwritten. Keep this threat active until deployment verifies distinct new keys and safe legacy cleanup.

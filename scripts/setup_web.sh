@@ -1,13 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-# =============================================================================
-# Claude Code on the Web: Gyrinx Environment Setup
-#
-# This script is invoked by the SessionStart hook (see .claude/settings.json).
-# It only runs in remote (web) environments and prepares the full development
-# environment so that Claude Code can run tests, linters, and formatters.
-# =============================================================================
+# Prepare dependencies and services for remote Claude Code sessions.
+# Registered as a SessionStart hook in .claude/settings.json.
 
 # Only run in remote (Claude Code on the Web) environments
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
@@ -46,11 +41,8 @@ if command -v gh &>/dev/null \
   && gh pr create --help 2>/dev/null | grep -q -- '--attach'; then
   echo "gh already supports PR attachments: $(gh --version | head -1)"
 else
-  # Install from a direct binary download rather than apt.
-  # The web environment has limited network; apt-get update fails because
-  # it tries to reach every configured apt source (PPAs, etc.).  Direct
-  # download only needs github.com + objects.githubusercontent.com, both
-  # on the allow-list. gh 2.99+ is required for `gh pr create --attach`.
+  # Direct downloads need only the permitted GitHub hosts. apt-get update
+  # can fail while contacting other configured sources. Require PR attachments.
   GH_VERSION="2.100.0"
   # Map kernel arch to the naming convention used by gh release tarballs.
   case "$(uname -m)" in
@@ -223,10 +215,8 @@ npm run build
 manage collectstatic --noinput
 
 # ---------------------------------------------------------------------------
-# NOTE: Virtualenv activation for subsequent commands is handled by the
-# separate activate_venv_hook.sh SessionStart hook (see .claude/settings.json).
-# That hook runs independently so venv activation succeeds even if this
-# script fails partway through.
+# activate_venv_hook.sh runs independently so subsequent commands can activate
+# the venv even if setup fails.
 # ---------------------------------------------------------------------------
 
 echo "=== Setup complete! ==="

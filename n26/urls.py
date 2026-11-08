@@ -1,8 +1,5 @@
-"""The n26 edition's URL surface, mounted by the platform under /n26/.
-
-Everything the edition serves hangs off one include, the way n23's
-does — the platform's urls.py names the mount point, and nothing in
-here assumes where that is.
+"""N26 URL routes, mounted by the platform under /n26/. Keep paths relative to the mount
+point.
 """
 
 from django.urls import include, path
@@ -15,24 +12,21 @@ urlpatterns = [
     path("", views.dashboard, name="n26-dashboard"),
     path("users/@<str:username>/", views.user_profile, name="n26-user-profile"),
     path("users/@<str:username>/invite/", views.invite_user, name="n26-invite-user"),
-    # Numeric legacy links identify an account by ID, never by username.
+    # Resolve numeric legacy profile links as account IDs, before matching unprefixed
+    # usernames.
     path("users/<int:pk>/", views.user_profile_by_id, name="n26-user-profile-by-id"),
     path(
         "users/<int:pk>/invite/", views.invite_user_by_id, name="n26-invite-user-by-id"
     ),
     path("users/<str:username>/", views.user_profile),
     path("users/<str:username>/invite/", views.invite_user),
-    # The shared changelog lives at /changelog/. These addresses remain
-    # because links to them are already out, and they open that page
-    # narrowed to this edition.
+    # Keep edition changelog links redirecting to the shared changelog filtered to N26.
     path("changelog/", views.n26_changelog, name="n26-changelog"),
     path(
         "changelog/<uuid:pk>/",
         views.n26_changelog_entry,
         name="n26-changelog-entry",
     ),
-    # The scenario generator outside a campaign, for skirmish play too. Each
-    # campaign has its own as well, under campaigns/<pk>/scenario/.
     path("scenario/", views.generate_scenario, name="n26-generate-scenario"),
     path(
         "scenario/save/",
@@ -47,9 +41,8 @@ urlpatterns = [
     path("scenario/print/", views.print_scenario, name="n26-scenario-print"),
     path("campaigns/", views.campaigns, name="n26-campaigns"),
     path("campaigns/new/", views.create_campaign, name="n26-create-campaign"),
-    # After campaigns/new/, which would otherwise resolve "new" as an id.
+    # Match the literal new route before the string primary-key route.
     path("campaigns/<str:pk>/", views.campaign, name="n26-campaign"),
-    # The whole log; the campaign's page draws only the newest acts.
     path(
         "campaigns/<str:pk>/rolls/new/",
         views.record_campaign_roll,
@@ -176,9 +169,6 @@ urlpatterns = [
         views.remove_battle,
         name="n26-campaign-remove-battle",
     ),
-    # The campaign's assets are listed on its own page; these are the acts
-    # on one of them. Adding and removing are the arbitrator's; unassigning
-    # is also the holding gang's owner's.
     path(
         "campaigns/<str:pk>/assets/add/",
         views.add_asset,
@@ -209,15 +199,11 @@ urlpatterns = [
         views.remove_asset,
         name="n26-campaign-asset-remove",
     ),
-    # Handing a held asset to another gang: the arbitrator's, and the
-    # holding gang's owner's.
     path(
         "campaigns/<str:pk>/assets/<str:asset_pk>/transfer/",
         views.transfer_asset,
         name="n26-campaign-asset-transfer",
     ),
-    # What the arbitrator adds: content written into the campaign's own
-    # pack and onto its own campaign type. One page per kind of thing.
     path(
         "campaigns/<str:pk>/assets/types/add/",
         views.add_asset_type,
@@ -272,9 +258,6 @@ urlpatterns = [
         {"kind": "label"},
         name="n26-campaign-unarchive-label",
     ),
-    # Rolling on an asset table: for the campaign's pool, and for one gang's
-    # starting asset. Both dialogs are drawn on the campaign's page; these
-    # are the acts behind them.
     path(
         "campaigns/<str:pk>/assets/roll/preview/",
         views.preview_pool_roll,
@@ -300,7 +283,6 @@ urlpatterns = [
         views.roll_starting_asset,
         name="n26-campaign-roll-starting",
     ),
-    # Which tables every gang may roll on, and the campaign's own tables.
     path(
         "campaigns/<str:pk>/tables/",
         views.campaign_tables,
@@ -323,7 +305,7 @@ urlpatterns = [
     ),
     path("gangs/", views.gangs, name="n26-gangs"),
     path("gangs/new/", views.create_gang, name="n26-create-gang"),
-    # After gangs/new/, which would otherwise resolve "new" as an id.
+    # Match the literal new route before the string primary-key route.
     path("gangs/<str:pk>/", views.gang_sheet, name="n26-gang"),
     path("gangs/<str:pk>/hire/", views.hire_fighter, name="n26-hire-fighter"),
     path("gangs/<str:pk>/hire/command/", views.hire_command, name="n26-hire-command"),
@@ -332,11 +314,8 @@ urlpatterns = [
         views.hire_preview,
         name="n26-hire-preview",
     ),
-    # The gang's own equip page: what is bought here goes to the stash,
-    # where a fighter's equip page buys onto the fighter.
     path("gangs/<str:pk>/equip/", views.equip_gang, name="n26-equip-gang"),
-    # One option's preview card, fetched when its row is first opened —
-    # the hire list ships priced rows and no cards.
+    # Load preview cards on demand; the initial hire list contains priced rows only.
     path(
         "gangs/<str:pk>/hire/card/<str:profile>/",
         views.hire_card,
@@ -363,18 +342,12 @@ urlpatterns = [
     ),
     path("gangs/<str:pk>/lore/", views.gang_lore, name="n26-gang-lore"),
     path("gangs/<str:pk>/notes/", views.gang_notes, name="n26-gang-notes"),
-    # What the gang takes to a trading post. Its own page rather than a
-    # field on the edit form: the allowance is minted for a trip and
-    # spent within it, which is a different act from settling the gang's
-    # standing facts.
+    # Trade points belong to a trading-post visit rather than the gang edit form.
     path(
         "gangs/<str:pk>/trade-points/",
         views.gang_trade_points,
         name="n26-gang-trade-points",
     ),
-    # Starting and completing one of the gang's own actions. The card
-    # that posts here lives on the gang page, which is where both answers
-    # land; there is no page of its own to open.
     path(
         "gangs/<str:pk>/actions/founding/",
         views.gang_founding_action,
@@ -386,16 +359,14 @@ urlpatterns = [
         name="n26-fighter-hire-time-action",
     ),
     path("gangs/<str:pk>/delete/", views.delete_gang, name="n26-delete-gang"),
-    # The slot's own address. It names the card, the assignment carrying
-    # the offer and the offer itself, so one route serves a fighter's
-    # choice and the gang's alike — see n26.core.views.choose.
+    # The encoded slot identifies the carrier assignment and offer for both gang and
+    # fighter choices; see n26.core.views.choose.
     path("gangs/<str:pk>/choose/<str:slot>/", views.choose, name="n26-choose"),
-    # What an act just brought, where an author attached a screen to it.
-    # Every question it asks and where Continue leads are in the address;
-    # nothing about the screen is stored — see n26.core.views.arrivals.
+    # Interstitial choices and the continuation target stay in the URL; see
+    # n26.core.views.arrivals.
     path("gangs/<str:pk>/next/", views.gang_next, name="n26-next"),
-    # Putting an offer out of sight, and bringing it back: the same slot
-    # address, and POST only — each is an act with no page of its own.
+    # Dismissal and restoration are POST-only actions using the same encoded slot
+    # address.
     path(
         "gangs/<str:pk>/offers/<str:slot>/dismiss/",
         views.dismiss_offer,
@@ -406,9 +377,6 @@ urlpatterns = [
         views.restore_offer,
         name="n26-restore-offer",
     ),
-    # The acts behind the gang sheet's dialogs; GET just reopens each one.
-    # The model's own page: the card with its edit affordances and the
-    # owner's notes. Equip is the same header's second tab.
     path("fighters/<str:pk>/edit/", views.edit_fighter, name="n26-edit-fighter"),
     path("fighters/<str:pk>/rating/", views.base_rating, name="n26-base-rating"),
     path(
@@ -431,8 +399,6 @@ urlpatterns = [
         views.clone_fighter,
         name="n26-clone-fighter",
     ),
-    # The options the model was hired with, reopened — the third of the
-    # model's own tabs.
     path(
         "fighters/<str:pk>/options/",
         views.fighter_options,
@@ -445,13 +411,9 @@ urlpatterns = [
     path("fighters/<str:pk>/delete/", views.delete_fighter, name="n26-delete-fighter"),
     path("fighters/<str:pk>/refund/", views.refund_fighter, name="n26-refund-fighter"),
     path("fighters/<str:pk>/equip/", views.equip, name="n26-equip"),
-    # Addressed by fighter, not by slot: what they may select is their
-    # grid rather than a question anybody asked — see n26.core.views.skills.
     path("fighters/<str:pk>/skills/", views.skills, name="n26-skills"),
-    # What a gang already owns, addressed by the assignment rather than by
-    # whoever is carrying it: the same acts serve a fighter's card, a
-    # weapon's ammo and the stash, and every screen that grows them later
-    # reuses these — see n26.core.views.owned.
+    # Address owned equipment by assignment so the same endpoints work for fighters,
+    # weapon ammunition and the stash.
     path(
         "assignments/<str:pk>/sell/",
         views.sell_assignment,
@@ -482,8 +444,6 @@ urlpatterns = [
         views.rechoose_assignment,
         name="n26-rechoose",
     ),
-    # A counter moved by hand. Addressed by the assignment like the acts
-    # above, so one route serves a model's tallies and the gang's.
     path(
         "assignments/<str:pk>/tally/",
         views.tally_counter,
@@ -551,7 +511,7 @@ urlpatterns = [
         action_builder_views.grant_action,
         name="authoring-action-grant",
     ),
-    # Before the kind routes: "docs" and "recipes" would read as kind slugs.
+    # Match literal authoring routes before the generic kind routes.
     path(
         "authoring/docs/",
         authoring_views.docs,
@@ -562,8 +522,7 @@ urlpatterns = [
         authoring_views.doc,
         name="authoring-doc",
     ),
-    # A second address for the cookbook, kept because links to it are
-    # out in the world: it redirects to the documentation page.
+    # Keep the cookbook alias redirecting to the documentation page.
     path(
         "authoring/recipes/",
         authoring_views.recipes,
@@ -574,12 +533,8 @@ urlpatterns = [
         authoring_views.modifiers,
         name="authoring-modifiers",
     ),
-    # A modifier is not one of the authored kinds — it has no create
-    # verb of its own — so its pages hang off the modifiers listing
-    # rather than the kind/pk routes below.
-    #
-    # Before the pk route: "new" is a perfectly good primary key as far
-    # as the pattern is concerned, and the first match wins.
+    # Modifiers have dedicated routes because they are not authored kinds. Match new
+    # before the string primary-key route.
     path(
         "authoring/modifiers/new/",
         authoring_views.modifier_create,
@@ -595,33 +550,25 @@ urlpatterns = [
         authoring_views.modifier_delete,
         name="authoring-modifier-delete",
     ),
-    # A built-in is a row of a set of defaults, not one of the authored
-    # kinds, so taking one off has an address of its own rather than
-    # riding the kind/pk routes below.
     path(
         "authoring/built-ins/<str:pk>/remove/",
         authoring_views.built_in_remove,
         name="authoring-built-in-remove",
     ),
-    # A gun member's own lines are built in from the gun's row — the
-    # address names the member, because a set may bring the same gun
-    # twice and which of them a line rides is the whole question.
+    # Identify the built-in member because a set can grant the same weapon more than
+    # once, with different profiles.
     path(
         "authoring/built-ins/<str:pk>/profiles/",
         authoring_views.built_in_profiles,
         name="authoring-built-in-profiles",
     ),
-    # The same act for a set that does not bring the gun — an option
-    # set arming a weapon the built-ins bring. The weapon is picked
-    # first and carried in the address.
+    # The option set selects profiles for an existing built-in weapon; its ID is carried
+    # in the request.
     path(
         "authoring/sets/<str:pk>/profiles/",
         authoring_views.set_profiles,
         name="authoring-set-profiles",
     ),
-    # An option and a set of options belong to the thing offering them
-    # rather than being authored kinds of their own, so withdrawing
-    # either has an address here instead of riding the kind/pk routes.
     path(
         "authoring/options/<str:pk>/add/",
         authoring_views.option_add,
@@ -637,9 +584,6 @@ urlpatterns = [
         authoring_views.option_set_remove,
         name="authoring-option-set-remove",
     ),
-    # A listing row belongs to its collection the way an option belongs
-    # to the thing offering it, so correcting or withdrawing one has an
-    # address here.
     path(
         "authoring/entries/<str:pk>/edit/",
         authoring_views.entry_edit,
@@ -650,37 +594,26 @@ urlpatterns = [
         authoring_views.entry_remove,
         name="authoring-entry-remove",
     ),
-    # A pickable's place on a picklist belongs to that list, the same way,
-    # so taking it off has an address here.
     path(
         "authoring/picklist-members/<str:pk>/remove/",
         authoring_views.picklist_member_remove,
         name="authoring-picklist-member-remove",
     ),
-    # An interstitial's attachment to a slot belongs to the interstitial,
-    # the same way, so removing it has an address here.
     path(
         "authoring/interstitial-attachments/<str:pk>/remove/",
         authoring_views.interstitial_detach,
         name="authoring-interstitial-detach",
     ),
-    # An entry belongs to its table the way a picklist member belongs to
-    # its list, so taking it off has an address here.
     path(
         "authoring/asset-table-entries/<str:pk>/remove/",
         authoring_views.asset_table_entry_remove,
         name="authoring-asset-table-entry-remove",
     ),
-    # An asset type belongs to its campaign type and is edited on that
-    # type's page; taking it off is the one act that needs an address.
     path(
         "authoring/asset-types/<str:pk>/remove/",
         authoring_views.asset_type_remove,
         name="authoring-asset-type-remove",
     ),
-    # A literal address, so it matches ahead of the kind catch-all: a
-    # roll table's gaps and overlaps are facts about the whole list, and
-    # the picklist's own page shows only one row at a time.
     path(
         "authoring/picklists/<str:pk>/clone/",
         authoring_views.picklist_clone,
@@ -691,10 +624,8 @@ urlpatterns = [
         authoring_views.picklist_table,
         name="authoring-picklist-table",
     ),
-    # A weapon profile belongs to its weapon rather than being an authored
-    # kind of its own — there is no listing of every profile in the
-    # library, and no making one apart from the weapon it fires — so
-    # correcting one has an address here, by the profile's own pk.
+    # Weapon profiles are authored through their weapon, rather than as a standalone
+    # content kind.
     path(
         "authoring/weapon-profiles/<str:pk>/",
         authoring_views.weapon_profile,
@@ -705,9 +636,6 @@ urlpatterns = [
         authoring_views.weapon_profile_delete,
         name="authoring-weapon-profile-delete",
     ),
-    # Adding one is addressed by the weapon, the way a second item
-    # inside an option is addressed by the option: there is no line yet
-    # to name, and the parent is what the act is about.
     path(
         "authoring/weapons/<str:pk>/add-profile/",
         authoring_views.weapon_profile_add,
@@ -718,8 +646,6 @@ urlpatterns = [
         authoring_views.foundations,
         name="authoring-foundations",
     ),
-    # Literal addresses, ahead of the kind catch-all: what is staged is a
-    # fact about the whole library, and putting it all live is one act.
     path("authoring/staged/", authoring_views.staged, name="authoring-staged"),
     path(
         "authoring/staged/put-live/",
@@ -731,8 +657,8 @@ urlpatterns = [
         authoring_views.staged_delete,
         name="authoring-staged-delete",
     ),
-    # A deletion that takes a gang runs after the page that asked for it
-    # has answered, so its outcome has an address of its own.
+    # Deleting content with test gangs runs in the background; this route shows the
+    # recorded outcome.
     path(
         "authoring/deletions/<uuid:pk>/",
         authoring_views.deletion,
@@ -750,14 +676,13 @@ urlpatterns = [
         name="authoring-ingest-sheet",
     ),
     path("authoring/<slug:kind>/", authoring_views.leaf, name="authoring-leaf"),
-    # Before the pk route: "new" is a perfectly good primary key as far
-    # as the pattern is concerned, and the first match wins.
+    # Match new before the string primary-key route.
     path(
         "authoring/<slug:kind>/new/",
         authoring_views.create,
         name="authoring-create",
     ),
-    # Before the pk route for the same reason as "new".
+    # Match attach-modifier before the string primary-key route.
     path(
         "authoring/<slug:kind>/attach-modifier/",
         authoring_views.attach_modifier,
@@ -779,6 +704,5 @@ urlpatterns = [
         name="authoring-detail",
     ),
     path("preview/", views.preview_view, name="preview"),
-    # The rest of a switcher's list, a page at a time, and searches over it.
     path("switcher/<slug:source>/", views.switcher_page, name="n26-switcher-rows"),
 ]

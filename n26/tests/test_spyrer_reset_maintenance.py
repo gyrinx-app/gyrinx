@@ -1,4 +1,6 @@
-"""The measured reset runs through the real maintenance console."""
+"""Verify Spyrer built-in reset through the maintenance console, including multiple
+batches, harmless redelivery and superuser access.
+"""
 
 import pytest
 from django.contrib.auth.models import User

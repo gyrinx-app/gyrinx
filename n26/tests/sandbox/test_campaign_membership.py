@@ -1,7 +1,5 @@
-"""Which campaign a gang is playing, and what that puts in each log.
-
-The write side and the reading, with no page in the way. The screens that
-reach these are covered by the view tests.
+"""Verify campaign membership, advisory budget checks and history directly through domain
+operations. HTTP permissions and controls are covered by view tests.
 """
 
 import pytest
@@ -39,7 +37,7 @@ def other_campaign(arbitrator, campaign_type):
     return found_campaign("Sump City", campaign_type, owner=arbitrator)
 
 
-#: The log's first line, which founding writes before any test here acts.
+#: Campaign founding creates this initial log entry.
 FOUNDED = "set the campaign up on Territory campaign"
 
 
@@ -65,7 +63,7 @@ class TestJoiningACampaign:
     def test_the_campaigns_log_says_so_from_the_same_record(
         self, gang, campaign, arbitrator
     ):
-        """One record, two readers — never a copy in each."""
+        """Use one joining event as the source for both gang and campaign history."""
         with operation(gang, actor=arbitrator) as op:
             op.join_campaign(campaign)
 
@@ -99,8 +97,7 @@ class TestJoiningACampaign:
         assert CampaignMembership.objects.filter(gang=gang).count() == 1
 
     def test_the_database_holds_the_same_line(self, gang, campaign, other_campaign):
-        """The refusal is the sentence a player reads; this is what stops a
-        second open membership however it is written."""
+        """Enforce one open membership in the database as well as the domain operation."""
         CampaignMembership.objects.create(campaign=campaign, gang=gang)
         with pytest.raises(IntegrityError):
             with transaction.atomic():
@@ -108,18 +105,13 @@ class TestJoiningACampaign:
 
 
 class TestWhatCountsAgainstTheBudget:
-    """A budget is a size the table agreed on, and nothing is refused for
-    being over it. What it is measured against is the gang's wealth: its
-    rating, its stash and the credits it has not spent. Spending moves
-    credits into rating or stash and changes none of the total, so wealth
-    today is what a gang's rating and stash come to once it has bought
-    everything it can.
+    """Compare campaign budget with gang wealth, including model rating, stash and unspent
+    credits. Exceeding it adds guidance without blocking membership.
     """
 
     @pytest.fixture
     def gang(self, gang_type, make_profile):
-        """A gang with one hired model and no budget of its own, so its
-        wealth is exactly what it holds."""
+        """Unbudgeted gang with one fighter, so wealth equals its current holdings."""
         player = User.objects.create_user("player")
         founded = found_gang("The Ashen Choir", gang_type, owner=player)
         hire(founded, make_profile("Escher Ganger"), "Yolanda", paid=55)
@@ -139,7 +131,7 @@ class TestWhatCountsAgainstTheBudget:
         assert over_budget(self.campaign_of(arbitrator, 1000), gang) is False
 
     def test_exactly_the_budget_is_not_over(self, gang, arbitrator):
-        """Up to the number, not short of it."""
+
         assert over_budget(self.campaign_of(arbitrator, gang.wealth), gang) is False
 
     def test_a_penny_more_is_over(self, gang, arbitrator):
@@ -149,7 +141,7 @@ class TestWhatCountsAgainstTheBudget:
         assert over_budget(self.campaign_of(arbitrator, None), gang) is False
 
     def test_the_stash_counts(self, gang, arbitrator):
-        """Gear put aside still belongs to the gang."""
+        """Include stashed equipment in gang wealth."""
         before = gang.wealth
         assign(create_wargear("Ammo crate", price=25), stash=gang.stash, paid=25)
         grown = Gang.objects.get(pk=gang.pk)
@@ -157,9 +149,7 @@ class TestWhatCountsAgainstTheBudget:
         assert over_budget(self.campaign_of(arbitrator, before), grown) is True
 
     def test_credits_not_yet_spent_count(self, gang_type, make_profile, arbitrator):
-        """The case the whole measure turns on: a gang founded on a large
-        budget that has spent almost none of it is not small. It will be
-        as big as its founding budget the moment it goes shopping."""
+        """Include unused credits because they remain available for the gang to spend."""
         player = User.objects.create_user("spender")
         rich = found_gang("Deep Pockets", gang_type, owner=player, budget=5000)
         hire(rich, make_profile("Escher Ganger"), "Yolanda", paid=55)
@@ -170,11 +160,12 @@ class TestWhatCountsAgainstTheBudget:
         assert rich.credits == 4945
         assert rich.wealth == 5000
 
-        # What it holds today would fit; what it can buy will not.
+        # The gang has little equipment but enough credits to exceed the campaign
+        # budget.
         assert over_budget(self.campaign_of(arbitrator, 1000), rich) is True
 
     def test_a_gang_over_the_budget_still_joins(self, gang, arbitrator):
-        """Nothing is refused for being over: the budget informs."""
+        """Campaign budget limits are advisory."""
         snug = self.campaign_of(arbitrator, gang.wealth - 1)
         with operation(gang, actor=arbitrator) as op:
             op.join_campaign(snug)
@@ -230,8 +221,7 @@ class TestWhatTheCampaignSees:
     def test_what_a_gang_did_while_playing_reads_in_the_campaigns_log(
         self, gang, campaign, arbitrator
     ):
-        """No call site marks these — the operation reads the gang's
-        membership, so nothing has to remember."""
+        """Domain operations attribute events to the gang's current campaign membership."""
         with operation(gang, actor=arbitrator) as op:
             op.join_campaign(campaign)
         with operation(gang, actor=arbitrator) as op:
@@ -280,9 +270,9 @@ class TestWhatTheCampaignSees:
         ]
 
     def test_the_size_counts_both_sources(self, gang, campaign, arbitrator):
-        """The founding line and the joining. The campaign types the
-        joining put on the gang ride that act rather than counting as
-        acts of their own, so the size says what the page would draw."""
+        """Count founding and joining as two acts; grants caused by joining remain within
+        the joining act.
+        """
         with operation(gang, actor=arbitrator) as op:
             op.join_campaign(campaign)
 
@@ -302,9 +292,9 @@ class TestWhatTheCampaignSees:
 
 
 class TestTheCampaignsLogFoldsWhatTheGangsDoes:
-    """Both pages are told by the same machinery, so a hire is one line with
-    its kit beneath it in each. Reading them differently would mean two
-    accounts of the same act."""
+    """Fold gang events into the same acts on campaign and gang histories, including
+    equipment granted by a hire.
+    """
 
     def test_a_hire_is_one_act_not_one_per_thing_it_brought(
         self, gang, campaign, arbitrator, make_profile

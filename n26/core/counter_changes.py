@@ -1,19 +1,12 @@
-"""Signed changes a report makes to stored counters.
+"""Derive a report's signed changes to stored counter assignments.
 
-A report records, for each counter it changes, the change it makes in
-total, keyed by the counter's assignment. The assignment is the pin: a
-correction moves the same counter by the difference between the new
-entry and the recorded one, so a tally made since (a kill marked on the
-model's page, a Reputation point from the arbitrator) stays where it is.
+Corrections apply the difference from the recorded contribution to the same
+assignment, preserving independent tallies made since. Result effects can
+also change counters; show those movements beside entered changes without
+applying them twice.
 
-Results can move a counter too, through their own stored effects. That
-movement is written when the result is added, not by this module, so it
-is shown beside the entered change and counted once.
-
-Nothing here reads the database or knows whose counters they are: the
-caller hands over the card's nodes and readings, and gets back one
-``CounterChange`` per counter and the errors to show. The gang's
-counters and each model's use it the same way.
+Callers supply loaded nodes and readings. Return CounterChange values and
+validation errors without database access, for gang and model counters alike.
 """
 
 from dataclasses import dataclass, replace
@@ -312,9 +305,8 @@ def plan_changes(
             )
         )
     for key in sorted(set(entered) | set(recorded)):
-        # The page draws no row for a counter that has gone, so a report
-        # that leaves it out keeps the recorded change. Only a change
-        # entered for it is refused.
+        # Preserve recorded changes for absent counters when omitted from the form.
+        # Refuse only a newly submitted change for an absent counter.
         was = recorded.get(key, 0)
         if key in by_id or entered.get(key, was) == was:
             continue
@@ -327,9 +319,10 @@ def plan_changes(
 
 
 def entries(changes, entered, recorded):
-    """What the report keeps: every entered change, and a recorded change
-    for a counter that is no longer held, so a later correction still
-    knows what was applied."""
+    """Recorded entered changes, including counters no longer held.
+
+    Retain their applied contributions for later corrections.
+    """
     kept = {change.assignment_id: change.manual for change in changes if change.manual}
     held = {change.assignment_id for change in changes}
     for key, value in recorded.items():

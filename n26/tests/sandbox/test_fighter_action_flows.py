@@ -23,7 +23,7 @@ pytestmark = pytest.mark.django_db
 
 @library_setup
 def _hunt_action_content(fighter_stats):
-    """The rig ladder and priced actions, authored before the player uses them."""
+    """Author item tier choices and priced actions before using the player flow."""
     kills = a.create_counter("Kill Count")
     glitches = a.create_counter("Glitch Count")
     augmentation = a.create_slot_type("Augmentation", allows_repeats=False)
@@ -470,7 +470,7 @@ class TestSuitEvolutionForms:
         )
 
     def test_a_credits_only_action_is_never_marked(self, client, hunt):
-        """Maintenance is always there to buy, so it stays on Edit alone."""
+        """Offer affordable credit-priced maintenance on Edit without marking it as an available action on the roster."""
         from bs4 import BeautifulSoup
 
         maintenance = a.create_action(

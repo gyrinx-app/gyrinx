@@ -6,16 +6,10 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-# Trees holding first-party templates: the platform shell and each edition
-# package. Both are scanned for call sites; omitting one makes this gate pass
-# while silently ignoring everything in it.
+# Scan every first-party template tree for Cotton calls.
 TEMPLATE_ROOTS = [ROOT / "gyrinx", ROOT / "n23", ROOT / "n26"]
-# Where components are defined: the platform's and n26's. A component found in
-# neither has no <c-vars> to read, and the undeclared-prop check is skipped for
-# it, so an edition that ships components must be listed here or its call
-# sites are only half-checked. Listing a directory that does not exist would
-# be quietly meaningless in a file whose whole point is that an empty scan
-# root passes vacuously, so add an entry only for a tree that really exists.
+# Search first-party component definitions for declared props. Missing
+# definitions skip undeclared-prop checks, so include each component directory.
 COTTON_DIRS = [
     ROOT / "gyrinx" / "templates" / "cotton",
     ROOT / "n26" / "core" / "templates" / "cotton",
@@ -24,15 +18,9 @@ COTTON_DIRS = [
 # message carries and no other check's does.
 IN_ATTRIBUTE_POSITION = "template tag in attribute position"
 
-# Calls the gate would fail that predate the n26 root joining the scan: n26
-# component sources putting cotton's own attrs passthrough, or an if block, in
-# attribute position on a nested component call. Each is pinned to the exact
-# source of the call (whitespace collapsed) and to the one violation it is
-# known to carry, so the entry stops matching the moment the call is edited,
-# a second violation on the same call is reported, and everything else in the
-# file is checked as normal; an entry that matches no failing call fails the
-# gate, so a fixed call must take its entry with it. Fix them (or prove them
-# harmless) and delete.
+# Suppress only the named violation on each exact, whitespace-normalised call.
+# Other violations on the call still fail. Changed or fixed calls invalidate
+# their suppression and require the entry to be updated or removed.
 PRE_EXISTING = {
     (
         "n26/core/templates/cotton/n26/view/create_gang.html",
@@ -120,16 +108,9 @@ DOTTED_PATH = re.compile(r"[A-Za-z_][\w]*(\.[\w]+)*")
 # an undeclared prop.
 VAR_NAME = re.compile(r"(?:^|\s):?([\w-]+)(?==|\s|$)")
 
-# Components that take a Django object (BoundField / Form) as a prop. Passing
-# one WITHOUT the colon stringifies it: `field="{{ form.name }}"` renders the
-# widget to HTML, after which every `field.*` lookup resolves to nothing and the
-# component emits a wrapper with no label, no help text and NO ERRORS. The page
-# still shows an input, so it looks right. That is the #2001 hidden-form-errors
-# bug, reintroduced by one missing character, at a scale of ~120 call sites.
-#
-# Omitting the prop entirely is the same failure with a different cause: the
-# `<c-vars>` default SHADOWS any ambient `field` from an enclosing {% for %}, so
-# the component renders an empty wrapper and the form ships with fields missing.
+# These props require Django objects. Without the colon, Cotton receives
+# rendered text and loses object attributes such as field errors. Omitting
+# the prop also fails: the component default shadows any enclosing context.
 OBJECT_PROPS = {
     "form.field": "field",
     "form.cell": "field",
@@ -143,10 +124,8 @@ OBJECT_PROPS = {
     "n26.user-link": "user",
 }
 
-# Controls whose accessible name is not derivable from anything else on the
-# page. The estate deliberately pairs a generic placeholder ("Search") with a
-# specific aria-label ("Search campaigns"), and core/index.html renders two
-# search bars on one page.
+# Search controls need a specific accessible label; generic placeholders do
+# not distinguish multiple searches on a page.
 NEEDS_LABEL = {"filter.query", "form.search"}
 
 
@@ -288,26 +267,15 @@ def _firstof_message(rel, line, name, prop, value):
 
 def declared_props(component):
     """Prop names declared in <c-vars> of cotton/<component>.html, or None if absent."""
-    # A hyphen in the tag is an underscore in the file: <c-n26.user-link> is
-    # cotton/n26/user_link.html. Left as hyphens, every such component read as
-    # undefined and its call sites were never checked for undeclared props.
-    # A component may also be a directory with an index: <c-n26.quick-switcher>
-    # is cotton/n26/quick_switcher/index.html, the shape every n26 root
-    # component with parts takes. The direct file wins over the index, and
-    # the platform's tree over an edition's, so a name means one file.
+    # Cotton maps hyphens to underscores. Search each root for a direct file
+    # before its directory index, using COTTON_DIRS order for root precedence.
     rel = component.replace(".", "/").replace("-", "_")
     for base in COTTON_DIRS:
         for path in (base / f"{rel}.html", base / rel / "index.html"):
             if not path.is_file():
                 continue
-            # blank_comments FIRST: every component's doc comment talks about
-            # <c-vars>, and CVARS.search takes the first match, so without this
-            # it parses prose and returns an empty set. That silently blinded
-            # the undeclared-prop XSS check on back/badge/btn/cancel/icon/
-            # messages — fail-closed, but it also means a doc comment spelling
-            # out `<c-vars foo="">` as an example would mark foo "declared" and
-            # let a real `:foo=` through to the mark_safe'd attrs. Fail-open,
-            # from prose.
+            # Ignore doc examples before searching for the first <c-vars> tag;
+            # example declarations must not allow undeclared dynamic props.
             src = blank_comments(path.read_text(encoding="utf-8", errors="replace"))
             match = CVARS.search(src)
             if not match:
@@ -374,10 +342,8 @@ def main():
     used = set()
     cache = {}
     for path in sorted(p for root in TEMPLATE_ROOTS for p in root.rglob("*.html")):
-        # The component test harness writes uuid-named host templates into
-        # gyrinx/templates/_cotton_test_host/ and deletes them again. They
-        # deliberately contain the broken shapes these rules exist to forbid,
-        # and under pytest-xdist they appear and vanish mid-scan.
+        # Test hosts deliberately contain invalid calls and may disappear
+        # while parallel tests run.
         if "_cotton_test_host" in path.parts or path.name.startswith("_cotton_test"):
             continue
         try:
@@ -398,10 +364,7 @@ def main():
             # until the call has been checked against PRE_EXISTING.
             found = []
 
-            # 1. any template tag ({% %} or {{ }}) in attribute position
-            # Both forms are equally hazardous in attribute position, and the pytest
-            # gate has always checked both — this half only checked {%, so a
-            # `<c-btn {{ x }}>` passed the hook and failed only in CI.
+            # Template expressions in attribute position are emitted as raw source.
             if "{%" in unquoted or "{{" in unquoted:
                 found.append(
                     f"{rel}:{line}: template tag in attribute position inside "
@@ -528,9 +491,7 @@ def main():
                     f for f in found if expected is None or expected not in f
                 )
 
-    # A suppression that matches nothing is either a call somebody fixed, or a
-    # call somebody edited: either way the entry is stale, and leaving it
-    # would let the next bad call in that file through.
+    # Require suppressions to match a current failing call exactly.
     for rel, call in sorted(set(PRE_EXISTING) - used):
         problems.append(
             f"{rel}: PRE_EXISTING entry no longer matches a failing call "

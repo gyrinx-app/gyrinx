@@ -1,20 +1,5 @@
-"""The n26 edition inside the platform: who gets in, the dashboard, the
-founding form, the changelog, and the foundations backfill.
-
-The load-bearing ideas:
-
-* the edition is open to anyone with an account, and each page says so
-  for itself — a page of player data wants a signed-in reader and shows
-  them only their own rows, while the authoring pages and the component
-  gallery want staff;
-* the dashboard and the create form are the design system's views bound
-  to real data — the user's own gangs, the platform's changelog;
-* a valid create submit founds a real gang: the row, its founding
-  assignment, and the type's built-ins, owned by the signed-in user;
-* the shell's drawer holds whatever links the area gave it and the
-  reader's own gangs, while the account menu behind their name holds
-  the doors — and the staff-only ones only for staff, the inbox being
-  one of the doors and its count riding the button that opens them.
+"""Verify N26 access rules, shared changelog pages, shell navigation, notifications and
+gang founding. Use real platform services and edition data to check their integration.
 """
 
 import json
@@ -31,8 +16,7 @@ pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
 @pytest.fixture
 def tester(client):
-    """The signed-in person these tests look at the app as: an ordinary
-    account, with no staff flag and nothing granted to it."""
+    """Authenticated ordinary user without staff permissions or grants."""
     user = User.objects.create_user("tester")
     client.force_login(user)
     return user
@@ -53,8 +37,7 @@ class TestWhoGetsIn:
         assert client.get("/n26/").status_code == 200
 
     def test_a_visitor_reaches_no_player_page(self, client, default_pack):
-        """Every page that would show somebody's gang asks for an account
-        first, whether it draws one or acts on one."""
+        """Require authentication for the dashboard, gang listing and founding form."""
         for address in (
             "/n26/",
             "/n26/gangs/",
@@ -65,9 +48,7 @@ class TestWhoGetsIn:
             assert "login" in response["Location"], address
 
     def test_the_workshop_pages_want_staff(self, tester, client, default_pack):
-        """Authoring and the component gallery are the staff's own
-        surfaces: a reader with an ordinary account browses the app and
-        neither of those."""
+
         for address in ("/n26/authoring/", "/n26/design/"):
             response = client.get(address)
             assert response.status_code == 302, address
@@ -99,11 +80,7 @@ class TestTheDashboard:
 
 
 def changelog_entry(title, *tags, body="", date="2026-08-07", owner=None):
-    """One entry in the site's changelog, wearing the tags named.
-
-    Tags are made on demand: the rows are a lookup table an admin adds
-    to, so a test asks for a name rather than for a row that exists.
-    """
+    """Create a shared changelog entry and any missing tags."""
     from gyrinx.site.models import ChangelogEntry, ChangelogEntryTag
 
     entry = ChangelogEntry.objects.create(
@@ -116,13 +93,8 @@ def changelog_entry(title, *tags, body="", date="2026-08-07", owner=None):
 
 
 class TestTheChangelogPanel:
-    """The changelog belongs to the site, and both editions' dashboards
-    read the same table — so this panel shows only what is tagged for
-    this edition.
-
-    An entry nobody tagged appears on neither dashboard. That is the
-    point of the tag: a reader here should not have to work out for
-    themselves which edition a change was about.
+    """Limit dashboard updates to entries tagged for N26, matching tags case-insensitively
+    without duplicating entries.
     """
 
     def test_it_lists_the_entries_tagged_for_this_edition(
@@ -136,7 +108,7 @@ class TestTheChangelogPanel:
         body = client.get("/n26/").content.decode()
         assert "The Trading Post opened" in body
         assert "7 Aug" in body
-        assert "<strong>TP price</strong>" in body  # rich text survives the sanitiser
+        assert "<strong>TP price</strong>" in body
 
     def test_it_leaves_out_the_other_editions_news_and_the_untagged(
         self, tester, client, default_pack
@@ -150,18 +122,16 @@ class TestTheChangelogPanel:
     def test_a_tag_spelled_in_another_case_is_the_same_tag(
         self, tester, client, default_pack
     ):
-        """Tag names are unique, but case-sensitively so — an admin can
-        make "n26" beside "N26" and would reasonably expect the entry to
-        show up here either way."""
+        """Stored tags are case-sensitive, so match equivalent names without regard to
+        case.
+        """
         changelog_entry("Written in lower case", CHANGELOG_TAG.lower())
         assert "Written in lower case" in client.get("/n26/").content.decode()
 
     def test_an_entry_wearing_two_spellings_is_still_one_entry(
         self, tester, client, default_pack
     ):
-        """Matching either spelling means an entry carrying both matches
-        the tag join twice; listed twice it would also eat two of the
-        five places the panel has."""
+        """Deduplicate join results when both case variants are attached to one entry."""
         changelog_entry("Tagged twice over", CHANGELOG_TAG, CHANGELOG_TAG.lower())
         body = client.get("/n26/").content.decode()
         assert body.count("Tagged twice over") == 1
@@ -169,8 +139,7 @@ class TestTheChangelogPanel:
     def test_it_says_there_is_nothing_rather_than_showing_a_bare_heading(
         self, tester, client, default_pack
     ):
-        """A heading with nothing under it reads as a section that
-        failed to load."""
+
         changelog_entry("Not for this edition", "N23")
         body = client.get("/n26/").content.decode()
         assert "Latest updates" in body
@@ -183,28 +152,19 @@ class TestTheChangelogPanel:
             body='<script>alert("no")</script><p>fine</p>',
         )
         body = client.get("/n26/").content.decode()
-        # The page has its own legitimate scripts; what must be gone is
-        # the entry's payload — dropped with its content, not escaped.
+        # Check the entry payload rather than removing legitimate page scripts.
         assert "alert" not in body
         assert "fine" in body
 
     def test_the_panel_costs_the_same_queries_however_many_entries_exist(
         self, tester, client, default_pack
     ):
-        """The panel is one query for the page, not one per entry. The
-        tag filter is a join rather than a lookup per row, and nothing
-        drawn from an entry reaches past its own columns.
-
-        The entries are owned, as an entry written in the admin is: an
-        ownerless row follows no owner FK however carelessly a template
-        asks for one, so a test built from ownerless rows could not see
-        the commonest way this goes wrong.
+        """Compare query growth using owned entries so accidental owner lookups remain
+        visible. Warm the session before measuring to exclude its initial write.
         """
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
-        # The first request of a session writes the session row and the
-        # rest update it, so measure only once that has happened.
         client.get("/n26/")
 
         for i in range(2):
@@ -238,11 +198,8 @@ class TestTheChangelogLinks:
 
 
 class TestTheChangelogIndex:
-    """The public index lists every live entry, whichever edition it is for.
-
-    A tag query narrows that list. The n26 home links here with the N26
-    tag already chosen, and the footer link does not, so it shows all of
-    them. The old flat page at this address is no longer what a reader gets.
+    """Show public live updates across editions and optionally filter them by tag. The
+    footer opens the unfiltered feed; the N26 dashboard supplies its tag.
     """
 
     def test_anybody_may_read_it_without_an_account(self, client, default_pack):
@@ -437,7 +394,7 @@ class TestTheChangelogIndex:
     def test_the_index_costs_the_same_queries_however_many_entries_exist(
         self, client, default_pack
     ):
-        """Tags are loaded with the entries, not once per entry."""
+        """Prefetch tags with their entries to avoid one lookup per displayed entry."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -593,12 +550,8 @@ TELEPORT = '<template x-teleport="body">'
 
 
 def nav_drawer(body):
-    """The panel behind the burger.
-
-    Alpine builds it out of a <template>, which is one inert block in
-    the response — and the only place the reader's gangs appear, so it
-    also tells the drawer's copy of the links apart from the flat copy
-    drawn for a reader with no script.
+    """Extract the teleported drawer template from the header, excluding the repeated
+    no-script navigation links.
     """
     header = body[body.index("<header") : body.index("</header>")]
     start = header.index(TELEPORT)
@@ -606,11 +559,8 @@ def nav_drawer(body):
 
 
 def without_noscript(text):
-    """``text`` with every <noscript> block cut out.
-
-    The bar's switcher draws its own scriptless strip inside the bar, so
-    "the first <noscript>" no longer names any one thing and the blocks
-    have to go before a substring search means anything.
+    """Remove all no-script blocks before comparing navigation markup, since the switcher
+    and drawer each provide a fallback.
     """
     while "<noscript>" in text:
         start = text.index("<noscript>")
@@ -620,9 +570,7 @@ def without_noscript(text):
 
 
 def nav_bar(body):
-    """The row across the top, with the drawer's panel and every
-    no-script strip cut out — all of them repeat links, so a bare
-    substring search could not tell which copy it had found."""
+    """Extract header controls without the drawer or repeated no-script links."""
     header = body[body.index("<header") : body.index("</header>")]
     start = header.index(TELEPORT)
     end = header.index("</template>", start) + len("</template>")
@@ -630,26 +578,25 @@ def nav_bar(body):
 
 
 def nav_noscript(body):
-    """The flat list of links under the bar, drawn for a reader whose
-    browser ran no script and so has no drawer to open. The last
-    <noscript> in the header: the bar's switcher carries one of its own,
-    inside the bar and so before this one."""
+    """Extract the final no-script navigation block from the header. Earlier blocks belong
+    to the switcher.
+    """
     header = body[body.index("<header") : body.index("</header>")]
     start = header.rindex("<noscript>")
     return header[start : header.index("</noscript>", start)]
 
 
 def account_menu(body):
-    """The menu behind the reader's own name, as the props the
-    account-menu island draws it from when it is opened."""
+    """Read account-menu island props from the rendered page."""
     soup = BeautifulSoup(body, "html.parser")
     host = soup.select_one('[data-react-name="account-menu"]')
     return json.loads(soup.find(id=host["data-react-props"]).string)
 
 
 def menu_rows(menu):
-    """The menu's rows as (kind, words), in the order they are drawn. A
-    group is its heading, then its own rows."""
+    """Flatten menu entries into kind-label pairs in display order, preserving group
+    headings.
+    """
     rows = []
 
     def walk(entries):
@@ -674,7 +621,9 @@ def menu_words(menu):
 
 
 def menu_entry(menu, kind, label=None):
-    """The first entry of a kind, and with a label if one is given."""
+    """Find the first menu entry matching kind and optional label, including grouped
+    entries.
+    """
 
     def walk(entries):
         for entry in entries:
@@ -689,19 +638,19 @@ def menu_entry(menu, kind, label=None):
 
 
 def account_button(body):
-    """The control that opens the account menu, on its own."""
+    """Extract the account-menu trigger button from the navigation bar."""
     bar = nav_bar(body)
     at = bar.index('aria-label="Open account menu')
     return bar[bar.rindex("<button", 0, at) : bar.index("</button>", at)]
 
 
 def reads_as(markup):
-    """What a fragment says once its tags and its indentation are gone."""
+    """Remove markup and normalise whitespace for text comparisons."""
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", markup)).strip()
 
 
 def links_in(markup):
-    """The links in a fragment, addressed by the words a reader sees."""
+    """Map visible link text to parsed anchors."""
     return {
         reads_as(str(link)): link
         for link in BeautifulSoup(markup, "html.parser").find_all("a")
@@ -709,30 +658,26 @@ def links_in(markup):
 
 
 def count_badge(markup):
-    """What the count pill in a fragment shows, or None where there is none.
-
-    The pill draws its number in a span of its own that says nothing aloud,
-    which is what tells it apart from the icons around it.
-    """
+    """Extract the count from its aria-hidden span, or None when absent."""
     found = re.findall(r'<span\s+aria-hidden="true">\s*(.*?)\s*</span>', markup)
     return found[0] if found else None
 
 
 def in_order(text, *fragments):
-    """Where each fragment first appears, for asserting a running order."""
+    """Find each fragment's first position for order assertions."""
     return [text.index(fragment) for fragment in fragments]
 
 
 def tag_filters(body):
-    """The tag filter on a changelog page, and nothing past it."""
+    """Extract only the changelog tag-filter navigation."""
     start = body.index('aria-label="Filter by tag"')
     return body[start : body.index("</nav>", start)]
 
 
 class TestTheFooterHelpColumn:
-    """The footer's Help & Documentation column lists the site's own
-    top-level pages — the same list the classic app's footer draws,
-    because docs belong to the site rather than to an edition."""
+    """Share top-level platform documentation links and their visibility rules with the
+    classic footer.
+    """
 
     @pytest.fixture
     def help_page(self, db):
@@ -765,14 +710,8 @@ class TestTheFooterHelpColumn:
 
 
 class TestTheNavigation:
-    """A bar that names the page, a drawer that holds the places, an
-    account menu that holds the doors.
-
-    The bar reads left to right as one sentence — brand, the page's own
-    name — with the controls at the far end and the burger last of all.
-    Everywhere a reader can go is behind the burger: the area's pages,
-    and their own gangs under them. Everything about the account,
-    including the staff-only doors, is behind their name.
+    """Keep page navigation in the drawer and account actions in the account menu. Verify
+    link ordering, accessible names and native fallbacks.
     """
 
     @pytest.fixture
@@ -797,9 +736,7 @@ class TestTheNavigation:
     def test_the_colour_scheme_is_behind_the_account_menu(
         self, tester, client, default_pack
     ):
-        """A scheme is chosen once and then never again, and a control in
-        the bar holds a row of space the page's own name wants on every
-        screen. Behind the name it is still one click away."""
+
         body = client.get("/n26/").content.decode()
         assert ("theme", "") in menu_rows(account_menu(body))
         assert 'aria-label="Toggle dark mode"' not in nav_bar(body)
@@ -807,20 +744,13 @@ class TestTheNavigation:
     def test_the_scheme_is_one_control_of_three_and_not_three_rows(
         self, tester, client, default_pack
     ):
-        """Three menu rows would stand level with the places the menu
-        leads to, and make the panel half as tall again on the screen
-        with the least height to give. One segmented control says the
-        same thing in a third of the space — and it is a choice of one
-        from three, so each part announces itself as a radio in a group
-        rather than as another door out of the menu."""
+        """Keep all three modes in one radio-style theme control within the menu."""
         menu = account_menu(client.get("/n26/").content.decode())
         group = menu_entry(menu, "group", "Theme")
         (theme,) = group["items"]
         assert theme["type"] == "theme"
-        # Each state still sets it: a control that renders and no longer
-        # switches looks right in every screenshot and works for nobody.
-        # ThemeChoice's own tests click each one and check that it is a
-        # group of radios; here every scheme reaches it.
+        # Component interaction tests cover radio behaviour; this integration check
+        # supplies every supported mode.
         assert [scheme for scheme, _, _ in theme["choices"]] == [
             "light",
             "dark",
@@ -828,9 +758,7 @@ class TestTheNavigation:
         ]
 
     def test_each_scheme_carries_its_own_drawing(self, tester, client, default_pack):
-        """The sun, the moon and a screen. One icon for the group could
-        only picture whichever scheme is current, and which one is
-        current is what the control is there to show."""
+
         menu = account_menu(client.get("/n26/").content.decode())
         theme = menu_entry(menu, "theme")
         assert [icon for _, _, icon in theme["choices"]] == ["sun", "moon", "monitor"]
@@ -848,22 +776,19 @@ class TestTheNavigation:
             "Help",
         )
         assert positions == sorted(positions)
-        # Founding is an action with a button on both pages, not a place.
+
         assert "Create a gang" not in links_in(drawer)
 
     def test_help_leads_to_the_guides_for_this_edition(
         self, tester, client, default_pack
     ):
-        """Each edition has its own guides, and the drawer is where the app
-        says where this one's are."""
+
         drawer = nav_drawer(client.get("/n26/").content.decode())
         assert 'href="/help/n26/"' in drawer
         assert "Help" in drawer
 
     def test_the_bar_carries_help_as_an_icon(self, tester, client, default_pack):
-        """An icon beside the edition pill, named for a screen reader —
-        and absent from narrow screens, where the drawer's worded entry
-        is the way in."""
+
         import re
 
         body = client.get("/n26/").content.decode()
@@ -872,8 +797,7 @@ class TestTheNavigation:
         assert 'href="/help/n26/"' in icon.group()
 
     def test_a_place_with_no_page_yet_is_not_a_link(self, tester, client, default_pack):
-        """Content Packs is coming and is worth naming, but a link that
-        lands nowhere teaches a reader to distrust the rest of the list."""
+        """Display Content Packs as text while it has no destination."""
         drawer = nav_drawer(client.get("/n26/").content.decode())
         labels = links_in(drawer)
         assert "Campaigns" in labels
@@ -883,9 +807,7 @@ class TestTheNavigation:
     def test_the_drawer_lists_the_readers_own_gangs(
         self, tester, client, default_pack, gang_type, make_profile
     ):
-        """Under the places, because a gang is what someone opens the
-        drawer for. With the type, which is how a player tells two of
-        their own apart."""
+
         from n26.tests.sandbox.actions import found_gang
 
         gang = found_gang("The Bad Girls", gang_type, owner=tester)
@@ -904,10 +826,9 @@ class TestTheNavigation:
     def test_a_gangs_colour_is_a_mark_beside_its_name(
         self, tester, client, default_pack, gang_type, make_profile
     ):
-        """The colour reaches the markup as the palette's variable in a
-        style attribute. A class built from the colour's name is a string
-        Tailwind never sees and never emits, so it would have styled
-        nothing at all."""
+        """Use the palette variable directly because Tailwind cannot discover a dynamically
+        constructed colour class.
+        """
         from n26.tests.sandbox.actions import found_gang
 
         gang = found_gang("The Bad Girls", gang_type, owner=tester)
@@ -920,9 +841,7 @@ class TestTheNavigation:
     def test_a_gang_with_no_colour_gets_no_mark(
         self, tester, client, default_pack, gang_type, make_profile
     ):
-        """Nothing is drawn and no space is held: most gangs have no
-        colour, and a placeholder on every row is a gutter with nothing
-        in it."""
+
         from n26.tests.sandbox.actions import found_gang
 
         found_gang("The Bad Girls", gang_type, owner=tester)
@@ -949,16 +868,14 @@ class TestTheNavigation:
     def test_a_reader_with_no_gangs_is_shown_no_heading_for_them(
         self, tester, client, default_pack
     ):
-        """The section is drawn only when something is in it: an empty
-        "Your gangs" reads as a list that failed to load."""
+
         drawer = nav_drawer(client.get("/n26/").content.decode())
         assert "Your gangs" not in drawer
 
     def test_a_visitor_has_no_gangs_to_list(self, rf, default_pack):
-        """Signed out there is nothing to put in the section, so the
-        drawer draws neither the heading nor the rule above it. A player
-        page turns an anonymous visitor away before it renders, so the
-        claim is made where it is decided."""
+        """Check the template tag directly because anonymous dashboard requests redirect
+        before the drawer renders.
+        """
         from django.contrib.auth.models import AnonymousUser
 
         from n26.core.templatetags.navigation import drawer_gangs
@@ -970,9 +887,9 @@ class TestTheNavigation:
     def test_the_links_are_there_for_a_reader_with_no_script(
         self, tester, client, default_pack
     ):
-        """The drawer is Alpine's and lives in a <template> that never
-        runs without script, so the same links are drawn flat under the
-        bar as well."""
+        """The teleported drawer template cannot render without JavaScript, so preserve a
+        native list of the same links.
+        """
         strip = nav_noscript(client.get("/n26/").content.decode())
         positions = in_order(reads_as(strip), "Home", "Gangs")
         assert positions == sorted(positions)
@@ -994,29 +911,23 @@ class TestTheNavigation:
             )
         ]
         assert positions == sorted(positions)
-        # Two rules: one under the name at the top, one over the way out.
-        # The staff doors have a heading instead.
+        # Separate the account name and sign-out entry without adding a separator for
+        # the staff heading.
         assert [kind for kind, _ in rows].count("separator") == 2
 
     def test_the_menu_says_who_you_are_signed_in_as(self, staff, client, default_pack):
-        """The bar's own button drops the name on a phone, where the width
-        belongs to the page, and this is where it goes instead — otherwise
-        there is nowhere on a narrow screen that answers which account you
-        are using. The badge is the account's own, from the platform's
-        registry, so this edition never guesses what someone's mark means."""
+        """Keep the signed-in account name inside the menu when the narrow navigation bar
+        hides its label.
+        """
         rows = menu_rows(account_menu(client.get("/n26/").content.decode()))
-        # A line rather than an item: the door to the account page is
-        # directly below it, and a name that led to the same place would be
-        # two doors to one room.
+        # Keep the name display separate from the account navigation entry.
         assert rows[0] == ("person", "boss")
         assert rows.index(("link", "Your account")) > 0
 
     def test_your_account_goes_to_the_page_that_is_actually_there(
         self, staff, client, default_pack
     ):
-        """The account page is the site's, shared by both editions, and
-        it is named rather than spelled out — a hand-written path can be
-        wrong for as long as nobody clicks it."""
+        """Resolve the shared account route and verify that following it succeeds."""
         from django.urls import reverse
 
         menu = account_menu(client.get("/n26/").content.decode())
@@ -1026,9 +937,7 @@ class TestTheNavigation:
         assert client.get(reverse("core:account_home")).status_code == 200
 
     def test_the_staff_doors_say_they_are_staff_only(self, staff, client, default_pack):
-        """A heading over them, so someone who has these doors knows at
-        a glance which of their menu the person beside them does not
-        have. The kit uppercases it, so the label is written as prose."""
+
         menu = account_menu(client.get("/n26/").content.decode())
         staff = menu_entry(menu, "group", "Staff only")
         assert [entry["label"] for entry in staff["items"]][:1] == ["Admin"]
@@ -1036,25 +945,19 @@ class TestTheNavigation:
     def test_nobody_else_is_shown_a_door_they_cannot_open(
         self, tester, client, default_pack
     ):
-        """A reader who is not staff is refused by both pages anyway, so
-        an item they can only bounce off is noise — and the heading over
-        those two goes with them, rather than labelling nothing."""
+        """Omit both staff-only entries and their group heading for ordinary users."""
         rows = menu_rows(account_menu(client.get("/n26/").content.decode()))
         words = [words for _, words in rows]
         assert "Admin" not in words
         assert "Content library" not in words
         assert "Staff only" not in words
-        # The name's rule and the way out's, and no third one left behind by
-        # the section they do not have.
+
         assert [kind for kind, _ in rows].count("separator") == 2
 
     def test_the_drawer_is_the_same_list_wherever_you_are(
         self, staff, client, default_pack
     ):
-        """One drawer, on both sides of the app. An author standing in the
-        content library reaches a gang by its own name rather than by a link
-        called "App", and does not have to know which half of the app they
-        are in to know what the burger will give them."""
+        """Use the same navigation destinations on authoring and player pages."""
         drawer = nav_drawer(client.get("/n26/authoring/").content.decode())
         positions = in_order(
             reads_as(drawer),
@@ -1072,22 +975,17 @@ class TestTheNavigation:
     def test_the_authoring_pages_are_a_section_of_their_own(
         self, staff, client, default_pack
     ):
-        """Grouped under a heading rather than mixed in with the places
-        everyone has: writing content is something a handful of accounts do,
-        and four more unlabelled rows would read as four more places."""
+
         drawer = nav_drawer(client.get("/n26/").content.decode())
         assert "Authoring" in drawer
-        # Named for what is in it. "Staff only" is the account menu's group,
-        # and one name over two differently-populated sections is worse than
-        # two names.
+        # Use Authoring for drawer pages, distinct from the account menu's Staff only
+        # group.
         assert "Staff only" not in drawer
 
     def test_nobody_else_sees_the_authoring_section_or_its_rule(
         self, tester, client, default_pack
     ):
-        """A reader who is not staff is turned away by those pages anyway.
-        The heading goes with them, and so does the rule above it — a
-        section draws its own break, so an absent one leaves no line."""
+
         drawer = nav_drawer(client.get("/n26/").content.decode())
         assert "Authoring" not in drawer
         assert "Modifiers" not in reads_as(drawer)
@@ -1095,9 +993,9 @@ class TestTheNavigation:
     def test_the_drawer_marks_the_page_on_either_side(
         self, staff, client, default_pack
     ):
-        """The current page is a state rather than a destination and takes
-        the accent, and it has to keep doing that now one list covers both
-        areas."""
+        """Mark current destinations through aria-current in both player and authoring
+        navigation.
+        """
 
         app = links_in(nav_drawer(client.get("/n26/").content.decode()))["Home"]
         assert app.get("aria-current") == "page"
@@ -1110,11 +1008,9 @@ class TestTheNavigation:
     def test_a_screen_inside_a_gang_marks_gangs(
         self, tester, client, default_pack, gang_type
     ):
-        """A gang's own screens have no drawer item of their own, so they
-        take the one they were reached through — the same rule the
-        authoring pages follow. Marking nothing reads as a page that
-        belongs nowhere, which is worse than marking the list it came
-        from."""
+        """Gang detail pages use the parent Gangs destination as their current navigation
+        entry.
+        """
         from n26.tests.sandbox.actions import found_gang
 
         gang = found_gang("The Bad Girls", gang_type, owner=tester, budget=500)
@@ -1125,19 +1021,16 @@ class TestTheNavigation:
     def test_the_authoring_pages_are_in_the_scriptless_strip_too(
         self, staff, client, default_pack
     ):
-        """Alpine builds the drawer out of a template that never runs, and
-        the account menu is a React island — so with no script the strip
-        under the bar is the only way to these pages."""
+        """Preserve access to authoring pages when neither the Alpine drawer nor React
+        account menu mounts.
+        """
         strip = nav_noscript(client.get("/n26/").content.decode())
         assert "Modifiers" in links_in(strip)
 
     def test_the_drawer_costs_an_authoring_page_no_extra_query(
         self, staff, client, default_pack, gang_type, make_profile
     ):
-        """The reader's gangs are one first-page read for the whole page. The
-        authoring pages draw the same drawer as everything else now, so the
-        thing to check is that it is still one read and not one per
-        section."""
+        """Load the user's first page of gangs once for the complete authoring page."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -1160,20 +1053,19 @@ class TestTheNavigation:
     def test_a_page_names_itself_in_the_bar_and_keeps_its_links(
         self, staff, client, default_pack
     ):
-        """The name and the links no longer compete for the same space,
-        so a page setting one keeps the other."""
+
         body = client.get("/n26/authoring/modifiers/").content.decode()
         assert "Modifiers" in nav_bar(body)
         assert "Foundations" in links_in(nav_drawer(body))
 
 
 class TestTheAccountMenuAcrossShells:
-    """One island draws the account menu wherever the bar appears; each
-    page's shell decides what is in it."""
+    """Share account-menu rendering while allowing each shell to supply its own entries."""
 
     def test_the_account_pages_keep_their_shorter_menu(self, client, default_pack):
-        """The platform's own pages carry no name line and no staff
-        group: Admin is a row of its own and Sign out follows it."""
+        """Platform account pages supply their own entry ordering without an account-name
+        entry or staff group.
+        """
         from django.urls import reverse
 
         client.force_login(User.objects.create_user("boss", is_staff=True))
@@ -1195,19 +1087,12 @@ class TestTheAccountMenuAcrossShells:
 
 
 class TestTheInbox:
-    """One inbox serves both editions — a battle in the classic app and a
-    gang here write to the same place — so the entry is the site's page
-    rather than one of this edition's, and it sits in the account menu
-    under the account it belongs to.
-
-    What is waiting is said twice, because the menu is shut most of the
-    time: a count on the corner of the button that opens it, and the same
-    number in the words of the entry behind it.
+    """Link to the shared inbox and reflect the same unread count in the account button and
+    menu entry.
     """
 
     def unread(self, recipient, count):
-        """Notifications waiting for someone. Written straight rather than
-        through the platform's notify(), which is one insert per row."""
+        """Bulk-create unread notifications without individual notify calls."""
         from gyrinx.site.models import Notification
 
         Notification.objects.bulk_create(
@@ -1227,20 +1112,19 @@ class TestTheInbox:
     def test_the_entry_wears_the_same_pill_as_the_button(
         self, tester, client, default_pack
     ):
-        """The mark seen from outside the menu is the mark found inside it,
-        so the two are one component rather than a badge and a bracketed
-        number that only happen to agree."""
+        """Supply the same count to the trigger fallback and the menu's shared CountBadge
+        component.
+        """
         self.unread(tester, 2)
         body = client.get("/n26/").content.decode()
         menu, button = account_menu(body), account_button(body)
-        # The island draws both pills with one CountBadge, from these.
+
         assert menu_entry(menu, "link", "Notifications")["count"] == 2
         assert menu["unread"] == 2
         assert count_badge(button) == "2"
 
     def test_the_entry_says_what_the_number_means(self, tester, client, default_pack):
-        """Unlike the button's, this pill is in a line that is read out as it
-        stands — a bare "2" after the word is not an answer."""
+        """Provide an accessible count label rather than an unexplained number."""
         self.unread(tester, 2)
         entry = menu_entry(
             account_menu(client.get("/n26/").content.decode()),
@@ -1252,19 +1136,16 @@ class TestTheInbox:
     def test_the_button_wears_the_count_on_its_corner(
         self, tester, client, default_pack
     ):
-        """The menu is shut most of the time, so the count has to be on
-        the outside of it. It is folded into the button's accessible name
-        as well: aria-label replaces everything inside a control, so a
-        badge in there is announced to nobody."""
+        """Include unread state in the trigger's aria-label because it overrides the
+        accessible text of its children.
+        """
         self.unread(tester, 2)
         button = account_button(client.get("/n26/").content.decode())
         assert reads_as(button) == "tester 2"
         assert 'aria-label="Open account menu — 2 unread notifications"' in button
 
     def test_an_empty_inbox_says_nothing_at_all(self, tester, client, default_pack):
-        """A pill on the button and a pill in the menu, both saying none, are
-        two marks for having nothing — worse than silence. The entry itself
-        stays: the inbox is still where a reader goes to look."""
+        """Omit zero-count badges while retaining the inbox link."""
         body = client.get("/n26/").content.decode()
         assert reads_as(account_button(body)) == "tester"
         assert "unread notifications" not in account_button(body)
@@ -1273,13 +1154,13 @@ class TestTheInbox:
         assert menu_entry(menu, "link", "Notifications")["count"] == 0
 
     def test_a_crowded_inbox_stops_counting(self, tester, client, default_pack):
-        """Three digits would push the pill across the burger beside it."""
+        """Cap the visible count while preserving the full accessible number."""
         self.unread(tester, 120)
         body = client.get("/n26/").content.decode()
         button = account_button(body)
         assert reads_as(button) == "tester 99+"
-        # Read aloud, both still say the real number — they have the room.
-        # AccountMenu.test.tsx checks the menu row's 99+.
+        # Keep full accessible counts despite the visual cap; component tests check the
+        # menu's visible 99+.
         assert 'aria-label="Open account menu — 120 unread notifications"' in button
         assert menu_entry(account_menu(body), "link", "Notifications")["count"] == 120
 
@@ -1292,8 +1173,7 @@ class TestTheInbox:
     def test_one_is_a_notification_not_notifications(
         self, tester, client, default_pack
     ):
-        """Read aloud, a count of one takes the singular, on the button and
-        against the entry."""
+
         self.unread(tester, 1)
         body = client.get("/n26/").content.decode()
         assert 'aria-label="Open account menu — 1 unread notification"' in (
@@ -1306,26 +1186,24 @@ class TestTheInbox:
 
 
 class TestTheEditionToggle:
-    """One pill in each edition's bar: the segment you are in filled, the
-    other a plain link to the other edition's front page. Drawn for
-    anyone signed in — both editions are theirs — and for nobody else,
-    since a visitor clicking the far half would only meet a sign-in
-    page."""
+    """Show signed-in users their current edition and a link to the other edition's
+    dashboard.
+    """
 
     def test_the_n26_bar_offers_the_way_back(self, tester, client, default_pack):
         bar = nav_bar(client.get("/n26/").content.decode())
         assert 'aria-label="Edition"' in bar
         assert 'title="Go to the classic app"' in bar
-        # The segment you are in is a fact, said as one.
+
         assert 'title="You are in the N26 preview"' in bar
 
     def test_the_way_back_says_the_reader_means_it(self, tester, client, default_pack):
-        """The classic app's front page is the site root, and the site
-        sends a reader last seen here back to here from the root. A bare
-        link to it would be a way out that returns."""
+        """Override the remembered N26 preference when linking to the classic root;
+        otherwise middleware redirects back to N26.
+        """
         bar = nav_bar(client.get("/n26/").content.decode())
         assert 'href="/?edition=n23"' in bar
-        # And following it lands on the classic app, at the plain root.
+
         response = client.get("/?edition=n23", follow=True)
         assert response.status_code == 200
         assert response.redirect_chain[-1][0] == "/"
@@ -1340,8 +1218,7 @@ class TestTheEditionToggle:
         assert positions == sorted(positions)
 
     def test_the_classic_bar_offers_the_other_edition(self, tester, client):
-        """An ordinary account, with nothing granted to it, sees the way
-        across from the classic side."""
+
         body = client.get("/").content.decode()
         assert 'aria-label="Edition"' in body
         assert 'title="Go to the N26 preview"' in body
@@ -1356,25 +1233,17 @@ class TestTheEditionToggle:
 
 
 def announcement_bar(body):
-    """The site announcement's own markup, cut out of a rendered page.
-
-    The closing tag is searched for from the bar's start rather than
-    from the top of the document: an <aside> anywhere above it would
-    otherwise invert the slice into an empty string, and every "not in
-    the bar" assertion below would hold for the wrong reason.
+    """Extract the announcement from its start to the following closing aside tag. Starting
+    the closing-tag search earlier could produce an empty slice and vacuous absence
+    assertions.
     """
     start = body.index("n26-announcement")
     return body[start : body.index("</aside>", start)]
 
 
 class TestTheSiteBanner:
-    """The platform's banner, drawn in this edition's terms.
-
-    Banner is platform-owned and shown by every edition, so it stores an
-    icon *meaning* rather than a drawing, and each edition resolves that
-    meaning in its own set. The colour is still Bootstrap's vocabulary,
-    which n26 does not share, so the shell maps it onto the
-    announcement's five tones.
+    """Resolve shared semantic icon keys and Bootstrap colour values into N26 announcement
+    components.
     """
 
     @pytest.fixture
@@ -1391,9 +1260,9 @@ class TestTheSiteBanner:
     def test_a_key_is_drawn_from_this_editions_own_set(
         self, tester, client, default_pack, live_banner
     ):
-        """Info's default icon is info, so asking for
-        success against an info bar proves the key was resolved rather
-        than the tone's fallback being used."""
+        """Choose an icon differing from the tone's default so fallback rendering cannot
+        satisfy the assertion.
+        """
         from n26.core import icons
 
         live_banner(icon="success", colour="info")
@@ -1405,16 +1274,8 @@ class TestTheSiteBanner:
     def test_a_key_with_no_drawing_here_is_not_fatal(
         self, tester, client, default_pack, live_banner
     ):
-        """The regression that started this. A live banner set to
-        bi-blockquote-left took every page under /n26/ down with a
-        KeyError out of the icon registry, which raises on a name it
-        does not have — right for a name a template author wrote, fatal
-        for one that arrived from a database column.
-
-        The select box makes such a value unlikely rather than
-        impossible: a row written before the choices existed, a key
-        retired from the table, a banner restored from history. None of
-        those is worth a 500, so the lookup stays total.
+        """Unknown stored icon keys must not prevent page rendering, even when written
+        outside the current choices.
         """
         live_banner(icon="bi-blockquote-left", colour="primary")
 
@@ -1425,9 +1286,7 @@ class TestTheSiteBanner:
     def test_an_unresolved_key_leaves_the_icon_the_tone_implies(
         self, tester, client, default_pack, live_banner
     ):
-        """Not "no icon": the bar's colour and its icon say the same
-        thing, and a coloured bar with nothing in it reads as a mistake.
-        """
+
         from n26.core import icons
 
         live_banner(icon="nonsense", colour="danger")
@@ -1438,10 +1297,7 @@ class TestTheSiteBanner:
     def test_a_bootstrap_colour_becomes_an_announcement_tone(
         self, tester, client, default_pack, live_banner
     ):
-        """primary is not one of the five tones. Left untranslated it
-        rendered data-tone="primary", which no rule matches, so the bar
-        silently kept the default blue — right by luck, and wrong the
-        moment the colour was secondary or dark."""
+        """Translate Bootstrap colour values before setting the announcement tone."""
         from django.urls import reverse
 
         live_banner(colour="primary")
@@ -1463,15 +1319,8 @@ class TestTheSiteBanner:
     def test_the_bar_says_only_what_the_bar_was_given(
         self, tester, client, default_pack, gang_type, make_profile, live_banner
     ):
-        """A reader on a fighter's skills screen saw the banner's message,
-        its link, and then a bare web address printed after them.
-
-        The banner takes a slot for a control that a link cannot express —
-        a form that posts. The slot was drawn but never declared, and an
-        undeclared slot is not empty when nobody fills it: it resolves to
-        whatever the page underneath happens to hold under that name. The
-        skills screen holds the address its own form posts to, and the bar
-        is on every screen, so the bar printed it.
+        """Declare the optional action slot so an unrelated page context variable cannot
+        become banner content.
         """
         from django.urls import reverse
 
@@ -1488,8 +1337,7 @@ class TestTheSiteBanner:
             targets_model,
         )
 
-        # The smallest grid that opens a skills screen: one set, placed
-        # into one tier by something the fighter carries.
+        # Provide one placed skill set so the skills page can render.
         agility = create_category("Skills", "Agility")
         create_skill("Catfall", category=agility)
         collection = create_collection("Skills", contains=[Skill])
@@ -1507,8 +1355,7 @@ class TestTheSiteBanner:
         skills_url = reverse("n26-skills", args=[fighter.pk])
         body = client.get(skills_url).content.decode()
 
-        # The page is the one that holds an `action`, and its form still
-        # posts there — the address belongs in the form, not in the bar.
+        # Keep the page action URL on its form and out of the announcement slot.
         assert f'action="{skills_url}' in body
         bar = announcement_bar(body)
         assert "N26 support is coming." in bar
@@ -1517,19 +1364,8 @@ class TestTheSiteBanner:
     def test_closing_the_bar_is_remembered(
         self, tester, client, default_pack, live_banner
     ):
-        """A reader closed the bar, it went away, and it was back on the
-        next page they opened.
-
-        The component hides itself and stops there on purpose: where a
-        dismissal is remembered is the application's decision, not the
-        bar's, and the shell has to say. It says the session key the
-        site's own context processor reads before it hands the shell a
-        banner at all, so a bar closed in either edition stays closed in
-        both.
-
-        The close button posts from the island rather than a form, so
-        the request under test is read out of the page and made here —
-        a shell that says nothing has nothing to read.
+        """Post the rendered dismissal endpoint and banner ID, then verify that the shared
+        session state hides it on the next page.
         """
         import json
         import re
@@ -1543,8 +1379,7 @@ class TestTheSiteBanner:
 
         dismiss_url = reverse("core:dismiss-banner")
         assert dismiss_url in body
-        # The id the island posts, not merely the one in the wrapper's
-        # own id attribute.
+        # Check the ID posted by dismissal, not just the banner wrapper ID.
         assert re.search(
             rf"{re.escape(dismiss_url)}.*{re.escape(str(banner.id))}", body, re.S
         )
@@ -1561,15 +1396,8 @@ class TestTheSiteBanner:
     def test_the_call_to_action_is_counted(
         self, tester, client, default_pack, live_banner
     ):
-        """A banner advertising something reported no interest from this
-        edition at all, however many readers followed it.
-
-        The bar's button pointed at the banner's own address, so the
-        click went straight there and the site counted nothing. It goes
-        by way of the platform's tracker instead, which records the click
-        against the banner and then sends the reader on. The count is the
-        site's — one banner is shown above both editions, and a click on
-        it is a click on it.
+        """Route the banner link through the platform tracker, preserving its destination
+        while recording the click.
         """
         from django.urls import reverse
 
@@ -1584,7 +1412,6 @@ class TestTheSiteBanner:
         assert f'href="{tracked}"' in bar
         assert 'href="https://example.com"' not in bar
 
-        # Following it still arrives where the banner said it would.
         followed = client.get(tracked)
         assert followed.status_code == 302
         assert followed.url == "https://example.com"
@@ -1598,10 +1425,8 @@ class TestTheSiteBanner:
     def test_a_banner_with_nowhere_to_go_draws_no_button(
         self, tester, client, default_pack, live_banner
     ):
-        """The tracker sends a banner holding no address of its own to the
-        site's home, so a bar handed a tracker link regardless would offer
-        a button leading out of the edition to a page the banner never
-        named.
+        """Do not create a tracker link for an empty destination, whose tracker fallback
+        would lead to the site home.
         """
         live_banner(cta_text="Read the notes", cta_url="")
 
@@ -1613,10 +1438,8 @@ class TestTheSiteBanner:
     def test_an_impersonation_notice_keeps_its_stop_form(
         self, client, tester, default_pack
     ):
-        """The notice is not a plain sentence. It names who is signed in,
-        and the only way out is a form that posts. Both have to survive
-        in the bar itself: a dismiss control that redraws the bar from a
-        text prop would print the tags and drop the form.
+        """Preserve the native stop form and account-name markup inside the impersonation
+        notice.
         """
         from django.contrib.auth.models import User
         from django.urls import reverse
@@ -1630,7 +1453,8 @@ class TestTheSiteBanner:
         assert started.status_code == 302
 
         body = client.get("/n26/").content.decode()
-        # id sits on the aside, ahead of the class the slice starts at.
+        # The announcement extractor starts after the aside ID, so check that ID
+        # separately.
         assert 'id="impersonation-banner"' in body
         bar = announcement_bar(body)
         assert f"<strong>{tester.username}</strong>" in bar
@@ -1641,9 +1465,9 @@ class TestTheSiteBanner:
 
 
 class TestTheSharedIconKeys:
-    """gyrinx/site/icons.py names an n26 icon for every key, as a string,
-    because the platform may not import an edition package. Nothing but
-    this test keeps that column honest."""
+    """Validate platform-declared N26 icon strings without importing edition code into the
+    platform registry.
+    """
 
     def test_every_key_names_an_icon_this_edition_actually_has(self):
         from gyrinx.site import icons as banner_icons
@@ -1671,15 +1495,12 @@ class TestFoundingAGang:
         body = client.get("/n26/gangs/new/").content.decode()
         assert "Create a gang" in body
         assert "Leave blank to spend as much as you like." in body
-        assert str(gang_type) in body  # the library's rows, not a fixture list
+        assert str(gang_type) in body
 
     def test_the_shell_carries_the_platform_brand_and_measure(
         self, tester, client, default_pack
     ):
-        """The nav draws the platform's own logo from the platform's
-        static tree, and the page states its width variable rather than
-        leaning on the fallback — capped to match bootstrap's widest
-        container so an n26 page reads as the same site."""
+        """Use the shared logo and explicit container width matching the platform layout."""
         body = client.get("/n26/").content.decode()
         assert "platform/img/brand/logo-gold-transparent-bg.svg" in body
         assert "--n26-site-width: 1320px" in body
@@ -1701,14 +1522,14 @@ class TestFoundingAGang:
         assert response.status_code == 302
 
         gang = Gang.objects.get(name="The Bad Girls")
-        # Straight to the new gang's own sheet, where hiring is one click.
+
         assert response["Location"] == f"/n26/gangs/{gang.pk}/"
         assert gang.owner == tester
         assert gang.gang_type == gang_type
         assert gang.starting_credits == 1000
         assert gang.credits == 1000
         assert gang.colour == "red"
-        # Founding is real: the gang-hosted assignment naming its type.
+        # Verify the gang-hosted founding assignment.
         assert gang.founding is not None
         assert gang.founding.assignable == gang_type
 
@@ -1750,6 +1571,6 @@ class TestTheFoundationsBackfill:
         assert all(item.status() == "complete" for item in STANDARD_CONTENT.values())
         assert GangType.objects.count() == 17
 
-        call_command("n26_backfill_foundations")  # a second run changes nothing
+        call_command("n26_backfill_foundations")
         assert GangType.objects.count() == 17
         assert Skill.objects.filter(name="Catfall").count() == 1
