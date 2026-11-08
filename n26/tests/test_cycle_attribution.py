@@ -292,7 +292,8 @@ class TestBattleWorkflowAdapters:
             for c in response.json()["choices"]
             if c["value"] == ref_data(selected.ref)
         )
-        assert saved.cycle.name in choice["label"] and "Saved" in choice["label"]
+        assert choice["name"] == saved.cycle.name
+        assert "Saved" not in choice["label"]
         assert "already saved" in choice["hint"]
         assert CampaignCycle.objects.count() == count
         foreign = {
@@ -564,7 +565,44 @@ def test_cycle_choice_reads_remain_bounded_as_saved_history_grows(table):
     selected = {"cycle_id": table.state.current_cycle_id}
     second = options(table.campaign, page=2, selected=selected)
     assert second["choices"][0]["value"] == selected
-    assert len(second["choices"]) == 24
+    assert len(second["choices"]) == 25
+    assert {1, 2}.issubset({choice["order"] for choice in second["choices"]})
+    fiftieth = table.campaign.cycles.get(order=50)
+    boundary = options(table.campaign, selected={"cycle_id": str(fiftieth.pk)})
+    assert {49, 50, 51}.issubset({choice["order"] for choice in boundary["choices"]})
+    future = options(
+        table.campaign, selected={"plan_id": str(state.plan.id), "index": 75}
+    )
+    target_order = state.plan.starts_after_order + 76
+    assert {target_order - 1, target_order, target_order + 1}.issubset(
+        {choice["order"] for choice in future["choices"]}
+    )
+
+
+def test_cycle_navigation_shows_recorded_dates_without_storage_status_labels(table):
+    from n26.core.cycle_selection import options
+
+    cycles.edit_cycle(
+        table.campaign,
+        actor=table.owner,
+        target=s.SavedCycleRef(table.state.current_cycle_id),
+        details=s.CycleDetails(
+            table.state.current.details.phase_id,
+            starts_on=date(2026, 11, 2),
+            ends_on=date(2026, 11, 8),
+        ),
+        expected_revision=table.state.revision,
+        request_key=uuid4(),
+    )
+    data = options(table.campaign)
+    current = next(choice for choice in data["choices"] if choice["isCurrent"])
+    assert current["startsOn"] == "2026-11-02" and current["endsOn"] == "2026-11-08"
+    assert data["currentValue"] == current["value"]
+    assert all(
+        word not in choice["label"]
+        for choice in data["choices"]
+        for word in ("Past", "Saved", "Projected")
+    )
 
 
 @pytest.mark.parametrize("value", ["false", "[]", "{}", "0"])

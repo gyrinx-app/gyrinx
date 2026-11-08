@@ -34,17 +34,51 @@ const props: BattleEditorProps = {
     cycles: {
         configured: true,
         current: "Cycle 1",
+        currentValue: { cycle_id: "one" },
+        lastOrder: 4,
         previous: null,
         next: null,
         choices: [
             {
                 value: { cycle_id: "one" },
+                order: 1,
+                name: "Cycle 1",
+                phase: "Occupation",
+                startsOn: "2026-11-02",
+                endsOn: "2026-11-08",
                 label: "Cycle 1 · Occupation · Current",
                 hint: "",
                 isCurrent: true,
             },
             {
+                value: { cycle_id: "two" },
+                order: 2,
+                name: "Cycle 2",
+                phase: "Occupation",
+                startsOn: "2026-11-09",
+                endsOn: "2026-11-15",
+                label: "Cycle 2",
+                hint: "",
+                isCurrent: false,
+            },
+            {
+                value: { cycle_id: "three" },
+                order: 3,
+                name: "Cycle 3",
+                phase: "Occupation",
+                startsOn: null,
+                endsOn: null,
+                label: "Cycle 3",
+                hint: "",
+                isCurrent: false,
+            },
+            {
                 value: { plan_id: "plan", index: 3 },
+                order: 4,
+                name: "Cycle 4",
+                phase: "Downtime",
+                startsOn: "2026-11-23",
+                endsOn: "2026-11-29",
                 label: "Cycle 4 · Downtime · Projected",
                 hint: "Saving this battle also saves Cycle 2 through Cycle 4. The current cycle remains Cycle 1.",
                 isCurrent: false,
@@ -84,7 +118,7 @@ afterEach(() => {
 });
 
 test("recovered projection remains visibly selected after materialisation and retries its original payload", async () => {
-    const retained = props.cycles!.choices[1];
+    const retained = props.cycles!.choices[3];
     const resolved = {
         ...props.cycles!,
         choices: [
@@ -102,10 +136,10 @@ test("recovered projection remains visibly selected after materialisation and re
         .mockResolvedValueOnce(json({ nextUrl: "/battle/" }));
     vi.stubGlobal("fetch", fetch);
     const first = render(<BattleEditor {...props} />);
-    await userEvent.selectOptions(
-        screen.getByRole("combobox", { name: "Campaign cycle" }),
-        '{"plan_id":"plan","index":3}',
-    );
+    for (let i = 0; i < 3; i++)
+        await userEvent.click(
+            screen.getByRole("button", { name: "Next cycle" }),
+        );
     await userEvent.click(
         screen.getByRole("button", { name: "Record battle" }),
     );
@@ -122,6 +156,7 @@ test("recovered projection remains visibly selected after materialisation and re
                 choices: [
                     props.cycles!.choices[0],
                     {
+                        ...retained,
                         value: { cycle_id: "four" },
                         label: "Cycle 4 · Downtime · Saved future",
                         hint: "",
@@ -132,10 +167,7 @@ test("recovered projection remains visibly selected after materialisation and re
         />,
     );
     await screen.findByText("This cycle is already saved.");
-    const selected = screen.getByRole("combobox", {
-        name: "Campaign cycle",
-    }) as HTMLSelectElement;
-    expect(selected.selectedOptions[0]?.textContent).toContain("Cycle 4");
+    expect(screen.getByText("Cycle 4")).toBeTruthy();
     expect(fetch.mock.calls[1][0]).toContain("selected=");
     await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
     const retried = new URLSearchParams(fetch.mock.calls[2][1].body);
@@ -171,6 +203,38 @@ test("archived recovery permits exact retry while fresh archived edits stay disa
     ).toBe(true);
 });
 
+test("saving waits for an adjacent-cycle read to settle", async () => {
+    let finish!: (response: unknown) => void;
+    vi.stubGlobal(
+        "fetch",
+        vi.fn().mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    finish = resolve;
+                }),
+        ),
+    );
+    render(
+        <BattleEditor
+            {...props}
+            cycles={{
+                ...props.cycles!,
+                choices: [props.cycles!.choices[0], props.cycles!.choices[3]],
+            }}
+        />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Next cycle" }));
+    expect(
+        screen.getByRole("button", { name: "Record battle" }),
+    ).toHaveProperty("disabled", true);
+    expect(screen.getByText("Cycle 1")).toBeTruthy();
+    await act(async () => finish(json(props.cycles)));
+    expect(await screen.findByText("Cycle 2")).toBeTruthy();
+    expect(
+        screen.getByRole("button", { name: "Record battle" }),
+    ).toHaveProperty("disabled", false);
+});
+
 test("records participant identities and an explicitly selected projected cycle", async () => {
     const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/battle/" }));
     vi.stubGlobal("fetch", fetch);
@@ -182,16 +246,18 @@ test("records participant identities and an explicitly selected projected cycle"
     await userEvent.click(
         screen.getByRole("checkbox", { name: "Dust Riders" }),
     );
-    await userEvent.selectOptions(
-        screen.getByRole("combobox", { name: "Campaign cycle" }),
-        '{"plan_id":"plan","index":3}',
-    );
+    for (let i = 0; i < 3; i++)
+        await userEvent.click(
+            screen.getByRole("button", { name: "Next cycle" }),
+        );
     expect(
         screen.getByText(
             /Saving this battle also saves Cycle 2 through Cycle 4/,
         ),
     ).toBeTruthy();
-    expect(screen.getByText(/selected cycle differs/)).toBeTruthy();
+    expect(
+        screen.getByRole("button", { name: /Use current cycle/ }),
+    ).toBeTruthy();
     await userEvent.click(
         screen.getByRole("button", { name: "Record battle" }),
     );
@@ -356,9 +422,7 @@ test("flag-off props render the legacy fields without cycle selection", () => {
             cycleOptionsHref=""
         />,
     );
-    expect(
-        screen.queryByRole("combobox", { name: "Campaign cycle" }),
-    ).toBeNull();
+    expect(screen.queryByRole("group", { name: "Campaign cycle" })).toBeNull();
     expect(screen.getByRole("checkbox", { name: "Ash Walkers" })).toBeTruthy();
 });
 

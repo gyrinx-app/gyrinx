@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fieldErrors } from "../../http/command";
+import { CycleNavigator, type CycleOptions } from "./CycleNavigator";
 import {
     BattleScenario,
     type BattleScenarioProps,
@@ -17,19 +18,6 @@ import {
 } from "../../ui";
 
 type Choice = { value: string; label: string };
-type CycleChoice = {
-    value: Record<string, string | number>;
-    label: string;
-    hint: string;
-    isCurrent: boolean;
-};
-type CycleOptions = {
-    configured: boolean;
-    current: string;
-    choices: CycleChoice[];
-    previous: number | null;
-    next: number | null;
-};
 export type BattleEditorProps = {
     campaignName: string;
     campaignHref: string;
@@ -64,33 +52,6 @@ function identities(value: string | undefined): string[] {
         return [];
     }
 }
-async function readCycles(
-    href: string,
-    selected: string,
-    page?: number,
-    signal?: AbortSignal,
-): Promise<CycleOptions> {
-    const query = new URLSearchParams({ selected: selected || "null" });
-    if (page !== undefined) query.set("page", String(page));
-    const response = await fetch(`${href}?${query}`, {
-        credentials: "same-origin",
-        headers: { Accept: "application/json" },
-        signal,
-    });
-    if (
-        !response.ok ||
-        !response.headers.get("content-type")?.includes("application/json")
-    )
-        throw new Error();
-    const data = await response.json();
-    if (
-        !data ||
-        !Array.isArray(data.choices) ||
-        typeof data.current !== "string"
-    )
-        throw new Error();
-    return data;
-}
 export function BattleEditor(props: BattleEditorProps) {
     useEffect(() => {
         const id = window.location.hash.slice(1);
@@ -100,9 +61,7 @@ export function BattleEditor(props: BattleEditorProps) {
     const [current, setCurrent] = useState(props.current);
     const [reviewUrl, setReviewUrl] = useState(props.action);
     const [scenarioBusy, setScenarioBusy] = useState(false);
-    const [cycleOptions, setCycleOptions] = useState(props.cycles);
-    const [loadingCycles, setLoadingCycles] = useState(false);
-    const [cycleError, setCycleError] = useState("");
+    const [cycleBusy, setCycleBusy] = useState(false);
     const form = useWorkflowForm({
         ...props,
         optionalRecoveryFields: Object.keys(props.values).filter(
@@ -155,42 +114,6 @@ export function BattleEditor(props: BattleEditorProps) {
         "stake",
         "stake_awarded_to",
     ]);
-    const selectedCycle = cycleOptions?.choices.find(
-        (choice) => JSON.stringify(choice.value) === values.cycle,
-    );
-    useEffect(() => {
-        if (
-            !props.cycleOptionsHref ||
-            !values.cycle ||
-            values.cycle === "null" ||
-            cycleOptions?.choices.some(
-                (choice) => JSON.stringify(choice.value) === values.cycle,
-            )
-        )
-            return;
-        const controller = new AbortController();
-        setLoadingCycles(true);
-        setCycleError("");
-        void readCycles(
-            props.cycleOptionsHref,
-            values.cycle,
-            undefined,
-            controller.signal,
-        )
-            .then((data) => {
-                if (!controller.signal.aborted) setCycleOptions(data);
-            })
-            .catch(() => {
-                if (!controller.signal.aborted)
-                    setCycleError(
-                        "The cycle list could not be loaded. Try again.",
-                    );
-            })
-            .finally(() => {
-                if (!controller.signal.aborted) setLoadingCycles(false);
-            });
-        return () => controller.abort();
-    }, [props.cycleOptionsHref, values.cycle]);
     function checkboxList(name: "gangs" | "winners", label: string) {
         const selected = identities(values[name]);
         return (
@@ -253,23 +176,6 @@ export function BattleEditor(props: BattleEditorProps) {
             )
         );
     }
-    async function loadCycles(page: number) {
-        if (loadingCycles || form.frozen) return;
-        setLoadingCycles(true);
-        setCycleError("");
-        try {
-            const data = await readCycles(
-                props.cycleOptionsHref,
-                values.cycle,
-                page,
-            );
-            setCycleOptions(data);
-        } catch {
-            setCycleError("The cycle list could not be loaded. Try again.");
-        } finally {
-            setLoadingCycles(false);
-        }
-    }
     return (
         <WorkflowPage
             title={props.heading}
@@ -290,7 +196,11 @@ export function BattleEditor(props: BattleEditorProps) {
                 />
             }
             onSubmit={(event) => {
-                if (scenarioBusy || (props.archived && !form.uncertain)) {
+                if (
+                    scenarioBusy ||
+                    cycleBusy ||
+                    (props.archived && !form.uncertain)
+                ) {
                     event.preventDefault();
                     return;
                 }
@@ -313,6 +223,7 @@ export function BattleEditor(props: BattleEditorProps) {
                             disabled={
                                 form.pending ||
                                 scenarioBusy ||
+                                cycleBusy ||
                                 (props.archived && !form.uncertain)
                             }
                         >
@@ -444,81 +355,15 @@ export function BattleEditor(props: BattleEditorProps) {
                             }
                         />
                     </Field>
-                    {cycleOptions?.configured && (
-                        <Field
-                            label="Campaign cycle"
-                            htmlFor="battle-cycle"
+                    {props.cycles?.configured && (
+                        <CycleNavigator
+                            initial={props.cycles}
+                            value={values.cycle ?? "null"}
+                            onChange={(value) => change("cycle", value)}
+                            readUrl={props.cycleOptionsHref}
                             errors={errors.cycle}
-                        >
-                            <NativeSelect
-                                disabled={loadingCycles}
-                                value={values.cycle || "null"}
-                                onChange={(event) =>
-                                    change("cycle", event.target.value)
-                                }
-                            >
-                                <option value="null">
-                                    No cycle attribution
-                                </option>
-                                {values.cycle &&
-                                    values.cycle !== "null" &&
-                                    !selectedCycle && (
-                                        <option value={values.cycle}>
-                                            Selected cycle
-                                        </option>
-                                    )}
-                                {cycleOptions.choices.map((choice) => (
-                                    <option
-                                        key={JSON.stringify(choice.value)}
-                                        value={JSON.stringify(choice.value)}
-                                    >
-                                        {choice.label}
-                                    </option>
-                                ))}
-                            </NativeSelect>
-                            {selectedCycle?.hint && (
-                                <p className="mt-2 text-sm">
-                                    {selectedCycle.hint}
-                                </p>
-                            )}
-                            {selectedCycle && !selectedCycle.isCurrent && (
-                                <p className="mt-2 text-sm">
-                                    The selected cycle differs from the current
-                                    cycle, {cycleOptions.current}.
-                                </p>
-                            )}
-                            <div className="mt-2 flex flex-wrap gap-3">
-                                {cycleOptions.previous !== null && (
-                                    <Button
-                                        size="sm"
-                                        disabled={loadingCycles}
-                                        onClick={() =>
-                                            void loadCycles(
-                                                cycleOptions.previous!,
-                                            )
-                                        }
-                                    >
-                                        Earlier saved cycles
-                                    </Button>
-                                )}
-                                {cycleOptions.next !== null && (
-                                    <Button
-                                        size="sm"
-                                        disabled={loadingCycles}
-                                        onClick={() =>
-                                            void loadCycles(cycleOptions.next!)
-                                        }
-                                    >
-                                        Later saved cycles
-                                    </Button>
-                                )}
-                            </div>
-                            {cycleError && (
-                                <p role="alert" className="text-sm">
-                                    {cycleError}
-                                </p>
-                            )}
-                        </Field>
+                            onBusyChange={setCycleBusy}
+                        />
                     )}
                     {checkboxList("gangs", "Participants")}
                 </FormSection>
