@@ -197,15 +197,12 @@ def test_creating_a_battle_saves_every_side_job(client, campaign):
         {"campaign": str(campaign.pk), **rolls},
     )
     form = client.get(response["Location"])
-    assert [r.heading for r in form.context["scenario_results"]] == [
-        "Crew",
-        "Side job 1 (Escher)",
-        "Side job 2 (General)",
-    ]
-    data = {key: value for key, value in rolls.items()}
+    props = form.context["battle_editor"]
+    assert {key: props["values"][key] for key in rolls} == rolls
+    data = props["values"]
     client.post(
         reverse("n26-campaign-add-battle", args=[campaign.pk]),
-        {"date": "2026-10-28", "scenario": "Sump clash", **data},
+        {**data, "date": "2026-10-28", "scenario": "Sump clash"},
     )
     battle = campaign.battles.get()
     assert battle.scenario_rolls == {
@@ -226,10 +223,12 @@ def test_a_prefilled_battle_with_gaps_can_reroll_its_numbered_side_job(
         reverse("n26-campaign-add-battle", args=[campaign.pk]),
         {"crew": "2", "side_job_2": "escher-3", "side_job_6": "goliath-1"},
     )
-    rolls = page.context["battle_scenario"]["rolls"]
+    rolls = page.context["battle_editor"]["scenario"]["rolls"]
     assert rolls["side_job"] == "escher-3"
     assert rolls["side_job_2"] == "goliath-1"
     assert rolls["side_job_6"] == ""
+    assert page.context["battle_editor"]["values"]["side_job_2"] == "goliath-1"
+    assert page.context["battle_editor"]["values"]["side_job_6"] == ""
     rerolled = client.get(
         reverse(GENERATOR),
         {**rolls, "format": "json", "reroll": "side_job", "reroll_set": "orlock"},
@@ -245,11 +244,18 @@ def test_invalid_prefilled_battle_components_stay_invalid(client, campaign):
         reverse("n26-campaign-add-battle", args=[campaign.pk]),
         {"crew": "9", "side_job_2": "escher-3"},
     )
-    assert page.context["scenario_wrong"]
-    rolls = page.context["battle_scenario"]["rolls"]
+    props = page.context["battle_editor"]
+    rolls = props["scenario"]["rolls"]
     assert rolls["crew"] == "9"
     assert rolls["side_job"] == ""
     assert rolls["side_job_2"] == "escher-3"
+    response = client.post(
+        props["action"],
+        {**props["values"], "scenario": "Sump clash", "date": "2026-10-28"},
+    )
+    assert response.status_code == 200
+    assert "not on its table" in str(response.context["form"].non_field_errors())
+    assert not campaign.battles.exists()
 
 
 def test_generating_again_on_a_battle_replaces_its_side_jobs(client, campaign):

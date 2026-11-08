@@ -273,3 +273,85 @@ test("flag-off props render the legacy fields without cycle selection", () => {
     ).toBeNull();
     expect(screen.getByRole("checkbox", { name: "Ash Walkers" })).toBeTruthy();
 });
+
+test("editing retains the awarded stake and visibly reports a stale ownership snapshot", async () => {
+    const message =
+        "The available stakes changed. Reload the battle before saving.";
+    const fetch = vi
+        .fn()
+        .mockResolvedValue(json({ errors: { __all__: [message] } }, 422));
+    vi.stubGlobal("fetch", fetch);
+    render(
+        <BattleEditor
+            {...props}
+            editing
+            heading="Edit battle"
+            scenario={null}
+            values={{
+                ...props.values,
+                gangs: '["gang-one"]',
+                winners: '["gang-one"]',
+                result: "winners",
+                revision: "1",
+                stake: "ruins",
+                stake_awarded_to: "gang-one",
+                stake_versions: "signed-version",
+            }}
+            labels={{
+                result: "Outcome",
+                stake: "Territory staked",
+                stake_awarded_to: "Territory goes to",
+            }}
+            choices={{
+                ...props.choices,
+                winners: props.choices.gangs,
+                result: [{ value: "winners", label: "Winner or winners" }],
+                stake: [{ value: "ruins", label: "Old Ruins" }],
+                stake_awarded_to: props.choices.gangs,
+            }}
+        />,
+    );
+    const award = screen.getByRole("combobox", { name: "Territory goes to" });
+    expect(award).toHaveProperty("value", "gang-one");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    const summary = await screen.findByRole("alert", {
+        name: "Battle save errors",
+    });
+    expect(summary.textContent).toContain(message);
+    expect(award).toHaveProperty("value", "gang-one");
+    expect(fetch.mock.calls[0][1].body.get("stake_awarded_to")).toBe(
+        "gang-one",
+    );
+    expect(fetch.mock.calls[0][1].body.get("stake_versions")).toBe(
+        "signed-version",
+    );
+});
+
+test("invalid prefilled components remain visible and are submitted unchanged", async () => {
+    const fetch = vi
+        .fn()
+        .mockResolvedValue(
+            json(
+                {
+                    errors: {
+                        __all__: ["A scenario component is not on its table."],
+                    },
+                },
+                422,
+            ),
+        );
+    vi.stubGlobal("fetch", fetch);
+    render(<BattleEditor {...props} values={{ ...props.values, crew: "9" }} />);
+    expect(
+        screen.getByText(/This link names a scenario component/),
+    ).toBeTruthy();
+    await userEvent.click(
+        screen.getByRole("button", { name: "Record battle" }),
+    );
+    await screen.findByRole("alert", { name: "Battle save errors" });
+    expect(fetch.mock.calls[0][1].body.get("crew")).toBe("9");
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty(
+        "value",
+        "Street fight",
+    );
+});

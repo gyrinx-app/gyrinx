@@ -36,6 +36,11 @@ from n26.tests.sandbox.actions import (
 )
 from n26.tests.test_views_post_battle import html_fields
 
+
+def battle_fields(response, **changes):
+    return {**response.context["battle_editor"]["values"], **changes}
+
+
 pytestmark = pytest.mark.django_db
 
 
@@ -367,11 +372,10 @@ class TestWhereItCanGo:
     ):
         stake_as(table, table.choir)
         response = client.get(edit_url(table))
-        document = BeautifulSoup(response.content, "html.parser")
-        assert document.select_one("#battle-stake-awarded-to option[selected]")[
-            "value"
-        ] == str(table.choir.pk)
-        data = html_fields(response, scenario="Stand-off at dusk")
+        assert response.context["battle_editor"]["values"]["stake_awarded_to"] == str(
+            table.choir.pk
+        )
+        data = battle_fields(response, scenario="Stand-off at dusk")
         assert client.post(edit_url(table), data).status_code == 302
         table.battle.refresh_from_db()
         assert table.battle.scenario == "Stand-off at dusk"
@@ -803,7 +807,7 @@ class TestUnclaimedStakes:
         assert response.status_code == 200
         message = "The available stakes changed. Reload the battle before saving."
         assert message in response.context["form"].non_field_errors()
-        assert message in BeautifulSoup(response.content, "html.parser").get_text()
+        assert message in response.context["battle_editor"]["errors"]["__all__"]
         assert holder(table) == table.choir
         assert not moves(table)
 
@@ -813,14 +817,14 @@ class TestUnclaimedStakes:
         transfer_asset(table.ruins, table.bystanders)
         response = client.get(edit_url(table))
         assert "stake_versions" not in response.context["form"].fields
-        data = html_fields(response, scenario="Stand-off at dusk")
+        data = battle_fields(response, scenario="Stand-off at dusk")
         assert "stake_versions" not in data
         unassign_asset(table.ruins)
         response = client.post(edit_url(table), data)
         message = "The available stakes changed. Reload the battle before saving."
         assert response.status_code == 200
         assert message in response.context["form"].non_field_errors()
-        assert message in BeautifulSoup(response.content, "html.parser").get_text()
+        assert message in response.context["battle_editor"]["errors"]["__all__"]
         table.battle.refresh_from_db()
         assert table.battle.scenario == "Stand-off"
         assert holder(table) is None
@@ -828,7 +832,7 @@ class TestUnclaimedStakes:
         refreshed = client.get(edit_url(table))
         assert (
             client.post(
-                edit_url(table), html_fields(refreshed, scenario="Stand-off at dusk")
+                edit_url(table), battle_fields(refreshed, scenario="Stand-off at dusk")
             ).status_code
             == 302
         )

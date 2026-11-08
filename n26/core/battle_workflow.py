@@ -204,6 +204,15 @@ def editor_props(
                 )
             except ValueError:
                 pass
+    scenario = (
+        battle_scenario_props(
+            {name: values[name] for name in form.scenario_keys}, catalogue
+        )
+        if battle is None
+        else None
+    )
+    if scenario is not None:
+        values.update(scenario["rolls"])
     selected = None
     if "cycle" in values:
         try:
@@ -259,9 +268,5 @@ def editor_props(
         "cycleOptionsHref": reverse("n26-battle-cycle-options", args=[campaign.pk])
         if "cycle" in form.fields
         else "",
-        "scenario": battle_scenario_props(
-            {name: values[name] for name in form.scenario_keys}, catalogue
-        )
-        if not battle
-        else None,
+        "scenario": scenario,
     }
