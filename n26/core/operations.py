@@ -3109,7 +3109,7 @@ class Operation:
             raise Refusal("Cycle tracking is not available to this account.")
         previous, self.cycle_context = self.cycle_context, context
         try:
-            return handler(self, stored, **kwargs)
+            return handler(self, record, **kwargs)
         finally:
             self.cycle_context = previous
 
