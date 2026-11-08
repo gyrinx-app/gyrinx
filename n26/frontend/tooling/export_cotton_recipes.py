@@ -524,7 +524,9 @@ def model_preview_recipe():
             ]
         ),
         profile_name="Profile",
-        skills=[AssignableLine("Skill")],
+        skills=[
+            AssignableLine("Skill", provenance=Provenance(source="Gear", computed=True))
+        ],
         skill_choices=[ChoiceLine("Skills", None)],
         counters=[CounterLine("Tally", 0)],
         equipment=[AssignableLine("Gear", choices=[ChoiceLine("Setting", "Blue")])],
@@ -595,11 +597,7 @@ def model_preview_recipe():
         "xpCell": find("td", "border-l", "tabular-nums"),
         "muted": find("span", "text-muted", without=("text-xs",)),
         "changed": find("span", "text-accent-text"),
-        "information": _without(
-            find("span", "underline", "decoration-dotted"),
-            "font-semibold",
-            "text-accent-text",
-        ),
+        "information": find("span", "cursor-help", "underline", "decoration-dotted"),
         "details": find("dl"),
         "detailLabel": find("dt"),
         "detailValue": find("dd"),
