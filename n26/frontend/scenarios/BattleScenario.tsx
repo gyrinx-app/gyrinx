@@ -354,7 +354,7 @@ export function BattleScenario(props: BattleScenarioProps) {
                                             })
                                         }
                                     >
-                                        Reroll this side job
+                                        Reroll
                                     </Button>
                                 )}
                             </div>

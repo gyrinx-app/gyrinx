@@ -378,9 +378,11 @@ it("rerolls one side job on the set chosen and keeps the rest", async () => {
     fireEvent.click(
         screen.getByText("Side job 2 (General)").closest("summary")!,
     );
-    fireEvent.click(
-        screen.getByRole("button", { name: "Reroll Side job 2 (General)" }),
-    );
+    const reroll = screen.getByRole("button", {
+        name: "Reroll Side job 2 (General)",
+    });
+    expect(reroll.textContent?.trim()).toBe("Reroll");
+    fireEvent.click(reroll);
     const dialog = screen.getByRole("dialog", { name: "Reroll side job 2" });
     const menu = within(dialog).getByLabelText("Side job set");
     expect(menu).toHaveProperty("value", "general");
