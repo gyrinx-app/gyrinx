@@ -470,7 +470,9 @@ export function ScheduleEditor({
                                         <dt>Cycle length</dt>
                                         <dd>
                                             {values.cycle_interval}{" "}
-                                            {values.cycle_unit}
+                                            {Number(values.cycle_interval) === 1
+                                                ? values.cycle_unit.slice(0, -1)
+                                                : values.cycle_unit}
                                         </dd>
                                         <dt>Current cycle</dt>
                                         <dd>Cycle {values.current_number}</dd>
