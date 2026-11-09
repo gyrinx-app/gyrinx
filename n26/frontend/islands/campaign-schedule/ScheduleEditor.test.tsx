@@ -100,7 +100,6 @@ test("end date changes offer an explicit shift and retain it for an exact retry"
     );
 });
 
-
 test("setup previews a template, customises a draft and reviews it before the only write", async () => {
     const reward = { credits: { fixed: 0, dice: null }, reputation: 0 };
     const definition = {
