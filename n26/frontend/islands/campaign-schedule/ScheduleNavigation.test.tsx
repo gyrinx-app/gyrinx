@@ -102,6 +102,27 @@ const json = (schedule: ScheduleProps) => ({
     headers: new Headers({ "content-type": "application/json" }),
     json: async () => ({ schedule, notices: [] }),
 });
+
+test.each([
+    ["2026-11-01", "", "1 Nov 2026", "End date not set"],
+    ["", "2026-11-07", "7 Nov 2026", "Start date not set"],
+])(
+    "keeps a saved endpoint visible when the other date is missing",
+    (startsOn, endsOn, saved, missing) => {
+        const schedule = data();
+        schedule.rows[0] = { ...schedule.rows[0], startsOn, endsOn };
+        render(<CampaignSchedule {...schedule} />);
+        const links = screen.getAllByRole("link", {
+            name: /Edit dates for Cycle 1:/,
+        });
+        for (const link of links) {
+            expect(link.textContent).toContain(saved);
+            expect(link.textContent).toContain(missing);
+            expect(link.getAttribute("aria-label")).toContain(saved);
+            expect(link.getAttribute("aria-label")).toContain(missing);
+        }
+    },
+);
 beforeEach(() => {
     window.history.replaceState(null, "", base);
     HTMLDialogElement.prototype.showModal = vi.fn(function (

@@ -34,16 +34,34 @@ function dateText(value: string) {
 }
 
 function CycleDates({ cycle }: { cycle: Cycle }) {
+    const start = cycle.startsOn
+        ? dateText(cycle.startsOn)
+        : "Start date not set";
+    const end = cycle.endsOn ? dateText(cycle.endsOn) : "End date not set";
+    const description =
+        cycle.startsOn || cycle.endsOn
+            ? `${cycle.startsOn ? `Start date ${start}` : start}, ${cycle.endsOn ? `end date ${end}` : end}`
+            : "Dates not set";
     const range =
-        cycle.startsOn && cycle.endsOn ? (
+        cycle.startsOn || cycle.endsOn ? (
             <span className="inline-flex items-center gap-1 whitespace-nowrap">
-                <span className="sr-only">Start date:</span>
-                <time dateTime={cycle.startsOn}>
-                    {dateText(cycle.startsOn)}
-                </time>
+                {cycle.startsOn ? (
+                    <>
+                        <span className="sr-only">Start date:</span>
+                        <time dateTime={cycle.startsOn}>{start}</time>
+                    </>
+                ) : (
+                    start
+                )}
                 <span aria-hidden="true">–</span>
-                <span className="sr-only">End date:</span>
-                <time dateTime={cycle.endsOn}>{dateText(cycle.endsOn)}</time>
+                {cycle.endsOn ? (
+                    <>
+                        <span className="sr-only">End date:</span>
+                        <time dateTime={cycle.endsOn}>{end}</time>
+                    </>
+                ) : (
+                    end
+                )}
             </span>
         ) : (
             "Dates not set"
@@ -56,7 +74,7 @@ function CycleDates({ cycle }: { cycle: Cycle }) {
         <Link
             href={url.pathname + url.search}
             className="inline-block py-1 text-xs"
-            aria-label={`Edit dates for ${cycle.name}: ${cycle.startsOn && cycle.endsOn ? `Start date ${dateText(cycle.startsOn)}, end date ${dateText(cycle.endsOn)}` : "Dates not set"}`}
+            aria-label={`Edit dates for ${cycle.name}: ${description}`}
             title="Edit start and end dates"
         >
             {range}
