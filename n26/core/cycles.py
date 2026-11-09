@@ -711,11 +711,29 @@ def create_template(*, actor, name, definition):
     )
 
 
-def save_template(campaign, *, actor, name, expected_revision, request_key):
-    if not actor.is_staff:
-        raise Refusal("Only content authors can create schedule templates.")
+def replay_template_command(
+    campaign, *, actor, kind, inputs, expected_revision, request_key
+):
+    def refuse_new(act, before):
+        raise Refusal(
+            "This template action is no longer available. Review the current schedule."
+        )
 
+    return _command(
+        campaign,
+        actor,
+        kind=kind,
+        inputs=inputs,
+        expected_revision=expected_revision,
+        request_key=request_key,
+        apply=refuse_new,
+    )
+
+
+def save_template(campaign, *, actor, name, expected_revision, request_key):
     def apply(act, before):
+        if not actor.is_staff:
+            raise Refusal("Only content authors can create schedule templates.")
         used = {step.phase_id for step in before.plan.steps}
         template = s.ScheduleTemplate(
             name,

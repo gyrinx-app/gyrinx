@@ -28,6 +28,7 @@ class StructuredJSONField(forms.JSONField):
 
 
 DATE_FIELDS = ("date_start", "cycle_interval", "cycle_unit", "date_version")
+RETIRED_FIELDS = {"template": ("template_id", "mode"), "save-template": ("name",)}
 FIELDS = {
     "setup": (
         "template_id",
@@ -56,6 +57,8 @@ FIELDS = {
     "finish": ("expected_current",),
 }
 HEADINGS = {
+    "template": "Confirm earlier template change",
+    "save-template": "Confirm earlier template save",
     "setup": "Set up campaign cycles",
     "cycle": "Edit cycle",
     "phase": "Edit phase",
@@ -105,7 +108,7 @@ class CycleEditorForm(forms.Form):
     def __init__(self, action, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.action = action
-        keep = set(FIELDS[action]) | {"request_key"}
+        keep = set(FIELDS.get(action, RETIRED_FIELDS.get(action, ()))) | {"request_key"}
         if action != "setup":
             keep.add("expected_revision")
         self.fields = {
@@ -393,6 +396,20 @@ def perform(campaign, actor, action, data, query):
                 result = cycles.delete_phase(
                     campaign, **common, phase_id=values["phase_id"]
                 )
+        elif action in RETIRED_FIELDS:
+            inputs = (
+                {"name": values["name"]}
+                if action == "save-template"
+                else {"template": values["template_id"], "mode": values["mode"]}
+            )
+            result = cycles.replay_template_command(
+                campaign,
+                actor=actor,
+                kind="save_template" if action == "save-template" else "apply_template",
+                inputs=inputs,
+                expected_revision=values["expected_revision"],
+                request_key=values["request_key"],
+            )
         elif action == "plan":
             result = cycles.replace_plan(
                 campaign,

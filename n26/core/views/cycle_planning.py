@@ -1,6 +1,7 @@
 """Flagged schedule reading and arbitrator-owned planning workflows."""
 
 from dataclasses import asdict
+from uuid import UUID
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -14,7 +15,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 from n26 import flags
 from n26.core import cycle_workflow as workflow
 from n26.core.cycle_display import build, schedule_url
-from n26.core.models import CampaignCycle
+from n26.core.models import CampaignCycle, CampaignCycleCommand
 from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_404
 
 
@@ -49,6 +50,26 @@ def _display(request, campaign, *, focus=None):
             focus=focus,
         )
     )
+
+
+def _require_action(request, campaign, action):
+    if action in workflow.FIELDS:
+        return
+    if action not in workflow.RETIRED_FIELDS:
+        raise Http404("No such schedule action")
+    receipts = CampaignCycleCommand.objects.filter(
+        campaign=campaign,
+        actor=request.user,
+        kind="save_template" if action == "save-template" else "apply_template",
+    )
+    if request.method == "POST":
+        try:
+            key = UUID(request.POST.get("request_key", ""))
+        except ValueError, AttributeError, TypeError:
+            raise Http404("No earlier template save") from None
+        receipts = receipts.filter(request_key=key)
+    if not receipts.exists():
+        raise Http404("No earlier template save")
 
 
 @flags.requires_flag(flags.CYCLE_TRACKING)
@@ -90,8 +111,7 @@ def _feedback(request, campaign, action, submitted):
 @require_http_methods(["GET", "POST"])
 def cycle_editor(request, pk, action):
     campaign = _own_campaign_or_404(request, pk)
-    if action not in workflow.FIELDS:
-        raise Http404("No such schedule action")
+    _require_action(request, campaign, action)
     submitted = None
     if request.method == "POST":
         submitted = workflow.perform(
@@ -133,8 +153,7 @@ def cycle_command(request, pk, action):
             {"error": "Cycle tracking is not available to this account."}, status=404
         )
     campaign = _own_campaign_or_404(request, pk, with_owner_badge=False)
-    if action not in workflow.FIELDS:
-        raise Http404("No such schedule action")
+    _require_action(request, campaign, action)
     submitted = workflow.perform(
         campaign, request.user, action, request.POST, request.GET
     )

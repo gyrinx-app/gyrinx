@@ -157,6 +157,16 @@ test("setup previews a template, customises a draft and reviews it before the on
     await userEvent.click(
         screen.getByRole("button", { name: "Customise schedule" }),
     );
+    screen.getByRole("button", { name: "Back" }).focus();
+    await userEvent.keyboard("{Enter}");
+    expect(document.activeElement?.textContent).toContain("Step 1 of 3");
+    await userEvent.tab();
+    expect(document.activeElement).toBe(
+        screen.getByRole("combobox", { name: "Starting template" }),
+    );
+    await userEvent.click(
+        screen.getByRole("button", { name: "Customise schedule" }),
+    );
     await userEvent.clear(screen.getByLabelText("Phase 1 name"));
     await userEvent.type(screen.getByLabelText("Phase 1 name"), "My opening");
     await userEvent.type(screen.getByLabelText("Current cycle number"), "1");

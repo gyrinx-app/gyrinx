@@ -113,6 +113,16 @@ export function ScheduleEditor({
         values.shift_later === "on" || values.shift_later === "True";
     const [setupStep, setSetupStep] = useState(1);
     const setupStage = form.frozen ? 3 : setupStep;
+    const previousSetupStage = useRef(setupStage);
+    useEffect(() => {
+        if (
+            editor.kind === "setup" &&
+            previousSetupStage.current !== setupStage
+        ) {
+            document.getElementById("cycle-setup-step")?.focus();
+        }
+        previousSetupStage.current = setupStage;
+    }, [editor.kind, setupStage]);
     const modeDrafts = useRef<Record<string, string>>({
         [values.mode]: values.steps,
     });
@@ -344,7 +354,11 @@ export function ScheduleEditor({
                 >
                     {editor.kind === "setup" && (
                         <section className="space-y-4">
-                            <p className="text-sm font-medium">
+                            <p
+                                id="cycle-setup-step"
+                                tabIndex={-1}
+                                className="text-sm font-medium"
+                            >
                                 Step {setupStage} of 3 ·{" "}
                                 {setupStage === 1
                                     ? "Choose a starting template"
