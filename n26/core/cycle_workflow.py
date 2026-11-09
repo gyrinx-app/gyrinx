@@ -39,6 +39,7 @@ FIELDS = {
         "description",
         "effects",
         "date_version",
+        "shift_later",
     ),
     "phase": ("phase_id", "name", "description", "effects", "rewards"),
     "duplicate-phase": ("phase_id", "name"),
@@ -77,6 +78,7 @@ class CycleEditorForm(forms.Form):
     custom_name = forms.CharField(max_length=200, required=False)
     starts_on = forms.DateField(required=False)
     ends_on = forms.DateField(required=False)
+    shift_later = forms.BooleanField(required=False)
     date_start = forms.DateField(required=False)
     cycle_interval = forms.IntegerField(min_value=1, max_value=520, required=False)
     cycle_unit = forms.ChoiceField(
@@ -200,6 +202,11 @@ def prepare(campaign, action, query):
             )
         )
         initial["date_version"] = "1"
+        initial["shift_later"] = False
+        if state.calendar and details.ends_on:
+            context["shiftLater"] = {
+                "endsOn": details.ends_on.isoformat(),
+            }
         initial.update(asdict(details), target=ref_data(target))
         initial["custom_name"] = details.custom_name or ""
         for field in ("starts_on", "ends_on"):
@@ -248,7 +255,7 @@ def prepare(campaign, action, query):
         context["needsDates"] = calendar is None
         context["patternSteps"] = [asdict(step) for step in state.plan.steps]
         context["fixedSteps"] = [asdict(step) for step in s.editable_steps(state)]
-        lead = f"This plan begins after Cycle {len(state.cycles)}. Changes affect the projected continuation."
+        lead = f"This plan continues after Cycle {len(state.cycles)}. Repeating patterns count cycles already saved in the last phase."
     elif action == "save-template":
         initial["name"] = ""
         lead = "Save this plan and its phases as a private reusable template."
@@ -363,6 +370,7 @@ def perform(campaign, actor, action, data, query):
                     values["description"],
                     values["effects"],
                 ),
+                shift_later=values["shift_later"],
             )
         elif action in ("phase", "duplicate-phase", "delete-phase"):
             if values["phase_id"] != query.get("phase"):

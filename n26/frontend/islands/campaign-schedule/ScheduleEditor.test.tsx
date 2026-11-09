@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { ScheduleEditor } from "./ScheduleEditor";
@@ -55,6 +55,49 @@ afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     sessionStorage.clear();
+});
+
+test("end date changes offer an explicit shift and retain it for an exact retry", async () => {
+    const fetch = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Lost response"))
+        .mockResolvedValueOnce(json({ nextUrl: "/cycles/" }));
+    vi.stubGlobal("fetch", fetch);
+    render(
+        <ScheduleEditor
+            phases={phases}
+            onNavigate={vi.fn()}
+            editor={{
+                ...editor,
+                context: { shiftLater: { endsOn: "2026-11-07" } },
+                values: {
+                    ...editor.values,
+                    starts_on: "2026-11-01",
+                    ends_on: "2026-11-07",
+                    shift_later: "False",
+                },
+            }}
+        />,
+    );
+    expect(
+        screen.queryByRole("switch", { name: "Move later cycle dates too" }),
+    ).toBeNull();
+    fireEvent.change(screen.getByLabelText("End date"), {
+        target: { value: "2026-11-05" },
+    });
+    const shift = screen.getByRole("switch", {
+        name: "Move later cycle dates too",
+    });
+    expect(shift.getAttribute("aria-checked")).toBe("false");
+    await userEvent.click(shift);
+    expect(screen.getByText(/2 days earlier/)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText(/The save may have completed/);
+    expect(fetch.mock.calls[0][1].body.get("shift_later")).toBe("on");
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    expect(fetch.mock.calls[1][1].body.toString()).toBe(
+        fetch.mock.calls[0][1].body.toString(),
+    );
 });
 
 test("a lost response freezes the draft and retries the exact command", async () => {

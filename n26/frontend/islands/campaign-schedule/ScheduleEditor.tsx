@@ -9,6 +9,7 @@ import {
     Input,
     NativeSelect,
     Textarea,
+    Toggle,
     useWorkflowForm,
 } from "../../ui";
 import { PlanSteps } from "./PlanSteps";
@@ -67,6 +68,7 @@ export function ScheduleEditor({
             "cycle_interval",
             "cycle_unit",
             "date_version",
+            "shift_later",
         ],
         onNavigate,
         onReload,
@@ -99,6 +101,16 @@ export function ScheduleEditor({
         },
     });
     const { values, errors } = form;
+    const shiftContext = editor.context.shiftLater as
+        { endsOn: string } | undefined;
+    const shiftDays =
+        shiftContext && values.ends_on
+            ? (Date.parse(`${values.ends_on}T00:00:00Z`) -
+                  Date.parse(`${shiftContext.endsOn}T00:00:00Z`)) /
+              86400000
+            : 0;
+    const shiftLater =
+        values.shift_later === "on" || values.shift_later === "True";
     const modeDrafts = useRef<Record<string, string>>({
         [values.mode]: values.steps,
     });
@@ -413,6 +425,33 @@ export function ScheduleEditor({
                             </div>
                         </>
                     )}
+                    {editor.kind === "cycle" &&
+                        shiftContext &&
+                        (shiftDays !== 0 || shiftLater) && (
+                            <section
+                                className="space-y-1"
+                                aria-label="Later cycle dates"
+                            >
+                                <Toggle
+                                    label="Move later cycle dates too"
+                                    checked={shiftLater}
+                                    onCheckedChange={(checked) =>
+                                        change(
+                                            "shift_later",
+                                            checked ? "on" : "",
+                                        )
+                                    }
+                                />
+                                <p className="text-xs text-muted">
+                                    {Number.isFinite(shiftDays) &&
+                                    shiftDays !== 0
+                                        ? `${Math.abs(shiftDays)} ${Math.abs(shiftDays) === 1 ? "day" : "days"} ${shiftDays < 0 ? "earlier" : "later"}. `
+                                        : ""}
+                                    Moves later saved dates and previews,
+                                    keeping their lengths and gaps unchanged.
+                                </p>
+                            </section>
+                        )}
                     {fields.has("description") && (
                         <Field
                             label="Description and rules"

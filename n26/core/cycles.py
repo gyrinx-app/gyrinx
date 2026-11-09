@@ -127,6 +127,7 @@ def _load_locked(campaign):
         header.active_plan.mode,
         steps_from_data(header.active_plan.steps),
         header.active_plan.starts_after_order,
+        header.active_plan.start_position,
     )
     cycles = tuple(
         s.Cycle(
@@ -220,6 +221,7 @@ def _persist(act, before, change, *, command=None, transition_id=None):
             campaign=campaign,
             mode=after.plan.mode,
             starts_after_order=after.plan.starts_after_order,
+            start_position=after.plan.start_position,
             steps=[asdict(step) for step in after.plan.steps],
         )
     CampaignCycle.objects.bulk_create(
@@ -408,11 +410,25 @@ def _bounded_target(before, target):
             raise Refusal("You can save up to 1,000 projected cycles at once.")
 
 
-def edit_cycle(campaign, *, actor, target, details, expected_revision, request_key):
+def edit_cycle(
+    campaign,
+    *,
+    actor,
+    target,
+    details,
+    expected_revision,
+    request_key,
+    shift_later=False,
+):
     def apply(act, before):
         _bounded_target(before, target)
         change = s.edit_cycle(
-            before, target, details, now=timezone.now(), new_id=_new_id
+            before,
+            target,
+            details,
+            now=timezone.now(),
+            new_id=_new_id,
+            shift_later=shift_later,
         )
         selected = s._selected(change.schedule, target)
         return change, selected.id
@@ -421,7 +437,11 @@ def edit_cycle(campaign, *, actor, target, details, expected_revision, request_k
         campaign,
         actor,
         kind="edit_cycle",
-        inputs={"target": ref_data(target), "details": cycle_details_data(details)},
+        inputs={
+            "target": ref_data(target),
+            "details": cycle_details_data(details),
+            **({"shift_later": True} if shift_later else {}),
+        },
         request_key=request_key,
         expected_revision=expected_revision,
         apply=apply,

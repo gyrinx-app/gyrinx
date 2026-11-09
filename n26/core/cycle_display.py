@@ -209,6 +209,7 @@ def _build_locked(campaign, user, *, page, preview, focus):
         header.active_plan.mode,
         steps_from_data(header.active_plan.steps),
         header.active_plan.starts_after_order,
+        header.active_plan.start_position,
     )
     projected = s.project(
         s.PlanContinuation(
@@ -281,7 +282,11 @@ def _build_locked(campaign, user, *, page, preview, focus):
         actions["transitionLabel"] = (
             "Advance cycle" if has_following else "Finish campaign"
         )
-    continuation = saved.count
+    continuation = saved.count + (len(projected) if not selected.has_next() else 0)
+    following_position = header.next_position + len(projected)
+    has_continuation = not selected.has_next() and (
+        plan.mode == "repeating" or following_position < plan.length
+    )
     return ScheduleDisplay(
         **common,
         configured=True,
@@ -296,12 +301,14 @@ def _build_locked(campaign, user, *, page, preview, focus):
             "steps": [
                 asdict(step)
                 for step in s.editable_steps(
-                    s.PlanContinuation(plan, header.next_position)
+                    s.PlanContinuation(plan, following_position)
                 )
             ],
             "startsAfter": f"Cycle {continuation}",
             "nextPosition": header.next_position,
-        },
+        }
+        if has_continuation
+        else None,
         actions=actions if manage else {},
         previousHref=base
         + "?"

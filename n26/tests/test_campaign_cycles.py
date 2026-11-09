@@ -373,8 +373,8 @@ class TestMaterialisation:
             target=s.SavedCycleRef(before.cycles[0].id),
             details=replace(
                 before.cycles[0].details,
-                starts_on=date(2030, 1, 1),
-                ends_on=date(2030, 1, 7),
+                starts_on=date(2020, 1, 1),
+                ends_on=date(2020, 1, 7),
             ),
             expected_revision=before.revision,
             request_key=uuid4(),
@@ -851,6 +851,7 @@ def test_concurrent_date_edits_cannot_commit_overlapping_ranges(
                 ),
                 expected_revision=before.revision,
                 request_key=uuid4(),
+                shift_later=True,
             )
             return "saved"
         except cycles.CycleConflict:

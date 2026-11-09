@@ -121,6 +121,7 @@ class Plan:
     mode: Mode
     steps: tuple[PlanStep, ...]
     starts_after_order: int = 0
+    start_position: int = 0
 
     def __post_init__(self):
         if self.mode not in ("fixed", "repeating"):
@@ -129,6 +130,17 @@ class Plan:
             raise ScheduleError("Add at least one step to the plan.")
         _unique((step.id for step in self.steps), "Plan steps")
         _nonnegative(self.starts_after_order, "Plan boundary")
+        _nonnegative(self.start_position, "Initial plan position")
+        if self.start_position and (
+            self.mode != "repeating" or self.start_position >= self.length
+        ):
+            raise ScheduleError("Select a position within the repeating pattern.")
+
+    def order_for(self, position):
+        return self.starts_after_order + position - self.start_position + 1
+
+    def position_for(self, order):
+        return order - self.starts_after_order + self.start_position - 1
 
     @property
     def length(self):
@@ -201,6 +213,7 @@ class CycleCalendar:
     interval: int = 1
     unit: Literal["weeks", "months"] = "weeks"
     starts_after_order: int = 0
+    days_offset: int = 0
 
     def __post_init__(self):
         if type(self.starts_on) is not date:
@@ -209,11 +222,15 @@ class CycleCalendar:
         _nonnegative(self.starts_after_order, "Date boundary")
         if self.unit not in ("weeks", "months"):
             raise ScheduleError("Select weeks or calendar months.")
+        if type(self.days_offset) is not int:
+            raise ScheduleError("Enter a whole number of days to shift the calendar.")
 
     def _boundary(self, index):
         try:
             if self.unit == "weeks":
-                return self.starts_on + timedelta(weeks=self.interval * index)
+                return self.starts_on + timedelta(
+                    weeks=self.interval * index, days=self.days_offset
+                )
             month = (
                 self.starts_on.year * 12
                 + self.starts_on.month
@@ -224,7 +241,7 @@ class CycleCalendar:
             month += 1
             return date(
                 year, month, min(self.starts_on.day, monthrange(year, month)[1])
-            )
+            ) + timedelta(days=self.days_offset)
         except ValueError, OverflowError:
             raise ScheduleError(
                 "The cycle dates extend beyond the supported calendar."
@@ -310,11 +327,13 @@ class Schedule:
             cycle.details.phase_id not in phase_ids for cycle in self.cycles
         ):
             raise ScheduleError("Select phases from this campaign.")
-        if len(self.cycles) != self.plan.starts_after_order + self.next_position:
+        if len(self.cycles) != self.plan.order_for(self.next_position) - 1:
             raise ScheduleError("The plan must continue after the saved cycles.")
         if self.plan.mode == "fixed" and self.next_position > self.plan.length:
             raise ScheduleError("The next position is beyond the fixed plan.")
-        for index, cycle in enumerate(self.cycles[self.plan.starts_after_order :]):
+        for index, cycle in enumerate(
+            self.cycles[self.plan.starts_after_order :], start=self.plan.start_position
+        ):
             projected = _at(self.plan, index)
             if cycle.source != projected.source:
                 raise ScheduleError("Saved cycles must retain their plan positions.")
@@ -426,6 +445,8 @@ def _phase(schedule, phase_id):
 
 def _at(plan, index):
     _nonnegative(index, "Plan position")
+    if index < plan.start_position:
+        raise ScheduleError("That position is already covered by saved cycles.")
     if not plan.length:
         raise ScheduleError("There are no more cycles in this fixed plan.")
     repetition, offset = divmod(index, plan.length)
@@ -438,7 +459,7 @@ def _at(plan, index):
             )
             return ProjectedCycle(
                 ProjectedCycleRef(source.position),
-                plan.starts_after_order + index + 1,
+                plan.order_for(index),
                 step.phase_id,
                 source,
             )
@@ -613,8 +634,18 @@ def edit_cycle(
     *,
     now: datetime | None = None,
     new_id: NewId = _id,
+    shift_later: bool = False,
 ) -> ScheduleChange:
     _phase(schedule, details.phase_id)
+    original = _selected(schedule, target)
+    old_end = (
+        original.details.ends_on if isinstance(original, Cycle) else original.ends_on
+    )
+    shift = 0
+    if shift_later:
+        if schedule.calendar is None or old_end is None or details.ends_on is None:
+            raise ScheduleError("Set cycle dates before moving later cycle dates.")
+        shift = (details.ends_on - old_end).days
     change, selected = _ensure_saved(
         schedule, target, new_id=new_id, selected_details=details
     )
@@ -624,7 +655,8 @@ def edit_cycle(
             starts_on=selected.details.starts_on,
             ends_on=selected.details.ends_on,
         )
-    if selected.details == details:
+    if selected.details == details and not shift:
+        _validate_projection_dates(change.schedule)
         return change
     amended = replace(selected, details=details)
     if schedule.calendar is None and (
@@ -644,19 +676,56 @@ def edit_cycle(
         if now is None:
             raise ScheduleError("Supply the time the current phase changed.")
         transition = Transition("phase_changed", selected, amended, now)
+    later = []
+    if shift:
+        delta = timedelta(days=shift)
+        try:
+            later = [
+                replace(
+                    c,
+                    details=replace(
+                        c.details,
+                        starts_on=c.details.starts_on + delta,
+                        ends_on=c.details.ends_on + delta,
+                    ),
+                )
+                for c in change.schedule.cycles
+                if c.order > selected.order
+            ]
+        except OverflowError:
+            raise ScheduleError(
+                "The shifted dates extend beyond the supported calendar."
+            ) from None
+    replacements = {c.id: c for c in (*later, amended)}
     after = replace(
         change.schedule,
-        cycles=tuple(
-            amended if c.id == selected.id else c for c in change.schedule.cycles
-        ),
+        cycles=tuple(replacements.get(c.id, c) for c in change.schedule.cycles),
+        calendar=replace(
+            schedule.calendar, days_offset=schedule.calendar.days_offset + shift
+        )
+        if shift
+        else schedule.calendar,
         revision=schedule.revision + 1,
     )
+    _validate_projection_dates(after)
     return ScheduleChange(
         after,
         created=tuple(amended if c.id == selected.id else c for c in change.created),
-        updated=() if change.created else (amended,),
+        updated=tuple(later) + (() if change.created else (amended,)),
         transition=transition,
     )
+
+
+def _validate_projection_dates(schedule):
+    following = project(schedule, limit=1)
+    if (
+        schedule.calendar
+        and following
+        and following[0].starts_on <= max(c.details.ends_on for c in schedule.cycles)
+    ):
+        raise ScheduleError(
+            "The dates overlap a future cycle. Move later cycle dates too, or choose an earlier end date."
+        )
 
 
 def edit_phase(
@@ -721,14 +790,46 @@ def replace_plan(
         else ScheduleChange(schedule)
     )
     schedule = dated.schedule
-    if mode == schedule.plan.mode and tuple(steps) == editable_steps(schedule):
+    position = _repeat_continuation(schedule, steps) if mode == "repeating" else 0
+    empty_restart = (
+        mode == "repeating"
+        and len(schedule.cycles) == schedule.plan.starts_after_order
+        and position != schedule.plan.start_position
+    )
+    if (
+        mode == schedule.plan.mode
+        and tuple(steps) == editable_steps(schedule)
+        and not empty_restart
+    ):
         return dated
-    plan = Plan(new_id(), mode, tuple(steps), len(schedule.cycles))
+    plan = Plan(new_id(), mode, tuple(steps), len(schedule.cycles), position)
     if plan.id == schedule.plan.id:
         raise ScheduleError("A replacement plan must have a new identity.")
     return ScheduleChange(
-        replace(schedule, plan=plan, next_position=0, revision=revision),
+        replace(schedule, plan=plan, next_position=position, revision=revision),
         updated=dated.updated,
+    )
+
+
+def _repeat_continuation(schedule, steps):
+    """Credit the saved tail against its matching occurrence in the new pattern."""
+    tail = schedule.cycles[-1]
+    matching = next(
+        (
+            step
+            for step in steps
+            if step.id == tail.source.step_id and step.phase_id == tail.details.phase_id
+        ),
+        None,
+    )
+    if matching is None:
+        candidates = [step for step in steps if step.phase_id == tail.details.phase_id]
+        matching = candidates[0] if len(candidates) == 1 else None
+    if matching is None:
+        return 0
+    before = sum(step.count for step in steps[: steps.index(matching)])
+    return (before + min(tail.source.offset + 1, matching.count)) % sum(
+        step.count for step in steps
     )
 
 

@@ -1,6 +1,7 @@
 """Schedule transports share ownership, revision and durable retry semantics."""
 
 import json
+from dataclasses import asdict
 from datetime import date
 from uuid import uuid4
 
@@ -137,6 +138,101 @@ class TestFlagAndOwnership:
 
 
 class TestSharedCommands:
+    @pytest.mark.parametrize("native", [False, True])
+    def test_date_shift_moves_later_saved_cycles_and_projections_and_replays_once(
+        self, client, campaign, configured, native
+    ):
+        from datetime import timedelta
+
+        future = s.project(configured, limit=2)[-1]
+        cycles.edit_cycle(
+            campaign,
+            actor=campaign.owner,
+            target=future.ref,
+            details=s.CycleDetails(future.phase_id),
+            expected_revision=configured.revision,
+            request_key=uuid4(),
+        )
+        before = cycles.load(campaign)
+        selected = before.cycles[1]
+        query = {"cycle": selected.id, "fields": "dates"}
+        editor = props(client.get(editor_url(campaign, "cycle", **query)))["editor"]
+        data = {
+            **editor["values"],
+            "ends_on": (selected.details.ends_on - timedelta(days=2)).isoformat(),
+            "shift_later": "on",
+        }
+        for _ in range(2):
+            response = post(client, campaign, "cycle", data, native=native, **query)
+            assert response.status_code == (302 if native else 200)
+        after = cycles.load(campaign)
+        assert after.revision == before.revision + 1
+        assert after.cycles[0] == before.cycles[0]
+        assert after.cycles[2].id == before.cycles[2].id
+        assert after.cycles[2].source == before.cycles[2].source
+        assert after.cycles[2].details.starts_on == before.cycles[
+            2
+        ].details.starts_on - timedelta(days=2)
+        assert s.project(after)[0].starts_on == s.project(before)[
+            0
+        ].starts_on - timedelta(days=2)
+        assert after.current_cycle_id == before.current_cycle_id
+        assert not campaign.cycle_transitions.exists()
+        changed = post(client, campaign, "cycle", {**data, "shift_later": ""}, **query)
+        assert changed.status_code == 409
+        assert cycles.load(campaign) == after
+
+    def test_replacement_pattern_credits_the_saved_phase_and_preserves_navigator_order(
+        self, client, campaign, configured
+    ):
+        from n26.core.cycle_selection import options
+
+        future = s.project(configured, limit=1)[0]
+        cycles.edit_cycle(
+            campaign,
+            actor=campaign.owner,
+            target=future.ref,
+            details=s.CycleDetails(future.phase_id),
+            expected_revision=configured.revision,
+            request_key=uuid4(),
+        )
+        before = cycles.load(campaign)
+        editor = props(client.get(editor_url(campaign, "plan")))["editor"]
+        response = post(
+            client,
+            campaign,
+            "plan",
+            {
+                **editor["values"],
+                "mode": "repeating",
+                "steps": json.dumps(
+                    [asdict(step) for step in configured.plan.steps[:2]]
+                ),
+            },
+        )
+        assert response.status_code == 200
+        after = cycles.load(campaign)
+        assert after.cycles == before.cycles
+        assert after.plan.start_position == after.next_position == 2
+        following = s.project(after, limit=2)
+        assert [p.order for p in following] == [3, 4]
+        assert [p.phase_id for p in following] == [
+            configured.plan.steps[0].phase_id,
+            configured.plan.steps[1].phase_id,
+        ]
+        choice = next(c for c in options(campaign)["choices"] if c["order"] == 3)
+        assert choice["name"] == "Cycle 3"
+        assert choice["phase"] == after.phases[0].details.name
+
+    def test_future_plan_summary_only_describes_cycles_beyond_the_visible_projection(
+        self, campaign, configured
+    ):
+        display = build(campaign, campaign.owner)
+        assert display.plan is None
+        bounded = build(campaign, campaign.owner, preview=2)
+        assert bounded.plan["startsAfter"] == "Cycle 3"
+        assert bounded.plan["steps"][0]["phase_id"] == configured.plan.steps[1].phase_id
+
     def test_edits_and_projected_saves_return_to_the_edited_history_page(
         self, client, campaign, configured
     ):
@@ -218,7 +314,12 @@ class TestSharedCommands:
         assert editor["context"]["datesOnly"] is True
         assert "fields=dates" in editor["commandHref"]
         assert "fields=dates" in editor["recoveryKey"]
-        data = {**editor["values"], "starts_on": "2050-01-01", "ends_on": "2050-01-07"}
+        data = {
+            **editor["values"],
+            "starts_on": "2050-01-01",
+            "ends_on": "2050-01-07",
+            "shift_later": "on",
+        }
         response = post(client, campaign, "cycle", data, native=native, **query)
         assert response.status_code == (302 if native else 200)
         target = response.url if native else response.json()["nextUrl"]

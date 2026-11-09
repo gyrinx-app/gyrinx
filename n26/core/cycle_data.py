@@ -9,17 +9,26 @@ from n26.core import schedule as s
 def calendar_data(calendar):
     if calendar is None:
         return {}
-    return {**asdict(calendar), "starts_on": calendar.starts_on.isoformat()}
+    data = {**asdict(calendar), "starts_on": calendar.starts_on.isoformat()}
+    if not calendar.days_offset:
+        data.pop("days_offset")
+    return data
 
 
 def calendar_from_data(data):
     if data == {}:
         return None
-    data = _object(data, {"starts_on", "interval", "unit", "starts_after_order"})
+    data = _object(
+        data, {"starts_on", "interval", "unit", "starts_after_order", "days_offset"}
+    )
     try:
         start = date.fromisoformat(data["starts_on"])
         return s.CycleCalendar(
-            start, data["interval"], data["unit"], data["starts_after_order"]
+            start,
+            data["interval"],
+            data["unit"],
+            data["starts_after_order"],
+            data.get("days_offset", 0),
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise s.ScheduleError("Enter a valid start date and cycle interval.") from exc

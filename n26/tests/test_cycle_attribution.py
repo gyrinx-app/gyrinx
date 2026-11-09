@@ -594,6 +594,7 @@ def test_cycle_navigation_shows_recorded_dates_without_storage_status_labels(tab
         ),
         expected_revision=table.state.revision,
         request_key=uuid4(),
+        shift_later=True,
     )
     data = options(table.campaign)
     current = next(choice for choice in data["choices"] if choice["isCurrent"])
