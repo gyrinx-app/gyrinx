@@ -473,17 +473,13 @@ test("schedule messages use dismissible design-system alerts and repeated saves 
             { message: "Campaign schedule saved.", tone: "success" as const },
         ],
     };
-    const fetch = vi
-        .fn()
-        .mockResolvedValue({
-            ...json(data(editor)),
-            json: async () => ({
-                schedule: data(editor),
-                notices: [
-                    { message: "Campaign schedule saved.", tone: "success" },
-                ],
-            }),
-        });
+    const fetch = vi.fn().mockResolvedValue({
+        ...json(data(editor)),
+        json: async () => ({
+            schedule: data(editor),
+            notices: [{ message: "Campaign schedule saved.", tone: "success" }],
+        }),
+    });
     vi.stubGlobal("fetch", fetch);
     render(<CampaignSchedule {...initial} />);
     expect(screen.getByRole("alert").getAttribute("data-message")).toBe(
