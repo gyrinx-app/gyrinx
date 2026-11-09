@@ -302,14 +302,7 @@ export function Command({
                         `${values.action === "buy" ? "Buy" : "Change"} ${values.display_name}`
             }
             lead={question?.lead}
-            onSubmit={(event) => {
-                if (hasStashDestination && !uncertain && !destination) {
-                    event.preventDefault();
-                    submitTo("model");
-                } else {
-                    void form.save(event);
-                }
-            }}
+            onSubmit={form.save}
             pending={frozen}
             onDismiss={() => {
                 if (!frozen) onDismiss();
@@ -616,7 +609,16 @@ export function Command({
                 )}
                 {canSubmit && (
                     <Button
-                        type="submit"
+                        type={
+                            hasStashDestination && !uncertain
+                                ? "button"
+                                : "submit"
+                        }
+                        onClick={
+                            hasStashDestination && !uncertain
+                                ? () => submitTo("model")
+                                : undefined
+                        }
                         variant={
                             dialog?.submit_variant === "danger" ||
                             (recovered &&

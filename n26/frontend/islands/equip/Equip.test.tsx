@@ -650,69 +650,137 @@ test("fighter equipment can move directly to the stash when another model is off
     });
 });
 
-test("the ordinary Move action still posts the selected model", async () => {
-    const fetcher = vi.fn().mockImplementation(completeFetch);
-    vi.stubGlobal("fetch", fetcher);
-    render(
-        <Equip
-            {...page}
-            model={model}
-            dialog={{
-                ...sell,
-                kind: "reassign",
-                title: "Move Autogun",
-                submit_label: "Move",
-                models: [
-                    { key: "rook", name: "Rook" },
-                    { key: "nell", name: "Nell" },
-                ],
-            }}
-        />,
-    );
-    await userEvent.selectOptions(
-        screen.getByRole("combobox", { name: "To" }),
-        "nell",
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Move" }));
-    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
-    expect(Object.fromEntries(fetcher.mock.calls[0][1].body)).toMatchObject({
-        to: "model",
-        miniature: "nell",
-    });
-});
+test.each([
+    { selected: false, keyboard: false },
+    { selected: true, keyboard: false },
+    { selected: false, keyboard: true },
+    { selected: true, keyboard: true },
+])(
+    "Move submits once with selected=$selected and keyboard=$keyboard",
+    async ({ selected, keyboard }) => {
+        const fetcher = vi.fn().mockImplementation(completeFetch);
+        vi.stubGlobal("fetch", fetcher);
+        render(
+            <Equip
+                {...page}
+                model={model}
+                dialog={{
+                    ...sell,
+                    kind: "reassign",
+                    title: "Move Autogun",
+                    submit_label: "Move",
+                    models: [
+                        { key: "rook", name: "Rook" },
+                        { key: "nell", name: "Nell" },
+                    ],
+                }}
+            />,
+        );
+        if (selected)
+            await userEvent.selectOptions(
+                screen.getByRole("combobox", { name: "To" }),
+                "nell",
+            );
+        const submits = vi.fn();
+        const move = screen.getByRole("button", { name: "Move" });
+        move.closest("form")!.addEventListener("submit", submits);
+        if (keyboard) {
+            move.focus();
+            await userEvent.keyboard("{Enter}");
+        } else await userEvent.click(move);
+        await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+        expect(submits).toHaveBeenCalledTimes(1);
+        expect(Object.fromEntries(fetcher.mock.calls[0][1].body)).toMatchObject(
+            {
+                to: "model",
+                miniature: selected ? "nell" : "rook",
+            },
+        );
+    },
+);
 
-test("a lost stash move restores the clicked destination rather than a fresh model pick", async () => {
-    const fetcher = vi.fn().mockRejectedValue(new TypeError("lost"));
-    vi.stubGlobal("fetch", fetcher);
-    const dialog = {
-        ...sell,
-        kind: "reassign",
-        title: "Move Autogun",
-        submit_label: "Move",
-        models: [{ key: "rook", name: "Rook" }],
-    };
-    const first = render(<Equip {...page} model={model} dialog={dialog} />);
-    await userEvent.click(screen.getByRole("button", { name: "To the stash" }));
-    await screen.findByRole("button", { name: "Retry change" });
-    const original = new URLSearchParams(fetcher.mock.calls[0][1].body);
-    expect(original.get("to")).toBe("stash");
-    first.unmount();
-    fetcher.mockImplementation(completeFetch);
-    render(
-        <Equip
-            {...page}
-            model={model}
-            requestKey="fresh-page"
-            csrfToken="fresh-after-login"
-            dialog={{ ...dialog, models: [{ key: "nell", name: "Nell" }] }}
-        />,
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Retry change" }));
-    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
-    original.set("csrfmiddlewaretoken", "fresh-after-login");
-    expect([...fetcher.mock.calls[1][1].body]).toEqual([...original]);
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-});
+test.each([
+    { first: "To the stash", second: "Move", destination: "model" },
+    { first: "Move", second: "To the stash", destination: "stash" },
+])(
+    "a refused $first allows a subsequent $second",
+    async ({ first, second, destination }) => {
+        const fetcher = vi
+            .fn()
+            .mockResolvedValueOnce(
+                response({ errors: { __all__: ["Move refused."] } }, 422),
+            )
+            .mockImplementation(completeFetch);
+        vi.stubGlobal("fetch", fetcher);
+        render(
+            <Equip
+                {...page}
+                model={model}
+                dialog={{
+                    ...sell,
+                    kind: "reassign",
+                    title: "Move Autogun",
+                    submit_label: "Move",
+                    models: [{ key: "rook", name: "Rook" }],
+                }}
+            />,
+        );
+        await userEvent.click(screen.getByRole("button", { name: first }));
+        await screen.findByText("Move refused.");
+        await userEvent.click(screen.getByRole("button", { name: second }));
+        await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+        expect(Object.fromEntries(fetcher.mock.calls[1][1].body)).toMatchObject(
+            {
+                to: destination,
+                miniature: "rook",
+            },
+        );
+    },
+);
+
+test.each(["stash", "model"])(
+    "a lost %s move restores the clicked destination rather than a fresh model pick",
+    async (destination) => {
+        const fetcher = vi.fn().mockRejectedValue(new TypeError("lost"));
+        vi.stubGlobal("fetch", fetcher);
+        const dialog = {
+            ...sell,
+            kind: "reassign",
+            title: "Move Autogun",
+            submit_label: "Move",
+            models: [{ key: "rook", name: "Rook" }],
+        };
+        const first = render(<Equip {...page} model={model} dialog={dialog} />);
+        await userEvent.click(
+            screen.getByRole("button", {
+                name: destination === "stash" ? "To the stash" : "Move",
+            }),
+        );
+        await screen.findByRole("button", { name: "Retry change" });
+        const original = new URLSearchParams(fetcher.mock.calls[0][1].body);
+        expect(original.get("to")).toBe(destination);
+        if (destination === "model")
+            expect(original.get("miniature")).toBe("rook");
+        first.unmount();
+        fetcher.mockImplementation(completeFetch);
+        render(
+            <Equip
+                {...page}
+                model={model}
+                requestKey="fresh-page"
+                csrfToken="fresh-after-login"
+                dialog={{ ...dialog, models: [{ key: "nell", name: "Nell" }] }}
+            />,
+        );
+        await userEvent.click(
+            screen.getByRole("button", { name: "Retry change" }),
+        );
+        await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+        original.set("csrfmiddlewaretoken", "fresh-after-login");
+        expect([...fetcher.mock.calls[1][1].body]).toEqual([...original]);
+        await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    },
+);
 
 test("owned-panel navigation carries current section and expanded entry without a page reload", async () => {
     const fetcher = vi.fn().mockResolvedValue(
