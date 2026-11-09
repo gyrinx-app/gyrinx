@@ -157,7 +157,11 @@ class CampaignSchedule(Base):
         "n26.Campaign", on_delete=models.CASCADE, related_name="cycle_schedule"
     )
     current_cycle = models.ForeignKey(
-        CampaignCycle, on_delete=models.RESTRICT, related_name="current_in"
+        CampaignCycle,
+        on_delete=models.RESTRICT,
+        related_name="current_in",
+        null=True,
+        blank=True,
     )
     active_plan = models.ForeignKey(
         CampaignPlan, on_delete=models.RESTRICT, related_name="active_in"

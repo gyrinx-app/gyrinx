@@ -35,6 +35,7 @@ FIELDS = {
         "setup_definition",
         "mode",
         "current_number",
+        "no_current",
         *DATE_FIELDS,
     ),
     "cycle": (
@@ -77,7 +78,8 @@ class CycleEditorForm(forms.Form):
     template_id = forms.CharField(max_length=26)
     setup_definition = StructuredJSONField(required=False)
     mode = forms.ChoiceField(choices=[("fixed", "Fixed"), ("repeating", "Repeating")])
-    current_number = forms.IntegerField(min_value=1, max_value=1000)
+    current_number = forms.IntegerField(min_value=1, max_value=1000, required=False)
+    no_current = forms.BooleanField(required=False)
     target = StructuredJSONField()
     phase_id = forms.CharField(max_length=26)
     name = forms.CharField(max_length=200)
@@ -95,7 +97,10 @@ class CycleEditorForm(forms.Form):
     effects = forms.CharField(required=False, strip=False, max_length=32000)
     rewards = StructuredJSONField(required=False)
     steps = StructuredJSONField()
-    expected_current = forms.CharField(max_length=26)
+    expected_current = forms.CharField(max_length=26, required=False)
+
+    def clean_current_number(self):
+        return self.cleaned_data.get("current_number") or 1
 
     def clean_phase_id(self):
         value = self.cleaned_data["phase_id"]
@@ -114,6 +119,12 @@ class CycleEditorForm(forms.Form):
         self.fields = {
             name: field for name, field in self.fields.items() if name in keep
         }
+        if (
+            action == "setup"
+            and self.is_bound
+            and forms.BooleanField(required=False).clean(self.data.get("no_current"))
+        ):
+            self.fields["current_number"].disabled = True
 
     def clean(self):
         values = super().clean()
@@ -159,10 +170,13 @@ def prepare(campaign, action, query):
     lead = ""
     if state is not None:
         initial["expected_revision"] = state.revision
-        context["currentName"] = state.current.name
+        context["currentName"] = (
+            state.current.name if state.current else "No current cycle"
+        )
     if action == "setup":
         initial.update(template_id="", setup_definition=None, mode="fixed")
-        initial["current_number"] = ""
+        initial["current_number"] = "1"
+        initial["no_current"] = False
         initial.update(
             date_start=timezone.localdate().isoformat(),
             cycle_interval=1,
@@ -217,7 +231,11 @@ def prepare(campaign, action, query):
         preview = s.preview_cycle_edit(state, target, details)
         if preview.creates:
             first, last = preview.creates[0].order, preview.creates[-1].order
-            lead = f"This edit saves Cycle {first} through Cycle {last}. The current cycle remains {state.current.name}."
+            lead = f"This edit saves Cycle {first} through Cycle {last}. " + (
+                f"The current cycle remains {state.current.name}."
+                if state.current
+                else "No cycle will be started."
+            )
         else:
             lead = f"Editing {selected.name}. Changing dates does not reorder saved cycles."
     elif action in ("phase", "duplicate-phase", "delete-phase"):
@@ -250,10 +268,14 @@ def prepare(campaign, action, query):
             else "",
         )
         if calendar:
-            latest_end = max(cycle.details.ends_on for cycle in state.cycles)
+            latest_end = max(
+                (cycle.details.ends_on for cycle in state.cycles), default=None
+            )
             initial["date_start"] = max(
                 calendar.dates_for(len(state.cycles) + 1)[0],
-                latest_end + timedelta(days=1),
+                latest_end + timedelta(days=1)
+                if latest_end
+                else calendar.dates_for(len(state.cycles) + 1)[0],
             ).isoformat()
         context["needsDates"] = calendar is None
         context["patternSteps"] = [asdict(step) for step in state.plan.steps]
@@ -273,9 +295,16 @@ def prepare(campaign, action, query):
             context["savesNext"] = isinstance(preview.following, s.ProjectedCycle)
             lead = f"End {state.current.name} and start {preview.following.name}. Accepted players will be notified."
         elif action == "start":
-            lead = f"Start {state.current.name} and notify accepted players."
+            if state.status == "in_progress" and state.current is None:
+                heading = "Start first cycle"
+            first = state.current or next(iter(state.cycles), None)
+            lead = f"Start {first.name if first else 'Cycle 1'} and notify accepted players."
         else:
-            lead = f"End {state.current.name} and finish the campaign. Its final cycle will remain recorded."
+            lead = (
+                f"End {state.current.name} and finish the campaign. Its final cycle will remain recorded."
+                if state.current
+                else "Finish the campaign without starting a cycle."
+            )
     return PreparedEditor(action, heading, lead, initial, context, canonical, target)
 
 
@@ -349,7 +378,9 @@ def perform(campaign, actor, action, data, query):
                 campaign,
                 **common,
                 template_id=values["template_id"],
-                current_position=values["current_number"] - 1,
+                current_position=None
+                if values["no_current"]
+                else values["current_number"] - 1,
                 mode=values["mode"],
                 calendar=calendar,
                 definition=values["setup_definition"],
@@ -436,8 +467,14 @@ def perform(campaign, actor, action, data, query):
         state = cycles.load(campaign)
         submitted.current = {
             "revision": state.revision if state else None,
-            "cycle": state.current.name if state else "Cycles are not configured",
-            "phase": state.current_phase.details.name if state else "",
+            "cycle": state.current.name
+            if state and state.current
+            else "No current cycle"
+            if state
+            else "Cycles are not configured",
+            "phase": state.current_phase.details.name
+            if state and state.current_phase
+            else "",
         }
         form.add_error(None, exc.public_message)
     except Refusal as exc:

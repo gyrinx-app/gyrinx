@@ -130,6 +130,7 @@ export function ScheduleEditor({
             "date_version",
             "shift_later",
             "setup_definition",
+            "no_current",
         ],
         onNavigate,
         onReload,
@@ -162,6 +163,9 @@ export function ScheduleEditor({
         },
     });
     const { values, errors } = form;
+    const noCurrent =
+        values.no_current === "on" || values.no_current === "True";
+    const currentNumber = values.current_number || "1";
     const shiftContext = editor.context.shiftLater as
         { endsOn: string } | undefined;
     const shiftDays =
@@ -204,7 +208,7 @@ export function ScheduleEditor({
                 : setupStage === 2
                   ? [
                         "mode",
-                        "current_number",
+                        ...(noCurrent ? [] : ["current_number"]),
                         "date_start",
                         "cycle_interval",
                         "cycle_unit",
@@ -386,7 +390,7 @@ export function ScheduleEditor({
     );
     return (
         <EditorFrame
-            page={editor.kind === "plan"}
+            page={editor.kind === "plan" || editor.kind === "setup"}
             back={editor.back}
             footer={footer}
             title={editor.heading}
@@ -483,7 +487,7 @@ export function ScheduleEditor({
             )}
             <div
                 className={
-                    editor.kind === "plan"
+                    editor.kind === "plan" || editor.kind === "setup"
                         ? "px-1"
                         : "max-h-[60vh] overflow-y-auto px-1"
                 }
@@ -564,16 +568,27 @@ export function ScheduleEditor({
                             {setupStage === 2 && (
                                 <>
                                     {mode}
-                                    {text(
-                                        "current_number",
-                                        "Current cycle number",
-                                        {
-                                            type: "number",
-                                            required: true,
-                                            min: "1",
-                                            max: "1000",
-                                        },
-                                    )}
+                                    <Toggle
+                                        label="No current cycle"
+                                        checked={noCurrent}
+                                        onCheckedChange={(checked) =>
+                                            change(
+                                                "no_current",
+                                                checked ? "on" : "",
+                                            )
+                                        }
+                                    />
+                                    {!noCurrent &&
+                                        text(
+                                            "current_number",
+                                            "Current cycle number",
+                                            {
+                                                type: "number",
+                                                help: "Starts at Cycle 1 if left blank.",
+                                                min: "1",
+                                                max: "1000",
+                                            },
+                                        )}
                                     {dates}
                                 </>
                             )}
@@ -612,13 +627,17 @@ export function ScheduleEditor({
                                                 : values.cycle_unit}
                                         </dd>
                                         <dt>Current cycle</dt>
-                                        <dd>Cycle {values.current_number}</dd>
+                                        <dd>
+                                            {noCurrent
+                                                ? "None"
+                                                : `Cycle ${currentNumber}`}
+                                        </dd>
                                     </dl>
                                     <p className="text-sm">
-                                        Cycles 1 through {values.current_number}{" "}
-                                        will be saved with dates. Later cycles
-                                        remain previews until recorded. Your
-                                        campaign keeps its own phases and
+                                        {noCurrent
+                                            ? "No cycle will be started. Cycles remain previews until you edit, use or start them."
+                                            : `Cycles 1 through ${currentNumber} will be saved with dates. Later cycles remain previews until recorded.`}{" "}
+                                        Your campaign keeps its own phases and
                                         pattern.
                                     </p>
                                 </>

@@ -1,4 +1,4 @@
-import { Button, Field, Input } from "../../ui";
+import { Button, Field, Icon, Input } from "../../ui";
 import { PlanSteps } from "./PlanSteps";
 import type { Phase, SetupDefinition } from "./types";
 
@@ -108,7 +108,50 @@ export function SetupDraft({
                         />
                     </Field>
                 ))}
+                <div className="self-end">
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="inline-flex items-center gap-2 whitespace-nowrap"
+                        onClick={() => {
+                            const id = crypto
+                                .randomUUID()
+                                .replaceAll("-", "")
+                                .slice(0, 26);
+                            const reward = {
+                                credits: { fixed: 0, dice: null },
+                                reputation: 0,
+                            };
+                            save({
+                                ...draft,
+                                phases: [
+                                    ...draft.phases,
+                                    {
+                                        id,
+                                        details: {
+                                            name: "New phase",
+                                            description: "",
+                                            effects: "",
+                                            rewards: {
+                                                win: reward,
+                                                draw: reward,
+                                                loss: reward,
+                                                entry_credits: {
+                                                    fixed: 0,
+                                                    dice: null,
+                                                },
+                                            },
+                                        },
+                                    },
+                                ],
+                            });
+                        }}
+                    >
+                        <Icon name="plus" /> Add phase
+                    </Button>
+                </div>
             </div>
+
             <PlanSteps
                 value={JSON.stringify(draft.steps)}
                 phases={phases}
@@ -117,41 +160,6 @@ export function SetupDraft({
                     save({ ...draft, steps: JSON.parse(steps) })
                 }
             />
-            <Button
-                size="sm"
-                onClick={() => {
-                    const id = crypto
-                        .randomUUID()
-                        .replaceAll("-", "")
-                        .slice(0, 26);
-                    const reward = {
-                        credits: { fixed: 0, dice: null },
-                        reputation: 0,
-                    };
-                    save({
-                        ...draft,
-                        phases: [
-                            ...draft.phases,
-                            {
-                                id,
-                                details: {
-                                    name: "New phase",
-                                    description: "",
-                                    effects: "",
-                                    rewards: {
-                                        win: reward,
-                                        draw: reward,
-                                        loss: reward,
-                                        entry_credits: { fixed: 0, dice: null },
-                                    },
-                                },
-                            },
-                        ],
-                    });
-                }}
-            >
-                Add phase
-            </Button>
         </section>
     );
 }

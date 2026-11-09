@@ -102,7 +102,14 @@ export function CycleNavigator({
     }, [readUrl, value]);
 
     async function move(direction: number) {
-        if (!selected || moving !== null) return;
+        if (moving !== null) return;
+        if (!selected) {
+            const first =
+                options.choices.find((choice) => choice.isCurrent) ??
+                options.choices[0];
+            if (first) onChange(key(first));
+            return;
+        }
         const order = selected.order + direction;
         const available = options.choices.find(
             (choice) => choice.order === order,
@@ -201,9 +208,9 @@ export function CycleNavigator({
                         className="min-h-11 shrink-0"
                         busy={moving === 1}
                         disabled={
-                            !selected ||
-                            selected.order >= options.lastOrder ||
-                            moving !== null
+                            (selected
+                                ? selected.order >= options.lastOrder
+                                : !options.choices.length) || moving !== null
                         }
                         onClick={() => void move(1)}
                     >

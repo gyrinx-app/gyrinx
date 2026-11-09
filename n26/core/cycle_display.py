@@ -56,6 +56,10 @@ def dashboard_summary(campaign, user):
         return DashboardCycles(
             "", "", "", schedule_url(campaign), editor_url(campaign, "setup")
         )
+    if header.current_cycle is None:
+        return DashboardCycles(
+            "No current cycle", "", schedule_url(campaign), schedule_url(campaign), ""
+        )
     return DashboardCycles(
         header.current_cycle.name,
         header.current_cycle.phase.name,
@@ -143,6 +147,7 @@ def _build_locked(campaign, user, *, page, preview, focus):
             moreHref="",
         )
     current = header.current_cycle
+    current_order = current.order if current else 0
     phases = list(
         CampaignPhase.objects.filter(campaign=campaign)
         .annotate(
@@ -174,16 +179,16 @@ def _build_locked(campaign, user, *, page, preview, focus):
         .order_by("order"),
         SAVED_PAGE_SIZE,
     )
-    number = page or ((focus.order if focus else current.order) - 1) // 50 + 1
+    number = page or ((focus.order if focus else current_order or 1) - 1) // 50 + 1
     selected = saved.get_page(number)
     rows = []
     for cycle in selected:
         key = str(cycle.pk)
         state = (
             "Current"
-            if cycle.pk == current.pk
+            if current and cycle.pk == current.pk
             else "Past"
-            if cycle.order < current.order
+            if cycle.order < current_order
             else "Saved future"
         )
         rows.append(
@@ -273,6 +278,9 @@ def _build_locked(campaign, user, *, page, preview, focus):
     if campaign.status == "pre_campaign":
         actions["transition"] = editor_url(campaign, "start")
         actions["transitionLabel"] = "Start campaign"
+    elif campaign.status == "in_progress" and current is None:
+        actions["transition"] = editor_url(campaign, "start")
+        actions["transitionLabel"] = "Start first cycle"
     elif campaign.status == "in_progress":
         has_following = current.order < saved.count or bool(projected)
         action = "advance" if has_following else "finish"
@@ -289,9 +297,9 @@ def _build_locked(campaign, user, *, page, preview, focus):
         **common,
         configured=True,
         dateSettingsRequired=not header.date_settings,
-        currentName=current.name,
-        currentPhase=current.phase.name,
-        currentPhaseId=str(current.phase_id),
+        currentName=current.name if current else "No current cycle",
+        currentPhase=current.phase.name if current else "",
+        currentPhaseId=str(current.phase_id) if current else "",
         rows=tuple(rows),
         phases=phase_display,
         plan={

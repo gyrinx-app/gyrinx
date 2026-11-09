@@ -62,6 +62,12 @@ and pattern, supplies dates and a current cycle, then reviews the schedule befor
 the single setup command. The draft makes no writes. Setup copies phase and step
 identities into the campaign; later template edits cannot alter that copy.
 
+Initial setup and Schedule settings use full React pages. The current cycle number
+is optional and defaults to 1. Choosing No current cycle stores no active pointer
+and initially saves no cycles. Players can still select a future cycle for a battle;
+that saves its prefix without starting it. Start first cycle activates Cycle 1,
+reusing it when it was already saved. It does not consume another plan position.
+
 Configured campaigns expose schedule, phase and cycle management. They expose no
 template application or export command. Template creation requires a content
 author and the cycle-tracking flag. Authors maintain reusable definitions in the
