@@ -416,8 +416,52 @@ test("a later editor request supersedes an earlier slow response", async () => {
     await userEvent.click(
         screen.getByRole("link", { name: "Schedule settings" }),
     );
-    await screen.findByRole("dialog", { name: "Schedule settings" });
+    await screen.findByRole("heading", { level: 1, name: "Schedule settings" });
+    expect(screen.queryByRole("dialog")).toBeNull();
     await act(async () => finish(json(data(editor))));
     expect(screen.queryByRole("dialog", { name: "Edit cycle" })).toBeNull();
     expect(fetch.mock.calls[0][1].signal.aborted).toBe(true);
+});
+
+test("Schedule settings uses a full page and keeps loading inside its trigger", async () => {
+    let finish!: (value: ReturnType<typeof json>) => void;
+    const slow = new Promise<ReturnType<typeof json>>((resolve) => {
+        finish = resolve;
+    });
+    const plan = {
+        ...editor,
+        kind: "plan",
+        heading: "Schedule settings",
+        action: base + "edit/plan/",
+        values: {
+            request_key: "plan-key",
+            expected_revision: "1",
+            mode: "fixed",
+            steps: "[]",
+        },
+    };
+    const fetch = vi
+        .fn()
+        .mockReturnValueOnce(slow)
+        .mockResolvedValueOnce(json(data()));
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...data()} />);
+    const row = document.getElementById("cycle-one")!;
+    const trigger = screen.getByRole("link", { name: "Schedule settings" });
+    await userEvent.click(trigger);
+    expect(trigger.getAttribute("aria-busy")).toBe("true");
+    expect(trigger.getAttribute("data-busy")).toBe("on");
+    expect(screen.queryByText("Loading schedule…")).toBeNull();
+    expect(row.isConnected).toBe(true);
+    await act(async () => finish(json(data(plan))));
+    const heading = await screen.findByRole("heading", {
+        level: 1,
+        name: "Schedule settings",
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(row.isConnected).toBe(false);
+    expect(document.activeElement).toBe(heading);
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await screen.findByRole("heading", { level: 1, name: "Campaign cycles" });
+    expect(window.location.pathname).toBe(base);
 });

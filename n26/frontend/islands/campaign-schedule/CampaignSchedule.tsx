@@ -2,6 +2,7 @@ import {
     ActionBar,
     ActionMenu,
     Badge,
+    BusyControlScope,
     Breadcrumbs,
     Button,
     ButtonLink,
@@ -343,6 +344,30 @@ function ScheduleContent(
         };
     },
 ) {
+    if (props.editor?.kind === "plan")
+        return (
+            <ScheduleEditor
+                key={`${props.editor.recoveryKey}:${props.editor.values.request_key}`}
+                editor={props.editor}
+                phases={props.phases}
+                breadcrumb={
+                    <Breadcrumbs
+                        items={[
+                            { label: "Campaigns", href: "/n26/campaigns/" },
+                            {
+                                label: props.campaignName,
+                                href: props.campaignHref,
+                            },
+                            { label: "Cycles", href: props.scheduleHref },
+                            { label: "Schedule settings" },
+                        ]}
+                    />
+                }
+                onNavigate={props.onNavigate}
+                onReload={props.onReload}
+                navigation={props.navigation}
+            />
+        );
     const phases = new Map(props.phases.map((phase) => [phase.id, phase]));
     // A repeated phase starts another group; grouping by identity would reorder cycles.
     const groups: { phase: Phase; cycles: Cycle[]; anchor: boolean }[] = [];
@@ -536,31 +561,32 @@ function ScheduleContent(
 export function CampaignSchedule(props: ScheduleProps) {
     const navigation = useScheduleNavigation(props);
     return (
-        <div onClickCapture={navigation.onClick} aria-busy={navigation.pending}>
-            {!navigation.data.editor && navigation.pending && (
-                <p role="status" className="mb-3 text-sm text-muted">
-                    Loading schedule…
-                </p>
-            )}
-            {!navigation.data.editor && navigation.error && (
-                <div role="alert" className="mb-3 text-sm">
-                    <p>{navigation.error}</p>
-                    <Button size="sm" onClick={navigation.retry}>
-                        Try again
-                    </Button>
-                </div>
-            )}
-            {navigation.notices.map((notice, index) => (
-                <p key={index} role="status" className="mb-3 text-sm">
-                    {notice}
-                </p>
-            ))}
-            <ScheduleContent
-                {...navigation.data}
-                onNavigate={navigation.navigate}
-                onReload={navigation.reload}
-                navigation={navigation}
-            />
-        </div>
+        <BusyControlScope value={navigation.busyControl}>
+            <div
+                data-busy="off"
+                onClickCapture={navigation.onClick}
+                aria-busy={navigation.pending}
+            >
+                {!navigation.data.editor && navigation.error && (
+                    <div role="alert" className="mb-3 text-sm">
+                        <p>{navigation.error}</p>
+                        <Button size="sm" onClick={navigation.retry}>
+                            Try again
+                        </Button>
+                    </div>
+                )}
+                {navigation.notices.map((notice, index) => (
+                    <p key={index} role="status" className="mb-3 text-sm">
+                        {notice}
+                    </p>
+                ))}
+                <ScheduleContent
+                    {...navigation.data}
+                    onNavigate={navigation.navigate}
+                    onReload={navigation.reload}
+                    navigation={navigation}
+                />
+            </div>
+        </BusyControlScope>
     );
 }

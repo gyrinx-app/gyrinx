@@ -903,20 +903,23 @@ export function Table({
 
 export function Link({
     children,
+    busy = false,
     className = "",
     tone = "accent",
     ...props
 }: ComponentProps<"a"> & {
+    busy?: boolean;
     /** Tones use the corresponding `<c-n26.link>` recipe. */
     tone?: "accent" | "current" | "danger";
 }) {
+    const busyProps = useBusyControl(busy);
     const recipe = {
         accent: cotton.link,
         current: cotton.linkCurrent,
         danger: cotton.linkDanger,
     }[tone];
     return (
-        <a {...props} className={`${recipe[0]} ${className}`}>
+        <a {...props} {...busyProps} className={`${recipe[0]} ${className}`}>
             <span className={recipe[1]}>{children}</span>
         </a>
     );

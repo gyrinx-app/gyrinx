@@ -1,6 +1,13 @@
 {% extends "n26/layouts/base.html" %}
 {% load react %}
-{% block head_title %}Campaign cycles — {{ campaign.name }}{% endblock head_title %}
+{% block head_title %}
+    {% if schedule_props.editor.kind == "plan" %}
+        Schedule settings
+    {% else %}
+        Campaign cycles
+    {% endif %}
+    — {{ campaign.name }}
+{% endblock head_title %}
 {% block nav_items %}
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock nav_items %}

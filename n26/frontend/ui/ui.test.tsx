@@ -6,16 +6,42 @@ import cotton from "../generated/cotton.json";
 import {
     Button,
     ButtonLink,
+    BusyControlScope,
     Callout,
     CheckboxCard,
     Field,
     FormActions,
     Input,
+    Link,
     NativeSelect,
     RadioCards,
     Switch,
     Table,
 } from "./index";
+
+it("keeps a text link's label while its shared busy scope supplies the spinner", () => {
+    const view = render(
+        <BusyControlScope value={null}>
+            <Link href="/cycles/">Cycle dates</Link>
+        </BusyControlScope>,
+    );
+    const link = screen.getByRole("link", { name: "Cycle dates" });
+    const id = link.getAttribute("data-busy-id");
+    view.rerender(
+        <BusyControlScope value={id}>
+            <Link href="/cycles/">Cycle dates</Link>
+        </BusyControlScope>,
+    );
+    expect(link.getAttribute("data-busy")).toBe("on");
+    expect(link.getAttribute("aria-busy")).toBe("true");
+    expect(link.textContent).toBe("Cycle dates");
+    view.rerender(
+        <BusyControlScope value={null}>
+            <Link href="/cycles/">Cycle dates</Link>
+        </BusyControlScope>,
+    );
+    expect(link.getAttribute("data-busy")).toBeNull();
+});
 
 it("keeps row hover optional through the Cotton table recipe", () => {
     const view = render(

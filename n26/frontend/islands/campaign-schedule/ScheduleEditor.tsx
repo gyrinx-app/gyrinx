@@ -1,6 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import {
+    useEffect,
+    useRef,
+    useState,
+    type ComponentProps,
+    type ReactNode,
+} from "react";
 import { fieldErrors } from "../../http/command";
 import {
+    Breadcrumbs,
     Button,
     Dialog,
     Field,
@@ -10,6 +17,7 @@ import {
     NativeSelect,
     Textarea,
     Toggle,
+    WorkflowPage,
     useWorkflowForm,
 } from "../../ui";
 import { PlanSteps } from "./PlanSteps";
@@ -39,17 +47,69 @@ const visible: Record<string, string[]> = {
     plan: ["mode", "date_start", "cycle_interval", "cycle_unit"],
 };
 
+function EditorFrame({
+    page,
+    back,
+    footer,
+    breadcrumb,
+    busy,
+    ...props
+}: ComponentProps<typeof Dialog> & {
+    page: boolean;
+    back: string;
+    footer: ReactNode;
+    breadcrumb?: ReactNode;
+    busy?: boolean;
+}) {
+    const heading = useRef<HTMLHeadingElement>(null);
+    useEffect(() => {
+        if (page) heading.current?.focus();
+    }, [page]);
+    if (!page)
+        return (
+            <Dialog {...props}>
+                {props.children}
+                {footer}
+            </Dialog>
+        );
+    return (
+        <WorkflowPage
+            title={props.title}
+            lead={props.lead}
+            headingRef={heading}
+            breadcrumb={
+                breadcrumb ?? (
+                    <Breadcrumbs
+                        items={[
+                            { label: "Campaign cycles", href: back },
+                            { label: props.title },
+                        ]}
+                    />
+                )
+            }
+            {...props.formProps}
+            onSubmit={props.onSubmit}
+            aria-busy={busy}
+            footer={footer}
+        >
+            <div className="space-y-4">{props.children}</div>
+        </WorkflowPage>
+    );
+}
+
 export function ScheduleEditor({
     editor,
     phases,
     onNavigate,
     onReload,
     navigation,
+    breadcrumb,
 }: {
     editor: Editor;
     phases: Phase[];
     onNavigate?: (url: string) => void;
     onReload?: () => void;
+    breadcrumb?: ReactNode;
     navigation?: {
         pending: boolean;
         error: string;
@@ -255,9 +315,82 @@ export function ScheduleEditor({
     );
     const navigate = (url: string) =>
         (onNavigate ?? ((href) => window.location.assign(href)))(url);
+    const footer = (
+        <FormActions>
+            {editor.kind === "setup" && setupStage > 1 && (
+                <Button
+                    disabled={form.frozen || confirmed}
+                    onClick={() => setSetupStep(setupStage - 1)}
+                >
+                    Back
+                </Button>
+            )}
+            {form.conflicted || (unavailable && !form.uncertain) ? (
+                <Button
+                    variant="primary"
+                    onClick={() =>
+                        form.conflicted
+                            ? form.review(reviewUrl)
+                            : navigate(editor.back)
+                    }
+                >
+                    Review current schedule
+                </Button>
+            ) : (
+                <Button
+                    type="submit"
+                    busy={form.pending || (confirmed && navigation?.pending)}
+                    variant={
+                        editor.kind === "setup" && setupStage < 3
+                            ? "primary"
+                            : "success"
+                    }
+                    disabled={form.pending || confirmed || navigation?.pending}
+                >
+                    {form.uncertain
+                        ? "Retry save"
+                        : editor.kind === "setup"
+                          ? setupStage === 1
+                              ? "Customise schedule"
+                              : setupStage === 2
+                                ? "Review schedule"
+                                : "Set up cycles"
+                          : [
+                                  "advance",
+                                  "start",
+                                  "finish",
+                                  "delete-phase",
+                              ].includes(editor.kind)
+                            ? editor.heading
+                            : "Save"}
+                </Button>
+            )}
+            <Button
+                variant="ghost"
+                disabled={
+                    form.pending ||
+                    form.uncertain ||
+                    confirmed ||
+                    navigation?.pending
+                }
+                onClick={() =>
+                    form.conflicted
+                        ? form.review(editor.back)
+                        : navigate(editor.back)
+                }
+            >
+                Cancel
+            </Button>
+        </FormActions>
+    );
     return (
-        <Dialog
+        <EditorFrame
+            page={editor.kind === "plan"}
+            back={editor.back}
+            footer={footer}
             title={editor.heading}
+            breadcrumb={breadcrumb}
+            busy={form.pending || navigation?.pending}
             lead={
                 editor.kind === "setup"
                     ? setupStage === 1
@@ -331,16 +464,12 @@ export function ScheduleEditor({
                     </p>
                 </div>
             )}
-            {navigation?.pending && (
-                <p role="status" className="text-sm text-muted">
-                    {confirmed
-                        ? "Saved. Updating schedule…"
-                        : "Loading schedule…"}
-                </p>
-            )}
             {navigation?.error && (
                 <div role="alert" className="text-sm">
-                    <p>{navigation.error}</p>
+                    <p>
+                        {confirmed && "Saved. "}
+                        {navigation.error}
+                    </p>
                     <Button
                         size="sm"
                         disabled={!confirmed && form.frozen}
@@ -350,7 +479,13 @@ export function ScheduleEditor({
                     </Button>
                 </div>
             )}
-            <div className="max-h-[60vh] overflow-y-auto px-1">
+            <div
+                className={
+                    editor.kind === "plan"
+                        ? "px-1"
+                        : "max-h-[60vh] overflow-y-auto px-1"
+                }
+            >
                 <fieldset
                     disabled={
                         form.frozen ||
@@ -635,75 +770,6 @@ export function ScheduleEditor({
                     )}
                 </fieldset>
             </div>
-            <FormActions>
-                {editor.kind === "setup" && setupStage > 1 && (
-                    <Button
-                        disabled={form.frozen || confirmed}
-                        onClick={() => setSetupStep(setupStage - 1)}
-                    >
-                        Back
-                    </Button>
-                )}
-                {form.conflicted || (unavailable && !form.uncertain) ? (
-                    <Button
-                        variant="primary"
-                        onClick={() =>
-                            form.conflicted
-                                ? form.review(reviewUrl)
-                                : navigate(editor.back)
-                        }
-                    >
-                        Review current schedule
-                    </Button>
-                ) : (
-                    <Button
-                        type="submit"
-                        variant={
-                            editor.kind === "setup" && setupStage < 3
-                                ? "primary"
-                                : "success"
-                        }
-                        disabled={
-                            form.pending || confirmed || navigation?.pending
-                        }
-                    >
-                        {form.pending
-                            ? "Saving…"
-                            : form.uncertain
-                              ? "Retry save"
-                              : editor.kind === "setup"
-                                ? setupStage === 1
-                                    ? "Customise schedule"
-                                    : setupStage === 2
-                                      ? "Review schedule"
-                                      : "Set up cycles"
-                                : [
-                                        "advance",
-                                        "start",
-                                        "finish",
-                                        "delete-phase",
-                                    ].includes(editor.kind)
-                                  ? editor.heading
-                                  : "Save"}
-                    </Button>
-                )}
-                <Button
-                    variant="ghost"
-                    disabled={
-                        form.pending ||
-                        form.uncertain ||
-                        confirmed ||
-                        navigation?.pending
-                    }
-                    onClick={() =>
-                        form.conflicted
-                            ? form.review(editor.back)
-                            : navigate(editor.back)
-                    }
-                >
-                    Cancel
-                </Button>
-            </FormActions>
-        </Dialog>
+        </EditorFrame>
     );
 }
