@@ -109,8 +109,9 @@ function CycleRow({ cycle }: { cycle: Cycle }) {
                             <span className="font-medium">{cycle.name}</span>
                             {projected && (
                                 <span className="sr-only">
-                                    Preview, not saved yet. Edit this cycle to
-                                    save it.
+                                    Preview, not saved yet.
+                                    {cycle.editHref &&
+                                        " Edit this cycle to save it."}
                                 </span>
                             )}
                             {(cycle.state === "Current" ||
@@ -178,7 +179,7 @@ function CycleRow({ cycle }: { cycle: Cycle }) {
                         href={cycle.editHref}
                         variant="ghost"
                         size="xs"
-                        className="px-1!"
+                        className="inline-flex! size-6! items-center justify-center p-0! leading-none"
                         aria-label={`Edit ${cycle.name}`}
                         title={`Edit ${cycle.name}`}
                     >
