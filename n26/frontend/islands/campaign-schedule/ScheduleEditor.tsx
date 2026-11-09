@@ -642,12 +642,13 @@ export function ScheduleEditor({
                                     </p>
                                 </>
                             )}
-                            {editor.context.activates === true && (
-                                <p className="text-sm">
-                                    Saving starts the selected cycle and
-                                    notifies accepted players.
-                                </p>
-                            )}
+                            {editor.context.activates === true &&
+                                !noCurrent && (
+                                    <Alert tone="warning" dismissible={false}>
+                                        Saving starts the selected cycle and
+                                        notifies accepted players.
+                                    </Alert>
+                                )}
                         </section>
                     )}
                     {fields.has("name") &&
@@ -769,11 +770,11 @@ export function ScheduleEditor({
                             {dates}
                             {mode}
                             {values.mode !== editor.values.mode && (
-                                <p className="text-sm text-muted">
+                                <Alert tone="info" dismissible={false}>
                                     Review the phase counts below before
                                     switching modes. Saved cycles and their
                                     dates are retained.
-                                </p>
+                                </Alert>
                             )}
                             <PlanSteps
                                 value={values.steps}
@@ -784,10 +785,10 @@ export function ScheduleEditor({
                         </>
                     )}
                     {editor.context.savesNext === true && (
-                        <p className="text-sm">
+                        <Alert tone="info" dismissible={false}>
                             The next projected cycle will be saved and activated
                             together.
-                        </p>
+                        </Alert>
                     )}
                 </fieldset>
             </div>

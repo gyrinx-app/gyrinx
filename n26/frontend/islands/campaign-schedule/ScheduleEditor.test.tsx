@@ -133,6 +133,7 @@ test.each([false, true])(
                     ...editor,
                     kind: "setup",
                     heading: "Set up campaign cycles",
+                    context: { activates: true },
                     templates: [
                         {
                             id: "template",
@@ -211,6 +212,9 @@ test.each([false, true])(
         );
         expect(screen.getByText(/1. My opening/)).toBeTruthy();
         expect(screen.getByText("1 week")).toBeTruthy();
+        expect(!!screen.queryByText(/Saving starts the selected cycle/)).toBe(
+            !noCurrent,
+        );
         expect(
             screen.getByText(noCurrent ? "None" : "Cycle 1", { exact: true }),
         ).toBeTruthy();
