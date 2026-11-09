@@ -14,7 +14,34 @@ import {
     NativeSelect,
     RadioCards,
     Switch,
+    Table,
 } from "./index";
+
+it("keeps row hover optional through the Cotton table recipe", () => {
+    const view = render(
+        <Table hover={false}>
+            <tbody>
+                <tr>
+                    <td>Cycle 1</td>
+                </tr>
+            </tbody>
+        </Table>,
+    );
+    expect(screen.getByRole("table").className).toContain(
+        cotton.tableStatic[1],
+    );
+    expect(screen.getByRole("table").className).not.toContain("tr:hover");
+    view.rerender(
+        <Table>
+            <tbody>
+                <tr>
+                    <td>Cycle 1</td>
+                </tr>
+            </tbody>
+        </Table>,
+    );
+    expect(screen.getByRole("table").className).toContain("tr:hover");
+});
 
 describe("radio cards", () => {
     it("associates styled errors with the group and clears their attributes", () => {

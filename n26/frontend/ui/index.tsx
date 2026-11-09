@@ -886,16 +886,17 @@ export function Card({ children }: { children: ReactNode }) {
 
 export function Table({
     children,
+    hover = true,
     className = "",
 }: {
     children: ReactNode;
+    hover?: boolean;
     className?: string;
 }) {
+    const recipe = hover ? cotton.table : cotton.tableStatic;
     return (
-        <div className={cotton.table[0]}>
-            <table className={`${cotton.table[1]} ${className}`}>
-                {children}
-            </table>
+        <div className={recipe[0]}>
+            <table className={`${recipe[1]} ${className}`}>{children}</table>
         </div>
     );
 }
