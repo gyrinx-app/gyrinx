@@ -20,19 +20,28 @@ from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_40
 
 
 def _respond(request, campaign, display):
+    notices = [
+        {
+            "message": str(message),
+            "tone": message.level_tag
+            if message.level_tag in {"success", "warning", "error"}
+            else "info",
+        }
+        for message in messages.get_messages(request)
+    ]
     if request.method == "GET" and "application/json" in request.headers.get(
         "Accept", ""
     ):
         return JsonResponse(
             {
                 "schedule": display,
-                "notices": [str(message) for message in messages.get_messages(request)],
+                "notices": notices,
             }
         )
     return render(
         request,
         "n26/campaign_cycles.html",
-        {"campaign": campaign, "schedule_props": display},
+        {"campaign": campaign, "schedule_props": {**display, "notices": notices}},
     )
 
 

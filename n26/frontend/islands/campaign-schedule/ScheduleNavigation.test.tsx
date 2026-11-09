@@ -465,3 +465,35 @@ test("Schedule settings uses a full page and keeps loading inside its trigger", 
     await screen.findByRole("heading", { level: 1, name: "Campaign cycles" });
     expect(window.location.pathname).toBe(base);
 });
+
+test("schedule messages use dismissible design-system alerts and repeated saves show a fresh message", async () => {
+    const initial = {
+        ...data(),
+        notices: [
+            { message: "Campaign schedule saved.", tone: "success" as const },
+        ],
+    };
+    const fetch = vi
+        .fn()
+        .mockResolvedValue({
+            ...json(data(editor)),
+            json: async () => ({
+                schedule: data(editor),
+                notices: [
+                    { message: "Campaign schedule saved.", tone: "success" },
+                ],
+            }),
+        });
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...initial} />);
+    expect(screen.getByRole("alert").getAttribute("data-message")).toBe(
+        "success",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText("Campaign schedule saved.")).toBeNull();
+    await userEvent.click(screen.getByRole("link", { name: "Edit Cycle 1" }));
+    await screen.findByText("Campaign schedule saved.");
+    expect(screen.getByRole("alert").getAttribute("data-message")).toBe(
+        "success",
+    );
+});

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, type ComponentProps } from "react";
 import cotton from "../generated/cotton.json";
 
 export type AlertTone = keyof typeof cotton.alert;
@@ -7,16 +7,22 @@ export function Alert({
     tone = "info",
     children,
     dismissible = true,
-}: {
+    className = "",
+    ...props
+}: ComponentProps<"div"> & {
     tone?: AlertTone;
-    children: ReactNode;
     dismissible?: boolean;
 }) {
     const [visible, setVisible] = useState(true);
     if (!visible) return null;
     const recipe = cotton.alert[tone];
     return (
-        <div role="alert" data-message={tone} className={recipe.root}>
+        <div
+            {...props}
+            role={props.role ?? "alert"}
+            data-message={tone}
+            className={className ? `${recipe.root} ${className}` : recipe.root}
+        >
             <svg
                 className={recipe.icon}
                 fill="none"

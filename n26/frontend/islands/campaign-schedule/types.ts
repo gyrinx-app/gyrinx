@@ -68,6 +68,10 @@ export type Editor = {
     back: string;
 };
 export interface ScheduleProps {
+    notices?: Array<{
+        message: string;
+        tone: "success" | "info" | "warning" | "error";
+    }>;
     campaignName: string;
     campaignHref: string;
     scheduleHref: string;

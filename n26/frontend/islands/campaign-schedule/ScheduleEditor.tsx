@@ -7,6 +7,7 @@ import {
 } from "react";
 import { fieldErrors } from "../../http/command";
 import {
+    Alert,
     Breadcrumbs,
     Button,
     Dialog,
@@ -437,10 +438,11 @@ export function ScheduleEditor({
                     <input key={name} type="hidden" name={name} value={value} />
                 ))}
             {form.hasErrors && (
-                <div
+                <Alert
+                    tone="error"
+                    dismissible={false}
                     ref={form.summary}
                     tabIndex={-1}
-                    role="alert"
                     aria-label="Schedule save errors"
                 >
                     <FieldErrors
@@ -449,10 +451,10 @@ export function ScheduleEditor({
                             ...(form.notice ? [form.notice] : []),
                         ]}
                     />
-                </div>
+                </Alert>
             )}
             {form.conflicted && current && (
-                <div className="rounded-control border border-box-border p-3 text-sm">
+                <Alert tone="warning" dismissible={false}>
                     <p className="font-medium">Current schedule</p>
                     <p>
                         {current.cycle}
@@ -462,10 +464,10 @@ export function ScheduleEditor({
                         Your draft remains below. Review the current schedule
                         before making another change.
                     </p>
-                </div>
+                </Alert>
             )}
             {navigation?.error && (
-                <div role="alert" className="text-sm">
+                <Alert tone="error" dismissible={false}>
                     <p>
                         {confirmed && "Saved. "}
                         {navigation.error}
@@ -477,7 +479,7 @@ export function ScheduleEditor({
                     >
                         Try again
                     </Button>
-                </div>
+                </Alert>
             )}
             <div
                 className={

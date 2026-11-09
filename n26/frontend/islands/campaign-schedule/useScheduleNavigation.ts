@@ -6,6 +6,27 @@ import {
     type MouseEvent,
 } from "react";
 import type { ScheduleProps } from "./types";
+import type { AlertTone } from "../../ui";
+
+function readNotices(value: unknown) {
+    if (!Array.isArray(value)) return [];
+    return value.flatMap((notice) => {
+        const message =
+            typeof notice === "string"
+                ? notice
+                : notice && typeof notice.message === "string"
+                  ? notice.message
+                  : null;
+        if (message === null) return [];
+        const tone: AlertTone =
+            typeof notice === "string"
+                ? "success"
+                : ((["success", "warning", "error", "info"] as const).find(
+                      (tone) => tone === notice.tone,
+                  ) ?? "info");
+        return [{ id: crypto.randomUUID(), message, tone }];
+    });
+}
 
 function scheduleData(value: unknown): value is ScheduleProps {
     if (!value || typeof value !== "object") return false;
@@ -31,7 +52,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
     const [busyControl, setBusyControl] = useState<string | null>(null);
     const interaction = useRef<string | null>(null);
     const [error, setError] = useState("");
-    const [notices, setNotices] = useState<string[]>([]);
+    const [notices, setNotices] = useState(() => readNotices(initial.notices));
     const controller = useRef<AbortController | null>(null);
     const guarded = useRef(false);
     const scope = useRef(crypto.randomUUID());
@@ -108,12 +129,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 current.current = url.href;
                 setData(result.schedule);
                 setNotices(
-                    "notices" in result && Array.isArray(result.notices)
-                        ? result.notices.filter(
-                              (notice): notice is string =>
-                                  typeof notice === "string",
-                          )
-                        : [],
+                    readNotices("notices" in result ? result.notices : []),
                 );
             } catch {
                 if (controller.current === request && !request.signal.aborted)

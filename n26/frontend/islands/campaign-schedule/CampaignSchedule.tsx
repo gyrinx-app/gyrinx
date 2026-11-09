@@ -1,6 +1,7 @@
 import {
     ActionBar,
     ActionMenu,
+    Alert,
     Badge,
     BusyControlScope,
     Breadcrumbs,
@@ -568,17 +569,17 @@ export function CampaignSchedule(props: ScheduleProps) {
                 aria-busy={navigation.pending}
             >
                 {!navigation.data.editor && navigation.error && (
-                    <div role="alert" className="mb-3 text-sm">
+                    <Alert tone="error" dismissible={false} className="mb-3">
                         <p>{navigation.error}</p>
                         <Button size="sm" onClick={navigation.retry}>
                             Try again
                         </Button>
-                    </div>
+                    </Alert>
                 )}
-                {navigation.notices.map((notice, index) => (
-                    <p key={index} role="status" className="mb-3 text-sm">
-                        {notice}
-                    </p>
+                {navigation.notices.map((notice) => (
+                    <Alert key={notice.id} tone={notice.tone} className="mb-3">
+                        {notice.message}
+                    </Alert>
                 ))}
                 <ScheduleContent
                     {...navigation.data}

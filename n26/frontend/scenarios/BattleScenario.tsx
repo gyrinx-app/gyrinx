@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { SideJobFields } from "./SideJobFields";
 import { useScenarioPicks } from "./useScenarioPicks";
 import {
+    Alert,
     Button,
     ButtonLink,
     Dialog,
@@ -278,13 +279,10 @@ export function BattleScenario(props: BattleScenarioProps) {
             aria-busy={pending}
         >
             {invalid && (
-                <p
-                    role="alert"
-                    className="text-sm text-red-600 dark:text-red-400"
-                >
+                <Alert tone="error" dismissible={false}>
                     This link names a scenario component that is not on its
                     table. Generate the scenario again.
-                </p>
+                </Alert>
             )}
             {[...props.tables.map((table) => table.key), ...sideJobKeys].map(
                 (key) => (
@@ -430,12 +428,9 @@ export function BattleScenario(props: BattleScenarioProps) {
                 </section>
             )}
             {error && (
-                <p
-                    role="alert"
-                    className="text-sm text-red-600 dark:text-red-400"
-                >
+                <Alert tone="error" dismissible={false}>
                     {error}
-                </p>
+                </Alert>
             )}
             <div className="flex flex-wrap items-center gap-2">
                 <Button
