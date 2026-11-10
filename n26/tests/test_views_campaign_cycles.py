@@ -1,7 +1,7 @@
 """Schedule transports share ownership, revision and durable retry semantics."""
 
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import date
 from uuid import uuid4
 
@@ -16,7 +16,7 @@ from gyrinx.site.models import Availability, FeatureFlag
 from n26.core import cycles
 from n26.core import schedule as s
 from n26.core.cycle_data import ref_data, template_data
-from n26.core.cycle_display import build, editor_url, schedule_url
+from n26.core.cycle_display import build, dashboard_summary, editor_url, schedule_url
 from n26.core.models import CampaignCycle, CampaignSchedule, CampaignScheduleTemplate
 from n26.flags import CYCLE_TRACKING
 from n26.tests.sandbox.actions import found_campaign
@@ -82,10 +82,12 @@ def test_dashboard_groups_cycle_information_and_management_menu(
     response = client.get(reverse("n26-campaign", args=[campaign.pk]))
     page = BeautifulSoup(response.content, "html.parser")
     info = page.select_one('[aria-label="Campaign info"]')
-    assert "Current cycle" in info.get_text()
-    assert info.select_one('[aria-label="Edit campaign schedule"]')[
+    assert "Current cycle" not in info.get_text()
+    summary = page.select_one("#campaign-cycle-summary")
+    assert "Current cycle" in summary.get_text()
+    assert summary.select_one('[aria-label="Edit campaign schedule"]')[
         "href"
-    ] == schedule_url(campaign)
+    ] == editor_url(campaign, "plan")
     host = page.select_one('#campaign-overview [data-react-name="campaign-setup"]')
     assert "md:col-span-2" in host["class"]
     actions = response.context["more_actions"]
@@ -733,6 +735,115 @@ class TestSharedCommands:
 
 
 class TestDisplayReads:
+    def test_dashboard_card_counts_the_current_phase_and_exposes_existing_owner_workflows(
+        self, client, campaign, configured
+    ):
+        summary = dashboard_summary(campaign, campaign.owner)
+        assert (
+            summary.order,
+            summary.cycle_limit,
+            summary.phase_position,
+            summary.phase_count,
+        ) == (1, 7, 1, 3)
+        assert (summary.next_phase, summary.cycles_until_phase) == ("Downtime", 3)
+        assert (summary.starts_on, summary.ends_on) == (
+            date(2026, 11, 1),
+            date(2026, 11, 7),
+        )
+        assert summary.action_href == editor_url(campaign, "start")
+        reader = User.objects.create_user("summary-reader")
+        assert dashboard_summary(campaign, reader).action_href == ""
+        client.force_login(reader)
+        page = BeautifulSoup(
+            client.get(reverse("n26-campaign", args=[campaign.pk])).content,
+            "html.parser",
+        )
+        card = page.select_one("#campaign-cycle-summary")
+        assert "Cycle 1 of 3 in this phase" in card.get_text(" ", strip=True)
+        assert not card.select_one('[aria-label="Edit campaign schedule"]')
+
+    def test_dashboard_uses_saved_phase_changes_instead_of_the_cycles_original_plan(
+        self, campaign, configured
+    ):
+        target = s.project(configured, limit=4)[-1]
+        cycles.edit_cycle(
+            campaign,
+            actor=campaign.owner,
+            target=target.ref,
+            details=s.CycleDetails(target.phase_id),
+            expected_revision=configured.revision,
+            request_key=uuid4(),
+        )
+        before = dashboard_summary(campaign, campaign.owner)
+        assert (before.phase_count, before.next_phase) == (3, "Downtime")
+        state = cycles.load(campaign)
+        downtime = next(
+            phase for phase in state.phases if phase.details.name == "Downtime"
+        )
+        cycles.edit_cycle(
+            campaign,
+            actor=campaign.owner,
+            target=s.SavedCycleRef(state.current_cycle_id),
+            details=replace(state.current.details, phase_id=downtime.id),
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        summary = dashboard_summary(campaign, campaign.owner)
+        assert (
+            summary.phase_position,
+            summary.phase_count,
+            summary.cycles_until_phase,
+        ) == (1, 1, 1)
+        assert summary.next_phase == "Occupation Phase"
+
+    def test_dashboard_read_cost_does_not_grow_with_saved_repeating_history(
+        self, campaign, configured
+    ):
+        cycles.replace_plan(
+            campaign,
+            actor=campaign.owner,
+            steps=configured.plan.steps,
+            mode="repeating",
+            expected_revision=configured.revision,
+            request_key=uuid4(),
+        )
+        with CaptureQueriesContext(connection) as small:
+            before = dashboard_summary(campaign, campaign.owner)
+        state = cycles.load(campaign)
+        target = s.project(state, limit=60)[-1]
+        cycles.edit_cycle(
+            campaign,
+            actor=campaign.owner,
+            target=target.ref,
+            details=s.CycleDetails(target.phase_id),
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        with CaptureQueriesContext(connection) as large:
+            after = dashboard_summary(campaign, campaign.owner)
+        assert len(large) <= len(small)
+        assert (after.phase_position, after.phase_count, after.next_phase) == (
+            before.phase_position,
+            before.phase_count,
+            before.next_phase,
+        )
+        assert after.cycle_limit is None
+
+    def test_a_finished_dashboard_shows_history_without_a_transition_or_countdown(
+        self, client, campaign, configured
+    ):
+        from n26.core.campaigns import campaign_operation
+
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            act.set_status("post_campaign")
+        summary = dashboard_summary(campaign, campaign.owner)
+        assert summary.complete and not summary.action_href and not summary.next_phase
+        response = client.get(reverse("n26-campaign", args=[campaign.pk]))
+        card = BeautifulSoup(response.content, "html.parser").select_one(
+            "#campaign-cycle-summary"
+        )
+        assert "Last phase" in card.get_text() and "Last cycle" in card.get_text()
+
     def test_saved_history_is_paginated_with_constant_query_growth(
         self, campaign, configured
     ):

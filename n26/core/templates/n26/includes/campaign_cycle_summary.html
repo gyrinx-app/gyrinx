@@ -1,0 +1,73 @@
+<section id="campaign-cycle-summary"
+         class="min-w-0 md:col-span-2"
+         aria-labelledby="campaign-progress-heading">
+    <c-ui.card>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="campaign-progress-heading" class="text-sm font-semibold">Campaign progress</h2>
+            <div class="flex flex-wrap items-center gap-2">
+                {% if cycle_summary.action_href %}
+                    <c-ui.button href="{{ cycle_summary.action_href }}" size="sm" variant="primary">
+                        {{ cycle_summary.action_label }}
+                    </c-ui.button>
+                {% endif %}
+                <c-ui.button href="{{ cycle_summary.schedule_href }}" size="sm" variant="default">
+                    Schedule &amp; cycles
+                </c-ui.button>
+                {% if yours %}
+                    <c-ui.button href="{% url 'n26-cycle-editor' campaign.pk 'plan' %}"
+                                 size="xs"
+                                 variant="ghost"
+                                 aria-label="Edit campaign schedule"
+                                 class="inline-flex! size-6! items-center justify-center p-0!">
+                        <c-n26.icon name="pencil" class="size-3.5" />
+                    </c-ui.button>
+                {% endif %}
+            </div>
+        </div>
+        <dl class="mt-4 grid min-w-0 gap-5 md:grid-cols-2">
+            <div class="min-w-0 md:border-r md:border-box-border md:pr-5">
+                <dt class="text-sm text-muted">{% if cycle_summary.complete %}Last phase{% else %}Current phase{% endif %}</dt>
+                <dd class="mt-1 space-y-2">
+                    {% if cycle_summary.phase %}
+                        <p class="break-words text-2xl font-semibold leading-tight">
+                            <c-n26.link href="{{ cycle_summary.schedule_href }}">
+                                {{ cycle_summary.phase }}
+                            </c-n26.link>
+                        </p>
+                    {% else %}
+                        <p class="text-2xl font-semibold leading-tight">No current phase</p>
+                    {% endif %}
+                    {% if cycle_summary.phase_description %}<p class="whitespace-pre-line break-words text-sm text-muted">{{ cycle_summary.phase_description }}</p>{% endif %}
+                    {% if cycle_summary.phase_position and not cycle_summary.complete %}
+                        <p class="text-sm tabular-nums">Cycle {{ cycle_summary.phase_position }}{% if cycle_summary.phase_count %} of {{ cycle_summary.phase_count }}{% endif %} in this phase</p>
+                    {% endif %}
+                    {% if cycle_summary.next_phase %}
+                        <p class="text-sm text-muted">{{ cycle_summary.cycles_until_phase }} cycle{{ cycle_summary.cycles_until_phase|pluralize }} until {{ cycle_summary.next_phase }}</p>
+                    {% endif %}
+                </dd>
+            </div>
+            <div class="min-w-0 border-t border-box-border pt-4 md:border-t-0 md:pt-0">
+                <dt class="text-sm text-muted">{% if cycle_summary.complete %}Last cycle{% else %}Current cycle{% endif %}</dt>
+                <dd class="mt-1 space-y-2">
+                    <p class="break-words text-2xl font-semibold leading-tight">
+                        <c-n26.link href="{{ cycle_summary.schedule_href }}">
+                            {{ cycle_summary.name }}
+                        </c-n26.link>
+                    </p>
+                    <p class="text-sm tabular-nums">
+                        {% if cycle_summary.order %}Cycle {{ cycle_summary.order }}{% if cycle_summary.cycle_limit %} of {{ cycle_summary.cycle_limit }}{% endif %} · {% endif %}{% if cycle_summary.mode == "repeating" %}Repeating schedule{% else %}Fixed schedule{% endif %}
+                    </p>
+                    {% if cycle_summary.cycle_description %}<p class="whitespace-pre-line break-words text-sm text-muted">{{ cycle_summary.cycle_description }}</p>{% endif %}
+                    {% if cycle_summary.order %}
+                        <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                            <dt class="text-muted">Start date</dt>
+                            <dd>{% if cycle_summary.starts_on %}<time datetime="{{ cycle_summary.starts_on|date:'Y-m-d' }}">{{ cycle_summary.starts_on|date:"j M Y" }}</time>{% else %}Not set{% endif %}</dd>
+                            <dt class="text-muted">End date</dt>
+                            <dd>{% if cycle_summary.ends_on %}<time datetime="{{ cycle_summary.ends_on|date:'Y-m-d' }}">{{ cycle_summary.ends_on|date:"j M Y" }}</time>{% else %}Not set{% endif %}</dd>
+                        </dl>
+                    {% endif %}
+                </dd>
+            </div>
+        </dl>
+    </c-ui.card>
+</section>
