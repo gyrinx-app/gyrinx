@@ -24,7 +24,12 @@ test("dismissal stays with its campaign and completion preserves management link
     );
     expect(view.container.childElementCount).toBe(0);
     view.unmount();
-    const second = render(<CampaignSetup {...props} />);
+    const second = render(
+        <CampaignSetup
+            {...props}
+            items={props.items.map((item) => ({ ...item, complete: true }))}
+        />,
+    );
     expect(second.container.childElementCount).toBe(0);
     second.rerender(
         <CampaignSetup {...props} key="other" storageKey="actor:campaign-b" />,

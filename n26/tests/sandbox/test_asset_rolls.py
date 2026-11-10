@@ -1082,6 +1082,22 @@ class TestThePages:
         campaign URL and send a success toast.
         """
         client.force_login(arbitrator)
+        initial = BeautifulSoup(
+            client.get(reverse("n26-campaign", args=[campaign.pk])).content,
+            "html.parser",
+        )
+        initial_host = initial.select_one('[data-react-name="campaign-setup"]')
+        initial_setup = json.loads(
+            initial.find(id=initial_host["data-react-props"]).string
+        )
+        assert (
+            next(
+                item
+                for item in initial_setup["items"]
+                if item["label"] == "Roll territories"
+            )["complete"]
+            is False
+        )
         response = client.post(
             reverse("n26-campaign-roll-asset", args=[campaign.pk]),
             {
@@ -1101,10 +1117,26 @@ class TestThePages:
             "n26-campaign-assets",
             "n26-campaign-log",
             "n26-campaign-log-count",
+            "n26-campaign-setup",
         ):
             element = soup.find(id=host)
             assert element is not None, host
             assert element.get("hx-swap-oob") == "true", host
+        updated_host = soup.select_one(
+            '#n26-campaign-setup [data-react-name="campaign-setup"]'
+        )
+        updated_setup = json.loads(
+            soup.find(id=updated_host["data-react-props"]).string
+        )
+        assert updated_setup["storageKey"] == initial_setup["storageKey"]
+        assert (
+            next(
+                item
+                for item in updated_setup["items"]
+                if item["label"] == "Roll territories"
+            )["complete"]
+            is True
+        )
         assert '<div id="n26-roll-dialog-host" hx-swap-oob="true"></div>' in body
         assert "<dialog" not in body
 

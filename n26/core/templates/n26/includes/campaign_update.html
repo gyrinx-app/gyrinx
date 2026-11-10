@@ -8,6 +8,9 @@ messages arrive through HX-Trigger.
 {% include "n26/includes/campaign_assets_section.html" with redrawn=True assets_actions="" %}
 {% include "n26/includes/campaign_log.html" with redrawn=True %}
 {% include "n26/includes/campaign_log_count.html" with redrawn=True %}
+{% if campaign_setup %}
+    {% include "n26/includes/campaign_setup.html" with redrawn=True %}
+{% endif %}
 {% comment %}
 An empty roll-dialog host closes the submitted panel.
 {% endcomment %}

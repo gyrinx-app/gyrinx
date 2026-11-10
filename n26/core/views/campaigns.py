@@ -668,10 +668,28 @@ def _campaign_update(request, campaign):
         request=request,
     )
     acts, more_acts = _recent_acts(campaign, request.user)
+    guidance = None
+    if campaign.owner_id == request.user.pk:
+        from n26.core.campaign_setup import setup_checklist
+        from n26.core.cycle_display import dashboard_summary
+
+        guidance = setup_checklist(
+            campaign,
+            sheet,
+            campaign.participants.only("state"),
+            dashboard_summary(campaign, request.user),
+            actor=request.user,
+        )
     response = render(
         request,
         "n26/includes/campaign_update.html",
-        {"campaign": campaign, "sheet": sheet, "acts": acts, "more_acts": more_acts},
+        {
+            "campaign": campaign,
+            "sheet": sheet,
+            "acts": acts,
+            "more_acts": more_acts,
+            "campaign_setup": guidance,
+        },
     )
     response["HX-Replace-Url"] = sheet.table_href or _campaign_page(campaign)
     return with_toasts(request, response)
