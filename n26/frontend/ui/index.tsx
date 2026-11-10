@@ -12,9 +12,11 @@ import {
     type ReactNode,
     type Ref,
 } from "react";
+import { createPortal } from "react-dom";
 import cotton from "../generated/cotton.json";
 import { useBusyControl } from "./Busy";
 export { BusyControlScope, Spinner } from "./Busy";
+export { FlowProgress, type FlowStep } from "./FlowProgress";
 
 /** A native modal using Cotton styles and React lifecycle handling. */
 export function Dialog({
@@ -55,7 +57,7 @@ export function Dialog({
                 target.focus();
         };
     }, [returnFocusId]);
-    return (
+    return createPortal(
         <dialog
             ref={ref}
             aria-labelledby={titleId}
@@ -80,7 +82,8 @@ export function Dialog({
                 </div>
                 {children}
             </form>
-        </dialog>
+        </dialog>,
+        document.body,
     );
 }
 

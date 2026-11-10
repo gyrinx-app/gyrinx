@@ -221,16 +221,27 @@ def campaign(request, pk):
         player.user_id == reading and player.state == accepted for player in players
     )
 
+    from n26.core.campaign_setup import setup_checklist
+
+    cycle_summary = dashboard_summary(found, request.user)
     return render(
         request,
         "n26/campaign.html",
         {
             "campaign": found,
             "sheet": sheet,
-            "cycle_summary": dashboard_summary(found, request.user),
+            "cycle_summary": cycle_summary,
+            "campaign_setup": setup_checklist(
+                found, sheet, players, cycle_summary, actor=request.user
+            ),
             "yours": yours,
             "log_href": reverse("n26-campaign-log", args=[found.pk]),
-            "more_actions": more_actions(found, yours=yours, playing=at_the_table),
+            "more_actions": more_actions(
+                found,
+                yours=yours,
+                playing=at_the_table,
+                schedule_href=cycle_summary.schedule_href if cycle_summary else "",
+            ),
             "may_add_gang": yours or at_the_table,
             "may_record": yours or at_the_table,
             "players": players,
@@ -248,44 +259,64 @@ def campaign(request, pk):
     )
 
 
-def more_actions(campaign, *, yours, playing=False):
-    """Build header actions for the arbitrator, accepted player or other reader."""
-    actions = [
-        Action(
-            "View log",
-            LINK,
-            reverse("n26-campaign-log", args=[campaign.pk]),
-            SECONDARY,
-        )
-    ]
+def more_actions(campaign, *, yours, playing=False, schedule_href=""):
+    """Order campaign settings, destination pages and actions in separate groups."""
+    actions = []
     if yours:
+        edit = reverse("n26-edit-campaign", args=[campaign.pk])
         actions += [
+            Action("Campaign settings", LINK, edit, SECONDARY),
             Action(
                 "Counters and labels",
                 LINK,
-                reverse("n26-edit-campaign", args=[campaign.pk])
-                + "?tab=counters-and-labels",
+                edit + "?tab=counters-and-labels",
                 SECONDARY,
             ),
-            Action(
-                "Asset types",
-                LINK,
-                reverse("n26-edit-campaign", args=[campaign.pk]) + "?tab=asset-types",
-                SECONDARY,
-            ),
+            Action("Asset types", LINK, edit + "?tab=asset-types", SECONDARY),
             Action(
                 "Gang grouping",
                 LINK,
                 reverse("n26-campaign-grouping", args=[campaign.pk]),
                 SECONDARY,
             ),
+        ]
+    pages = []
+    if schedule_href:
+        pages.append(
+            Action(
+                "Schedule & cycles",
+                LINK,
+                schedule_href,
+                SECONDARY,
+                separator_before=bool(actions),
+            )
+        )
+    pages += [
+        Action(
+            "Battles",
+            LINK,
+            reverse("n26-campaign-battles", args=[campaign.pk]),
+            SECONDARY,
+            separator_before=bool(actions) and not pages,
+        ),
+        Action(
+            "Activity log",
+            LINK,
+            reverse("n26-campaign-log", args=[campaign.pk]),
+            SECONDARY,
+        ),
+    ]
+    actions += pages
+    if yours:
+        actions.append(
             Action(
                 "Archive campaign",
                 LINK,
                 reverse("n26-archive-campaign", args=[campaign.pk]),
-                SECONDARY,
-            ),
-        ]
+                DANGER,
+                separator_before=True,
+            )
+        )
     if playing:
         actions.append(
             Action(
@@ -293,6 +324,7 @@ def more_actions(campaign, *, yours, playing=False):
                 LINK,
                 reverse("n26-leave-campaign", args=[campaign.pk]),
                 DANGER,
+                separator_before=not yours,
             )
         )
     return actions
@@ -636,10 +668,28 @@ def _campaign_update(request, campaign):
         request=request,
     )
     acts, more_acts = _recent_acts(campaign, request.user)
+    guidance = None
+    if campaign.owner_id == request.user.pk:
+        from n26.core.campaign_setup import setup_checklist
+        from n26.core.cycle_display import dashboard_summary
+
+        guidance = setup_checklist(
+            campaign,
+            sheet,
+            campaign.participants.only("state", "campaign_id"),
+            dashboard_summary(campaign, request.user),
+            actor=request.user,
+        )
     response = render(
         request,
         "n26/includes/campaign_update.html",
-        {"campaign": campaign, "sheet": sheet, "acts": acts, "more_acts": more_acts},
+        {
+            "campaign": campaign,
+            "sheet": sheet,
+            "acts": acts,
+            "more_acts": more_acts,
+            "campaign_setup": guidance,
+        },
     )
     response["HX-Replace-Url"] = sheet.table_href or _campaign_page(campaign)
     return with_toasts(request, response)

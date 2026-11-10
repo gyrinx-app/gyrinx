@@ -80,7 +80,7 @@ const props: BattleEditorProps = {
                 startsOn: "2026-11-23",
                 endsOn: "2026-11-29",
                 label: "Cycle 4 · Downtime · Projected",
-                hint: "Saving this battle also saves Cycle 2 through Cycle 4. The current cycle remains Cycle 1.",
+                hint: "",
                 isCurrent: false,
             },
         ],
@@ -266,10 +266,10 @@ test("records participant identities and an explicitly selected projected cycle"
             screen.getByRole("button", { name: "Next cycle" }),
         );
     expect(
-        screen.getByText(
+        screen.queryByText(
             /Saving this battle also saves Cycle 2 through Cycle 4/,
         ),
-    ).toBeTruthy();
+    ).toBeNull();
     expect(
         screen.getByRole("button", { name: "Return to current cycle" }),
     ).toBeTruthy();

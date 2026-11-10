@@ -14,6 +14,7 @@ import {
     Field,
     FieldErrors,
     FormActions,
+    FlowProgress,
     Input,
     NativeSelect,
     Textarea,
@@ -24,6 +25,12 @@ import {
 import { PlanSteps } from "./PlanSteps";
 import { SetupDraft } from "./SetupDraft";
 import { RewardSettings } from "./RewardSettings";
+import {
+    restoreSetupDraft,
+    retainSetupDraft,
+    setupDraftKey,
+    setupStageHref,
+} from "./setupState";
 import type { Editor, Phase } from "./types";
 
 const visible: Record<string, string[]> = {
@@ -121,8 +128,11 @@ export function ScheduleEditor({
     const [confirmed, setConfirmed] = useState(false);
     const [current, setCurrent] = useState(editor.current);
     const [reviewUrl, setReviewUrl] = useState(editor.back);
+    const setupCompleted = useRef(false);
+    const [initialValues] = useState(() => restoreSetupDraft(editor));
     const form = useWorkflowForm({
         ...editor,
+        values: initialValues,
         optionalRecoveryFields: [
             "date_start",
             "cycle_interval",
@@ -136,6 +146,14 @@ export function ScheduleEditor({
         onReload,
         interpret(status, data) {
             if (status === 200 && typeof data.nextUrl === "string") {
+                setupCompleted.current = true;
+                if (editor.kind === "setup") {
+                    try {
+                        sessionStorage.removeItem(setupDraftKey(editor));
+                    } catch {
+                        /* Confirmed saves do not depend on browser storage. */
+                    }
+                }
                 if (navigation) setConfirmed(true);
                 return { kind: "saved", nextUrl: data.nextUrl };
             }
@@ -163,6 +181,10 @@ export function ScheduleEditor({
         },
     });
     const { values, errors } = form;
+    useEffect(() => {
+        if (editor.kind === "setup" && !setupCompleted.current && !form.frozen)
+            retainSetupDraft(editor, values);
+    }, [editor, values, form.frozen]);
     const noCurrent =
         values.no_current === "on" || values.no_current === "True";
     const currentNumber = values.current_number || "1";
@@ -176,8 +198,17 @@ export function ScheduleEditor({
             : 0;
     const shiftLater =
         values.shift_later === "on" || values.shift_later === "True";
-    const [setupStep, setSetupStep] = useState(1);
+    const routeStage = Number(editor.context.setupStage ?? 1);
+    const [setupStep, setSetupStep] = useState(routeStage);
+    useEffect(() => setSetupStep(routeStage), [routeStage]);
     const setupStage = form.frozen ? 3 : setupStep;
+    const stageHref = (stage: number) => setupStageHref(editor.action, stage);
+    const goToStage = (stage: number) => {
+        setSetupStep(stage);
+        (onNavigate ?? ((href: string) => window.location.assign(href)))(
+            stageHref(stage),
+        );
+    };
     const previousSetupStage = useRef(setupStage);
     useEffect(() => {
         if (
@@ -325,7 +356,7 @@ export function ScheduleEditor({
             {editor.kind === "setup" && setupStage > 1 && (
                 <Button
                     disabled={form.frozen || confirmed}
-                    onClick={() => setSetupStep(setupStage - 1)}
+                    onClick={() => goToStage(setupStage - 1)}
                 >
                     Back
                 </Button>
@@ -416,7 +447,7 @@ export function ScheduleEditor({
                 if (unavailable && !form.uncertain) event.preventDefault();
                 else if (editor.kind === "setup" && setupStage < 3) {
                     event.preventDefault();
-                    setSetupStep(setupStage + 1);
+                    goToStage(setupStage + 1);
                 } else void form.save(event);
             }}
             onDismiss={() => {
@@ -503,18 +534,44 @@ export function ScheduleEditor({
                 >
                     {editor.kind === "setup" && (
                         <section className="space-y-4">
-                            <p
+                            <FlowProgress
+                                steps={[
+                                    "Starting template",
+                                    "Customise schedule",
+                                    "Review and save",
+                                ].map((label, index) => ({
+                                    label,
+                                    current: index + 1 === setupStage,
+                                    complete: index + 1 < setupStage,
+                                    href:
+                                        !form.frozen && index + 1 < setupStage
+                                            ? stageHref(index + 1)
+                                            : "",
+                                }))}
+                            />
+                            <h2
                                 id="cycle-setup-step"
                                 tabIndex={-1}
                                 className="text-sm font-medium"
                             >
-                                Step {setupStage} of 3 ·{" "}
                                 {setupStage === 1
                                     ? "Choose a starting template"
                                     : setupStage === 2
                                       ? "Customise your campaign"
                                       : "Review and save"}
-                            </p>
+                            </h2>
+                            {setupStage > 1 && !values.template_id && (
+                                <Alert tone="info" dismissible={false}>
+                                    Choose a starting template before
+                                    customising your schedule.{" "}
+                                    <a
+                                        href={stageHref(1)}
+                                        className="underline"
+                                    >
+                                        Choose a template
+                                    </a>
+                                </Alert>
+                            )}
                             {setupStage === 1 && (
                                 <Field
                                     label="Starting template"

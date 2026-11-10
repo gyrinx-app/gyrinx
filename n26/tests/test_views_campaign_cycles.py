@@ -68,6 +68,39 @@ def props(response):
     return json.loads(page.find(id=host["data-react-props"]).string)
 
 
+@pytest.mark.parametrize("step, expected", [("1", 1), ("2", 2), ("3", 3), ("bogus", 1)])
+def test_setup_step_is_a_shareable_server_read(
+    client, campaign, opened, template, step, expected
+):
+    page = props(client.get(editor_url(campaign, "setup", step=step)))
+    assert page["editor"]["context"]["setupStage"] == expected
+
+
+def test_dashboard_groups_cycle_information_and_management_menu(
+    client, campaign, configured
+):
+    response = client.get(reverse("n26-campaign", args=[campaign.pk]))
+    page = BeautifulSoup(response.content, "html.parser")
+    info = page.select_one('[aria-label="Campaign info"]')
+    assert "Current cycle" in info.get_text()
+    assert info.select_one('[aria-label="Edit campaign schedule"]')[
+        "href"
+    ] == schedule_url(campaign)
+    host = page.select_one('#campaign-overview [data-react-name="campaign-setup"]')
+    assert "md:col-span-2" in host["class"]
+    actions = response.context["more_actions"]
+    assert [(item.label, item.separator_before) for item in actions] == [
+        ("Campaign settings", False),
+        ("Counters and labels", False),
+        ("Asset types", False),
+        ("Gang grouping", False),
+        ("Schedule & cycles", True),
+        ("Battles", False),
+        ("Activity log", False),
+        ("Archive campaign", True),
+    ]
+
+
 def command_url(campaign, action, **query):
     return editor_url(campaign, action, **query).replace("/edit/", "/commands/")
 
@@ -767,13 +800,11 @@ class TestDisplayReads:
         page = client.get(reverse("n26-campaign", args=[campaign.pk]))
         assert page.status_code == 200
         body = page.content.decode()
-        assert (
-            reverse(
-                "n26-campaign-cycle", args=[campaign.pk, configured.current_cycle_id]
-            )
-            in body
+        assert schedule_url(campaign) in body
+        assert "Occupation Phase" in body
+        assert any(
+            item.label == "Schedule & cycles" for item in page.context["more_actions"]
         )
-        assert "Occupation Phase" in body and "Schedule and rules" in body
 
     def test_projection_growth_does_not_add_queries(self, campaign, configured):
         reader = campaign.owner

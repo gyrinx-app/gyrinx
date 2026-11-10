@@ -173,7 +173,9 @@ test.each([false, true])(
         );
         screen.getByRole("button", { name: "Back" }).focus();
         await userEvent.keyboard("{Enter}");
-        expect(document.activeElement?.textContent).toContain("Step 1 of 3");
+        expect(document.activeElement?.textContent).toContain(
+            "Choose a starting template",
+        );
         await userEvent.tab();
         expect(document.activeElement).toBe(
             screen.getByRole("combobox", { name: "Starting template" }),

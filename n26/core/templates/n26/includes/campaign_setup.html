@@ -1,0 +1,33 @@
+{% load react %}
+<div id="n26-campaign-setup"
+     class="contents"
+     {% if redrawn %}hx-swap-oob="true"{% endif %}>
+    {% react_host "campaign-setup" campaign_setup class="md:col-span-2 empty:hidden" %}
+        <c-ui.card>
+            <div class="grid gap-6 md:grid-cols-2">
+                <div>
+                    <h2 class="mb-3 text-lg font-semibold">Set up your campaign</h2>
+                    <ul class="space-y-2 text-sm">
+                        {% for item in campaign_setup.items %}
+                            <li class="flex items-center gap-2">
+                                {% if item.complete %}
+                                    <c-n26.icon name="circle-check" class="size-4 text-accent" label="Complete" />
+                                {% else %}
+                                    <c-n26.icon name="circle" class="size-4 text-muted" label="To do" />
+                                {% endif %}
+                                <c-n26.link href="{{ item.href }}">
+                                    {{ item.label }}
+                                </c-n26.link>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <div class="space-y-2 text-sm text-muted md:border-l md:border-box-border md:pl-6">
+                    <h3 class="font-semibold text-ink-900 dark:text-ink-100">Manage your campaign</h3>
+                    <p>As arbitrator, you set the campaign rules and keep play moving. Invite players to bring their gangs, organise the schedule and prepare territories before play begins.</p>
+                    <p>Use the campaign menu to change settings and open its pages. Battles, territory changes and dice rolls appear in the activity log.</p>
+                </div>
+            </div>
+        </c-ui.card>
+    {% endreact_host %}
+</div>

@@ -77,7 +77,7 @@ export function SetupDraft({
                 These changes belong to your campaign. The starting template
                 stays unchanged.
             </p>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-3">
                 {draft.phases.map((phase, index) => (
                     <Field
                         key={phase.id}

@@ -147,6 +147,9 @@ def cycle_editor(request, pk, action):
         conflict=bool(submitted and submitted.conflict),
         current=submitted.current if submitted else None,
     )
+    if action == "setup":
+        stage = request.GET.get("step", "1")
+        editor["context"]["setupStage"] = int(stage) if stage in {"1", "2", "3"} else 1
     return _respond(
         request, campaign, {**_display(request, campaign), "editor": editor}
     )

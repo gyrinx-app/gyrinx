@@ -204,8 +204,8 @@ class TestTheCampaignHeader:
 
         assert entries(props) == [
             (
-                "View log",
-                reverse("n26-campaign-log", args=[campaign.pk]),
+                "Campaign settings",
+                reverse("n26-edit-campaign", args=[campaign.pk]),
                 "default",
                 False,
             ),
@@ -229,10 +229,22 @@ class TestTheCampaignHeader:
                 False,
             ),
             (
-                "Archive campaign",
-                reverse("n26-archive-campaign", args=[campaign.pk]),
+                "Battles",
+                reverse("n26-campaign-battles", args=[campaign.pk]),
+                "default",
+                True,
+            ),
+            (
+                "Activity log",
+                reverse("n26-campaign-log", args=[campaign.pk]),
                 "default",
                 False,
+            ),
+            (
+                "Archive campaign",
+                reverse("n26-archive-campaign", args=[campaign.pk]),
+                "danger",
+                True,
             ),
         ]
         assert (props["trigger"], props["variant"], props["align"]) == (
@@ -257,7 +269,13 @@ class TestTheCampaignHeader:
 
         assert entries(props) == [
             (
-                "View log",
+                "Battles",
+                reverse("n26-campaign-battles", args=[campaign.pk]),
+                "default",
+                False,
+            ),
+            (
+                "Activity log",
                 reverse("n26-campaign-log", args=[campaign.pk]),
                 "default",
                 False,
@@ -266,7 +284,7 @@ class TestTheCampaignHeader:
                 "Leave campaign",
                 reverse("n26-leave-campaign", args=[campaign.pk]),
                 "danger",
-                False,
+                True,
             ),
         ]
         assert reverse("n26-archive-campaign", args=[campaign.pk]) not in html

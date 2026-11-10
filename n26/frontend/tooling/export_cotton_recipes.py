@@ -1536,6 +1536,46 @@ def pick_list_recipe():
     }
 
 
+def flow_progress_recipe():
+    from bs4 import BeautifulSoup
+
+    from n26.core.flow import FlowStep
+
+    def draw(steps):
+        source = '<c-n26.flow-progress :steps="steps" />'
+        return BeautifulSoup(
+            Template(CottonCompiler().process(source)).render(
+                Context({"steps": steps})
+            ),
+            "html.parser",
+        )
+
+    short = draw([FlowStep("First"), FlowStep("Next")])
+    long = draw([FlowStep("Step") for _ in range(5)])
+    states = {}
+    for name in ("current", "complete", "skipped", "future"):
+        options = {name: True} if name != "future" else {}
+        plain = draw([FlowStep("Step", **options)])
+        linked = draw([FlowStep("Step", href="/", **options)])
+
+        def classes(node):
+            return " ".join(node.get("class", []))
+
+        states[name] = {
+            "circle": classes(plain.select_one("li > span")),
+            "label": classes(plain.select("li > span")[1]),
+            "link": classes(linked.select_one("li > a")) if name != "skipped" else "",
+        }
+    return {
+        "shortList": " ".join(short.ol["class"]),
+        "longList": " ".join(long.ol["class"]),
+        "shortItem": " ".join(short.li["class"]),
+        "longItem": " ".join(long.li["class"]),
+        "separator": " ".join(short.select_one("li > span[aria-hidden]")["class"]),
+        "states": states,
+    }
+
+
 def dialog_recipe():
     dialog, form, header, title, lead, actions = attributes(
         '<c-n26.dialog title="Title" lead="Lead" action="/" cancel_url="/" submit_label="Save">Content</c-n26.dialog>',
@@ -1913,6 +1953,7 @@ def recipes():
         raise ValueError("Cotton toggle field no longer reuses the block field recipe")
     return {
         "dialog": dialog_recipe(),
+        "flowProgress": flow_progress_recipe(),
         "button": {
             variant: classes(
                 f'<c-ui.button variant="{variant}">Save</c-ui.button>', "button"
@@ -2062,6 +2103,8 @@ def recipes():
                 "check-check",
                 "loader-circle",
                 "circle-question-mark",
+                "circle",
+                "circle-check",
                 "triangle-alert",
                 "external-link",
                 "sun",

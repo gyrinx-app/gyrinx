@@ -65,7 +65,7 @@ class TestRecordingPages:
         body = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
         assert "Record a battle" in body
         assert 'aria-label="Log a dice roll"' in body
-        assert "View log" in body
+        assert "Activity log" in body
         assert f"/n26/campaigns/{campaign.pk}/edit/" not in body
         assert "Archive campaign" not in body
         response = client.get(record_url(campaign))

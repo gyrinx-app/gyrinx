@@ -108,6 +108,10 @@ Model-specific wiring rules live there.
   `docs/developing-gyrinx/react.md` for extraction, deferral and copy review.
   Shareable navigation state belongs in the URL; transient controls and unsaved
   drafts can stay in React. Server validation and operations remain authoritative.
+  Every workflow step or form variant must have a distinct URL, including React
+  setup wizards. Support direct entry, refresh and browser Back/Forward; retain
+  unsaved values while moving between steps. A local useState step counter alone
+  is not navigation. Exceptions must have a concrete interaction-specific reason.
 - Read [`templates/AGENTS.md`](templates/AGENTS.md) before changing a template
   or Cotton component.
 
