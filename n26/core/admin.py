@@ -18,6 +18,7 @@ from n26.core.models import (
     Campaign,
     CampaignEvent,
     CampaignMembership,
+    CampaignScheduleTemplate,
     DismissedOffer,
     Gang,
     LedgerEntry,
@@ -37,6 +38,42 @@ class OneAtATime:
         actions = super().get_actions(request)
         actions.pop("delete_selected", None)
         return actions
+
+
+@admin.register(CampaignScheduleTemplate)
+class CampaignScheduleTemplateAdmin(OneAtATime, admin.ModelAdmin):
+    """Authors maintain starting definitions without changing campaign copies."""
+
+    list_display = ["name", "modified"]
+    search_fields = ["name"]
+    fields = ["name", "definition"]
+
+    def has_module_permission(self, request):
+        from n26 import flags
+
+        return request.user.is_staff and flags.enabled(
+            flags.CYCLE_TRACKING, request.user
+        )
+
+    def has_view_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def has_add_permission(self, request):
+        return self.has_module_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        from n26.write_pause import write_guard
+
+        with write_guard():
+            if not change:
+                obj.owner = None
+            super().save_model(request, obj, form, change)
 
 
 class ReadOnlyAdmin(OneAtATime, admin.ModelAdmin):

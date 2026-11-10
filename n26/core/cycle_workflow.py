@@ -28,8 +28,15 @@ class StructuredJSONField(forms.JSONField):
 
 
 DATE_FIELDS = ("date_start", "cycle_interval", "cycle_unit", "date_version")
+RETIRED_FIELDS = {"template": ("template_id", "mode"), "save-template": ("name",)}
 FIELDS = {
-    "setup": ("template_id", "mode", "current_number", *DATE_FIELDS),
+    "setup": (
+        "template_id",
+        "setup_definition",
+        "mode",
+        "current_number",
+        *DATE_FIELDS,
+    ),
     "cycle": (
         "target",
         "phase_id",
@@ -45,21 +52,19 @@ FIELDS = {
     "duplicate-phase": ("phase_id", "name"),
     "delete-phase": ("phase_id",),
     "plan": ("mode", "steps", *DATE_FIELDS),
-    "template": ("template_id", "mode"),
-    "save-template": ("name",),
     "start": ("expected_current",),
     "advance": ("expected_current",),
     "finish": ("expected_current",),
 }
 HEADINGS = {
+    "template": "Confirm earlier template change",
+    "save-template": "Confirm earlier template save",
     "setup": "Set up campaign cycles",
     "cycle": "Edit cycle",
     "phase": "Edit phase",
     "duplicate-phase": "Duplicate phase",
     "delete-phase": "Delete phase",
     "plan": "Schedule settings",
-    "template": "Apply schedule template",
-    "save-template": "Save schedule template",
     "start": "Start campaign",
     "advance": "Advance cycle",
     "finish": "Finish campaign",
@@ -70,6 +75,7 @@ class CycleEditorForm(forms.Form):
     request_key = forms.UUIDField()
     expected_revision = forms.IntegerField(min_value=0)
     template_id = forms.CharField(max_length=26)
+    setup_definition = StructuredJSONField(required=False)
     mode = forms.ChoiceField(choices=[("fixed", "Fixed"), ("repeating", "Repeating")])
     current_number = forms.IntegerField(min_value=1, max_value=1000)
     target = StructuredJSONField()
@@ -102,7 +108,7 @@ class CycleEditorForm(forms.Form):
     def __init__(self, action, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.action = action
-        keep = set(FIELDS[action]) | {"request_key"}
+        keep = set(FIELDS.get(action, RETIRED_FIELDS.get(action, ()))) | {"request_key"}
         if action != "setup":
             keep.add("expected_revision")
         self.fields = {
@@ -154,20 +160,17 @@ def prepare(campaign, action, query):
     if state is not None:
         initial["expected_revision"] = state.revision
         context["currentName"] = state.current.name
-    if action in ("setup", "template"):
-        initial.update(template_id="", mode="fixed")
-        if action == "setup":
-            initial["current_number"] = ""
-            initial.update(
-                date_start=timezone.localdate().isoformat(),
-                cycle_interval=1,
-                cycle_unit="weeks",
-                date_version="1",
-            )
-            lead = "Set the first cycle's date and choose the current cycle. This does not record past transitions."
-            context["activates"] = campaign.status == "in_progress"
-        else:
-            lead = f"The new plan begins after Cycle {len(state.cycles)}. Saved cycles keep their identities and order."
+    if action == "setup":
+        initial.update(template_id="", setup_definition=None, mode="fixed")
+        initial["current_number"] = ""
+        initial.update(
+            date_start=timezone.localdate().isoformat(),
+            cycle_interval=1,
+            cycle_unit="weeks",
+            date_version="1",
+        )
+        lead = "Set the first cycle's date and choose the current cycle. This does not record past transitions."
+        context["activates"] = campaign.status == "in_progress"
     elif action == "cycle":
         if query.get("fields") not in (None, "dates"):
             raise Http404("No such cycle editor")
@@ -256,9 +259,6 @@ def prepare(campaign, action, query):
         context["patternSteps"] = [asdict(step) for step in state.plan.steps]
         context["fixedSteps"] = [asdict(step) for step in s.editable_steps(state)]
         lead = f"This plan continues after Cycle {len(state.cycles)}. Repeating patterns count cycles already saved in the last phase."
-    elif action == "save-template":
-        initial["name"] = ""
-        lead = "Save this plan and its phases as a private reusable template."
     else:
         initial["expected_current"] = state.current_cycle_id
         if action == "advance":
@@ -352,6 +352,7 @@ def perform(campaign, actor, action, data, query):
                 current_position=values["current_number"] - 1,
                 mode=values["mode"],
                 calendar=calendar,
+                definition=values["setup_definition"],
             )
         elif action == "cycle":
             target = ref_from_data(values["target"])
@@ -395,6 +396,20 @@ def perform(campaign, actor, action, data, query):
                 result = cycles.delete_phase(
                     campaign, **common, phase_id=values["phase_id"]
                 )
+        elif action in RETIRED_FIELDS:
+            inputs = (
+                {"name": values["name"]}
+                if action == "save-template"
+                else {"template": values["template_id"], "mode": values["mode"]}
+            )
+            result = cycles.replay_template_command(
+                campaign,
+                actor=actor,
+                kind="save_template" if action == "save-template" else "apply_template",
+                inputs=inputs,
+                expected_revision=values["expected_revision"],
+                request_key=values["request_key"],
+            )
         elif action == "plan":
             result = cycles.replace_plan(
                 campaign,
@@ -403,15 +418,6 @@ def perform(campaign, actor, action, data, query):
                 mode=values["mode"],
                 calendar=calendar,
             )
-        elif action == "template":
-            result = cycles.apply_template(
-                campaign,
-                **common,
-                template_id=values["template_id"],
-                mode=values["mode"],
-            )
-        elif action == "save-template":
-            result = cycles.save_template(campaign, **common, name=values["name"])
         else:
             command = {
                 "advance": cycles.advance,
@@ -478,8 +484,11 @@ def editor_props(
         "initialConflict": conflict,
         "current": current,
         "templates": [
-            {"id": str(t.pk), "name": t.name} for t in cycles.templates_for(actor)
-        ],
+            {"id": str(t.pk), "name": t.name, "definition": t.definition}
+            for t in cycles.templates_for(actor)
+        ]
+        if prepared.action == "setup"
+        else [],
         "action": editor_url(campaign, prepared.action, **prepared.query),
         "commandHref": reverse("n26-cycle-command", args=[campaign.pk, prepared.action])
         + suffix,

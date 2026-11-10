@@ -13,6 +13,7 @@ import {
     useWorkflowForm,
 } from "../../ui";
 import { PlanSteps } from "./PlanSteps";
+import { SetupDraft } from "./SetupDraft";
 import { RewardSettings } from "./RewardSettings";
 import type { Editor, Phase } from "./types";
 
@@ -25,7 +26,6 @@ const visible: Record<string, string[]> = {
         "cycle_interval",
         "cycle_unit",
     ],
-    template: ["template_id", "mode"],
     cycle: [
         "phase_id",
         "custom_name",
@@ -36,7 +36,6 @@ const visible: Record<string, string[]> = {
     ],
     phase: ["name", "description", "effects"],
     "duplicate-phase": ["name"],
-    "save-template": ["name"],
     plan: ["mode", "date_start", "cycle_interval", "cycle_unit"],
 };
 
@@ -69,6 +68,7 @@ export function ScheduleEditor({
             "cycle_unit",
             "date_version",
             "shift_later",
+            "setup_definition",
         ],
         onNavigate,
         onReload,
@@ -111,6 +111,18 @@ export function ScheduleEditor({
             : 0;
     const shiftLater =
         values.shift_later === "on" || values.shift_later === "True";
+    const [setupStep, setSetupStep] = useState(1);
+    const setupStage = form.frozen ? 3 : setupStep;
+    const previousSetupStage = useRef(setupStage);
+    useEffect(() => {
+        if (
+            editor.kind === "setup" &&
+            previousSetupStage.current !== setupStage
+        ) {
+            document.getElementById("cycle-setup-step")?.focus();
+        }
+        previousSetupStage.current = setupStage;
+    }, [editor.kind, setupStage]);
     const modeDrafts = useRef<Record<string, string>>({
         [values.mode]: values.steps,
     });
@@ -125,7 +137,21 @@ export function ScheduleEditor({
     const datesOnly =
         editor.kind === "cycle" && editor.context.datesOnly === true;
     const fields = new Set(
-        datesOnly ? ["starts_on", "ends_on"] : (visible[editor.kind] ?? []),
+        editor.kind === "setup"
+            ? setupStage === 1
+                ? ["template_id"]
+                : setupStage === 2
+                  ? [
+                        "mode",
+                        "current_number",
+                        "date_start",
+                        "cycle_interval",
+                        "cycle_unit",
+                    ]
+                  : []
+            : datesOnly
+              ? ["starts_on", "ends_on"]
+              : (visible[editor.kind] ?? []),
     );
     const text = (
         name: string,
@@ -242,7 +268,10 @@ export function ScheduleEditor({
             }
             onSubmit={(event) => {
                 if (unavailable && !form.uncertain) event.preventDefault();
-                else void form.save(event);
+                else if (editor.kind === "setup" && setupStage < 3) {
+                    event.preventDefault();
+                    setSetupStep(setupStage + 1);
+                } else void form.save(event);
             }}
             onDismiss={() => {
                 if (
@@ -323,61 +352,124 @@ export function ScheduleEditor({
                     }
                     className="space-y-4"
                 >
-                    {(editor.kind === "setup" ||
-                        editor.kind === "template") && (
-                        <>
-                            <Field
-                                label="Schedule template"
-                                htmlFor="cycle-template"
-                                errors={errors.template_id}
+                    {editor.kind === "setup" && (
+                        <section className="space-y-4">
+                            <p
+                                id="cycle-setup-step"
+                                tabIndex={-1}
+                                className="text-sm font-medium"
                             >
-                                <NativeSelect
-                                    name="template_id"
-                                    required
-                                    value={values.template_id}
-                                    onChange={(event) =>
-                                        change(
-                                            "template_id",
-                                            event.target.value,
-                                        )
-                                    }
+                                Step {setupStage} of 3 ·{" "}
+                                {setupStage === 1
+                                    ? "Choose a starting template"
+                                    : setupStage === 2
+                                      ? "Customise your campaign"
+                                      : "Review and save"}
+                            </p>
+                            {setupStage === 1 && (
+                                <Field
+                                    label="Starting template"
+                                    htmlFor="cycle-template"
+                                    errors={errors.template_id}
                                 >
-                                    <option value="">Choose a template</option>
-                                    {editor.templates.map((template) => (
-                                        <option
-                                            key={template.id}
-                                            value={template.id}
-                                        >
-                                            {template.name}
+                                    <NativeSelect
+                                        name="template_id"
+                                        required
+                                        value={values.template_id}
+                                        onChange={(event) => {
+                                            const template =
+                                                editor.templates.find(
+                                                    (item) =>
+                                                        item.id ===
+                                                        event.target.value,
+                                                );
+                                            form.setValues({
+                                                ...values,
+                                                template_id: event.target.value,
+                                                setup_definition:
+                                                    template?.definition
+                                                        ? JSON.stringify(
+                                                              template.definition,
+                                                          )
+                                                        : "",
+                                            });
+                                        }}
+                                    >
+                                        <option value="">
+                                            Choose a template
                                         </option>
-                                    ))}
-                                </NativeSelect>
-                            </Field>
-                            {mode}
-                            {editor.kind === "setup" &&
-                                text("current_number", "Current cycle number", {
-                                    type: "number",
-                                    required: true,
-                                    min: "1",
-                                    max: "1000",
-                                })}
-                            {editor.kind === "setup" && dates}
+                                        {editor.templates.map((template) => (
+                                            <option
+                                                key={template.id}
+                                                value={template.id}
+                                            >
+                                                {template.name}
+                                            </option>
+                                        ))}
+                                    </NativeSelect>
+                                </Field>
+                            )}
+                            <SetupDraft
+                                value={values.setup_definition ?? ""}
+                                review={setupStage !== 2}
+                                onChange={(value) =>
+                                    change("setup_definition", value)
+                                }
+                            />
+                            {setupStage === 2 && (
+                                <>
+                                    {mode}
+                                    {text(
+                                        "current_number",
+                                        "Current cycle number",
+                                        {
+                                            type: "number",
+                                            required: true,
+                                            min: "1",
+                                            max: "1000",
+                                        },
+                                    )}
+                                    {dates}
+                                </>
+                            )}
+                            {setupStage === 3 && (
+                                <>
+                                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                                        <dt>Campaign length</dt>
+                                        <dd>
+                                            {values.mode === "repeating"
+                                                ? "Repeating"
+                                                : "Fixed"}
+                                        </dd>
+                                        <dt>Cycle 1 starts</dt>
+                                        <dd>{values.date_start}</dd>
+                                        <dt>Cycle length</dt>
+                                        <dd>
+                                            {values.cycle_interval}{" "}
+                                            {values.cycle_unit}
+                                        </dd>
+                                        <dt>Current cycle</dt>
+                                        <dd>Cycle {values.current_number}</dd>
+                                    </dl>
+                                    <p className="text-sm">
+                                        Cycles 1 through {values.current_number}{" "}
+                                        will be saved with dates. Later cycles
+                                        remain previews until recorded. Your
+                                        campaign keeps its own phases and
+                                        pattern.
+                                    </p>
+                                </>
+                            )}
                             {editor.context.activates === true && (
                                 <p className="text-sm">
-                                    Setting up cycles starts the chosen cycle
-                                    and notifies accepted players.
+                                    Saving starts the selected cycle and
+                                    notifies accepted players.
                                 </p>
                             )}
-                        </>
+                        </section>
                     )}
                     {fields.has("name") &&
-                        text(
-                            "name",
-                            editor.kind === "save-template"
-                                ? "Template name"
-                                : "Phase name",
-                            { required: true },
-                        )}
+                        text("name", "Phase name", { required: true })}
                     {editor.kind === "cycle" && (
                         <>
                             {!datesOnly && (
@@ -518,6 +610,14 @@ export function ScheduleEditor({
                 </fieldset>
             </div>
             <FormActions>
+                {editor.kind === "setup" && setupStage > 1 && (
+                    <Button
+                        disabled={form.frozen || confirmed}
+                        onClick={() => setSetupStep(setupStage - 1)}
+                    >
+                        Back
+                    </Button>
+                )}
                 {form.conflicted || (unavailable && !form.uncertain) ? (
                     <Button
                         variant="primary"
@@ -532,7 +632,11 @@ export function ScheduleEditor({
                 ) : (
                     <Button
                         type="submit"
-                        variant="success"
+                        variant={
+                            editor.kind === "setup" && setupStage < 3
+                                ? "primary"
+                                : "success"
+                        }
                         disabled={
                             form.pending || confirmed || navigation?.pending
                         }
@@ -541,14 +645,20 @@ export function ScheduleEditor({
                             ? "Saving…"
                             : form.uncertain
                               ? "Retry save"
-                              : [
-                                      "advance",
-                                      "start",
-                                      "finish",
-                                      "delete-phase",
-                                  ].includes(editor.kind)
-                                ? editor.heading
-                                : "Save"}
+                              : editor.kind === "setup"
+                                ? setupStage === 1
+                                    ? "Customise schedule"
+                                    : setupStage === 2
+                                      ? "Review schedule"
+                                      : "Set up cycles"
+                                : [
+                                        "advance",
+                                        "start",
+                                        "finish",
+                                        "delete-phase",
+                                    ].includes(editor.kind)
+                                  ? editor.heading
+                                  : "Save"}
                     </Button>
                 )}
                 <Button

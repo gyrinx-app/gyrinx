@@ -61,6 +61,7 @@ def test_every_n26_model_is_registered():
         "Campaign",
         "CampaignEvent",
         "CampaignMembership",
+        "CampaignScheduleTemplate",
         "DismissedOffer",
         "Gang",
         "LedgerEntry",
@@ -73,7 +74,7 @@ def test_every_n26_model_is_registered():
 
 
 @pytest.mark.parametrize("model", N26_MODELS, ids=lambda m: m.__name__)
-def test_every_changelist_opens(client, staff, gang, model):
+def test_every_changelist_opens(client, staff, gang, model, opened_cycle_tracking):
     client.force_login(staff)
     url = reverse(f"admin:n26_{model._meta.model_name}_changelist")
     assert client.get(url).status_code == 200

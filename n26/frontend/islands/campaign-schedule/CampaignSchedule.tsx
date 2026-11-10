@@ -485,16 +485,6 @@ function ScheduleContent(
                                 Show more projected cycles
                             </Link>
                         )}
-                        {props.canManage && (
-                            <>
-                                <Link href={props.actions.template}>
-                                    Apply a template
-                                </Link>
-                                <Link href={props.actions.saveTemplate}>
-                                    Save as a template
-                                </Link>
-                            </>
-                        )}
                     </div>
                 </section>
             )}

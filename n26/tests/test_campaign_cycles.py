@@ -130,6 +130,58 @@ def concurrent(work):
 
 
 class TestSetupAndAccess:
+    def test_only_authors_can_create_or_export_templates(
+        self, owner, configured, campaign, opened
+    ):
+        count = CampaignScheduleTemplate.objects.count()
+        with pytest.raises(Refusal, match="content authors"):
+            cycles.create_template(
+                actor=owner,
+                name="Not authored",
+                definition=template_data(s.DEFAULT_TEMPLATE),
+            )
+        with pytest.raises(Refusal, match="content authors"):
+            cycles.save_template(
+                campaign,
+                actor=owner,
+                name="Not authored",
+                expected_revision=configured.revision,
+                request_key=uuid4(),
+            )
+        assert CampaignScheduleTemplate.objects.count() == count
+
+    def test_author_admin_keeps_templates_flagged_and_publishes_new_definitions(
+        self, client, owner, opened
+    ):
+        import json
+
+        from django.urls import reverse
+
+        owner.is_staff = True
+        owner.save(update_fields=["is_staff"])
+        client.force_login(owner)
+        url = reverse("admin:n26_campaignscheduletemplate_add")
+        assert client.get(url).status_code == 200
+        response = client.post(
+            url,
+            {
+                "name": "Authored opening",
+                "definition": json.dumps(template_data(s.DEFAULT_TEMPLATE)),
+                "_save": "Save",
+            },
+        )
+        assert response.status_code == 302
+        authored = CampaignScheduleTemplate.objects.get(name="Authored opening")
+        assert authored.owner is None
+        assert (
+            cycles.templates_for(User.objects.create_user("template-reader"))
+            .filter(pk=authored.pk)
+            .exists()
+        )
+        opened.availability = Availability.OFF
+        opened.save()
+        assert client.get(url).status_code == 403
+
     def test_new_setup_without_explicit_dates_is_refused(
         self, campaign, owner, opened, template
     ):
@@ -165,7 +217,7 @@ class TestSetupAndAccess:
     def test_foreign_template_and_malformed_template_ids_are_refused(
         self, campaign, owner, template, opened
     ):
-        foreign_owner = User.objects.create_user("other-arbitrator")
+        foreign_owner = User.objects.create_user("other-author", is_staff=True)
         foreign = cycles.create_template(
             actor=foreign_owner, name="Private", definition=template.definition
         )

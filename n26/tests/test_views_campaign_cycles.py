@@ -233,6 +233,56 @@ class TestSharedCommands:
         assert bounded.plan["startsAfter"] == "Cycle 3"
         assert bounded.plan["steps"][0]["phase_id"] == configured.plan.steps[1].phase_id
 
+    @pytest.mark.parametrize("action", ["template", "save-template"])
+    def test_retired_template_actions_only_confirm_previously_committed_commands(
+        self, client, campaign, configured, template, action
+    ):
+        key = uuid4()
+        common = {
+            "actor": campaign.owner,
+            "expected_revision": configured.revision,
+            "request_key": key,
+        }
+        if action == "save-template":
+            campaign.owner.is_staff = True
+            campaign.owner.save(update_fields=["is_staff"])
+            cycles.save_template(campaign, name="Earlier private copy", **common)
+            campaign.owner.is_staff = False
+            campaign.owner.save(update_fields=["is_staff"])
+            values = {"name": "Earlier private copy"}
+            assert cycles.save_template(
+                campaign, name=values["name"], **common
+            ).replayed
+        else:
+            cycles.apply_template(
+                campaign, template_id=template.pk, mode="fixed", **common
+            )
+            values = {"template_id": str(template.pk), "mode": "fixed"}
+        values.update(request_key=str(key), expected_revision=str(configured.revision))
+        count = campaign.cycle_commands.count()
+        template_count = CampaignScheduleTemplate.objects.count()
+        recovered = props(client.get(editor_url(campaign, action)))["editor"]
+        assert recovered["context"]["unavailable"]
+        assert post(client, campaign, action, values).status_code == 200
+        assert post(client, campaign, action, values, native=True).status_code == 302
+        assert (
+            post(
+                client, campaign, action, {**values, "request_key": str(uuid4())}
+            ).status_code
+            == 404
+        )
+        changed = {
+            **values,
+            **(
+                {"name": "Other copy"}
+                if action == "save-template"
+                else {"mode": "repeating"}
+            ),
+        }
+        assert post(client, campaign, action, changed).status_code == 409
+        assert campaign.cycle_commands.count() == count
+        assert CampaignScheduleTemplate.objects.count() == template_count
+
     def test_edits_and_projected_saves_return_to_the_edited_history_page(
         self, client, campaign, configured
     ):
@@ -451,21 +501,41 @@ class TestSharedCommands:
         assert response.json()["code"] == "request_key_conflict"
         assert "current" not in response.json()
 
-    def test_private_template_retries_create_one_reusable_copy(
+    def test_configured_campaigns_offer_no_template_controls_or_commands(
         self, client, campaign, configured
     ):
-        values = props(client.get(editor_url(campaign, "save-template")))["editor"][
-            "values"
-        ]
-        data = {**values, "name": "My campaign pattern"}
-        for _ in range(2):
-            assert post(client, campaign, "save-template", data).status_code == 200
+        display = props(client.get(schedule_url(campaign)))
         assert (
-            CampaignScheduleTemplate.objects.filter(
-                owner=campaign.owner, name=data["name"]
-            ).count()
-            == 1
+            "template" not in display["actions"]
+            and "saveTemplate" not in display["actions"]
         )
+        count = campaign.cycle_commands.count()
+        for action in ("template", "save-template"):
+            assert client.get(editor_url(campaign, action)).status_code == 404
+            assert post(client, campaign, action, {}).status_code == 404
+        assert campaign.cycle_commands.count() == count
+
+    def test_setup_customises_an_independent_copy_before_the_only_write(
+        self, client, campaign, template, opened
+    ):
+        import copy
+
+        definition = copy.deepcopy(template.definition)
+        definition["phases"][0]["details"]["name"] = "Campaign opening"
+        definition["steps"][0]["count"] = 2
+        page = props(client.get(editor_url(campaign, "setup")))["editor"]
+        assert page["templates"][0]["definition"] == template.definition
+        assert not CampaignSchedule.objects.filter(campaign=campaign).exists()
+        data = {**setup_data(template), "setup_definition": json.dumps(definition)}
+        assert post(client, campaign, "setup", data).status_code == 200
+        state = cycles.load(campaign)
+        assert state.current_phase.details.name == "Campaign opening"
+        assert state.plan.steps[0].count == 2
+        assert state.phases[0].id != definition["phases"][0]["id"]
+        template.refresh_from_db()
+        assert template.definition["steps"][0]["count"] == 3
+        assert post(client, campaign, "setup", data).status_code == 200
+        assert campaign.cycle_commands.count() == 1
 
     def test_unchanged_future_plan_does_not_replay_consumed_cycles(
         self, client, campaign, configured

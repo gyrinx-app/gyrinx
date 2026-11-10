@@ -363,7 +363,15 @@ def _command(campaign, actor, *, kind, inputs, request_key, expected_revision, a
 
 
 def configure(
-    campaign, *, actor, template_id, current_position, mode, request_key, calendar=None
+    campaign,
+    *,
+    actor,
+    template_id,
+    current_position,
+    mode,
+    request_key,
+    calendar=None,
+    definition=None,
 ):
     def apply(act, before):
         if before is not None:
@@ -374,7 +382,10 @@ def configure(
         if type(current_position) is not int or not 0 <= current_position < MAX_PREFIX:
             raise Refusal("Select an initial cycle within the first 1,000 cycles.")
         change = s.configure(
-            template_from_data(template.name, template.definition),
+            template_from_data(
+                template.name,
+                definition if definition is not None else template.definition,
+            ),
             campaign_id=str(campaign.pk),
             current_position=current_position,
             mode=mode,
@@ -394,6 +405,7 @@ def configure(
             "current_position": current_position,
             "mode": mode,
             **({"calendar": calendar_data(calendar)} if calendar is not None else {}),
+            **({"definition": definition} if definition is not None else {}),
         },
         request_key=request_key,
         expected_revision=None,
@@ -688,6 +700,8 @@ def create_template(*, actor, name, definition):
     """Create a private reusable definition without changing any campaign."""
     if not flags.enabled(flags.CYCLE_TRACKING, actor):
         raise Refusal("Cycle tracking is not available to this account.")
+    if not actor.is_staff:
+        raise Refusal("Only content authors can create schedule templates.")
     try:
         template = template_from_data(name, definition)
     except s.ScheduleError as exc:
@@ -697,8 +711,29 @@ def create_template(*, actor, name, definition):
     )
 
 
+def replay_template_command(
+    campaign, *, actor, kind, inputs, expected_revision, request_key
+):
+    def refuse_new(act, before):
+        raise Refusal(
+            "This template action is no longer available. Review the current schedule."
+        )
+
+    return _command(
+        campaign,
+        actor,
+        kind=kind,
+        inputs=inputs,
+        expected_revision=expected_revision,
+        request_key=request_key,
+        apply=refuse_new,
+    )
+
+
 def save_template(campaign, *, actor, name, expected_revision, request_key):
     def apply(act, before):
+        if not actor.is_staff:
+            raise Refusal("Only content authors can create schedule templates.")
         used = {step.phase_id for step in before.plan.steps}
         template = s.ScheduleTemplate(
             name,

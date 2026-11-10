@@ -269,8 +269,6 @@ def _build_locked(campaign, user, *, page, preview, focus):
     )
     actions = {
         "plan": editor_url(campaign, "plan"),
-        "template": editor_url(campaign, "template"),
-        "saveTemplate": editor_url(campaign, "save-template"),
     }
     if campaign.status == "pre_campaign":
         actions["transition"] = editor_url(campaign, "start")
