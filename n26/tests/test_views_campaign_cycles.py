@@ -138,6 +138,128 @@ class TestFlagAndOwnership:
 
 
 class TestSharedCommands:
+    @pytest.mark.parametrize("number", ["", "missing", "4"])
+    def test_setup_current_number_is_optional_and_defaults_to_one(
+        self, client, campaign, opened, template, number
+    ):
+        initial = props(client.get(editor_url(campaign, "setup")))["editor"]
+        assert initial["values"]["current_number"] == "1"
+        data = {**setup_data(template), "current_number": number}
+        if number == "missing":
+            data.pop("current_number")
+        response = post(client, campaign, "setup", data)
+        assert response.status_code == 200
+        state = cycles.load(campaign)
+        assert state.current.order == (4 if number == "4" else 1)
+        assert not campaign.cycle_transitions.exists()
+
+    @pytest.mark.parametrize("native", [False, True])
+    @pytest.mark.parametrize("materialise", [False, True])
+    def test_setup_without_current_cycle_keeps_previews_until_explicit_start(
+        self, client, campaign, opened, template, native, materialise
+    ):
+        from n26.core.battle_workflow import form_for
+        from n26.core.cycle_display import dashboard_summary
+        from n26.core.cycle_selection import options
+        from n26.core.models import Gang
+
+        response = post(
+            client,
+            campaign,
+            "setup",
+            {**setup_data(template), "no_current": "on", "current_number": ""},
+            native=native,
+        )
+        assert response.status_code == (302 if native else 200), (
+            response.content.decode()
+            if not native
+            else props(response)["editor"]["errors"]
+        )
+        state = cycles.load(campaign)
+        assert state.current is state.current_phase is None
+        assert not state.cycles
+        assert CampaignSchedule.objects.get(campaign=campaign).current_cycle_id is None
+        assert not campaign.cycle_transitions.exists()
+        display = build(campaign, campaign.owner)
+        assert display.currentName == "No current cycle" and display.currentPhase == ""
+        assert all(c.state == "Projected" for c in display.rows)
+        assert dashboard_summary(campaign, campaign.owner).name == "No current cycle"
+        assert (
+            form_for(campaign, campaign.owner, Gang.objects.none()).initial["cycle"]
+            is None
+        )
+        choices = options(campaign)
+        assert choices["currentValue"] is None
+        assert choices["choices"][0]["order"] == 1
+        assert not any(c["isCurrent"] for c in choices["choices"])
+        if materialise:
+            target = s.project(state, limit=3)[-1]
+            cycles.edit_cycle(
+                campaign,
+                actor=campaign.owner,
+                target=target.ref,
+                details=s.CycleDetails(target.phase_id),
+                expected_revision=state.revision,
+                request_key=uuid4(),
+            )
+            state = cycles.load(campaign)
+            assert state.current is None
+            assert not campaign.cycle_transitions.exists()
+        start = {
+            "request_key": str(uuid4()),
+            "expected_revision": state.revision,
+            "expected_current": "",
+        }
+        for _ in range(2):
+            assert post(client, campaign, "start", start).status_code == 200
+        after = cycles.load(campaign)
+        assert after.current.order == 1
+        assert after.next_position == len(after.cycles) == (3 if materialise else 1)
+        assert campaign.cycle_transitions.count() == 1
+
+    def test_no_current_state_survives_flag_changes_and_can_start_in_a_running_campaign(
+        self, client, campaign, opened, template
+    ):
+        from n26.core.campaigns import campaign_operation
+
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            act.set_status("in_progress")
+        response = post(
+            client,
+            campaign,
+            "setup",
+            {**setup_data(template), "no_current": "on", "current_number": "0"},
+        )
+        assert response.status_code == 200
+        before = cycles.load(campaign)
+        assert before.current is None and before.status == "in_progress"
+        assert not campaign.cycle_transitions.exists()
+        opened.delete()
+        assert client.get(schedule_url(campaign)).status_code == 404
+        assert (
+            post(
+                client,
+                campaign,
+                "start",
+                {
+                    "expected_revision": before.revision,
+                    "expected_current": "",
+                    "request_key": str(uuid4()),
+                },
+            ).status_code
+            == 404
+        )
+        assert cycles.load(campaign) == before
+        FeatureFlag.objects.create(
+            slug=CYCLE_TRACKING,
+            name="Campaign cycles",
+            availability=Availability.EVERYONE,
+        )
+        initial = props(client.get(editor_url(campaign, "start")))["editor"]
+        assert initial["heading"] == "Start first cycle"
+        assert post(client, campaign, "start", initial["values"]).status_code == 200
+        assert cycles.load(campaign).current.order == 1
+
     @pytest.mark.parametrize("json_read", [False, True])
     def test_saved_notices_preserve_the_design_system_tone_with_one_message_owner(
         self, client, campaign, configured, json_read

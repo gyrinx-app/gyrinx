@@ -220,6 +220,7 @@ export function BattleEditor(props: BattleEditorProps) {
                     ) : (
                         <Button
                             type="submit"
+                            busy={form.pending}
                             variant="success"
                             disabled={
                                 form.pending ||
@@ -228,13 +229,11 @@ export function BattleEditor(props: BattleEditorProps) {
                                 (props.archived && !form.uncertain)
                             }
                         >
-                            {form.pending
-                                ? "Saving…"
-                                : form.uncertain
-                                  ? "Retry save"
-                                  : props.editing
-                                    ? "Save changes"
-                                    : "Record battle"}
+                            {form.uncertain
+                                ? "Retry save"
+                                : props.editing
+                                  ? "Save changes"
+                                  : "Record battle"}
                         </Button>
                     )}
                     <Button
@@ -293,10 +292,10 @@ export function BattleEditor(props: BattleEditorProps) {
                 </Alert>
             )}
             {props.archived && (
-                <p>
+                <Alert tone="warning" dismissible={false}>
                     This battle is archived. You can retry an unresolved save.
                     Restore the battle before making another change.
-                </p>
+                </Alert>
             )}
             <fieldset
                 disabled={form.frozen || props.archived}

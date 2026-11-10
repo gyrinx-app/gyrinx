@@ -100,91 +100,138 @@ test("end date changes offer an explicit shift and retain it for an exact retry"
     );
 });
 
-test("setup previews a template, customises a draft and reviews it before the only write", async () => {
-    const reward = { credits: { fixed: 0, dice: null }, reputation: 0 };
-    const definition = {
-        phases: [
-            {
-                id: "opening",
-                details: {
-                    name: "Opening",
-                    description: "",
-                    effects: "",
-                    rewards: {
-                        win: reward,
-                        draw: reward,
-                        loss: reward,
-                        entry_credits: { fixed: 0, dice: null },
+test.each([false, true])(
+    "setup is a page and reviews the optional current-cycle choice before writing",
+    async (noCurrent) => {
+        const reward = { credits: { fixed: 0, dice: null }, reputation: 0 };
+        const definition = {
+            phases: [
+                {
+                    id: "opening",
+                    details: {
+                        name: "Opening",
+                        description: "",
+                        effects: "",
+                        rewards: {
+                            win: reward,
+                            draw: reward,
+                            loss: reward,
+                            entry_credits: { fixed: 0, dice: null },
+                        },
                     },
                 },
-            },
-        ],
-        steps: [{ id: "step", phase_id: "opening", count: 3 }],
-    };
-    const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
-    vi.stubGlobal("fetch", fetch);
-    render(
-        <ScheduleEditor
-            phases={[]}
-            onNavigate={vi.fn()}
-            editor={{
-                ...editor,
-                kind: "setup",
-                heading: "Set up campaign cycles",
-                templates: [
-                    { id: "template", name: "Starting pattern", definition },
-                ],
-                values: {
-                    request_key: "setup-key",
-                    template_id: "",
-                    setup_definition: "",
-                    mode: "fixed",
-                    current_number: "",
-                    date_start: "2026-11-01",
-                    cycle_interval: "1",
-                    cycle_unit: "weeks",
-                    date_version: "1",
-                },
-            }}
-        />,
-    );
-    await userEvent.selectOptions(
-        screen.getByRole("combobox", { name: "Starting template" }),
-        "template",
-    );
-    expect(screen.getByText(/1. Opening/)).toBeTruthy();
-    await userEvent.click(
-        screen.getByRole("button", { name: "Customise schedule" }),
-    );
-    screen.getByRole("button", { name: "Back" }).focus();
-    await userEvent.keyboard("{Enter}");
-    expect(document.activeElement?.textContent).toContain("Step 1 of 3");
-    await userEvent.tab();
-    expect(document.activeElement).toBe(
-        screen.getByRole("combobox", { name: "Starting template" }),
-    );
-    await userEvent.click(
-        screen.getByRole("button", { name: "Customise schedule" }),
-    );
-    await userEvent.clear(screen.getByLabelText("Phase 1 name"));
-    await userEvent.type(screen.getByLabelText("Phase 1 name"), "My opening");
-    await userEvent.type(screen.getByLabelText("Current cycle number"), "1");
-    await userEvent.click(
-        screen.getByRole("button", { name: "Review schedule" }),
-    );
-    expect(screen.getByText(/1. My opening/)).toBeTruthy();
-    expect(screen.getByText("1 week")).toBeTruthy();
-    expect(fetch).not.toHaveBeenCalled();
-    await userEvent.click(
-        screen.getByRole("button", { name: "Set up cycles" }),
-    );
-    expect(fetch).toHaveBeenCalledTimes(1);
-    const body = fetch.mock.calls[0][1].body as URLSearchParams;
-    expect(
-        JSON.parse(body.get("setup_definition")!).phases[0].details.name,
-    ).toBe("My opening");
-    expect(definition.phases[0].details.name).toBe("Opening");
-});
+            ],
+            steps: [{ id: "step", phase_id: "opening", count: 3 }],
+        };
+        const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
+        vi.stubGlobal("fetch", fetch);
+        render(
+            <ScheduleEditor
+                phases={[]}
+                onNavigate={vi.fn()}
+                editor={{
+                    ...editor,
+                    kind: "setup",
+                    heading: "Set up campaign cycles",
+                    context: { activates: true },
+                    templates: [
+                        {
+                            id: "template",
+                            name: "Starting pattern",
+                            definition,
+                        },
+                    ],
+                    values: {
+                        request_key: "setup-key",
+                        template_id: "",
+                        setup_definition: "",
+                        mode: "fixed",
+                        current_number: "1",
+                        no_current: "False",
+                        date_start: "2026-11-01",
+                        cycle_interval: "1",
+                        cycle_unit: "weeks",
+                        date_version: "1",
+                    },
+                }}
+            />,
+        );
+        expect(
+            screen.getByRole("heading", {
+                level: 1,
+                name: "Set up campaign cycles",
+            }),
+        ).toBeTruthy();
+        expect(screen.queryByRole("dialog")).toBeNull();
+        await userEvent.selectOptions(
+            screen.getByRole("combobox", { name: "Starting template" }),
+            "template",
+        );
+        expect(screen.getByText(/1. Opening/)).toBeTruthy();
+        await userEvent.click(
+            screen.getByRole("button", { name: "Customise schedule" }),
+        );
+        screen.getByRole("button", { name: "Back" }).focus();
+        await userEvent.keyboard("{Enter}");
+        expect(document.activeElement?.textContent).toContain("Step 1 of 3");
+        await userEvent.tab();
+        expect(document.activeElement).toBe(
+            screen.getByRole("combobox", { name: "Starting template" }),
+        );
+        await userEvent.click(
+            screen.getByRole("button", { name: "Customise schedule" }),
+        );
+        await userEvent.clear(screen.getByLabelText("Phase 1 name"));
+        await userEvent.type(
+            screen.getByLabelText("Phase 1 name"),
+            "My opening",
+        );
+        const addPhase = screen.getByRole("button", { name: "Add phase" });
+        expect(
+            addPhase.compareDocumentPosition(
+                screen.getByRole("table", { name: "Future phase steps" }),
+            ) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        if (noCurrent) {
+            await userEvent.click(
+                screen.getByRole("switch", { name: "No current cycle" }),
+            );
+            expect(screen.queryByLabelText("Current cycle number")).toBeNull();
+        } else {
+            expect(
+                screen
+                    .getByLabelText("Current cycle number")
+                    .hasAttribute("required"),
+            ).toBe(false);
+            await userEvent.clear(
+                screen.getByLabelText("Current cycle number"),
+            );
+        }
+        await userEvent.click(
+            screen.getByRole("button", { name: "Review schedule" }),
+        );
+        expect(screen.getByText(/1. My opening/)).toBeTruthy();
+        expect(screen.getByText("1 week")).toBeTruthy();
+        expect(!!screen.queryByText(/Saving starts the selected cycle/)).toBe(
+            !noCurrent,
+        );
+        expect(
+            screen.getByText(noCurrent ? "None" : "Cycle 1", { exact: true }),
+        ).toBeTruthy();
+        expect(fetch).not.toHaveBeenCalled();
+        await userEvent.click(
+            screen.getByRole("button", { name: "Set up cycles" }),
+        );
+        expect(fetch).toHaveBeenCalledTimes(1);
+        const body = fetch.mock.calls[0][1].body as URLSearchParams;
+        expect(body.get("no_current")).toBe(noCurrent ? "on" : "False");
+        expect(body.has("current_number")).toBe(true);
+        expect(
+            JSON.parse(body.get("setup_definition")!).phases[0].details.name,
+        ).toBe("My opening");
+        expect(definition.phases[0].details.name).toBe("Opening");
+    },
+);
 
 test("a lost response freezes the draft and retries the exact command", async () => {
     const fetch = vi

@@ -439,12 +439,9 @@ export function BattleScenario(props: BattleScenarioProps) {
                     }
                     disabled={pending || props.disabled}
                     size="sm"
+                    busy={pending}
                 >
-                    {pending
-                        ? "Generating…"
-                        : results.length
-                          ? "Generate again"
-                          : "Generate scenario"}
+                    {results.length ? "Generate again" : "Generate scenario"}
                 </Button>
                 {results.length > 0 && (
                     <>

@@ -345,7 +345,7 @@ function ScheduleContent(
         };
     },
 ) {
-    if (props.editor?.kind === "plan")
+    if (props.editor?.kind === "plan" || props.editor?.kind === "setup")
         return (
             <ScheduleEditor
                 key={`${props.editor.recoveryKey}:${props.editor.values.request_key}`}
@@ -360,7 +360,7 @@ function ScheduleContent(
                                 href: props.campaignHref,
                             },
                             { label: "Cycles", href: props.scheduleHref },
-                            { label: "Schedule settings" },
+                            { label: props.editor.heading },
                         ]}
                     />
                 }
@@ -406,12 +406,19 @@ function ScheduleContent(
                     <h1 className="text-2xl font-semibold">Campaign cycles</h1>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
                         <span className="text-muted">{props.status}</span>
-                        {props.configured && (
-                            <>
-                                <Badge color="amber">{props.currentName}</Badge>
-                                <span>{props.currentPhase}</span>
-                            </>
-                        )}
+                        {props.configured &&
+                            (props.currentPhaseId ? (
+                                <>
+                                    <Badge color="amber">
+                                        {props.currentName}
+                                    </Badge>
+                                    <span>{props.currentPhase}</span>
+                                </>
+                            ) : (
+                                <span className="text-muted">
+                                    No current cycle
+                                </span>
+                            ))}
                     </div>
                 </div>
                 <div className="flex flex-wrap gap-2">

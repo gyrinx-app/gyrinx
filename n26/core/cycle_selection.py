@@ -52,6 +52,8 @@ def options(campaign, *, page=None, selected=None):
             }
         from n26.core.cycles import MAX_PREFIX
 
+        current = header.current_cycle
+        current_order = current.order if current else 0
         plan = s.Plan(
             str(header.active_plan_id),
             header.active_plan.mode,
@@ -63,7 +65,7 @@ def options(campaign, *, page=None, selected=None):
         if plan.mode == "fixed":
             last_position = min(last_position, plan.length)
         last_order = plan.order_for(last_position) - 1
-        anchor = header.current_cycle.order
+        anchor = current_order
         retained = selected_saved = None
         try:
             target = ref_from_data(selected) if selected is not None else None
@@ -129,7 +131,7 @@ def options(campaign, *, page=None, selected=None):
                 cycle.order,
                 cycle.name,
                 cycle.phase.name,
-                header.current_cycle.order,
+                current_order,
                 starts_on=cycle.starts_on,
                 ends_on=cycle.ends_on,
             )
@@ -142,7 +144,7 @@ def options(campaign, *, page=None, selected=None):
                     retained.order,
                     retained.name,
                     retained.phase.name,
-                    header.current_cycle.order,
+                    current_order,
                     starts_on=retained.starts_on,
                     ends_on=retained.ends_on,
                     hint="This cycle is already saved. Retrying confirms the original battle save.",
@@ -168,16 +170,23 @@ def options(campaign, *, page=None, selected=None):
                         cycle.order,
                         cycle.name,
                         phase_names[cycle.phase_id],
-                        header.current_cycle.order,
+                        current_order,
                         starts_on=cycle.starts_on,
                         ends_on=cycle.ends_on,
-                        hint=f"Saving this battle also saves Cycle {first} through Cycle {cycle.order}. The current cycle remains {header.current_cycle.name}.",
+                        hint=f"Saving this battle also saves Cycle {first} through Cycle {cycle.order}. "
+                        + (
+                            f"The current cycle remains {current.name}."
+                            if current
+                            else "No cycle will be started."
+                        ),
                     )
                 )
         return {
             "configured": True,
-            "current": header.current_cycle.name,
-            "currentValue": ref_data(s.SavedCycleRef(str(header.current_cycle_id))),
+            "current": current.name if current else "No current cycle",
+            "currentValue": ref_data(s.SavedCycleRef(str(header.current_cycle_id)))
+            if current
+            else None,
             "lastOrder": last_order,
             "choices": sorted(choices, key=lambda choice: choice["order"]),
             "previous": chosen.previous_page_number()

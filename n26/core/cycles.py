@@ -156,7 +156,7 @@ def _load_locked(campaign):
         plan,
         header.next_position,
         cycles,
-        str(header.current_cycle_id),
+        str(header.current_cycle_id) if header.current_cycle_id else None,
         campaign.status,
         header.revision,
         calendar=calendar_from_data(header.date_settings),
@@ -379,7 +379,9 @@ def configure(
         template = _template_for(actor, template_id)
         if calendar is None:
             raise Refusal("Enter cycle date settings before setting up this campaign.")
-        if type(current_position) is not int or not 0 <= current_position < MAX_PREFIX:
+        if current_position is not None and (
+            type(current_position) is not int or not 0 <= current_position < MAX_PREFIX
+        ):
             raise Refusal("Select an initial cycle within the first 1,000 cycles.")
         change = s.configure(
             template_from_data(
@@ -578,7 +580,9 @@ def apply_template(
 
 def advance(campaign, *, actor, expected_current, expected_revision, request_key):
     def apply(act, before):
-        if before.current_cycle_id != str(expected_current):
+        if before.current_cycle_id != (
+            str(expected_current) if expected_current else None
+        ):
             raise CycleConflict(
                 "The current cycle changed. Review the transition before advancing."
             )
@@ -598,9 +602,11 @@ def advance(campaign, *, actor, expected_current, expected_revision, request_key
 
 def start(campaign, *, actor, expected_current, expected_revision, request_key):
     def apply(act, before):
-        if before.current_cycle_id != str(expected_current):
+        if before.current_cycle_id != (
+            str(expected_current) if expected_current else None
+        ):
             raise CycleConflict("The current cycle changed. Review it before starting.")
-        change = s.start(before, now=timezone.now())
+        change = s.start(before, now=timezone.now(), new_id=_new_id)
         return change, change.schedule.current_cycle_id
 
     return _command(
@@ -616,7 +622,9 @@ def start(campaign, *, actor, expected_current, expected_revision, request_key):
 
 def finish(campaign, *, actor, expected_current, expected_revision, request_key):
     def apply(act, before):
-        if before.current_cycle_id != str(expected_current):
+        if before.current_cycle_id != (
+            str(expected_current) if expected_current else None
+        ):
             raise CycleConflict(
                 "The current cycle changed. Review it before finishing."
             )
@@ -677,13 +685,13 @@ def status_changed(act, status):
     _access(act)
     if status == "in_progress":
         if before.status == "pre_campaign":
-            change = s.start(before, now=timezone.now())
+            change = s.start(before, now=timezone.now(), new_id=_new_id)
         else:
             change = s.ScheduleChange(
                 replace(before, status=status, revision=before.revision + 1),
-                transition=s.Transition(
-                    "started", None, before.current, timezone.now()
-                ),
+                transition=s.Transition("started", None, before.current, timezone.now())
+                if before.current
+                else None,
             )
     elif status == "post_campaign" and before.status == "in_progress":
         change = s.finish(before, now=timezone.now())

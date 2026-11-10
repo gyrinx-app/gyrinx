@@ -1,8 +1,8 @@
 {% extends "n26/layouts/base.html" %}
 {% load react %}
 {% block head_title %}
-    {% if schedule_props.editor.kind == "plan" %}
-        Schedule settings
+    {% if schedule_props.editor.kind == "plan" or schedule_props.editor.kind == "setup" %}
+        {{ schedule_props.editor.heading }}
     {% else %}
         Campaign cycles
     {% endif %}

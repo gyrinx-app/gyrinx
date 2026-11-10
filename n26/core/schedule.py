@@ -303,7 +303,7 @@ class Schedule:
     plan: Plan
     next_position: int
     cycles: tuple[Cycle, ...]
-    current_cycle_id: str
+    current_cycle_id: str | None
     status: Status = "pre_campaign"
     revision: int = 0
     calendar: CycleCalendar | None = None
@@ -316,7 +316,9 @@ class Schedule:
         _unique((phase.id for phase in self.phases), "Phases")
         _unique((cycle.id for cycle in self.cycles), "Cycles")
         _unique((cycle.source.position for cycle in self.cycles), "Cycle sources")
-        if self.current_cycle_id not in {cycle.id for cycle in self.cycles}:
+        if self.current_cycle_id is not None and self.current_cycle_id not in {
+            cycle.id for cycle in self.cycles
+        }:
             raise ScheduleError("Select a saved current cycle.")
         if tuple(cycle.order for cycle in self.cycles) != tuple(
             range(1, len(self.cycles) + 1)
@@ -343,11 +345,11 @@ class Schedule:
 
     @property
     def current(self):
-        return next(c for c in self.cycles if c.id == self.current_cycle_id)
+        return next((c for c in self.cycles if c.id == self.current_cycle_id), None)
 
     @property
     def current_phase(self):
-        return _phase(self, self.current.details.phase_id)
+        return _phase(self, self.current.details.phase_id) if self.current else None
 
 
 @dataclass(frozen=True)
@@ -580,7 +582,7 @@ def configure(
     template: ScheduleTemplate,
     *,
     campaign_id: str,
-    current_position: int,
+    current_position: int | None,
     mode: Mode = "fixed",
     status: Status = "pre_campaign",
     now: datetime | None = None,
@@ -592,14 +594,15 @@ def configure(
     Earlier saved cycles have no invented completion times. Pre-campaign
     configuration does not start a cycle; start() records that separately.
     """
-    _nonnegative(current_position, "Current cycle position")
+    if current_position is not None:
+        _nonnegative(current_position, "Current cycle position")
     phases, plan = _copy_template(
         template, mode=mode, starts_after_order=0, new_id=new_id
     )
-    _at(plan, current_position)
+    _at(plan, current_position if current_position is not None else 0)
     cycles = tuple(
         _save(_dated(_at(plan, i), calendar), new_id)
-        for i in range(current_position + 1)
+        for i in range(current_position + 1 if current_position is not None else 0)
     )
     schedule = Schedule(
         campaign_id,
@@ -607,12 +610,12 @@ def configure(
         plan,
         len(cycles),
         cycles,
-        cycles[-1].id,
+        cycles[-1].id if cycles else None,
         status,
         calendar=calendar,
     )
     transition = None
-    if status == "in_progress":
+    if status == "in_progress" and schedule.current is not None:
         if now is None:
             raise ScheduleError("Supply the time the initial cycle started.")
         transition = Transition("started", None, schedule.current, now)
@@ -720,6 +723,7 @@ def _validate_projection_dates(schedule):
     following = project(schedule, limit=1)
     if (
         schedule.calendar
+        and schedule.cycles
         and following
         and following[0].starts_on <= max(c.details.ends_on for c in schedule.cycles)
     ):
@@ -813,6 +817,8 @@ def replace_plan(
 
 def _repeat_continuation(schedule, steps):
     """Credit the saved tail against its matching occurrence in the new pattern."""
+    if not schedule.cycles:
+        return 0
     tail = schedule.cycles[-1]
     matching = next(
         (
@@ -852,7 +858,7 @@ def set_calendar(schedule: Schedule, calendar: CycleCalendar) -> ScheduleChange:
     saved = tuple(replacements.get(cycle.id, cycle) for cycle in schedule.cycles)
     validate_cycle_dates(saved)
     start, _end = calendar.dates_for(len(saved) + 1)
-    if start <= max(cycle.details.ends_on for cycle in saved):
+    if saved and start <= max(cycle.details.ends_on for cycle in saved):
         raise ScheduleError(
             "The first projected cycle must start after all saved cycle dates."
         )
@@ -914,18 +920,40 @@ def preview_advance(schedule: Schedule) -> TransitionPreview:
     if schedule.status != "in_progress":
         raise ScheduleError("Start the campaign before advancing its cycle.")
     current = schedule.current
+    if current is None:
+        raise ScheduleError("Start a cycle before advancing.")
     if current.order < len(schedule.cycles):
         return TransitionPreview(current, schedule.cycles[current.order])
     following = project(schedule, limit=1)
     return TransitionPreview(current, following[0] if following else None)
 
 
-def start(schedule: Schedule, *, now: datetime) -> ScheduleChange:
-    if schedule.status != "pre_campaign":
-        raise ScheduleError("Only a pre-campaign schedule can be started.")
+def start(schedule: Schedule, *, now: datetime, new_id: NewId = _id) -> ScheduleChange:
+    if schedule.status == "post_campaign":
+        raise ScheduleError("Reopen the campaign before starting a cycle.")
+    if schedule.status == "in_progress" and schedule.current is not None:
+        raise ScheduleError(
+            "A cycle is already current. Advance it to start the next cycle."
+        )
+    change = ScheduleChange(schedule)
+    selected = schedule.current
+    if selected is None:
+        if schedule.cycles:
+            selected = schedule.cycles[0]
+        else:
+            following = project(schedule, limit=1)
+            if not following:
+                raise ScheduleError("Add a cycle before starting.")
+            change, selected = _ensure_saved(schedule, following[0].ref, new_id=new_id)
     return ScheduleChange(
-        replace(schedule, status="in_progress", revision=schedule.revision + 1),
-        transition=Transition("started", None, schedule.current, now),
+        replace(
+            change.schedule,
+            status="in_progress",
+            current_cycle_id=selected.id,
+            revision=schedule.revision + 1,
+        ),
+        created=change.created,
+        transition=Transition("started", None, selected, now),
     )
 
 
@@ -957,7 +985,9 @@ def finish(schedule: Schedule, *, now: datetime) -> ScheduleChange:
         raise ScheduleError("Only an in-progress campaign can be finished.")
     return ScheduleChange(
         replace(schedule, status="post_campaign", revision=schedule.revision + 1),
-        transition=Transition("finished", schedule.current, schedule.current, now),
+        transition=Transition("finished", schedule.current, schedule.current, now)
+        if schedule.current
+        else None,
     )
 
 

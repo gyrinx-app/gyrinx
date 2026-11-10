@@ -76,6 +76,34 @@ test("current cycle and dates remain clear when moving backwards, forwards and b
     expect(fetch).not.toHaveBeenCalled();
 });
 
+test("a schedule without a current cycle stays unassigned until browsing its first preview", async () => {
+    const change = vi.fn();
+    const preview = {
+        ...choice(1),
+        isCurrent: false,
+        value: { plan_id: "pattern", index: 0 },
+    };
+    render(
+        <CycleNavigator
+            initial={{
+                ...initial,
+                current: "No current cycle",
+                currentValue: null,
+                choices: [preview],
+            }}
+            value="null"
+            onChange={change}
+            readUrl="/choices/"
+        />,
+    );
+    expect(screen.getByText("No cycle selected")).toBeTruthy();
+    expect(
+        screen.queryByRole("button", { name: "Return to current cycle" }),
+    ).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Next cycle" }));
+    expect(change).toHaveBeenCalledWith(JSON.stringify(preview.value));
+});
+
 test("a gap in loaded history fetches the adjacent cycle rather than skipping forward", async () => {
     const fetch = vi
         .fn()
