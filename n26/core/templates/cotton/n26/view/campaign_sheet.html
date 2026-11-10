@@ -11,7 +11,8 @@ Gangs span the grid. Battles and assets share a wide-screen row; activity and pl
 An empty edit_href draws the budget without an edit control. A None budget prints None set, which is distinct from zero.
 Extra gang controls go in gangs_actions. Counter and label management lives on Edit campaign.
 Figures, gangs, and assets live in n26/includes/campaign_*.html hosts. Only a page that holds every host may set htmx on its dialogs.
-The cycle_summary slot holds the optional current cycle and schedule links.
+The cycle_summary slot holds a definition-list entry beneath Status.
+The setup slot is a full-width grid item with campaign setup guidance.
 Keep the header actions slot filled. Left empty, Cotton would draw this page's own actions beside the title.
 log_count may be markup: the campaign page passes a host that a roll update redraws.
 
@@ -32,6 +33,7 @@ log_count may be markup: the campaign page passes a host that a roll update redr
     invitation=""
     actions=""
     cycle_summary=""
+    setup=""
     gangs_actions=""
     assets_actions=""
     players_actions=""
@@ -61,11 +63,11 @@ log_count may be markup: the campaign page passes a host that a roll update redr
             <div class="flex flex-wrap items-center justify-end gap-2">{{ players_actions }}{{ actions }}</div>
         {% endif %}
         {% if invitation.strip %}{{ invitation }}{% endif %}
-        {% if cycle_summary.strip %}{{ cycle_summary }}{% endif %}
     </div>
 
     <div class="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2" id="campaign-overview">
-        <c-ui.card padding="none" class="min-w-0 h-full">
+        {% if setup.strip %}{{ setup }}{% endif %}
+        <c-ui.card padding="none" class="min-w-0 h-full" aria-label="Campaign info">
             <dl class="divide-y divide-box-border px-4">
                 <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-3 py-2.5">
                     <dt class="text-sm text-muted">Type</dt>
@@ -86,14 +88,15 @@ log_count may be markup: the campaign page passes a host that a roll update redr
                     <dt class="text-sm text-muted">Status</dt>
                     <dd class="flex items-center justify-end gap-2 text-sm">
                         {{ sheet.status }}
-                        {% if edit_href %}<c-ui.button href="{{ edit_href }}#campaign-status" size="xs" variant="text" aria-label="Edit campaign status" class="py-0!"><span class="n26-icon-inline"><c-n26.icon name="pencil" /></span></c-ui.button>{% endif %}
+                        {% if edit_href %}<c-ui.button href="{{ edit_href }}#campaign-status" size="xs" variant="text" aria-label="Edit campaign status" class="inline-flex! size-6! items-center justify-center p-0!"><span class="n26-icon-inline"><c-n26.icon name="pencil" /></span></c-ui.button>{% endif %}
                     </dd>
                 </div>
+                {% if cycle_summary.strip %}{{ cycle_summary }}{% endif %}
                 <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-3 py-2.5">
                     <dt class="text-sm text-muted">Gang budget</dt>
                     <dd class="flex items-center justify-end gap-2 text-sm tabular-nums">
                         {% if sheet.budget is None %}None set{% else %}{{ sheet.budget }}¢{% endif %}
-                        {% if edit_href %}<c-ui.button href="{{ edit_href }}" size="xs" variant="text" aria-label="Edit gang budget" class="py-0!"><span class="n26-icon-inline"><c-n26.icon name="pencil" /></span></c-ui.button>{% endif %}
+                        {% if edit_href %}<c-ui.button href="{{ edit_href }}" size="xs" variant="text" aria-label="Edit gang budget" class="inline-flex! size-6! items-center justify-center p-0!"><span class="n26-icon-inline"><c-n26.icon name="pencil" /></span></c-ui.button>{% endif %}
                     </dd>
                 </div>
             </dl>

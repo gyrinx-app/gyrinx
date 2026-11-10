@@ -4,6 +4,11 @@ Load the `design-system`, `microcopy` and `n26-react` skills before changing an
 interactive template. The component gallery instructions live in
 [`../../designsystem/AGENTS.md`](../../designsystem/AGENTS.md).
 
+Multi-step forms use the shared flow-progress pattern and distinct URLs for each
+step. React navigation must preserve browser Back/Forward and refresh/direct
+entry, retaining unsaved drafts between steps. Do not replace navigation with a
+local step counter unless the interaction has a documented exception.
+
 ## Template layout
 
 - `n26/…` contains pages and layouts.

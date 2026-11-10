@@ -76,6 +76,67 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 )(href);
                 return;
             }
+            const previous = new URL(current.current);
+            const withoutStep = (value: URL) => {
+                const query = new URLSearchParams(value.search);
+                query.delete("step");
+                return query.toString();
+            };
+            const localStep =
+                url.pathname.endsWith("/edit/setup/") &&
+                url.pathname === previous.pathname &&
+                url.searchParams.get("step") !==
+                    previous.searchParams.get("step") &&
+                withoutStep(url) === withoutStep(previous);
+            const remember = () => {
+                if (history === "push" && url.href !== window.location.href) {
+                    window.history.replaceState(
+                        { ...window.history.state, htmx: false },
+                        "",
+                        window.location.href,
+                    );
+                    window.history.pushState(
+                        {
+                            ...window.history.state,
+                            htmx: false,
+                            n26Schedule: {
+                                scope: scope.current,
+                                index: ++index.current,
+                            },
+                        },
+                        "",
+                        url.pathname + url.search + url.hash,
+                    );
+                }
+                current.current = url.href;
+            };
+            if (localStep) {
+                controller.current?.abort();
+                controller.current = null;
+                setPending(false);
+                setBusyControl(null);
+                interaction.current = null;
+                setError("");
+                remember();
+                const step = Number(url.searchParams.get("step") ?? "1");
+                setData((data) =>
+                    data.editor?.kind === "setup"
+                        ? {
+                              ...data,
+                              editor: {
+                                  ...data.editor,
+                                  context: {
+                                      ...data.editor.context,
+                                      setupStage: [1, 2, 3].includes(step)
+                                          ? step
+                                          : 1,
+                                  },
+                              },
+                          }
+                        : data,
+                );
+                return;
+            }
             controller.current?.abort();
             const request = new AbortController();
             controller.current = request;
@@ -107,26 +168,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 )
                     throw new Error();
                 if (controller.current !== request) return;
-                if (history === "push" && url.href !== window.location.href) {
-                    window.history.replaceState(
-                        { ...window.history.state, htmx: false },
-                        "",
-                        window.location.href,
-                    );
-                    window.history.pushState(
-                        {
-                            ...window.history.state,
-                            htmx: false,
-                            n26Schedule: {
-                                scope: scope.current,
-                                index: ++index.current,
-                            },
-                        },
-                        "",
-                        url.pathname + url.search + url.hash,
-                    );
-                }
-                current.current = url.href;
+                remember();
                 setData(result.schedule);
                 setNotices(
                     readNotices("notices" in result ? result.notices : []),

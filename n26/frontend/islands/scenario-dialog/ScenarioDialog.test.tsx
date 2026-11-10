@@ -63,7 +63,8 @@ it("changes campaign through its URL while retaining the result", () => {
     expect(target.searchParams.get("dialog")).toBe("save");
 });
 it("chooses a battle and submits its revision without a name field", () => {
-    const { container } = render(<ScenarioDialog {...props} />);
+    render(<ScenarioDialog {...props} />);
+    const dialog = screen.getByRole("dialog");
     expect(
         screen.getByRole("button", { name: "Connect scenario" }),
     ).toHaveProperty("disabled", true);
@@ -71,7 +72,7 @@ it("chooses a battle and submits its revision without a name field", () => {
         target: { value: "second" },
     });
     expect(
-        container.querySelector<HTMLInputElement>('[name="revision"]')?.value,
+        dialog.querySelector<HTMLInputElement>('[name="revision"]')?.value,
     ).toBe("5");
     expect(
         screen.getByText(
@@ -81,7 +82,7 @@ it("chooses a battle and submits its revision without a name field", () => {
     expect(
         screen.getByRole("button", { name: "Connect scenario" }),
     ).toHaveProperty("disabled", false);
-    expect(container.querySelector('[name="name"]')).toBeNull();
+    expect(dialog.querySelector('[name="name"]')).toBeNull();
 });
 it("has an explicit empty state when the campaign has no battles", () => {
     render(<ScenarioDialog {...props} battles={[]} />);

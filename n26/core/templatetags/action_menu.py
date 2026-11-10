@@ -35,7 +35,7 @@ def _entry(item):
             "label": _text(item.label),
             "href": _text(item.target),
             "tone": "danger" if item.tone == DANGER else "default",
-            "separatorBefore": False,
+            "separatorBefore": item.separator_before,
         }
     return {
         "label": _text(item["label"]),

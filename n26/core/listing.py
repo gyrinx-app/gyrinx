@@ -78,12 +78,14 @@ class Action:
     ``kind`` is SUBMIT or LINK. ``target`` is the submitted value or URL.
     ``tone`` is PRIMARY for the main action, DANGER for removal, or SECONDARY.
     Templates map these meanings to visual styles.
+    ``separator_before`` groups links when the action appears in a menu.
     """
 
     label: str
     kind: str
     target: str
     tone: str
+    separator_before: bool = False
 
 
 @dataclass(frozen=True)

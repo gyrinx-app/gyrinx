@@ -163,7 +163,6 @@ def options(campaign, *, page=None, selected=None):
                 ),
                 limit=limit,
             ):
-                first = plan.order_for(header.next_position)
                 choices.append(
                     _choice(
                         ref_data(cycle.ref),
@@ -173,12 +172,6 @@ def options(campaign, *, page=None, selected=None):
                         current_order,
                         starts_on=cycle.starts_on,
                         ends_on=cycle.ends_on,
-                        hint=f"Saving this battle also saves Cycle {first} through Cycle {cycle.order}. "
-                        + (
-                            f"The current cycle remains {current.name}."
-                            if current
-                            else "No cycle will be started."
-                        ),
                     )
                 )
         return {

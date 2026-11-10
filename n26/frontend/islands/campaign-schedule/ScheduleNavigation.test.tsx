@@ -493,3 +493,106 @@ test("schedule messages use dismissible design-system alerts and repeated saves 
         "success",
     );
 });
+
+test("setup steps have URLs, retain edits through Back/Forward and refresh without retaining credentials", async () => {
+    const action = base + "edit/setup/";
+    window.history.replaceState(null, "", action);
+    const setup: Editor = {
+        ...editor,
+        kind: "setup",
+        heading: "Set up campaign cycles",
+        action,
+        recoveryKey: "setup:actor:campaign",
+        context: { setupStage: 1 },
+        values: {
+            request_key: "new-key",
+            template_id: "",
+            setup_definition: "",
+            mode: "fixed",
+            date_start: "2026-11-01",
+            cycle_interval: "1",
+            cycle_unit: "weeks",
+            current_number: "1",
+            no_current: "False",
+        },
+        templates: [
+            {
+                id: "template",
+                name: "Opening pattern",
+                definition: {
+                    phases: [{ id: "phase", details: data().phases[0] }],
+                    steps: [{ id: "step", phase_id: "phase", count: 3 }],
+                },
+            },
+        ],
+    };
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const view = render(<CampaignSchedule {...data(setup)} />);
+    await userEvent.selectOptions(
+        screen.getByLabelText("Starting template"),
+        "template",
+    );
+    await userEvent.click(
+        screen.getByRole("button", { name: "Customise schedule" }),
+    );
+    expect(window.location.search).toBe("?step=2");
+    fireEvent.change(screen.getByLabelText("Phase 1 name"), {
+        target: { value: "My phase" },
+    });
+    const previous = {
+        ...window.history.state,
+        n26Schedule: { ...window.history.state.n26Schedule, index: 0 },
+    };
+    act(() => {
+        window.history.replaceState(previous, "", action);
+        window.dispatchEvent(
+            new PopStateEvent("popstate", { state: previous }),
+        );
+    });
+    expect(screen.getByLabelText("Starting template")).toBeTruthy();
+    await userEvent.click(
+        screen.getByRole("button", { name: "Customise schedule" }),
+    );
+    expect(
+        (screen.getByLabelText("Phase 1 name") as HTMLInputElement).value,
+    ).toBe("My phase");
+    await userEvent.click(
+        screen.getByRole("button", { name: "Review schedule" }),
+    );
+    expect(window.location.search).toBe("?step=3");
+    expect(screen.getByText(/1. My phase/)).toBeTruthy();
+    const forward = window.history.state;
+    act(() => {
+        const back = {
+            ...forward,
+            n26Schedule: { ...forward.n26Schedule, index: 1 },
+        };
+        window.history.replaceState(back, "", action + "?step=2");
+        window.dispatchEvent(new PopStateEvent("popstate", { state: back }));
+    });
+    expect(
+        (screen.getByLabelText("Phase 1 name") as HTMLInputElement).value,
+    ).toBe("My phase");
+    act(() => {
+        window.history.replaceState(forward, "", action + "?step=3");
+        window.dispatchEvent(new PopStateEvent("popstate", { state: forward }));
+    });
+    expect(screen.getByText(/1. My phase/)).toBeTruthy();
+    expect(fetch).not.toHaveBeenCalled();
+    const draft = sessionStorage.getItem(setup.recoveryKey + ":setup-draft")!;
+    expect(draft).not.toContain("csrf");
+    expect(draft).not.toContain("request_key");
+    view.unmount();
+    render(
+        <CampaignSchedule
+            {...data({
+                ...setup,
+                context: { setupStage: 3 },
+                values: { ...setup.values, request_key: "fresh-key" },
+                csrfToken: "rotated",
+            })}
+        />,
+    );
+    expect(screen.getByText(/1. My phase/)).toBeTruthy();
+});
