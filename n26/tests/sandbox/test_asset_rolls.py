@@ -1538,6 +1538,43 @@ class TestThePages:
 
 
 class TestBatchPool:
+    def test_partial_checklist_query_count_stays_flat_as_invited_players_grow(
+        self, client, campaign, territory, selection_table, arbitrator
+    ):
+        from uuid import uuid4
+
+        from n26.core.campaigns import campaign_operation
+
+        client.force_login(arbitrator)
+        address = reverse("n26-campaign-roll-asset", args=[campaign.pk])
+        data = {
+            "type": str(territory.pk),
+            "table": str(selection_table.pk),
+            "rolled": "63",
+            "count": "1",
+            "request_key": str(uuid4()),
+        }
+
+        def read():
+            response = client.post(address, data, HTTP_HX_REQUEST="true")
+            assert response.status_code == 200
+            assert 'id="n26-campaign-setup"' in response.content.decode()
+
+        def query_count():
+            read()
+            with CaptureQueriesContext(connection) as captured:
+                read()
+            return len(captured)
+
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.invite(User.objects.create_user("first-invitee"))
+        small = query_count()
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            for index in range(6):
+                act.invite(User.objects.create_user(f"more-invitee-{index}"))
+        assert query_count() <= small
+        assert campaign.campaign_assets.count() == 1
+
     def test_quantity_generates_unclaimed_results_and_records_each_roll(
         self, client, campaign, territory, selection_table, arbitrator, monkeypatch
     ):

@@ -676,7 +676,7 @@ def _campaign_update(request, campaign):
         guidance = setup_checklist(
             campaign,
             sheet,
-            campaign.participants.only("state"),
+            campaign.participants.only("state", "campaign_id"),
             dashboard_summary(campaign, request.user),
             actor=request.user,
         )
