@@ -139,11 +139,17 @@ test("phase rules and configured rewards sit above their cycle rows", () => {
     ).not.toBeNull();
 });
 
-test("phase management uses the shared keyboard menu and focused cycles retain details", async () => {
+test("phase management uses the shared keyboard menu and cycle details expand in place", async () => {
     const value = props();
     value.focusId = "saved-3";
     value.rows[2].effects = "Recover equipment after this cycle.";
     render(<CampaignSchedule {...value} />);
+    expect(
+        screen
+            .getByText("Recover equipment after this cycle.")
+            .closest("details")?.open,
+    ).toBe(false);
+    await userEvent.click(screen.getByText("More details"));
     expect(
         screen
             .getByText("Recover equipment after this cycle.")

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { ScheduleEditor } from "./ScheduleEditor";
@@ -55,6 +55,49 @@ afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     sessionStorage.clear();
+});
+
+test("end date changes offer an explicit shift and retain it for an exact retry", async () => {
+    const fetch = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Lost response"))
+        .mockResolvedValueOnce(json({ nextUrl: "/cycles/" }));
+    vi.stubGlobal("fetch", fetch);
+    render(
+        <ScheduleEditor
+            phases={phases}
+            onNavigate={vi.fn()}
+            editor={{
+                ...editor,
+                context: { shiftLater: { endsOn: "2026-11-07" } },
+                values: {
+                    ...editor.values,
+                    starts_on: "2026-11-01",
+                    ends_on: "2026-11-07",
+                    shift_later: "False",
+                },
+            }}
+        />,
+    );
+    expect(
+        screen.queryByRole("switch", { name: "Move later cycle dates too" }),
+    ).toBeNull();
+    fireEvent.change(screen.getByLabelText("End date"), {
+        target: { value: "2026-11-05" },
+    });
+    const shift = screen.getByRole("switch", {
+        name: "Move later cycle dates too",
+    });
+    expect(shift.getAttribute("aria-checked")).toBe("false");
+    await userEvent.click(shift);
+    expect(screen.getByText(/2 days earlier/)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText(/The save may have completed/);
+    expect(fetch.mock.calls[0][1].body.get("shift_later")).toBe("on");
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    expect(fetch.mock.calls[1][1].body.toString()).toBe(
+        fetch.mock.calls[0][1].body.toString(),
+    );
 });
 
 test("a lost response freezes the draft and retries the exact command", async () => {
@@ -196,6 +239,107 @@ test("keyboard reordering submits phase identities and counts in the chosen orde
         steps[1],
         steps[0],
     ]);
+});
+
+test("switching to repeating proposes the full pattern and preserves edits to each mode", async () => {
+    const full = [
+        { id: "one", phase_id: "opening", count: 3 },
+        { id: "two", phase_id: "downtime", count: 1 },
+    ];
+    const remaining = [{ ...full[1] }];
+    const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
+    vi.stubGlobal("fetch", fetch);
+    render(
+        <ScheduleEditor
+            editor={{
+                ...editor,
+                kind: "plan",
+                context: { patternSteps: full, fixedSteps: remaining },
+                values: {
+                    request_key: "mode-key",
+                    expected_revision: "1",
+                    mode: "fixed",
+                    steps: JSON.stringify(remaining),
+                },
+            }}
+            phases={phases}
+            onNavigate={vi.fn()}
+        />,
+    );
+    const mode = screen.getByRole("combobox", { name: "Planning mode" });
+    await userEvent.selectOptions(mode, "repeating");
+    expect(
+        (
+            screen.getByRole("spinbutton", {
+                name: "Step 1 cycles",
+            }) as HTMLInputElement
+        ).value,
+    ).toBe("3");
+    await userEvent.clear(
+        screen.getByRole("spinbutton", { name: "Step 1 cycles" }),
+    );
+    await userEvent.type(
+        screen.getByRole("spinbutton", { name: "Step 1 cycles" }),
+        "2",
+    );
+    await userEvent.selectOptions(mode, "fixed");
+    expect(
+        (
+            screen.getByRole("spinbutton", {
+                name: "Step 1 cycles",
+            }) as HTMLInputElement
+        ).value,
+    ).toBe("1");
+    await userEvent.selectOptions(mode, "repeating");
+    expect(
+        (
+            screen.getByRole("spinbutton", {
+                name: "Step 1 cycles",
+            }) as HTMLInputElement
+        ).value,
+    ).toBe("2");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(JSON.parse(fetch.mock.calls[0][1].body.get("steps"))[0].count).toBe(
+        2,
+    );
+});
+
+test("retained plan commands survive the addition of date controls without changing their payload", async () => {
+    const retained = {
+        request_key: "earlier-plan",
+        expected_revision: "1",
+        mode: "fixed",
+        steps: "[]",
+    };
+    sessionStorage.setItem(
+        editor.recoveryKey,
+        new URLSearchParams(retained).toString(),
+    );
+    const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
+    vi.stubGlobal("fetch", fetch);
+    render(
+        <ScheduleEditor
+            editor={{
+                ...editor,
+                kind: "plan",
+                values: {
+                    ...retained,
+                    request_key: "fresh-plan",
+                    date_start: "2026-11-01",
+                    cycle_interval: "1",
+                    cycle_unit: "weeks",
+                    date_version: "1",
+                },
+            }}
+            phases={phases}
+            onNavigate={vi.fn()}
+        />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    const body = fetch.mock.calls[0][1].body as URLSearchParams;
+    expect(body.get("request_key")).toBe("earlier-plan");
+    expect(body.has("date_start")).toBe(false);
+    expect(body.has("date_version")).toBe(false);
 });
 
 test("malformed recovered structured input stays available for exact retry", async () => {

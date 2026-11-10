@@ -72,6 +72,7 @@ class CampaignPlan(Base):
     )
     mode = models.CharField(max_length=12, choices=Mode)
     starts_after_order = models.PositiveIntegerField(default=0)
+    start_position = models.PositiveIntegerField(default=0)
     steps = models.JSONField(default=list)
 
     class Meta:
@@ -163,6 +164,7 @@ class CampaignSchedule(Base):
     )
     next_position = models.PositiveIntegerField(default=0)
     revision = models.PositiveIntegerField(default=0)
+    date_settings = models.JSONField(default=dict)
 
     def clean(self):
         super().clean()

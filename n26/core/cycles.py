@@ -20,6 +20,8 @@ from n26.core import schedule as s
 from n26.core.campaign_permissions import may_record_campaign
 from n26.core.campaigns import campaign_operation
 from n26.core.cycle_data import (
+    calendar_data,
+    calendar_from_data,
     cycle_details_data,
     ref_data,
     rewards_from_data,
@@ -125,6 +127,7 @@ def _load_locked(campaign):
         header.active_plan.mode,
         steps_from_data(header.active_plan.steps),
         header.active_plan.starts_after_order,
+        header.active_plan.start_position,
     )
     cycles = tuple(
         s.Cycle(
@@ -156,6 +159,7 @@ def _load_locked(campaign):
         str(header.current_cycle_id),
         campaign.status,
         header.revision,
+        calendar=calendar_from_data(header.date_settings),
     )
 
 
@@ -217,6 +221,7 @@ def _persist(act, before, change, *, command=None, transition_id=None):
             campaign=campaign,
             mode=after.plan.mode,
             starts_after_order=after.plan.starts_after_order,
+            start_position=after.plan.start_position,
             steps=[asdict(step) for step in after.plan.steps],
         )
     CampaignCycle.objects.bulk_create(
@@ -243,6 +248,7 @@ def _persist(act, before, change, *, command=None, transition_id=None):
         "active_plan_id": after.plan.id,
         "next_position": after.next_position,
         "revision": after.revision,
+        "date_settings": calendar_data(after.calendar),
         "modified": timezone.now(),
     }
     if before is None:
@@ -356,11 +362,15 @@ def _command(campaign, actor, *, kind, inputs, request_key, expected_revision, a
         return result
 
 
-def configure(campaign, *, actor, template_id, current_position, mode, request_key):
+def configure(
+    campaign, *, actor, template_id, current_position, mode, request_key, calendar=None
+):
     def apply(act, before):
         if before is not None:
             raise Refusal("This campaign already has a cycle schedule.")
         template = _template_for(actor, template_id)
+        if calendar is None:
+            raise Refusal("Enter cycle date settings before setting up this campaign.")
         if type(current_position) is not int or not 0 <= current_position < MAX_PREFIX:
             raise Refusal("Select an initial cycle within the first 1,000 cycles.")
         change = s.configure(
@@ -370,6 +380,7 @@ def configure(campaign, *, actor, template_id, current_position, mode, request_k
             mode=mode,
             status=act.campaign.status,
             now=timezone.now(),
+            calendar=calendar,
             new_id=_new_id,
         )
         return change, change.schedule.current_cycle_id
@@ -382,6 +393,7 @@ def configure(campaign, *, actor, template_id, current_position, mode, request_k
             "template": str(template_id),
             "current_position": current_position,
             "mode": mode,
+            **({"calendar": calendar_data(calendar)} if calendar is not None else {}),
         },
         request_key=request_key,
         expected_revision=None,
@@ -398,11 +410,25 @@ def _bounded_target(before, target):
             raise Refusal("You can save up to 1,000 projected cycles at once.")
 
 
-def edit_cycle(campaign, *, actor, target, details, expected_revision, request_key):
+def edit_cycle(
+    campaign,
+    *,
+    actor,
+    target,
+    details,
+    expected_revision,
+    request_key,
+    shift_later=False,
+):
     def apply(act, before):
         _bounded_target(before, target)
         change = s.edit_cycle(
-            before, target, details, now=timezone.now(), new_id=_new_id
+            before,
+            target,
+            details,
+            now=timezone.now(),
+            new_id=_new_id,
+            shift_later=shift_later,
         )
         selected = s._selected(change.schedule, target)
         return change, selected.id
@@ -411,7 +437,11 @@ def edit_cycle(campaign, *, actor, target, details, expected_revision, request_k
         campaign,
         actor,
         kind="edit_cycle",
-        inputs={"target": ref_data(target), "details": cycle_details_data(details)},
+        inputs={
+            "target": ref_data(target),
+            "details": cycle_details_data(details),
+            **({"shift_later": True} if shift_later else {}),
+        },
         request_key=request_key,
         expected_revision=expected_revision,
         apply=apply,
@@ -469,21 +499,45 @@ def delete_phase(campaign, *, actor, phase_id, expected_revision, request_key):
     )
 
 
-def replace_plan(campaign, *, actor, steps, mode, expected_revision, request_key):
+def replace_plan(
+    campaign, *, actor, steps, mode, expected_revision, request_key, calendar=None
+):
     raw_steps = [asdict(step) for step in steps]
+
+    def apply(act, before):
+        dates = calendar
+        if dates is not None:
+            dates = replace(
+                dates,
+                starts_after_order=0 if before.calendar is None else len(before.cycles),
+            )
+            if before.calendar is not None and (
+                dates.interval == before.calendar.interval
+                and dates.unit == before.calendar.unit
+                and dates.starts_on
+                == before.calendar.dates_for(len(before.cycles) + 1)[0]
+            ):
+                dates = before.calendar
+        return s.replace_plan(
+            before,
+            steps=steps_from_data(raw_steps),
+            mode=mode,
+            new_id=_new_id,
+            calendar=dates,
+        ), None
+
     return _command(
         campaign,
         actor,
         kind="replace_plan",
-        inputs={"steps": raw_steps, "mode": mode},
+        inputs={
+            "steps": raw_steps,
+            "mode": mode,
+            **({"calendar": calendar_data(calendar)} if calendar is not None else {}),
+        },
         request_key=request_key,
         expected_revision=expected_revision,
-        apply=lambda act, before: (
-            s.replace_plan(
-                before, steps=steps_from_data(raw_steps), mode=mode, new_id=_new_id
-            ),
-            None,
-        ),
+        apply=apply,
     )
 
 

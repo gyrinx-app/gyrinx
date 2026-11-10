@@ -1,12 +1,14 @@
 """Validation, editor preparation and commands shared by schedule transports."""
 
 from dataclasses import asdict, dataclass
+from datetime import timedelta
 from urllib.parse import urlencode
 from uuid import uuid4
 
 from django import forms
 from django.http import Http404
 from django.urls import reverse
+from django.utils import timezone
 
 from n26.core import cycles
 from n26.core import schedule as s
@@ -25,8 +27,9 @@ class StructuredJSONField(forms.JSONField):
     empty_values = [None, ""]
 
 
+DATE_FIELDS = ("date_start", "cycle_interval", "cycle_unit", "date_version")
 FIELDS = {
-    "setup": ("template_id", "mode", "current_number"),
+    "setup": ("template_id", "mode", "current_number", *DATE_FIELDS),
     "cycle": (
         "target",
         "phase_id",
@@ -35,11 +38,13 @@ FIELDS = {
         "ends_on",
         "description",
         "effects",
+        "date_version",
+        "shift_later",
     ),
     "phase": ("phase_id", "name", "description", "effects", "rewards"),
     "duplicate-phase": ("phase_id", "name"),
     "delete-phase": ("phase_id",),
-    "plan": ("mode", "steps"),
+    "plan": ("mode", "steps", *DATE_FIELDS),
     "template": ("template_id", "mode"),
     "save-template": ("name",),
     "start": ("expected_current",),
@@ -52,7 +57,7 @@ HEADINGS = {
     "phase": "Edit phase",
     "duplicate-phase": "Duplicate phase",
     "delete-phase": "Delete phase",
-    "plan": "Edit future plan",
+    "plan": "Schedule settings",
     "template": "Apply schedule template",
     "save-template": "Save schedule template",
     "start": "Start campaign",
@@ -73,6 +78,13 @@ class CycleEditorForm(forms.Form):
     custom_name = forms.CharField(max_length=200, required=False)
     starts_on = forms.DateField(required=False)
     ends_on = forms.DateField(required=False)
+    shift_later = forms.BooleanField(required=False)
+    date_start = forms.DateField(required=False)
+    cycle_interval = forms.IntegerField(min_value=1, max_value=520, required=False)
+    cycle_unit = forms.ChoiceField(
+        choices=[("weeks", "Weeks"), ("months", "Calendar months")], required=False
+    )
+    date_version = forms.ChoiceField(choices=[("1", "1")], required=False)
     description = forms.CharField(required=False, strip=False, max_length=32000)
     effects = forms.CharField(required=False, strip=False, max_length=32000)
     rewards = StructuredJSONField(required=False)
@@ -89,12 +101,33 @@ class CycleEditorForm(forms.Form):
 
     def __init__(self, action, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.action = action
         keep = set(FIELDS[action]) | {"request_key"}
         if action != "setup":
             keep.add("expected_revision")
         self.fields = {
             name: field for name, field in self.fields.items() if name in keep
         }
+
+    def clean(self):
+        values = super().clean()
+        required = ()
+        if values.get("date_version") == "1":
+            required = (
+                ("starts_on", "ends_on")
+                if self.action == "cycle"
+                else DATE_FIELDS[:3]
+                if self.action in ("setup", "plan")
+                else ()
+            )
+        elif self.action in ("setup", "plan") and any(
+            values.get(name) for name in DATE_FIELDS[:3]
+        ):
+            required = DATE_FIELDS[:3]
+        for name in required:
+            if not values.get(name) and name not in self.errors:
+                self.add_error(name, "This field is required.")
+        return values
 
 
 @dataclass
@@ -115,6 +148,7 @@ def prepare(campaign, action, query):
     if (action == "setup") != (state is None):
         raise Http404("This schedule action is not available")
     initial = {"request_key": str(uuid4())}
+    heading = HEADINGS[action]
     context, canonical, target = {}, {}, None
     lead = ""
     if state is not None:
@@ -124,11 +158,19 @@ def prepare(campaign, action, query):
         initial.update(template_id="", mode="fixed")
         if action == "setup":
             initial["current_number"] = ""
-            lead = "Choose the current cycle. Earlier cycles will be saved without recorded start or end times."
+            initial.update(
+                date_start=timezone.localdate().isoformat(),
+                cycle_interval=1,
+                cycle_unit="weeks",
+                date_version="1",
+            )
+            lead = "Set the first cycle's date and choose the current cycle. This does not record past transitions."
             context["activates"] = campaign.status == "in_progress"
         else:
             lead = f"The new plan begins after Cycle {len(state.cycles)}. Saved cycles keep their identities and order."
     elif action == "cycle":
+        if query.get("fields") not in (None, "dates"):
+            raise Http404("No such cycle editor")
         try:
             target = (
                 s.SavedCycleRef(query["cycle"])
@@ -146,11 +188,25 @@ def prepare(campaign, action, query):
             if isinstance(target, s.SavedCycleRef)
             else {"plan": target.position.plan_id, "position": target.position.index}
         )
+        if query.get("fields") == "dates":
+            canonical["fields"] = "dates"
+            context["datesOnly"] = True
+            heading = "Edit cycle dates"
         details = (
             selected.details
             if isinstance(selected, s.Cycle)
-            else s.CycleDetails(selected.phase_id)
+            else s.CycleDetails(
+                selected.phase_id,
+                starts_on=selected.starts_on,
+                ends_on=selected.ends_on,
+            )
         )
+        initial["date_version"] = "1"
+        initial["shift_later"] = False
+        if state.calendar and details.ends_on:
+            context["shiftLater"] = {
+                "endsOn": details.ends_on.isoformat(),
+            }
         initial.update(asdict(details), target=ref_data(target))
         initial["custom_name"] = details.custom_name or ""
         for field in ("starts_on", "ends_on"):
@@ -160,7 +216,7 @@ def prepare(campaign, action, query):
             first, last = preview.creates[0].order, preview.creates[-1].order
             lead = f"This edit saves Cycle {first} through Cycle {last}. The current cycle remains {state.current.name}."
         else:
-            lead = f"Editing {selected.name}. Dates keep its saved position in the schedule."
+            lead = f"Editing {selected.name}. Changing dates does not reorder saved cycles."
     elif action in ("phase", "duplicate-phase", "delete-phase"):
         phase_id = query.get("phase")
         phase = next((p for p in state.phases if p.id == phase_id), None)
@@ -181,7 +237,25 @@ def prepare(campaign, action, query):
             mode=state.plan.mode,
             steps=[asdict(step) for step in s.editable_steps(state)],
         )
-        lead = f"This plan begins after Cycle {len(state.cycles)}. Changes affect the projected continuation."
+        calendar = state.calendar
+        initial.update(
+            date_version="1",
+            cycle_interval=calendar.interval if calendar else 1,
+            cycle_unit=calendar.unit if calendar else "weeks",
+            date_start=calendar.dates_for(len(state.cycles) + 1)[0].isoformat()
+            if calendar
+            else "",
+        )
+        if calendar:
+            latest_end = max(cycle.details.ends_on for cycle in state.cycles)
+            initial["date_start"] = max(
+                calendar.dates_for(len(state.cycles) + 1)[0],
+                latest_end + timedelta(days=1),
+            ).isoformat()
+        context["needsDates"] = calendar is None
+        context["patternSteps"] = [asdict(step) for step in state.plan.steps]
+        context["fixedSteps"] = [asdict(step) for step in s.editable_steps(state)]
+        lead = f"This plan continues after Cycle {len(state.cycles)}. Repeating patterns count cycles already saved in the last phase."
     elif action == "save-template":
         initial["name"] = ""
         lead = "Save this plan and its phases as a private reusable template."
@@ -202,9 +276,7 @@ def prepare(campaign, action, query):
             lead = f"Start {state.current.name} and notify accepted players."
         else:
             lead = f"End {state.current.name} and finish the campaign. Its final cycle will remain recorded."
-    return PreparedEditor(
-        action, HEADINGS[action], lead, initial, context, canonical, target
-    )
+    return PreparedEditor(action, heading, lead, initial, context, canonical, target)
 
 
 def recovery_editor(campaign, action, query):
@@ -212,17 +284,22 @@ def recovery_editor(campaign, action, query):
     state = cycles.load(campaign)
     return PreparedEditor(
         action,
-        HEADINGS[action],
+        "Edit cycle dates"
+        if action == "cycle" and query.get("fields") == "dates"
+        else HEADINGS[action],
         "This action is no longer available. Retry an earlier unconfirmed save, or review the current schedule.",
         {
             "request_key": str(uuid4()),
             "expected_revision": state.revision if state else 0,
             "expected_current": state.current_cycle_id if state else "",
         },
-        {"unavailable": True},
+        {
+            "unavailable": True,
+            "datesOnly": action == "cycle" and query.get("fields") == "dates",
+        },
         {
             key: query[key]
-            for key in ("cycle", "plan", "position", "phase")
+            for key in ("cycle", "plan", "position", "phase", "fields")
             if key in query
         },
     )
@@ -260,6 +337,13 @@ def perform(campaign, actor, action, data, query):
     if action != "setup":
         common["expected_revision"] = values["expected_revision"]
     try:
+        calendar = (
+            s.CycleCalendar(
+                values["date_start"], values["cycle_interval"], values["cycle_unit"]
+            )
+            if values.get("date_start")
+            else None
+        )
         if action == "setup":
             result = cycles.configure(
                 campaign,
@@ -267,6 +351,7 @@ def perform(campaign, actor, action, data, query):
                 template_id=values["template_id"],
                 current_position=values["current_number"] - 1,
                 mode=values["mode"],
+                calendar=calendar,
             )
         elif action == "cycle":
             target = ref_from_data(values["target"])
@@ -285,6 +370,7 @@ def perform(campaign, actor, action, data, query):
                     values["description"],
                     values["effects"],
                 ),
+                shift_later=values["shift_later"],
             )
         elif action in ("phase", "duplicate-phase", "delete-phase"):
             if values["phase_id"] != query.get("phase"):
@@ -315,6 +401,7 @@ def perform(campaign, actor, action, data, query):
                 **common,
                 steps=steps_from_data(values["steps"]),
                 mode=values["mode"],
+                calendar=calendar,
             )
         elif action == "template":
             result = cycles.apply_template(
@@ -356,8 +443,15 @@ def perform(campaign, actor, action, data, query):
 
 def next_url(campaign, action, submitted):
     if submitted.result.cycle_id:
-        return reverse(
-            "n26-campaign-cycle", args=[campaign.pk, submitted.result.cycle_id]
+        from n26.core.cycle_display import SAVED_PAGE_SIZE
+        from n26.core.models import CampaignCycle
+
+        order = CampaignCycle.objects.values_list("order", flat=True).get(
+            campaign=campaign, pk=submitted.result.cycle_id
+        )
+        page = (order - 1) // SAVED_PAGE_SIZE + 1
+        return (
+            schedule_url(campaign) + f"?page={page}#cycle-" + submitted.result.cycle_id
         )
     url = schedule_url(campaign)
     if action in ("phase", "duplicate-phase"):

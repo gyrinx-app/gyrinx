@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Button, Field, Input, NativeSelect } from "../../ui";
+import { Button, Icon, Input, NativeSelect, Table } from "../../ui";
 import type { Phase, Step } from "./types";
 
 export function PlanSteps({
@@ -32,7 +32,7 @@ export function PlanSteps({
         )
             steps = parsed;
     } catch {
-        /* Keep the original hidden payload for server validation and retries. */
+        /* Keep the original hidden payload for server validation and exact retries. */
     }
     const dragging = useRef<number | null>(null);
     const save = (next: Step[]) => onChange(JSON.stringify(next));
@@ -44,40 +44,79 @@ export function PlanSteps({
         save(next);
     }
     return (
-        <div className="space-y-3">
-            <p className="text-sm text-muted">
-                Drag steps to reorder them, or use Earlier and Later.
+        <div className="space-y-2">
+            <p className="text-xs text-muted">
+                Drag steps, or use the arrow buttons to reorder them.
             </p>
-            <ol className="space-y-3">
-                {steps.map((step, index) => (
-                    <li
-                        key={step.id}
-                        draggable={!disabled}
-                        onDragStart={(event) => {
-                            dragging.current = index;
-                            event.dataTransfer.setData(
-                                "text/plain",
-                                String(index),
-                            );
-                        }}
-                        onDragOver={(event) => {
-                            if (!disabled) event.preventDefault();
-                        }}
-                        onDrop={(event) => {
-                            event.preventDefault();
-                            if (dragging.current !== null)
-                                move(dragging.current, index);
-                            dragging.current = null;
-                        }}
-                        className="rounded-control border border-box-border p-3 space-y-3"
-                    >
-                        <div className="grid grid-cols-[minmax(0,1fr)_5rem] gap-3">
-                            <Field
-                                label={`Step ${index + 1} phase`}
-                                htmlFor={`step-${step.id}-phase`}
-                            >
+            <Table className="max-sm:block">
+                <caption className="sr-only">Future phase steps</caption>
+                <thead className="max-sm:block">
+                    <tr className="max-sm:grid max-sm:grid-cols-[4rem_minmax(0,1fr)] max-sm:gap-x-2">
+                        <th scope="col">Cycles</th>
+                        <th scope="col">Phase</th>
+                        <th scope="col" className="max-sm:sr-only">
+                            <span className="sr-only">Step actions</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody className="max-sm:block">
+                    {steps.map((step, index) => (
+                        <tr
+                            key={step.id}
+                            className="max-sm:grid max-sm:grid-cols-[4rem_minmax(0,1fr)] max-sm:gap-x-2"
+                            draggable={!disabled}
+                            onDragStart={(event) => {
+                                dragging.current = index;
+                                event.dataTransfer.setData(
+                                    "text/plain",
+                                    String(index),
+                                );
+                            }}
+                            onDragOver={(event) => {
+                                if (!disabled) event.preventDefault();
+                            }}
+                            onDrop={(event) => {
+                                event.preventDefault();
+                                if (dragging.current !== null)
+                                    move(dragging.current, index);
+                                dragging.current = null;
+                            }}
+                        >
+                            <td className="w-20 max-sm:block max-sm:w-auto">
+                                <div className="w-14">
+                                    <Input
+                                        type="number"
+                                        min="1"
+                                        step="1"
+                                        required
+                                        disabled={disabled}
+                                        value={step.count}
+                                        aria-label={`Step ${index + 1} cycles`}
+                                        onChange={(event) =>
+                                            save(
+                                                steps.map((item, i) =>
+                                                    i === index
+                                                        ? {
+                                                              ...item,
+                                                              count: Number(
+                                                                  event.target
+                                                                      .value,
+                                                              ),
+                                                          }
+                                                        : item,
+                                                ),
+                                            )
+                                        }
+                                    />
+                                </div>
+                            </td>
+                            <td className="w-full min-w-0 max-sm:block">
                                 <NativeSelect
+                                    controlSize="sm"
+                                    className="min-w-0"
+                                    disabled={disabled}
                                     value={step.phase_id}
+                                    aria-label={`Step ${index + 1} phase`}
                                     onChange={(event) =>
                                         save(
                                             steps.map((item, i) =>
@@ -99,69 +138,58 @@ export function PlanSteps({
                                         </option>
                                     ))}
                                 </NativeSelect>
-                            </Field>
-                            <Field
-                                label="Cycles"
-                                htmlFor={`step-${step.id}-count`}
-                            >
-                                <Input
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                    required
-                                    value={step.count}
-                                    onChange={(event) =>
-                                        save(
-                                            steps.map((item, i) =>
-                                                i === index
-                                                    ? {
-                                                          ...item,
-                                                          count: Number(
-                                                              event.target
-                                                                  .value,
-                                                          ),
-                                                      }
-                                                    : item,
-                                            ),
-                                        )
-                                    }
-                                />
-                            </Field>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            <Button
-                                size="xs"
-                                disabled={disabled || index === 0}
-                                aria-label={`Move step ${index + 1} earlier`}
-                                onClick={() => move(index, index - 1)}
-                            >
-                                Earlier
-                            </Button>
-                            <Button
-                                size="xs"
-                                disabled={
-                                    disabled || index === steps.length - 1
-                                }
-                                aria-label={`Move step ${index + 1} later`}
-                                onClick={() => move(index, index + 1)}
-                            >
-                                Later
-                            </Button>
-                            <Button
-                                size="xs"
-                                variant="ghost"
-                                aria-label={`Remove step ${index + 1}`}
-                                onClick={() =>
-                                    save(steps.filter((_, i) => i !== index))
-                                }
-                            >
-                                Remove
-                            </Button>
-                        </div>
-                    </li>
-                ))}
-            </ol>
+                            </td>
+                            <td className="w-px whitespace-nowrap max-sm:col-span-2 max-sm:block max-sm:w-auto">
+                                <div className="flex items-center justify-end gap-0.5">
+                                    <Button
+                                        size="xs"
+                                        variant="ghost"
+                                        disabled={disabled || index === 0}
+                                        aria-label={`Move step ${index + 1} earlier`}
+                                        title="Move earlier"
+                                        onClick={() => move(index, index - 1)}
+                                    >
+                                        <Icon name="arrow-up" />
+                                    </Button>
+                                    <Button
+                                        size="xs"
+                                        variant="ghost"
+                                        disabled={
+                                            disabled ||
+                                            index === steps.length - 1
+                                        }
+                                        aria-label={`Move step ${index + 1} later`}
+                                        title="Move later"
+                                        onClick={() => move(index, index + 1)}
+                                    >
+                                        <Icon name="arrow-down" />
+                                    </Button>
+                                    <Button
+                                        size="xs"
+                                        variant="ghost"
+                                        disabled={disabled}
+                                        aria-label={`Remove step ${index + 1}`}
+                                        title="Remove step"
+                                        onClick={() =>
+                                            save(
+                                                steps.filter(
+                                                    (_, i) => i !== index,
+                                                ),
+                                            )
+                                        }
+                                    >
+                                        <Icon name="trash-2" />
+                                    </Button>
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </Table>
             <Button
+                size="sm"
+                variant="ghost"
+                className="inline-flex items-center gap-2 whitespace-nowrap"
                 disabled={disabled || !phases.length}
                 onClick={() =>
                     save([
@@ -177,7 +205,7 @@ export function PlanSteps({
                     ])
                 }
             >
-                Add step
+                <Icon name="plus" /> Add step
             </Button>
         </div>
     );

@@ -4,7 +4,12 @@ from django.core.paginator import Paginator
 from django.db import transaction
 
 from n26.core import schedule as s
-from n26.core.cycle_data import ref_data, ref_from_data, steps_from_data
+from n26.core.cycle_data import (
+    calendar_from_data,
+    ref_data,
+    ref_from_data,
+    steps_from_data,
+)
 from n26.core.fields import to_ulid
 from n26.core.models import Campaign, CampaignCycle, CampaignSchedule
 
@@ -52,11 +57,12 @@ def options(campaign, *, page=None, selected=None):
             header.active_plan.mode,
             steps_from_data(header.active_plan.steps),
             header.active_plan.starts_after_order,
+            header.active_plan.start_position,
         )
         last_position = header.next_position + MAX_PREFIX
         if plan.mode == "fixed":
             last_position = min(last_position, plan.length)
-        last_order = plan.starts_after_order + last_position
+        last_order = plan.order_for(last_position) - 1
         anchor = header.current_cycle.order
         retained = selected_saved = None
         try:
@@ -77,7 +83,7 @@ def options(campaign, *, page=None, selected=None):
                     target.position.plan_id == plan.id
                     and header.next_position <= target.position.index < last_position
                 ):
-                    anchor = plan.starts_after_order + target.position.index + 1
+                    anchor = plan.order_for(target.position.index)
             elif isinstance(target, s.SavedCycleRef):
                 selected_saved = (
                     header.current_cycle
@@ -91,6 +97,7 @@ def options(campaign, *, page=None, selected=None):
                 if selected_saved:
                     anchor = selected_saved.order
         except ValueError, s.ScheduleError:
+            # Invalid retained selections do not become choices from another campaign.
             pass
         saved = Paginator(
             CampaignCycle.objects.filter(campaign=campaign)
@@ -145,11 +152,16 @@ def options(campaign, *, page=None, selected=None):
             str(key): name
             for key, name in campaign.cycle_phases.values_list("id", "name")
         }
-        start = max(header.next_position, anchor - plan.starts_after_order - 2)
+        start = max(header.next_position, plan.position_for(anchor) - 1)
         limit = min(12, last_position - start)
         if limit > 0:
-            for cycle in s.project(s.PlanContinuation(plan, start), limit=limit):
-                first = plan.starts_after_order + header.next_position + 1
+            for cycle in s.project(
+                s.PlanContinuation(
+                    plan, start, calendar_from_data(header.date_settings)
+                ),
+                limit=limit,
+            ):
+                first = plan.order_for(header.next_position)
                 choices.append(
                     _choice(
                         ref_data(cycle.ref),
@@ -157,6 +169,8 @@ def options(campaign, *, page=None, selected=None):
                         cycle.name,
                         phase_names[cycle.phase_id],
                         header.current_cycle.order,
+                        starts_on=cycle.starts_on,
+                        ends_on=cycle.ends_on,
                         hint=f"Saving this battle also saves Cycle {first} through Cycle {cycle.order}. The current cycle remains {header.current_cycle.name}.",
                     )
                 )

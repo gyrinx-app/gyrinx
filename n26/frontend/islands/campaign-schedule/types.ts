@@ -57,6 +57,7 @@ export interface ScheduleProps {
     scheduleHref: string;
     canManage: boolean;
     configured: boolean;
+    dateSettingsRequired?: boolean;
     status: string;
     currentName: string;
     currentPhase: string;

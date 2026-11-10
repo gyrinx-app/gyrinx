@@ -9,7 +9,7 @@ from django.db.models import Count, Exists, Max, OuterRef, Q
 from django.urls import reverse
 
 from n26.core import schedule as s
-from n26.core.cycle_data import steps_from_data
+from n26.core.cycle_data import calendar_from_data, steps_from_data
 from n26.core.models import (
     Campaign,
     CampaignCycle,
@@ -18,6 +18,8 @@ from n26.core.models import (
     CampaignPlan,
     CampaignSchedule,
 )
+
+SAVED_PAGE_SIZE = 50
 
 
 def schedule_url(campaign):
@@ -100,6 +102,7 @@ class ScheduleDisplay:
     nextHref: str
     moreHref: str
     focusId: str
+    dateSettingsRequired: bool = False
 
 
 def build(campaign, user, *, page=None, preview=12, focus=None):
@@ -169,7 +172,7 @@ def _build_locked(campaign, user, *, page, preview, focus):
             ),
         )
         .order_by("order"),
-        50,
+        SAVED_PAGE_SIZE,
     )
     number = page or ((focus.order if focus else current.order) - 1) // 50 + 1
     selected = saved.get_page(number)
@@ -206,8 +209,14 @@ def _build_locked(campaign, user, *, page, preview, focus):
         header.active_plan.mode,
         steps_from_data(header.active_plan.steps),
         header.active_plan.starts_after_order,
+        header.active_plan.start_position,
     )
-    projected = s.project(s.PlanContinuation(plan, header.next_position), limit=preview)
+    projected = s.project(
+        s.PlanContinuation(
+            plan, header.next_position, calendar_from_data(header.date_settings)
+        ),
+        limit=preview,
+    )
     if not selected.has_next():
         for cycle in projected:
             rows.append(
@@ -218,8 +227,8 @@ def _build_locked(campaign, user, *, page, preview, focus):
                     cycle.phase_id,
                     phase_names[cycle.phase_id],
                     "Projected",
-                    "",
-                    "",
+                    cycle.starts_on.isoformat() if cycle.starts_on else "",
+                    cycle.ends_on.isoformat() if cycle.ends_on else "",
                     "",
                     "",
                     editor_url(
@@ -273,10 +282,15 @@ def _build_locked(campaign, user, *, page, preview, focus):
         actions["transitionLabel"] = (
             "Advance cycle" if has_following else "Finish campaign"
         )
-    continuation = saved.count
+    continuation = saved.count + (len(projected) if not selected.has_next() else 0)
+    following_position = header.next_position + len(projected)
+    has_continuation = not selected.has_next() and (
+        plan.mode == "repeating" or following_position < plan.length
+    )
     return ScheduleDisplay(
         **common,
         configured=True,
+        dateSettingsRequired=not header.date_settings,
         currentName=current.name,
         currentPhase=current.phase.name,
         currentPhaseId=str(current.phase_id),
@@ -287,12 +301,14 @@ def _build_locked(campaign, user, *, page, preview, focus):
             "steps": [
                 asdict(step)
                 for step in s.editable_steps(
-                    s.PlanContinuation(plan, header.next_position)
+                    s.PlanContinuation(plan, following_position)
                 )
             ],
             "startsAfter": f"Cycle {continuation}",
             "nextPosition": header.next_position,
-        },
+        }
+        if has_continuation
+        else None,
         actions=actions if manage else {},
         previousHref=base
         + "?"

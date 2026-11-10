@@ -26,6 +26,7 @@ def configured(ids, *, current=0, mode="fixed", status="in_progress"):
         mode=mode,
         status=status,
         now=NOW,
+        calendar=s.CycleCalendar(NOW.date()),
         new_id=ids,
     ).schedule
 
@@ -169,8 +170,8 @@ class TestProjectionAndSaving:
             s.SavedCycleRef(target.id),
             replace(
                 target.details,
-                starts_on=date(2030, 1, 1),
-                ends_on=date(2030, 1, 2),
+                starts_on=date(2020, 1, 1),
+                ends_on=date(2020, 1, 2),
             ),
         )
         assert [c.id for c in changed.schedule.cycles] == [
@@ -223,7 +224,7 @@ class TestRepeatingAndReplacement:
         schedule = configured(ids, current=9, mode="repeating")
         assert s.editable_steps(schedule) == schedule.plan.steps
         assert s.project(
-            s.PlanContinuation(schedule.plan, schedule.next_position)
+            s.PlanContinuation(schedule.plan, schedule.next_position, schedule.calendar)
         ) == s.project(schedule)
         assert (
             s.replace_plan(
@@ -247,16 +248,19 @@ class TestRepeatingAndReplacement:
             new_id=ids,
         ).schedule
         projected = s.project(changed, limit=14)
-        assert [p.source.step_id for p in projected] == [
+        expected = [
             "occupation",
             "occupation",
             "first-downtime",
             "takeover",
             "takeover",
             "second-downtime",
-        ] * 2 + ["occupation", "occupation"]
-        assert [p.source.repetition for p in projected] == [0] * 6 + [1] * 6 + [2] * 2
-        assert [p.source.offset for p in projected] == [0, 1, 0, 0, 1, 0] * 2 + [0, 1]
+        ] * 3
+        assert [p.source.step_id for p in projected] == expected[1:15]
+        assert [p.source.repetition for p in projected] == (
+            [0] * 6 + [1] * 6 + [2] * 6
+        )[1:15]
+        assert [p.source.offset for p in projected] == ([0, 1, 0, 0, 1, 0] * 3)[1:15]
         saved = s.edit_cycle(
             changed,
             projected[7].ref,
