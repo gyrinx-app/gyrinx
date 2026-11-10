@@ -1,0 +1,74 @@
+{% comment %}
+<c-n26.statline> — A characteristic table, as a single strip or as stacked book groups.
+
+The arith tag library is required. sub and at_least are not Django built-ins; a missing load is a TemplateSyntaxError.
+Book layout pads Type and XP onto the last group. type_line is the switch; XP without it is omitted.
+The Type colspan is the first group's width minus this group's, minus one for XP, floored at one.
+A last group as wide as the first still needs that floor, or Type disappears and the HTML colspan is invalid.
+Not built on c-ui.table. Its descendant variants outrank any class from a call site, so the cells cannot be centred.
+Book layout keeps headers in tbody. HTML allows only one thead, and each group needs its own header row.
+Pass xp and xp_target separately. A single joined string cannot mute the target or give each a tooltip.
+{% endcomment %}
+
+{% load arith %}
+<c-vars
+    :statline="None"
+    layout="strip"
+    type_line=""
+    xp=""
+    xp_target=""
+    class=""
+/>
+
+<div class="overflow-x-auto {{ class }}">
+    <table class="w-full border-collapse text-sm">
+        {% if layout == "book" %}
+
+            <tbody>
+                {% for group in statline.groups %}
+                    {% with wide=statline.groups.0|length narrow=group|length %}
+                        <tr>
+                            <c-n26.statline.header :cells="group">
+                                {% if forloop.last and type_line %}
+                                    <c-slot name="trailing">
+                                        <th scope="col" colspan="{{ wide|sub:narrow|sub:1|at_least:1 }}"
+                                            class="border-l border-box-border px-2 py-0.5 text-center text-xs font-semibold text-ink-900 dark:text-ink-100">Type</th>
+                                        <th scope="col" class="border-l border-box-border px-2 py-0.5 text-center text-xs font-semibold text-ink-900 dark:text-ink-100">XP</th>
+                                    </c-slot>
+                                {% endif %}
+                            </c-n26.statline.header>
+                        </tr>
+                        <tr class="{% if not forloop.last %}border-b border-box-border{% endif %}">
+                            <c-n26.statline.cells :cells="group">
+                                {% if forloop.last and type_line %}
+                                    <c-slot name="trailing">
+                                        <td colspan="{{ wide|sub:narrow|sub:1|at_least:1 }}"
+                                            class="border-l border-box-border px-2 py-0.5 text-center text-ink-900 dark:text-ink-100">{{ type_line }}</td>
+
+                                        <td class="border-l border-box-border px-2 py-0.5 text-center tabular-nums text-ink-900 dark:text-ink-100">
+                                            {% if xp_target %}
+                                                {# inline-flex drops whitespace-only children, so newlines here do not become gaps around the slash. #}
+                                                <span class="inline-flex items-baseline">
+                                                    <c-ui.tooltip size="sm" content="Current">{{ xp }}</c-ui.tooltip>
+                                                    <span class="text-muted">/</span>
+                                                    <c-ui.tooltip size="sm" content="Target"><span class="text-muted">{{ xp_target }}</span></c-ui.tooltip>
+                                                </span>
+                                            {% else %}{{ xp }}{% endif %}
+                                        </td>
+                                    </c-slot>
+                                {% endif %}
+                            </c-n26.statline.cells>
+                        </tr>
+                    {% endwith %}
+                {% endfor %}
+            </tbody>
+        {% else %}
+            <thead class="border-b border-box-border">
+                <tr><c-n26.statline.header :cells="statline.cells" /></tr>
+            </thead>
+            <tbody>
+                <tr><c-n26.statline.cells :cells="statline.cells" /></tr>
+            </tbody>
+        {% endif %}
+    </table>
+</div>

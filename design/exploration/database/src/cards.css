@@ -1,0 +1,628 @@
+/* Focused frame/nameplate/paper styles from the sandbox’s New style cards. */
+.callout-frame {
+    --theme: var(--color-box-border);
+    --glow: transparent;
+    --header-height: 1rem;
+    --chrome-gap: 0.3rem;
+    --callout-radius: 0 0.5rem 1rem 0;
+    border-radius: var(--callout-radius);
+    corner-shape: bevel;
+}
+
+.callout-frame::before {
+    position: absolute;
+    inset: 0 0 auto;
+    height: var(--header-height);
+    border-bottom: var(--stroke) solid var(--theme);
+    background: color-mix(in srgb, var(--theme) 25%, transparent);
+    content: "";
+    pointer-events: none;
+}
+
+.callout-frame[data-striped]::before {
+    background-image: repeating-linear-gradient(
+        -45deg,
+        transparent 0 0.3125rem,
+        var(--theme) 0.3125rem 0.625rem
+    );
+}
+.gang-card {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.gang-card-header {
+    border-bottom: 1px solid var(--color-box-border);
+    padding: 12px 16px;
+}
+
+.gang-card-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.gang-card-title h2 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 24px;
+    margin: 0;
+}
+
+.gang-card-title h2 > span {
+    display: inline-flex;
+    align-self: center;
+}
+
+.gang-rating {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.gang-profile {
+    color: var(--cm-subtle);
+    font-size: 14px;
+    line-height: 20px;
+    margin-top: 3px;
+}
+
+.gang-weapons {
+    border-top: 1px solid var(--color-box-border);
+    overflow-x: auto;
+}
+
+.gang-weapons table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.gang-weapons th {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px;
+    text-align: center;
+    border-bottom: 1px solid var(--color-box-border);
+}
+
+.gang-weapons th:first-child {
+    font-size: 14px;
+}
+
+.gang-weapons :is(td, th):first-child {
+    text-align: left;
+    padding-left: 16px;
+    width: 40%;
+}
+
+.gang-weapons td {
+    padding: 6px;
+    text-align: center;
+    border-bottom: 1px solid var(--color-box-border);
+    font-variant-numeric: tabular-nums;
+}
+
+.gang-weapons tr:last-child td {
+    border-bottom: 0;
+    padding-bottom: 10px;
+}
+
+.gang-card-title h2 {
+    overflow-wrap: anywhere;
+}
+.gang-material {
+    --card-height: 500px;
+    --card-weapons-height: 120px;
+    --card-top-padding: 8px;
+    --card-header-height: 52px;
+    --card-header-overhang: 6px;
+    --card-circle-size: 62px;
+    --card-space: 4px;
+    --card-content-inset: 11px;
+    --card-control-inset: 7px;
+    --card-border: 1px;
+    --card-controls-height: 43px;
+    --card-action-offset: 0px;
+    color-scheme: light;
+    --cm-text: var(--color-ink-900);
+    --cm-subtle: var(--color-ink-500);
+    --color-muted: var(--color-ink-500);
+    --color-box-border: var(--color-ink-200);
+    --color-surface: var(--color-white);
+    --card-paper: var(--color-white);
+    --card-line: color-mix(in srgb, var(--color-stone-800) 32%, transparent);
+    --card-label: var(--color-red-900);
+    --card-wash: color-mix(in srgb, var(--card-paper) 68%, transparent);
+    --card-paper-background:
+        linear-gradient(var(--card-wash), var(--card-wash)),
+        url("/classic-blank.jpg") center / cover;
+    --card-background: var(--card-paper-background);
+    --card-controls-bg: var(--color-stone-300);
+    --card-controls-ink: var(--color-stone-800);
+    --card-nameplate: var(--color-stone-950);
+    --card-controls-hover: var(--color-ink-100);
+    display: flex;
+    flex-direction: column;
+    min-height: var(--card-height);
+    container-type: inline-size;
+    overflow: visible;
+    position: relative;
+    border: var(--card-border) solid var(--color-stone-950);
+    border-radius: var(--callout-radius, 10px);
+    padding: var(--card-top-padding) 0 0;
+    background: var(--card-background);
+    box-shadow:
+        0 2px 4px #1c19171a,
+        0 5px 12px #1c191710;
+    transition:
+        transform 180ms ease,
+        box-shadow 180ms ease;
+    color: var(--cm-text);
+}
+
+.gang-material > [role="tabpanel"] {
+    background: transparent;
+    border-radius: 0 0 9px 9px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: min-content;
+}
+
+.gang-material > :not([role="tabpanel"]) {
+    flex-shrink: 0;
+}
+
+.gang-material .gang-weapons {
+    flex-shrink: 0;
+
+    min-height: var(--card-weapons-height);
+}
+
+.gang-material .gang-card-header {
+    position: relative;
+    z-index: 2;
+    isolation: isolate;
+    border: 0;
+    padding: var(--card-space) var(--card-control-inset) var(--card-space)
+        var(--card-content-inset);
+    min-height: var(--card-header-height);
+    background: linear-gradient(transparent 50%, var(--card-controls-bg) 50%);
+    color: var(--color-stone-50);
+    border-radius: 5px 5px 0 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 10px;
+    align-content: center;
+}
+
+.gang-material .gang-card-header::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 calc(-1 * var(--card-header-overhang));
+    border-radius: inherit;
+    background: var(--card-nameplate);
+    clip-path: var(--nameplate-edge, inset(0));
+    z-index: -1;
+    pointer-events: none;
+}
+
+.gang-header-marks {
+    position: relative;
+    z-index: 2;
+    pointer-events: none;
+    grid-column: 2;
+    grid-row: 1 / 3;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.gang-material .gang-card-title {
+    display: contents;
+}
+
+.gang-material .gang-card-title h2 {
+    display: block;
+    font-size: 18px;
+    line-height: 24px;
+    font-weight: 650;
+}
+
+.gang-name-copy {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    align-self: center;
+    position: relative;
+    min-width: 0;
+}
+
+.gang-material .gang-card-title .gang-name-line {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.gang-name-part {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.gang-name-copy .gang-profile {
+    width: max-content;
+    max-width: 100%;
+}
+
+.gang-name-copy[data-wrapped="true"] h2 {
+    line-height: 22px;
+}
+
+.gang-name-continuation {
+    max-width: calc(100% - var(--name-profile-reserve));
+}
+
+.gang-name-copy[data-wrapped="true"] > .gang-profile {
+    position: absolute;
+    right: 0;
+    bottom: 1px;
+}
+
+.gang-material .gang-card-header .gang-profile {
+    grid-column: 1;
+    margin: 0;
+    color: var(--color-stone-300);
+    min-width: 0;
+    flex-wrap: nowrap;
+}
+
+.gang-material .gang-profile-type {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gang-material .gang-header-marks {
+    gap: var(--card-space);
+    align-self: center;
+    margin-block: -18px;
+
+    top: calc(var(--card-header-overhang) / 2);
+}
+
+.gang-card-header .gang-profile {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+}
+
+.gang-material .gang-rating {
+    width: var(--card-circle-size, 62px);
+    height: var(--card-circle-size, 62px);
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 2px solid var(--color-stone-950);
+    outline: 1px solid var(--color-stone-500);
+    background: var(--color-stone-50);
+    color: var(--color-red-950);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: 650;
+    font-size: 14px;
+}
+
+.gang-material:is([data-status="Dead"], [data-status="Destroyed"]) {
+    opacity: 0.5;
+}
+
+.gang-card-controls {
+    display: flex;
+    align-items: end;
+    gap: 4px;
+    padding: 5px 7px 0;
+    border-bottom: 1px solid var(--card-line);
+}
+
+.gang-material .gang-card-controls {
+    background: var(--card-controls-bg);
+    padding-top: var(--card-content-inset);
+}
+
+.gang-material:focus-within {
+    z-index: 3;
+}
+
+.gang-material .gang-weapons :is(th, td) {
+    padding: var(--card-space) 3px;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+}
+
+.gang-material .gang-weapons thead th {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    background: transparent;
+}
+
+.gang-material .gang-weapons :is(th, td):is(:nth-child(2), :nth-child(4)) {
+    border-left: 1px solid var(--card-line);
+}
+
+.gang-material .gang-weapons table {
+    table-layout: fixed;
+}
+
+.gang-material .gang-weapons :is(th, td):first-child {
+    width: 30%;
+    padding-left: var(--card-content-inset);
+    overflow-wrap: normal;
+}
+
+.gang-material .gang-weapons th {
+    color: var(--card-attribute-label, var(--card-label));
+}
+
+:host(.dark) .gang-material {
+    color-scheme: dark;
+    --cm-text: var(--color-ink-100);
+    --cm-subtle: var(--color-ink-400);
+    --color-muted: var(--color-ink-400);
+    --color-box-border: var(--color-ink-700);
+    --color-surface: var(--color-black);
+    --card-background: var(--color-black);
+    --card-label: var(--color-accent-text);
+    --card-line: color-mix(in srgb, var(--color-neutral-300) 30%, transparent);
+    --card-controls-bg: var(--color-neutral-950);
+    --card-controls-ink: var(--color-neutral-300);
+    --card-controls-hover: var(--color-neutral-800);
+    --card-nameplate: transparent;
+    border-color: var(--color-neutral-600);
+}
+
+:host(.dark) .gang-material .gang-card-header {
+    background: transparent;
+}
+
+:host(.dark) .gang-material .gang-rating {
+    background: var(--color-neutral-200);
+    color: var(--color-neutral-950);
+    border-color: var(--color-black);
+    outline-color: var(--color-neutral-500);
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    .gang-material:hover {
+        transform: translateY(-2px) scale(1.012);
+        box-shadow:
+            0 5px 12px #1c191740,
+            0 14px 28px #1c191733;
+        z-index: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gang-material {
+        transition: none;
+    }
+}
+.gang-new,
+:host(.dark) .gang-new {
+    --theme: var(--color-box-border);
+    --card-top-padding: var(--header-height);
+    --card-header-overhang: 0px;
+    --card-background: var(--color-surface);
+    --card-label: var(--gang-theme);
+    --card-attribute-label: var(--cm-text);
+    --card-stat-highlight: color-mix(
+        in srgb,
+        var(--gang-theme) 7%,
+        transparent
+    );
+    --card-nameplate: var(--color-black);
+    --card-nameplate-inset: 0px;
+    --card-tab-gap: 6px;
+    --card-controls-bg: var(--color-ink-700);
+    --card-controls-ink: var(--color-white);
+    --card-controls-hover: var(--color-ink-600);
+    --card-menu-hover: var(--color-ink-100);
+    --card-controls-height: calc(32px + var(--card-tab-gap));
+    --card-portrait-width: 64px;
+
+    --card-paper-width: max(
+        100cqw,
+        calc(var(--card-paper-height, 500px) * 945 / 1300)
+    );
+    --card-bevel: 0.5rem;
+    border-color: var(--color-ink-400);
+}
+
+:host(.dark) .gang-new {
+    --card-controls-bg: var(--color-ink-900);
+    --card-paper-background: var(--color-surface);
+    --card-nameplate-inset: calc(-1 * var(--card-border));
+    --card-tab-gap: 3px;
+    --card-menu-hover: var(--color-neutral-800);
+    --card-nameplate: color-mix(in srgb, var(--gang-theme) 33%, transparent);
+    --card-stat-highlight: var(--card-nameplate);
+    border-color: var(--theme);
+}
+
+.gang-new::before {
+    height: calc(var(--header-height) + var(--card-header-height));
+    border-top-right-radius: inherit;
+    corner-shape: bevel;
+}
+
+.gang-new .gang-card-header,
+:host(.dark) .gang-new .gang-card-header {
+    background: linear-gradient(
+        to right,
+        var(--color-surface) 0 calc(100% - var(--card-portrait-width)),
+        transparent calc(100% - var(--card-portrait-width))
+    );
+    color: var(--color-white);
+    border-radius: 0;
+}
+
+.gang-new .gang-card-header::before {
+    clip-path: none;
+    right: 0;
+}
+
+.gang-new .gang-card-header::after {
+    content: "";
+    position: absolute;
+    top: calc(100% - 2px);
+    left: var(--card-nameplate-inset);
+    right: 0;
+    height: 7px;
+    background: var(--card-nameplate);
+    clip-path: var(--nameplate-edge);
+    z-index: -1;
+    pointer-events: none;
+}
+
+:host(.dark) .gang-new .gang-card-header::after {
+    display: none;
+}
+
+.gang-new .gang-card-header::before {
+    left: var(--card-nameplate-inset);
+}
+
+:host(.dark) .gang-new .gang-card-header::before {
+    right: var(--card-portrait-width);
+    box-shadow: inset 0 0 0 1px var(--gang-theme);
+}
+
+.gang-new .gang-card-header .gang-profile {
+    color: inherit;
+    align-items: baseline;
+}
+
+.gang-new .gang-header-marks {
+    width: var(--card-portrait-width);
+    min-height: calc(var(--header-height) + var(--card-header-height));
+    flex-direction: column;
+    align-items: stretch;
+    align-self: stretch;
+    top: 0;
+    margin: calc(-1 * (var(--header-height) + var(--card-space)))
+        calc(-1 * var(--card-control-inset)) calc(-1 * var(--card-space)) 0;
+    gap: 0;
+}
+
+.gang-new .gang-card-controls {
+    padding-top: var(--card-tab-gap);
+    padding-left: 0;
+    background-clip: padding-box;
+}
+
+.gang-new > .gang-card-panel {
+    border-radius: 0 0 calc(2 * var(--card-bevel) - var(--card-border)) 0;
+    corner-shape: bevel;
+}
+
+.gang-new > .gang-card-panel {
+    background: var(--card-paper-background);
+    background-size:
+        auto,
+        var(--card-paper-width) auto;
+    background-position:
+        0 0,
+        calc((100cqw - var(--card-paper-width)) / 2 + var(--paper-x, 0px))
+            var(--paper-y, 0px);
+}
+
+.gang-new .gang-name-copy[data-wrapped="true"] {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding-top: 22px;
+    line-height: 22px;
+}
+
+.gang-new .gang-name-copy[data-wrapped="true"] > h2 {
+    display: contents;
+}
+
+.gang-new .gang-name-continuation {
+    align-self: baseline;
+}
+
+.gang-new .gang-name-copy[data-wrapped="true"] .gang-name-line:first-child {
+    position: absolute;
+    inset: 0 0 auto;
+}
+
+.gang-new .gang-name-copy[data-wrapped="true"] > .gang-profile {
+    position: static;
+    flex-shrink: 0;
+}
+
+.gang-new .gang-portrait-placeholder {
+    flex: 1;
+    min-height: 0;
+}
+
+.gang-new .gang-portrait-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--cm-text);
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.gang-new .gang-portrait-placeholder {
+    border-radius: 0 var(--card-bevel) 0 0;
+    corner-shape: bevel;
+}
+
+.gang-new .gang-weapons :is(th, td):nth-child(n + 2):nth-child(-n + 6) {
+    white-space: nowrap;
+}
+
+@container (max-width: 340px) {
+    .gang-new .gang-weapons :is(th, td):nth-child(n + 2):nth-child(-n + 6) {
+        padding-inline: 2px;
+    }
+}
+
+.gang-new .gang-rating,
+:host(.dark) .gang-new .gang-rating {
+    width: 100%;
+    height: var(--header-height);
+    flex: 0 0 var(--header-height);
+    border: 0;
+    outline: 0;
+    border-radius: 0;
+    background: var(--color-black);
+    color: var(--color-white);
+    font-size: 13px;
+    line-height: var(--header-height);
+}
+
+:host(.dark) .gang-new .gang-rating {
+    background: var(--gang-theme);
+    color: var(--gang-rating-ink, var(--color-black));
+}

@@ -1,0 +1,22 @@
+{
+  "callouts.css": {
+    "sha256": "2ade2ae4c20bb202e93c365b657317301e826168397539bc4a906a193c1721e2",
+    "source_bytes": 12884,
+    "retained_bytes": 660
+  },
+  "card-manager.css": {
+    "sha256": "508c826a9b76487646d4be120b9925a4cf8dcee9fed667b5af7569ffe0183e65",
+    "source_bytes": 30425,
+    "retained_bytes": 1556
+  },
+  "material-cards.css": {
+    "sha256": "32bc9f998f5c3151f382882b7652f496b3d6466c5473566feba1cdefef0b2af2",
+    "source_bytes": 16352,
+    "retained_bytes": 7208
+  },
+  "new-cards.css": {
+    "sha256": "37fc905be969acff099aa98929f14be7000e3ace479b4b14b3dfe10a86c27a7e",
+    "source_bytes": 6476,
+    "retained_bytes": 5002
+  }
+}

@@ -1,0 +1,65 @@
+.db-page {
+    --db-ink: var(--color-ink-900);
+    --n26-site-width: 75rem;
+    min-height: 100vh;
+    background: var(--color-bg);
+    color: var(--db-ink);
+    font: 16px/1.5 var(--font-sans);
+}
+
+.db-page.dark {
+    --db-ink: var(--color-ink-100);
+}
+
+.db-page *,
+.db-page *::before,
+.db-page *::after {
+    box-sizing: border-box;
+}
+
+.db-page a {
+    text-decoration: none;
+}
+
+.db-page a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.db-page button,
+.db-page select {
+    font: inherit;
+}
+
+.db-page button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.db-page button:not(:disabled),
+.db-page summary {
+    cursor: pointer;
+}
+
+.db-page :is(button, input, select, a, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+}
+
+.db-page .n26-site-brand {
+    white-space: nowrap;
+}
+
+.db-page .n26-site-nav {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+}
+
+.db-page a[class] {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}

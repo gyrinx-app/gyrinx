@@ -1,0 +1,54 @@
+{% comment %}
+<c-n26.page-header> — page title with optional breadcrumb, lead, and actions.
+
+Keep the named slots in c-vars. An undeclared slot name picks up the caller's variable of the same name.
+Test slots with strip. Whitespace-only content is truthy and would draw an empty row.
+trailing sits beside the title, outside the h1, so it is not read as part of the page name.
+title and lead each take an attribute or a slot of the same name. Markup in the attribute prints as source.
+Pass both and the attribute wins, silently.
+Put nothing meaningful in leading. It is prepended inside the heading, marked safe, and read as part of the page name.
+breadcrumb_actions must stand no taller than a line of trail text, or it pushes the heading down.
+Keep that host a flex container. A block one reserves a line box taller than the control.
+Keep sm:flex-1 on the title column. Sized to its content, a long lead pushes the actions onto their own line.
+{% endcomment %}
+
+<c-vars
+    title=""
+    lead=""
+    actions=""
+    trailing=""
+    leading=""
+    breadcrumb=""
+    breadcrumb_actions=""
+    class=""
+/>
+
+<div class="flex flex-col gap-1 {{ class }}">
+
+    {% if breadcrumb.strip or breadcrumb_actions.strip %}
+        <div class="mb-1 flex items-start justify-between gap-2">
+            <div class="min-w-0">{{ breadcrumb }}</div>
+            {% if breadcrumb_actions.strip %}<div class="flex shrink-0">{{ breadcrumb_actions }}</div>{% endif %}
+        </div>
+    {% endif %}
+
+    <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-x-4">
+
+        <div class="min-w-0 w-full sm:w-auto sm:flex-1">
+
+            {% if trailing.strip %}
+
+                <div class="flex flex-nowrap items-start gap-2">
+                    <h1 class="min-w-0 text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
+                    <div class="shrink-0">{{ trailing }}</div>
+                </div>
+            {% else %}
+                <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
+            {% endif %}
+
+            {% if lead.strip %}<p class="flex items-center text-muted">{{ lead }}</p>{% endif %}
+        </div>
+
+        {% if actions.strip %}<div class="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">{{ actions }}</div>{% endif %}
+    </div>
+</div>

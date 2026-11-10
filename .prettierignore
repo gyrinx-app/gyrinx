@@ -40,3 +40,10 @@ content.egg-info/
 n26/core/static/n26/react/
 n26/frontend/generated/
 n26/frontend/tooling/alpine-baseline.json
+
+# Disposable database-exploration outputs and browser evidence
+design/exploration/database/public/theme.css
+design/exploration/database/src/cotton.json
+design/exploration/database/src/presentation.json
+design/exploration/database/dist/
+design/exploration/database/qa/

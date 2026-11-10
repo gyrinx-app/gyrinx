@@ -1,0 +1,27 @@
+{
+  "name": "gyrinx-database-exploration",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "npm run build:styles && vite build",
+    "build:styles": "tailwindcss --input src/theme.css --output public/theme.css --minify && node build-shadow-theme.mjs",
+    "start": "vite preview --host 127.0.0.1 --port 8772 --strictPort",
+    "check": "node check_database.mjs",
+    "format:check": "prettier --check \"src/*.{js,jsx,css}\" \"*.mjs\" \"*.json\""
+  },
+  "dependencies": {
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "lucide-react": "1.53.0"
+  },
+  "devDependencies": {
+    "vite": "7.3.7",
+    "tailwindcss": "4.3.0",
+    "@tailwindcss/cli": "4.3.0",
+    "playwright": "1.61.1",
+    "prettier": "3.9.10"
+  }
+}

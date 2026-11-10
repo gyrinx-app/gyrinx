@@ -1,0 +1,14 @@
+{% comment %}
+<c-n26.model-card.mode> — Renders the slot when the parent card's mode matches a word in when.
+
+when is a space-separated list of alternatives, not a compound name. "gang edit" means gang or edit.
+This component does not take mode as a prop. It reads mode from the surrounding card or body.
+Used outside that context, mode is missing and the slot never shows.
+
+<c-n26.model-card.mode when="gang edit">
+    ...
+</c-n26.model-card.mode>
+{% endcomment %}
+
+<c-vars when="" />
+{% if mode in when.split %}{{ slot }}{% endif %}

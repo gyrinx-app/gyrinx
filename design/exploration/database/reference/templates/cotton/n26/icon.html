@@ -1,0 +1,20 @@
+{% comment %}
+<c-n26.icon> — One Lucide or brand drawing, sized and coloured by CSS.
+
+name is required. An unknown name raises and the page does not render.
+Choose a canonical Lucide name from /n26/design/c/icon/, or github, discord, or patreon.
+Pass label when the icon conveys meaning without adjacent text.
+Solid drawings fill with currentColor and ignore stroke_width.
+Do not paste general-purpose SVG into templates. This component inlines only the drawing this call site uses.
+There is no colour prop. A line icon takes the colour of the text it sits in, and its size comes from a class.
+Do not add an icon font, sprite, or bundle. The server inlines only drawings this page uses.
+Raise stroke_width as the rendered size falls. Something at size-3 wants 2 or more before it fades out.
+viewBox comes from the resolver. A mark published on a canvas other than the 24 grid keeps that canvas.
+{% endcomment %}{% load icons %}<c-vars
+    name=""
+    stroke_width="1.7"
+    label=""
+    class=""
+/>{# An unknown name raises KeyError. The page fails to render. #}{% resolve_icon name as icon %}<svg {{ attrs }} class="{{ class }}" viewBox="{{ icon.viewbox }}"
+     {% if icon.solid %}fill="currentColor" stroke="none"{% else %}fill="none" stroke="currentColor" stroke-width="{{ stroke_width }}" stroke-linecap="round" stroke-linejoin="round"{% endif %}
+     {% if label %}role="img" aria-label="{{ label }}"{% else %}aria-hidden="true"{% endif %}>{{ icon.body }}</svg>
