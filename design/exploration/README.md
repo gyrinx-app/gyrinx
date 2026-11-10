@@ -4,6 +4,7 @@ Small, interactive prototypes for discussing product behaviour and the data stru
 
 | Exploration | Purpose |
 | --- | --- |
+| [Gang card redesign](gang-card-redesign/README.md) | Model-card appearance, themes, portraits and tabs in an isolated gallery. |
 | [Fighter actions](fighter-actions/README.md) | n26 Suit Evolution, advancements, assignable actions, payments and earned allowances. |
 
 For a new exploration:

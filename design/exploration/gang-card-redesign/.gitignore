@@ -1,0 +1,7 @@
+node_modules/
+dist/
+qa/
+public/theme.css
+src/theme.css
+src/cotton-ui.sources.css
+src/cotton.json

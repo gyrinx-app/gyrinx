@@ -1,0 +1,541 @@
+/* The paper uses classic artwork; the nameplate is a name-seeded polygon. */
+.gang-material {
+    --card-height: 500px;
+    --card-weapons-height: 120px;
+    --card-header-height: 52px;
+    --card-space: 4px;
+    --card-content-inset: 11px;
+    --card-control-inset: 7px;
+    --card-border: 1px;
+    --card-action-offset: 0px;
+    color-scheme: light;
+    --cm-text: var(--color-ink-900);
+    --cm-subtle: var(--color-ink-500);
+    --color-muted: var(--color-ink-500);
+    --color-box-border: var(--color-ink-200);
+    --color-surface: var(--color-white);
+    --card-paper: var(--color-white);
+    --card-line: color-mix(in srgb, var(--color-stone-800) 32%, transparent);
+    --card-wash: color-mix(in srgb, var(--card-paper) 68%, transparent);
+    --card-paper-background:
+        linear-gradient(var(--card-wash), var(--card-wash)),
+        url("/static/cards/classic-blank.jpg") center / cover;
+    --card-controls-ink: var(--color-stone-800);
+    display: flex;
+    flex-direction: column;
+    min-height: var(--card-height);
+    container-type: inline-size;
+    overflow: visible;
+    position: relative;
+    border: var(--card-border) solid var(--color-stone-950);
+    border-radius: var(--callout-radius, 10px);
+    padding: var(--card-top-padding) 0 0;
+    background: var(--card-background);
+    box-shadow:
+        0 2px 4px #1c19171a,
+        0 5px 12px #1c191710;
+    transition:
+        transform 180ms ease,
+        box-shadow 180ms ease;
+    color: var(--cm-text);
+}
+.gang-material > [role="tabpanel"] {
+    background: transparent;
+    border-radius: 0 0 9px 9px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: min-content;
+}
+.gang-material > :not([role="tabpanel"]) {
+    flex-shrink: 0;
+}
+.gang-material .gang-card-information {
+    /* Reserve the remaining baseline space above the weapon table. */
+    min-height: calc(
+        var(--card-height) - 2 * var(--card-border) - var(--card-top-padding) -
+            var(--card-header-height) - var(--card-controls-height) -
+            var(--card-action-offset) - var(--card-weapons-height)
+    );
+    flex: 1 0 auto;
+}
+.gang-material:has(> .gang-model-prompt) {
+    /* A 35px prompt replaces 6px of space above the tabs. */
+    --card-action-offset: 29px;
+}
+.gang-material .gang-weapons {
+    flex-shrink: 0;
+    /* Reserve the usual two-weapon loadout so table headings line up. */
+    min-height: var(--card-weapons-height);
+}
+.gang-material .gang-card-header {
+    position: relative;
+    z-index: 2;
+    isolation: isolate;
+    border: 0;
+    padding: var(--card-space) var(--card-control-inset) var(--card-space)
+        var(--card-content-inset);
+    min-height: var(--card-header-height);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 10px;
+    align-content: center;
+}
+.gang-material .gang-card-header::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 calc(-1 * var(--card-header-overhang));
+    border-radius: inherit;
+    background: var(--card-nameplate);
+    clip-path: var(--nameplate-edge, inset(0));
+    z-index: -1;
+    pointer-events: none;
+}
+.gang-header-link {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: 5px 5px 0 0;
+}
+.gang-header-link:hover {
+    background: #ffffff08;
+}
+.gang-material .gang-pet-owner {
+    position: relative;
+    z-index: 2;
+}
+.gang-header-marks {
+    position: relative;
+    z-index: 2;
+    pointer-events: none;
+    grid-column: 2;
+    grid-row: 1 / 3;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+.gang-material .gang-card-title {
+    display: contents;
+}
+.gang-material .gang-card-title h2 {
+    display: block;
+    font-size: 18px;
+    line-height: 24px;
+    font-weight: 650;
+}
+.gang-material .gang-card-title h2 .gang-pet-owner {
+    margin-inline-start: 6px;
+    vertical-align: middle;
+}
+.gang-name-copy {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    align-self: center;
+    position: relative;
+    min-width: 0;
+}
+.gang-material .gang-card-title .gang-name-line {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+.gang-name-part {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.gang-name-copy .gang-pet-owner {
+    flex-shrink: 0;
+}
+.gang-name-copy .gang-profile {
+    width: max-content;
+    max-width: 100%;
+}
+.gang-name-copy[data-wrapped="true"] h2 {
+    line-height: 22px;
+}
+.gang-name-continuation {
+    max-width: calc(100% - var(--name-profile-reserve));
+}
+.gang-name-copy[data-wrapped="true"] > .gang-profile {
+    position: absolute;
+    right: 0;
+    bottom: 1px;
+}
+.gang-material .gang-card-header .gang-profile {
+    grid-column: 1;
+    margin: 0;
+    color: var(--color-stone-300);
+    min-width: 0;
+    flex-wrap: nowrap;
+}
+.gang-material .gang-profile-type {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.gang-card-header .gang-profile {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+}
+.gang-material .gang-rating {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: 650;
+}
+.gang-page .gang-portrait {
+    overflow: hidden;
+    padding: 0;
+    cursor: zoom-in;
+}
+.gang-portrait img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 35%;
+}
+.gang-portrait-wrap {
+    pointer-events: auto;
+    position: relative;
+    flex-shrink: 0;
+}
+.gang-portrait-preview {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    width: 240px;
+    padding-top: 8px;
+    z-index: 5;
+}
+.gang-portrait-preview img {
+    width: 100%;
+    height: auto;
+    max-height: 300px;
+    object-fit: contain;
+    background: var(--color-surface);
+    border: 1px solid var(--color-box-border);
+    border-radius: 5px;
+    box-shadow: var(--shadow-box);
+    padding: 4px;
+}
+@media (hover: hover) and (pointer: fine) {
+    .gang-portrait-wrap:not([data-dismissed="true"]):is(:hover, :focus-within)
+        .gang-portrait-preview {
+        display: block;
+    }
+}
+.gang-material .gang-card-header .gang-status {
+    flex-shrink: 0;
+    max-width: none;
+    white-space: nowrap;
+    font-size: 10px;
+    line-height: 14px;
+    border: 1px solid var(--color-red-300);
+    border-radius: 3px;
+    background: var(--color-red-950);
+    color: var(--color-red-100);
+    padding: 2px 4px;
+}
+.gang-material .gang-status[data-status="In recovery"] {
+    background: var(--color-amber-950);
+    border-color: var(--color-amber-400);
+    color: var(--color-amber-100);
+}
+.gang-material .gang-status[data-status="Captured"] {
+    background: var(--color-blue-950);
+    border-color: var(--color-blue-300);
+    color: var(--color-blue-100);
+}
+.gang-material:is([data-status="Dead"], [data-status="Destroyed"]) {
+    opacity: 0.5;
+}
+.gang-card-controls {
+    display: flex;
+    align-items: end;
+    gap: 4px;
+    padding: 5px 7px 0;
+    border-bottom: 1px solid var(--card-line);
+}
+.gang-material .gang-card-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    overflow: visible;
+}
+.gang-card-tabs > [role="tab"] {
+    position: relative;
+    margin-bottom: -1px;
+    padding: 6px 10px;
+    font-size: 12px;
+    line-height: 18px;
+    border: 1px solid transparent;
+    border-radius: 4px 4px 0 0;
+    background: transparent;
+    color: var(--card-controls-ink);
+    cursor: pointer;
+}
+.gang-card-tabs > [aria-selected="true"] {
+    border-color: var(--card-line);
+    border-bottom-color: transparent;
+    background: var(--card-background);
+    background-size:
+        auto,
+        100cqw auto;
+    color: var(--card-label);
+    font-weight: 600;
+}
+.gang-card-tabs > [aria-selected="false"]:hover {
+    background: var(--card-controls-hover);
+}
+.gang-material .gang-model-actions > :is(button, a):hover,
+.gang-material .gang-model-menu > summary:hover {
+    background: var(--card-controls-hover);
+}
+.gang-material .gang-card-controls {
+    background: var(--card-controls-bg);
+    padding-top: var(--card-content-inset);
+}
+.gang-model-actions {
+    display: flex;
+    margin-left: auto;
+    align-self: center;
+    gap: 1px;
+    color: var(--cm-subtle);
+}
+.gang-material .gang-model-actions > :is(button, a),
+.gang-material .gang-model-menu > summary {
+    color: var(--card-controls-ink);
+}
+.gang-model-actions > :is(button, a),
+.gang-model-menu > summary {
+    min-height: 28px;
+    padding: 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+}
+.gang-model-menu {
+    position: relative;
+}
+.gang-model-menu > summary {
+    list-style: none;
+    cursor: pointer;
+    gap: 1px;
+}
+.gang-model-menu > summary::-webkit-details-marker {
+    display: none;
+}
+@container (max-width: 340px) {
+    .gang-material .gang-card-tabs > [role="tab"] {
+        padding-inline: 6px;
+    }
+    .gang-material .gang-model-actions > :is(button, a),
+    .gang-material .gang-model-menu > summary {
+        padding-inline: 4px;
+    }
+}
+.gang-model-menu-items {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    z-index: 5;
+    min-width: 160px;
+    padding: 4px;
+    background: var(--color-surface);
+    color: var(--cm-text);
+    border: 1px solid var(--color-box-border);
+    border-radius: var(--radius-control);
+    box-shadow: var(--shadow-box);
+}
+.gang-model-menu-items > button {
+    width: 100%;
+    justify-content: flex-start;
+    font-size: 13px;
+    padding: 7px 10px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+.gang-model-menu-items > button:is(:hover, :focus-visible) {
+    background: var(
+        --card-menu-hover,
+        var(--card-controls-hover, var(--color-box-border))
+    );
+}
+.gang-model-menu-items > .gang-danger {
+    color: var(--color-red-700);
+}
+:host(.dark) .gang-model-menu-items > .gang-danger {
+    color: var(--color-red-300);
+}
+.gang-material:focus-within,
+.gang-material:has(.gang-model-menu[open]) {
+    z-index: 3;
+}
+.gang-status-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.gang-weapons .gang-weapon-accessory td {
+    font-size: 12px;
+    padding-top: 0;
+}
+.gang-material .gang-statline {
+    padding-top: 3px;
+}
+.gang-material :is(.gang-model-details, .gang-weapons table, .gang-card-prose) {
+    font-size: 13px;
+    line-height: 18px;
+}
+.gang-material .gang-weapons :is(th, td) {
+    padding: var(--card-space) 3px;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+}
+.gang-material .gang-weapons thead th {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    background: transparent;
+}
+.gang-material
+    .gang-weapons
+    tbody
+    tr:not(.gang-weapon-accessory)
+    > td:first-child {
+    font-weight: 600;
+}
+.gang-material .gang-weapons :is(th, td):is(:nth-child(2), :nth-child(4)) {
+    border-left: 1px solid var(--card-line);
+}
+.gang-material .gang-weapons table {
+    table-layout: fixed;
+}
+.gang-material .gang-weapons :is(th, td):first-child {
+    width: 30%;
+    padding-left: var(--card-content-inset);
+    overflow-wrap: normal;
+}
+.gang-material .gang-weapons .gang-weapon-trait-column {
+    width: 28%;
+    border-left: 1px solid var(--card-line);
+    padding-inline: 5px;
+    text-align: left;
+    overflow-wrap: normal;
+}
+.gang-material .gang-weapons td.gang-weapon-trait-column {
+    font-size: 11.5px;
+    line-height: 16px;
+}
+.gang-material .gang-weapons .gang-weapon-accessory td {
+    font-size: 11.5px;
+    padding-top: 0;
+    padding-bottom: 5px;
+}
+.gang-material .gang-statline table {
+    table-layout: auto;
+}
+.gang-material .gang-statline th,
+.gang-material .gang-model-details dt,
+.gang-material .gang-weapons th {
+    color: var(--card-attribute-label, var(--card-label));
+}
+.gang-material .gang-statline .gang-book-header {
+    background: var(
+        --card-stat-highlight,
+        color-mix(in srgb, var(--card-label) 7%, transparent)
+    );
+}
+.gang-material .gang-statline tr:first-child {
+    border-bottom: 1px solid var(--card-line);
+}
+.gang-material
+    :is(
+        .gang-model-details,
+        .gang-weapons,
+        .gang-book-header,
+        .gang-book-values > :nth-last-child(-n + 2),
+        .gang-book-header > :nth-last-child(-n + 2),
+        .gang-weapons th,
+        .gang-weapons td
+    ) {
+    border-color: var(--card-line);
+}
+.gang-model-prompt {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+    padding: 7px var(--card-content-inset, 11px);
+    text-align: left;
+    font-size: 13px;
+    line-height: 20px;
+    background: var(--color-blue-100);
+    border: 0;
+    border-bottom: 1px solid var(--color-blue-200);
+    color: var(--color-blue-900);
+    cursor: pointer;
+}
+.gang-model-prompt > span {
+    flex: 1;
+}
+.gang-model-prompt small {
+    font-size: 11px;
+}
+.gang-model-prompt:hover {
+    background: var(--color-blue-200);
+}
+.gang-picture-preview {
+    width: 100%;
+    max-height: 65dvh;
+    object-fit: contain;
+}
+:host(.dark) .gang-material {
+    color-scheme: dark;
+    --cm-text: var(--color-ink-100);
+    --cm-subtle: var(--color-ink-400);
+    --color-muted: var(--color-ink-400);
+    --color-box-border: var(--color-ink-700);
+    --color-surface: var(--color-black);
+    --card-line: color-mix(in srgb, var(--color-neutral-300) 30%, transparent);
+    border-color: var(--color-neutral-600);
+}
+:host(.dark) .gang-model-prompt {
+    background: var(--color-blue-950);
+    color: var(--color-blue-100);
+    border-color: var(--color-blue-800);
+}
+:host(.dark) .gang-model-prompt:hover {
+    background: var(--color-blue-900);
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    .gang-material:hover {
+        transform: translateY(-2px) scale(1.012);
+        box-shadow:
+            0 5px 12px #1c191740,
+            0 14px 28px #1c191733;
+        z-index: 1;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .gang-material {
+        transition: none;
+    }
+}
+@media (max-width: 359px) {
+    .gang-figures > dl > div {
+        padding-inline: 5px;
+    }
+}

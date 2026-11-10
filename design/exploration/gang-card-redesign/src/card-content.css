@@ -1,0 +1,174 @@
+.gang-card {
+    min-width: 0;
+    overflow: hidden;
+}
+.gang-card-header {
+    border-bottom: 1px solid var(--color-box-border);
+    padding: 12px 16px;
+}
+.gang-card-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+.gang-card-title h2 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 24px;
+    margin: 0;
+}
+.gang-card-title h2 > span {
+    display: inline-flex;
+    align-self: center;
+}
+.gang-rating {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.gang-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    color: var(--color-red-700);
+    background: var(--color-red-50);
+    padding: 0 4px;
+}
+:host(.dark) .gang-status {
+    background: var(--color-red-950);
+    color: var(--color-red-300);
+}
+.gang-profile {
+    color: var(--cm-subtle);
+    font-size: 14px;
+    line-height: 20px;
+    margin-top: 3px;
+}
+.gang-card-tabs {
+    border-bottom: 1px solid var(--color-box-border);
+    padding: 4px;
+}
+.gang-card-tabs > button {
+    min-width: 0;
+}
+.gang-card-prose {
+    padding: 16px;
+    min-height: 110px;
+    font-size: 14px;
+    color: var(--cm-subtle);
+}
+.gang-statline {
+    padding-top: 12px;
+}
+.gang-statline table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 14px;
+}
+.gang-statline th {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 4px;
+    text-align: center;
+}
+.gang-statline td {
+    text-align: center;
+    padding: 2px 4px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.gang-book-header {
+    border-top: 1px solid var(--color-box-border);
+    background: var(--color-ink-100);
+}
+.gang-book-values > :nth-last-child(-n + 2),
+.gang-book-header > :nth-last-child(-n + 2) {
+    border-left: 1px solid var(--color-box-border);
+}
+.gang-book-values > :nth-last-child(2) {
+    font-size: 13px;
+}
+.gang-model-details {
+    display: grid;
+    grid-template-columns: minmax(7rem, min(35%, 12rem)) minmax(0, 1fr);
+    align-items: baseline;
+    gap: 8px 20px;
+    border-top: 1px solid var(--color-box-border);
+    margin: 0;
+    padding: 12px 16px;
+    font-size: 14px;
+}
+.gang-model-details dt {
+    font-weight: 600;
+}
+.gang-model-details dd {
+    margin: 0;
+    min-width: 0;
+}
+.gang-weapons {
+    border-top: 1px solid var(--color-box-border);
+    overflow-x: auto;
+}
+.gang-weapons table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+.gang-weapons th {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px;
+    text-align: center;
+    border-bottom: 1px solid var(--color-box-border);
+}
+.gang-weapons th:first-child {
+    font-size: 14px;
+}
+.gang-weapons :is(td, th):first-child {
+    text-align: left;
+    padding-left: 16px;
+    width: 40%;
+}
+.gang-weapons td {
+    padding: 6px;
+    text-align: center;
+    border-bottom: 1px solid var(--color-box-border);
+    font-variant-numeric: tabular-nums;
+}
+.gang-weapons tr:last-child td {
+    border-bottom: 0;
+    padding-bottom: 10px;
+}
+
+.sheet-info-dialog {
+    width: min(510px, calc(100vw - 32px));
+}
+.sheet-info-dialog > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--color-box-border);
+}
+.sheet-info-content {
+    padding: 24px;
+    font-size: 14px;
+    max-height: 60dvh;
+    overflow: auto;
+}
+.sheet-info-dialog > footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 12px 24px;
+    border-top: 1px solid var(--color-box-border);
+}

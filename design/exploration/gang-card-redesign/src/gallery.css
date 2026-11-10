@@ -1,0 +1,67 @@
+.gang-page {
+    --cm-text: var(--color-ink-900);
+    --cm-subtle: var(--color-muted);
+    min-height: 100vh;
+    padding: 24px max(16px, calc((100vw - 1320px) / 2));
+    background: var(--color-bg);
+    color: var(--cm-text);
+    font: 16px/1.5 var(--font-sans);
+}
+:host(.dark) .gang-page {
+    --cm-text: var(--color-ink-100);
+    --cm-subtle: var(--color-ink-400);
+}
+.gang-page *,
+.gang-page *::before,
+.gang-page *::after {
+    box-sizing: border-box;
+}
+.gang-page button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+.gang-page button:disabled {
+    opacity: 0.4;
+}
+.gang-page
+    :is(button, input, select, a, summary, [role="tabpanel"]):focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+.gallery-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.gallery-heading > div {
+    flex: 1 1 350px;
+}
+.gallery-heading h1 {
+    font-size: 24px;
+    font-weight: 650;
+}
+.gallery-heading p {
+    font-size: 13px;
+    color: var(--cm-subtle);
+}
+.gallery-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 350px), 1fr));
+    gap: 16px;
+    align-items: start;
+}
+.cm-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
