@@ -138,6 +138,34 @@ class TestFlagAndOwnership:
 
 
 class TestSharedCommands:
+    @pytest.mark.parametrize("json_read", [False, True])
+    def test_saved_notices_preserve_the_design_system_tone_with_one_message_owner(
+        self, client, campaign, configured, json_read
+    ):
+        editor = props(
+            client.get(editor_url(campaign, "cycle", cycle=configured.current_cycle_id))
+        )["editor"]
+        response = post(
+            client,
+            campaign,
+            "cycle",
+            {**editor["values"], "custom_name": "Opening week"},
+            cycle=configured.current_cycle_id,
+        )
+        assert response.status_code == 200
+        response = client.get(
+            schedule_url(campaign),
+            headers={"Accept": "application/json"} if json_read else {},
+        )
+        if json_read:
+            notices = response.json()["notices"]
+        else:
+            notices = props(response)["notices"]
+            assert not BeautifulSoup(response.content, "html.parser").select(
+                "[data-message]"
+            )
+        assert notices == [{"message": "Campaign schedule saved.", "tone": "success"}]
+
     @pytest.mark.parametrize("native", [False, True])
     def test_date_shift_moves_later_saved_cycles_and_projections_and_replays_once(
         self, client, campaign, configured, native

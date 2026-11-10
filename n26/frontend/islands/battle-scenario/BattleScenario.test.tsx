@@ -39,6 +39,29 @@ const props: BattleScenarioProps = {
 };
 beforeEach(() => window.history.replaceState(null, "", "/"));
 afterEach(() => vi.unstubAllGlobals());
+it("keeps each selected component with its own disclosure and generation choices separate", () => {
+    render(<BattleScenario {...props} rolls={{ crew: "2", objective: "1" }} />);
+    expect(screen.queryByText("Full details")).toBeNull();
+    expect(screen.queryByText("Scenario options")).toBeNull();
+    expect(
+        screen.queryByRole("region", { name: "Scenario generation choices" }),
+    ).toBeNull();
+    const crew = screen.getByText("Crew").closest("details")!;
+    const objective = screen.getByText("Objective").closest("details")!;
+    expect(crew.open).toBe(false);
+    fireEvent.click(crew.querySelector("summary")!);
+    expect(crew.open).toBe(true);
+    expect(objective.open).toBe(false);
+    expect(
+        within(crew).getByText("Both players use Custom (10)."),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Change components" }));
+    expect(
+        screen.getByRole("region", { name: "Scenario generation choices" }),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("Crew")).toBeTruthy();
+});
+
 it("generates an optional scenario without changing the battle name", async () => {
     const request = vi.fn().mockResolvedValue({
         ok: true,
@@ -353,8 +376,13 @@ it("rerolls one side job on the set chosen and keeps the rest", async () => {
     );
     expect(screen.queryByRole("button", { name: "Reroll Crew" })).toBeNull();
     fireEvent.click(
-        screen.getByRole("button", { name: "Reroll Side job 2 (General)" }),
+        screen.getByText("Side job 2 (General)").closest("summary")!,
     );
+    const reroll = screen.getByRole("button", {
+        name: "Reroll Side job 2 (General)",
+    });
+    expect(reroll.textContent?.trim()).toBe("Reroll");
+    fireEvent.click(reroll);
     const dialog = screen.getByRole("dialog", { name: "Reroll side job 2" });
     const menu = within(dialog).getByLabelText("Side job set");
     expect(menu).toHaveProperty("value", "general");
@@ -370,6 +398,7 @@ it("rerolls one side job on the set chosen and keeps the rest", async () => {
     expect(url.searchParams.get("side_job_2")).toBe("general-2");
     expect(url.searchParams.get("generate")).toBeNull();
     // The menu that gave that side job now rolls on its new set.
+    fireEvent.click(screen.getByRole("button", { name: "Change components" }));
     expect(screen.getByLabelText("Side job 2 set")).toHaveProperty(
         "value",
         "escher",
@@ -393,6 +422,7 @@ it("keeps a saved battle's side jobs when generating again", async () => {
             rolls={{ side_job: "escher-5", side_job_2: "2" }}
         />,
     );
+    fireEvent.click(screen.getByRole("button", { name: "Change components" }));
     expect(screen.getByLabelText("Side job 1 set")).toHaveProperty(
         "value",
         "escher",
@@ -440,7 +470,9 @@ it("keeps a retained side job visible when its set is unavailable for new select
     );
     expect(screen.getAllByText("Retained result").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Hold Nothing Back").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByText("Full details"));
+    fireEvent.click(
+        screen.getByText("Side job 1 (Retired)").closest("summary")!,
+    );
     fireEvent.click(
         screen.getByRole("button", { name: "Reroll Side job 1 (Retired)" }),
     );
@@ -499,10 +531,13 @@ it("keeps the selected replacement set on Generate again after rerolling a retir
             referencedSideJobSets={[archived]}
         />,
     );
+    fireEvent.click(screen.getByRole("button", { name: "Change components" }));
     expect(
         screen.getByLabelText<HTMLSelectElement>("Side job 1 set").value,
     ).toBe("retired-set");
-    fireEvent.click(screen.getByText("Full details"));
+    fireEvent.click(
+        screen.getByText("Side job 1 (Retired)").closest("summary")!,
+    );
     fireEvent.click(
         screen.getByRole("button", { name: "Reroll Side job 1 (Retired)" }),
     );

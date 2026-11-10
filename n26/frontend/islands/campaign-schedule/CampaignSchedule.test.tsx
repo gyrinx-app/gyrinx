@@ -102,16 +102,39 @@ test("consecutive phase groups preserve repeated occurrences and the saved cycle
     expect(occupation).toHaveLength(2);
     expect(within(occupation[0]).queryByText("Current phase")).toBeNull();
     expect(within(occupation[1]).getByText("Current phase")).not.toBeNull();
+    expect(within(occupation[1]).getByText("2 cycles")).not.toBeNull();
     expect(
-        within(occupation[1]).getByText("2 cycles · 1 projected"),
-    ).not.toBeNull();
-    expect(
-        within(occupation[1]).getByText("Projected", { exact: true }),
-    ).not.toBeNull();
+        within(occupation[1]).queryByText("Projected", { exact: true }),
+    ).toBeNull();
     expect(container.querySelectorAll("#phase-occupation")).toHaveLength(1);
     expect(
         screen.getByRole("region", { name: "Unused phase" }).textContent,
     ).toContain("No cycles on this page.");
+});
+
+test("future saved cycles have no badge and previews retain their edit actions", () => {
+    const value = props();
+    value.rows.push(cycle(5, "occupation", "Saved future"));
+    render(<CampaignSchedule {...value} />);
+    expect(screen.queryByText("Saved future", { exact: true })).toBeNull();
+    expect(screen.queryByText("Projected", { exact: true })).toBeNull();
+    expect(
+        screen.getByText("Preview, not saved yet. Edit this cycle to save it."),
+    ).toBeTruthy();
+    expect(
+        screen.getByRole("link", { name: "Edit Cycle 4" }).getAttribute("href"),
+    ).toBe("/cycle/4/edit/");
+    expect(
+        screen.getByRole("link", { name: "Edit Cycle 5" }).getAttribute("href"),
+    ).toBe("/cycle/5/edit/");
+    const lastCycle = screen.getByText("Cycle 5");
+    expect(
+        lastCycle.compareDocumentPosition(
+            screen.getByText("Repeating pattern"),
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    for (const heading of screen.getAllByRole("heading", { level: 3 }))
+        expect(heading.closest("table")).toBeNull();
 });
 
 test("phase rules and configured rewards sit above their cycle rows", () => {
@@ -183,7 +206,7 @@ test("readers retain the grouped rules without management controls", () => {
     expect(screen.getAllByText("Occupation rules.")).toHaveLength(2);
     expect(
         screen
-            .getByRole("link", { name: "Show more projected cycles" })
+            .getByRole("link", { name: "Show more future cycles" })
             .getAttribute("href"),
     ).toBe("/cycles/?preview=24");
 });

@@ -1,7 +1,9 @@
 import {
     ActionBar,
     ActionMenu,
+    Alert,
     Badge,
+    BusyControlScope,
     Breadcrumbs,
     Button,
     ButtonLink,
@@ -73,7 +75,8 @@ function CycleDates({ cycle }: { cycle: Cycle }) {
     return (
         <Link
             href={url.pathname + url.search}
-            className="inline-block py-1 text-xs"
+            tone={cycle.state === "Projected" ? "current" : "accent"}
+            className={`inline-block py-1 text-xs ${cycle.state === "Projected" ? "text-muted!" : ""}`}
             aria-label={`Edit dates for ${cycle.name}: ${description}`}
             title="Edit start and end dates"
         >
@@ -83,12 +86,19 @@ function CycleDates({ cycle }: { cycle: Cycle }) {
 }
 
 function CycleRow({ cycle }: { cycle: Cycle }) {
+    const projected = cycle.state === "Projected";
     return (
         <tr
             id={`cycle-${cycle.key}`}
-            className={cycle.state === "Current" ? "bg-accent/5" : ""}
+            className={
+                projected
+                    ? "bg-ink-500/[0.025] opacity-60 focus-within:opacity-100 [&_td]:text-muted!"
+                    : cycle.state === "Current"
+                      ? "bg-accent/5"
+                      : ""
+            }
         >
-            <td className="align-top [overflow-wrap:anywhere]">
+            <td className="align-middle [overflow-wrap:anywhere]">
                 <div className="flex items-start gap-2">
                     <span
                         className="mt-0.5 w-5 shrink-0 text-xs tabular-nums text-muted"
@@ -99,13 +109,25 @@ function CycleRow({ cycle }: { cycle: Cycle }) {
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                             <span className="font-medium">{cycle.name}</span>
-                            <Badge
-                                color={
-                                    cycle.state === "Current" ? "amber" : "ink"
-                                }
-                            >
-                                {cycle.state}
-                            </Badge>
+                            {projected && (
+                                <span className="sr-only">
+                                    Preview, not saved yet.
+                                    {cycle.editHref &&
+                                        " Edit this cycle to save it."}
+                                </span>
+                            )}
+                            {(cycle.state === "Current" ||
+                                cycle.state === "Past") && (
+                                <Badge
+                                    color={
+                                        cycle.state === "Current"
+                                            ? "amber"
+                                            : "ink"
+                                    }
+                                >
+                                    {cycle.state}
+                                </Badge>
+                            )}
                         </div>
                         {cycle.description && (
                             <p className="mt-0.5 whitespace-pre-wrap text-sm text-muted">
@@ -150,19 +172,20 @@ function CycleRow({ cycle }: { cycle: Cycle }) {
                     </div>
                 </div>
             </td>
-            <td className="hidden w-56 align-top sm:table-cell">
+            <td className="hidden w-56 align-middle sm:table-cell">
                 <CycleDates cycle={cycle} />
             </td>
-            <td className="w-10 align-top text-right">
+            <td className="w-10 align-middle text-right">
                 {cycle.editHref && (
                     <ButtonLink
                         href={cycle.editHref}
                         variant="ghost"
-                        size="sm"
+                        size="xs"
+                        className="inline-flex! size-6! items-center justify-center p-0! leading-none"
                         aria-label={`Edit ${cycle.name}`}
                         title={`Edit ${cycle.name}`}
                     >
-                        <Icon name="pencil" />
+                        <Icon name="pencil" className="size-3.5" />
                     </ButtonLink>
                 )}
             </td>
@@ -202,16 +225,14 @@ function PhaseGroup({
     canManage: boolean;
 }) {
     const heading = `phase-heading-${cycles[0]?.key ?? phase.id}`;
-    const projected = cycles.filter(
-        (cycle) => cycle.state === "Projected",
-    ).length;
     const rewards = phaseRewards(phase);
     return (
         <section
             id={anchor ? `phase-${phase.id}` : undefined}
             aria-labelledby={heading}
+            className="space-y-2"
         >
-            <ActionBar spaced={false} className="rounded-none">
+            <ActionBar surface={false} spaced={false} className="px-1">
                 <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <h3 id={heading} className="font-semibold">
@@ -223,7 +244,6 @@ function PhaseGroup({
                         <span className="text-xs text-muted">
                             {cycles.length}{" "}
                             {cycles.length === 1 ? "cycle" : "cycles"}
-                            {projected ? ` · ${projected} projected` : ""}
                         </span>
                     </div>
                     {phase.description && (
@@ -280,23 +300,32 @@ function PhaseGroup({
                 )}
             </ActionBar>
             {cycles.length ? (
-                <Table className="[&_td]:py-1.5!">
-                    <caption className="sr-only">{phase.name} cycles</caption>
-                    <thead className="sr-only">
-                        <tr>
-                            <th scope="col">Cycle</th>
-                            <th scope="col" className="hidden sm:table-cell">
-                                Dates
-                            </th>
-                            <th scope="col">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {cycles.map((cycle) => (
-                            <CycleRow key={cycle.key} cycle={cycle} />
-                        ))}
-                    </tbody>
-                </Table>
+                <Card>
+                    <div className="-m-4 overflow-hidden rounded-box">
+                        <Table hover={false} className="[&_td]:py-2!">
+                            <caption className="sr-only">
+                                {phase.name} cycles
+                            </caption>
+                            <thead className="sr-only">
+                                <tr>
+                                    <th scope="col">Cycle</th>
+                                    <th
+                                        scope="col"
+                                        className="hidden sm:table-cell"
+                                    >
+                                        Dates
+                                    </th>
+                                    <th scope="col">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {cycles.map((cycle) => (
+                                    <CycleRow key={cycle.key} cycle={cycle} />
+                                ))}
+                            </tbody>
+                        </Table>
+                    </div>
+                </Card>
             ) : (
                 <p className="px-3 py-2 text-xs text-muted">
                     No cycles on this page.
@@ -316,6 +345,30 @@ function ScheduleContent(
         };
     },
 ) {
+    if (props.editor?.kind === "plan")
+        return (
+            <ScheduleEditor
+                key={`${props.editor.recoveryKey}:${props.editor.values.request_key}`}
+                editor={props.editor}
+                phases={props.phases}
+                breadcrumb={
+                    <Breadcrumbs
+                        items={[
+                            { label: "Campaigns", href: "/n26/campaigns/" },
+                            {
+                                label: props.campaignName,
+                                href: props.campaignHref,
+                            },
+                            { label: "Cycles", href: props.scheduleHref },
+                            { label: "Schedule settings" },
+                        ]}
+                    />
+                }
+                onNavigate={props.onNavigate}
+                onReload={props.onReload}
+                navigation={props.navigation}
+            />
+        );
     const phases = new Map(props.phases.map((phase) => [phase.id, phase]));
     // A repeated phase starts another group; grouping by identity would reorder cycles.
     const groups: { phase: Phase; cycles: Cycle[]; anchor: boolean }[] = [];
@@ -417,18 +470,36 @@ function ScheduleContent(
                     <h2 id="cycle-list-heading" className="sr-only">
                         Schedule
                     </h2>
-                    {props.plan && (
-                        <div className="space-y-1 text-sm">
+                    <div className="space-y-4">
+                        {groups.map((group) => (
+                            <PhaseGroup
+                                key={group.cycles[0]?.key ?? group.phase.id}
+                                {...group}
+                                canManage={props.canManage}
+                            />
+                        ))}
+                    </div>
+                    {props.rows.some(
+                        (cycle) => cycle.state === "Projected",
+                    ) && (
+                        <p className="text-xs text-muted">
+                            Cycles shown in grey are previews.
+                            {props.canManage &&
+                                " Edit one to save it and any earlier previews."}
+                        </p>
+                    )}
+                    {props.plan && !props.nextHref && (
+                        <div className="space-y-2 border-t border-dashed border-box-border pt-3 text-sm text-muted">
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                 <strong>
                                     {props.plan.mode === "repeating"
                                         ? "Repeating pattern"
-                                        : "Future plan"}
+                                        : "Remaining cycles"}
                                 </strong>
                                 <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
                                     {props.plan.steps.map((step, index) => (
                                         <li
-                                            key={step.id}
+                                            key={`${step.id}-${index}`}
                                             className="inline-flex items-center gap-2"
                                         >
                                             {index > 0 && (
@@ -448,44 +519,30 @@ function ScheduleContent(
                                     ))}
                                 </ol>
                             </div>
-                            <p className="text-xs text-muted">
-                                {props.plan.steps.length
-                                    ? `Continues after ${props.plan.startsAfter}. `
-                                    : "The fixed plan has no remaining projected cycles. "}
-                                Projected cycles are previews. Editing one or
-                                selecting it for a battle also saves the
-                                preceding projected cycles.
+                            <p className="text-xs">
+                                Continues after {props.plan.startsAfter}.
                             </p>
                         </div>
                     )}
-                    <Card>
-                        <div className="-m-4 divide-y divide-box-border overflow-hidden rounded-box">
-                            {groups.map((group) => (
-                                <PhaseGroup
-                                    key={group.cycles[0]?.key ?? group.phase.id}
-                                    {...group}
-                                    canManage={props.canManage}
-                                />
-                            ))}
+                    {(props.previousHref ||
+                        props.nextHref ||
+                        props.moreHref) && (
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                            {props.previousHref && (
+                                <Link href={props.previousHref}>
+                                    Earlier cycles
+                                </Link>
+                            )}
+                            {props.nextHref && (
+                                <Link href={props.nextHref}>Later cycles</Link>
+                            )}
+                            {props.moreHref && (
+                                <Link href={props.moreHref}>
+                                    Show more future cycles
+                                </Link>
+                            )}
                         </div>
-                    </Card>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                        {props.previousHref && (
-                            <Link href={props.previousHref}>
-                                Earlier cycles
-                            </Link>
-                        )}
-                        {props.nextHref && (
-                            <Link href={props.nextHref}>
-                                Later saved cycles
-                            </Link>
-                        )}
-                        {props.moreHref && (
-                            <Link href={props.moreHref}>
-                                Show more projected cycles
-                            </Link>
-                        )}
-                    </div>
+                    )}
                 </section>
             )}
             {props.editor && (
@@ -505,31 +562,32 @@ function ScheduleContent(
 export function CampaignSchedule(props: ScheduleProps) {
     const navigation = useScheduleNavigation(props);
     return (
-        <div onClickCapture={navigation.onClick} aria-busy={navigation.pending}>
-            {!navigation.data.editor && navigation.pending && (
-                <p role="status" className="mb-3 text-sm text-muted">
-                    Loading schedule…
-                </p>
-            )}
-            {!navigation.data.editor && navigation.error && (
-                <div role="alert" className="mb-3 text-sm">
-                    <p>{navigation.error}</p>
-                    <Button size="sm" onClick={navigation.retry}>
-                        Try again
-                    </Button>
-                </div>
-            )}
-            {navigation.notices.map((notice, index) => (
-                <p key={index} role="status" className="mb-3 text-sm">
-                    {notice}
-                </p>
-            ))}
-            <ScheduleContent
-                {...navigation.data}
-                onNavigate={navigation.navigate}
-                onReload={navigation.reload}
-                navigation={navigation}
-            />
-        </div>
+        <BusyControlScope value={navigation.busyControl}>
+            <div
+                data-busy="off"
+                onClickCapture={navigation.onClick}
+                aria-busy={navigation.pending}
+            >
+                {!navigation.data.editor && navigation.error && (
+                    <Alert tone="error" dismissible={false} className="mb-3">
+                        <p>{navigation.error}</p>
+                        <Button size="sm" onClick={navigation.retry}>
+                            Try again
+                        </Button>
+                    </Alert>
+                )}
+                {navigation.notices.map((notice) => (
+                    <Alert key={notice.id} tone={notice.tone} className="mb-3">
+                        {notice.message}
+                    </Alert>
+                ))}
+                <ScheduleContent
+                    {...navigation.data}
+                    onNavigate={navigation.navigate}
+                    onReload={navigation.reload}
+                    navigation={navigation}
+                />
+            </div>
+        </BusyControlScope>
     );
 }

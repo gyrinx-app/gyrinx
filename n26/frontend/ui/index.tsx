@@ -886,36 +886,40 @@ export function Card({ children }: { children: ReactNode }) {
 
 export function Table({
     children,
+    hover = true,
     className = "",
 }: {
     children: ReactNode;
+    hover?: boolean;
     className?: string;
 }) {
+    const recipe = hover ? cotton.table : cotton.tableStatic;
     return (
-        <div className={cotton.table[0]}>
-            <table className={`${cotton.table[1]} ${className}`}>
-                {children}
-            </table>
+        <div className={recipe[0]}>
+            <table className={`${recipe[1]} ${className}`}>{children}</table>
         </div>
     );
 }
 
 export function Link({
     children,
+    busy = false,
     className = "",
     tone = "accent",
     ...props
 }: ComponentProps<"a"> & {
+    busy?: boolean;
     /** Tones use the corresponding `<c-n26.link>` recipe. */
     tone?: "accent" | "current" | "danger";
 }) {
+    const busyProps = useBusyControl(busy);
     const recipe = {
         accent: cotton.link,
         current: cotton.linkCurrent,
         danger: cotton.linkDanger,
     }[tone];
     return (
-        <a {...props} className={`${recipe[0]} ${className}`}>
+        <a {...props} {...busyProps} className={`${recipe[0]} ${className}`}>
             <span className={recipe[1]}>{children}</span>
         </a>
     );

@@ -173,6 +173,7 @@ test("setup previews a template, customises a draft and reviews it before the on
         screen.getByRole("button", { name: "Review schedule" }),
     );
     expect(screen.getByText(/1. My opening/)).toBeTruthy();
+    expect(screen.getByText("1 week")).toBeTruthy();
     expect(fetch).not.toHaveBeenCalled();
     await userEvent.click(
         screen.getByRole("button", { name: "Set up cycles" }),

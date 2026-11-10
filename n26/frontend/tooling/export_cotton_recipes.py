@@ -1983,6 +1983,7 @@ def recipes():
         ),
         "card": classes('<c-ui.card padding="sm" />', "div")[0],
         "table": classes("<c-ui.table />", "div", "table"),
+        "tableStatic": classes('<c-ui.table :hover="False" />', "div", "table"),
         "sortableGroup": sortable_group_recipe(),
         "link": classes('<c-n26.link href="/">Name</c-n26.link>', "a", "span"),
         "linkCurrent": classes(

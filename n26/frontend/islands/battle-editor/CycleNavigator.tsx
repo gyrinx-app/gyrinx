@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Badge, Button, FieldErrors, Icon } from "../../ui";
+import { Alert, Badge, Button, FieldErrors, Icon } from "../../ui";
 
 export type CycleChoice = {
     value: Record<string, string | number>;
@@ -243,7 +243,11 @@ export function CycleNavigator({
             >
                 <FieldErrors errors={errors} />
                 {selected?.hint && <p>{selected.hint}</p>}
-                {error && <p role="alert">{error}</p>}
+                {error && (
+                    <Alert tone="error" dismissible={false}>
+                        {error}
+                    </Alert>
+                )}
             </div>
         </fieldset>
     );

@@ -6,6 +6,7 @@ import {
     type BattleScenarioProps,
 } from "../../scenarios/BattleScenario";
 import {
+    Alert,
     Breadcrumbs,
     Button,
     Field,
@@ -264,10 +265,11 @@ export function BattleEditor(props: BattleEditorProps) {
                     <input key={name} type="hidden" name={name} value={value} />
                 ))}
             {form.hasErrors && (
-                <div
+                <Alert
+                    tone="error"
+                    dismissible={false}
                     ref={form.summary}
                     tabIndex={-1}
-                    role="alert"
                     aria-label="Battle save errors"
                 >
                     <FieldErrors
@@ -276,10 +278,10 @@ export function BattleEditor(props: BattleEditorProps) {
                             ...(form.notice ? [form.notice] : []),
                         ]}
                     />
-                </div>
+                </Alert>
             )}
             {form.conflicted && current && (
-                <div className="rounded-control border border-box-border p-3">
+                <Alert tone="warning" dismissible={false}>
                     <p className="font-medium">Current battle</p>
                     <p>
                         {current.scenario} · {current.date}
@@ -288,7 +290,7 @@ export function BattleEditor(props: BattleEditorProps) {
                         Your draft remains below. Review the current battle
                         before making another change.
                     </p>
-                </div>
+                </Alert>
             )}
             {props.archived && (
                 <p>
@@ -316,30 +318,6 @@ export function BattleEditor(props: BattleEditorProps) {
                             }
                         />
                     </Field>
-                    {props.scenario && (
-                        <BattleScenario
-                            {...props.scenario}
-                            disabled={form.frozen}
-                            valueRolls={Object.fromEntries(
-                                scenarioKeys.map((key) => [
-                                    key,
-                                    values[key] ?? "",
-                                ]),
-                            )}
-                            onRollsChange={(rolls) =>
-                                form.setValues((current) => ({
-                                    ...current,
-                                    ...Object.fromEntries(
-                                        scenarioKeys.map((key) => [
-                                            key,
-                                            rolls[key] ?? "",
-                                        ]),
-                                    ),
-                                }))
-                            }
-                            onBusyChange={setScenarioBusy}
-                        />
-                    )}
                     <Field
                         label="Date *"
                         htmlFor="battle-date"
@@ -367,6 +345,33 @@ export function BattleEditor(props: BattleEditorProps) {
                     )}
                     {checkboxList("gangs", "Participants")}
                 </FormSection>
+                {props.scenario && (
+                    <FormSection title="Scenario">
+                        <BattleScenario
+                            {...props.scenario}
+                            disabled={form.frozen}
+                            valueRolls={Object.fromEntries(
+                                scenarioKeys.map((key) => [
+                                    key,
+                                    values[key] ?? "",
+                                ]),
+                            )}
+                            onRollsChange={(rolls) =>
+                                form.setValues((current) => ({
+                                    ...current,
+                                    ...Object.fromEntries(
+                                        scenarioKeys.map((key) => [
+                                            key,
+                                            rolls[key] ?? "",
+                                        ]),
+                                    ),
+                                }))
+                            }
+                            onBusyChange={setScenarioBusy}
+                        />
+                    </FormSection>
+                )}
+
                 {props.editing && (
                     <>
                         {"stake" in values && (

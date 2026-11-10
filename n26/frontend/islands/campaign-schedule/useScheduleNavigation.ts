@@ -6,6 +6,27 @@ import {
     type MouseEvent,
 } from "react";
 import type { ScheduleProps } from "./types";
+import type { AlertTone } from "../../ui";
+
+function readNotices(value: unknown) {
+    if (!Array.isArray(value)) return [];
+    return value.flatMap((notice) => {
+        const message =
+            typeof notice === "string"
+                ? notice
+                : notice && typeof notice.message === "string"
+                  ? notice.message
+                  : null;
+        if (message === null) return [];
+        const tone: AlertTone =
+            typeof notice === "string"
+                ? "success"
+                : ((["success", "warning", "error", "info"] as const).find(
+                      (tone) => tone === notice.tone,
+                  ) ?? "info");
+        return [{ id: crypto.randomUUID(), message, tone }];
+    });
+}
 
 function scheduleData(value: unknown): value is ScheduleProps {
     if (!value || typeof value !== "object") return false;
@@ -28,8 +49,10 @@ function scheduleData(value: unknown): value is ScheduleProps {
 export function useScheduleNavigation(initial: ScheduleProps) {
     const [data, setData] = useState(initial);
     const [pending, setPending] = useState(false);
+    const [busyControl, setBusyControl] = useState<string | null>(null);
+    const interaction = useRef<string | null>(null);
     const [error, setError] = useState("");
-    const [notices, setNotices] = useState<string[]>([]);
+    const [notices, setNotices] = useState(() => readNotices(initial.notices));
     const controller = useRef<AbortController | null>(null);
     const guarded = useRef(false);
     const scope = useRef(crypto.randomUUID());
@@ -58,6 +81,8 @@ export function useScheduleNavigation(initial: ScheduleProps) {
             controller.current = request;
             retryTarget.current = url.href;
             setPending(true);
+            setBusyControl(interaction.current);
+            interaction.current = null;
             setError("");
             try {
                 const response = await fetch(url.pathname + url.search, {
@@ -104,12 +129,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 current.current = url.href;
                 setData(result.schedule);
                 setNotices(
-                    "notices" in result && Array.isArray(result.notices)
-                        ? result.notices.filter(
-                              (notice): notice is string =>
-                                  typeof notice === "string",
-                          )
-                        : [],
+                    readNotices("notices" in result ? result.notices : []),
                 );
             } catch {
                 if (controller.current === request && !request.signal.aborted)
@@ -117,7 +137,10 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                         "The schedule could not be loaded. Check your connection and access, then try again.",
                     );
             } finally {
-                if (controller.current === request) setPending(false);
+                if (controller.current === request) {
+                    setPending(false);
+                    setBusyControl(null);
+                }
             }
         },
         [inSchedule, initial.onNavigate],
@@ -156,6 +179,8 @@ export function useScheduleNavigation(initial: ScheduleProps) {
             controller.current?.abort();
             controller.current = null;
             setPending(false);
+            setBusyControl(null);
+            interaction.current = null;
             setError("");
             retryTarget.current = next.href;
             if (
@@ -175,6 +200,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
     }, [load]);
 
     useEffect(() => {
+        document.title = `${data.editor?.kind === "plan" ? "Schedule settings" : "Campaign cycles"} — ${data.campaignName} | Gyrinx`;
         const target =
             window.location.hash.slice(1) ||
             (data.focusId ? `cycle-${data.focusId}` : "");
@@ -199,6 +225,9 @@ export function useScheduleNavigation(initial: ScheduleProps) {
             event.altKey
         )
             return;
+        interaction.current =
+            (event.target as Element).closest<HTMLElement>("[data-busy-id]")
+                ?.dataset.busyId ?? null;
         const link = (event.target as Element).closest("a[href]");
         if (
             !(link instanceof HTMLAnchorElement) ||
@@ -218,6 +247,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
     return {
         data,
         pending,
+        busyControl,
         error,
         notices,
         onClick,

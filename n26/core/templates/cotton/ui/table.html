@@ -1,0 +1,21 @@
+{% comment %}
+<c-ui.table> — A styled table with horizontal overflow.
+
+Use ordinary table markup inside the component. Set hover to False for a static
+schedule whose individual links provide the actions.
+Example: <c-ui.table :hover="False">...</c-ui.table>
+{% endcomment %}
+<c-vars :hover="True" class="" />
+<div class="overflow-x-auto">
+    <table {{ attrs }}
+           class="w-full text-sm text-left border-collapse
+                  [&_th]:px-3 [&_th]:py-2.5 [&_th]:font-medium [&_th]:text-ink-500 dark:[&_th]:text-ink-400 [&_th]:whitespace-nowrap
+                  [&_td]:px-3 [&_td]:py-2.5 [&_td]:text-ink-700 dark:[&_td]:text-ink-300
+                  [&_thead]:border-b [&_thead]:border-ink-200 dark:[&_thead]:border-ink-700
+                  [&_tbody_tr]:border-b [&_tbody_tr]:border-ink-100 dark:[&_tbody_tr]:border-ink-800
+                  [&_tbody_tr:last-child]:border-0
+                  {% if hover %}[&_tbody_tr:hover]:bg-ink-50 dark:[&_tbody_tr:hover]:bg-ink-800/50{% endif %}
+                  {{ class }}">
+        {{ slot }}
+    </table>
+</div>

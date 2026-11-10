@@ -91,6 +91,7 @@
  * order. Theme-builder inline properties still take precedence.
  */
 :root {
+    scrollbar-gutter: stable;
     /*
      * Pair amber fills with dark foreground text for contrast, including the amber-600
      * hover fill. The separate accent-text token is declared above to generate its
@@ -132,6 +133,15 @@
      * mode must override the device's preferred scheme.
      */
     color-scheme: light;
+}
+
+/* Static dialog fallbacks stay in the page; only modal dialogs lock it. */
+html:has(dialog:modal) {
+    overflow: hidden;
+}
+
+dialog:modal {
+    overscroll-behavior: contain;
 }
 
 .dark {

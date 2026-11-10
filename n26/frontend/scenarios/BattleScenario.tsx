@@ -3,11 +3,13 @@ import { createPortal } from "react-dom";
 import { SideJobFields } from "./SideJobFields";
 import { useScenarioPicks } from "./useScenarioPicks";
 import {
+    Alert,
     Button,
     ButtonLink,
     Dialog,
     Field,
     FormActions,
+    Icon,
     NativeSelect,
 } from "../ui";
 
@@ -100,6 +102,7 @@ export function BattleScenario(props: BattleScenarioProps) {
     });
     const [pending, setPending] = useState(false);
     const [error, setError] = useState("");
+    const [optionsOpen, setOptionsOpen] = useState(false);
 
     const [reroll, setReroll] = useState<{
         key: string;
@@ -276,13 +279,10 @@ export function BattleScenario(props: BattleScenarioProps) {
             aria-busy={pending}
         >
             {invalid && (
-                <p
-                    role="alert"
-                    className="text-sm text-red-600 dark:text-red-400"
-                >
+                <Alert tone="error" dismissible={false}>
                     This link names a scenario component that is not on its
                     table. Generate the scenario again.
-                </p>
+                </Alert>
             )}
             {[...props.tables.map((table) => table.key), ...sideJobKeys].map(
                 (key) => (
@@ -295,134 +295,151 @@ export function BattleScenario(props: BattleScenarioProps) {
                 ),
             )}
             {results.length > 0 && (
-                <>
-                    {!props.save && <h3 className="font-semibold">Scenario</h3>}
-                    <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-                        {results.map(({ key, heading, entry }) => (
-                            <div key={key}>
-                                <dt className="text-muted">{heading}</dt>
-                                <dd className="font-medium">{entry.name}</dd>
-                            </div>
-                        ))}
-                    </dl>
-                    <details>
-                        <summary className="cursor-pointer text-sm font-medium">
-                            Full details
-                        </summary>
-                        <div className="mt-3 space-y-3">
-                            {results.map(({ key, heading, entry, set }) => (
-                                <div key={key}>
-                                    <div className="flex flex-wrap items-baseline gap-x-3">
-                                        <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                                            {heading}
-                                        </p>
-                                        {set && (
-                                            <Button
-                                                variant="text"
-                                                className="text-sm"
-                                                disabled={
-                                                    pending ||
-                                                    !sideJobSets.length
-                                                }
-                                                aria-label={`Reroll ${heading}`}
-                                                onClick={() =>
-                                                    setReroll({
-                                                        key,
-                                                        heading,
-                                                        set: sideJobSets.some(
-                                                            (each) =>
-                                                                each.key ===
-                                                                set,
-                                                        )
-                                                            ? set
-                                                            : (sideJobSets[0]
-                                                                  ?.key ?? ""),
-                                                    })
-                                                }
-                                            >
-                                                Reroll
-                                            </Button>
-                                        )}
-                                    </div>
-                                    <h4 className="font-semibold">
+                <div
+                    className="divide-y divide-box-border rounded-control border border-box-border"
+                    aria-label="Selected scenario components"
+                >
+                    {results.map(({ key, heading, entry, set }) => (
+                        <details key={key} className="group">
+                            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 px-3 py-2 focus-ring [&::-webkit-details-marker]:hidden">
+                                <div className="min-w-0 flex-1">
+                                    <span className="block text-xs text-muted">
+                                        {heading}
+                                    </span>
+                                    <span className="block text-sm font-medium">
                                         {entry.name}
-                                    </h4>
-                                    <p className="text-sm">
-                                        <Text entry={entry} />
-                                    </p>
-                                    {entry.image && (
-                                        <img
-                                            className="mt-2 w-full max-w-sm"
-                                            src={entry.image}
-                                            alt={
-                                                entry.imageAlt ||
-                                                `${heading}: ${entry.name}`
-                                            }
-                                        />
-                                    )}
+                                    </span>
                                 </div>
-                            ))}
-                        </div>
-                    </details>
-                </>
-            )}
-            <details>
-                <summary className="cursor-pointer text-sm font-medium">
-                    Scenario options
-                </summary>
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {props.tables.map((table) => (
-                        <Field
-                            key={table.key}
-                            label={table.name}
-                            htmlFor={`preview-${table.key}`}
-                        >
-                            <NativeSelect
-                                disabled={pending}
-                                value={picks[table.key] ?? "roll"}
-                                onChange={(event) =>
-                                    setPicks({
-                                        ...picks,
-                                        [table.key]: event.target.value,
-                                    })
-                                }
-                            >
-                                <option value="roll">Roll a D6</option>
-                                <option value="leave">Leave out</option>
-                                {table.entries.map((entry) => (
-                                    <option key={entry.roll} value={entry.roll}>
-                                        {entry.name}
-                                    </option>
-                                ))}
-                            </NativeSelect>
-                        </Field>
+                                <Icon
+                                    name="chevron-down"
+                                    className="size-4 shrink-0 text-muted group-open:rotate-180"
+                                />
+                            </summary>
+                            <div className="space-y-2 px-3 pb-3 text-sm">
+                                <p>
+                                    <Text entry={entry} />
+                                </p>
+                                {entry.image && (
+                                    <img
+                                        className="w-full max-w-sm"
+                                        src={entry.image}
+                                        alt={
+                                            entry.imageAlt ||
+                                            `${heading}: ${entry.name}`
+                                        }
+                                    />
+                                )}
+                                {set && (
+                                    <Button
+                                        size="sm"
+                                        variant="default"
+                                        disabled={
+                                            pending ||
+                                            !sideJobSets.length ||
+                                            props.disabled
+                                        }
+                                        aria-label={`Reroll ${heading}`}
+                                        onClick={() =>
+                                            setReroll({
+                                                key,
+                                                heading,
+                                                set: sideJobSets.some(
+                                                    (each) => each.key === set,
+                                                )
+                                                    ? set
+                                                    : (sideJobSets[0]?.key ??
+                                                      ""),
+                                            })
+                                        }
+                                    >
+                                        Reroll
+                                    </Button>
+                                )}
+                            </div>
+                        </details>
                     ))}
                 </div>
-                {sideJobKeys.length > 0 && (
-                    <div className="mt-4">
-                        <SideJobFields
-                            prefix="preview"
-                            picks={sidePicks}
-                            sets={sideJobSets}
-                            referencedSets={props.referencedSideJobSets}
-                            keys={sideJobKeys}
-                            limit={props.sideJobLimit ?? 6}
-                            disabled={pending}
-                            onChange={setSidePicks}
-                        />
-                    </div>
-                )}
-            </details>
-            {error && (
-                <p
-                    role="alert"
-                    className="text-sm text-red-600 dark:text-red-400"
+            )}
+            {(results.length === 0 || optionsOpen) && (
+                <section
+                    className="space-y-3 rounded-control border border-box-border p-3"
+                    aria-label="Scenario generation choices"
                 >
+                    <div>
+                        <h3 className="text-sm font-semibold">
+                            {results.length
+                                ? "Change scenario components"
+                                : "Choose scenario components"}
+                        </h3>
+                        <p className="mt-1 text-sm text-muted">
+                            Choose results or leave components out, then
+                            generate the scenario.
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        {props.tables.map((table) => (
+                            <Field
+                                key={table.key}
+                                label={table.name}
+                                htmlFor={`preview-${table.key}`}
+                            >
+                                <NativeSelect
+                                    id={`preview-${table.key}`}
+                                    disabled={pending || props.disabled}
+                                    value={picks[table.key] ?? "roll"}
+                                    onChange={(event) =>
+                                        setPicks({
+                                            ...picks,
+                                            [table.key]: event.target.value,
+                                        })
+                                    }
+                                >
+                                    <option value="roll">Roll a D6</option>
+                                    <option value="leave">Leave out</option>
+                                    {table.entries.map((entry) => (
+                                        <option
+                                            key={entry.roll}
+                                            value={entry.roll}
+                                        >
+                                            {entry.name}
+                                        </option>
+                                    ))}
+                                </NativeSelect>
+                            </Field>
+                        ))}
+                    </div>
+                    {sideJobKeys.length > 0 && (
+                        <div className="border-t border-box-border pt-3">
+                            <h4 className="mb-2 text-sm font-semibold">
+                                Side jobs
+                            </h4>
+                            <SideJobFields
+                                prefix="preview"
+                                picks={sidePicks}
+                                sets={sideJobSets}
+                                referencedSets={props.referencedSideJobSets}
+                                keys={sideJobKeys}
+                                limit={props.sideJobLimit ?? 6}
+                                disabled={pending || props.disabled}
+                                onChange={setSidePicks}
+                            />
+                        </div>
+                    )}
+                </section>
+            )}
+            {error && (
+                <Alert tone="error" dismissible={false}>
                     {error}
-                </p>
+                </Alert>
             )}
             <div className="flex flex-wrap items-center gap-2">
-                <Button onClick={() => generate()} disabled={pending} size="sm">
+                <Button
+                    onClick={() =>
+                        generate(menuChoices(), () => setOptionsOpen(false))
+                    }
+                    disabled={pending || props.disabled}
+                    size="sm"
+                >
                     {pending
                         ? "Generating…"
                         : results.length
@@ -431,10 +448,24 @@ export function BattleScenario(props: BattleScenarioProps) {
                 </Button>
                 {results.length > 0 && (
                     <>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={pending || props.disabled}
+                            onClick={() => setOptionsOpen(!optionsOpen)}
+                        >
+                            {optionsOpen
+                                ? "Hide generation choices"
+                                : "Change components"}
+                        </Button>
                         {!props.save && (
                             <Button
-                                onClick={() => setRolls({})}
-                                disabled={pending}
+                                onClick={() => {
+                                    setRolls({});
+                                    setOptionsOpen(false);
+                                }}
+                                variant="ghost"
+                                disabled={pending || props.disabled}
                                 size="sm"
                             >
                                 Remove scenario
