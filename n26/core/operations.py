@@ -1943,6 +1943,20 @@ class Operation:
             result=result,
         )
 
+    def record_model_choice_receipt(self, request_key, payload, result):
+        """Retain a confirmed model selection inside its write transaction."""
+        from n26.core.models import ModelChoiceReceipt
+
+        if self.actor is None:
+            raise ValueError("Model choice receipts require an actor.")
+        return ModelChoiceReceipt.objects.create(
+            gang=self.gang,
+            actor=self.actor,
+            request_key=request_key,
+            payload=payload,
+            result=result,
+        )
+
     def record_hire_receipt(self, request_key, payload, miniature, profile_name):
         """Retain the hire result inside the transaction that created it."""
         from n26.core.models import HireReceipt

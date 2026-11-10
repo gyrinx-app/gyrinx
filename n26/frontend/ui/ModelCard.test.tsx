@@ -237,3 +237,35 @@ test("short rating help stays a tooltip while overrides and pictures have separa
     await user.keyboard("{Escape}");
     expect(document.activeElement).toBe(picture);
 });
+
+test("cards outside Equip submit counter steps as independent native forms", () => {
+    const view = render(
+        <ModelCard card={card} csrfToken="fresh" frozen={false} />,
+    );
+    for (const [label, change] of [
+        ["Take one off Ammo", "-1"],
+        ["Add one to Ammo", "1"],
+    ]) {
+        const button = screen.getByRole("button", {
+            name: label,
+        }) as HTMLButtonElement;
+        const form = button.closest("form")!;
+        expect(form.getAttribute("method")).toBe("post");
+        expect(form.getAttribute("action")).toBe("/counter/");
+        expect(button.type).toBe("submit");
+        expect(Object.fromEntries(new FormData(form))).toEqual({
+            csrfmiddlewaretoken: "fresh",
+            back: "/equip/",
+            change,
+        });
+    }
+    expect(view.container.querySelector("form form")).toBeNull();
+    view.rerender(<ModelCard card={card} csrfToken="fresh" frozen />);
+    expect(
+        (
+            screen.getByRole("button", {
+                name: "Add one to Ammo",
+            }) as HTMLButtonElement
+        ).disabled,
+    ).toBe(true);
+});

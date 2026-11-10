@@ -1,13 +1,20 @@
-"""Edit the acquisition options recorded on a model's profile assignment."""
+"""HTML and JSON adapters for a model's retained acquisition choices."""
+
+import json
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import Http404
+from django.http import JsonResponse
+from django.middleware.csrf import get_token
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.utils.text import slugify
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_http_methods, require_POST
 
+from n26.core import options_workflow
 from n26.core.views.permissions import (
+    _own_gang_or_404,
     _own_miniature_or_404,
     credits_href,
     may_mark_status,
@@ -16,114 +23,26 @@ from n26.core.views.permissions import (
 )
 
 
-def _option_rows(entry, chosen_pks):
-    """Build hire-option groups checked from recorded selections.
-
-    Use the same group indices as hiring. Choose a pick-one group's default only
-    when no recorded selection belongs to it; omit synthesised standard choices.
-    """
-    groups = []
-    for index, group in enumerate(entry.groups):
-        if not group.offers_a_choice:
-            continue
-        taken_here = any(
-            option.default_set is not None and option.default_set.pk in chosen_pks
-            for option in group.options
-        )
-        options = []
-        for position, option in enumerate(group.options):
-            if option.default_set is None:
-                # Skip the synthetic default option because it represents no stored default set.
-                continue
-            options.append(
-                {
-                    "name": option.name,
-                    "price": option.price,
-                    "value": position,
-                    "checked": option.default_set.pk in chosen_pks
-                    or (group.choose == "one" and not taken_here and option.is_default),
-                }
-            )
-        groups.append(
-            {
-                "index": index,
-                "choose": group.choose,
-                "options": options,
-                "none_checked": group.choose == "one-or-none" and not taken_here,
-            }
-        )
-    return groups
+def data_selection_label(data):
+    return str(data.get("selection_label", ""))[:2000]
 
 
-@login_required
-def fighter_options(request, pk):
-    """Reopen hire options and settle replacements through ``Operation.rechoose``.
-
-    The original hire's ledger entry records any price difference. Parse options
-    with the hiring parser. Card controls return to the model's edit page for its partial-update hosts;
-    dismissal controls return to this Options page.
-    """
-    from n26.analytics import EventVerb, N26Noun, record
+def _display(request, miniature, form, groups, *, conflict=None):
     from n26.core.card import build_card, build_modifier_index, carriers
     from n26.core.effects import compute
-    from n26.core.hire import build_hire_entry
-    from n26.core.hire_workflow import UnavailableHire, chosen_sets, resolve_picks
-    from n26.core.operations import Refusal, operation
+    from n26.core.hire_display import figures_data
+    from n26.core.model_card_display import model_card_props
+    from n26.core.navigation import fighter_switcher, model_screen_tabs, switcher_props
     from n26.core.owned import EquipHost
+    from n26.core.people import person_link
     from n26.core.render import roster, summarise_roster
     from n26.core.views.edit import link_model_card
 
-    miniature = _own_miniature_or_404(request, pk)
-    gang = miniature.membership.gang
-    profile = miniature.membership.profile
+    gang = miniature.gang
     here = reverse("n26-fighter-options", args=[miniature.pk])
-    entry = build_hire_entry(profile)
-
-    if request.method == "POST":
-        try:
-            picks = resolve_picks(request.POST, profile, entry)
-        except UnavailableHire:
-            raise Http404("No such option") from None
-        entry_row = getattr(miniature.membership, "ledger_entry", None)
-        before = entry_row.paid if entry_row is not None else 0
-        try:
-            with operation(gang, actor=request.user) as op:
-                op.rechoose(miniature.membership, option=chosen_sets(picks))
-        except Refusal as refusal:
-            messages.error(request, str(refusal))
-            return redirect(here)
-        except ValueError:
-            # Reject option-set identities outside this profile's current offer as invalid input.
-            raise Http404("No such option") from None
-        if entry_row is not None:
-            entry_row.refresh_from_db()
-        after = entry_row.paid if entry_row is not None else 0
-        record(
-            request,
-            N26Noun.MODEL,
-            EventVerb.UPDATE,
-            miniature,
-            options=True,
-            delta=after - before,
-        )
-        if after > before:
-            messages.success(request, f"Options saved — {after - before}¢ charged.")
-        elif after < before:
-            messages.success(request, f"Options saved — {before - after}¢ back.")
-        else:
-            messages.success(request, "Options saved.")
-        return redirect(here)
-
-    chosen_pks = {
-        row.default_set_id for row in miniature.membership.chosen_options.all()
-    }
-    members = roster(gang)
-    # Load option provenance so card actions identify the exact owned copy.
-    # Return card actions to the model edit page for its update hosts;
-    # dismissal controls return here.
+    edit = reverse("n26-edit-fighter", args=[miniature.pk])
     own = build_card(miniature, with_statlines=True, with_options=True)
     computed = compute(own, build_modifier_index(carriers(own)))
-    edit = reverse("n26-edit-fighter", args=[miniature.pk])
     host = EquipHost.fighter(gang, own, miniature, edit)
     card = link_model_card(
         gang,
@@ -134,26 +53,152 @@ def fighter_options(request, pk):
         back=edit,
         dismissal_at=request.get_full_path(),
     )
+    status = (
+        status_href(gang, miniature, back="edit")
+        if may_mark_status(gang, request.user)
+        else ""
+    )
+    summary = summarise_roster(roster(gang))
+    badges = {}
+    owner = person_link(gang.owner, badges)
+    owner["badge"] = badges.get(owner.get("badge"))
+    raw_selection = form["selection"].value()
+    selection = (
+        raw_selection
+        if isinstance(raw_selection, str)
+        else json.dumps(raw_selection or [])
+    )
+    props = {
+        "name": miniature.name,
+        "role": miniature.membership.profile.category.name
+        if miniature.membership.profile.category
+        else "",
+        "owner": owner,
+        "gangName": gang.name,
+        "gangHref": reverse("n26-gang", args=[gang.pk]),
+        "figures": figures_data(
+            gang,
+            summary,
+            trade_points_href=trade_points_href(gang, request.user),
+            credits_href=credits_href(gang, request.user),
+        ),
+        "card": model_card_props(
+            card, rename_href=edit + f"?rename={miniature.pk}", status_href=status
+        ),
+        "tabs": model_screen_tabs(miniature, "options"),
+        "switcher": switcher_props(
+            fighter_switcher(gang, miniature, route="n26-fighter-options"), hotkey="r"
+        ),
+        "groups": groups,
+        "values": {
+            "gang": str(gang.pk),
+            "selection": selection,
+            "selection_label": ", ".join(
+                option["name"]
+                for group in groups
+                for option in group["options"]
+                if option["key"] in (json.loads(selection) if selection else [])
+            )
+            if not form.is_bound
+            else data_selection_label(form.data),
+            "snapshot": form["snapshot"].value() or "",
+            "request_key": str(form["request_key"].value() or ""),
+        },
+        "errors": dict(form.errors),
+        "conflict": conflict,
+        "action": here,
+        "back": edit,
+        "commandHref": reverse("n26-fighter-options-command", args=[miniature.pk]),
+        "signInHref": reverse("account_login") + "?" + urlencode({"next": here}),
+        "csrfToken": get_token(request),
+        "recoveryKey": f"model-options:{request.user.pk}:{gang.pk}:{miniature.pk}",
+        "messages": [
+            {
+                "text": str(message),
+                "tone": message.level_tag
+                if message.level_tag in {"success", "error", "warning"}
+                else "info",
+            }
+            for message in messages.get_messages(request)
+        ],
+    }
+    return {"gang": gang, "miniature": miniature, "card": card, "options_props": props}
+
+
+def _feedback(request, result):
+    if result.saved and not result.replayed:
+        from n26.analytics import EventVerb, N26Noun, record
+
+        record(request, N26Noun.MODEL, EventVerb.UPDATE, result.subject, **result.facts)
+    tag = f"model-options-{result.form.cleaned_data['request_key']}"
+    storage = messages.get_messages(request)
+    queued = any(tag in (message.extra_tags or "").split() for message in storage)
+    storage.used = False
+    if not queued:
+        messages.success(request, result.message, extra_tags=tag)
+
+
+def _destination(gang, model_key):
+    from n26.core.models import Miniature
+
+    live = Miniature.objects.filter(
+        pk=model_key, membership__gang=gang, membership__archived=False
+    ).exists()
+    return (
+        reverse("n26-fighter-options", args=[model_key])
+        if live
+        else reverse("n26-gang", args=[gang.pk])
+    )
+
+
+@login_required
+@never_cache
+@require_http_methods(["GET", "POST"])
+def fighter_options(request, pk):
+    """Only the signed-in gang owner may inspect or replace a model's options."""
+    result = None
+    if request.method == "POST":
+        gang = _own_gang_or_404(request, request.POST.get("gang", ""))
+        result = options_workflow.change(gang, request.user, pk, request.POST)
+        if result.saved:
+            _feedback(request, result)
+            return redirect(_destination(gang, pk))
+    miniature = _own_miniature_or_404(request, pk)
+    form, groups = options_workflow.initial(miniature, request.user)
+    if result is not None:
+        form = result.form
+    context = _display(
+        request, miniature, form, groups, conflict=result.current if result else None
+    )
     return render(
         request,
         "n26/fighter_options.html",
+        context,
+        status=409 if result and result.conflict else 422 if result else 200,
+    )
+
+
+@require_POST
+@never_cache
+def options_command(request, pk):
+    """The JSON command shares native validation, locks, writes and replay."""
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {"error": "Sign in again to save these options."}, status=401
+        )
+    gang = _own_gang_or_404(request, request.POST.get("gang", ""))
+    result = options_workflow.change(gang, request.user, pk, request.POST)
+    if result.saved:
+        _feedback(request, result)
+        return JsonResponse({"nextUrl": _destination(gang, pk)})
+    return JsonResponse(
         {
-            "miniature": miniature,
-            "gang": gang,
-            "role": (profile.category.name if profile and profile.category else ""),
-            "summary": summarise_roster(members),
-            "trade_points_href": trade_points_href(gang, request.user),
-            "credits_href": credits_href(gang, request.user),
-            "card": card,
-            # After status changes, return to the model edit page.
-            "status_href": (
-                status_href(gang, miniature, back="edit")
-                if may_mark_status(gang, request.user)
-                else ""
+            "errors": dict(result.form.errors),
+            **(
+                {"code": "revision_conflict", "current": result.current}
+                if result.conflict
+                else {}
             ),
-            "groups": _option_rows(entry, chosen_pks),
-            # Match the hiring form's slugified profile identifier for the shared POST parser.
-            "field_scope": slugify(str(profile.pk)),
-            "options_url": here,
         },
+        status=409 if result.conflict else 422,
     )

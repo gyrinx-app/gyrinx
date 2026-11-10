@@ -2503,10 +2503,11 @@ class TestTheCardAboveTheListing:
 
     def test_the_options_face_draws_it_too(self, client, tester, fighter):
         client.force_login(tester)
-        body = client.get(
-            reverse("n26-fighter-options", args=[fighter.pk])
-        ).content.decode()
-        assert body.index('id="n26-model-card-host"') < body.index("This model")
+        response = client.get(reverse("n26-fighter-options", args=[fighter.pk]))
+        page = response.context["options_props"]
+        assert page["card"]["name"] == fighter.name
+        assert page["card"]["stored"]["id"] == str(fighter.pk)
+        assert {tab["label"] for tab in page["tabs"]} >= {"Edit", "Equip"}
 
 
 class TestTheCardsQueryBudget:

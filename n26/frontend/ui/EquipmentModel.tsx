@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import cotton from "../generated/cotton.json";
+import { ModelScreenTabs, type ModelScreenTab } from "./ModelScreenTabs";
 import { ButtonLink, Tally, Icon, type QuickSwitcherProps } from "./index";
 import { ActionMenu, type ActionMenuItem } from "./ActionMenu";
 import {
@@ -13,7 +14,7 @@ export type EquipmentModelData = {
     name: string;
     role: string;
     card: ModelCardData;
-    tabs: Array<{ label: string; href: string; current: boolean }>;
+    tabs: ModelScreenTab[];
     switcher: QuickSwitcherProps;
     budget: {
         activity: string;
@@ -268,28 +269,7 @@ export function EquipmentModel({
                     </div>
                 )}
             </div>
-            <nav aria-label="This model's screens" className="mt-3">
-                <div className={cotton.modelCard.tabStrip}>
-                    {model.tabs.map((tab) => (
-                        <a
-                            key={tab.href}
-                            href={tab.href}
-                            aria-current={tab.current ? "page" : undefined}
-                            className={
-                                cotton.modelCard.tab[
-                                    String(tab.current) as "true" | "false"
-                                ]
-                            }
-                        >
-                            <span className="truncate">{tab.label}</span>
-                        </a>
-                    ))}
-                    <span
-                        aria-hidden="true"
-                        className={cotton.modelCard.tabEnd}
-                    />
-                </div>
-            </nav>
+            <ModelScreenTabs tabs={model.tabs} />
         </div>
     );
 }

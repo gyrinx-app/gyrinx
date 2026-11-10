@@ -133,3 +133,16 @@ ordinary links. Use `WorkflowLayout` when card controls include native forms,
 so they are not nested inside a page form. Its busy-script opt-out is required.
 Keep counter steps in sequence with one request key per deliberate click; stop
 unsent steps visibly on uncertainty while retaining the active command.
+
+## Model option pages
+
+ModelHeader uses the native model-header layout for a title, stored card and
+screen tabs. Keep those elements in one group; a form page's section spacing
+changes their gaps. Use Card's header prop when the Cotton source has a header
+band, rather than placing a heading inside the compact no-header card.
+
+ModelCard accepts an onTally callback for an owner such as Equip that refreshes
+in place. Without it, counter steps use native CSRF-protected forms and normal
+navigation to their independent task. Keep cards outside the enclosing workflow
+form so their counter and dismissal forms are not nested. This retains one React
+owner without a DOM-event or htmx bridge.

@@ -6,6 +6,8 @@ draws the current pick, and a Save parses through the hire's own
 field scheme into the operation.
 """
 
+import json
+
 import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
@@ -74,138 +76,429 @@ def field(profile, group):
     return f"{slugify(str(profile.pk))}:{group}"
 
 
+def props(client, miniature):
+    return client.get(options_url(miniature)).context["options_props"]
+
+
+def submission(client, miniature, selection=None):
+    values = dict(props(client, miniature)["values"])
+    if selection is not None:
+        values["selection"] = json.dumps(selection)
+    return values
+
+
+def option_key(profile, default_set):
+    return str(profile.options.get(default_set=default_set).pk)
+
+
+def command_url(miniature):
+    return reverse("n26-fighter-options-command", args=[miniature.pk])
+
+
 class TestThePage:
-    def test_it_draws_the_groups_with_the_current_pick_checked(
-        self, client, tester, gang, ganger, vex
+    def test_one_react_owner_draws_current_choices_and_card_links(
+        self, client, tester, gang, ganger, armament, vex
     ):
         client.force_login(tester)
         response = client.get(options_url(vex))
+        page = response.context["options_props"]
         body = response.content.decode()
-        assert "Chainsword" in body
-        assert "+25¢" in body
-        assert "Save options" in body
-        # Nothing recorded, so the one-of group is on its head.
-        (group,) = response.context["groups"]
+        assert 'data-react-name="model-options"' in body
+        assert 'id="n26-model-card-host"' not in body
+        assert page["card"]["name"] == "Vex"
+        group = next(group for group in page["groups"] if group["visible"])
         assert [option["checked"] for option in group["options"]] == [True, False]
+        assert group["options"][1]["price"] == 25
+        assert json.loads(page["values"]["selection"]) == [
+            option_key(ganger, armament[0])
+        ]
+        assert page["values"]["request_key"]
+        assert page["values"]["snapshot"]
+        assert page["card"]["stored"]["renameHref"].startswith(
+            reverse("n26-edit-fighter", args=[vex.pk])
+        )
+        assert [tab["current"] for tab in page["tabs"]] == [False, False, True]
+        assert "no-store" in response.headers["Cache-Control"]
 
-    def test_the_page_is_the_models_third_tab(self, client, tester, gang, vex):
-        client.force_login(tester)
-        body = client.get(reverse("n26-edit-fighter", args=[vex.pk])).content.decode()
-        assert options_url(vex) in body
-
-    def test_a_profile_with_no_options_gets_no_tab(
-        self, client, tester, gang, make_profile, make_statline
+    def test_a_profile_without_choices_keeps_an_empty_page(
+        self, client, tester, gang, make_profile
     ):
-        """Hide the Options tab when the profile has no selectable alternatives."""
         plain = make_profile("Juve", price=20)
-        make_statline(plain)
         with operation(gang, actor=tester) as op:
             fighter = op.hire(plain, "Kid")
         client.force_login(tester)
-        body = client.get(
-            reverse("n26-edit-fighter", args=[fighter.pk])
-        ).content.decode()
-        assert options_url(fighter) not in body
+        page = props(client, fighter)
+        assert not any(group["visible"] for group in page["groups"])
+        assert (
+            options_url(fighter)
+            not in client.get(
+                reverse("n26-edit-fighter", args=[fighter.pk])
+            ).content.decode()
+        )
 
-        body = client.get(options_url(fighter)).content.decode()
-        assert "offers no options" in body
-        assert "Save options" not in body
-
-    def test_a_stranger_gets_a_404(self, client, gang, vex):
+    def test_a_stranger_cannot_read_or_change_the_model(self, client, gang, vex):
         client.force_login(User.objects.create_user("someone-else"))
         assert client.get(options_url(vex)).status_code == 404
+        assert client.post(command_url(vex), {"gang": str(gang.pk)}).status_code == 404
 
-    def test_the_models_card_sits_above_the_tabs(self, client, tester, gang, vex):
-        """The card the Edit face draws, in the same place, so what an
-        option changes is in view. This page holds no host a partial
-        update could land in, so the card's acts are plain links that
-        open over the model's own page."""
-        client.force_login(tester)
-        response = client.get(options_url(vex))
-        body = response.content.decode()
-
-        card = body.index('id="n26-model-card-host"')
-        assert body.index("<h1") < card < body.index("This model")
-        assert response.context["card"].name == "Vex"
-        assert "hx-post" not in body[card : body.index("This model")]
-        assert 'id="n26-dialog-host"' not in body
-
-    def test_every_act_on_the_card_lands_on_the_edit_face(
+    def test_counter_controls_keep_the_native_edit_return_destination(
         self, client, tester, gang, vex
     ):
-        """Card commands return to model editing because this page has no command host."""
         from n26.library.authoring import create_counter
 
         with operation(gang, actor=tester) as op:
             op.assign(create_counter("XP"), miniature=vex)
         client.force_login(tester)
-        body = client.get(options_url(vex)).content.decode()
-        card = body[body.index('id="n26-model-card-host"') : body.index("This model")]
-
-        edit = reverse("n26-edit-fighter", args=[vex.pk])
-        assert f'name="back" value="{edit}"' in card
-        assert f'value="{options_url(vex)}"' not in card
+        details = props(client, vex)["card"]["details"]
+        counters = [
+            part
+            for detail in details
+            for part in detail["parts"]
+            if part["kind"] == "counter"
+        ]
+        assert counters
+        assert all(
+            part["control"]["back"] == reverse("n26-edit-fighter", args=[vex.pk])
+            for part in counters
+        )
 
 
 class TestSaving:
-    def test_a_new_choice_charges_the_difference_and_lands_back_here(
+    @pytest.mark.parametrize("json_command", [False, True])
+    def test_changing_options_charges_and_returns_the_difference(
+        self, client, tester, gang, ganger, armament, vex, json_command
+    ):
+        client.force_login(tester)
+        target = command_url(vex) if json_command else options_url(vex)
+        plain, fancy = armament
+        result = client.post(
+            target, submission(client, vex, [option_key(ganger, fancy)])
+        )
+        assert result.status_code == (200 if json_command else 302)
+        assert (
+            result.json()["nextUrl"] if json_command else result.url
+        ) == options_url(vex)
+        gang.refresh_from_db()
+        vex.refresh_from_db()
+        assert gang.credits == 120
+        assert vex.rating == 80
+        result = client.post(
+            target, submission(client, vex, [option_key(ganger, plain)])
+        )
+        assert result.status_code == (200 if json_command else 302)
+        gang.refresh_from_db()
+        assert gang.credits == 145
+        assert_reconciled(gang)
+
+    def test_native_indexed_fields_keep_the_shared_parser(
         self, client, tester, gang, ganger, vex
     ):
         client.force_login(tester)
-        response = client.post(options_url(vex), {field(ganger, 1): "1"})
-        assert response.status_code == 302
-        assert response.url == options_url(vex)
+        values = submission(client, vex)
+        values.pop("selection")
+        values[field(ganger, 1)] = "1"
+        assert client.post(options_url(vex), values).status_code == 302
         gang.refresh_from_db()
-        assert gang.credits == 200 - 55 - 25
-        vex.refresh_from_db()
-        assert vex.rating == 80
-        # And the page comes back with the new pick checked.
-        (group,) = client.get(options_url(vex)).context["groups"]
-        assert [option["checked"] for option in group["options"]] == [False, True]
+        assert gang.credits == 120
         assert_reconciled(gang)
 
-    def test_changing_back_returns_the_difference(
+    def test_an_unaffordable_upgrade_preserves_the_draft_without_a_receipt(
         self, client, tester, gang, ganger, armament, vex
     ):
-        _, fancy = armament
-        with operation(gang, actor=tester) as op:
-            op.rechoose(vex.membership, option=fancy)
-        client.force_login(tester)
+        from n26.core.models import ModelChoiceReceipt
 
-        response = client.post(options_url(vex), {field(ganger, 1): "0"})
-
-        assert response.status_code == 302
-        gang.refresh_from_db()
-        assert gang.credits == 200 - 55
-        assert_reconciled(gang)
-
-    def test_an_unaffordable_upgrade_is_a_message_not_a_change(
-        self, client, tester, gang, ganger, vex
-    ):
         gang.starting_credits = 55
         gang.save(update_fields=["starting_credits"])
         with operation(gang, actor=tester) as op:
             op.settle()
         client.force_login(tester)
-
-        response = client.post(options_url(vex), {field(ganger, 1): "1"})
-
-        assert response.status_code == 302
+        values = submission(client, vex, [option_key(ganger, armament[1])])
+        response = client.post(command_url(vex), values)
+        assert response.status_code == 422
+        assert response.json()["errors"]["__all__"]
+        assert not ModelChoiceReceipt.objects.exists()
         gang.refresh_from_db()
         assert gang.credits == 0
-        taken = [row.default_set.name for row in vex.membership.chosen_options.all()]
-        assert taken == ["Knife"]
         assert_reconciled(gang)
 
-    def test_a_tampered_index_is_refused(self, client, tester, gang, ganger, vex):
+    def test_stable_choices_survive_catalogue_reordering(
+        self, client, tester, gang, ganger, armament, vex
+    ):
         client.force_login(tester)
-        assert client.post(options_url(vex), {field(ganger, 1): "9"}).status_code == 404
-        assert (
-            client.post(options_url(vex), {field(ganger, 1): "-1"}).status_code == 404
-        )
+        plain, fancy = armament
+        values = submission(client, vex, [option_key(ganger, fancy)])
+        ganger.options.filter(default_set=plain).update(position=10)
+        ganger.options.filter(default_set=fancy).update(position=0)
+        response = client.post(command_url(vex), values)
+        assert response.status_code == 200
+        gang.refresh_from_db()
+        assert gang.credits == 120
+        assert_reconciled(gang)
 
-    def test_a_stranger_saves_nothing(self, client, gang, ganger, vex):
-        client.force_login(User.objects.create_user("someone-else"))
-        assert client.post(options_url(vex), {field(ganger, 1): "1"}).status_code == 404
-        taken = [row.default_set.name for row in vex.membership.chosen_options.all()]
-        assert taken == ["Knife"]
+    def test_changed_prices_require_explicit_review(
+        self, client, tester, gang, ganger, armament, vex
+    ):
+        from n26.core.models import ModelChoiceReceipt
+
+        client.force_login(tester)
+        values = submission(client, vex, [option_key(ganger, armament[1])])
+        armament[1].price = 40
+        armament[1].save(update_fields=["price"])
+        response = client.post(command_url(vex), values)
+        assert response.status_code == 409
+        assert response.json()["code"] == "revision_conflict"
+        assert response.json()["current"]["options"] == ["Knife"]
+        assert not ModelChoiceReceipt.objects.exists()
+        gang.refresh_from_db()
+        assert gang.credits == 145
+        assert_reconciled(gang)
+
+    def test_an_already_desired_selection_is_a_no_op_after_another_tab_saves(
+        self, client, tester, gang, ganger, armament, vex
+    ):
+        client.force_login(tester)
+        values = submission(client, vex, [option_key(ganger, armament[1])])
+        with operation(gang, actor=tester) as op:
+            op.rechoose(vex.membership, option=armament[1])
+        assert client.post(command_url(vex), values).status_code == 200
+        gang.refresh_from_db()
+        assert gang.credits == 120
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize(
+        "selection", ["not-json", '["not-an-option"]', '["duplicate", "duplicate"]']
+    )
+    def test_invalid_choices_write_nothing(self, client, tester, gang, vex, selection):
+        from n26.core.models import ModelChoiceReceipt
+
+        client.force_login(tester)
+        values = submission(client, vex)
+        values["selection"] = selection
+        assert client.post(command_url(vex), values).status_code == 422
+        assert not ModelChoiceReceipt.objects.exists()
+        gang.refresh_from_db()
+        assert gang.credits == 145
+        assert_reconciled(gang)
+
+    def test_missing_command_identity_and_tampered_snapshot_are_refused(
+        self, client, tester, gang, vex
+    ):
+        client.force_login(tester)
+        values = submission(client, vex)
+        values.pop("request_key")
+        assert client.post(command_url(vex), values).status_code == 422
+        values = submission(client, vex)
+        values["snapshot"] = "tampered"
+        assert client.post(command_url(vex), values).status_code == 422
+        gang.refresh_from_db()
+        assert gang.credits == 145
+        assert_reconciled(gang)
+
+
+class TestReplay:
+    def test_replay_confirms_the_original_change_after_a_later_different_edit(
+        self, client, tester, gang, ganger, armament, vex
+    ):
+        from n26.core.models import ModelChoiceReceipt
+
+        client.force_login(tester)
+        plain, fancy = armament
+        values = submission(client, vex, [option_key(ganger, fancy)])
+        assert client.post(command_url(vex), values).status_code == 200
+        later = submission(client, vex, [option_key(ganger, plain)])
+        assert client.post(command_url(vex), later).status_code == 200
+        assert client.post(command_url(vex), values).status_code == 200
+        gang.refresh_from_db()
+        assert gang.credits == 145
+        assert ModelChoiceReceipt.objects.count() == 2
+        assert_reconciled(gang)
+
+    def test_replay_survives_a_removed_catalogue_option(
+        self, client, tester, gang, ganger, armament, vex
+    ):
+        client.force_login(tester)
+        values = submission(client, vex, [option_key(ganger, armament[1])])
+        assert client.post(command_url(vex), values).status_code == 200
+        ganger.options.filter(default_set=armament[1]).delete()
+        assert client.post(command_url(vex), values).status_code == 200
+        gang.refresh_from_db()
+        assert gang.credits == 120
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize("native", [False, True])
+    def test_replay_after_model_removal_returns_to_the_gang(
+        self, client, tester, gang, ganger, armament, vex, native
+    ):
+        client.force_login(tester)
+        values = submission(client, vex, [option_key(ganger, armament[1])])
+        assert client.post(command_url(vex), values).status_code == 200
+        with operation(gang, actor=tester) as op:
+            op.remove(vex.membership)
+        response = client.post(options_url(vex) if native else command_url(vex), values)
+        assert response.status_code == (302 if native else 200)
+        assert (response.url if native else response.json()["nextUrl"]) == reverse(
+            "n26-gang", args=[gang.pk]
+        )
+        assert_reconciled(gang)
+
+    def test_reusing_a_key_for_changed_input_does_not_write_again(
+        self, client, tester, gang, ganger, armament, vex
+    ):
+        client.force_login(tester)
+        values = submission(client, vex, [option_key(ganger, armament[1])])
+        assert client.post(command_url(vex), values).status_code == 200
+        values["selection"] = json.dumps([option_key(ganger, armament[0])])
+        response = client.post(command_url(vex), values)
+        assert response.status_code == 422
+        gang.refresh_from_db()
+        assert gang.credits == 120
+        assert_reconciled(gang)
+
+    def test_access_is_rechecked_before_replay(
+        self, client, tester, gang, ganger, armament, vex
+    ):
+        client.force_login(tester)
+        values = submission(client, vex, [option_key(ganger, armament[1])])
+        assert client.post(command_url(vex), values).status_code == 200
+        gang.owner = User.objects.create_user("new-owner")
+        gang.save(update_fields=["owner"])
+        assert client.post(command_url(vex), values).status_code == 404
+
+    def test_success_feedback_is_queued_once_across_replay(
+        self, client, tester, gang, ganger, armament, vex
+    ):
+        client.force_login(tester)
+        values = submission(client, vex, [option_key(ganger, armament[1])])
+        client.post(command_url(vex), values)
+        client.post(command_url(vex), values)
+        page = props(client, vex)
+        assert [message["text"] for message in page["messages"]] == [
+            "Options saved. 25¢ charged."
+        ]
+        assert props(client, vex)["messages"] == []
+
+
+def test_option_count_does_not_add_display_queries(client, tester, gang, ganger, vex):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    client.force_login(tester)
+    props(client, vex)
+
+    def count():
+        with CaptureQueriesContext(connection) as queries:
+            assert client.get(options_url(vex)).status_code == 200
+        return len(queries)
+
+    small = count()
+    group = ganger.option_groups.first()
+    for number in range(8):
+        choice = DefaultAssignmentSet.objects.create(
+            name=f"Extra {number}", price=number
+        )
+        ganger.options.create(
+            group=group,
+            default_set=choice,
+            name=f"Extra {number}",
+            position=number + 10,
+        )
+    assert count() <= small
+
+
+def test_a_stale_tab_cannot_restore_its_old_selection(
+    client, tester, gang, ganger, armament, vex
+):
+    client.force_login(tester)
+    old = submission(client, vex, [option_key(ganger, armament[0])])
+    with operation(gang, actor=tester) as op:
+        op.rechoose(vex.membership, option=armament[1])
+    response = client.post(command_url(vex), old)
+    assert response.status_code == 409
+    gang.refresh_from_db()
+    assert gang.credits == 120
+    assert_reconciled(gang)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_simultaneous_retries_charge_once(client, tester, gang, ganger, armament, vex):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from django.db import close_old_connections
+    from django.http import QueryDict
+
+    from n26.core.models import ModelChoiceReceipt
+    from n26.core.options_workflow import change
+
+    client.force_login(tester)
+    values = submission(client, vex, [option_key(ganger, armament[1])])
+
+    def submit():
+        close_old_connections()
+        try:
+            local_gang = Gang.objects.get(pk=gang.pk)
+            actor = User.objects.get(pk=tester.pk)
+            data = QueryDict("", mutable=True)
+            data.update(values)
+            result = change(local_gang, actor, vex.pk, data)
+            return result.saved, result.replayed
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: submit(), range(2)))
+    assert sorted(results) == [(True, False), (True, True)]
+    assert ModelChoiceReceipt.objects.filter(gang=gang).count() == 1
+    gang.refresh_from_db()
+    assert gang.credits == 120
+    assert_reconciled(gang)
+
+
+def test_session_expiry_is_a_json_refusal(client, gang, vex):
+    response = client.post(command_url(vex), {"gang": str(gang.pk)})
+    assert response.status_code == 401
+    assert "Sign in" in response.json()["error"]
+
+
+def test_real_csrf_failure_is_json_and_writes_nothing(tester, gang, vex):
+    from django.test import Client
+
+    from n26.core.models import ModelChoiceReceipt
+
+    guarded = Client(enforce_csrf_checks=True)
+    guarded.force_login(tester)
+    values = submission(guarded, vex)
+    response = guarded.post(command_url(vex), values, HTTP_ACCEPT="application/json")
+    assert response.status_code == 403
+    assert response.headers["Content-Type"].startswith("application/json")
+    assert not ModelChoiceReceipt.objects.exists()
+
+
+def test_a_signed_snapshot_for_another_model_is_refused(
+    client, tester, gang, ganger, armament, vex
+):
+    with operation(gang, actor=tester) as op:
+        other = op.hire(ganger, "Other")
+    client.force_login(tester)
+    values = submission(client, vex, [option_key(ganger, armament[1])])
+    assert client.post(command_url(other), values).status_code == 422
+    gang.refresh_from_db()
+    assert gang.credits == 90
+    assert_reconciled(gang)
+
+
+def test_indexed_native_choices_require_review_after_reordering(
+    client, tester, gang, ganger, armament, vex
+):
+    client.force_login(tester)
+    values = submission(client, vex)
+    values.pop("selection")
+    values[field(ganger, 1)] = "1"
+    plain, fancy = armament
+    ganger.options.filter(default_set=plain).update(position=10)
+    ganger.options.filter(default_set=fancy).update(position=0)
+    response = client.post(options_url(vex), values)
+    assert response.status_code == 409
+    assert response.context["options_props"]["conflict"]
+    gang.refresh_from_db()
+    assert gang.credits == 145
+    assert_reconciled(gang)

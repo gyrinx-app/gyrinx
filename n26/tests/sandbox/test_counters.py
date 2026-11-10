@@ -662,27 +662,20 @@ class TestMovingOneWithoutReloading:
 
         for route in ("n26-equip", "n26-fighter-options"):
             response = client.get(reverse(route, args=[yolanda.pk]))
-            if route == "n26-equip":
-                from n26.tests.test_react_helpers import equip_props
-
-                parts = [
-                    part
-                    for row in equip_props(response)["model"]["card"]["details"]
-                    for part in row["parts"]
-                    if part["kind"] == "counter"
-                ]
-                xp = next(part for part in parts if part["control"]["name"] == "XP")
-                assert xp["control"]["assignment"] and xp["control"]["href"]
-                assert xp["value"] == 61 and xp["control"]["tallied"] == 61
-                continue
-            drawn = response.content.decode()
-            soup = BeautifulSoup(drawn, "html.parser")
-            assert soup.find("button", attrs={"aria-label": "Add one to XP"})
-            assert soup.find("a", attrs={"aria-label": "Edit XP"}) is None
-            # Each direction submits its own change value because this HTMX form does
-            # not include the clicked submitter.
-            assert 'name="change" value="1"' in drawn
-            assert 'name="change" value="-1"' in drawn
+            soup = BeautifulSoup(response.content, "html.parser")
+            name = "equip" if route == "n26-equip" else "model-options"
+            host = soup.select_one(f'[data-react-name="{name}"]')
+            page = json.loads(soup.find(id=host["data-react-props"]).string)
+            card = page["model"]["card"] if route == "n26-equip" else page["card"]
+            parts = [
+                part
+                for row in card["details"]
+                for part in row["parts"]
+                if part["kind"] == "counter"
+            ]
+            xp = next(part for part in parts if part["control"]["name"] == "XP")
+            assert xp["control"]["assignment"] and xp["control"]["href"]
+            assert xp["value"] == 61 and xp["control"]["tallied"] == 61
 
     def test_without_script_the_pencil_is_the_amount_page(self, client, gang, queen):
         yolanda = hire_with_option(gang, queen, "Yolanda")

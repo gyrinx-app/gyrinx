@@ -329,3 +329,21 @@ item present in both the moved list and the Trading Post through both command
 adapters. Inventory secondary submit actions too: fighter reassignment offers
 both another model and the stash. The retained payload must match the clicked
 destination before submission.
+
+## Replacing model options
+
+An absolute choice that changes payment needs a signed starting state as well as
+an actor- and input-bound command receipt. The snapshot covers the recorded
+selection, current option identities and prices, and recorded payment. A matching
+desired selection can be a no-op, but that alone cannot confirm an earlier save
+after another editor changes the selection again. Recall the receipt under locked
+authorization before resolving today's catalogue or model. Retain the gang
+identity so a confirmed command can return safely after its model is removed.
+Use stable library Option identities and preserve one, any, and one-or-none modes.
+
+Check composed layout variants as well as individual controls. ModelHeader keeps
+the native model heading, card and tabs together; a general form layout's section
+spacing changes those gaps. Card's header prop preserves Cotton's header divider
+and default body padding. Independent card commands can stay native forms and
+links, with no htmx inside the root. Compose them outside the workflow form so
+counter and dismissal forms remain valid HTML.

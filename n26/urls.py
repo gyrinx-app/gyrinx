@@ -5,7 +5,7 @@ point.
 from django.urls import include, path
 
 from n26.core import views
-from n26.core.views import battle_editing, cycle_planning
+from n26.core.views import battle_editing, cycle_planning, options
 from n26.library import action_builder_views
 from n26.library import views as authoring_views
 
@@ -507,6 +507,11 @@ urlpatterns = [
     ),
     path("gangs/<str:pk>/print/setup/", views.print_setup, name="n26-print-setup"),
     path("gangs/<str:pk>/print/", views.print_gang, name="n26-print"),
+    path(
+        "fighters/<str:pk>/options/command/",
+        options.options_command,
+        name="n26-fighter-options-command",
+    ),
     path(
         "gangs/<str:pk>/post-battle/",
         views.gang_post_battle,

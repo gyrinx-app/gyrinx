@@ -38,6 +38,7 @@ from n26.core.models.gang import Gang
 from n26.core.models.hire_receipt import HireReceipt
 from n26.core.models.ledger import LedgerEntry, LedgerEvent, Reason
 from n26.core.models.miniature import Miniature
+from n26.core.models.model_choice_receipt import ModelChoiceReceipt
 from n26.core.models.post_battle import PostBattleReport, PostBattleRevision
 from n26.core.models.print_config import PrintConfig
 from n26.core.models.settings import (
@@ -88,6 +89,7 @@ __all__ = [
     "LedgerEntry",
     "LedgerEvent",
     "Miniature",
+    "ModelChoiceReceipt",
     "Owned",
     "PostBattleReport",
     "PostBattleRevision",

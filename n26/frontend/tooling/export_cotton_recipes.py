@@ -859,6 +859,19 @@ def workflow_page_recipe():
     }
 
 
+def model_header_recipe():
+    from types import SimpleNamespace
+
+    source = '<c-n26.model-header :miniature="miniature" />'
+    rendered = Template(CottonCompiler().process(source)).render(
+        Context({"miniature": SimpleNamespace(pk="model", name="Model")})
+    )
+    elements = Elements(rendered).elements
+    if not elements or elements[0][0] != "div":
+        raise ValueError("Model header no longer starts with its layout container")
+    return class_name(elements[0][1])
+
+
 def name_list_recipe():
     root, item, separator, text = classes(
         "<c-n26.name-list :names=\"[{'text': 'Old Ruins'}]\" />",
@@ -1987,6 +2000,7 @@ def recipes():
         "input": input_recipe(),
         "textarea": classes("<c-ui.textarea />", "textarea")[0],
         "workflowPage": workflow_page_recipe(),
+        "modelHeader": model_header_recipe(),
         "modelPreview": model_preview_recipe(),
         "modelCard": model_card_recipe(),
         "spinner": classes(
@@ -2023,6 +2037,12 @@ def recipes():
             "<c-n26.rating-receipt />", "dl", "div", "dt", "dd", "div", "dt", "dd"
         ),
         "card": classes('<c-ui.card padding="sm" />', "div")[0],
+        "cardWithHeader": classes(
+            '<c-ui.card><c-slot name="header">Heading</c-slot>Content</c-ui.card>',
+            "div",
+            "div",
+            "div",
+        ),
         "table": classes("<c-ui.table />", "div", "table"),
         "tableStatic": classes('<c-ui.table :hover="False" />', "div", "table"),
         "sortableGroup": sortable_group_recipe(),
