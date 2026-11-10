@@ -5,7 +5,7 @@ point.
 from django.urls import include, path
 
 from n26.core import views
-from n26.core.views import cycle_planning
+from n26.core.views import battle_editing, cycle_planning
 from n26.library import action_builder_views
 from n26.library import views as authoring_views
 
@@ -139,6 +139,21 @@ urlpatterns = [
         "campaigns/<str:pk>/battles/new/",
         views.add_battle,
         name="n26-campaign-add-battle",
+    ),
+    path(
+        "campaigns/<str:pk>/battles/new/save/",
+        battle_editing.command,
+        name="n26-battle-create",
+    ),
+    path(
+        "campaigns/<str:pk>/battles/cycle-options/",
+        battle_editing.cycle_options,
+        name="n26-battle-cycle-options",
+    ),
+    path(
+        "campaigns/<str:pk>/battles/<str:battle_pk>/edit/save/",
+        battle_editing.command,
+        name="n26-battle-save",
     ),
     path(
         "campaigns/<str:pk>/battles/",

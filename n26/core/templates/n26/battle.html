@@ -40,6 +40,15 @@
                 </c-slot>
             {% endif %}
         </c-n26.page-header>
+        {% if cycle_attribution %}
+            <c-ui.card>
+                <span class="mr-2 text-sm text-muted">Recorded cycle</span>
+                <c-n26.link href="{{ cycle_attribution.href }}">
+                    {{ cycle_attribution.name }}
+                </c-n26.link>
+                <span class="ml-2 text-sm">{{ cycle_attribution.phase }}</span>
+            </c-ui.card>
+        {% endif %}
         {% if battle.archived %}
             <c-ui.alert title="This battle is archived">
                 Its saved records are read-only. Applied rewards, injuries and stake transfers stay in effect.

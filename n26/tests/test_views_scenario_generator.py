@@ -358,13 +358,12 @@ class TestRecordingTheResult:
     ):
         response = client.get(self.add_url(campaign), {"deployment": "6", "crew": "2"})
         assert response.status_code == 200
-        assert [r.roll for r in response.context["scenario_results"]] == [6, 2]
+        props = response.context["battle_editor"]
+        assert props["values"]["deployment"] == "6"
+        assert props["values"]["crew"] == "2"
+        assert props["scenario"]["rolls"]["deployment"] == "6"
         assert not response.context["form"]["scenario"].value()
-        body = response.content.decode()
-        assert "Scenario" in body
-        assert "Full details" in body
-        assert 'type="hidden" name="deployment" value="6"' in body
-        assert "Generate scenario" not in body
+        assert 'data-react-name="battle-editor"' in response.content.decode()
 
     def test_recording_saves_the_rolls_with_the_battle(self, client, campaign, player):
         response = client.post(
@@ -402,7 +401,7 @@ class TestRecordingTheResult:
         assert response.status_code == 200
         body = response.content.decode()
         assert "A scenario component is not on its table." in body
-        assert 'value="Stand-off"' in body
+        assert response.context["battle_editor"]["values"]["scenario"] == "Stand-off"
         assert not Battle.objects.exists()
 
     def test_an_invalid_component_cannot_disappear_on_a_second_submit(
@@ -417,13 +416,7 @@ class TestRecordingTheResult:
                 "crew": "2",
             },
         )
-        form = BeautifulSoup(response.content, "html.parser").select_one(
-            "form[method=post]"
-        )
-        hidden = {
-            field["name"]: field.get("value", "")
-            for field in form.select("input[type=hidden][name]")
-        }
+        hidden = response.context["battle_editor"]["values"]
         assert hidden["deployment"] == "9"
         assert hidden["crew"] == "2"
         repeated = client.post(
@@ -438,13 +431,7 @@ class TestRecordingTheResult:
         self, client, campaign
     ):
         response = client.get(self.add_url(campaign), {"deployment": "7", "crew": "2"})
-        assert response.context["scenario_results"] == []
-        assert "not on its table" in response.content.decode()
-        soup = BeautifulSoup(response.content, "html.parser")
-        fields = {
-            field["name"]: field.get("value", "")
-            for field in soup.select("form[method=post] input[type=hidden][name]")
-        }
+        fields = response.context["battle_editor"]["values"]
         assert fields["deployment"] == "7"
         assert fields["crew"] == "2"
         submitted = client.post(
@@ -452,6 +439,7 @@ class TestRecordingTheResult:
             {**fields, "scenario": "Stand-off", "date": "2026-10-06"},
         )
         assert submitted.status_code == 200
+        assert "not on its table" in str(submitted.context["form"].non_field_errors())
         assert not Battle.objects.exists()
 
     def test_an_error_keeps_the_scenario_and_what_was_entered(self, client, campaign):
@@ -460,10 +448,10 @@ class TestRecordingTheResult:
             {"scenario": "Stand-off", "date": "", "deployment": "6", "crew": "2"},
         )
         assert response.status_code == 200
-        body = response.content.decode()
-        assert 'value="Stand-off"' in body
-        assert 'type="hidden" name="deployment" value="6"' in body
-        assert [r.roll for r in response.context["scenario_results"]] == [6, 2]
+        values = response.context["battle_editor"]["values"]
+        assert values["scenario"] == "Stand-off"
+        assert values["deployment"] == "6"
+        assert values["crew"] == "2"
         assert not Battle.objects.exists()
 
     @pytest.mark.parametrize("value", [7, 3.5, True])

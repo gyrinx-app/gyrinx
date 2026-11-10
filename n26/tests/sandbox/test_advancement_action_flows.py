@@ -129,6 +129,19 @@ def _load_rolls(monkeypatch, *rolls):
 
 def _start(client, advancement):
     client.force_login(advancement.owner)
+    if getattr(advancement, "cycle_context", None):
+        with operation(
+            advancement.gang,
+            actor=advancement.owner,
+            cycle_context=advancement.cycle_context,
+        ) as op:
+            record = op.start_action(
+                advancement.fighter,
+                advancement.action,
+                uuid4(),
+                allowance=advancement.allowance,
+            )
+            return op.save_action_choices(record, outcome=advancement.outcome, terms={})
     url = reverse(
         "n26-action-start", args=[advancement.fighter.pk, advancement.action.pk]
     )
@@ -762,6 +775,80 @@ class TestRecordingASkillRoll:
         )
         return record, skill_url, client.get(skill_url)
 
+    def test_closing_cycle_tracking_refuses_carried_skill_roll_changes(
+        self,
+        client,
+        monkeypatch,
+        advancement,
+        past_cycle_context,
+        cycle_tracking_switch,
+    ):
+        advancement.cycle_context = past_cycle_context(advancement.gang)
+        ferocity = a.create_category("Skills", "Ferocity", position=2)
+        a.create_skill("Berserker", category=ferocity, position=1)
+        a.modifier(
+            "Prospect: Ferocity is Primary",
+            a.targets_model(),
+            a.ef_places(ferocity, advancement.primary),
+            attach_to=advancement.profile,
+        )
+        record, skill_url, page = self._skill_page(client, monkeypatch, advancement)
+        options = {
+            option["label"]: option["value"]
+            for option in page.context["skill_roll"]["choices"]["options"]
+        }
+        assert (
+            client.post(
+                skill_url,
+                {
+                    "request_key": page.context["form"]["request_key"].value(),
+                    "skill_set_id": options["Skills: Agility"],
+                    "roll_mode": "record",
+                    "rolled": "1",
+                },
+            ).status_code
+            == 302
+        )
+        record.refresh_from_db()
+        selection = record.skill_selection
+        attempts, selected_set = list(selection.random_attempts), selection.skill_set_id
+        events = record.ledger_events.count()
+        cycle_tracking_switch(False)
+        refused = client.post(
+            skill_url,
+            {
+                "request_key": str(uuid4()),
+                "skill_set_id": options["Skills: Ferocity"],
+                "roll_mode": "roll",
+            },
+        )
+        assert refused.status_code == 200
+        assert "Cycle tracking is not available" in refused.content.decode()
+        selection.refresh_from_db()
+        assert selection.random_attempts == attempts
+        assert selection.skill_set_id == selected_set
+        assert record.ledger_events.count() == events
+        assert_reconciled(advancement.gang)
+
+    def test_closing_cycle_tracking_refuses_the_initial_action_roll(
+        self, client, advancement, past_cycle_context, cycle_tracking_switch
+    ):
+        from n26.core.models import AdvancementSelection
+        from n26.core.operations import Refusal
+
+        advancement.cycle_context = past_cycle_context(advancement.gang)
+        record = _start(client, advancement)
+        cycle_tracking_switch(False)
+        before = record.ledger_events.count()
+        with pytest.raises(Refusal, match="Cycle tracking is not available"):
+            with operation(advancement.gang, actor=advancement.owner) as op:
+                op.record_action_roll(
+                    record, advancement.outcome.operation, uuid4(), rolled=12
+                )
+        assert record.ledger_events.count() == before
+        assert not AdvancementSelection.objects.filter(action_record=record).exists()
+        assert_reconciled(advancement.gang)
+
     def test_the_recorded_d6_controls_refuse_impossible_input_then_save_its_result(
         self, client, monkeypatch, advancement
     ):
@@ -1081,6 +1168,32 @@ def _story(advancement):
 class TestApplyingByHand:
     """Mark an externally applied result to consume its earned use and clear the available-action indicator."""
 
+    def test_reopening_an_applied_use_keeps_its_historical_cycle(
+        self, advancement, past_cycle_context
+    ):
+        context = past_cycle_context(advancement.gang)
+        with operation(
+            advancement.gang, actor=advancement.owner, cycle_context=context
+        ) as op:
+            record = op.apply_allowance_by_hand(
+                advancement.fighter,
+                advancement.action,
+                uuid4(),
+                allowance=advancement.allowance,
+            )
+        original = record.cycle_id
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            record = op.reopen_action(record)
+        assert record.cycle_id == original
+        assert record.cycle.phase.name == "Occupation Phase"
+        assert set(record.ledger_events.values_list("cycle_id", flat=True)) == {
+            original
+        }
+        assert record.ledger_events.filter(
+            kind=LedgerEvent.Kind.ACTION_USE_REOPENED
+        ).exists()
+        assert_reconciled(advancement.gang)
+
     def test_marking_an_unused_use_preserves_the_fighter_replays_refuses_and_reopens(
         self, client, advancement
     ):
@@ -1365,6 +1478,51 @@ class TestApplyingByHand:
 
 class TestAdvancementHoldsAndUndo:
     """XP corrections retain one earned use and every recorded roll."""
+
+    def test_correction_and_undo_keep_the_records_past_cycle_context(
+        self, client, monkeypatch, advancement, past_cycle_context
+    ):
+        advancement.cycle_context = past_cycle_context(advancement.gang)
+        record = self._complete(client, monkeypatch, advancement)
+        original_cycle = record.cycle_id
+        corrected_skill = _choose_result(
+            client,
+            advancement,
+            record,
+            advancement.results["secondary"],
+            stage="correct",
+        )
+        reviewed = client.post(
+            corrected_skill, {"skill_id": str(advancement.skills["secondary"].pk)}
+        )
+        page = client.get(reviewed.url)
+        assert (
+            client.post(
+                reviewed.url, {"review": page.context["form"]["review"].value()}
+            ).status_code
+            == 302
+        )
+        record.refresh_from_db()
+        from n26.core.advancements import advancement_undo_snapshot
+
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.undo_action(record, expected=advancement_undo_snapshot(record))
+        record.refresh_from_db()
+        assert record.cycle_id == original_cycle
+        assert record.cycle.phase.name == "Occupation Phase"
+        batches = record.ledger_events.values_list("batch", flat=True)
+        events = LedgerEvent.objects.filter(gang=advancement.gang, batch__in=batches)
+        assert set(events.values_list("cycle_id", flat=True)) == {original_cycle}
+        assert set(events.values_list("campaign_id", flat=True)) == {
+            record.cycle.campaign_id
+        }
+        assert record.ledger_events.filter(
+            kind=LedgerEvent.Kind.ACTION_USE_CORRECTED
+        ).exists()
+        assert record.ledger_events.filter(
+            kind=LedgerEvent.Kind.ACTION_USE_UNDONE
+        ).exists()
+        assert_reconciled(advancement.gang)
 
     @pytest.mark.parametrize("stage", ["unused", "started", "rolled", "reviewed"])
     def test_lowering_xp_holds_the_use_and_raising_it_restores_the_same_flow(

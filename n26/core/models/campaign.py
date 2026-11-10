@@ -456,6 +456,13 @@ class Battle(Base, Archived):
         on_delete=models.CASCADE,
         related_name="battles",
     )
+    cycle = models.ForeignKey(
+        "n26.CampaignCycle",
+        on_delete=models.RESTRICT,
+        null=True,
+        blank=True,
+        related_name="battles",
+    )
     #: The date the battle was played, as the players enter it, not when it
     #: was recorded.
     date = models.DateField()
@@ -516,6 +523,13 @@ class Battle(Base, Archived):
 
     def __str__(self):
         return self.title
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        super().clean()
+        if self.cycle_id and self.cycle.campaign_id != self.campaign_id:
+            raise ValidationError({"cycle": "Select a cycle from this campaign."})
 
     @property
     def title(self):

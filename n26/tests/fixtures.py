@@ -298,3 +298,63 @@ def scenario_content(db):
         "n26.library.migrations.0130_scenario_content_is_author_editable"
     )
     migration.seed(apps)
+
+
+@pytest.fixture
+def past_cycle_context(campaign_type):
+    """Put a gang in Takeover and return an explicit Occupation context."""
+    from uuid import uuid4
+
+    from gyrinx.site.models import Availability, FeatureFlag
+    from n26.core import cycles, schedule
+    from n26.core.cycle_context import CycleContext
+    from n26.core.cycle_data import template_data
+    from n26.core.models import Campaign, CampaignScheduleTemplate
+    from n26.flags import CYCLE_TRACKING
+    from n26.tests.sandbox.actions import found_campaign, join_campaign
+
+    def attach(gang):
+        FeatureFlag.objects.update_or_create(
+            slug=CYCLE_TRACKING,
+            defaults={"name": "Campaign cycles", "availability": Availability.EVERYONE},
+        )
+        campaign = found_campaign(
+            "Historical action cycles",
+            campaign_type,
+            owner=gang.owner,
+            status=Campaign.Status.IN_PROGRESS,
+        )
+        join_campaign(gang, campaign)
+        template = CampaignScheduleTemplate.objects.create(
+            name=schedule.DEFAULT_TEMPLATE.name,
+            definition=template_data(schedule.DEFAULT_TEMPLATE),
+        )
+        cycles.configure(
+            campaign,
+            actor=gang.owner,
+            template_id=template.pk,
+            current_position=4,
+            mode="fixed",
+            request_key=uuid4(),
+        )
+        state = cycles.load(campaign)
+        assert state.current_phase.details.name == "Takeover Phase"
+        return CycleContext(str(campaign.pk), state.cycles[0].id)
+
+    return attach
+
+
+@pytest.fixture
+def cycle_tracking_switch(db):
+    from gyrinx.site.models import Availability, FeatureFlag
+    from n26.flags import CYCLE_TRACKING
+
+    def set_open(opened):
+        assert (
+            FeatureFlag.objects.filter(slug=CYCLE_TRACKING).update(
+                availability=Availability.EVERYONE if opened else Availability.OFF
+            )
+            == 1
+        )
+
+    return set_open

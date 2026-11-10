@@ -1479,61 +1479,10 @@ def _playing(campaign):
 
 @login_required
 def add_battle(request, pk):
-    """Create a battle and preserve supplied scenario components.
+    """Accepted players and the arbitrator record a battle."""
+    from n26.core.views.battle_editing import editor
 
-    Keep invalid components in the form so submission cannot silently drop them.
-    """
-    from n26.core.campaigns import campaign_operation
-    from n26.core.forms import BattleForm
-    from n26.core.operations import Refusal
-    from n26.core.scenarios import parse
-    from n26.core.views.scenario_props import battle_scenario_props
-
-    found = _recording_campaign_or_404(
-        request, pk, with_owner_badge=request.method == "GET"
-    )
-    playing = _playing(found)
-
-    if request.method == "POST":
-        form = BattleForm(
-            request.POST, playing=playing, catalogue=request_catalogue(request)
-        )
-        if form.is_valid():
-            try:
-                with campaign_operation(found, actor=request.user) as act:
-                    battle = act.record_battle(**form.cleaned_data)
-            except Refusal as exc:
-                form.add_error(None, str(exc))
-            else:
-                messages.success(request, "Battle recorded.")
-                return redirect("n26-battle", pk=found.pk, battle_pk=battle.pk)
-    scenario, wrong = parse(
-        request.POST if request.method == "POST" else request.GET,
-        request_catalogue(request),
-    )
-    if wrong:
-        scenario = []
-    if request.method != "POST":
-        form = BattleForm(playing=playing, catalogue=request_catalogue(request))
-        form.initial.update(
-            {key: request.GET[key] for key in form.scenario_keys if key in request.GET}
-        )
-
-    _badge_a_redrawn_page(request, found)
-    return render(
-        request,
-        "n26/add_battle.html",
-        {
-            "form": form,
-            "campaign": found,
-            "scenario_results": scenario,
-            "scenario_wrong": bool(wrong),
-            "battle_scenario": battle_scenario_props(
-                request.POST if request.method == "POST" else request.GET,
-                request_catalogue(request),
-            ),
-        },
-    )
+    return editor(request, pk)
 
 
 @login_required

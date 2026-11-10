@@ -426,7 +426,11 @@ class TestBattlePages:
         assert "winners" in form.errors
         assert list(form["gangs"])[0].data["selected"]
         assert list(form["winners"])[0].data["selected"]
-        assert response.content.decode().count(" checked") == 2
+        import json
+
+        values = response.context["battle_editor"]["values"]
+        assert json.loads(values["gangs"]) == [str(gang.pk)]
+        assert json.loads(values["winners"]) == [str(gang.pk)]
         battle.refresh_from_db()
         assert battle.result == "not_recorded"
 
@@ -834,9 +838,10 @@ class TestArchivedBattles:
                 submission_key=uuid4(),
                 review="",
             )
-        assert (
-            client.post(address(campaign, battle, "edit/"), fields(gang)).status_code
-            == 404
+        refused = client.post(address(campaign, battle, "edit/"), fields(gang))
+        assert refused.status_code == 200
+        assert "archived" in " ".join(
+            refused.context["battle_editor"]["errors"]["__all__"]
         )
         assert (
             client.post(

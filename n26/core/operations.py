@@ -352,7 +352,14 @@ class Operation:
     #: Bound recursive model grants to reject cyclic content.
     MAX_STORED_EFFECT_DEPTH = 3
 
-    def __init__(self, gang, actor=None, batch=None, post_battle_revision=None):
+    def __init__(
+        self,
+        gang,
+        actor=None,
+        batch=None,
+        post_battle_revision=None,
+        cycle_context=None,
+    ):
         self.gang = gang
         self.actor = actor
         # Share the batch across participating gangs so their events can
@@ -360,6 +367,7 @@ class Operation:
         self.batch = batch or uuid4()
         self.post_battle_revision = post_battle_revision
         self.post_battle_occurrence = None
+        self.cycle_context = cycle_context
         self._miniatures = {}
         self._effect_depth = 0
         self._campaign = _UNASKED
@@ -376,6 +384,12 @@ class Operation:
         from n26.core.counter_tracking import is_active
 
         return is_active()
+
+    @cached_property
+    def cycle_tracking_active(self):
+        from n26 import flags
+
+        return flags.enabled(flags.CYCLE_TRACKING, self.actor)
 
     # --- primitives ------------------------------------------------------
 
@@ -682,15 +696,37 @@ class Operation:
             deltas.setdefault("post_battle_revision", self.post_battle_revision)
             deltas.setdefault("post_battle_occurrence", self.post_battle_occurrence)
             deltas.setdefault("battle", report.battle)
+        record = deltas.get("action_record")
+        context = self.cycle_context
+        if record is not None:
+            from n26.core.cycle_context import CycleContext
+
+            if record.gang_id != getattr(gang, "pk", None):
+                raise Refusal("That action use does not belong to this gang.")
+            context = CycleContext.from_cycle(record.cycle) if record.cycle_id else None
+        if context is not None:
+            if not self.cycle_tracking_active:
+                raise Refusal("Cycle tracking is not available to this account.")
+            if (
+                report
+                and report.battle_id
+                and str(report.battle.campaign_id) != context.campaign_id
+            ):
+                raise Refusal("The action and battle belong to different campaigns.")
+            from n26.core.fields import to_ulid
+
+            deltas["cycle_id"] = to_ulid(context.cycle_id)
         return LedgerEvent.objects.create(
             assignment=assignment,
             miniature=about if isinstance(about, Miniature) else None,
             campaign_asset=about if isinstance(about, CampaignAsset) else None,
             gang=gang,
-            campaign=(
-                report.battle.campaign
+            campaign_id=(
+                context.campaign_id
+                if context
+                else report.battle.campaign_id
                 if report and report.battle_id
-                else self._campaign_of(gang)
+                else getattr(self._campaign_of(gang), "pk", None)
             ),
             kind=kind,
             batch=self.batch,
@@ -2948,11 +2984,11 @@ class Operation:
     ):
         from n26.core.advancements import record_action_roll
 
-        return record_action_roll(
-            self,
+        return self._action_call(
+            record_action_roll,
             record,
-            configured,
-            request_key,
+            configured=configured,
+            request_key=request_key,
             rolled=rolled,
             rng=rng,
             decline_promotion=decline_promotion,
@@ -2972,11 +3008,11 @@ class Operation:
     ):
         from n26.core.advancements import record_skill_roll
 
-        return record_skill_roll(
-            self,
+        return self._action_call(
+            record_skill_roll,
             record,
-            configured,
-            request_key,
+            configured=configured,
+            request_key=request_key,
             pickable_id=pickable_id,
             skill_set_id=skill_set_id,
             rolled=rolled,
@@ -2993,27 +3029,29 @@ class Operation:
         """Capture the exact terms and balances offered for confirmation."""
         from n26.core.action_records import review_action
 
-        return review_action(self, record, outcome=outcome, terms=terms)
+        return self._action_call(review_action, record, outcome=outcome, terms=terms)
 
     def save_action_choices(self, record, *, outcome, terms):
         """Persist incomplete typed choices so a draft resumes at the same step."""
         from n26.core.action_records import save_action_choices
 
-        return save_action_choices(self, record, outcome=outcome, terms=terms)
+        return self._action_call(
+            save_action_choices, record, outcome=outcome, terms=terms
+        )
 
     def complete_action(self, record, *, revision, review, outcome):
         """Verify and atomically pay for and apply a reviewed action use."""
         from n26.core.action_records import complete_action
 
-        return complete_action(
-            self, record, revision=revision, review=review, outcome=outcome
+        return self._action_call(
+            complete_action, record, revision=revision, review=review, outcome=outcome
         )
 
     def cancel_action(self, record):
         """Cancel an unpaid action draft."""
         from n26.core.action_records import cancel_action
 
-        return cancel_action(self, record)
+        return self._action_call(cancel_action, record)
 
     def apply_allowance_by_hand(self, fighter, action, request_key, allowance=None):
         """Settle an unused earned use the player applied outside Gyrinx."""
@@ -3027,33 +3065,59 @@ class Operation:
         """Settle a started earned-use flow the player applied outside Gyrinx."""
         from n26.core.action_records import apply_action_by_hand
 
-        return apply_action_by_hand(self, record)
+        return self._action_call(apply_action_by_hand, record)
 
     def reopen_action(self, record):
         """Undo applied by hand, so the earned use is waiting again."""
         from n26.core.action_records import reopen_action
 
-        return reopen_action(self, record)
+        return self._action_call(reopen_action, record)
 
     def undo_action(self, record, *, expected):
         """Undo an earned advancement and resume its original flow."""
         from n26.core.action_records import undo_action
 
-        return undo_action(self, record, expected=expected)
+        return self._action_call(undo_action, record, expected=expected)
 
     def review_action_correction(self, record, *, terms):
         """Capture exact completed-result state before a safe correction."""
         from n26.core.action_records import review_action_correction
 
-        return review_action_correction(self, record, terms=terms)
+        return self._action_call(review_action_correction, record, terms=terms)
 
     def correct_action(self, record, *, revision, review, terms):
         """Correct a completed typed result without replaying its payment."""
         from n26.core.action_records import correct_action
 
-        return correct_action(
-            self, record, revision=revision, review=review, terms=terms
+        return self._action_call(
+            correct_action, record, revision=revision, review=review, terms=terms
         )
+
+    def _action_call(self, handler, record, **kwargs):
+        from n26.core.cycle_context import CycleContext
+        from n26.core.models import ActionRecord
+
+        stored = (
+            ActionRecord.objects.select_related("cycle")
+            .filter(pk=record.pk, gang=self.gang)
+            .first()
+        )
+        if stored is None:
+            raise Refusal("That action use does not belong to this gang.")
+        context = CycleContext.from_cycle(stored.cycle) if stored.cycle_id else None
+        if (
+            stored.state == ActionRecord.State.STARTED
+            and self.cycle_context is not None
+            and self.cycle_context != context
+        ):
+            raise Refusal("This action draft belongs to a different cycle.")
+        if context and not self.cycle_tracking_active:
+            raise Refusal("Cycle tracking is not available to this account.")
+        previous, self.cycle_context = self.cycle_context, context
+        try:
+            return handler(self, record, **kwargs)
+        finally:
+            self.cycle_context = previous
 
     def open_counter(self, assignment, value):
         """Store an opening balance, journalling it once tracking is active."""
@@ -3393,23 +3457,43 @@ def clone_gang(source, *, name, owner, actor=None):
 
 
 @contextmanager
-def operation(gang, actor=None, batch=None, also=(), post_battle_revision=None):
+def operation(
+    gang, actor=None, batch=None, also=(), post_battle_revision=None, cycle_context=None
+):
     """Run player-data writes atomically and recompute cached totals on exit.
 
     ``also`` includes every other gang to be modified, such as a transfer
     recipient, so their locks are acquired together in primary-key order.
+    A new ``cycle_context`` locks its campaign before those gangs. Existing
+    action lifecycle steps read their pinned context without taking that lock.
     """
     op = Operation(
-        gang, actor=actor, batch=batch, post_battle_revision=post_battle_revision
+        gang,
+        actor=actor,
+        batch=batch,
+        post_battle_revision=post_battle_revision,
+        cycle_context=cycle_context,
     )
     from n26.write_pause import write_guard
 
     with transaction.atomic(), write_guard():
+        selected = None
+        if cycle_context is not None:
+            from n26.core.cycle_context import (
+                CycleContext,
+                lock_campaign,
+                require_membership,
+            )
+
+            selected = lock_campaign(cycle_context, actor)
+            op.cycle_context = CycleContext.from_cycle(selected)
         if gang is not None and gang.pk is not None:
             _hold(gang, *also)
             # Refresh values loaded before locking so concurrent submissions
             # use the preceding operation's committed state.
             gang.refresh_from_db(fields=["starting_credits"])
             gang.forget_open_activities()
+        if selected is not None:
+            require_membership(selected, gang)
         yield op
         op.settle()
