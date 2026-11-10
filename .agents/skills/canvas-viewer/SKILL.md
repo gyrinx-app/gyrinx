@@ -47,6 +47,10 @@ primitives, but it is not the Cursor host. Host actions such as `openFile` are
 shown in a notice and never run. Treat the Cursor IDE as authoritative when a
 difference depends on host integration.
 
+`./scripts/fmt.sh` leaves Markdown under `tools/canvas-viewer/node_modules` alone.
+Those files are the viewer's installed dependencies. Do not edit them to satisfy
+a linter.
+
 Run the viewer's checks after changing the viewer or its compatibility layer:
 
 ```bash

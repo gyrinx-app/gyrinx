@@ -88,7 +88,8 @@ artifacts when the IDE Canvas surface is unavailable.
   cleanup is needed. Leave `max_locks_per_transaction` alone when the cluster
   is already tuned.
 - Format with `./scripts/fmt.sh`. It skips `logs/*.html`, so an HTTP capture
-  saved there is left alone.
+  saved there is left alone. It also leaves Markdown under any `node_modules`
+  directory alone, including `tools/canvas-viewer/node_modules`.
 - Build SCSS with `npm run css`; never commit generated CSS under
   `n23/core/static/core/css/`.
 - See [`.codex/README.md`](.codex/README.md) for worktree lifecycle and database
