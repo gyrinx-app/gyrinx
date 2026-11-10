@@ -528,9 +528,23 @@ class TestCampaignDashboardLayout:
         )
         invite = f"/n26/campaigns/{campaign.pk}/players/add/"
         if owner:
-            assert drawn.count(f'href="{invite}"') == 1
-            assert drawn.index(f'href="{invite}"') < drawn.index('id="gangs"')
-            assert "Invite players" in drawn
+            page = BeautifulSoup(drawn, "html.parser")
+            checklist = page.select_one('[data-react-name="campaign-setup"]')
+            assert (
+                checklist.select_one(f'a[href="{invite}"]').get_text(strip=True)
+                == "Invite players"
+            )
+            outside_checklist = [
+                link
+                for link in page.select(f'a[href="{invite}"]')
+                if checklist not in link.parents
+            ]
+            assert len(outside_checklist) == 1
+            assert outside_checklist[0].get_text(strip=True) == "Invite players"
+            assert (
+                page.select_one("#campaign-overview").find_previous("a", href=invite)
+                == outside_checklist[0]
+            )
         else:
             assert invite not in drawn
 

@@ -3,6 +3,8 @@
 from django.urls import reverse
 from django.utils.html import strip_tags
 
+from n26.library.territory_table import TERRITORY
+
 
 def setup_checklist(campaign, sheet, players, cycles, *, actor):
     if campaign.owner_id != actor.pk or campaign.archived:
@@ -36,7 +38,9 @@ def setup_checklist(campaign, sheet, players, cycles, *, actor):
                 "complete": not bool(cycles.setup_href),
             }
         )
-    tables = [table for table in sheet.assets if table.tables]
+    tables = [
+        table for table in sheet.assets if table.label == TERRITORY and table.tables
+    ]
     if tables:
         items.append(
             {
