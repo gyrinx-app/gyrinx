@@ -100,6 +100,14 @@ class PrintConfig(AppBase):
         help_text="Show each fighter's current XP on their card.",
     )
 
+    include_classic_extras = models.BooleanField(
+        default=True,
+        help_text=(
+            "Show status tabs, XP and kills fields, notes, injuries and pictures "
+            "on classic fighter cards."
+        ),
+    )
+
     include_lore_notes = models.BooleanField(
         default=False,
         help_text=(
@@ -165,8 +173,12 @@ class PrintConfig(AppBase):
             included.append("Actions")
         if self.include_dead_fighters:
             included.append("Dead Fighters")
-        if self.include_xp:
+        if self.include_xp and (
+            self.card_style != self.CLASSIC or self.include_classic_extras
+        ):
             included.append("XP")
+        if self.card_style == self.CLASSIC and not self.include_classic_extras:
+            included.append("Compact classic cards")
         if self.include_lore_notes:
             included.append("Lore & Notes")
 

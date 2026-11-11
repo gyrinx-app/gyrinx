@@ -67,6 +67,9 @@ def test_classic_config_renders_classic_sheet(
     assert "classic-card" in body  # grimdark card markup
     assert "print-sheet" in body  # A4 sheet scaffold
     assert "Grimjaw" in body
+    soup = BeautifulSoup(body, "html.parser")
+    assert soup.select_one(".cc-tabs") is not None
+    assert soup.select_one(".cc-foot") is not None
 
 
 @pytest.mark.django_db
@@ -180,6 +183,10 @@ def test_print_config_form_shows_card_style(client, user, make_list):
     assert "Classic cards" in body  # the classic choice label
     assert 'name="card_style"' in body
     assert 'name="card_theme"' not in body  # no theme picker
+    checkbox = BeautifulSoup(body, "html.parser").select_one(
+        '[name="include_classic_extras"]'
+    )
+    assert checkbox.has_attr("checked")
 
 
 @pytest.mark.django_db
@@ -218,6 +225,65 @@ def test_classic_renders_fighter_portrait(
             assert "snap" in portraits[0]["src"]
         else:
             assert portraits == []
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("include_extras", [False, True])
+def test_classic_extras_follow_saved_configuration(
+    client, user, make_list, make_list_fighter, include_extras
+):
+    lst = make_list("Gang")
+    make_list_fighter(
+        lst,
+        "Grimjaw",
+        xp_current=12,
+        notes="<p>Remember the spare ammunition.</p>",
+        image="classic-extras-portrait.png",
+    )
+    cfg = _classic_config(lst, user, include_classic_extras=not include_extras)
+    client.force_login(user)
+    edit_url = reverse(
+        "core:print-config-edit", kwargs={"list_id": lst.id, "config_id": cfg.id}
+    )
+    data = {
+        "name": "Classic",
+        "card_style": PrintConfig.CLASSIC,
+        "fighter_selection_mode": PrintConfig.ALL_FIGHTERS,
+        "include_xp": "on",
+        "blank_fighter_cards": 1,
+        "blank_vehicle_cards": 1,
+    }
+    if include_extras:
+        data["include_classic_extras"] = "on"
+
+    response = client.post(edit_url, data)
+
+    assert response.status_code == 302
+    cfg.refresh_from_db()
+    assert cfg.include_classic_extras is include_extras
+    assert ("XP" in cfg.card_summary().split(", ")) is include_extras
+    edit_soup = BeautifulSoup(client.get(edit_url).content, "html.parser")
+    checkbox = edit_soup.select_one('[name="include_classic_extras"]')
+    assert checkbox.has_attr("checked") is include_extras
+
+    response = client.get(_print_url(lst, cfg))
+    assert response.status_code == 200
+    soup = BeautifulSoup(response.content, "html.parser")
+    cards = soup.select(
+        '.classic-card[data-kind="fighter"], .classic-card[data-kind="blank"]'
+    )
+    assert len(cards) == 3
+    for card in cards:
+        assert bool(card.select_one(".cc-tabs")) is include_extras
+        assert bool(card.select_one(".cc-foot")) is include_extras
+        for region in (".cc-name", ".cc-statline", ".cc-weapons", ".cc-detail"):
+            assert card.select_one(region) is not None
+
+    fighter_card = soup.select_one('.classic-card[data-kind="fighter"]')
+    assert bool(fighter_card.select_one(".cc-portrait")) is include_extras
+    assert (
+        "Remember the spare ammunition." in fighter_card.get_text()
+    ) is include_extras
 
 
 @pytest.mark.django_db

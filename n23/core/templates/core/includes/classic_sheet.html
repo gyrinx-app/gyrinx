@@ -21,7 +21,7 @@ Params:
         {% if card.kind == "gang" or card.kind == "lore" %}
             {% include "core/includes/classic_card_text.html" with card=card theme=theme show_grid=show_grid %}
         {% else %}
-            {% include "core/includes/classic_card.html" with card=card theme=theme show_grid=show_grid %}
+            {% include "core/includes/classic_card.html" with card=card theme=theme show_grid=show_grid show_extras=show_extras %}
         {% endif %}
     {% endfor %}
 </div>
