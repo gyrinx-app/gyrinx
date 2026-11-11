@@ -134,7 +134,9 @@ class TestFlagAndOwnership:
         assert post(client, campaign, "setup", setup_data(template)).status_code == 404
         page = client.get(reverse("n26-campaign", args=[campaign.pk]))
         assert page.status_code == 200
-        assert "Set up phases & cycles" not in page.content.decode()
+        assert "Set up phases & cycles" not in [
+            item["label"] for item in page.context["campaign_setup"]["items"]
+        ]
         assert not CampaignSchedule.objects.exists()
 
     def test_an_empty_schedule_offers_setup_only_to_the_arbitrator(
