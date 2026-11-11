@@ -46,7 +46,7 @@ export function mountWithin(
                         islands.delete(host);
                         mountWithin(host, loadModule, attempt + 1);
                     },
-                    imported ? "render" : "load",
+                    imported ? "render" : attempt ? "reload" : "load",
                 );
                 console.error("React island failed to load", error);
             });

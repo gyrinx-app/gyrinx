@@ -152,9 +152,10 @@ class TestTheChangelogPanel:
             body='<script>alert("no")</script><p>fine</p>',
         )
         body = client.get("/n26/").content.decode()
-        # Check the entry payload rather than removing legitimate page scripts.
-        assert "alert" not in body
-        assert "fine" in body
+        preview = BeautifulSoup(body, "html.parser").select_one(".n26-clamp-2")
+        assert preview is not None
+        assert preview.find("script") is None
+        assert preview.get_text(strip=True) == "fine"
 
     def test_the_panel_costs_the_same_queries_however_many_entries_exist(
         self, tester, client, default_pack

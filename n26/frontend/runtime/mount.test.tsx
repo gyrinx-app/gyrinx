@@ -11,7 +11,7 @@ it("retries a crashed section without reloading other roots or their drafts", ()
     const template = document.createElement("template");
     template.id = host.dataset.reactError;
     template.innerHTML =
-        '<div role="alert"><p data-react-error-message></p><button data-react-retry type="button"><span data-react-retry-spinner hidden></span>Try again</button><a data-react-reload>Reload page</a></div>';
+        '<div role="alert"><p data-react-error-message></p><button data-react-retry type="button">Try again</button><a data-react-reload>Reload page</a></div>';
     const other = document.createElement("input");
     other.value = "Unsaved draft";
     document.body.append(host, template, other);

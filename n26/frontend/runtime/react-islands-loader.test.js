@@ -28,7 +28,7 @@ function host(id = "one") {
     const error = document.createElement("template");
     error.id = element.dataset.reactError;
     error.innerHTML =
-        '<div role="alert"><p data-react-error-message></p><button data-react-retry type="button"><span data-react-retry-spinner hidden></span>Try again</button><a data-react-reload>Reload page</a></div>';
+        '<div role="alert"><p data-react-error-message></p><button data-react-retry type="button">Try again</button><a data-react-reload>Reload page</a></div>';
     document.body.append(element, props, error);
     return element;
 }
@@ -120,9 +120,8 @@ describe("island lifecycle", () => {
         retry.click();
         expect(retry.disabled).toBe(true);
         expect(retry.getAttribute("aria-busy")).toBe("true");
-        expect(element.querySelector("[data-react-retry-spinner]").hidden).toBe(
-            false,
-        );
+        expect(retry.dataset.busy).toBe("on");
+        expect(retry.hasAttribute("data-busy-disabled")).toBe(true);
         expect(load).toHaveBeenCalledTimes(2);
         const url = new URL(load.mock.calls[1][0]);
         expect(url.pathname).toBe("/module.js");
@@ -130,6 +129,25 @@ describe("island lifecycle", () => {
         resolve({ mount });
         await vi.waitFor(() => expect(element.textContent).toBe("Recovered"));
         expect(other.querySelector("input").value).toBe("Unsaved draft");
+    });
+
+    it("offers reload after a retry still cannot load a cached dependency", async () => {
+        const element = host();
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        const load = vi
+            .fn()
+            .mockRejectedValue(new TypeError("Failed dependency"));
+        mountWithin(element, load);
+        await vi.waitFor(() =>
+            expect(element.querySelector("button")).not.toBeNull(),
+        );
+        element.querySelector("button").click();
+        await vi.waitFor(() =>
+            expect(element.textContent).toContain("then reload the page"),
+        );
+        expect(element.querySelector("button")).toBeNull();
+        expect(element.querySelector("a").href).toBe(window.location.href);
+        expect(load).toHaveBeenCalledTimes(2);
     });
 
     it("describes a mounting exception separately from a failed connection", async () => {
