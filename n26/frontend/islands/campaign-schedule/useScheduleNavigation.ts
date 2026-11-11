@@ -242,7 +242,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
     }, [load]);
 
     useEffect(() => {
-        document.title = `${data.editor?.kind === "plan" || data.editor?.kind === "setup" ? data.editor.heading : "Campaign cycles"} — ${data.campaignName} | Gyrinx`;
+        document.title = `${data.editor?.kind === "plan" || data.editor?.kind === "setup" ? data.editor.heading : "Phases & cycles"} — ${data.campaignName} | Gyrinx`;
         const target =
             window.location.hash.slice(1) ||
             (data.focusId ? `cycle-${data.focusId}` : "");

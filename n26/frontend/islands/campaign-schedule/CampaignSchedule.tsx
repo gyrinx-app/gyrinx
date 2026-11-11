@@ -359,7 +359,10 @@ function ScheduleContent(
                                 label: props.campaignName,
                                 href: props.campaignHref,
                             },
-                            { label: "Cycles", href: props.scheduleHref },
+                            {
+                                label: "Phases & cycles",
+                                href: props.scheduleHref,
+                            },
                             { label: props.editor.heading },
                         ]}
                     />
@@ -398,12 +401,12 @@ function ScheduleContent(
                 items={[
                     { label: "Campaigns", href: "/n26/campaigns/" },
                     { label: props.campaignName, href: props.campaignHref },
-                    { label: "Cycles" },
+                    { label: "Phases & cycles" },
                 ]}
             />
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-semibold">Campaign cycles</h1>
+                    <h1 className="text-2xl font-semibold">Phases & cycles</h1>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
                         <span className="text-muted">{props.status}</span>
                         {props.configured &&
@@ -450,7 +453,7 @@ function ScheduleContent(
                             href={props.actions.setup}
                             variant="primary"
                         >
-                            Set up cycles
+                            Set up phases & cycles
                         </ButtonLink>
                     )}
                 </Card>

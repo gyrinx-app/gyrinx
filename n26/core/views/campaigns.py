@@ -284,7 +284,7 @@ def more_actions(campaign, *, yours, playing=False, schedule_href=""):
     if schedule_href:
         pages.append(
             Action(
-                "Schedule & cycles",
+                "Phases & cycles",
                 LINK,
                 schedule_href,
                 SECONDARY,

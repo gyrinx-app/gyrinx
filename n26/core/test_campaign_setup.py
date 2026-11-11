@@ -16,11 +16,11 @@ def test_setup_uses_existing_facts_and_hides_cycle_actions_when_flag_is_closed()
     players = [Facts(state="invited")]
     closed = setup_checklist(campaign, sheet, players, None, actor=actor)
     assert [item["complete"] for item in closed["items"]] == [True, True, True, False]
-    assert "Set up cycles" not in [item["label"] for item in closed["items"]]
+    assert "Set up phases & cycles" not in [item["label"] for item in closed["items"]]
     cycles = Facts(setup_href="/setup/", schedule_href="/cycles/")
     opened = setup_checklist(campaign, sheet, players, cycles, actor=actor)
     assert opened["items"][3] == {
-        "label": "Set up cycles",
+        "label": "Set up phases & cycles",
         "href": "/setup/",
         "complete": False,
     }

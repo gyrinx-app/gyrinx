@@ -132,7 +132,7 @@ test.each([false, true])(
                 editor={{
                     ...editor,
                     kind: "setup",
-                    heading: "Set up campaign cycles",
+                    heading: "Set up campaign phases & cycles",
                     context: { activates: true },
                     templates: [
                         {
@@ -159,10 +159,11 @@ test.each([false, true])(
         expect(
             screen.getByRole("heading", {
                 level: 1,
-                name: "Set up campaign cycles",
+                name: "Set up campaign phases & cycles",
             }),
         ).toBeTruthy();
         expect(screen.queryByRole("dialog")).toBeNull();
+        expect(screen.queryByText(/notifies accepted players/)).toBeNull();
         await userEvent.selectOptions(
             screen.getByRole("combobox", { name: "Starting template" }),
             "template",
@@ -209,20 +210,21 @@ test.each([false, true])(
                 screen.getByLabelText("Current cycle number"),
             );
         }
+        expect(screen.queryByText(/notifies accepted players/)).toBeNull();
         await userEvent.click(
             screen.getByRole("button", { name: "Review schedule" }),
         );
         expect(screen.getByText(/1. My opening/)).toBeTruthy();
         expect(screen.getByText("1 week")).toBeTruthy();
-        expect(!!screen.queryByText(/Saving starts the selected cycle/)).toBe(
-            !noCurrent,
-        );
+        expect(
+            !!screen.queryByText(/Selecting “Set up phases & cycles” starts/),
+        ).toBe(!noCurrent);
         expect(
             screen.getByText(noCurrent ? "None" : "Cycle 1", { exact: true }),
         ).toBeTruthy();
         expect(fetch).not.toHaveBeenCalled();
         await userEvent.click(
-            screen.getByRole("button", { name: "Set up cycles" }),
+            screen.getByRole("button", { name: "Set up phases & cycles" }),
         );
         expect(fetch).toHaveBeenCalledTimes(1);
         const body = fetch.mock.calls[0][1].body as URLSearchParams;
@@ -234,6 +236,24 @@ test.each([false, true])(
         expect(definition.phases[0].details.name).toBe("Opening");
     },
 );
+
+test("advancing a projected cycle keeps the transition clear without a saving notice", () => {
+    render(
+        <ScheduleEditor
+            phases={phases}
+            editor={{
+                ...editor,
+                kind: "advance",
+                heading: "Advance cycle",
+                lead: "End Cycle 1 and start Cycle 2. Accepted players will be notified.",
+                context: { ending: "Cycle 1", starting: "Cycle 2" },
+            }}
+        />,
+    );
+    expect(screen.getByText(/End Cycle 1 and start Cycle 2/)).toBeTruthy();
+    expect(screen.queryByText(/next projected cycle/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Advance cycle" })).toBeTruthy();
+});
 
 test("a lost response freezes the draft and retries the exact command", async () => {
     const fetch = vi

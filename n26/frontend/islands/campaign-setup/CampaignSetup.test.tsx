@@ -9,13 +9,17 @@ test("dismissal stays with its campaign and completion preserves management link
         storageKey: "actor:campaign-a",
         items: [
             { label: "Invite players", href: "/invite/", complete: true },
-            { label: "Set up cycles", href: "/cycles/", complete: false },
+            {
+                label: "Set up phases & cycles",
+                href: "/cycles/",
+                complete: false,
+            },
         ],
     };
     const view = render(<CampaignSetup {...props} />);
     expect(
         screen
-            .getByRole("link", { name: "Set up cycles" })
+            .getByRole("link", { name: "Set up phases & cycles" })
             .getAttribute("href"),
     ).toBe("/cycles/");
     expect(screen.getByLabelText("Complete")).toBeTruthy();

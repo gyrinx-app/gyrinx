@@ -60,7 +60,7 @@ FIELDS = {
 HEADINGS = {
     "template": "Confirm earlier template change",
     "save-template": "Confirm earlier template save",
-    "setup": "Set up campaign cycles",
+    "setup": "Set up campaign phases & cycles",
     "cycle": "Edit cycle",
     "phase": "Edit phase",
     "duplicate-phase": "Duplicate phase",
@@ -292,7 +292,6 @@ def prepare(campaign, action, query):
                 raise Http404("Finish the campaign after its final cycle")
             context["ending"] = state.current.name
             context["starting"] = preview.following.name
-            context["savesNext"] = isinstance(preview.following, s.ProjectedCycle)
             lead = f"End {state.current.name} and start {preview.following.name}. Accepted players will be notified."
         elif action == "start":
             if state.status == "in_progress" and state.current is None:

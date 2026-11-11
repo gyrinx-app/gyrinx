@@ -462,7 +462,7 @@ test("Schedule settings uses a full page and keeps loading inside its trigger", 
     expect(row.isConnected).toBe(false);
     expect(document.activeElement).toBe(heading);
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    await screen.findByRole("heading", { level: 1, name: "Campaign cycles" });
+    await screen.findByRole("heading", { level: 1, name: "Phases & cycles" });
     expect(window.location.pathname).toBe(base);
 });
 
@@ -500,7 +500,7 @@ test("setup steps have URLs, retain edits through Back/Forward and refresh witho
     const setup: Editor = {
         ...editor,
         kind: "setup",
-        heading: "Set up campaign cycles",
+        heading: "Set up campaign phases & cycles",
         action,
         recoveryKey: "setup:actor:campaign",
         context: { setupStage: 1 },
