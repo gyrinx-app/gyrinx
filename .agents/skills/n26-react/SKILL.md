@@ -363,6 +363,8 @@ Compare the complete native choice layout: tier caption, card detail slot, ratin
 text truncation and collection tabs. Extend RadioCards, RadioCard and TabLinks
 before adding feature markup. Keep collections in the URL and preserve existing small ghost actions. Put the
 spinner inside the initiating button so loading preserves neighbouring controls.
+A switcher search inside a workflow form must prevent Enter from submitting that
+form even when no search result is active.
 
 For removable models, stamp an owned recovery URL before sending the command so
 reload and sign-in can restore the original retry. Ordinary unavailable-model

@@ -63,6 +63,48 @@ function menuRows() {
 }
 
 describe("quick switcher", () => {
+    it.each(["pit", "no matching gang"])(
+        "never submits an enclosing skill form when Enter has no active result: %s",
+        async (query) => {
+            const submitted = vi.fn((event) => event.preventDefault());
+            const user = userEvent.setup();
+            render(
+                <form onSubmit={submitted}>
+                    <label>
+                        <input
+                            type="radio"
+                            name="thing"
+                            value="long-stride"
+                            defaultChecked
+                        />
+                        Long stride
+                    </label>
+                    <QuickSwitcher {...base} />
+                    <button type="submit">Select</button>
+                </form>,
+            );
+            await user.click(
+                screen.getByRole("button", { name: "Switch to another gang" }),
+            );
+            await user.type(screen.getByRole("searchbox"), query);
+            expect(
+                screen
+                    .getByRole("searchbox")
+                    .getAttribute("aria-activedescendant"),
+            ).toBeNull();
+            await user.keyboard("{Enter}");
+            expect(submitted).not.toHaveBeenCalled();
+            expect(screen.getByRole("searchbox")).toBeTruthy();
+            expect(
+                (
+                    screen.getByRole("radio", {
+                        name: "Long stride",
+                    }) as HTMLInputElement
+                ).checked,
+            ).toBe(true);
+        },
+    );
+
     it("names the current place and opens onto its list", async () => {
         const user = userEvent.setup();
         render(<QuickSwitcher {...base} />);
