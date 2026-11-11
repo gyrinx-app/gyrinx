@@ -510,3 +510,44 @@ describe("form actions", () => {
         ).toBe("submit");
     });
 });
+
+it.each(["default", "sm", "lg"] as const)(
+    "uses the Cotton %s multiple-select recipe and preserves selected values",
+    async (controlSize) => {
+        const changed = vi.fn();
+        const user = userEvent.setup();
+        render(
+            <form>
+                <NativeSelect
+                    aria-label="Locations"
+                    name="locations"
+                    multiple
+                    controlSize={controlSize}
+                    defaultValue={["arm"]}
+                    onChange={changed}
+                >
+                    <option value="arm">Arm</option>
+                    <option value="leg">Leg</option>
+                </NativeSelect>
+            </form>,
+        );
+        const select = screen.getByRole("listbox", {
+            name: "Locations",
+        }) as HTMLSelectElement;
+        await user.selectOptions(select, ["arm", "leg"]);
+        const variants = {
+            default: cotton.nativeSelectMultiple,
+            sm: cotton.nativeSelectMultipleSmall,
+            lg: cotton.nativeSelectMultipleLarge,
+        };
+        expect(select.className).toContain(variants[controlSize].className);
+        expect(select.classList.contains("n26-select-multiple")).toBe(true);
+        expect(select.classList.contains("appearance-none")).toBe(false);
+        expect(select.style.backgroundImage).toBe("");
+        expect(new FormData(select.form!).getAll("locations")).toEqual([
+            "arm",
+            "leg",
+        ]);
+        expect(changed).toHaveBeenCalled();
+    },
+);

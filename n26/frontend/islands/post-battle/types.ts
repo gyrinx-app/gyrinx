@@ -73,6 +73,7 @@ export type ReportDisplay = {
     lead: string;
     breadcrumbs: { label: string; href?: string }[];
     participationConfirmed: boolean;
+    applied: boolean;
     correcting: boolean;
     receiptHref: string;
     generation: string;

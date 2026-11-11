@@ -117,7 +117,7 @@ export function PostBattle(props: PostBattleProps) {
                             {message.text}
                         </Alert>
                     ))}
-                    {d.correcting && (
+                    {d.correcting && !d.applied && (
                         <div className="border border-box-border bg-surface p-4">
                             <p className="font-semibold">
                                 Correcting recorded results
@@ -200,9 +200,9 @@ export function PostBattle(props: PostBattleProps) {
                                 {form.conflict && (
                                     <div className="mt-3 space-y-3">
                                         <p>
-                                            Your entries remain below. The
-                                            latest saved draft has revision{" "}
-                                            {form.conflict.revision}.
+                                            {form.conflict.applied
+                                                ? "These results have already been applied. Your entries remain below."
+                                                : `Your entries remain below. The latest saved draft has revision ${form.conflict.revision}.`}
                                         </p>
                                         <details>
                                             <summary className="cursor-pointer">
@@ -231,9 +231,27 @@ export function PostBattle(props: PostBattleProps) {
                                                 )}
                                             </ul>
                                         </details>
-                                        <Button onClick={form.reviewLatest}>
-                                            Use latest saved draft
-                                        </Button>
+                                        {form.conflict.applied ? (
+                                            <div className="space-y-2">
+                                                <a
+                                                    className="text-accent underline"
+                                                    href={
+                                                        form.conflict
+                                                            .receiptHref
+                                                    }
+                                                >
+                                                    View recorded results
+                                                </a>
+                                                <p>
+                                                    Open the recorded results to
+                                                    start a correction.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <Button onClick={form.reviewLatest}>
+                                                Use latest saved draft
+                                            </Button>
+                                        )}
                                     </div>
                                 )}
                             </Alert>

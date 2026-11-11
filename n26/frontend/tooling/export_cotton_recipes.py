@@ -751,12 +751,22 @@ def sortable_group_recipe():
     }
 
 
-def native_select_recipe(size=""):
+def native_select_recipe(size="", *, multiple=False):
     size_attribute = f'size="{size}"' if size else ""
+    multiple_attribute = ':multiple="True"' if multiple else ""
     (select,) = attributes(
-        f'<c-ui.select.native placeholder="" {size_attribute} />', "select"
+        f'<c-ui.select.native placeholder="" {size_attribute} {multiple_attribute} />',
+        "select",
     )
     style = select.get("style", "").strip()
+    if multiple:
+        if (
+            style
+            or "multiple" not in select
+            or "n26-select-multiple" not in class_name(select)
+        ):
+            raise ValueError("Native multiple-select styles changed.")
+        return {"className": class_name(select), "style": {}}
     match = re.fullmatch(
         r"background-image:\s*(url\('[^']*'\));\s*background-size:\s*([^;]+);?",
         style,
@@ -2101,6 +2111,9 @@ def recipes():
         "nativeSelect": native_select_recipe(),
         "nativeSelectSmall": native_select_recipe("sm"),
         "nativeSelectLarge": native_select_recipe("lg"),
+        "nativeSelectMultiple": native_select_recipe(multiple=True),
+        "nativeSelectMultipleSmall": native_select_recipe("sm", multiple=True),
+        "nativeSelectMultipleLarge": native_select_recipe("lg", multiple=True),
         "field": {
             **dict(
                 zip(

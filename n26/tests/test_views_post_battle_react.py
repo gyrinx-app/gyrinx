@@ -426,3 +426,54 @@ def test_both_adapters_apply_and_correct_the_same_awards_without_replaying_event
     assert report.revisions.count() == 2
     assert report.revisions.get(sequence=1).receipt == recorded
     assert report.revisions.get(sequence=2).inputs["credit_lines"][0]["amount"] == 10
+
+
+@pytest.mark.parametrize("adapter", ["native", "json"])
+def test_an_empty_credit_source_keeps_its_identity_across_reloads(
+    client, table, adapter
+):
+    report, data = command_page(client, table)
+    line = data["credit_line"][0]
+    data["intent"] = f"remove-credit-line:{line}"
+    url = command_url(report) if adapter == "json" else editor_url(report)
+    removed = client.post(url, data)
+    assert removed.status_code == 200
+    props = removed.json()["display"] if adapter == "json" else react_props(removed)
+    (blank,) = props["mission"]["creditLines"]
+    first = react_props(client.get(editor_url(report)))
+    second_page = client.get(editor_url(report))
+    second = react_props(second_page)
+    assert first["revision"] == second["revision"]
+    assert first["mission"]["creditLines"][0]["id"] == blank["id"]
+    assert second["mission"]["creditLines"][0]["id"] == blank["id"]
+    entered = html_fields(second_page)
+    entered.update(intent="save", command_key=str(uuid4()))
+    entered[f"credit-{blank['id']}-amount"] = "45"
+    entered[f"credit-{blank['id']}-reason"] = "Retained after reload"
+    saved = client.post(url, entered)
+    assert saved.status_code == (200 if adapter == "json" else 302)
+    report.refresh_from_db()
+    assert report.draft["credit_lines"] == [
+        {"id": blank["id"], "amount": "45", "reason": "Retained after reload"}
+    ]
+
+
+def test_an_apply_in_another_tab_exposes_read_only_receipt_navigation(client, table):
+    report, stale = command_page(client, table)
+    applying = dict(
+        stale, intent="apply", command_key=str(uuid4()), participation_confirmed="on"
+    )
+    applied = client.post(command_url(report), applying)
+    assert applied.status_code == 200
+    stale.update(command_key=str(uuid4()), intent="save")
+    stale[f"model-{table.models[0].pk}-note"] = "Keep this unsaved note"
+    refused = client.post(command_url(report), stale)
+    assert refused.status_code == 409
+    result = refused.json()
+    assert result["conflict"]
+    assert result["currentDisplay"]["applied"]
+    assert result["currentDisplay"]["receiptHref"] == reverse(
+        "n26-post-battle-receipt", args=[report.pk]
+    )
+    assert result["display"]["models"][0]["note"] == "Keep this unsaved note"
+    assert report.revisions.count() == 1

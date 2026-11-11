@@ -124,7 +124,13 @@ export function useReportDraft(props: PostBattleProps) {
         );
     }
     function update(next: URLSearchParams) {
-        if (unknown.current || conflict) return;
+        if (
+            unknown.current ||
+            conflict ||
+            info.current.applied ||
+            (inFlight.current && command.current?.get("intent") === "apply")
+        )
+            return;
         try {
             persist(next, command.current, pending || "autosave");
         } catch {
@@ -150,7 +156,7 @@ export function useReportDraft(props: PostBattleProps) {
         update(next);
     }
     async function send(intent: string) {
-        if (inFlight.current || conflict) return;
+        if (inFlight.current || conflict || info.current.applied) return;
         const initiating = intent;
         if (
             intent === "apply" &&
@@ -331,7 +337,15 @@ export function useReportDraft(props: PostBattleProps) {
         }
     }
     useEffect(() => {
-        if (!dirty || pending || uncertain || conflict || notice) return;
+        if (
+            !dirty ||
+            pending ||
+            uncertain ||
+            conflict ||
+            notice ||
+            display.applied
+        )
+            return;
         const timer = window.setTimeout(() => {
             void send("autosave");
         }, 900);
@@ -367,7 +381,13 @@ export function useReportDraft(props: PostBattleProps) {
         if (notice) summary.current?.focus();
     }, [notice]);
     function reviewLatest() {
-        if (!conflict || inFlight.current || unknown.current) return;
+        if (
+            !conflict ||
+            conflict.applied ||
+            inFlight.current ||
+            unknown.current
+        )
+            return;
         // Explicit review keeps a recoverable copy of the local entries for comparison.
         try {
             sessionStorage.setItem(
@@ -437,7 +457,8 @@ export function useReportDraft(props: PostBattleProps) {
         send,
         reviewLatest,
         reloadForRecovery,
-        frozen: uncertain || !!conflict,
+        frozen:
+            uncertain || !!conflict || display.applied || pending === "apply",
     };
 }
 

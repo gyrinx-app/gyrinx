@@ -395,6 +395,12 @@ On reload, a different server version or a missing legacy baseline requires
 explicit review. Never attach an older local draft to fresh page versions and
 silently autosave over another tab or a new correction generation.
 
+Keep blank editor entry IDs stable across reloads, including an empty credits
+list. Expose an applied report as read-only with receipt navigation; it cannot
+be adopted as an editable draft. Freeze entries for the final Apply request,
+while allowing later typing during autosave. NativeSelect multiple questions
+must use Cotton's multiple-select recipe, including its size and option marks.
+
 A cached native form can derive a stable command identity from its actor, report,
 version and exact intent/input. Replay the stored canonical result for actions
 that create random draft identities, such as adding a result. Preserve existing

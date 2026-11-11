@@ -101,7 +101,12 @@ const display = record({
         "review",
         "savedAt",
     ),
-    ...booleans("participationConfirmed", "correcting", "showErrors"),
+    ...booleans(
+        "participationConfirmed",
+        "applied",
+        "correcting",
+        "showErrors",
+    ),
     revision: number,
     breadcrumbs: list(
         record({

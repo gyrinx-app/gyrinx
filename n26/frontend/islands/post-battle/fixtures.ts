@@ -71,6 +71,7 @@ export const page: PostBattleProps = {
         { label: "Post-battle results" },
     ],
     participationConfirmed: false,
+    applied: false,
     correcting: false,
     receiptHref: "/receipt/",
     generation: "generation-1",

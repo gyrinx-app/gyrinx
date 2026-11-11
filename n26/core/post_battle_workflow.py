@@ -105,6 +105,7 @@ def command(report, actor, data):
                 result.newer = (
                     str(locked.generation) != saved["generation"]
                     or locked.draft_revision != saved["revision"]
+                    or (locked.state == locked.State.APPLIED and not result.sequence)
                 )
                 return result
             if intent == "apply":

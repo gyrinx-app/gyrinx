@@ -7,6 +7,7 @@ import {
     within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { PostBattle } from "./PostBattle";
 import { page, cinder, response } from "./fixtures";
 import { fields } from "./types";
@@ -789,4 +790,137 @@ test("an older acknowledged save retains its own baseline across reload while re
         "disabled",
         true,
     );
+});
+
+test("multiple result choices use the list recipe and submit every selected option", async () => {
+    const fetch = vi.fn(() => new Promise<Response>(() => {}));
+    vi.stubGlobal("fetch", fetch);
+    const effect = {
+        id: "multi",
+        selected: "injury|wound",
+        label: "Lasting Injury 1",
+        name: "Grievous Wound",
+        retainedOption: false,
+        retainedChoices: [],
+        questions: [
+            {
+                key: "locations",
+                label: "Choose locations",
+                multiple: true,
+                required: false,
+                selected: ["arm"],
+                options: [
+                    { value: "arm", label: "Arm" },
+                    { value: "leg", label: "Leg" },
+                ],
+            },
+        ],
+    };
+    render(
+        <PostBattle
+            {...page}
+            models={[{ ...cinder, effects: [effect] }, page.models[1]]}
+        />,
+    );
+    const select = screen.getByRole("listbox", {
+        name: "Choose locations",
+    }) as HTMLSelectElement;
+    expect(select.classList.contains("n26-select-multiple")).toBe(true);
+    expect(select.style.backgroundImage).toBe("");
+    await userEvent.setup().selectOptions(select, ["arm", "leg"]);
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(bodyAt(fetch).getAll("effect-multi-choice-locations")).toEqual([
+        "arm",
+        "leg",
+    ]);
+});
+
+test("only the final Apply request freezes inputs so later typing cannot be discarded", async () => {
+    let resolve: (value: Response) => void;
+    const fetch = vi.fn(
+        () =>
+            new Promise<Response>((done) => {
+                resolve = done;
+            }),
+    );
+    const navigate = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    render(
+        <PostBattle {...page} participationConfirmed onNavigate={navigate} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Apply results" }));
+    expect(bodyAt(fetch).get("intent")).toBe("apply");
+    const note = screen.getByLabelText(
+        "Add to Cinder's notes (optional)",
+    ) as HTMLTextAreaElement;
+    expect(note.closest("fieldset[disabled]")).toBeTruthy();
+    expect(
+        screen.getByRole("checkbox", {
+            name: "I have checked which models took part.",
+        }),
+    ).toHaveProperty("disabled", true);
+    fireEvent.change(note, { target: { value: "Typed after Apply" } });
+    expect(
+        new URLSearchParams(
+            JSON.parse(sessionStorage.getItem(page.recoveryKey)!).draft,
+        ).get("model-cinder-note"),
+    ).toBe("");
+    await act(async () =>
+        resolve!(response(saved(2), { nextUrl: "/receipt/2/" })),
+    );
+    expect(navigate).toHaveBeenCalledWith("/receipt/2/");
+    expect(sessionStorage.getItem(page.recoveryKey)).toBeNull();
+});
+
+test("a report applied in another tab offers its receipt and keeps local entries read-only", async () => {
+    vi.useFakeTimers();
+    const applied = { ...saved(4, "7"), applied: true };
+    const fetch = vi.fn().mockResolvedValue(
+        response(
+            applied,
+            {
+                acknowledged: null,
+                conflict: true,
+                currentDisplay: applied,
+                errors: ["These results were already applied."],
+            },
+            409,
+        ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    render(
+        <PostBattle
+            {...page}
+            models={[
+                { ...cinder, note: "Keep this local note" },
+                page.models[1],
+            ]}
+        />,
+    );
+    await act(async () =>
+        fireEvent.click(screen.getByRole("button", { name: "Save draft" })),
+    );
+    expect(
+        screen.getByText(
+            "These results have already been applied. Your entries remain below.",
+        ),
+    ).toBeTruthy();
+    expect(
+        screen
+            .getByRole("link", { name: "View recorded results" })
+            .getAttribute("href"),
+    ).toBe("/receipt/");
+    expect(
+        screen.queryByRole("button", { name: "Use latest saved draft" }),
+    ).toBeNull();
+    expect(
+        screen.getByLabelText("Add to Cinder's notes (optional)"),
+    ).toHaveProperty("value", "Keep this local note");
+    expect(screen.getByRole("button", { name: "Save draft" })).toHaveProperty(
+        "disabled",
+        true,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await act(async () => vi.advanceTimersByTime(5000));
+    expect(fetch).toHaveBeenCalledTimes(1);
 });

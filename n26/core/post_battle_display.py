@@ -1,5 +1,7 @@
 """Explicit editor props from the report's prepared forms and consequence plan."""
 
+from uuid import NAMESPACE_URL, uuid5
+
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.formats import date_format
@@ -141,7 +143,14 @@ def territory_display(report, actor):
 def editor_display(report, actor, payload, plan, *, show_errors=False, errors=()):
     """Project only authorised facts; both initial and command responses use this shape."""
     models = editor_models(plan, payload)
-    mission = mission_results(plan, payload, show_errors=show_errors)
+    mission = mission_results(
+        plan,
+        payload,
+        show_errors=show_errors,
+        blank_id=uuid5(
+            NAMESPACE_URL, f"post-battle:{report.pk}:{report.generation}:blank-credit"
+        ),
+    )
     breadcrumbs = []
     if report.battle_id:
         breadcrumbs.append(
@@ -183,6 +192,7 @@ def editor_display(report, actor, payload, plan, *, show_errors=False, errors=()
         "savedAt": timezone.localtime(report.modified).strftime("%H:%M:%S"),
         "payload": payload,
         "participationConfirmed": bool(payload.get("participation_confirmed")),
+        "applied": report.state == report.State.APPLIED,
         "models": [_model(model) for model in models],
         "toolbar": toolbar_display(models),
         "mission": {

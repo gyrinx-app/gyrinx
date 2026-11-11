@@ -374,18 +374,26 @@ export function NativeSelect({
     "aria-describedby": describedBy,
     "aria-invalid": invalid,
     controlSize = "default",
+    multiple = false,
     ...props
 }: ComponentProps<"select"> & { controlSize?: "default" | "sm" | "lg" }) {
     const field = useFieldControl(id, describedBy);
-    const recipe =
-        controlSize === "sm"
-            ? cotton.nativeSelectSmall
-            : controlSize === "lg"
-              ? cotton.nativeSelectLarge
-              : cotton.nativeSelect;
+    const variants = multiple
+        ? {
+              default: cotton.nativeSelectMultiple,
+              sm: cotton.nativeSelectMultipleSmall,
+              lg: cotton.nativeSelectMultipleLarge,
+          }
+        : {
+              default: cotton.nativeSelect,
+              sm: cotton.nativeSelectSmall,
+              lg: cotton.nativeSelectLarge,
+          };
+    const recipe = variants[controlSize];
     return (
         <select
             {...props}
+            multiple={multiple}
             id={field.id}
             className={`${recipe.className} ${className}`}
             style={{ ...recipe.style, ...style }}
