@@ -1433,7 +1433,6 @@ class TestShowingDismissedOffers:
     def test_options_saves_and_dialogs_keep_restore_available_on_edit(
         self, client, owner, gang, crew
     ):
-        from bs4 import BeautifulSoup
 
         from n26.core.operations import operation
         from n26.library.authoring import create_wargear
@@ -1445,18 +1444,21 @@ class TestShowingDismissedOffers:
         with operation(gang, actor=owner) as op:
             item = op.buy(miniature, thing=create_wargear("Knife"), paid=0)
         here = reverse("n26-fighter-options", args=[miniature.pk])
-        page = BeautifulSoup(
-            client.get(f"{here}?dismissed=show").content, "html.parser"
-        )
+        response = client.get(f"{here}?dismissed=show")
+        page = response.context["options_props"]
         sell = next(
-            link["href"]
-            for link in page.find_all("a", href=True)
-            if f"sell={item.pk}" in link["href"]
+            action["target"]
+            for detail in page["card"]["details"]
+            for part in detail["parts"]
+            if part["kind"] == "gear"
+            for item_line in part["lines"]
+            for action in item_line["actions"]
+            if f"sell={item.pk}" in action["target"]
         )
         dialog = client.get(sell)
         assert dialog.status_code == 200
         assert restore_url(gang, line) in dialog.content.decode()
-        response = client.post(here, follow=True)
+        response = client.post(here, page["values"], follow=True)
         assert response.status_code == 200
         assert restore_url(gang, line) not in response.content.decode()
         assert restore_url(gang, line) in edit_body(client, miniature)

@@ -1,10 +1,6 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation %}
-{% comment %}
-Reopen the model's hire option groups with current selections. Save calls op.rechoose,
-which records the price adjustment against the hire.
-{% endcomment %}
-{% block head_title %}{{ miniature.name }} options{% endblock head_title %}
+{% load navigation react %}
+{% block head_title %}{% firstof miniature.name recovery_name %} options{% endblock head_title %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
     <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
@@ -12,100 +8,8 @@ which records the price adjustment against the hire.
 {% block nav_items %}
     {% include "n26/_nav.html" with here="gangs" %}
 {% endblock %}
+{% block messages %}
+{% endblock messages %}
 {% block content %}
-    <c-n26.model-header :miniature="miniature" lead="{{ role }}" active="options">
-        <c-slot name="switcher">
-            {% fighter_switcher gang miniature as fighter_switcher_ %}
-            <c-n26.quick-switcher.of :switcher="fighter_switcher_" hotkey="r" />
-        </c-slot>
-        <c-slot name="breadcrumb">
-            <c-ui.breadcrumbs>
-                <c-ui.breadcrumbs.item>
-                    <c-n26.user-link :user="gang.owner" tone="current" />
-                </c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item :current="True">
-                    {{ miniature.name }}
-                </c-ui.breadcrumbs.item>
-            </c-ui.breadcrumbs>
-        </c-slot>
-        <c-slot name="actions">
-            <c-n26.gang-figures :gang="gang"
-                                :summary="summary"
-                                trade_points_href="{{ trade_points_href }}"
-                                credits_href="{{ credits_href }}" />
-        </c-slot>
-        {% comment %}
-        Card action links target Edit, which has hosts for partial updates. Offer dismissal
-        returns to this Options page.
-        {% endcomment %}
-        <c-slot name="card">
-            {% include "n26/includes/model_card_host.html" with htmx=False %}
-        </c-slot>
-    </c-n26.model-header>
-    <div class="mt-4 grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
-        <c-ui.card>
-            <c-slot name="header">
-                <span class="font-semibold">Options</span>
-            </c-slot>
-            {% if groups %}
-                <form method="post" action="{{ options_url }}">
-                    {% csrf_token %}
-                    <div class="flex flex-col gap-1">
-                        {% for group in groups %}
-                            {% comment %}
-                            Show selection instructions for every group because there is
-                            no preceding hire entry label.
-                            {% endcomment %}
-                            <div class="{% if not forloop.first %}mt-2 border-t border-box-border pt-3{% endif %} flex min-h-6 items-center gap-2">
-                                <span class="text-xs font-semibold uppercase tracking-wide text-muted">
-                                    {% if group.choose == "one" %}
-                                        Choose one
-                                    {% elif group.choose == "any" %}
-                                        Choose any
-                                    {% else %}
-                                        Choose one, or none
-                                    {% endif %}
-                                </span>
-                            </div>
-                            {% for option in group.options %}
-                                <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5">
-                                    <input type="{% if group.choose == 'any' %}checkbox{% else %}radio{% endif %}"
-                                           name="{{ field_scope }}:{{ group.index }}"
-                                           value="{{ option.value }}"
-                                           {% if option.checked %}checked{% endif %}
-                                           class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
-                                    <span class="min-w-0 text-sm text-ink-900 dark:text-ink-100">{{ option.name }}</span>
-                                    {% if option.price %}
-                                        <span class="shrink-0 text-xs text-muted">+{{ option.price }}¢</span>
-                                    {% endif %}
-                                </label>
-                            {% endfor %}
-                            {% if group.choose == "one-or-none" %}
-                                <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5">
-                                    <input type="radio"
-                                           name="{{ field_scope }}:{{ group.index }}"
-                                           value=""
-                                           {% if group.none_checked %}checked{% endif %}
-                                           class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
-                                    <span class="min-w-0 text-sm text-ink-900 dark:text-ink-100">None</span>
-                                </label>
-                            {% endif %}
-                        {% endfor %}
-                    </div>
-                    {% comment %}
-                    The ledger determines the final charge or return, reported after
-                    submission.
-                    {% endcomment %}
-                    <div class="mt-3 flex justify-end">
-                        <c-ui.button type="submit" variant="success" size="sm">
-                            Save options
-                        </c-ui.button>
-                    </div>
-                </form>
-            {% else %}
-                <p class="text-muted">{{ miniature.name }}'s profile offers no options to choose.</p>
-            {% endif %}
-        </c-ui.card>
-    </div>
+    {% react_island "model-options" options_props %}
 {% endblock content %}

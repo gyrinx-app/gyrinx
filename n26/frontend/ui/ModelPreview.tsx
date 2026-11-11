@@ -40,7 +40,7 @@ export type CardControls = {
     frozen: boolean;
     countersFrozen?: boolean;
     pendingTally?: string;
-    onTally: (assignment: string, change: number, name: string) => void;
+    onTally?: (assignment: string, change: number, name: string) => void;
 };
 export const CardControlsContext = createContext<CardControls | null>(null);
 type Line = {
@@ -397,51 +397,80 @@ function DetailPart({ part }: { part: Part }) {
                 <span className={recipe.counter}>{part.value}</span>
                 {controls && part.control?.href && (
                     <span className="ms-1 inline-flex items-center gap-1 align-middle">
-                        <Button
-                            size="xs"
-                            variant="default"
-                            className={cotton.modelCard.counterStep}
-                            disabled={
-                                (controls.countersFrozen ?? controls.frozen) ||
-                                !part.control.tallied
-                            }
-                            aria-label={`Take one off ${part.control.name}`}
-                            onClick={() =>
-                                controls.onTally(
-                                    part.control!.assignment,
-                                    -1,
-                                    part.control!.name,
-                                )
-                            }
-                        >
-                            −
-                        </Button>
-                        <Button
-                            size="xs"
-                            variant="default"
-                            className={cotton.modelCard.counterStep}
-                            disabled={
-                                controls.countersFrozen ?? controls.frozen
-                            }
-                            aria-label={`Add one to ${part.control.name}`}
-                            onClick={() =>
-                                controls.onTally(
-                                    part.control!.assignment,
-                                    1,
-                                    part.control!.name,
-                                )
-                            }
-                        >
-                            +
-                        </Button>
-                        <span className="ms-1 inline-flex size-3 shrink-0">
-                            {controls.pendingTally ===
-                                part.control.assignment && (
-                                <Spinner
-                                    label={`Saving ${part.control.name}`}
-                                />
-                            )}
-                        </span>
+                        {([-1, 1] as const).map((change) => {
+                            const counter = part.control!;
+                            const button = (
+                                <Button
+                                    type={
+                                        controls.onTally ? "button" : "submit"
+                                    }
+                                    size="xs"
+                                    variant="default"
+                                    className={cotton.modelCard.counterStep}
+                                    disabled={
+                                        (controls.countersFrozen ??
+                                            controls.frozen) ||
+                                        (change < 0 && !counter.tallied)
+                                    }
+                                    aria-label={
+                                        change < 0
+                                            ? `Take one off ${counter.name}`
+                                            : `Add one to ${counter.name}`
+                                    }
+                                    onClick={
+                                        controls.onTally
+                                            ? () =>
+                                                  controls.onTally!(
+                                                      counter.assignment,
+                                                      change,
+                                                      counter.name,
+                                                  )
+                                            : undefined
+                                    }
+                                >
+                                    <span aria-hidden="true">
+                                        {change < 0 ? "−" : "+"}
+                                    </span>
+                                </Button>
+                            );
+                            return controls.onTally ? (
+                                <Fragment key={change}>{button}</Fragment>
+                            ) : (
+                                <form
+                                    key={change}
+                                    method="post"
+                                    action={counter.href}
+                                    className="inline"
+                                >
+                                    <input
+                                        type="hidden"
+                                        name="csrfmiddlewaretoken"
+                                        value={controls.csrfToken}
+                                    />
+                                    <input
+                                        type="hidden"
+                                        name="back"
+                                        value={counter.back}
+                                    />
+                                    <input
+                                        type="hidden"
+                                        name="change"
+                                        value={change}
+                                    />
+                                    {button}
+                                </form>
+                            );
+                        })}
+                        {controls.onTally && (
+                            <span className="ms-1 inline-flex size-3 shrink-0">
+                                {controls.pendingTally ===
+                                    part.control.assignment && (
+                                    <Spinner
+                                        label={`Saving ${part.control.name}`}
+                                    />
+                                )}
+                            </span>
+                        )}
                     </span>
                 )}
             </>

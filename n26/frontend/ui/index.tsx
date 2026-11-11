@@ -883,7 +883,22 @@ export function RadioCard({
     return <label className={rootClass}>{control}</label>;
 }
 
-export function Card({ children }: { children: ReactNode }) {
+export function Card({
+    children,
+    header,
+}: {
+    children: ReactNode;
+    header?: ReactNode;
+}) {
+    if (header !== undefined) {
+        const [root, heading, body] = cotton.cardWithHeader;
+        return (
+            <div className={root}>
+                <div className={heading}>{header}</div>
+                <div className={body}>{children}</div>
+            </div>
+        );
+    }
     return <div className={cotton.card}>{children}</div>;
 }
 
@@ -1483,6 +1498,14 @@ function WorkflowContents({
         </>
     );
 }
+export function ModelHeader(props: Omit<WorkflowContentsProps, "footer">) {
+    return (
+        <div data-busy="off" className={cotton.modelHeader}>
+            <WorkflowContents {...props} footer={null} />
+        </div>
+    );
+}
+
 export function WorkflowLayout({
     fullWidth,
     ...props
@@ -1619,6 +1642,7 @@ export {
 } from "./Equipment";
 
 export { ModelCard, type ModelCardData } from "./ModelCard";
+export { ModelScreenTabs, type ModelScreenTab } from "./ModelScreenTabs";
 
 export {
     EquipmentModel,

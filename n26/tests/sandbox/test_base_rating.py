@@ -516,10 +516,11 @@ class TestRatingOverrideMarker:
         )
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
-        if route == "n26-equip":
-            host = soup.select_one('[data-react-name="equip"]')
+        if route in {"n26-equip", "n26-fighter-options"}:
+            name = "equip" if route == "n26-equip" else "model-options"
+            host = soup.select_one(f'[data-react-name="{name}"]')
             props = json.loads(soup.find(id=host["data-react-props"]).string)
-            card = props["model"]["card"]
+            card = props["model"]["card"] if route == "n26-equip" else props["card"]
             assert card["name"] == "Vex" and card["rating"] == 170
             assert card["stored"]["ratingOverride"] == {
                 "name": "Vex",

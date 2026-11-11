@@ -63,3 +63,15 @@ def test_action_menu_recipe_reads_the_kit_dropdown():
     assert "text-red-600" not in menu["item"]
     assert menu["itemLabel"] == "flex-1"
     assert [e["tag"] for e in form["icons"]["ellipsis-vertical"]] == ["circle"] * 3
+
+
+def test_recipe_export_does_not_require_the_manifest_it_is_about_to_build(monkeypatch):
+    from n26.core.templatetags import react
+
+    def unavailable():
+        raise AssertionError("The initial recipe export cannot read a Vite manifest")
+
+    monkeypatch.setattr(react, "_manifest", unavailable)
+    exported = recipes()
+    assert exported["modelHeader"]
+    assert exported["toggle"]
