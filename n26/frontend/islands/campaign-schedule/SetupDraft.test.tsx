@@ -216,3 +216,26 @@ test("adding phases opens one details editor and retains each phase's own reward
         (screen.getByLabelText("Phase narrative") as HTMLTextAreaElement).value,
     ).toBe("First phase story.");
 });
+
+test("an empty retained draft uses the new Custom default and keeps its dates", async () => {
+    const editor = setup();
+    sessionStorage.setItem(
+        `${editor.recoveryKey}:setup-draft`,
+        JSON.stringify({
+            template_id: "",
+            setup_definition: "",
+            date_start: "2026-12-01",
+        }),
+    );
+    render(<ScheduleEditor editor={editor} phases={[]} onNavigate={vi.fn()} />);
+    expect(screen.getByText(/1. Phase 1/)).toBeTruthy();
+    await userEvent.click(
+        screen.getByRole("button", { name: "Customise schedule" }),
+    );
+    expect(
+        (screen.getByLabelText("Phase 1 name") as HTMLInputElement).value,
+    ).toBe("Phase 1");
+    expect(
+        (screen.getByLabelText("Cycle 1 starts") as HTMLInputElement).value,
+    ).toBe("2026-12-01");
+});
