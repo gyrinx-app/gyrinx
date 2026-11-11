@@ -182,6 +182,21 @@ class TestSetupAndAccess:
         opened.save()
         assert client.get(url).status_code == 403
 
+    def test_custom_setup_without_a_definition_is_refused(
+        self, campaign, owner, opened
+    ):
+        with pytest.raises(Refusal, match="custom schedule"):
+            cycles.configure(
+                campaign,
+                actor=owner,
+                template_id="",
+                current_position=None,
+                mode="fixed",
+                request_key=uuid4(),
+                calendar=s.CycleCalendar(date(2026, 11, 1)),
+            )
+        assert not CampaignSchedule.objects.filter(campaign=campaign).exists()
+
     def test_new_setup_without_explicit_dates_is_refused(
         self, campaign, owner, opened, template
     ):

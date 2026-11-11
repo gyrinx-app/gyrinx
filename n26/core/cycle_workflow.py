@@ -17,6 +17,7 @@ from n26.core.cycle_data import (
     ref_data,
     ref_from_data,
     steps_from_data,
+    template_data,
 )
 from n26.core.cycle_display import editor_url, schedule_url
 from n26.core.fields import to_ulid
@@ -119,6 +120,8 @@ class CycleEditorForm(forms.Form):
         self.fields = {
             name: field for name, field in self.fields.items() if name in keep
         }
+        if action == "setup":
+            self.fields["template_id"].required = False
         if (
             action == "setup"
             and self.is_bound
@@ -128,6 +131,15 @@ class CycleEditorForm(forms.Form):
 
     def clean(self):
         values = super().clean()
+        if (
+            self.action == "setup"
+            and not values.get("template_id")
+            and values.get("setup_definition") is None
+            and "setup_definition" not in self.errors
+        ):
+            self.add_error(
+                "setup_definition", "Add a phase and a step to your custom schedule."
+            )
         required = ()
         if values.get("date_version") == "1":
             required = (
@@ -174,7 +186,18 @@ def prepare(campaign, action, query):
             state.current.name if state.current else "No current cycle"
         )
     if action == "setup":
-        initial.update(template_id="", setup_definition=None, mode="fixed")
+        initial.update(
+            template_id="",
+            setup_definition=template_data(
+                s.ScheduleTemplate(
+                    "Custom",
+                    (s.Phase("phase-1", s.PhaseDetails("Phase 1")),),
+                    (s.PlanStep("step-1", "phase-1", 1),),
+                )
+            ),
+            mode="fixed",
+        )
+        context["customDefinition"] = initial["setup_definition"]
         initial["current_number"] = "1"
         initial["no_current"] = False
         initial.update(
