@@ -439,7 +439,13 @@ class TestSkills:
         assert "Berserker" in body
         assert "Parry" not in body
 
-        client.post(url, {"thing": key_of(skills["parry"])})
+        client.post(
+            url,
+            {
+                **client.get(url).context["skills_props"]["values"],
+                "thing": key_of(skills["parry"]),
+            },
+        )
 
         assert not Assignment.objects.filter(skill=skills["parry"]).exists()
 
@@ -451,7 +457,13 @@ class TestSkills:
         url = reverse("n26-skills", args=[fighter.pk])
         assert "Parry" in client.get(url).content.decode()
 
-        client.post(url, {"thing": key_of(skills["parry"])})
+        client.post(
+            url,
+            {
+                **client.get(url).context["skills_props"]["values"],
+                "thing": key_of(skills["parry"]),
+            },
+        )
 
         assert Assignment.objects.filter(
             skill=skills["parry"], miniature_root=fighter

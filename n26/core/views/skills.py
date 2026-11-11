@@ -6,19 +6,26 @@ and the remaining options. These partitions affect presentation only.
 
 Normally selections are free assignments with no cause. When a selected skill
 matches an unresolved starting-skill offer, settle that offer instead so it
-stops requesting a duplicate starting skill. Removing its answer reopens it.
+stops requesting a duplicate starting skill. Removing that selection reopens it.
 Computed grants remain fixed because no stored assignment can be removed.
 """
 
 import dataclasses
+from urllib.parse import urlencode
+from uuid import uuid4
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import Http404, JsonResponse
+from django.middleware.csrf import get_token
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_http_methods, require_POST
 
-from n26.core.views.permissions import _own_miniature_or_404
-from n26.library.staged import sees_staged
+from n26.core import skill_selection, skills_workflow
+from n26.core.skill_selection import content_key as _key
+from n26.core.views.permissions import _own_gang_or_404, _own_miniature_or_404
 
 
 def link_skills(*cards, among=None):
@@ -38,11 +45,6 @@ def link_skills(*cards, among=None):
             card.skills_href = (
                 reverse("n26-edit-fighter", args=[card.id]) + "#n26-skills-box"
             )
-
-
-def _key(thing):
-    """Identify content by model label and primary key across assignable tables."""
-    return f"{thing._meta.label_lower}:{thing.pk}"
 
 
 def _rows_on(card):
@@ -158,34 +160,8 @@ def skills_offer(card, computed, among=None, *, include_staged=False):
     )
 
 
-def _offered_keys(slot, computed, *, include_staged=False):
-    """Index exactly the content listed by Choose for a starting-skill offer.
-
-    A skill from another tier cannot settle the offer merely because its kind matches.
-    """
-    from n26.core.browse import offered_by
-
-    listed = offered_by(slot, computed, include_staged=include_staged)
-    if listed is None:
-        return frozenset()
-    if hasattr(listed, "all_lines"):
-        things = (line.thing for line in listed.all_lines())
-    else:
-        things = (getattr(item, "thing", item) for item in listed)
-    return frozenset(_key(thing) for thing in things if thing is not None)
-
-
-def _open_questions(computed):
-    """Find unresolved modifier offers, excluding slot-pickable choices."""
-    return [
-        slot
-        for slot in computed.choices
-        if not slot.is_resolved and slot.offer is not None
-    ]
-
-
-def _answered_by(computed):
-    """Map assigned content to the starting-skill offers it currently answers."""
+def _settled_by(computed):
+    """Map assigned content to the starting-skill offers it currently settles."""
     found = {}
     for slot in computed.choices:
         if slot.offer is None:
@@ -195,33 +171,6 @@ def _answered_by(computed):
                 continue
             found[_key(pick.assignable)] = slot
     return found
-
-
-def _question_for(thing, questions, lists):
-    """Find the first unresolved offer whose current Choose list includes the content."""
-    key = _key(thing)
-    for slot in questions:
-        if key in lists[id(slot)]:
-            return slot
-    return None
-
-
-def _answer_with(op, miniature, thing, questions, lists):
-    """Settle a matching starting-skill offer, otherwise make a standing selection.
-
-    Require an assignment anchor; broadcast anchors also identify the target model.
-    """
-    slot = _question_for(thing, questions, lists)
-    if slot is None:
-        return op.select(miniature, thing)
-    anchor = getattr(slot.anchor, "assignment", None)
-    if anchor is None:
-        return op.select(miniature, thing)
-    questions.remove(slot)
-    host = {}
-    if getattr(slot.anchor, "broadcast", False):
-        host["miniature"] = miniature
-    return op.choose(anchor, thing, offer=slot.offer, **host)
 
 
 def apply_ticks(op, miniature, card, computed, ticked, *, include_staged=False):
@@ -237,12 +186,14 @@ def apply_ticks(op, miniature, card, computed, ticked, *, include_staged=False):
     offer = skills_offer(card, computed, include_staged=include_staged).everything
     rows = _rows_on(card)
     granted = _grants_on(computed)
-    questions = _open_questions(computed)
+    offers = skill_selection.open_offers(computed)
     lists = {
-        id(slot): _offered_keys(slot, computed, include_staged=include_staged)
-        for slot in questions
+        id(slot): skill_selection.offered_keys(
+            slot, computed, include_staged=include_staged
+        )
+        for slot in offers
     }
-    answered = _answered_by(computed)
+    settled = _settled_by(computed)
 
     # Deduplicate skill identities shared by multiple collections before selecting.
     options = {}
@@ -250,193 +201,280 @@ def apply_ticks(op, miniature, card, computed, ticked, *, include_staged=False):
         for option in group.options:
             options.setdefault(option.key, option)
 
-    # Clear old answers before selecting replacements so a reopened offer can be settled.
+    # Remove old selections first so a reopened offer can receive its replacement.
     selected, cleared = [], []
     for key, option in options.items():
         if key in granted or key in ticked or key not in rows:
             continue
         op.remove(rows[key])
         cleared.append(option.name)
-        slot = answered.get(key)
-        if slot is not None and slot not in questions:
-            questions.append(slot)
+        slot = settled.get(key)
+        if slot is not None and slot not in offers:
+            offers.append(slot)
             lists.setdefault(
-                id(slot), _offered_keys(slot, computed, include_staged=include_staged)
+                id(slot),
+                skill_selection.offered_keys(
+                    slot, computed, include_staged=include_staged
+                ),
             )
 
     for key, option in options.items():
         if key in granted:
             continue
         if key in ticked and key not in rows:
-            _answer_with(op, miniature, option.thing, questions, lists)
+            skill_selection.select_from_offer(
+                op, miniature, option.thing, offers, lists
+            )
             selected.append(option.name)
     return selected, cleared
 
 
-def _known_on(card):
-    """Index stored non-broadcast card roots for duplicate marking."""
+def _display(request, miniature, screen, form):
+    """Project one current placed offer for both initial and refused submissions."""
+    from n26.core.navigation import fighter_switcher, switcher_props
+    from n26.core.people import person_link
+    from n26.core.views.equip import collection_tabs
+
+    gang = miniature.gang
+    here = reverse("n26-skills", args=[miniature.pk])
+    action = here + (
+        "?" + urlencode({"list": str(screen.chosen.pk)}) if screen.chosen else ""
+    )
+    badges = {}
+    owner = person_link(gang.owner, badges)
+    owner["badge"] = badges.get(owner.get("badge"))
     return {
-        f"{node.assignable._meta.label_lower}:{node.assignable.pk}"
-        for node in card.roots
-        if not node.broadcast
+        "name": miniature.name,
+        "lead": f"Select skills for {miniature.name}.",
+        "gangName": gang.name,
+        "gangHref": reverse("n26-gang", args=[gang.pk]),
+        "owner": owner,
+        "back": reverse("n26-edit-fighter", args=[miniature.pk]),
+        "switcher": switcher_props(
+            fighter_switcher(gang, miniature, route="n26-skills"), hotkey="r"
+        ),
+        "collections": collection_tabs(screen.collections, screen.chosen),
+        "nothingToSelect": not screen.collections,
+        "groups": [
+            {
+                "name": group.name,
+                "caption": group.caption,
+                "options": [
+                    {
+                        "key": option.key,
+                        "name": option.name,
+                        "remark": option.remark,
+                        "summary": option.summary,
+                        "rating": option.rating,
+                    }
+                    for option in group.options
+                ],
+            }
+            for group in screen.offer.groups
+        ]
+        if screen.offer
+        else [],
+        "values": {
+            "gang": str(gang.pk),
+            "collection": form["collection"].value() or "",
+            "thing": form["thing"].value() or "",
+            "thing_label": str(form.data.get("thing_label", ""))[:2000]
+            if form.is_bound
+            else "",
+            "request_key": str(form["request_key"].value() or ""),
+        },
+        "errors": dict(form.errors),
+        "action": action,
+        "recoveryHref": action + ("&" if "?" in action else "?") + "recover=1",
+        "commandHref": reverse("n26-skills-command", args=[miniature.pk]),
+        "signInHref": reverse("account_login")
+        + "?"
+        + urlencode({"next": action + ("&" if "?" in action else "?") + "recover=1"}),
+        "csrfToken": get_token(request),
+        "recoveryKey": f"model-skills:{request.user.pk}:{gang.pk}:{miniature.pk}",
+        "messages": [
+            {
+                "text": str(message),
+                "tone": message.level_tag
+                if message.level_tag in {"success", "error", "warning"}
+                else "info",
+            }
+            for message in messages.get_messages(request)
+        ],
     }
 
 
-def _marked(offer, known):
-    """Annotate known skills without removing them from the offer."""
-    for group in offer.groups:
-        group.options = [
-            option
-            if option.key not in known
-            else dataclasses.replace(
-                option,
-                detail="; ".join(filter(None, [option.detail, "already known"])),
-            )
-            for option in group.options
-        ]
-    return offer
+def _feedback(request, result):
+    if not result.replayed:
+        from n26.analytics import EventVerb, N26Noun, record
 
-
-@login_required
-def skills(request, pk):
-    """List placed skill tiers and select one submitted content identity at no charge.
-
-    Rebuild offers server-side and reject stale identities or known root assignments.
-    Keep usability notes visible. A model with no placed collections receives an
-    empty page rather than an unavailable route.
-    """
-    from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.access import selectable_for
-    from n26.core.browse import (
-        EQUIPMENT_LIST,
-        browse,
-        narrow,
-        placements_for,
-        regrouped_by_placement,
-        usability_for,
-        with_use_notes,
-    )
-    from n26.core.card import build_card, build_modifier_index, carriers
-    from n26.core.effects import compute
-    from n26.core.operations import Refusal, operation
-    from n26.core.render import offer_from_view
-    from n26.core.views.equip import collection_tabs
-
-    miniature = _own_miniature_or_404(request, pk)
-    gang = miniature.gang
-    # Use the same staged-content access for display and submitted selection.
-    shown = sees_staged(request.user)
-
-    # Reuse one computed card for placement and usability reads.
-    card = build_card(miniature)
-    index = build_modifier_index(carriers(card))
-    computed = compute(card, index)
-
-    back = reverse("n26-gang", args=[gang.pk])
-    # Cancel and successful selection return to the model edit page that opened this screen.
-    their_page = reverse("n26-edit-fighter", args=[miniature.pk])
-
-    collections = selectable_for(computed)
-    if not collections:
-        # Keep an empty state for models without a grid so sibling navigation remains valid.
-        return render(
-            request,
-            "n26/skills.html",
-            {
-                "gang": gang,
-                "miniature": miniature,
-                "nothing_to_select": True,
-                "action": request.path,
-                "back": back,
-                "their_page": their_page,
-                # Omit form actions when there is no selectable content; breadcrumbs provide navigation.
-                "submit_label": "",
-                "cancel_url": "",
-                "pick_lead": "",
-            },
-        )
-
-    chosen = next(
-        (c for c in collections if str(c.pk) == request.GET.get("list")),
-        collections[0],
-    )
-    placements = placements_for(computed, chosen)
-    listed = narrow(
-        with_use_notes(
-            regrouped_by_placement(
-                browse(chosen, EQUIPMENT_LIST, include_staged=shown),
-                placements,
-                fallback=chosen.default_section(),
-                name=str(chosen),
-            ),
-            usability_for(computed),
-        ),
-        # Limit this screen to placed tiers; the checkbox editor separately offers unplaced sets.
-        sections=[placement.section.name for placement in placements.values()],
-    )
-    offer = _marked(offer_from_view(listed, label=str(chosen)), _known_on(card))
-    here = f"{request.path}?list={chosen.pk}"
-
-    if request.method == "POST":
-        wanted = request.POST.get("thing", "")
-        picked = next(
-            (
-                option
-                for group in offer.groups
-                for option in group.options
-                if option.key == wanted
-            ),
-            None,
-        )
-        if picked is None:
-            # Reject stale or empty selections and redisplay the current offer.
-            messages.error(request, "That is not one of the things available to pick.")
-            return redirect(here)
-        # Reject content already represented by a known non-broadcast root.
-        if picked.key in _known_on(card):
-            messages.error(request, f"{miniature.name} already has {picked.name}.")
-            return redirect(here)
-        try:
-            with operation(gang, actor=request.user) as op:
-                questions = _open_questions(computed)
-                lists = {
-                    id(slot): _offered_keys(slot, computed, include_staged=shown)
-                    for slot in questions
-                }
-                selected = _answer_with(op, miniature, picked.thing, questions, lists)
-        except Refusal as refusal:
-            messages.error(request, str(refusal))
-            return redirect(here)
         record(
             request,
             N26Noun.ASSIGNMENT,
             EventVerb.CREATE,
-            selected,
-            gang_id=str(gang.pk),
-            miniature_id=str(miniature.pk),
-            thing=picked.name,
-            collection=chosen.name,
+            result.subject,
+            **result.facts,
         )
-        messages.success(request, f"{miniature.name} selected {picked.name}.")
-        return redirect(their_page)
+    tag = f"model-skills-{result.form.cleaned_data['request_key']}"
+    storage = messages.get_messages(request)
+    queued = any(tag in (message.extra_tags or "").split() for message in storage)
+    storage.used = False
+    if not queued:
+        message = (
+            result.message + " This selection was already saved."
+            if result.replayed
+            else result.message
+        )
+        messages.success(request, message, extra_tags=tag)
 
+
+def _destination(gang, model_key):
+    from n26.core.models import Miniature
+
+    live = Miniature.objects.filter(
+        pk=model_key, membership__gang=gang, membership__archived=False
+    ).exists()
+    return (
+        reverse("n26-edit-fighter", args=[model_key])
+        if live
+        else reverse("n26-gang", args=[gang.pk])
+    )
+
+
+def _recovery_display(request, pk, result=None):
+    from n26.core.model_choice_recovery import target_for
+    from n26.core.people import person_link
+
+    target = target_for(pk, request.user, action="skill")
+    if target is None:
+        raise Http404("No such model")
+    gang = target.gang
+    here = reverse("n26-skills", args=[pk])
+    collection = (
+        result.form.data.get("collection", "")
+        if result
+        else request.GET.get("list", "")
+    )
+    recovery = (
+        here
+        + "?"
+        + urlencode({"recover": "1", **({"list": collection} if collection else {})})
+    )
+    badges = {}
+    owner = person_link(gang.owner, badges)
+    owner["badge"] = badges.get(owner.get("badge"))
+    values = {
+        "gang": str(gang.pk),
+        "collection": collection,
+        "thing": "",
+        "thing_label": "",
+        "request_key": str(uuid4()),
+    }
+    if result is not None:
+        values.update({name: str(result.form.data.get(name, "")) for name in values})
+    props = {
+        "recoveryOnly": True,
+        "removed": bool(result and result.removed),
+        "name": target.name,
+        "lead": "",
+        "gangName": gang.name,
+        "gangHref": reverse("n26-gang", args=[gang.pk]),
+        "owner": owner,
+        "back": reverse("n26-gang", args=[gang.pk]),
+        "switcher": None,
+        "collections": [],
+        "nothingToSelect": False,
+        "groups": [],
+        "values": values,
+        "errors": dict(result.form.errors) if result else {},
+        "action": recovery,
+        "recoveryHref": recovery,
+        "commandHref": reverse("n26-skills-command", args=[pk]),
+        "signInHref": reverse("account_login") + "?" + urlencode({"next": recovery}),
+        "csrfToken": get_token(request),
+        "recoveryKey": f"model-skills:{request.user.pk}:{gang.pk}:{pk}",
+        "messages": [
+            {
+                "text": str(message),
+                "tone": message.level_tag
+                if message.level_tag in {"success", "error", "warning"}
+                else "info",
+            }
+            for message in messages.get_messages(request)
+        ],
+    }
+    return {
+        "gang": gang,
+        "recovery_name": target.name,
+        "skills_title": "Recover skill selection",
+        "skills_props": props,
+    }
+
+
+@login_required
+@never_cache
+@require_http_methods(["GET", "POST"])
+def skills(request, pk):
+    """Only the signed-in gang owner may inspect or select placed skills and powers."""
+    result = None
+    if request.method == "POST":
+        gang = _own_gang_or_404(request, request.POST.get("gang", ""))
+        result = skills_workflow.change(gang, request.user, pk, request.POST)
+        if result.saved:
+            _feedback(request, result)
+            return redirect(_destination(gang, pk))
+    if result and result.removed:
+        return render(
+            request,
+            "n26/skills.html",
+            _recovery_display(request, pk, result),
+            status=409,
+        )
+    try:
+        miniature = _own_miniature_or_404(request, pk)
+    except Http404:
+        if request.GET.get("recover") != "1":
+            raise
+        return render(
+            request,
+            "n26/skills.html",
+            _recovery_display(request, pk, result),
+            status=409 if result else 200,
+        )
+    collection_key = (
+        request.POST.get("collection", "") if result else request.GET.get("list", "")
+    )
+    screen = skills_workflow.prepare(miniature, request.user, collection_key)
+    form = result.form if result else skills_workflow.initial(miniature.gang, screen)
+    props = _display(request, miniature, screen, form)
     return render(
         request,
         "n26/skills.html",
         {
-            "gang": gang,
+            "gang": miniature.gang,
             "miniature": miniature,
-            "nothing_to_select": False,
-            "chosen": chosen,
-            "offer": offer,
-            "action": here,
-            "back": back,
-            "their_page": their_page,
-            "submit_label": "Select",
-            "cancel_url": their_page,
-            # Show collection tabs only when the grid reaches more than one collection.
-            "collection_tabs": collection_tabs(collections, chosen),
-            # Use a distinct slot name: Cotton slots share context names with unrelated page components.
-            "pick_lead": (f"Select skills for {miniature.name}."),
+            "skills_title": str(screen.chosen) if screen.chosen else "Skills",
+            "skills_props": props,
         },
+        status=422 if result else 200,
     )
+
+
+@require_POST
+@never_cache
+def skills_command(request, pk):
+    """Share native skill selection, locked access and receipt replay with React."""
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {"error": "Sign in again to select a skill or power."}, status=401
+        )
+    gang = _own_gang_or_404(request, request.POST.get("gang", ""))
+    result = skills_workflow.change(gang, request.user, pk, request.POST)
+    if result.saved:
+        _feedback(request, result)
+        return JsonResponse({"nextUrl": _destination(gang, pk)})
+    if result.removed:
+        return JsonResponse(
+            {"code": "model_removed", "errors": dict(result.form.errors)}, status=409
+        )
+    return JsonResponse({"errors": dict(result.form.errors)}, status=422)

@@ -1063,13 +1063,11 @@ def _skills_url(miniature):
     return reverse("n26-skills", args=[miniature.pk])
 
 
-def _skills_views():
-    """Import the skills submodule explicitly because the package exports a same-named view
-    function.
-    """
-    import importlib
+def _selection_helpers():
+    """Observe the shared offer lookup used by both selection adapters and Edit."""
+    from n26.core import skill_selection
 
-    return importlib.import_module("n26.core.views.skills")
+    return skill_selection
 
 
 class TestAnsweringDoesNotTouchTheReadPath:
@@ -1096,12 +1094,12 @@ class TestAnsweringDoesNotTouchTheReadPath:
     def test_reading_the_edit_page_does_not_build_the_choose_list(
         self, client, player, leader_yolanda, monkeypatch
     ):
-        skills_views = _skills_views()
+        selection = _selection_helpers()
 
         calls = []
         monkeypatch.setattr(
-            skills_views,
-            "_offered_keys",
+            selection,
+            "offered_keys",
             lambda *args, **kwargs: calls.append(1) or frozenset(),
         )
         client.force_login(player)
@@ -1111,12 +1109,12 @@ class TestAnsweringDoesNotTouchTheReadPath:
     def test_reading_the_gang_sheet_does_not_build_the_choose_list(
         self, client, player, leader_yolanda, monkeypatch
     ):
-        skills_views = _skills_views()
+        selection = _selection_helpers()
 
         calls = []
         monkeypatch.setattr(
-            skills_views,
-            "_offered_keys",
+            selection,
+            "offered_keys",
             lambda *args, **kwargs: calls.append(1) or frozenset(),
         )
         client.force_login(player)
@@ -1126,12 +1124,12 @@ class TestAnsweringDoesNotTouchTheReadPath:
     def test_reading_the_skills_screen_does_not_build_the_choose_list(
         self, client, player, leader_yolanda, monkeypatch
     ):
-        skills_views = _skills_views()
+        selection = _selection_helpers()
 
         calls = []
         monkeypatch.setattr(
-            skills_views,
-            "_offered_keys",
+            selection,
+            "offered_keys",
             lambda *args, **kwargs: calls.append(1) or frozenset(),
         )
         client.force_login(player)
@@ -1141,9 +1139,9 @@ class TestAnsweringDoesNotTouchTheReadPath:
     def test_saving_a_tick_builds_the_choose_list_once(
         self, client, player, leader_yolanda, library, monkeypatch
     ):
-        skills_views = _skills_views()
+        selection = _selection_helpers()
 
-        real = skills_views._offered_keys
+        real = selection.offered_keys
         calls = []
 
         def counted(*args, **kwargs):
@@ -1151,7 +1149,7 @@ class TestAnsweringDoesNotTouchTheReadPath:
             calls.append(result)
             return result
 
-        monkeypatch.setattr(skills_views, "_offered_keys", counted)
+        monkeypatch.setattr(selection, "offered_keys", counted)
         client.force_login(player)
         post_skills(client, leader_yolanda, library["skills"]["Catfall"])
         assert len(calls) == 1
@@ -1163,9 +1161,9 @@ class TestAnsweringDoesNotTouchTheReadPath:
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
-        skills_views = _skills_views()
+        selection = _selection_helpers()
 
-        real = skills_views._offered_keys
+        real = selection.offered_keys
         counts = []
 
         def wrapped(*args, **kwargs):
@@ -1174,7 +1172,7 @@ class TestAnsweringDoesNotTouchTheReadPath:
             counts.append(len(captured.captured_queries))
             return result
 
-        monkeypatch.setattr(skills_views, "_offered_keys", wrapped)
+        monkeypatch.setattr(selection, "offered_keys", wrapped)
         extras = [
             create_skill(f"Trick {index}", category=sets["agility"])
             for index in range(10, 18)
@@ -1202,12 +1200,12 @@ class TestAnsweringDoesNotTouchTheReadPath:
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
-        skills_views = _skills_views()
+        selection = _selection_helpers()
 
         calls = []
         monkeypatch.setattr(
-            skills_views,
-            "_offered_keys",
+            selection,
+            "offered_keys",
             lambda *args, **kwargs: calls.append(1) or frozenset(),
         )
         client.force_login(player)

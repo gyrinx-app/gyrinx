@@ -347,3 +347,28 @@ spacing changes those gaps. Card's header prop preserves Cotton's header divider
 and default body padding. Independent card commands can stay native forms and
 links, with no htmx inside the root. Compose them outside the workflow form so
 counter and dismissal forms remain valid HTML.
+
+## Selecting skills and powers
+
+Build placed tiers, usability notes and known-content markers for display without
+matching starting offers. Match the current Choose list only during a command;
+Fighter Edit and the dedicated selection page share that lookup. Guard its query
+growth independently of the number of held skills and models.
+
+Recall the command receipt before checking known content or current offers. A
+successful starting selection can close its own offer. An already-known refusal
+without a matching receipt cannot confirm an earlier save.
+
+Compare the complete native choice layout: tier caption, card detail slot, rating,
+text truncation and collection tabs. Extend RadioCards, RadioCard and TabLinks
+before adding feature markup. Keep collections in the URL and preserve existing small ghost actions. Put the
+spinner inside the initiating button so loading preserves neighbouring controls.
+A switcher search inside a workflow form must prevent Enter from submitting that
+form even when no search result is active.
+
+For removable models, stamp an owned recovery URL before sending the command so
+reload and sign-in can restore the original retry. Ordinary unavailable-model
+pages remain 404; explicit recovery checks current gang ownership and exposes no
+editable replacement form. Record terminal no-write results under the gang lock
+too. An absent receipt cannot settle uncertainty: a delayed original request
+could arrive after the model is restored.

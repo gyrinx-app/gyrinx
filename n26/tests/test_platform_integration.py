@@ -1360,10 +1360,17 @@ class TestTheSiteBanner:
 
         live_banner()
         skills_url = reverse("n26-skills", args=[fighter.pk])
-        body = client.get(skills_url).content.decode()
+        response = client.get(skills_url)
+        body = response.content.decode()
 
-        # Keep the page action URL on its form and out of the announcement slot.
-        assert f'action="{skills_url}' in body
+        # Keep workflow addresses in its props and out of the announcement slot.
+        assert (
+            response.context["skills_props"]["action"]
+            == f"{skills_url}?list={collection.pk}"
+        )
+        assert response.context["skills_props"]["commandHref"] == reverse(
+            "n26-skills-command", args=[fighter.pk]
+        )
         bar = announcement_bar(body)
         assert "N26 support is coming." in bar
         assert skills_url not in bar

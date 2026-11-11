@@ -435,9 +435,10 @@ export function QuickSwitcher({
             event.preventDefault();
             move(event.key === "ArrowDown" ? 1 : -1);
         } else if (event.key === "Enter") {
+            // Prevent an enclosing form submission when no menu result is active.
+            event.preventDefault();
             const row = document.getElementById(`${listId}-${active}`);
             if (active < 0 || !row) return;
-            event.preventDefault();
             row.click();
         } else if (event.key === "Escape") {
             // Escape clears an active search before closing the panel.
