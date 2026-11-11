@@ -674,7 +674,7 @@ class TestSharedCommands:
             assert response.json()["reviewUrl"] == schedule_url(campaign)
             current = response.json()["current"]
         assert current["cycle"] == "Current server name"
-        assert current["phase"] == "Occupation Phase"
+        assert current["phase"] == "Occupation"
 
     def test_a_reused_key_with_different_input_is_not_a_revision_conflict(
         self, client, campaign, opened, template
@@ -794,7 +794,7 @@ class TestDisplayReads:
             summary.phase_count,
             summary.cycles_until_phase,
         ) == (1, 1, 1)
-        assert summary.next_phase == "Occupation Phase"
+        assert summary.next_phase == "Occupation"
 
     def test_dashboard_read_cost_does_not_grow_with_saved_repeating_history(
         self, campaign, configured
@@ -912,7 +912,7 @@ class TestDisplayReads:
         assert page.status_code == 200
         body = page.content.decode()
         assert schedule_url(campaign) in body
-        assert "Occupation Phase" in body
+        assert "Occupation" in body
         assert any(
             item.label == "Schedule & cycles" for item in page.context["more_actions"]
         )

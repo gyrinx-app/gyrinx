@@ -214,6 +214,44 @@ class TestSetupAndAccess:
         campaign.refresh_from_db()
         assert (campaign.pk, campaign.name, campaign.status) == before
 
+    @pytest.mark.parametrize("occupation", ["Occupation Phase", "Ash Road"])
+    def test_shortening_default_phase_names_preserves_campaign_copies_and_custom_names(
+        self, campaign, owner, template, opened, occupation
+    ):
+        template.definition["phases"][0]["details"]["name"] = occupation
+        template.definition["phases"][2]["details"]["name"] = "Takeover Phase"
+        template.save(update_fields=["definition"])
+        authored = CampaignScheduleTemplate.objects.create(
+            name="Authored schedule", definition=template.definition
+        )
+        cycles.configure(
+            campaign,
+            actor=owner,
+            template_id=template.pk,
+            current_position=0,
+            mode="fixed",
+            request_key=uuid4(),
+            calendar=s.CycleCalendar(date(2026, 11, 1)),
+        )
+        before = cycles.load(campaign)
+        migration = importlib.import_module(
+            "n26.core.migrations.0088_shorten_default_schedule_phase_names"
+        )
+        migration.shorten_phase_names(apps, None)
+        migration.shorten_phase_names(apps, None)
+        template.refresh_from_db()
+        authored.refresh_from_db()
+        assert [
+            phase["details"]["name"] for phase in template.definition["phases"]
+        ] == [
+            "Occupation" if occupation == "Occupation Phase" else occupation,
+            "Downtime",
+            "Takeover",
+        ]
+        assert authored.definition["phases"][0]["details"]["name"] == occupation
+        assert authored.definition["phases"][2]["details"]["name"] == "Takeover Phase"
+        assert cycles.load(campaign) == before
+
     def test_foreign_template_and_malformed_template_ids_are_refused(
         self, campaign, owner, template, opened
     ):
@@ -253,7 +291,7 @@ class TestSetupAndAccess:
         self, campaign, configured
     ):
         assert len(configured.cycles) == 1
-        assert configured.current_phase.details.name == "Occupation Phase"
+        assert configured.current_phase.details.name == "Occupation"
         assert len(s.project(configured)) == 6
         assert configured.status == "pre_campaign"
         assert not CampaignCycleTransition.objects.exists()

@@ -201,9 +201,7 @@ class TestActionCycles:
                 expected_revision=current.revision,
                 request_key=uuid4(),
             )
-        assert (
-            cycles.load(table.campaign).current_phase.details.name == "Takeover Phase"
-        )
+        assert cycles.load(table.campaign).current_phase.details.name == "Takeover"
         with operation(table.gang, actor=table.owner) as op:
             op.leave_campaign()
         other = found_campaign("Another campaign", campaign_type, owner=table.owner)
@@ -218,7 +216,7 @@ class TestActionCycles:
         assert events.count() >= 3
         assert set(events.values_list("cycle_id", flat=True)) == {record.cycle_id}
         assert set(events.values_list("campaign_id", flat=True)) == {table.campaign.pk}
-        assert record.cycle.phase.name == "Occupation Phase"
+        assert record.cycle.phase.name == "Occupation"
         unrelated = LedgerEvent.objects.filter(note="Unrelated note").get()
         assert unrelated.cycle_id is None and unrelated.campaign_id == other.pk
         assert_reconciled(table.gang)
