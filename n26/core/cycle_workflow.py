@@ -315,12 +315,12 @@ def prepare(campaign, action, query):
                 raise Http404("Finish the campaign after its final cycle")
             context["ending"] = state.current.name
             context["starting"] = preview.following.name
-            lead = f"End {state.current.name} and start {preview.following.name}. Accepted players will be notified."
+            lead = f"End {state.current.name} and start {preview.following.name}. This will send notifications to players participating in the campaign."
         elif action == "start":
             if state.status == "in_progress" and state.current is None:
                 heading = "Start first cycle"
             first = state.current or next(iter(state.cycles), None)
-            lead = f"Start {first.name if first else 'Cycle 1'} and notify accepted players."
+            lead = f"Start {first.name if first else 'Cycle 1'}. This will send notifications to players participating in the campaign."
         else:
             lead = (
                 f"End {state.current.name} and finish the campaign. Its final cycle will remain recorded."

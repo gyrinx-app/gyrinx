@@ -693,8 +693,9 @@ export function ScheduleEditor({
                                 !noCurrent && (
                                     <Alert tone="warning" dismissible={false}>
                                         Selecting “Set up phases &amp; cycles”
-                                        starts Cycle {currentNumber} and
-                                        notifies accepted players.
+                                        starts Cycle {currentNumber}. This will
+                                        send notifications to players
+                                        participating in the campaign.
                                     </Alert>
                                 )}
                         </section>

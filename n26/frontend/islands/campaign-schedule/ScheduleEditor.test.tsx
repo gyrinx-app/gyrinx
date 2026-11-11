@@ -163,7 +163,7 @@ test.each([false, true])(
             }),
         ).toBeTruthy();
         expect(screen.queryByRole("dialog")).toBeNull();
-        expect(screen.queryByText(/notifies accepted players/)).toBeNull();
+        expect(screen.queryByText(/This will send notifications/)).toBeNull();
         await userEvent.selectOptions(
             screen.getByRole("combobox", { name: "Starting schedule" }),
             "template",
@@ -210,7 +210,7 @@ test.each([false, true])(
                 screen.getByLabelText("Current cycle number"),
             );
         }
-        expect(screen.queryByText(/notifies accepted players/)).toBeNull();
+        expect(screen.queryByText(/This will send notifications/)).toBeNull();
         await userEvent.click(
             screen.getByRole("button", { name: "Review schedule" }),
         );
@@ -245,7 +245,7 @@ test("advancing a projected cycle keeps the transition clear without a saving no
                 ...editor,
                 kind: "advance",
                 heading: "Advance cycle",
-                lead: "End Cycle 1 and start Cycle 2. Accepted players will be notified.",
+                lead: "End Cycle 1 and start Cycle 2. This will send notifications to players participating in the campaign.",
                 context: { ending: "Cycle 1", starting: "Cycle 2" },
             }}
         />,
