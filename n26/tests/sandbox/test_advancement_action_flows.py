@@ -1185,7 +1185,7 @@ class TestApplyingByHand:
         with operation(advancement.gang, actor=advancement.owner) as op:
             record = op.reopen_action(record)
         assert record.cycle_id == original
-        assert record.cycle.phase.name == "Occupation Phase"
+        assert record.cycle.phase.name == "Occupation"
         assert set(record.ledger_events.values_list("cycle_id", flat=True)) == {
             original
         }
@@ -1509,7 +1509,7 @@ class TestAdvancementHoldsAndUndo:
             op.undo_action(record, expected=advancement_undo_snapshot(record))
         record.refresh_from_db()
         assert record.cycle_id == original_cycle
-        assert record.cycle.phase.name == "Occupation Phase"
+        assert record.cycle.phase.name == "Occupation"
         batches = record.ledger_events.values_list("batch", flat=True)
         events = LedgerEvent.objects.filter(gang=advancement.gang, batch__in=batches)
         assert set(events.values_list("cycle_id", flat=True)) == {original_cycle}

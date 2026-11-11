@@ -1,11 +1,12 @@
 """Bounded schedule reads and the display contract for campaign planning."""
 
 from dataclasses import asdict, dataclass
+from datetime import date
 from urllib.parse import urlencode
 
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Exists, Max, OuterRef, Q
+from django.db.models import Count, Exists, Max, OuterRef, Q, Subquery
 from django.urls import reverse
 
 from n26.core import schedule as s
@@ -38,6 +39,42 @@ class DashboardCycles:
     cycle_href: str
     schedule_href: str
     setup_href: str
+    phase_description: str = ""
+    cycle_description: str = ""
+    order: int | None = None
+    cycle_limit: int | None = None
+    phase_position: int = 0
+    phase_count: int | None = None
+    next_phase: str = ""
+    cycles_until_phase: int | None = None
+    starts_on: date | None = None
+    ends_on: date | None = None
+    mode: str = ""
+    complete: bool = False
+    action_href: str = ""
+    action_label: str = ""
+
+
+def _phase_end(plan, next_position, phase_id):
+    """Find the next phase boundary in O(steps), including an endless same-phase pattern."""
+    projected = s.project(s.PlanContinuation(plan, next_position), limit=1)
+    if not projected:
+        return plan.order_for(plan.length), None
+    first = projected[0]
+    if first.phase_id != phase_id:
+        return first.order, first.phase_id
+    index = next(
+        i for i, step in enumerate(plan.steps) if step.id == first.source.step_id
+    )
+    boundary = first.order + plan.steps[index].count - first.source.offset
+    following = plan.steps[index + 1 :]
+    if plan.mode == "repeating":
+        following += plan.steps[: index + 1]
+    for step in following:
+        if step.phase_id != phase_id:
+            return boundary, step.phase_id
+        boundary += step.count
+    return (None, None) if plan.mode == "repeating" else (boundary, None)
 
 
 def dashboard_summary(campaign, user):
@@ -45,28 +82,98 @@ def dashboard_summary(campaign, user):
 
     if not flags.enabled(flags.CYCLE_TRACKING, user):
         return None
+    different_phase = CampaignCycle.objects.filter(
+        campaign_id=OuterRef("campaign_id")
+    ).exclude(phase_id=OuterRef("current_cycle__phase_id"))
+    before = different_phase.filter(
+        order__lt=OuterRef("current_cycle__order")
+    ).order_by("-order")
+    after = different_phase.filter(order__gt=OuterRef("current_cycle__order")).order_by(
+        "order"
+    )
     header = (
         CampaignSchedule.objects.filter(campaign=campaign)
-        .select_related("current_cycle__phase")
+        .select_related("active_plan", "current_cycle__phase")
+        .annotate(
+            previous_phase_order=Subquery(before.values("order")[:1]),
+            following_phase_order=Subquery(after.values("order")[:1]),
+            following_phase_name=Subquery(after.values("phase__name")[:1]),
+        )
         .first()
     )
+    manage = campaign.owner_id == user.pk
     if header is None:
-        if campaign.owner_id != user.pk:
+        if not manage:
             return None
         return DashboardCycles(
             "", "", "", schedule_url(campaign), editor_url(campaign, "setup")
         )
-    if header.current_cycle is None:
-        return DashboardCycles(
-            "No current cycle", "", schedule_url(campaign), schedule_url(campaign), ""
-        )
-    return DashboardCycles(
-        header.current_cycle.name,
-        header.current_cycle.phase.name,
-        reverse("n26-campaign-cycle", args=[campaign.pk, header.current_cycle_id]),
-        schedule_url(campaign),
-        "",
+    revision = header.active_plan
+    plan = s.Plan(
+        str(revision.pk),
+        revision.mode,
+        steps_from_data(revision.steps),
+        revision.starts_after_order,
+        revision.start_position,
     )
+    saved_count = plan.order_for(header.next_position) - 1
+    projected = s.project(s.PlanContinuation(plan, header.next_position), limit=1)
+    current = header.current_cycle
+    complete = campaign.status == Campaign.Status.POST_CAMPAIGN
+    summary = dict(
+        name=current.name if current else "No current cycle",
+        phase=current.phase.name if current else "",
+        cycle_href=schedule_url(campaign),
+        schedule_href=schedule_url(campaign),
+        setup_href="",
+        mode=plan.mode,
+        cycle_limit=plan.order_for(plan.length) - 1 if plan.mode == "fixed" else None,
+        complete=complete,
+    )
+    if manage and not complete:
+        if (campaign.status == Campaign.Status.PRE_CAMPAIGN or current is None) and (
+            saved_count or projected
+        ):
+            summary.update(
+                action_href=editor_url(campaign, "start"),
+                action_label="Start campaign"
+                if campaign.status == Campaign.Status.PRE_CAMPAIGN
+                else "Start first cycle",
+            )
+        elif current:
+            following = current.order < saved_count or bool(projected)
+            summary.update(
+                action_href=editor_url(campaign, "advance" if following else "finish"),
+                action_label="End cycle" if following else "Finish campaign",
+            )
+    if current:
+        previous = header.previous_phase_order or 0
+        boundary = header.following_phase_order
+        next_phase = header.following_phase_name or ""
+        if boundary is None:
+            boundary, next_id = _phase_end(
+                plan, header.next_position, str(current.phase_id)
+            )
+            if next_id:
+                next_phase = (
+                    CampaignPhase.objects.filter(campaign=campaign, pk=next_id)
+                    .values_list("name", flat=True)
+                    .get()
+                )
+        summary.update(
+            phase_description=current.phase.description,
+            cycle_description=current.description,
+            order=current.order,
+            phase_position=current.order - previous,
+            phase_count=boundary - previous - 1 if boundary is not None else None,
+            next_phase=next_phase if not complete else "",
+            cycles_until_phase=boundary - current.order
+            if next_phase and not complete
+            else None,
+            starts_on=current.starts_on,
+            ends_on=current.ends_on,
+        )
+    return DashboardCycles(**summary)
 
 
 @dataclass(frozen=True)

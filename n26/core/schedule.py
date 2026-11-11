@@ -372,9 +372,9 @@ class ScheduleTemplate:
 DEFAULT_TEMPLATE = ScheduleTemplate(
     name="Occupation and Takeover",
     phases=(
-        Phase("occupation", PhaseDetails("Occupation Phase")),
+        Phase("occupation", PhaseDetails("Occupation")),
         Phase("downtime", PhaseDetails("Downtime")),
-        Phase("takeover", PhaseDetails("Takeover Phase")),
+        Phase("takeover", PhaseDetails("Takeover")),
     ),
     steps=(
         PlanStep("occupation", "occupation", 3),

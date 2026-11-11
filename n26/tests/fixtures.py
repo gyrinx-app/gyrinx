@@ -340,7 +340,7 @@ def past_cycle_context(campaign_type):
             calendar=schedule.CycleCalendar(date(2026, 11, 1)),
         )
         state = cycles.load(campaign)
-        assert state.current_phase.details.name == "Takeover Phase"
+        assert state.current_phase.details.name == "Takeover"
         return CycleContext(str(campaign.pk), state.cycles[0].id)
 
     return attach

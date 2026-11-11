@@ -11,7 +11,7 @@ Gangs span the grid. Battles and assets share a wide-screen row; activity and pl
 An empty edit_href draws the budget without an edit control. A None budget prints None set, which is distinct from zero.
 Extra gang controls go in gangs_actions. Counter and label management lives on Edit campaign.
 Figures, gangs, and assets live in n26/includes/campaign_*.html hosts. Only a page that holds every host may set htmx on its dialogs.
-The cycle_summary slot holds a definition-list entry beneath Status.
+The cycle_summary slot holds a full-width phase and cycle card above campaign metadata.
 The setup slot is a full-width grid item with campaign setup guidance.
 Keep the header actions slot filled. Left empty, Cotton would draw this page's own actions beside the title.
 log_count may be markup: the campaign page passes a host that a roll update redraws.
@@ -66,6 +66,7 @@ log_count may be markup: the campaign page passes a host that a roll update redr
     </div>
 
     <div class="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2" id="campaign-overview">
+        {% if cycle_summary.strip %}{{ cycle_summary }}{% endif %}
         {% if setup.strip %}{{ setup }}{% endif %}
         <c-ui.card padding="none" class="min-w-0 h-full" aria-label="Campaign info">
             <dl class="divide-y divide-box-border px-4">
@@ -91,7 +92,6 @@ log_count may be markup: the campaign page passes a host that a roll update redr
                         {% if edit_href %}<c-ui.button href="{{ edit_href }}#campaign-status" size="xs" variant="text" aria-label="Edit campaign status" class="inline-flex! size-6! items-center justify-center p-0!"><span class="n26-icon-inline"><c-n26.icon name="pencil" /></span></c-ui.button>{% endif %}
                     </dd>
                 </div>
-                {% if cycle_summary.strip %}{{ cycle_summary }}{% endif %}
                 <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-3 py-2.5">
                     <dt class="text-sm text-muted">Gang budget</dt>
                     <dd class="flex items-center justify-end gap-2 text-sm tabular-nums">

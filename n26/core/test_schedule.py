@@ -43,13 +43,13 @@ class TestConfigure:
     def test_the_default_template_expands_to_three_one_three(self, ids):
         schedule = configured(ids)
         assert phase_names(schedule, schedule.cycles + s.project(schedule)) == [
-            "Occupation Phase",
-            "Occupation Phase",
-            "Occupation Phase",
+            "Occupation",
+            "Occupation",
+            "Occupation",
             "Downtime",
-            "Takeover Phase",
-            "Takeover Phase",
-            "Takeover Phase",
+            "Takeover",
+            "Takeover",
+            "Takeover",
         ]
 
     def test_the_initial_choice_saves_a_prefix_without_inventing_earlier_transitions(
@@ -100,8 +100,8 @@ class TestConfigure:
             first, first.current_phase.id, s.PhaseDetails("Opening")
         ).schedule
         assert changed.current_phase.details.name == "Opening"
-        assert second.current_phase.details.name == "Occupation Phase"
-        assert s.DEFAULT_TEMPLATE.phases[0].details.name == "Occupation Phase"
+        assert second.current_phase.details.name == "Occupation"
+        assert s.DEFAULT_TEMPLATE.phases[0].details.name == "Occupation"
 
     def test_an_initial_choice_beyond_a_fixed_plan_is_rejected(self, ids):
         with pytest.raises(s.ScheduleError, match="no more cycles"):
@@ -424,9 +424,9 @@ class TestTransitions:
         pinned = s.context(schedule, schedule.current.id)
         for _ in range(4):
             schedule = s.advance(schedule, now=LATER, new_id=ids).schedule
-        assert schedule.current_phase.details.name == "Takeover Phase"
+        assert schedule.current_phase.details.name == "Takeover"
         assert s.context(schedule, pinned.cycle_id) == pinned
-        assert phase_names(schedule, [schedule.cycles[0]]) == ["Occupation Phase"]
+        assert phase_names(schedule, [schedule.cycles[0]]) == ["Occupation"]
 
     def test_an_unstarted_campaign_cannot_advance(self, ids):
         schedule = configured(ids, status="pre_campaign")
