@@ -34,7 +34,7 @@ from n26.tests.sandbox.actions import (
     transfer_asset,
     unassign_asset,
 )
-from n26.tests.test_views_post_battle import html_fields
+from n26.tests.test_views_post_battle import editor_props, html_fields
 
 
 def battle_fields(response, **changes):
@@ -545,9 +545,14 @@ class TestBothReportsAgree:
 
 
 def stake_text(response):
-    stake = BeautifulSoup(response.content, "html.parser").select_one(
-        "[data-battle-stake]"
-    )
+    document = BeautifulSoup(response.content, "html.parser")
+    if document.select_one('[data-react-name="post-battle"]'):
+        territory = editor_props(response)["territory"]
+        assert territory is not None
+        return " ".join(
+            territory[key] for key in ("name", "outcome", "currentHolder", "note")
+        )
+    stake = document.select_one("[data-battle-stake]")
     assert stake is not None
     return " ".join(stake.get_text().split())
 

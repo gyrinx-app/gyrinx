@@ -93,3 +93,17 @@ class PostBattleRevision(Base):
 
     def __str__(self):
         return f"Post-battle revision {self.sequence}"
+
+
+class PostBattleCommandReceipt(Base):
+    """A command's input and acknowledged draft, retained across later edits."""
+
+    report = models.ForeignKey(
+        PostBattleReport, on_delete=models.CASCADE, related_name="command_receipts"
+    )
+    actor = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, related_name="+"
+    )
+    request_key = models.UUIDField(unique=True)
+    inputs = models.JSONField()
+    result = models.JSONField()

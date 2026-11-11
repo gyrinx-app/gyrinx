@@ -751,12 +751,22 @@ def sortable_group_recipe():
     }
 
 
-def native_select_recipe(size=""):
+def native_select_recipe(size="", *, multiple=False):
     size_attribute = f'size="{size}"' if size else ""
+    multiple_attribute = ':multiple="True"' if multiple else ""
     (select,) = attributes(
-        f'<c-ui.select.native placeholder="" {size_attribute} />', "select"
+        f'<c-ui.select.native placeholder="" {size_attribute} {multiple_attribute} />',
+        "select",
     )
     style = select.get("style", "").strip()
+    if multiple:
+        if (
+            style
+            or "multiple" not in select
+            or "n26-select-multiple" not in class_name(select)
+        ):
+            raise ValueError("Native multiple-select styles changed.")
+        return {"className": class_name(select), "style": {}}
     match = re.fullmatch(
         r"background-image:\s*(url\('[^']*'\));\s*background-size:\s*([^;]+);?",
         style,
@@ -787,10 +797,13 @@ def radio_option_recipe():
     )
 
 
-def input_recipe():
-    root, control = classes('<c-ui.input type="text" />', "div", "input")
+def input_recipe(size=""):
+    size_attribute = f'size="{size}"' if size else ""
+    root, control = classes(
+        f'<c-ui.input type="text" {size_attribute} />', "div", "input"
+    )
     addon_root, addon_control, addon = classes(
-        '<c-ui.input type="number"><c-slot name="right_addon">¢</c-slot></c-ui.input>',
+        f'<c-ui.input type="number" {size_attribute}><c-slot name="right_addon">¢</c-slot></c-ui.input>',
         "div",
         "input",
         "div",
@@ -2078,6 +2091,7 @@ def recipes():
         "radioCards": radio_cards_recipe(),
         "radioOption": radio_option_recipe(),
         "input": input_recipe(),
+        "inputLarge": input_recipe("lg"),
         "textarea": classes("<c-ui.textarea />", "textarea")[0],
         "workflowPage": workflow_page_recipe(),
         "modelHeader": model_header_recipe(),
@@ -2096,6 +2110,10 @@ def recipes():
         "nameList": name_list_recipe(),
         "nativeSelect": native_select_recipe(),
         "nativeSelectSmall": native_select_recipe("sm"),
+        "nativeSelectLarge": native_select_recipe("lg"),
+        "nativeSelectMultiple": native_select_recipe(multiple=True),
+        "nativeSelectMultipleSmall": native_select_recipe("sm", multiple=True),
+        "nativeSelectMultipleLarge": native_select_recipe("lg", multiple=True),
         "field": {
             **dict(
                 zip(
@@ -2141,6 +2159,9 @@ def recipes():
         ),
         "badge": classes(
             '<c-ui.badge color="amber" size="sm">Staged</c-ui.badge>', "span"
+        )[0],
+        "badgeRed": classes(
+            '<c-ui.badge color="red" size="sm">Dead</c-ui.badge>', "span"
         )[0],
         "badgeInk": classes(
             '<c-ui.badge color="ink" size="sm">In a campaign</c-ui.badge>', "span"

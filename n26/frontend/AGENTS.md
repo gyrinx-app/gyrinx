@@ -146,3 +146,19 @@ in place. Without it, counter steps use native CSRF-protected forms and normal
 navigation to their independent task. Keep cards outside the enclosing workflow
 form so their counter and dismissal forms are not nested. This retains one React
 owner without a DOM-event or htmx bridge.
+
+## Autosaved report drafts
+
+Post-battle uses a feature-local draft controller because editing can continue
+while an earlier snapshot saves. Reuse the shared HTTP transport, and keep that
+controller's three values distinct: the exact retained command, newer local
+input and the acknowledged server version. Do not widen useWorkflowForm to make
+ordinary submit-once forms carry autosave state.
+
+Apply must use the acknowledged current draft and server review. A confirmed
+receipt with a newer saved draft requires explicit conflict review, rather than
+an uncertain retry or an automatic overwrite. Normalize returned display data
+before releasing the retained command. Test queued Apply, more typing during a
+save, malformed responses, replay after another tab saves, and correction
+versions. Keep the participation acknowledgement in the same typed field path
+as the other business input.

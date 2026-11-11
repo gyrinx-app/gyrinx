@@ -654,17 +654,16 @@ class MissionResults:
         return {"hx-post": self.refresh_url} if self.refresh_url else {}
 
 
-def mission_results(plan, payload, refresh_url="", show_errors=False):
+def mission_results(plan, payload, refresh_url="", show_errors=False, *, blank_id=None):
     """The Mission results section's rows, from the draft and the plan.
 
-    A report always shows at least one line of credits to type into; a
-    new line has a fresh reference until the draft saves it. With
-    ``show_errors``, each line carries its own errors to show by its
-    fields.
+    An empty report still offers one blank line. The editor supplies its
+    stable identity so retained entries use the same fields after reload.
+    With ``show_errors``, each line carries errors beside its fields.
     """
     field_errors = plan.credit_field_errors if show_errors else {}
     lines = payload.get("credit_lines") or [
-        {"id": str(uuid4()), "amount": "", "reason": ""}
+        {"id": str(blank_id or uuid4()), "amount": "", "reason": ""}
     ]
     entered = payload.get("gang_counters") or {}
     return MissionResults(
