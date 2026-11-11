@@ -28,7 +28,8 @@ class StructuredJSONField(forms.JSONField):
     empty_values = [None, ""]
 
 
-DATE_FIELDS = ("date_start", "cycle_interval", "cycle_unit", "date_version")
+CALENDAR_FIELDS = ("date_start", "cycle_interval", "cycle_unit")
+DATE_FIELDS = (*CALENDAR_FIELDS, "date_version", "date_mode")
 RETIRED_FIELDS = {"template": ("template_id", "mode"), "save-template": ("name",)}
 FIELDS = {
     "setup": (
@@ -93,7 +94,12 @@ class CycleEditorForm(forms.Form):
     cycle_unit = forms.ChoiceField(
         choices=[("weeks", "Weeks"), ("months", "Calendar months")], required=False
     )
-    date_version = forms.ChoiceField(choices=[("1", "1")], required=False)
+    date_mode = forms.ChoiceField(
+        choices=[("manual", "No planned dates"), ("planned", "Plan cycle dates")],
+        required=False,
+    )
+    # Version 2 lets an empty date pair clear saved dates; older commands preserve them.
+    date_version = forms.ChoiceField(choices=[("1", "1"), ("2", "2")], required=False)
     description = forms.CharField(required=False, strip=False, max_length=32000)
     effects = forms.CharField(required=False, strip=False, max_length=32000)
     rewards = StructuredJSONField(required=False)
@@ -123,6 +129,13 @@ class CycleEditorForm(forms.Form):
         if action == "setup":
             self.fields["template_id"].required = False
         if (
+            action in ("setup", "plan")
+            and self.is_bound
+            and self.data.get("date_mode") == "manual"
+        ):
+            for name in CALENDAR_FIELDS:
+                self.fields[name].disabled = True
+        if (
             action == "setup"
             and self.is_bound
             and forms.BooleanField(required=False).clean(self.data.get("no_current"))
@@ -141,18 +154,19 @@ class CycleEditorForm(forms.Form):
                 "setup_definition", "Add a phase and a step to your custom schedule."
             )
         required = ()
-        if values.get("date_version") == "1":
-            required = (
-                ("starts_on", "ends_on")
-                if self.action == "cycle"
-                else DATE_FIELDS[:3]
-                if self.action in ("setup", "plan")
-                else ()
-            )
-        elif self.action in ("setup", "plan") and any(
-            values.get(name) for name in DATE_FIELDS[:3]
-        ):
-            required = DATE_FIELDS[:3]
+        if self.action == "cycle":
+            if bool(values.get("starts_on")) != bool(values.get("ends_on")):
+                required = ("starts_on", "ends_on")
+        elif self.action in ("setup", "plan"):
+            if values.get("date_mode") == "manual":
+                for name in CALENDAR_FIELDS:
+                    values[name] = None
+            elif (
+                values.get("date_mode") == "planned"
+                or values.get("date_version") == "1"
+                or any(values.get(name) for name in CALENDAR_FIELDS)
+            ):
+                required = CALENDAR_FIELDS
         for name in required:
             if not values.get(name) and name not in self.errors:
                 self.add_error(name, "This field is required.")
@@ -205,8 +219,9 @@ def prepare(campaign, action, query):
             cycle_interval=1,
             cycle_unit="weeks",
             date_version="1",
+            date_mode="manual",
         )
-        lead = "Set the first cycle's date and choose the current cycle. This does not record past transitions."
+        lead = "Choose the current cycle and add planning dates if you need them. You advance each cycle when the campaign is ready."
         context["activates"] = campaign.status == "in_progress"
     elif action == "cycle":
         if query.get("fields") not in (None, "dates"):
@@ -241,7 +256,7 @@ def prepare(campaign, action, query):
                 ends_on=selected.ends_on,
             )
         )
-        initial["date_version"] = "1"
+        initial["date_version"] = "2"
         initial["shift_later"] = False
         if state.calendar and details.ends_on:
             context["shiftLater"] = {
@@ -284,6 +299,7 @@ def prepare(campaign, action, query):
         calendar = state.calendar
         initial.update(
             date_version="1",
+            date_mode="planned" if calendar else "manual",
             cycle_interval=calendar.interval if calendar else 1,
             cycle_unit=calendar.unit if calendar else "weeks",
             date_start=calendar.dates_for(len(state.cycles) + 1)[0].isoformat()
@@ -292,7 +308,12 @@ def prepare(campaign, action, query):
         )
         if calendar:
             latest_end = max(
-                (cycle.details.ends_on for cycle in state.cycles), default=None
+                (
+                    cycle.details.ends_on
+                    for cycle in state.cycles
+                    if cycle.details.ends_on
+                ),
+                default=None,
             )
             initial["date_start"] = max(
                 calendar.dates_for(len(state.cycles) + 1)[0],
@@ -425,6 +446,9 @@ def perform(campaign, actor, action, data, query):
                     values["effects"],
                 ),
                 shift_later=values["shift_later"],
+                clear_dates=values.get("date_version") == "2"
+                and not values["starts_on"]
+                and not values["ends_on"],
             )
         elif action in ("phase", "duplicate-phase", "delete-phase"):
             if values["phase_id"] != query.get("phase"):
@@ -470,6 +494,8 @@ def perform(campaign, actor, action, data, query):
                 steps=steps_from_data(values["steps"]),
                 mode=values["mode"],
                 calendar=calendar,
+                clear_calendar=values.get("date_mode") == "manual",
+                future_dates=values.get("date_mode") == "planned",
             )
         else:
             command = {

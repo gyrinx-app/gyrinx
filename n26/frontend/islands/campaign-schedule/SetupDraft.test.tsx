@@ -239,3 +239,91 @@ test("an empty retained draft uses the new Custom default and keeps its dates", 
         (screen.getByLabelText("Cycle 1 starts") as HTMLInputElement).value,
     ).toBe("2026-12-01");
 });
+
+test("new manual setup hides dates, retains optional dates when toggled, and saves without dates", async () => {
+    const editor = setup();
+    editor.context.setupStage = 2;
+    editor.values.date_mode = "manual";
+    const fetch = vi.fn().mockResolvedValue({
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ nextUrl: "/cycles/" }),
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<ScheduleEditor editor={editor} phases={[]} onNavigate={vi.fn()} />);
+    expect(
+        (
+            screen.getByRole("combobox", {
+                name: "Cycle dates",
+            }) as HTMLSelectElement
+        ).value,
+    ).toBe("manual");
+    expect(screen.queryByLabelText("Cycle 1 starts")).toBeNull();
+    expect(
+        screen.getByText(/You advance each cycle when the campaign is ready/),
+    ).toBeTruthy();
+    await userEvent.selectOptions(
+        screen.getByRole("combobox", { name: "Cycle dates" }),
+        "planned",
+    );
+    expect(
+        (screen.getByLabelText("Cycle 1 starts") as HTMLInputElement).value,
+    ).toBe("2026-11-01");
+    await userEvent.selectOptions(
+        screen.getByRole("combobox", { name: "Cycle dates" }),
+        "manual",
+    );
+    await userEvent.click(
+        screen.getByRole("button", { name: "Review schedule" }),
+    );
+    await userEvent.click(
+        screen.getByRole("button", { name: "Set up phases & cycles" }),
+    );
+    expect(fetch.mock.calls[0][1].body.get("date_mode")).toBe("manual");
+});
+
+test("old passive setup drafts retain their planned date selection", async () => {
+    const editor = setup();
+    editor.context.setupStage = 2;
+    editor.values.date_mode = "manual";
+    sessionStorage.setItem(
+        `${editor.recoveryKey}:setup-draft`,
+        JSON.stringify({
+            date_start: "2026-12-01",
+            cycle_interval: "2",
+            cycle_unit: "months",
+        }),
+    );
+    render(<ScheduleEditor editor={editor} phases={[]} onNavigate={vi.fn()} />);
+    expect(
+        (
+            screen.getByRole("combobox", {
+                name: "Cycle dates",
+            }) as HTMLSelectElement
+        ).value,
+    ).toBe("planned");
+    expect(
+        (screen.getByLabelText("Cycle 1 starts") as HTMLInputElement).value,
+    ).toBe("2026-12-01");
+});
+
+test("older uncertain dated setup retries its exact input against new manual defaults", async () => {
+    const editor = setup();
+    const original = new URLSearchParams(editor.values);
+    sessionStorage.setItem(editor.recoveryKey, original.toString());
+    editor.values.date_mode = "manual";
+    editor.values.request_key = "fresh-key";
+    const fetch = vi.fn().mockResolvedValue({
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ nextUrl: "/cycles/" }),
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<ScheduleEditor editor={editor} phases={[]} onNavigate={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    const body = fetch.mock.calls[0][1].body as URLSearchParams;
+    expect(body.has("date_mode")).toBe(false);
+    expect(body.get("request_key")).toBe("custom-key");
+    body.delete("csrfmiddlewaretoken");
+    expect(body.toString()).toBe(original.toString());
+});

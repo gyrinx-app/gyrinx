@@ -213,7 +213,6 @@ class ScheduleDisplay:
     nextHref: str
     moreHref: str
     focusId: str
-    dateSettingsRequired: bool = False
 
 
 def build(campaign, user, *, page=None, preview=12, focus=None):
@@ -403,7 +402,6 @@ def _build_locked(campaign, user, *, page, preview, focus):
     return ScheduleDisplay(
         **common,
         configured=True,
-        dateSettingsRequired=not header.date_settings,
         currentName=current.name if current else "No current cycle",
         currentPhase=current.phase.name if current else "",
         currentPhaseId=str(current.phase_id) if current else "",

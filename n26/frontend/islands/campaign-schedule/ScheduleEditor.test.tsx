@@ -564,3 +564,27 @@ test("an unavailable editor offers review while retaining exact reload recovery"
     expect(data.toString()).toBe(retained);
     expect(navigate).toHaveBeenCalledWith("/cycles/");
 });
+
+test("cycle date edits allow an empty pair", async () => {
+    const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
+    vi.stubGlobal("fetch", fetch);
+    render(
+        <ScheduleEditor
+            editor={{
+                ...editor,
+                values: { ...editor.values, date_version: "2" },
+            }}
+            phases={phases}
+            onNavigate={vi.fn()}
+        />,
+    );
+    expect(
+        (screen.getByLabelText("Start date") as HTMLInputElement).required,
+    ).toBe(false);
+    expect(
+        (screen.getByLabelText("End date") as HTMLInputElement).required,
+    ).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(fetch.mock.calls[0][1].body.get("starts_on")).toBe("");
+    expect(fetch.mock.calls[0][1].body.get("ends_on")).toBe("");
+});

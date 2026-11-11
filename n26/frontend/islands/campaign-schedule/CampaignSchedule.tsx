@@ -462,21 +462,6 @@ function ScheduleContent(
                     aria-labelledby="cycle-list-heading"
                     className="space-y-3"
                 >
-                    {props.dateSettingsRequired && (
-                        <p className="text-sm">
-                            {props.canManage ? (
-                                <>
-                                    Set cycle dates in{" "}
-                                    <Link href={props.actions.plan}>
-                                        Schedule settings
-                                    </Link>{" "}
-                                    before saving more cycles.
-                                </>
-                            ) : (
-                                "The arbitrator needs to set the saved cycle dates."
-                            )}
-                        </p>
-                    )}
                     <h2 id="cycle-list-heading" className="sr-only">
                         Schedule
                     </h2>

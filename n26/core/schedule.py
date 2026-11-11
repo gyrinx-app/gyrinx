@@ -258,7 +258,7 @@ def validate_cycle_dates(cycles, *, required=True):
     for cycle in cycles:
         start, end = cycle.details.starts_on, cycle.details.ends_on
         if start is None or end is None:
-            if required:
+            if required or start is not None or end is not None:
                 raise ScheduleError(f"Enter both dates for {cycle.name}.")
             continue
         dated.append((start, end, cycle.name))
@@ -340,7 +340,7 @@ class Schedule:
             if cycle.source != projected.source:
                 raise ScheduleError("Saved cycles must retain their plan positions.")
         if self.calendar is not None:
-            validate_cycle_dates(self.cycles)
+            validate_cycle_dates(self.cycles, required=False)
             self.calendar.dates_for(len(self.cycles) + 100)
 
     @property
@@ -551,6 +551,7 @@ def _ensure_saved(
     *,
     new_id: NewId = _id,
     selected_details: CycleDetails | None = None,
+    clear_dates: bool = False,
 ) -> tuple[ScheduleChange, Cycle]:
     """Resolve a selection and save its prefix without activating any cycle.
 
@@ -560,11 +561,13 @@ def _ensure_saved(
     selected = _selected(schedule, target)
     if isinstance(selected, Cycle):
         return ScheduleChange(schedule), selected
-    if schedule.calendar is None:
-        raise ScheduleError("Set cycle date settings before saving a projected cycle.")
     created = tuple(_save(p, new_id) for p in _prefix(schedule, selected))
     if selected_details is not None:
-        if selected_details.starts_on is None and selected_details.ends_on is None:
+        if (
+            not clear_dates
+            and selected_details.starts_on is None
+            and selected_details.ends_on is None
+        ):
             selected_details = replace(
                 selected_details, starts_on=selected.starts_on, ends_on=selected.ends_on
             )
@@ -638,6 +641,7 @@ def edit_cycle(
     now: datetime | None = None,
     new_id: NewId = _id,
     shift_later: bool = False,
+    clear_dates: bool = False,
 ) -> ScheduleChange:
     _phase(schedule, details.phase_id)
     original = _selected(schedule, target)
@@ -650,26 +654,27 @@ def edit_cycle(
             raise ScheduleError("Set cycle dates before moving later cycle dates.")
         shift = (details.ends_on - old_end).days
     change, selected = _ensure_saved(
-        schedule, target, new_id=new_id, selected_details=details
+        schedule,
+        target,
+        new_id=new_id,
+        selected_details=details,
+        clear_dates=clear_dates,
     )
-    if details.starts_on is None and details.ends_on is None:
+    if not clear_dates and details.starts_on is None and details.ends_on is None:
         details = replace(
             details,
             starts_on=selected.details.starts_on,
             ends_on=selected.details.ends_on,
         )
-    if selected.details == details and not shift:
-        _validate_projection_dates(change.schedule)
-        return change
     amended = replace(selected, details=details)
-    if schedule.calendar is None and (
-        details.starts_on != selected.details.starts_on
-        or details.ends_on != selected.details.ends_on
-    ):
-        validate_cycle_dates((amended,))
+    if schedule.calendar is None:
+        validate_cycle_dates((amended,), required=False)
         for other in change.schedule.cycles:
             if other.id != amended.id:
                 validate_cycle_dates((amended, other), required=False)
+    if selected.details == details and not shift:
+        _validate_projection_dates(change.schedule)
+        return change
     transition = None
     if (
         selected.id == schedule.current_cycle_id
@@ -694,6 +699,8 @@ def edit_cycle(
                 )
                 for c in change.schedule.cycles
                 if c.order > selected.order
+                and c.details.starts_on
+                and c.details.ends_on
             ]
         except OverflowError:
             raise ScheduleError(
@@ -725,7 +732,10 @@ def _validate_projection_dates(schedule):
         schedule.calendar
         and schedule.cycles
         and following
-        and following[0].starts_on <= max(c.details.ends_on for c in schedule.cycles)
+        and any(
+            c.details.ends_on and following[0].starts_on <= c.details.ends_on
+            for c in schedule.cycles
+        )
     ):
         raise ScheduleError(
             "The dates overlap a future cycle. Move later cycle dates too, or choose an earlier end date."
@@ -786,12 +796,19 @@ def replace_plan(
     mode: Mode,
     new_id: NewId = _id,
     calendar: CycleCalendar | None = None,
+    clear_calendar: bool = False,
+    preserve_saved_dates: bool = False,
 ) -> ScheduleChange:
+    """Replace future steps, preserving omitted timing unless explicitly cleared."""
     revision = schedule.revision + 1
     dated = (
-        set_calendar(schedule, calendar)
+        set_calendar(schedule, calendar, fill_saved_dates=not preserve_saved_dates)
         if calendar is not None
-        else ScheduleChange(schedule)
+        else ScheduleChange(
+            replace(schedule, calendar=None, revision=revision)
+            if clear_calendar and schedule.calendar is not None
+            else schedule
+        )
     )
     schedule = dated.schedule
     position = _repeat_continuation(schedule, steps) if mode == "repeating" else 0
@@ -839,10 +856,14 @@ def _repeat_continuation(schedule, steps):
     )
 
 
-def set_calendar(schedule: Schedule, calendar: CycleCalendar) -> ScheduleChange:
+def set_calendar(
+    schedule: Schedule, calendar: CycleCalendar, *, fill_saved_dates=True
+) -> ScheduleChange:
     updated = []
     for cycle in schedule.cycles:
-        if cycle.details.starts_on is None or cycle.details.ends_on is None:
+        if fill_saved_dates and (
+            cycle.details.starts_on is None or cycle.details.ends_on is None
+        ):
             start, end = calendar.dates_for(cycle.order)
             updated.append(
                 replace(
@@ -856,9 +877,13 @@ def set_calendar(schedule: Schedule, calendar: CycleCalendar) -> ScheduleChange:
             )
     replacements = {cycle.id: cycle for cycle in updated}
     saved = tuple(replacements.get(cycle.id, cycle) for cycle in schedule.cycles)
-    validate_cycle_dates(saved)
+    validate_cycle_dates(saved, required=False)
     start, _end = calendar.dates_for(len(saved) + 1)
-    if saved and start <= max(cycle.details.ends_on for cycle in saved):
+    latest_end = max(
+        (cycle.details.ends_on for cycle in saved if cycle.details.ends_on),
+        default=None,
+    )
+    if latest_end and start <= latest_end:
         raise ScheduleError(
             "The first projected cycle must start after all saved cycle dates."
         )
