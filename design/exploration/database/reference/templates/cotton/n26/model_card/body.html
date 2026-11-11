@@ -1,0 +1,322 @@
+{% comment %}
+<c-n26.model-card.body> — The statline, counters, skills, gear and weapons under a model's header.
+
+Mode checks read mode from context. Pass it from the parent card or the choose controls vanish.
+readonly draws chosen values without the Add or Choose prompts. Pass cards without action URLs in this mode.
+Pass htmx through to counters and owned-actions. Without it those acts navigate the whole page.
+Set htmx only on a page that holds the card host and the dialog host. Otherwise the act runs and the screen does not change.
+An empty href must not reach a kit button. The kit still draws a clickable button that goes nowhere.
+Skill and power questions are not in card.choices. They are drawn on those rows.
+The weapon header uses card.weapon_columns. Every weapon on this card must share that statline shape.
+A weapon's own line with no stats uses colspan 99 to span the table. That number is a stand-in, not a column count.
+Trait lines under a named weapon profile start with an empty cell so they sit under the stats, not under the name.
+{% endcomment %}
+
+<c-vars :card="None" mode="gang" :htmx="False" />
+
+    <c-n26.statline :statline="card.statline" layout="book"
+                    type_line="{{ card.type_line }}"
+                    xp="{{ card.xp }}" xp_target="{{ card.xp_target|default_if_none:'–' }}" />
+
+    {# items-baseline: grid items stretch, so a button would lift its label off the value line. #}
+    <dl class="grid grid-cols-[minmax(7rem,min(35%,12rem))_minmax(0,1fr)] items-baseline gap-x-5 gap-y-2 border-t border-box-border px-4 py-3 text-sm">
+
+        {% for counter in card.counter_lines %}
+            <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ counter.name }}</dt>
+            <dd class="min-w-0 tabular-nums text-ink-900 dark:text-ink-100">
+                {{ counter.value }}
+                {% if counter.href %}
+                    <c-n26.counter-controls :counter="counter" :htmx="htmx" />
+                {% endif %}
+            </dd>
+        {% endfor %}
+
+        <dt class="font-semibold text-ink-900 dark:text-ink-100">
+            Skills
+            <c-n26.model-card.mode when="edit">
+                {% if card.skills_href %}
+                    <c-ui.tooltip size="sm">
+                        <c-ui.button variant="text"
+                                     size="xs"
+                                     class="ms-1 py-0!"
+                                     href="{{ card.skills_href }}"
+                                     aria-label="Select a skill">
+                            <span class="n26-icon-inline"><c-n26.icon name="pencil" /></span>
+                        </c-ui.button>
+                        <c-slot name="content">Select a skill</c-slot>
+                    </c-ui.tooltip>
+                {% endif %}
+            </c-n26.model-card.mode>
+        </dt>
+        <dd class="min-w-0 text-ink-900 dark:text-ink-100">
+            <c-n26.assignable-lines :lines="card.skills" :ratings="False" />
+
+            <c-n26.model-card.mode when="gang view">
+                {% if card.skill_choices %}
+                    <div class="mt-1 flex flex-wrap items-center gap-2">
+                        {% for choice in card.skill_choices %}
+                            <div class="inline-flex items-center gap-0">
+                                {% if choice.href %}
+                                    <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Choose {{ choice.kind_label|lower }}</c-ui.button>
+                                {% else %}
+                                    <span class="text-xs text-muted">Choose {{ choice.kind_label|lower }}</span>
+                                {% endif %}
+                                <c-n26.choice-dismiss :choice="choice" />
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </c-n26.model-card.mode>
+
+            <c-n26.model-card.mode when="edit">
+                {% if card.skill_choices %}
+                    <div class="mt-1 flex flex-wrap items-center gap-1">
+                        {% for choice in card.skill_choices %}
+                            <div class="inline-flex items-center gap-0">
+                                {% if choice.href %}
+                                    <c-ui.button size="xs" variant="ghost" href="{{ choice.href }}">
+                                        Choose {{ choice.kind_label|lower }}
+                                    </c-ui.button>
+                                {% else %}
+                                    <span class="text-xs text-muted">Choose {{ choice.kind_label|lower }}</span>
+                                {% endif %}
+                                <c-n26.choice-dismiss :choice="choice" />
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </c-n26.model-card.mode>
+        </dd>
+
+        {% if card.rules %}
+            <dt class="font-semibold text-ink-900 dark:text-ink-100">Rules</dt>
+            <dd class="min-w-0 text-ink-900 dark:text-ink-100">
+                <c-n26.assignable-lines :lines="card.rules" :ratings="False" />
+            </dd>
+        {% endif %}
+
+        {% if card.powers or card.power_choices %}
+            <dt class="font-semibold text-ink-900 dark:text-ink-100">Powers</dt>
+            <dd class="min-w-0 text-ink-900 dark:text-ink-100">
+                <c-n26.assignable-lines :lines="card.powers" :ratings="False" />
+                <c-n26.model-card.mode when="gang view">
+                    {% if card.power_choices %}
+                        <div class="mt-1 flex flex-wrap items-center gap-2">
+                            {% for choice in card.power_choices %}
+                                <div class="inline-flex items-center gap-0">
+                                    {% if choice.href %}
+                                        <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Choose {{ choice.kind_label|lower }}</c-ui.button>
+                                    {% else %}
+                                        <span class="text-xs text-muted">Choose {{ choice.kind_label|lower }}</span>
+                                    {% endif %}
+                                    <c-n26.choice-dismiss :choice="choice" />
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </c-n26.model-card.mode>
+                <c-n26.model-card.mode when="edit">
+                    {% if card.power_choices %}
+                        <div class="mt-1 flex flex-wrap items-center gap-1">
+                            {% for choice in card.power_choices %}
+                                <div class="inline-flex items-center gap-0">
+                                    {% if choice.href %}
+                                        <c-ui.button size="xs" variant="ghost" href="{{ choice.href }}">
+                                            Choose {{ choice.kind_label|lower }}
+                                        </c-ui.button>
+                                    {% else %}
+                                        <span class="text-xs text-muted">Choose {{ choice.kind_label|lower }}</span>
+                                    {% endif %}
+                                    <c-n26.choice-dismiss :choice="choice" />
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </c-n26.model-card.mode>
+            </dd>
+        {% endif %}
+
+        <dt class="font-semibold text-ink-900 dark:text-ink-100">Gear</dt>
+        <dd class="min-w-0 text-ink-900 dark:text-ink-100">
+            {% include "n26/includes/gear_lines.html" with lines=card.equipment has_actions=card.equipment_has_actions %}
+        </dd>
+
+        {% for group in card.gear_groups %}
+            <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ group.name }}</dt>
+            <dd class="min-w-0 text-ink-900 dark:text-ink-100">
+                {% include "n26/includes/gear_lines.html" with lines=group.lines has_actions=group.has_actions %}
+            </dd>
+        {% endfor %}
+
+        {% for choice in card.choices %}
+            <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ choice.kind_label }}</dt>
+            <dd class="flex min-w-0 items-center gap-0 text-ink-900 dark:text-ink-100">
+                {% if mode == "readonly" %}
+                    {{ choice.chosen|default_if_none:"None" }}
+                {% else %}
+                    {% if choice.is_resolved %}
+                        {% if choice.href %}
+                            <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs" class="max-w-full whitespace-normal! text-left">{{ choice.chosen }}</c-ui.button>
+                        {% else %}
+                            {{ choice.chosen }}
+                        {% endif %}
+                    {% endif %}
+
+                    {% if not choice.is_full %}
+                        {% if choice.takes_several %}
+                            {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Add</c-ui.button>{% else %}<span class="text-xs text-muted">Add</span>{% endif %}
+                        {% elif not choice.is_resolved %}
+                            {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.follows_status %}<span class="inline-flex items-center gap-1">Resolve <c-n26.icon name="arrow-right" class="size-3.5 shrink-0" /></span>{% else %}Choose{% endif %}</c-ui.button>{% else %}<span class="text-xs text-muted">Choose</span>{% endif %}
+                        {% endif %}
+                    {% endif %}
+
+                    <c-n26.choice-dismiss :choice="choice" />
+                {% endif %}
+            </dd>
+        {% endfor %}
+
+    </dl>
+
+    {% if card.weapons %}
+        <div class="overflow-x-auto border-t border-box-border">
+            <table class="w-full border-collapse text-sm">
+                <thead class="border-b border-box-border">
+                    <tr>
+                        <c-n26.statline.header :cells="card.weapon_columns">
+                            <c-slot name="leading">
+                                <th scope="col" class="px-4 py-1.5 text-left text-sm font-semibold text-ink-900 dark:text-ink-100">
+                                    Weapons
+                                </th>
+                            </c-slot>
+                        </c-n26.statline.header>
+                    </tr>
+                </thead>
+                {# A weapon with no profile draws only its name, with no bottom padding. The last row pads the card edge. #}
+                <tbody class="[&>tr:last-child>td]:pb-2">
+                    {% for weapon in card.weapons %}
+
+                        {% with own=weapon.own_line stats=weapon.own_stats %}
+                        <tr class="{% if not forloop.first %}border-t border-box-border{% endif %}">
+                            {# own_stats, not an unnamed profile: a combi-weapon has one with no characteristics. #}
+                            {% if stats %}
+                                <c-n26.statline.cells :cells="stats">
+                                    <c-slot name="leading">
+                                        <td class="px-4 py-1.5 text-ink-900 dark:text-ink-100">
+                                            {% include "n26/includes/weapon_name.html" %}
+                                        </td>
+                                    </c-slot>
+                                </c-n26.statline.cells>
+                            {% else %}
+                                {# 99 spans the table. It is not a column count. #}
+                                <td colspan="99" class="px-4 pt-2 text-ink-900 dark:text-ink-100">
+                                    {% include "n26/includes/weapon_name.html" %}
+                                </td>
+                            {% endif %}
+                        </tr>
+
+                        {% if own.traits %}
+                            <tr>
+                                {% if stats %}<td></td>{% endif %}
+                                <td colspan="{% if stats %}{{ stats|length }}{% else %}99{% endif %}"
+                                    class="px-2 pb-2 text-xs text-ink-900 dark:text-ink-100">
+                                    <c-n26.assignable-lines :lines="own.traits" :ratings="False" />
+                                </td>
+                            </tr>
+                        {% endif %}
+                        {% endwith %}
+
+                        {% for profile in weapon.named_profiles %}
+                            <tr>
+                                <c-n26.statline.cells :cells="profile.statline.cells">
+                                    <c-slot name="leading">
+                                        <td class="px-4 py-1.5 text-ink-900 dark:text-ink-100">
+
+                                            <span class="flex items-center gap-2 pl-2">
+                                                <span class="flex min-w-0 gap-1">
+                                                    <span aria-hidden="true">-</span>
+                                                    <span>{{ profile.name }}{{ profile.brought_mark }}</span>
+                                                </span>
+                                                <c-n26.owned-actions :sell="profile.sell"
+                                                                     :more="profile.more"
+                                                                     :htmx="htmx"
+                                                                     layout="menu"
+                                                                     label="{{ profile.name }}{{ profile.brought_mark }}" />
+                                            </span>
+                                        </td>
+                                    </c-slot>
+                                </c-n26.statline.cells>
+                            </tr>
+
+                            {% if profile.traits %}
+                                <tr>
+
+                                    {# Empty cell is the name column, so traits sit under the stats. #}
+                                    <td></td>
+                                    <td colspan="{{ profile.statline.cells|length }}"
+                                        class="px-2 pb-2 text-xs text-ink-900 dark:text-ink-100">
+                                        <c-n26.assignable-lines :lines="profile.traits" :ratings="False" />
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if weapon.accessories %}
+                            <tr>
+                                <td colspan="99" class="px-4 pb-2 text-ink-900 dark:text-ink-100">
+
+                                    {% if weapon.accessories_have_actions %}
+                                        <ul class="flex flex-col gap-1 pl-2">
+                                            {% for line in weapon.accessories %}
+                                                <li class="flex items-center gap-2">
+                                                    <span class="min-w-0">
+                                                        <span aria-hidden="true">+</span>
+                                                        {% include "n26/includes/assignable_name.html" %}
+                                                    </span>
+                                                    <c-n26.owned-actions :sell="line.sell"
+                                                                         :more="line.more"
+                                                                         :htmx="htmx"
+                                                                         layout="menu"
+                                                                         label="{{ line.name }}{{ line.brought_mark }}" />
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        <span class="pl-2">
+                                            <span aria-hidden="true">+</span>
+                                            <c-n26.assignable-lines :lines="weapon.accessories" :ratings="False" />
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endif %}
+
+                        {% if weapon.other_choices %}
+                            <tr>
+                                <td colspan="99" class="px-4 pb-2 text-ink-900 dark:text-ink-100">
+                                    <ul class="flex flex-col gap-1 pl-2">
+                                        {% for choice in weapon.other_choices %}
+                                            <li class="flex items-center gap-2">
+                                                <span class="min-w-0">{{ choice.kind_label }}: {% if choice.is_resolved %}{{ choice.chosen }}{% else %}&mdash;{% endif %}</span>
+                                                <div class="inline-flex items-center gap-0">
+                                                    {# Dismiss on the gang sheet as well as the model page. Only edit mode can change the level. #}
+                                                    <c-n26.model-card.mode when="edit">
+                                                        {% if choice.href %}
+                                                            <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.is_tier_ladder %}Choose tier{% elif choice.is_resolved %}Change{% else %}Choose{% endif %}</c-ui.button>
+                                                        {% endif %}
+                                                    </c-n26.model-card.mode>
+
+                                                    <c-n26.model-card.mode when="gang edit">
+                                                        <c-n26.choice-dismiss :choice="choice" />
+                                                    </c-n26.model-card.mode>
+                                                </div>
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                </td>
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}

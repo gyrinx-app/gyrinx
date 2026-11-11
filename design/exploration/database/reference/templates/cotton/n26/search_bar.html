@@ -1,0 +1,83 @@
+{% comment %}
+<c-n26.search-bar> — A search field that is either a GET form or a live filter bound to parent Alpine state.
+
+nested renders a div. Put it inside an existing form. A nested form would be invalid HTML.
+live binds x-model to the parent field named by model. That parent must own the state.
+
+<c-n26.search-bar :live="True" model="query" />
+
+live without action swallows submit and Enter so the browser does not navigate.
+The input id is search- plus name. Two bars with the same name on one page collide.
+A live nested bar swallows Enter. Otherwise the browser activates the first Hire or Buy in the form, even a line the filter has hidden.
+A browser drops a nested form tag without complaint and reparents its children, so the field and the button stop being one control.
+The field is a plain input. c-ui.input would draw a second border inside this group.
+{% endcomment %}
+
+<c-vars
+    action=""
+    method="get"
+    name="q"
+    value=""
+    placeholder="Search"
+    button_label="Search"
+    :live="False"
+    model=""
+    :nested="False"
+    class=""
+/>
+
+{# nested cannot be a form: this bar often sits inside one. #}
+<{% if nested %}div{% else %}form{% endif %}
+      {% if not nested %}action="{{ action }}" method="{{ method }}"{% endif %}
+      {% if live and not action and not nested %}@submit.prevent{% endif %}
+      role="search" {{ attrs }}
+      class="flex items-center gap-2 {{ class }}">
+
+{# Focus ring is on the field group. On the form it would also light when the submit button is focused. #}
+    <div class="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-control
+                border border-box-border bg-[var(--color-input-bg)]
+                shadow-[var(--shadow-input)]
+                focus-within:ring-[length:var(--focus-ring-width)]
+                focus-within:ring-[var(--focus-ring-color)]">
+
+        <span class="grid shrink-0 place-items-center border-r border-box-border bg-ink-500/5 px-3 text-muted"
+              aria-hidden="true">
+            <c-n26.icon name="search" class="size-4" stroke_width="1.5" />
+        </span>
+
+        <label class="sr-only" for="search-{{ name }}">{{ placeholder }}</label>
+        <input
+            id="search-{{ name }}"
+            x-ref="field"
+            type="search"
+            name="{{ name }}"
+            value="{{ value }}"
+            placeholder="{{ placeholder }}"
+            autocomplete="off"
+            {# model is an Alpine path in the parent scope, not a Django form field. #}
+            {% if live %}x-model="{{ model }}"{% endif %}
+            {% if live %}{% if nested or not action %}@keydown.enter.prevent{% endif %}{% endif %}
+            class="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-ink-900 outline-none
+                   placeholder:text-ink-400 dark:text-ink-100 dark:placeholder:text-ink-500">
+
+        {% if live %}
+
+            <button type="button" x-show="{{ model }}" x-cloak
+                    @click="{{ model }} = ''; $refs.field.focus()"
+                    aria-label="Clear search"
+                    class="grid shrink-0 place-items-center px-3 text-muted
+                           hover:text-ink-900 focus-ring dark:hover:text-ink-100">
+                <c-n26.icon name="x" class="size-4" stroke_width="2" />
+            </button>
+        {% endif %}
+    </div>
+
+    {# Two nested ifs. Django if has no parentheses, and flattening would let or put a submit inside the surrounding form. #}
+    {% if not nested %}
+        {% if not live or action %}
+            <c-ui.button type="submit" variant="primary" class="shrink-0">
+                {{ button_label }}
+            </c-ui.button>
+        {% endif %}
+    {% endif %}
+</{% if nested %}div{% else %}form{% endif %}>

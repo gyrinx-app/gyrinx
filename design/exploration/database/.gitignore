@@ -1,0 +1,9 @@
+node_modules/
+.venv/
+__pycache__/
+public/theme.css
+src/theme.css.map
+src/cotton.json
+src/presentation.json
+dist/
+qa/

@@ -1,0 +1,15 @@
+{% comment %}
+<c-n26.statline.cells> — Value cells for a characteristic table, with optional leading and trailing cells.
+
+leading and trailing must be td elements. This component sits inside a tr, so any other tag breaks the table.
+The first cell never draws a group rule, even when it is first of a group. A left border there would sit on the table edge.
+Values arrive already formatted. Do not interpret a characteristic here.
+A modified cell uses accent colour and semibold together, so it still reads when accent sits close to the text.
+
+<c-n26.statline.cells :cells="stats">
+    <c-slot name="leading"><td>...</td></c-slot>
+</c-n26.statline.cells>
+{% endcomment %}
+
+<c-vars :cells="None" leading="" trailing="" />
+{% if leading %}{{ leading }}{% endif %}{% for cell in cells %}<td class="whitespace-nowrap px-2 py-0.5 text-center tabular-nums text-ink-900 dark:text-ink-100 {% if cell.first_of_group and not forloop.first %}border-l border-box-border{% endif %} {% if cell.highlighted %}bg-ink-500/10{% endif %}">{% if cell.modified %}<c-ui.tooltip size="sm"><span class="font-semibold text-accent-text underline decoration-dotted underline-offset-2">{{ cell.value }}</span><c-slot name="content">{{ cell.short_name }} changed by {{ cell.changed_by }}{% if cell.held_note %}. {{ cell.held_note }}{% endif %}</c-slot></c-ui.tooltip>{% else %}{{ cell.value }}{% endif %}</td>{% endfor %}{% if trailing %}{{ trailing }}{% endif %}

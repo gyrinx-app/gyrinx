@@ -29,6 +29,7 @@ const options = {
     ],
     ignores: [
         "node_modules",
+        "**/node_modules",
         "CHANGELOG.md",
         ".claude",
         "staticfiles",
