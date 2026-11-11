@@ -527,6 +527,11 @@ urlpatterns = [
         "post-battle/<str:pk>/", views.post_battle_editor, name="n26-post-battle-editor"
     ),
     path(
+        "post-battle/<str:pk>/command/",
+        views.post_battle_command,
+        name="n26-post-battle-command",
+    ),
+    path(
         "post-battle/<str:pk>/receipt/",
         views.post_battle_receipt,
         name="n26-post-battle-receipt",

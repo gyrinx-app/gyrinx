@@ -81,7 +81,6 @@
     "n26/core/templates/n26/includes/menu_item.html": {"direct": 0, "kit": 10},
     "n26/core/templates/n26/includes/model_rating.html": {"direct": 0, "kit": 18},
     "n26/core/templates/n26/includes/not_tracking_tp.html": {"direct": 0, "kit": 18},
-    "n26/core/templates/n26/includes/post_battle_model.html": {"direct": 0, "kit": 3},
     "n26/core/templates/n26/includes/stash_trading_post.html": {"direct": 0, "kit": 18},
     "n26/core/templates/n26/invite_user.html": {"direct": 0, "kit": 3},
     "n26/core/templates/n26/layouts/base.html": {"direct": 0, "kit": 41},

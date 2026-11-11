@@ -11,32 +11,23 @@ from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_http_methods, require_POST
 
-from n26.core.campaigns import battle_stake, stake_came_from
+from n26.core.campaigns import battle_stake
 from n26.core.models import (
     Battle,
     BattleCrew,
     Miniature,
     PostBattleReport,
-    PostBattleRevision,
 )
 from n26.core.operations import Refusal
 from n26.core.post_battle_forms import (
-    ReportVersionForm,
     StartReportForm,
-    change_draft,
     editor_models,
-    keep_recorded_xp,
-    mission_results,
-    posted_payload,
     preview_display,
     receipt_mission,
     receipt_models,
-    refreshed_model,
-    refreshes_mission,
-    toolbar_display,
-    xp_toolbar,
 )
 from n26.core.views.battles import battle_or_404
 from n26.core.views.htmx import is_htmx, redirect_page
@@ -240,220 +231,170 @@ def battle_report(request, pk, battle_pk, gang_pk):
     return _report_destination(report)
 
 
+def _editor_props(request, report, payload, plan, *, errors=(), show_errors=False):
+    from django.middleware.csrf import get_token
+
+    from n26.core.post_battle_display import editor_display
+
+    return {
+        **editor_display(
+            report, request.user, payload, plan, errors=errors, show_errors=show_errors
+        ),
+        "action": reverse("n26-post-battle-editor", args=[report.pk]),
+        "commandHref": reverse("n26-post-battle-command", args=[report.pk]),
+        "csrfToken": get_token(request),
+        "recoveryKey": f"post-battle:{request.user.pk}:{report.pk}",
+        "submissionKey": request.POST.get("submission_key", str(uuid4())),
+        "messages": [
+            {"text": str(message), "level": message.level}
+            for message in messages.get_messages(request)
+        ],
+    }
+
+
 @login_required
+@never_cache
+@require_http_methods(["GET", "POST"])
 def post_battle_editor(request, pk):
-    from n26.core.post_battle import (
-        apply_report,
-        normalise,
-        preview_report,
-        save_draft,
-        xp_eligible_models,
-    )
+    from n26.core.post_battle_workflow import command, prepared
 
     report = _report_or_404(pk)
     _editable_or_404(report, request.user)
     if report.state == PostBattleReport.State.APPLIED:
         return _report_destination(report, request)
-    payload = normalise(report.draft)
     errors = []
-    show_errors = False
     status = 200
-    posted = request.method == "POST"
-    version = ReportVersionForm(request.POST if posted else None)
-    refresh = None
-    mission = False
-    plan = None
-    corrections = {}
-    if posted:
-        payload = posted_payload(request.POST)
-        intent = request.POST.get("intent", "save")
-        if is_htmx(request):
-            refresh = refreshed_model(payload, intent)
-            mission = refreshes_mission(intent)
-        if version.is_valid():
-            version_data = version.cleaned_data
-            prior = PostBattleRevision.objects.filter(
-                report=report, submission_key=version_data["submission_key"]
-            ).first()
-            if prior and intent == "apply":
-                return redirect(
-                    "n26-post-battle-revision", pk=report.pk, sequence=prior.sequence
-                )
-            try:
-                payload = change_draft(
-                    payload,
-                    intent,
-                    xp_eligible=xp_eligible_models(
-                        report, actor=request.user, payload=payload
-                    )
-                    if intent.startswith("xp-step:")
-                    else frozenset(),
-                )
-                if intent == "autosave":
-                    plan = preview_report(report, actor=request.user, payload=payload)
-                    entered_xp = {
-                        m["id"]: str(m.get("xp") or "") for m in payload["models"]
-                    }
-                    payload, changed = keep_recorded_xp(payload, plan)
-                    if changed:
-                        corrections = {
-                            f"model-{m['id']}-xp": str(m.get("xp") or "")
-                            for m in payload["models"]
-                            if str(m.get("xp") or "") != entered_xp[m["id"]]
-                        }
-                        plan = preview_report(
-                            report, actor=request.user, payload=payload
-                        )
-                report = save_draft(
-                    report,
-                    actor=request.user,
-                    generation=version_data["generation"],
-                    revision=version_data["revision"],
-                    payload=payload,
-                )
-                if intent == "apply":
-                    applied = apply_report(
-                        report,
-                        actor=request.user,
-                        generation=report.generation,
-                        revision=report.draft_revision,
-                        submission_key=version_data["submission_key"],
-                        review=version_data["review"],
-                    )
-                    messages.success(request, "Post-battle results applied.")
-                    return redirect(
-                        "n26-post-battle-revision",
-                        pk=report.pk,
-                        sequence=applied.sequence,
-                    )
-                if intent == "save":
-                    messages.success(request, "Draft saved. The gang has not changed.")
-                    return redirect("n26-post-battle-editor", pk=report.pk)
-                # An in-place update keeps the errors the page is showing,
-                # so a fixed one disappears and the rest stay put.
-                show_errors = intent == "check" or bool(
-                    (refresh or mission) and request.POST.get("showing_errors")
-                )
-            except (Refusal, ValidationError) as exc:
-                errors = (
-                    exc.messages
-                    if isinstance(exc, ValidationError)
-                    else [exc.public_message]
-                )
-                show_errors = True
-                status = 409
-        else:
-            errors = [
-                "This form's version is missing or invalid. Reload the saved draft before continuing."
-            ]
-            show_errors = True
-            status = 400
-        if intent == "autosave" and errors:
-            return JsonResponse({"error": " ".join(errors)}, status=status)
-        if (refresh or mission) and errors:
-            # htmx leaves the page as it is on an error, so every entry
-            # stays; the page script shows this text by the save status.
-            return HttpResponse(
-                " ".join(errors), status=status, content_type="text/plain"
+    show_errors = request.GET.get("show_errors") == "1"
+    payload = report.draft
+    result = None
+    if request.method == "POST":
+        result = command(report, request.user, request.POST)
+        _editable_or_404(result.report, request.user)
+        report, payload, errors, status = (
+            result.report,
+            result.payload,
+            result.errors,
+            result.status,
+        )
+        if result.sequence:
+            if not result.replayed:
+                messages.success(request, "Post-battle results applied.")
+            return redirect_page(
+                request,
+                "n26-post-battle-revision",
+                pk=report.pk,
+                sequence=result.sequence,
             )
-    if plan is None:
-        plan = preview_report(report, actor=request.user, payload=payload)
-    payload, changed = keep_recorded_xp(payload, plan)
-    if changed:
-        plan = preview_report(report, actor=request.user, payload=payload)
-    if show_errors:
-        errors = list(dict.fromkeys([*errors, *plan.errors]))
-    # A refused stale save keeps the submitted generation/revision. Replacing
-    # it with the latest would let a second click overwrite somebody's work.
-    stale = bool(errors) and status == 409 and report.draft != payload
-    values = {
-        "generation": request.POST.get("generation") if stale else report.generation,
-        "revision": request.POST.get("revision") if stale else report.draft_revision,
-        "submission_key": request.POST.get("submission_key", str(uuid4())),
-        "review": plan.review,
-    }
-    version = ReportVersionForm(initial=values)
-    models = editor_models(plan, payload, refresh_url=request.path)
-    preview = preview_display(plan, models)
-    if posted and intent == "autosave":
+        if result.acknowledged and request.POST.get("intent", "save") == "save":
+            if not result.replayed:
+                messages.success(request, "Draft saved. The gang has not changed.")
+            return redirect_page(request, "n26-post-battle-editor", pk=report.pk)
+        show_errors = (
+            bool(errors)
+            or request.POST.get("intent") == "check"
+            or bool(request.POST.get("showing_errors"))
+        )
+    payload, plan = prepared(report, request.user, payload)
+    if request.method == "POST" and request.POST.get("intent") == "autosave":
         return JsonResponse(
-            {
+            {"error": " ".join(errors)}
+            if errors
+            else {
                 "revision": report.draft_revision,
                 "generation": str(report.generation),
                 "review": plan.review,
                 "saved": timezone.localtime(report.modified).strftime("%H:%M:%S"),
-                "preview": preview,
-                "corrections": corrections,
+                "preview": preview_display(plan, editor_models(plan, payload)),
+                "corrections": {
+                    f"model-{model['id']}-xp": str(model.get("xp") or "")
+                    for model in payload["models"]
+                    if str(model.get("xp") or "")
+                    != request.POST.get(f"model-{model['id']}-xp", "")
+                },
+            },
+            status=status,
+        )
+    if is_htmx(request):
+        if errors:
+            return HttpResponse(
+                " ".join(errors), status=status, content_type="text/plain"
+            )
+        response = redirect_page(request, "n26-post-battle-editor", pk=report.pk)
+        if show_errors:
+            response["HX-Redirect"] += "?show_errors=1"
+        return response
+    props = _editor_props(
+        request, report, payload, plan, errors=errors, show_errors=show_errors
+    )
+    if result is not None and (result.conflict or result.newer):
+        from n26.core.post_battle_display import editor_display
+
+        current_payload, current_plan = prepared(report, request.user, report.draft)
+        props["currentDisplay"] = editor_display(
+            report, request.user, current_payload, current_plan
+        )
+        props["initialConflict"] = True
+        props["generation"] = request.POST.get("generation", props["generation"])
+        props["revision"] = int(request.POST.get("revision", props["revision"]))
+    return render(
+        request,
+        "n26/post_battle.html",
+        {
+            "report": report,
+            "gang": report.gang,
+            "battle": report.battle,
+            "editor_props": props,
+        },
+        status=400 if status == 422 else status,
+    )
+
+
+@never_cache
+@require_POST
+def post_battle_command(request, pk):
+    from n26.core.post_battle_display import editor_display
+    from n26.core.post_battle_workflow import command, prepared
+
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Sign in again to save this change."}, status=401)
+    report = _report_or_404(pk)
+    _editable_or_404(report, request.user)
+    result = command(report, request.user, request.POST)
+    _editable_or_404(result.report, request.user)
+    if result.sequence:
+        return JsonResponse(
+            {
+                "acknowledged": result.acknowledged,
+                "nextUrl": reverse(
+                    "n26-post-battle-revision", args=[report.pk, result.sequence]
+                ),
             }
         )
-    stake = battle_stake(report.battle, request.user)
-    territory = None
-    if stake:
-        applied = (
-            bool(report.battle.stake_transfer_mark)
-            or report.battle.result != report.battle.Result.NOT_RECORDED
-        )
-        if report.battle.stake_transfer_mark:
-            source = stake_came_from(report.battle)
-            outcome = (
-                f"Moved from {source.name} to {stake.awarded_to}."
-                if source
-                else f"Moved to {stake.awarded_to}."
-            )
-        elif report.battle.result == report.battle.Result.NOT_RECORDED:
-            outcome = "Outcome not recorded."
-        else:
-            outcome = stake.outcome
-        territory = {
-            "name": stake.name,
-            "heading": stake.label,
-            "outcome": outcome,
-            "currentHolder": stake.held_by,
-            "applied": applied,
-            "note": (
-                "The campaign’s arbitrator records this outcome on Edit battle."
-                if not applied
-                else "Already applied."
-            ),
-        }
-    context = {
-        "report": report,
-        "gang": report.gang,
-        "battle": report.battle,
-        "payload": payload,
-        "plan": plan,
-        "models": models,
-        "mission": mission_results(
-            plan, payload, refresh_url=request.path, show_errors=show_errors
-        ),
-        "territory": territory,
-        "preview": preview,
-        "toolbar_props": toolbar_display(models),
-        "xp_toolbar": xp_toolbar(models),
-        "version_form": version,
-        "errors": errors,
-        "show_errors": show_errors,
-        "stale": stale,
+    payload, plan = prepared(result.report, request.user, result.payload)
+    display = editor_display(
+        result.report,
+        request.user,
+        payload,
+        plan,
+        errors=result.errors,
+        show_errors=bool(request.POST.get("showing_errors"))
+        or request.POST.get("intent") in {"check", "apply"},
+    )
+    response = {
+        "display": display,
+        "acknowledged": result.acknowledged,
+        "errors": result.errors,
+        "conflict": result.conflict,
+        "newer": result.newer,
     }
-    if mission:
-        return render(
-            request,
-            "n26/includes/post_battle_refresh.html",
-            context | {"section": "n26/includes/post_battle_mission.html"},
+    if result.newer or result.conflict:
+        current_payload, current_plan = prepared(
+            result.report, request.user, result.report.draft
         )
-    if refresh:
-        refreshed = next((model for model in models if model.id == refresh), None)
-        if refreshed is None:
-            # The model has left the roster since the page was drawn:
-            # there is no module to swap, so draw the page again.
-            return redirect_page(request, "n26-post-battle-editor", pk=report.pk)
-        return render(
-            request,
-            "n26/includes/post_battle_refresh.html",
-            context
-            | {"model": refreshed, "section": "n26/includes/post_battle_model.html"},
+        response["currentDisplay"] = editor_display(
+            result.report, request.user, current_payload, current_plan
         )
-    return render(request, "n26/post_battle.html", context, status=status)
+    return JsonResponse(response, status=result.status)
 
 
 @login_required

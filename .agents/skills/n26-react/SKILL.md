@@ -372,3 +372,36 @@ pages remain 404; explicit recovery checks current gang ownership and exposes no
 editable replacement form. Record terminal no-write results under the gang lock
 too. An absent receipt cannot settle uncertainty: a delayed original request
 could arrive after the model is restored.
+
+## Autosaved results editors
+
+Keep the exact in-flight command and key, newer local edits, and the last
+acknowledged server revision separate. A delayed response must not replace later
+typing. Serialize draft mutations, and let Apply wait for acknowledgement of the
+current draft and its authoritative review. Use refs for queue decisions so a
+queued action does not use an earlier render's dirty state.
+
+Receipt replay can confirm an older save while the report has a newer draft.
+Confirm the earlier outcome, preserve local entries and require explicit review
+of the newer draft. Do not keep a confirmed save uncertain or adopt a newer
+revision as permission to overwrite. Validate and normalize the response before
+clearing retained input; malformed display data must leave the original command
+available for retry. Keep participation acknowledgement in the typed display
+and field serializer, including explicit review of a newer draft.
+
+Clear recovery storage after a clean acknowledgement. Unsent local entries must
+retain their acknowledged generation and revision, even when no command is active.
+On reload, a different server version or a missing legacy baseline requires
+explicit review. Never attach an older local draft to fresh page versions and
+silently autosave over another tab or a new correction generation.
+
+A cached native form can derive a stable command identity from its actor, report,
+version and exact intent/input. Replay the stored canonical result for actions
+that create random draft identities, such as adding a result. Preserve existing
+Apply receipts as well as new command receipts. Opening a correction starts a
+new generation; commands from the previous generation cannot modify it.
+
+Match Input and NativeSelect controlSize to the Cotton call site's size. A shared
+default recipe alone does not preserve a large control's dimensions. Keep
+explicit progress in the initiating button; an autosave status can use a small
+reserved position without moving nearby content.

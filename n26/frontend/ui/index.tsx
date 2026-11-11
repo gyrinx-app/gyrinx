@@ -324,26 +324,27 @@ export function Field({
 export function Input({
     id,
     rightAddon,
+    controlSize = "default",
     className = "",
     "aria-describedby": describedBy,
     "aria-invalid": invalid,
     ...props
-}: ComponentProps<"input"> & { rightAddon?: ReactNode }) {
+}: ComponentProps<"input"> & {
+    rightAddon?: ReactNode;
+    controlSize?: "default" | "lg";
+}) {
     const field = useFieldControl(id, describedBy);
+    const recipe = controlSize === "lg" ? cotton.inputLarge : cotton.input;
     return (
-        <div
-            className={rightAddon ? cotton.input.addonRoot : cotton.input.root}
-        >
+        <div className={rightAddon ? recipe.addonRoot : recipe.root}>
             <input
                 {...props}
                 id={field.id}
-                className={`${rightAddon ? cotton.input.addonControl : cotton.input.control} ${className}`}
+                className={`${rightAddon ? recipe.addonControl : recipe.control} ${className}`}
                 aria-invalid={invalid ?? (field.errorId ? true : undefined)}
                 aria-describedby={field.describedBy}
             />
-            {rightAddon && (
-                <div className={cotton.input.addon}>{rightAddon}</div>
-            )}
+            {rightAddon && <div className={recipe.addon}>{rightAddon}</div>}
         </div>
     );
 }
@@ -374,10 +375,14 @@ export function NativeSelect({
     "aria-invalid": invalid,
     controlSize = "default",
     ...props
-}: ComponentProps<"select"> & { controlSize?: "default" | "sm" }) {
+}: ComponentProps<"select"> & { controlSize?: "default" | "sm" | "lg" }) {
     const field = useFieldControl(id, describedBy);
     const recipe =
-        controlSize === "sm" ? cotton.nativeSelectSmall : cotton.nativeSelect;
+        controlSize === "sm"
+            ? cotton.nativeSelectSmall
+            : controlSize === "lg"
+              ? cotton.nativeSelectLarge
+              : cotton.nativeSelect;
     return (
         <select
             {...props}
@@ -979,9 +984,13 @@ export function Badge({
 }: {
     children: ReactNode;
     className?: string;
-    color?: "amber" | "ink";
+    color?: "amber" | "ink" | "red";
 }) {
-    const recipe = color === "ink" ? cotton.badgeInk : cotton.badge;
+    const recipe = {
+        amber: cotton.badge,
+        ink: cotton.badgeInk,
+        red: cotton.badgeRed,
+    }[color];
     return <span className={`${recipe} ${className}`}>{children}</span>;
 }
 

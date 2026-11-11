@@ -351,73 +351,98 @@ describe("form controls", () => {
         expect(document.getElementById(descriptions[1])).toBeNull();
     });
 
-    it("keeps native select values, events, disabled state and the Cotton chevron", async () => {
-        const changed = vi.fn();
-        const user = userEvent.setup();
-        const { container } = render(
-            <form>
-                <NativeSelect
-                    name="role"
-                    aria-label="Crew role"
-                    defaultValue="starting"
-                    onChange={changed}
-                    required
-                    className="test-select"
-                >
-                    <option value="starting">Starting crew</option>
-                    <option value="reserve">Reinforcements</option>
-                </NativeSelect>
-                <NativeSelect
-                    name="ignored"
-                    aria-label="Unavailable card"
-                    disabled
-                >
-                    <option value="full">Full equipment</option>
-                </NativeSelect>
-            </form>,
-        );
-        const select = screen.getByRole("combobox", {
-            name: "Crew role",
-        }) as HTMLSelectElement;
-        await user.selectOptions(select, "reserve");
-        expect(changed).toHaveBeenCalledOnce();
-        const values = new FormData(container.querySelector("form")!);
-        expect(values.get("role")).toBe("reserve");
-        expect(values.has("ignored")).toBe(false);
-        expect(select.required).toBe(true);
-        expect(select.className).toContain(cotton.nativeSelect.className);
-        expect(select.classList.contains("test-select")).toBe(true);
-        expect(select.style.backgroundImage).toContain("data:image/svg+xml");
-        expect(select.style.backgroundSize).toBe(
-            cotton.nativeSelect.style.backgroundSize,
-        );
-    });
+    it.each(["default", "lg"] as const)(
+        "keeps %s native select values, events, disabled state and the Cotton chevron",
+        async (controlSize) => {
+            const changed = vi.fn();
+            const user = userEvent.setup();
+            const { container } = render(
+                <form>
+                    <NativeSelect
+                        name="role"
+                        controlSize={controlSize}
+                        aria-label="Crew role"
+                        defaultValue="starting"
+                        onChange={changed}
+                        required
+                        className="test-select"
+                    >
+                        <option value="starting">Starting crew</option>
+                        <option value="reserve">Reinforcements</option>
+                    </NativeSelect>
+                    <NativeSelect
+                        name="ignored"
+                        aria-label="Unavailable card"
+                        disabled
+                    >
+                        <option value="full">Full equipment</option>
+                    </NativeSelect>
+                </form>,
+            );
+            const select = screen.getByRole("combobox", {
+                name: "Crew role",
+            }) as HTMLSelectElement;
+            await user.selectOptions(select, "reserve");
+            expect(changed).toHaveBeenCalledOnce();
+            const values = new FormData(container.querySelector("form")!);
+            expect(values.get("role")).toBe("reserve");
+            expect(values.has("ignored")).toBe(false);
+            expect(select.required).toBe(true);
+            const recipe =
+                controlSize === "lg"
+                    ? cotton.nativeSelectLarge
+                    : cotton.nativeSelect;
+            expect(select.className).toContain(recipe.className);
+            expect(select.hasAttribute("controlSize")).toBe(false);
+            expect(select.classList.contains("test-select")).toBe(true);
+            expect(select.style.backgroundImage).toContain(
+                "data:image/svg+xml",
+            );
+            expect(select.style.backgroundSize).toBe(
+                recipe.style.backgroundSize,
+            );
+        },
+    );
 
-    it("associates a Cotton text input with trailing help and errors", () => {
-        render(
-            <Field
-                label="Name"
-                htmlFor="name"
-                description="Leave blank to use the generated name."
-                errors={["Use a shorter name."]}
-            >
-                <Input id="name" name="name" defaultValue="Berserker" />
-            </Field>,
-        );
+    it.each(["default", "lg"] as const)(
+        "associates a %s Cotton text input with trailing help and errors",
+        (controlSize) => {
+            render(
+                <Field
+                    label="Name"
+                    htmlFor="name"
+                    description="Leave blank to use the generated name."
+                    errors={["Use a shorter name."]}
+                >
+                    <Input
+                        id="name"
+                        name="name"
+                        defaultValue="Berserker"
+                        controlSize={controlSize}
+                    />
+                </Field>,
+            );
 
-        const input = screen.getByRole("textbox", {
-            name: "Name",
-        }) as HTMLInputElement;
-        expect(input.value).toBe("Berserker");
-        expect(input.className).toContain(cotton.input.control);
-        const descriptions = input.getAttribute("aria-describedby")!.split(" ");
-        expect(document.getElementById(descriptions[0])?.textContent).toBe(
-            "Leave blank to use the generated name.",
-        );
-        expect(document.getElementById(descriptions[1])?.textContent).toBe(
-            "Use a shorter name.",
-        );
-    });
+            const input = screen.getByRole("textbox", {
+                name: "Name",
+            }) as HTMLInputElement;
+            expect(input.value).toBe("Berserker");
+            expect(input.className).toContain(
+                (controlSize === "lg" ? cotton.inputLarge : cotton.input)
+                    .control,
+            );
+            expect(input.hasAttribute("controlSize")).toBe(false);
+            const descriptions = input
+                .getAttribute("aria-describedby")!
+                .split(" ");
+            expect(document.getElementById(descriptions[0])?.textContent).toBe(
+                "Leave blank to use the generated name.",
+            );
+            expect(document.getElementById(descriptions[1])?.textContent).toBe(
+                "Use a shorter name.",
+            );
+        },
+    );
 
     it("submits the Cotton switch only while it is on", async () => {
         const user = userEvent.setup();

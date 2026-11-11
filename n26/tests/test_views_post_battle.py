@@ -29,7 +29,6 @@ from n26.core.models import (
 )
 from n26.core.operations import LibraryError, Refusal, operation
 from n26.core.post_battle import preview_report, start_report
-from n26.core.post_battle_forms import editor_models
 from n26.core.reconcile import assert_reconciled
 from n26.core.status import Status
 from n26.core.views.post_battle import _initial_payload
@@ -215,13 +214,75 @@ def receipt_url(report, sequence=None):
     )
 
 
+def editor_props(response):
+    """Read the JSON contract embedded in the complete editor root."""
+    document = BeautifulSoup(response.content, "html.parser")
+    host = document.select_one('[data-react-name="post-battle"]')
+    assert host is not None, response.content.decode()[:500]
+    return json.loads(document.find(id=host["data-react-props"]).string)
+
+
+def model_props(response, model):
+    return next(
+        row for row in editor_props(response)["models"] if row["id"] == str(model.pk)
+    )
+
+
+def effect_options(model):
+    return [
+        (option["value"], option["label"])
+        for group in model["effectGroups"]
+        for option in group["options"]
+    ]
+
+
 def html_fields(response, **changes):
     """Submit the controls the browser received, including all hidden versions."""
     document = BeautifulSoup(response.content, "html.parser")
     form = document.find("form", id="post-battle-form") or document.find(
         "form", method="post"
     )
-    assert form is not None
+    if form is None:
+        host = document.select_one('[data-react-name="post-battle"]')
+        assert host is not None
+        props = json.loads(document.find(id=host["data-react-props"]).string)
+        data = {
+            "generation": [props["generation"]],
+            "revision": [str(props["revision"])],
+            "submission_key": [props.get("submissionKey", str(uuid4()))],
+            "review": [props["review"]],
+            "credit_line": [line["id"] for line in props["mission"]["creditLines"]],
+            "model_id": [model["id"] for model in props["models"]],
+        }
+        if props["participationConfirmed"]:
+            data["participation_confirmed"] = ["on"]
+        for line in props["mission"]["creditLines"]:
+            data[f"credit-{line['id']}-amount"] = [line["amount"]]
+            data[f"credit-{line['id']}-reason"] = [line["reason"]]
+        for counter in props["mission"]["counters"]:
+            if counter["editable"]:
+                data.setdefault(counter["listName"], []).append(counter["id"])
+                data[counter["prefix"]] = [counter["entered"]]
+        for model in props["models"]:
+            prefix = model["prefix"]
+            for key in ("xp", "status", "equipment", "note"):
+                data[f"{prefix}-{key}"] = [model[key]]
+            if model["participated"]:
+                data[f"{prefix}-participated"] = ["on"]
+            for counter in model["counters"]:
+                if counter["editable"]:
+                    data.setdefault(counter["listName"], []).append(counter["id"])
+                    data[counter["prefix"]] = [counter["entered"]]
+            data[f"{prefix}-effect"] = [effect["id"] for effect in model["effects"]]
+            for effect in model["effects"]:
+                ep = f"effect-{effect['id']}"
+                data[f"{ep}-pick"] = [effect["selected"]]
+                questions = [*effect["retainedChoices"], *effect["questions"]]
+                data[f"{ep}-question"] = [question["key"] for question in questions]
+                for question in questions:
+                    if question["selected"]:
+                        data[f"{ep}-choice-{question['key']}"] = question["selected"]
+        return with_first_credits(data, changes)
     data = {}
     for element in form.select("input[name], select[name], textarea[name]"):
         if element.has_attr("disabled"):
@@ -330,7 +391,7 @@ def test_report_errors_show_only_public_messages(
             )
             raise error from cause
 
-    monkeypatch.setattr("n26.core.post_battle.save_draft", refuse)
+    monkeypatch.setattr("n26.core.post_battle_workflow.save_draft", refuse)
     before = LedgerEvent.objects.count()
     if transport == "refresh":
         response = refresh(client, report, page, table.models[0])
@@ -343,9 +404,9 @@ def test_report_errors_show_only_public_messages(
     elif transport == "refresh":
         assert response.content.decode() == expected
     else:
-        assert public in response.context["errors"]
+        assert public in editor_props(response)["errors"]
         if validation:
-            assert "Review the draft." in response.context["errors"]
+            assert "Review the draft." in editor_props(response)["errors"]
     assert secret not in response.content.decode()
     assert LedgerEvent.objects.count() == before
     report.refresh_from_db()
@@ -365,7 +426,7 @@ def test_unexpected_report_errors_use_the_server_error_handler(
     def fail(*args, **kwargs):
         raise error_type(secret)
 
-    monkeypatch.setattr("n26.core.post_battle.save_draft", fail)
+    monkeypatch.setattr("n26.core.post_battle_workflow.save_draft", fail)
     response = client.post(editor_url(report), html_fields(page, intent="autosave"))
     assert response.status_code == 500
     assert secret not in response.content.decode()
@@ -423,10 +484,10 @@ def with_effect(client, table, report, injury):
             intent=f"add-effect:{table.models[0].pk}",
         ),
     )
-    effect_id = added.context["models"][0].effects[0].id
+    effect_id = editor_props(added)["models"][0]["effects"][0]["id"]
     option = next(
         value
-        for value, _ in added.context["models"][0].effect_options
+        for value, _ in effect_options(editor_props(added)["models"][0])
         if value.endswith(f"|{injury.pk}")
     )
     checked = client.post(
@@ -438,55 +499,36 @@ def with_effect(client, table, report, injury):
 
 
 class TestReportLayout:
-    """Each model's results sit in one module; submit shares one form footer."""
+    """One editor contract contains each model's inputs, validation and preview facts."""
 
     def test_each_model_has_one_module_holding_all_its_controls(self, client, table):
         report = start(client, table)
-        document = BeautifulSoup(client.get(editor_url(report)).content, "html.parser")
-        form = document.find("form", id="post-battle-form")
-        assert form.find("table") is None
+        response = client.get(editor_url(report))
+        document = BeautifulSoup(response.content, "html.parser")
+        assert len(document.select('[data-react-name="post-battle"]')) == 1
+        assert not document.select(
+            '[data-react-name="post-battle-toolbar"], [data-react-name="post-battle-preview"]'
+        )
+        props = editor_props(response)
+        assert props["participationConfirmed"] is False
+        assert props["action"] == editor_url(report)
         for model in table.models:
-            module = form.find("fieldset", id=f"result-{model.pk}")
-            assert module.legend.get_text(strip=True) == model.name
-            assert module.select_one(f'[name="model_id"][value="{model.pk}"]')
-            for field in ("participated", "xp", "status", "equipment"):
-                name = f"model-{model.pk}-{field}"
-                scripted = [
-                    element
-                    for element in form.select(f'[name="{name}"]')
-                    if element.find_parent("noscript") is None
-                ]
-                assert len(scripted) == 1
-                assert module.select_one(f'[name="{name}"]') is not None
-        footer = form.select_one("[data-battle-actions]")
-        confirmation = footer.find("input", attrs={"name": "participation_confirmed"})
-        assert confirmation["aria-required"] == "true"
-        assert footer.select_one('button[name="intent"][value="save"]')
-        assert footer.select_one('button[name="intent"][value="apply"]')
-        assert len(form.select('[name="participation_confirmed"]')) == 1
-        assert "battle-actions.js" in str(document)
+            shown = model_props(response, model)
+            assert shown["name"] == model.name
+            assert shown["prefix"] == f"model-{model.pk}"
+            fields = html_fields(response)
+            assert fields["model_id"].count(str(model.pk)) == 1
+            for name in ("xp", "status", "equipment", "note"):
+                assert len(fields[f"model-{model.pk}-{name}"]) == 1
         model = table.models[0]
-        page = client.post(
-            editor_url(report),
-            html_fields(
-                client.get(editor_url(report)), intent=f"add-effect:{model.pk}"
-            ),
+        added = client.post(
+            editor_url(report), html_fields(response, intent=f"add-effect:{model.pk}")
         )
-        module = BeautifulSoup(page.content, "html.parser").find(
-            "fieldset", id=f"result-{model.pk}"
-        )
-        effect = page.context["models"][0].effects[0]
-        order = [
-            f"model-{model.pk}-participated",
-            f"model-{model.pk}-xp",
-            f"effect-{effect.id}-pick",
-            f"model-{model.pk}-status",
-            f"model-{model.pk}-equipment",
-        ]
-        names = list(
-            dict.fromkeys(element["name"] for element in module.select("[name]"))
-        )
-        assert [name for name in names if name in order] == order
+        shown = model_props(added, model)
+        assert len(shown["effects"]) == 1
+        assert shown["effects"][0]["label"] == "Lasting injury 1"
+        assert shown["statusOptions"]
+        assert shown["equipment"] == "keep"
 
     def test_xp_errors_are_inside_the_model_module(self, client, table):
         report = start(client, table)
@@ -499,14 +541,13 @@ class TestReportLayout:
                 **{f"model-{model.pk}-xp": "-1"},
             ),
         )
-        module = BeautifulSoup(response.content, "html.parser").find(
-            "fieldset", id=f"result-{model.pk}"
+        shown = model_props(response, model)
+        assert editor_props(response)["showErrors"]
+        assert any(
+            "Enter a whole number" in error and "Cinder's XP" in error
+            for error in shown["errors"]
         )
-        field = module.find("input", id=f"model-{model.pk}-xp")
-        help_text = module.find(id=field["aria-describedby"])
-        errors = module.select_one(help_text.find("a")["href"])
-        assert "Enter a whole number" in errors.get_text()
-        assert "Cinder's XP" in errors.get_text()
+        assert not model_props(response, table.models[1])["errors"]
 
     def test_summary_shows_xp_removed_with_a_lasting_effect(self, client, table):
         lesson = create_pickable(
@@ -533,8 +574,7 @@ class TestReportLayout:
                 client.get(editor_url(report)), intent=f"remove-effect:{effect_id}"
             ),
         )
-        document = BeautifulSoup(response.content, "html.parser")
-        assert "-2 XP (2 → 0)" in document.find("aside").get_text()
+        assert "-2 XP (2 → 0)" in summary_text(response)
         assert xp_value(model) == 2
 
 
@@ -848,7 +888,7 @@ class TestStartingAndResuming:
             confirm=True,
         )
         report = start_through_page(client, table)
-        payload = client.get(editor_url(report)).context["payload"]
+        payload = editor_props(client.get(editor_url(report)))["payload"]
         by_id = {row["id"]: row for row in payload["models"]}
         assert by_id[str(pet.pk)]["participated"]
         assert not by_id[str(table.models[1].pk)]["participated"]
@@ -876,7 +916,7 @@ class TestStartingAndResuming:
             card_name="Full equipment",
         )
         report = start_through_page(client, table)
-        payload = client.get(editor_url(report)).context["payload"]
+        payload = editor_props(client.get(editor_url(report)))["payload"]
         by_id = {row["id"]: row for row in payload["models"]}
         assert not by_id[str(pet.pk)]["participated"]
 
@@ -889,7 +929,7 @@ class TestStartingAndResuming:
             card_name="Full equipment",
         )
         report = start_through_page(client, table)
-        payload = client.get(editor_url(report)).context["payload"]
+        payload = editor_props(client.get(editor_url(report)))["payload"]
         assert not any(row["participated"] for row in payload["models"])
 
     def test_saved_crew_only_preselects_starting_models(self, client, table):
@@ -905,7 +945,7 @@ class TestStartingAndResuming:
             confirm=True,
         )
         report = start_through_page(client, table)
-        payload = client.get(editor_url(report)).context["payload"]
+        payload = editor_props(client.get(editor_url(report)))["payload"]
         by_id = {row["id"]: row for row in payload["models"]}
         assert by_id[str(table.models[0].pk)]["participated"]
         assert not by_id[str(table.models[1].pk)]["participated"]
@@ -939,7 +979,7 @@ class TestStartingAndResuming:
         )
         assert response.status_code == 302
         resumed = client.get(response.url)
-        raw = resumed.context["payload"]
+        raw = editor_props(resumed)["payload"]
         assert raw["credit_lines"][0]["amount"] == "still deciding"
         assert raw["models"][0]["xp"] == "not finished"
         assert raw["models"][0]["effects"][0]["choices"] == {
@@ -1025,8 +1065,8 @@ class TestApplyingAndCorrecting:
         response = client.post(editor_url(report), data)
         assert response.status_code == 409
         assert "Confirm which models took part" in response.content.decode()
-        assert first_credits(response.context["payload"]) == "20"
-        assert response.context["models"][0].xp == "2"
+        assert first_credits(editor_props(response)["payload"]) == "20"
+        assert editor_props(response)["models"][0]["xp"] == "2"
         assert html_fields(response)["credits"] == ["20"]
         assert LedgerEvent.objects.count() == before
         assert not report.revisions.exists()
@@ -1077,7 +1117,7 @@ class TestApplyingAndCorrecting:
         corrected = client.post(correction_url)
         assert corrected.url == editor_url(report)
         correction_page = client.get(corrected.url)
-        assert "Correcting recorded results" in correction_page.content.decode()
+        assert editor_props(correction_page)["correcting"]
         assert html_fields(correction_page)["generation"] != original_data["generation"]
         response = client.post(
             editor_url(report),
@@ -1103,11 +1143,11 @@ class TestDraftActions:
         injury, hand = dependent_injury(table, required=False)
         report = start(client, table)
         checked, effect_id = with_effect(client, table, report, injury)
-        question = checked.context["models"][0].effects[0].questions[0]
+        question = editor_props(checked)["models"][0]["effects"][0]["questions"][0]
         submitted = html_fields(checked, intent="apply")
-        assert submitted[f"effect-{effect_id}-choice-{question.key}"] == [""]
+        assert not submitted.get(f"effect-{effect_id}-choice-{question['key']}")
         response = client.post(editor_url(report), submitted)
-        assert response.status_code == 302, response.context["errors"]
+        assert response.status_code == 302, editor_props(response)["errors"]
         assert Assignment.objects.filter(
             miniature=table.models[0], pickable=injury, archived=False
         ).exists()
@@ -1120,22 +1160,22 @@ class TestDraftActions:
         injury, hand = dependent_injury(table, required=True)
         report = start(client, table)
         checked, effect_id = with_effect(client, table, report, injury)
-        question = checked.context["models"][0].effects[0].questions[0]
+        question = editor_props(checked)["models"][0]["effects"][0]["questions"][0]
         chosen = client.post(
             editor_url(report),
             html_fields(
                 checked,
                 intent="check",
                 **{
-                    f"effect-{effect_id}-choice-{question.key}": [
-                        question.options[0].value
+                    f"effect-{effect_id}-choice-{question['key']}": [
+                        question["options"][0]["value"]
                     ]
                 },
             ),
         )
         replacement = next(
             value
-            for value, _ in chosen.context["models"][0].effect_options
+            for value, _ in effect_options(editor_props(chosen)["models"][0])
             if value.endswith(f"|{table.wound.pk}")
         )
         changed = client.post(
@@ -1149,25 +1189,25 @@ class TestDraftActions:
             ),
         )
         assert changed.status_code == 200
-        assert "Reset choices" in BeautifulSoup(
-            changed.content, "html.parser"
-        ).get_text(" ", strip=True), changed.context["models"][0].effects
-        assert html_fields(changed)[f"effect-{effect_id}-choice-{question.key}"] == [
-            question.options[0].value
+        assert editor_props(changed)["models"][0]["effects"][0]["retainedChoices"]
+        assert html_fields(changed)[f"effect-{effect_id}-choice-{question['key']}"] == [
+            question["options"][0]["value"]
         ]
         cleared = client.post(
             editor_url(report),
             html_fields(changed, intent=f"clear-choices:{effect_id}"),
         )
         assert cleared.status_code == 200
-        assert "Reset choices" not in cleared.content.decode()
+        assert not editor_props(cleared)["models"][0]["effects"][0]["retainedChoices"]
         kept = html_fields(cleared)
         assert kept["credits"] == ["31"]
         assert kept["reason"] == ["Keep this edited reason"]
         assert kept[f"model-{table.models[0].pk}-xp"] == ["2"]
         assert kept[f"effect-{effect_id}-pick"] == [replacement]
-        assert f"effect-{effect_id}-choice-{question.key}" not in kept
-        assert cleared.context["payload"]["models"][0]["effects"][0]["choices"] == {}
+        assert f"effect-{effect_id}-choice-{question['key']}" not in kept
+        assert (
+            editor_props(cleared)["payload"]["models"][0]["effects"][0]["choices"] == {}
+        )
         applied = client.post(editor_url(report), kept | {"intent": "apply"})
         assert applied.status_code == 302
         assert Assignment.objects.filter(
@@ -1189,8 +1229,8 @@ class TestDraftActions:
                 client.get(editor_url(report)), intent=f"add-effect:{model.pk}"
             ),
         )
-        choice = first.context["models"][0].effect_options[0][0]
-        first_id = first.context["models"][0].effects[0].id
+        choice = effect_options(editor_props(first)["models"][0])[0][0]
+        first_id = editor_props(first)["models"][0]["effects"][0]["id"]
         second = client.post(
             editor_url(report),
             html_fields(
@@ -1199,23 +1239,26 @@ class TestDraftActions:
                 **{f"effect-{first_id}-pick": choice},
             ),
         )
-        second_id = second.context["models"][0].effects[1].id
+        second_id = editor_props(second)["models"][0]["effects"][1]["id"]
         assert first_id != second_id
         saved = client.post(
             editor_url(report),
             html_fields(second, intent="save", **{f"effect-{second_id}-pick": choice}),
         )
         resumed = client.get(saved.url)
-        assert [effect.selected for effect in resumed.context["models"][0].effects] == [
+        assert [
+            effect["selected"]
+            for effect in editor_props(resumed)["models"][0]["effects"]
+        ] == [
             choice,
             choice,
         ]
         removed = client.post(
             editor_url(report), html_fields(resumed, intent=f"remove-effect:{first_id}")
         )
-        assert [effect.id for effect in removed.context["models"][0].effects] == [
-            second_id
-        ]
+        assert [
+            effect["id"] for effect in editor_props(removed)["models"][0]["effects"]
+        ] == [second_id]
         assert not Assignment.objects.filter(
             miniature_root=model, pickable=table.wound
         ).exists()
@@ -1251,7 +1294,7 @@ class TestStaleAndMalformedForms:
         )
         response = client.post(editor_url(report), stale_data)
         assert response.status_code == 409
-        assert response.context["stale"]
+        assert editor_props(response)["initialConflict"]
         kept = html_fields(response)
         for name in ("generation", "revision", "submission_key"):
             assert kept[name] == stale_data[name]
@@ -1399,24 +1442,27 @@ class TestReportQueryGrowth:
         for name in ("Ash", "Flare", "Coal"):
             hire(table.gang, profile, name)
         assert count() <= small
-        assert len(client.get(editor_url(report)).context["models"]) == 5
+        assert len(editor_props(client.get(editor_url(report)))["models"]) == 5
 
 
 def step(client, report, response, intent, **changes):
     stepped = client.post(
         editor_url(report), html_fields(response, intent=intent, **changes)
     )
-    assert stepped.status_code == 200, stepped.context["errors"]
+    assert stepped.status_code == 200, editor_props(stepped)["errors"]
     return stepped
 
 
 def entered_xp(response):
-    return [row.xp for row in response.context["models"]]
+    return [row["xp"] for row in editor_props(response)["models"]]
 
 
-def toolbar_button(response, value):
-    document = BeautifulSoup(response.content, "html.parser")
-    return document.select_one(f'button[name="intent"][value="{value}"]')
+def toolbar_text(response, name):
+    props = editor_props(response)
+    count = sum(model["participated"] for model in props["models"])
+    return props["toolbar"][f"{name}{'One' if count == 1 else 'Many'}"].replace(
+        "{n}", str(count)
+    )
 
 
 class TestXpSteps:
@@ -1445,11 +1491,11 @@ class TestXpSteps:
         report = start(client, table)
         ticked = {f"model-{m.pk}-participated": "on" for m in table.models}
         page = client.get(editor_url(report))
-        assert toolbar_button(page, "xp-step:-1").has_attr("disabled")
-        assert toolbar_button(page, "xp-step:+1").has_attr("disabled")
+        assert not any(model["participated"] for model in editor_props(page)["models"])
         page = step(client, report, page, "xp-step:+1", **ticked)
-        assert toolbar_button(page, "xp-step:+1")["aria-label"] == (
-            "Add 1 XP to each of the 2 models that took part"
+        assert (
+            toolbar_text(page, "plus")
+            == "Add 1 XP to each of the 2 models that took part"
         )
         page = step(client, report, page, "xp-step:+1")
         page = step(client, report, page, "xp-step:+1")
@@ -1460,8 +1506,10 @@ class TestXpSteps:
         for _ in range(3):
             resumed = step(client, report, resumed, "xp-step:-1")
         assert entered_xp(resumed) == ["0", "0"]
-        assert toolbar_button(resumed, "xp-step:-1").has_attr("disabled")
-        assert not toolbar_button(resumed, "xp-step:+1").has_attr("disabled")
+        assert all(
+            model["participated"] and model["xpAvailable"]
+            for model in editor_props(resumed)["models"]
+        )
 
     def test_a_stale_version_keeps_the_entries(self, client, table):
         report = start(client, table)
@@ -1489,7 +1537,7 @@ class TestXpSteps:
         page = client.get(editor_url(report))
         assert page.status_code == 200
         saved = step(client, report, page, "check")
-        assert "bulk_undo" not in saved.context["payload"]
+        assert "bulk_undo" not in editor_props(saved)["payload"]
         report.refresh_from_db()
         assert "bulk_undo" not in report.draft
 
@@ -1514,30 +1562,15 @@ class TestXpBlockedModels:
                 f"model-{visitor.pk}-participated": "on",
             },
         )
-        by_id = {row.id: row.xp for row in page.context["models"]}
+        by_id = {row["id"]: row["xp"] for row in editor_props(page)["models"]}
         assert by_id[str(first.pk)] == "1"
         assert by_id[str(visitor.pk)] == ""
-        document = BeautifulSoup(page.content, "html.parser")
-        toolbar = document.select_one("[data-xp-toolbar]")
-        assert "cannot take XP" not in toolbar.get_text(" ", strip=True)
-        assert toolbar.select_one("[data-xp-count]").get_text(strip=True) == (
-            "2 models took part"
-        )
-        assert document.select_one(f'input[id="model-{visitor.pk}-xp"]') is None
-        why = document.select_one(f'summary[id="model-{visitor.pk}-xp-why-button"]')
-        assert why["aria-label"] == "Why Visitor cannot take XP"
-        assert not why.find_parent("details").has_attr("open")
-        host = why.find_parent(attrs={"data-react-module": True})
-        props = json.loads(document.find(id=host["data-react-props"]).string)
-        assert props == {
-            "label": "Why Visitor cannot take XP",
-            "paragraphs": ["Visitor has no XP counter, so XP cannot be recorded here."],
-            "triggerId": f"model-{visitor.pk}-xp-why-button",
-        }
-        assert host.select_one("[data-popover]") is None
-        reason = document.find(id=f"model-{visitor.pk}-xp-why")
-        assert reason.get_text(" ", strip=True) == (
-            "Visitor has no XP counter, so XP cannot be recorded here."
+        assert toolbar_text(page, "count") == "2 models took part"
+        shown = model_props(page, visitor)
+        assert not shown["xpAvailable"]
+        assert (
+            shown["xpHelp"]
+            == "Visitor has no XP counter, so XP cannot be recorded here."
         )
         applied = client.post(
             editor_url(report),
@@ -1549,7 +1582,7 @@ class TestXpBlockedModels:
                 participation_confirmed="on",
             ),
         )
-        assert applied.status_code == 302, applied.context["errors"]
+        assert applied.status_code == 302
         assert xp_value(first) == 1
         assert_books(table)
 
@@ -1557,25 +1590,19 @@ class TestXpBlockedModels:
         self, client, table, visitor
     ):
         report = start(client, table)
-        payload = report.draft
-        for model in payload["models"]:
+        for model in report.draft["models"]:
             if model["id"] == str(visitor.pk):
                 model["xp"] = "1"
-        report.draft = payload
         report.save(update_fields=["draft"])
         page = client.get(editor_url(report))
         assert html_fields(page)[f"model-{visitor.pk}-xp"] == [""]
-        shown = next(m for m in page.context["plan"].models if m.id == str(visitor.pk))
-        assert shown.xp_change == 0
+        assert model_props(page, visitor)["xp"] == ""
         assert not any(
-            error.startswith("Visitor:") for error in page.context["plan"].errors
+            error.startswith("Visitor:") for error in editor_props(page)["errors"]
         )
-        summary = BeautifulSoup(page.content, "html.parser").find(
-            "aside", attrs={"aria-labelledby": "changes-heading"}
-        )
-        assert "Visitor" not in summary.get_text(" ", strip=True)
+        assert "Visitor" not in summary_text(page)
         applied = client.post(editor_url(report), awards(page, table))
-        assert applied.status_code == 302, applied.context["errors"]
+        assert applied.status_code == 302
 
     def test_a_correction_after_the_xp_counter_is_removed_applies(self, client, table):
         report = start(client, table)
@@ -1583,7 +1610,7 @@ class TestXpBlockedModels:
         first = client.post(
             editor_url(report), awards(client.get(editor_url(report)), table)
         )
-        assert first.status_code == 302, first.context["errors"]
+        assert first.status_code == 302, editor_props(first)["errors"]
         counter = Assignment.objects.get(
             miniature_root=model, counter__isnull=False, archived=False
         )
@@ -1591,14 +1618,13 @@ class TestXpBlockedModels:
             op.remove(counter)
         corrected = client.post(reverse("n26-post-battle-correct", args=[report.pk]))
         page = client.get(corrected.url)
-        document = BeautifulSoup(page.content, "html.parser")
-        assert document.select_one(f'input[id="model-{model.pk}-xp"]') is None
-        assert document.select_one(f'summary[id="model-{model.pk}-xp-why-button"]')
+        assert not model_props(page, model)["xpAvailable"]
+        assert model_props(page, model)["xpHelp"]
         assert html_fields(page)[f"model-{model.pk}-xp"] == ["2"]
         applied = client.post(
             editor_url(report), html_fields(page, intent="apply", credits="30")
         )
-        assert applied.status_code == 302, applied.context["errors"]
+        assert applied.status_code == 302, editor_props(applied)["errors"]
         assert applied.url == receipt_url(report, 2)
         counter.refresh_from_db()
         assert counter.archived
@@ -1620,7 +1646,7 @@ class TestXpBlockedModels:
         assert refused.status_code == 409
         assert (
             "Visitor: This model has no XP counter, so XP cannot be recorded here."
-            in refused.context["errors"]
+            in editor_props(refused)["errors"]
         )
         assert not Assignment.objects.filter(
             miniature=visitor, counter__isnull=False
@@ -1683,19 +1709,28 @@ class TestRecordResultsEntry:
         report = start_through_page(client, table)
         for page in ("editor", "receipt"):
             if page == "receipt":
-                applied = client.post(
-                    editor_url(report), awards(client.get(editor_url(report)), table)
+                assert (
+                    client.post(
+                        editor_url(report),
+                        awards(client.get(editor_url(report)), table),
+                    ).status_code
+                    == 302
                 )
-                assert applied.status_code == 302
             response = client.get(
                 editor_url(report) if page == "editor" else receipt_url(report)
             )
-            document = BeautifulSoup(response.content, "html.parser")
-            header = document.find("h1").find_parent("div", class_="gap-1")
-            crumbs = [
-                (item.get_text(strip=True), item.get("href"))
-                for item in header.select("nav li a, nav li [aria-current]")
-            ]
+            if page == "editor":
+                crumbs = [
+                    (item["label"], item.get("href"))
+                    for item in editor_props(response)["breadcrumbs"]
+                ]
+            else:
+                document = BeautifulSoup(response.content, "html.parser")
+                header = document.find("h1").find_parent("div", class_="gap-1")
+                crumbs = [
+                    (item.get_text(strip=True), item.get("href"))
+                    for item in header.select("nav li a, nav li [aria-current]")
+                ]
             assert crumbs == [
                 (
                     table.battle.title,
@@ -1707,58 +1742,51 @@ class TestRecordResultsEntry:
                     None,
                 ),
             ]
-            assert header.get_text().count(table.gang.name) == 1
+            assert [label for label, _ in crumbs].count(table.gang.name) == 1
 
     def test_standalone_breadcrumb_links_the_gang_and_its_reports(self, client, table):
         report = start_through_page(client, table, standalone=True)
-        document = BeautifulSoup(client.get(editor_url(report)).content, "html.parser")
-        header = document.find("h1").find_parent("div", class_="gap-1")
         crumbs = [
-            (item.get_text(strip=True), item.get("href"))
-            for item in header.select("nav li a, nav li [aria-current]")
+            (item["label"], item.get("href"))
+            for item in editor_props(client.get(editor_url(report)))["breadcrumbs"]
         ]
         assert crumbs == [
             (table.gang.name, reverse("n26-gang", args=[table.gang.pk])),
             ("Post-battle", reverse("n26-gang-post-battle", args=[table.gang.pk])),
             ("Stand-off", None),
         ]
-        assert header.get_text().count(table.gang.name) == 1
+        assert [label for label, _ in crumbs].count(table.gang.name) == 1
 
-    def test_the_action_bar_says_entries_save_as_you_go(self, client, table):
+    def test_the_editor_delivers_a_saved_draft_and_an_autosave_command(
+        self, client, table
+    ):
         report = start_through_page(client, table)
-        text = BeautifulSoup(
-            client.get(editor_url(report)).content, "html.parser"
-        ).get_text(" ", strip=True)
-        assert (
-            "Entries save as you go. The gang changes only when you apply the results."
-            in text
+        props = editor_props(client.get(editor_url(report)))
+        assert props["commandHref"] == reverse(
+            "n26-post-battle-command", args=[report.pk]
         )
-        assert "Changes apply to this gang only." not in text
+        assert props["savedAt"]
+        assert props["generation"] == str(report.generation)
+        assert props["revision"] == report.draft_revision
 
 
-def refresh(client, report, response, model, *, after=None, **changes):
-    """Refresh one model section over HTMX. When after is supplied, use that earlier
-    response’s version as the browser’s out-of-band swap would.
-    """
+def refresh(client, report, response, model, *, after=None, navigate=True, **changes):
+    """Submit a cached section intent and follow its full-editor redirect."""
     fields = html_fields(response, intent=f"refresh-model:{model.pk}", **changes)
     if after is not None:
-        version = BeautifulSoup(after.content, "html.parser").find(
-            id="post-battle-version"
-        )
-        for element in version.select("input[name]"):
-            fields[element["name"]] = [element.get("value", "")]
-    return client.post(editor_url(report), fields, HTTP_HX_REQUEST="true")
-
-
-def module(response, model):
-    return BeautifulSoup(response.content, "html.parser").find(
-        "fieldset", id=f"result-{model.pk}"
-    )
+        version = html_fields(after)
+        for name in ("generation", "revision", "submission_key", "review"):
+            fields[name] = version[name]
+    result = client.post(editor_url(report), fields, HTTP_HX_REQUEST="true")
+    if navigate and result.status_code == 204:
+        assert urlsplit(result["HX-Redirect"]).path == editor_url(report)
+        return client.get(result["HX-Redirect"])
+    return result
 
 
 @pytest.mark.parametrize("table", [1], indirect=True)
 class TestModelModule:
-    """Model sections use their lasting-effect table labels and refresh in place."""
+    """Model display contracts retain table labels and dynamic result controls."""
 
     def test_a_vehicle_table_is_named_by_its_own_label(
         self, client, table, make_profile, vehicle_type
@@ -1778,20 +1806,15 @@ class TestModelModule:
                 client.get(editor_url(report)), intent=f"add-effect:{vehicle.pk}"
             ),
         )
-        box = module(added, vehicle)
-        assert box.find("button", value=f"add-effect:{vehicle.pk}").get_text(
-            strip=True
-        ) == ("Add Lasting Damage")
-        (field,) = box.select("select[id$='-pick']")
-        assert box.find("label", attrs={"for": field["id"]}).get_text(strip=True) == (
-            "Lasting Damage 1"
+        shown = model_props(added, vehicle)
+        assert shown["addEffectLabel"] == "Add Lasting Damage"
+        assert shown["effects"][0]["label"] == "Lasting Damage 1"
+        assert shown["effectGroups"][0]["label"] == "Lasting Damage"
+        assert (
+            model_props(added, table.models[0])["addEffectLabel"]
+            == "Add Lasting injury"
         )
-        assert box.find("optgroup")["label"] == "Lasting Damage"
-        fighter = module(added, table.models[0])
-        assert fighter.find(
-            "button", value=f"add-effect:{table.models[0].pk}"
-        ).get_text(strip=True) == ("Add Lasting injury")
-        assert "lasting effect" not in added.content.decode().lower()
+        assert "lasting effect" not in json.dumps(shown).lower()
 
     def test_a_plural_card_heading_still_names_one_result(
         self, client, table, make_profile
@@ -1816,13 +1839,9 @@ class TestModelModule:
                 client.get(editor_url(report)), intent=f"add-effect:{model.pk}"
             ),
         )
-        box = module(added, model)
-        assert [group["label"] for group in box.find_all("optgroup")] == [
-            "Lasting injury"
-        ]
-        assert box.find("button", value=f"add-effect:{model.pk}").get_text(
-            strip=True
-        ) == ("Add Lasting injury")
+        shown = model_props(added, model)
+        assert [group["label"] for group in shown["effectGroups"]] == ["Lasting injury"]
+        assert shown["addEffectLabel"] == "Add Lasting injury"
 
     def test_options_lead_with_their_roll_band(self, client, table):
         kind = create_slot_type("Test table (dice)", is_lasting_effect=True)
@@ -1844,35 +1863,36 @@ class TestModelModule:
                 client.get(editor_url(report)), intent=f"add-effect:{model.pk}"
             ),
         )
+        shown = model_props(added, model)
         groups = {
-            group["label"]: [option.get_text(strip=True) for option in group("option")]
-            for group in module(added, model).find_all("optgroup")
+            group["label"]: [option["label"] for option in group["options"]]
+            for group in shown["effectGroups"]
         }
         assert groups["Test table (dice)"] == ["11–16 Out Cold"]
         assert groups["Lasting injury"] == ["Grievous Wound"]
-        (row,) = [row for row in added.context["models"] if row.id == str(model.pk)]
-        values = [value for value, _ in row.effect_options]
-        assert any(value.endswith(f"|{out_cold.pk}") for value in values)
+        assert any(
+            value.endswith(f"|{out_cold.pk}") for value, _ in effect_options(shown)
+        )
 
-    def test_refresh_returns_the_module_summary_and_new_version(self, client, table):
+    def test_refresh_redirects_to_the_complete_editor_with_the_saved_version(
+        self, client, table
+    ):
         report = start(client, table)
         model = table.models[0]
-        page = client.get(editor_url(report))
         response = refresh(
-            client, report, page, model, **{f"model-{model.pk}-status": "dead"}
+            client,
+            report,
+            client.get(editor_url(report)),
+            model,
+            navigate=False,
+            **{f"model-{model.pk}-status": "dead"},
         )
-        assert response.status_code == 200
-        document = BeautifulSoup(response.content, "html.parser")
-        assert document.find("form") is None
-        box = document.find("fieldset", id=f"result-{model.pk}")
-        assert box.find("select", attrs={"name": f"model-{model.pk}-equipment"})
-        assert document.find(id="post-battle-summary")["hx-swap-oob"] == "true"
-        version = document.find(id="post-battle-version")
-        assert version["hx-swap-oob"] == "true"
+        assert response.status_code == 204
+        assert response["HX-Redirect"] == editor_url(report)
         report.refresh_from_db()
-        assert version.find("input", attrs={"name": "revision"})["value"] == str(
-            report.draft_revision
-        )
+        shown = client.get(response["HX-Redirect"])
+        assert model_props(shown, model)["equipmentApplies"]
+        assert editor_props(shown)["revision"] == report.draft_revision
         assert report.draft["models"][0]["status"] == "dead"
 
     def test_a_stale_refresh_is_refused_and_keeps_the_saved_draft(self, client, table):
@@ -1900,7 +1920,7 @@ class TestModelModule:
             ),
         )
         assert response.status_code == 200
-        assert b'id="post-battle-form"' in response.content
+        assert editor_props(response)["reportId"] == str(report.pk)
 
     def test_status_badges_use_the_prepared_status_and_colour(self, client, table):
         model = table.models[0]
@@ -1913,33 +1933,16 @@ class TestModelModule:
         ]:
             model.status = status
             model.save(update_fields=["status"])
-            plan = preview_report(report, actor=table.owner, payload=report.draft)
-            prepared = editor_models(
-                plan, report.draft, refresh_url=editor_url(report)
-            )[0]
-            assert prepared.result.status_label == label
-            assert prepared.status_colour == colour
-            if status == Status.RECOVERY:
-                response = client.get(editor_url(report))
-                heading = module(response, model).find("h3")
-                assert (
-                    heading.get_text(" ", strip=True) == f"{model.name} Status: {label}"
-                )
-                assert response.context["models"][0].status_colour == colour
+            shown = model_props(client.get(editor_url(report)), model)
+            assert shown["statusLabel"] == label
+            assert shown["statusColour"] == colour
 
     def test_equipment_choice_shows_only_for_a_dead_model(self, client, table):
         report = start(client, table)
         model = table.models[0]
         page = client.get(editor_url(report))
-        alive = module(page, model)
-        # Only a browser without scripts draws the choice for a live model.
-        (fallback,) = alive.find_all(
-            "select", attrs={"name": f"model-{model.pk}-equipment"}
-        )
-        assert fallback.find_parent("noscript") is not None
-        kept = alive.find("input", attrs={"name": f"model-{model.pk}-equipment"})
-        assert kept["type"] == "hidden"
-        assert "only when this model is dead or destroyed" in alive.get_text()
+        assert not model_props(page, model)["equipmentApplies"]
+        assert html_fields(page)[f"model-{model.pk}-equipment"] == ["keep"]
         dead = refresh(
             client,
             report,
@@ -1950,11 +1953,10 @@ class TestModelModule:
                 f"model-{model.pk}-equipment": "lost",
             },
         )
-        box = module(dead, model)
-        assert box.find("noscript") is None
-        select = box.find("select", attrs={"name": f"model-{model.pk}-equipment"})
-        assert select.find("option", selected=True)["value"] == "lost"
-        assert "What happens to Cinder's equipment" in box.get_text()
+        shown = model_props(dead, model)
+        assert shown["equipmentApplies"]
+        assert shown["equipment"] == "lost"
+        assert shown["equipmentLabel"] == "What happens to Cinder's equipment"
         alive_again = refresh(
             client,
             report,
@@ -1964,19 +1966,13 @@ class TestModelModule:
             **{f"model-{model.pk}-status": "", f"model-{model.pk}-equipment": "lost"},
         )
         assert alive_again.status_code == 200
-        kept = module(alive_again, model).find(
-            "input", attrs={"name": f"model-{model.pk}-equipment"}
-        )
-        assert kept["value"] == "lost"
-        summary = BeautifulSoup(alive_again.content, "html.parser").find(
-            id="post-battle-summary"
-        )
-        # An ignored choice changes nothing, so the model is not listed.
-        assert "Cinder" not in summary.get_text()
+        assert not model_props(alive_again, model)["equipmentApplies"]
+        assert html_fields(alive_again)[f"model-{model.pk}-equipment"] == ["lost"]
+        assert "Cinder" not in summary_text(alive_again)
 
 
 class TestModuleRefreshEdges:
-    """An in-place update never swaps a whole page into a module."""
+    """Cached section requests navigate to the complete editor and retain errors."""
 
     def test_a_report_applied_elsewhere_sends_htmx_to_the_receipt(self, client, table):
         report = start(client, table)
@@ -1984,7 +1980,7 @@ class TestModuleRefreshEdges:
         page = client.get(editor_url(report))
         applied = client.post(editor_url(report), awards(page, table))
         assert applied.status_code == 302
-        response = refresh(client, report, page, model)
+        response = refresh(client, report, page, model, navigate=False)
         assert response.status_code == 204
         assert response["HX-Redirect"] == receipt_url(report)
 
@@ -1994,7 +1990,7 @@ class TestModuleRefreshEdges:
         page = client.get(editor_url(report))
         model.membership.archived = True
         model.membership.save(update_fields=["archived"])
-        response = refresh(client, report, page, model)
+        response = refresh(client, report, page, model, navigate=False)
         assert response.status_code == 204
         assert response["HX-Redirect"] == editor_url(report)
 
@@ -2009,24 +2005,32 @@ class TestModuleRefreshEdges:
                 **{f"model-{model.pk}-xp": "-1"},
             ),
         )
-        assert "Cinder's XP" in module(checked, model).get_text()
-        still_wrong = refresh(client, report, checked, model)
-        document = BeautifulSoup(still_wrong.content, "html.parser")
-        assert "Cinder's XP" in module(still_wrong, model).get_text()
-        region = document.find(id="post-battle-errors")
-        assert region["hx-swap-oob"] == "true"
-        assert "Cinder's XP" in region.get_text()
+        assert any(
+            "Cinder's XP" in error for error in model_props(checked, model)["errors"]
+        )
+        still_wrong = refresh(client, report, checked, model, showing_errors="1")
+        assert any(
+            "Cinder's XP" in error
+            for error in model_props(still_wrong, model)["errors"]
+        )
+        assert any(
+            "Cinder's XP" in error for error in editor_props(still_wrong)["errors"]
+        )
         fixed = refresh(
             client,
             report,
             checked,
             model,
             after=still_wrong,
+            showing_errors="1",
             **{f"model-{model.pk}-xp": "1"},
         )
-        document = BeautifulSoup(fixed.content, "html.parser")
-        assert "Cinder's XP" not in module(fixed, model).get_text()
-        assert "Cinder's XP" not in document.find(id="post-battle-errors").get_text()
+        assert not any(
+            "Cinder's XP" in error for error in model_props(fixed, model)["errors"]
+        )
+        assert not any(
+            "Cinder's XP" in error for error in editor_props(fixed)["errors"]
+        )
 
     def test_without_shown_errors_a_refresh_sends_none(self, client, table):
         report = start(client, table)
@@ -2038,16 +2042,22 @@ class TestModuleRefreshEdges:
             model,
             **{f"model-{model.pk}-xp": "-1"},
         )
-        document = BeautifulSoup(response.content, "html.parser")
-        assert document.find(id="post-battle-errors") is None
-        assert "Cinder's XP" not in module(response, model).get_text()
+        assert not editor_props(response)["showErrors"]
+        assert not editor_props(response)["errors"]
+        assert any(
+            "Cinder's XP" in error for error in model_props(response, model)["errors"]
+        )
 
 
 def summary_text(response):
-    summary = BeautifulSoup(response.content, "html.parser").find(
-        id="post-battle-summary"
+    preview = editor_props(response)["preview"]
+    parts = [part for row in preview["rows"] for part in (row["label"], row["value"])]
+    parts.extend(
+        part
+        for model in preview["models"]
+        for part in (model["name"], *model["lines"], model["error"])
     )
-    return " ".join(summary.get_text(" ").split())
+    return " ".join(" ".join(parts).split())
 
 
 class TestWhatTheSummaryAndReceiptList:
@@ -2106,8 +2116,7 @@ class TestWhatTheSummaryAndReceiptList:
                 **{f"model-{model.pk}-xp": "2"},
             ),
         )
-        document = BeautifulSoup(response.content, "html.parser")
-        assert "+2 XP (0 → 2)" in document.find("aside").get_text()
+        assert "+2 XP (0 → 2)" in summary_text(response)
         applied = client.post(editor_url(report), awards(response, table))
 
         text = client.get(applied.url).content.decode()
@@ -2119,11 +2128,10 @@ class TestWhatTheSummaryAndReceiptList:
     ):
         visitor = hire(table.gang, make_profile("Civilian"), "Visitor")
         report = start(client, table)
-
-        box = module(client.get(editor_url(report)), visitor)
-
-        assert "Current XP" not in box.get_text()
-        assert box.select_one("[data-xp-why]") is not None
+        shown = model_props(client.get(editor_url(report)), visitor)
+        assert not shown["xpAvailable"]
+        assert shown["xpHelp"]
+        assert shown["xp"] == ""
 
     def test_check_names_a_result_that_disagrees_with_the_status(self, client, table):
         death = create_pickable(
@@ -2141,7 +2149,7 @@ class TestWhatTheSummaryAndReceiptList:
         assert (
             "Cinder: Memorable Death makes Cinder Dead, but Cinder's final status "
             "is In Recovery. Choose the final status."
-        ) in checked.context["errors"]
+        ) in editor_props(checked)["errors"]
 
 
 class TestConflictingStatuses:
@@ -2159,59 +2167,50 @@ class TestConflictingStatuses:
         page = client.get(editor_url(report))
         for _ in range(2):
             page = client.post(
-                editor_url(report),
-                html_fields(page, intent=f"add-effect:{cinder.pk}"),
+                editor_url(report), html_fields(page, intent=f"add-effect:{cinder.pk}")
             )
-        entry = next(m for m in page.context["models"] if m.id == str(cinder.pk))
-        first, second = (effect.id for effect in entry.effects)
-        option = {value.split("|")[1]: value for value, _ in entry.effect_options}
-
+        shown = model_props(page, cinder)
+        first, second = (effect["id"] for effect in shown["effects"])
+        options = {value.split("|")[1]: value for value, _ in effect_options(shown)}
         redrawn = refresh(
             client,
             report,
             page,
             cinder,
             **{
-                f"effect-{first}-pick": option[str(table.wound.pk)],
-                f"effect-{second}-pick": option[str(death.pk)],
+                f"effect-{first}-pick": options[str(table.wound.pk)],
+                f"effect-{second}-pick": options[str(death.pk)],
             },
         )
-
-        message = (
-            "Grievous Wound makes Cinder In Recovery and Memorable Death makes "
-            "Cinder Dead. Choose the final status."
-        )
-        box = module(redrawn, cinder)
-        conflict = box.find(id=f"model-{cinder.pk}-status-conflict")
-        assert conflict.get_text(strip=True) == message
-        assert "After this battle" not in box.get_text()
-        status = box.find("select", id=f"model-{cinder.pk}-status")
-        assert status["aria-describedby"] == conflict["id"]
-        text = summary_text(redrawn)
-        assert message in text
-        assert "Final status" not in text
+        message = "Grievous Wound makes Cinder In Recovery and Memorable Death makes Cinder Dead. Choose the final status."
+        assert model_props(redrawn, cinder)["statusConflict"] == message
+        assert not model_props(redrawn, cinder)["statusChanges"]
+        assert message in summary_text(redrawn)
+        assert "Final status" not in summary_text(redrawn)
 
 
 def mission(response):
-    return BeautifulSoup(response.content, "html.parser").find(
-        "fieldset", id="mission-results"
-    )
+    return editor_props(response)["mission"]
 
 
 def mission_step(client, report, response, intent, **changes):
-    """Click a Mission results button as htmx does."""
-    return client.post(
+    """A cached mission intent navigates to the complete saved editor."""
+    updated = client.post(
         editor_url(report),
         html_fields(response, intent=intent, **changes),
         HTTP_HX_REQUEST="true",
     )
+    assert updated.status_code == 204
+    assert urlsplit(updated["HX-Redirect"]).path == editor_url(report)
+    if intent == "check":
+        assert parse_qs(urlsplit(updated["HX-Redirect"]).query) == {
+            "show_errors": ["1"]
+        }
+    return client.get(updated["HX-Redirect"])
 
 
 def credit_line_ids(response):
-    return [
-        element["value"]
-        for element in mission(response).select("input[name=credit_line]")
-    ]
+    return [line["id"] for line in mission(response)["creditLines"]]
 
 
 @pytest.fixture
@@ -2222,21 +2221,17 @@ def reputation(table):
 
 
 class TestMissionResults:
-    """Lines of credits and the gang's counters, redrawn in place."""
+    """Mission display data preserves credit lines and the gang's counter changes."""
 
     def test_the_section_starts_with_one_line_and_adds_and_removes_lines(
         self, client, table
     ):
         report = start(client, table)
         page = client.get(editor_url(report))
-        section = mission(page)
-        assert section.find("h2").get_text(strip=True) == "Mission results"
-        assert "Gang results" not in page.content.decode()
-        assert (
-            section.find(id="add-credit-line").get_text(strip=True)
-            == "Add credit source"
-        )
+        assert mission(page)["canAddLine"]
         (first,) = credit_line_ids(page)
+        assert mission(page)["creditLines"][0]["amount"] == ""
+        assert mission(page)["creditLines"][0]["reason"] == ""
         added = mission_step(client, report, page, "add-credit-line")
         assert added.status_code == 200
         ids = credit_line_ids(added)
@@ -2267,9 +2262,7 @@ class TestMissionResults:
             },
         )
         checked = client.post(editor_url(report), fields)
-        assert "Credits from this battle +55¢" in " ".join(
-            mission(checked).get_text(" ", strip=True).split()
-        )
+        assert mission(checked)["totalText"] == "+55¢"
         applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
         assert applied.status_code == 302
         assert list(
@@ -2285,24 +2278,16 @@ class TestMissionResults:
         report = start(client, table)
         page = client.get(editor_url(report))
         key = str(reputation.pk)
-        row = mission(page).find("input", id=f"gang-counter-{key}").find_parent("tr")
-        assert row.find("label").get_text(strip=True) == "Reputation"
-        assert not row.find("button")
-        assert row.find("input", id=f"gang-counter-{key}")["type"] == "number"
-        section = mission(page)
-        field = section.find("input", id=f"gang-counter-{key}")
-        assert field["step"] == "1"
-        assert not section.select("button[data-counter-step]")
+        (counter,) = mission(page)["counters"]
+        assert counter["name"] == "Reputation"
+        assert counter["prefix"] == f"gang-counter-{key}"
+        assert counter["editable"]
         stepped = mission_step(
             client, report, page, "check", **{f"gang-counter-{key}": "1"}
         )
-        row = mission(stepped).find("input", id=f"gang-counter-{key}")
-        assert row["value"] == "1"
-        cells = [
-            cell.get_text(strip=True) for cell in row.find_parent("tr").find_all("td")
-        ]
-        assert cells[1] == "5" and cells[-1] == "6"
-        assert "From results" not in mission(stepped).get_text()
+        (counter,) = mission(stepped)["counters"]
+        assert (counter["before"], counter["entered"], counter["after"]) == (5, "1", 6)
+        assert not mission(stepped)["counterEffects"]
         report.refresh_from_db()
         assert report.draft["gang_counters"] == {key: "1"}
 
@@ -2336,11 +2321,11 @@ class TestMissionResults:
         corrected = client.post(reverse("n26-post-battle-correct", args=[report.pk]))
         assert corrected.status_code == 302
         page = client.get(editor_url(report))
-        assert mission(page).find("input", attrs={"name": "gang_counter"}) is None
+        assert not any(counter["editable"] for counter in mission(page)["counters"])
         checked = client.post(
             editor_url(report), html_fields(page, intent="check", credits="25")
         )
-        assert checked.context["plan"].valid, checked.context["plan"].errors
+        assert not editor_props(checked)["errors"], editor_props(checked)["errors"]
         applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
         assert applied.status_code == 302
         revision = report.revisions.get(sequence=2)
@@ -2386,19 +2371,13 @@ class TestMissionResultsAddUp:
         page = self.apply_first(
             client, table, report, **{f"gang-counter-{reputation.pk}": "2"}
         )
-
-        field = mission(page).find("input", id=f"gang-counter-{reputation.pk}")
-        cells = [
-            cell.get_text(strip=True) for cell in field.find_parent("tr").find_all("td")
-        ]
-        assert (cells[1], field["value"], cells[-1]) == ("5", "2", "7")
-        assert "Before" in mission(page).find("thead").get_text()
+        (counter,) = mission(page)["counters"]
+        assert (counter["before"], counter["entered"], counter["after"]) == (5, "2", 7)
 
     def test_a_negative_amount_is_refused_by_its_field(self, client, table):
         report = start(client, table)
         page = client.get(editor_url(report))
         (line,) = credit_line_ids(page)
-
         checked = client.post(
             editor_url(report),
             html_fields(
@@ -2407,14 +2386,13 @@ class TestMissionResultsAddUp:
                 **{f"credit-{line}-amount": "-40", f"credit-{line}-reason": "Fine"},
             ),
         )
-
-        field = mission(checked).find("input", id=f"credit-{line}-amount")
-        assert field["aria-invalid"] == "true"
-        error = mission(checked).find(id=field["aria-describedby"])
-        assert "Enter a whole number from 0 to 1,000,000" in error.get_text()
-        assert "Credits from this battle +0¢" in " ".join(
-            mission(checked).get_text(" ", strip=True).split()
+        (shown,) = mission(checked)["creditLines"]
+        assert shown["amount"] == "-40"
+        assert any(
+            "Enter a whole number from 0 to 1,000,000" in error
+            for error in shown["amountErrors"]
         )
+        assert mission(checked)["totalText"] == "+0¢"
 
     def test_a_corrected_receipt_shows_the_total_and_the_change(self, client, table):
         report = start(client, table)
@@ -2452,50 +2430,42 @@ def kills(table):
 
 
 def counter_step(client, report, response, model, intent, **changes):
-    """Click a model counter's step button as htmx does."""
-    return client.post(
+    """A cached counter intent saves and navigates to the complete editor."""
+    updated = client.post(
         editor_url(report),
         html_fields(response, intent=intent, **changes),
         HTTP_HX_REQUEST="true",
     )
+    assert updated.status_code == 204
+    assert urlsplit(updated["HX-Redirect"]).path == editor_url(report)
+    if intent == "check":
+        assert parse_qs(urlsplit(updated["HX-Redirect"]).query) == {
+            "show_errors": ["1"]
+        }
+    return client.get(updated["HX-Redirect"])
 
 
 class TestModelCounters:
     """A model's counters sit under its XP and step in place."""
 
-    def test_a_step_redraws_the_module_and_saves_the_draft(self, client, table, kills):
+    def test_a_step_saves_and_redraws_the_counter_with_its_limits(
+        self, client, table, kills
+    ):
         report = start(client, table)
         page = client.get(editor_url(report))
         cinder, ember = table.models
-        field = f"model-{cinder.pk}-counter-{kills.pk}"
-        progress = module(page, cinder).find(attrs={"data-model-progress": True})
-        row = progress.find("input", id=field).find_parent("tr")
-        assert row.find("label").get_text(strip=True) == "Kill Count"
-        assert module(page, ember).find(attrs={"data-model-counters": True}) is None
-        box = module(page, cinder)
-        field = f"model-{cinder.pk}-counter-{kills.pk}"
-        for step in ("-1", "+1"):
-            button = box.find(
-                "button",
-                attrs={"value": f"model-counter-step:{cinder.pk}:{kills.pk}:{step}"},
-            )
-            assert not button.has_attr("hx-post")
-            assert button["data-counter-step"] == field
-        assert box.find("input", id=field)["data-counter-limit"] == "1000"
-        cinder = table.models[0]
         key = str(kills.pk)
+        (counter,) = model_props(page, cinder)["counters"]
+        assert counter["name"] == "Kill Count"
+        assert counter["prefix"] == f"model-{cinder.pk}-counter-{key}"
+        assert counter["limit"] == 1000
+        assert counter["minusLabel"] and counter["plusLabel"]
+        assert not model_props(page, ember)["counters"]
         stepped = counter_step(
             client, report, page, cinder, f"model-counter-step:{cinder.pk}:{key}:+1"
         )
-        assert stepped.status_code == 200
-        field = module(stepped, cinder).find(
-            "input", id=f"model-{cinder.pk}-counter-{key}"
-        )
-        assert field["value"] == "1"
-        cells = [
-            cell.get_text(strip=True) for cell in field.find_parent("tr").find_all("td")
-        ]
-        assert cells[1] == "2" and cells[-1] == "3"
+        (counter,) = model_props(stepped, cinder)["counters"]
+        assert (counter["before"], counter["entered"], counter["after"]) == (2, "1", 3)
         report.refresh_from_db()
         assert report.draft["models"][0]["counters"] == {key: "1"}
 
@@ -2508,12 +2478,7 @@ class TestModelCounters:
             **{f"model-{cinder.pk}-counter-{kills.pk}": "1"},
         )
         checked = client.post(editor_url(report), fields | {"intent": "check"})
-        summary = " ".join(
-            BeautifulSoup(checked.content, "html.parser")
-            .find(id="post-battle-summary")
-            .get_text(" ", strip=True)
-            .split()
-        )
+        summary = summary_text(checked)
         assert "+1 Kill Count (2 → 3)" in summary
         applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
         assert applied.status_code == 302
@@ -2551,15 +2516,14 @@ class TestModelCounters:
 
         page = client.get(editor_url(report))
 
-        box = module(page, cinder).find(attrs={"data-model-counters": True})
-        entry = box.find("input", id=field)
-        cells = [
-            cell.get_text(strip=True) for cell in entry.find_parent("tr").find_all("td")
-        ]
-        # The preview adds the entered counter change and retained result effect to the
-        # starting value.
-        assert (cells[1], entry["value"], cells[2], cells[-1]) == ("2", "1", "+1", "4")
-        assert "From results" in box.find("thead").get_text()
+        (counter,) = model_props(page, cinder)["counters"]
+        assert (
+            counter["before"],
+            counter["entered"],
+            counter["fromResults"],
+            counter["after"],
+        ) == (2, "1", 1, 4)
+        assert model_props(page, cinder)["counterEffects"]
 
     def test_a_correction_applies_after_a_changed_counter_is_removed(
         self, client, table, kills
@@ -2582,12 +2546,14 @@ class TestModelCounters:
         corrected = client.post(reverse("n26-post-battle-correct", args=[report.pk]))
         assert corrected.status_code == 302
         page = client.get(editor_url(report))
-        assert module(page, cinder).find(attrs={"data-model-counters": True}) is None
+        assert not any(
+            counter["editable"] for counter in model_props(page, cinder)["counters"]
+        )
         checked = client.post(
             editor_url(report),
             html_fields(page, intent="check", **{f"model-{cinder.pk}-xp": "3"}),
         )
-        assert checked.context["plan"].valid, checked.context["plan"].errors
+        assert not editor_props(checked)["errors"], editor_props(checked)["errors"]
         applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
         assert applied.status_code == 302
         revision = report.revisions.get(sequence=2)
@@ -2602,13 +2568,12 @@ class TestModelNotes:
         report = start(client, table)
         cinder = table.models[0]
         page = client.get(editor_url(report))
-        label = module(page, cinder).find(
-            "label", attrs={"for": f"model-{cinder.pk}-note"}
+        assert (
+            model_props(page, cinder)["noteLabel"] == "Add to Cinder's notes (optional)"
         )
-        assert label.get_text(strip=True) == "Add to Cinder's notes (optional)"
         fields = awards(page, table, **{f"model-{cinder.pk}-note": "Held the bridge."})
         checked = client.post(editor_url(report), fields | {"intent": "check"})
-        assert "Adds a note to Cinder's notes." in checked.content.decode()
+        assert "Adds a note to Cinder's notes." in summary_text(checked)
         applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
         assert applied.status_code == 302
         cinder.refresh_from_db()
@@ -2628,13 +2593,13 @@ class TestModelNotes:
         client.post(editor_url(report), html_fields(checked, intent="apply"))
         client.post(reverse("n26-post-battle-correct", args=[report.pk]))
         page = client.get(editor_url(report))
-        assert module(page, cinder).find("textarea", id=note).get_text() == "First."
-        help_text = module(page, cinder).find(id=f"{note}-help").get_text(strip=True)
+        assert model_props(page, cinder)["note"] == "First."
+        help_text = model_props(page, cinder)["noteHelp"]
         assert help_text == "The earlier note stays in Cinder's notes. Edit it there."
         checked = client.post(
             editor_url(report), html_fields(page, intent="check", **{note: "Second."})
         )
-        help_text = module(checked, cinder).find(id=f"{note}-help").get_text(strip=True)
+        help_text = model_props(checked, cinder)["noteHelp"]
         assert help_text == "The earlier note stays in Cinder's notes. Edit it there."
         client.post(editor_url(report), html_fields(checked, intent="apply"))
         cinder.refresh_from_db()
@@ -2660,8 +2625,8 @@ class TestModelResultEdges:
             **{f"model-{cinder.pk}-note": text},
         )
         checked = client.post(editor_url(report), fields)
-        assert checked.context["plan"].valid, checked.context["plan"].errors
-        assert checked.context["plan"].models[0].note == text.replace("\r\n", "\n")
+        assert not editor_props(checked)["errors"], editor_props(checked)["errors"]
+        assert editor_props(checked)["models"][0]["note"] == text.replace("\r\n", "\n")
 
     def test_a_change_to_a_counter_the_model_does_not_hold_is_refused(
         self, client, table, kills
@@ -2676,9 +2641,8 @@ class TestModelResultEdges:
             fields[f"{prefix}-counter"] = [str(kills.pk), key]
             fields[f"{prefix}-counter-{key}"] = "1"
             checked = client.post(editor_url(report), fields)
-            plan = checked.context["plan"]
-            assert not plan.valid
-            assert any("You cannot correct the change to" in e for e in plan.errors)
+            errors = editor_props(checked)["errors"]
+            assert any("You cannot correct the change to" in error for error in errors)
         assert not report.revisions.exists()
 
 
@@ -2724,7 +2688,6 @@ class TestLivePreview:
     def test_autosave_corrects_removed_xp_before_saving_and_returns_matching_fields(
         self, client, table
     ):
-        from n26.core.post_battle import preview_report
 
         report = start(client, table)
         page = client.get(editor_url(report))
@@ -2782,20 +2745,15 @@ class TestLivePreview:
     def test_model_profile_caption_and_standalone_preview(self, client, table):
         report = start(client, table, standalone=True)
         page = client.get(editor_url(report))
-        assert all(row.profile_name == "Ganger" for row in page.context["models"])
-        assert (
-            module(page, table.models[0])
-            .find("h3")
-            .find_parent()
-            .find("p")
-            .get_text(strip=True)
-            == "Ganger"
+        assert all(
+            row["profileName"] == "Ganger" for row in editor_props(page)["models"]
         )
+        assert model_props(page, table.models[0])["profileName"] == "Ganger"
         result = client.post(
             editor_url(report), html_fields(page, intent="autosave")
         ).json()
         assert "territory" not in result["preview"]
-        assert page.context["territory"] is None
+        assert editor_props(page)["territory"] is None
 
     @pytest.mark.parametrize("result", ["winners", "not_recorded"])
     def test_recorded_territory_is_attributed_and_never_replayed(
@@ -2833,16 +2791,13 @@ class TestLivePreview:
         data = html_fields(page, intent="autosave")
         result = client.post(editor_url(report), data).json()
         assert "territory" not in result["preview"]
-        section = mission(page)
-        assert section.find(attrs={"data-battle-stake": True}) is not None
-        assert "Sump Gate" in section.get_text()
-        assert "Moved from Ashen Choir to Rust Kings." in section.get_text()
-        assert "Already applied." in section.get_text()
-        soup = BeautifulSoup(page.content, "html.parser")
-        summary = soup.find(id="post-battle-summary")
-        assert "Sump Gate" not in summary.get_text()
-        assert summary.find(attrs={"data-battle-stake": True}) is None
-        assert "territory" not in page.context["preview"]
+        territory = editor_props(page)["territory"]
+        assert "Sump Gate" in territory["name"]
+        assert territory["outcome"] == "Moved from Ashen Choir to Rust Kings."
+        assert territory["applied"]
+        assert territory["note"] == "Already applied."
+        assert "Sump Gate" not in summary_text(page)
+        assert "territory" not in editor_props(page)["preview"]
         assert LedgerEvent.objects.count() == before
         applied = client.post(
             editor_url(report), awards(client.get(editor_url(report)), table)
@@ -2857,10 +2812,10 @@ class TestLivePreview:
         page = client.get(editor_url(report))
         # Corrections retain the historical winner separately from today's holder.
         assert (
-            page.context["territory"]["outcome"]
+            editor_props(page)["territory"]["outcome"]
             == "Moved from Ashen Choir to Rust Kings."
         )
-        assert "Ashen Choir" in page.context["territory"]["currentHolder"]
+        assert "Ashen Choir" in editor_props(page)["territory"]["currentHolder"]
 
     def test_autosave_query_count_does_not_grow_with_roster(self, client, table):
         report = start(client, table)
@@ -2901,11 +2856,11 @@ class TestLivePreview:
             )
         report = start(client, table)
         page = client.get(editor_url(report))
-        territory = page.context["territory"]
+        territory = editor_props(page)["territory"]
         assert territory["outcome"] == "Outcome not recorded."
         assert "arbitrator records" in territory["note"]
-        assert "Already applied." not in mission(page).get_text()
-        assert "territory" not in page.context["preview"]
+        assert not territory["applied"]
+        assert "territory" not in editor_props(page)["preview"]
 
 
 @pytest.fixture
@@ -2937,17 +2892,16 @@ class TestPetResults:
     ):
         report = start(client, table)
         response = client.get(editor_url(report))
-        models = response.context["models"]
-        assert [model.id for model in models] == [
+        models = editor_props(response)["models"]
+        assert [model["id"] for model in models] == [
             str(table.models[0].pk),
             str(report_pet.pk),
             str(table.models[1].pk),
         ]
-        document = BeautifulSoup(response.content, "html.parser")
-        pet = document.select_one(f"#result-{report_pet.pk}")
-        assert f"Owned by {table.models[0].name}" in pet.get_text()
-        assert pet.select_one(f"input[name='model-{report_pet.pk}-xp'][type=number]")
-        assert pet.select_one(f"button[value='add-effect:{report_pet.pk}']")
+        pet = model_props(response, report_pet)
+        assert pet["ownedBy"] == table.models[0].name
+        assert pet["xpAvailable"]
+        assert pet["addEffectLabel"] == "Add Lasting injury"
         from n26.core.crews import crew_roster
 
         assert report_pet.pk not in {
@@ -2972,18 +2926,14 @@ class TestPetResults:
         rat = Miniature.objects.get(membership__caused_by=token)
         report = start(client, table)
         response = client.get(editor_url(report))
-        assert [model.id for model in response.context["models"]] == [
+        assert [model["id"] for model in editor_props(response)["models"]] == [
             str(table.models[0].pk),
             str(report_pet.pk),
             str(rat.pk),
             str(sibling.pk),
             str(table.models[1].pk),
         ]
-        document = BeautifulSoup(response.content, "html.parser")
-        assert (
-            f"Owned by {report_pet.name}"
-            in document.select_one(f"#result-{rat.pk}").get_text()
-        )
+        assert model_props(response, rat)["ownedBy"] == report_pet.name
         assert_books(table)
 
     def test_a_fighter_and_pet_receive_xp_and_a_pet_injury_once(
@@ -3004,13 +2954,13 @@ class TestPetResults:
         )
         pet = next(
             model
-            for model in response.context["models"]
-            if model.id == str(report_pet.pk)
+            for model in editor_props(response)["models"]
+            if model["id"] == str(report_pet.pk)
         )
-        effect = pet.effects[0]
+        effect = pet["effects"][0]
         choice = next(
             value
-            for value, _ in pet.effect_options
+            for value, _ in effect_options(pet)
             if value.endswith(f"|{table.wound.pk}")
         )
         checked = client.post(
@@ -3019,7 +2969,7 @@ class TestPetResults:
                 response,
                 intent="check",
                 participation_confirmed="on",
-                **{f"effect-{effect.id}-pick": choice},
+                **{f"effect-{effect['id']}-pick": choice},
             ),
         )
         assert checked.status_code == 200

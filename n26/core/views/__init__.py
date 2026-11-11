@@ -119,6 +119,7 @@ from n26.core.views.post_battle import (
     battle_report,
     correct_post_battle,
     gang_post_battle,
+    post_battle_command,
     post_battle_editor,
     post_battle_receipt,
 )
@@ -152,6 +153,7 @@ __all__ = [
     "edit_model_card",
     "gang_post_battle",
     "model_cards",
+    "post_battle_command",
     "post_battle_editor",
     "post_battle_receipt",
     "remove_model_card",

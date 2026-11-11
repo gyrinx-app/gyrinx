@@ -1025,8 +1025,11 @@ def test_a_correction_retains_a_settled_status_result_without_offering_it_again(
         s.key.endswith(f":{slot.pk}") and s.options for s in plan.models[0].effect_slots
     )
 
-    from django.template.loader import render_to_string
+    from n26.core.post_battle_display import editor_display
 
-    html = render_to_string("n26/includes/post_battle_model.html", {"model": shown})
-    assert f'aria-label="Remove {slot.slot_type.name} 1"' in html
+    display = editor_display(report, owner, report.draft, plan)
+    effect = display["models"][0]["effects"][0]
+    assert effect["retainedOption"]
+    assert effect["label"] == f"{slot.slot_type.name} 1"
+    assert effect["name"] == result.name
     assert_reconciled(report.gang)
