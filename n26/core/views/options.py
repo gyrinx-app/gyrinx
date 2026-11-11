@@ -2,10 +2,11 @@
 
 import json
 from urllib.parse import urlencode
+from uuid import uuid4
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.middleware.csrf import get_token
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -107,9 +108,12 @@ def _display(request, miniature, form, groups, *, conflict=None):
         "errors": dict(form.errors),
         "conflict": conflict,
         "action": here,
+        "recoveryHref": here + "?recover=1",
         "back": edit,
         "commandHref": reverse("n26-fighter-options-command", args=[miniature.pk]),
-        "signInHref": reverse("account_login") + "?" + urlencode({"next": here}),
+        "signInHref": reverse("account_login")
+        + "?"
+        + urlencode({"next": here + "?recover=1"}),
         "csrfToken": get_token(request),
         "recoveryKey": f"model-options:{request.user.pk}:{gang.pk}:{miniature.pk}",
         "messages": [
@@ -135,7 +139,12 @@ def _feedback(request, result):
     queued = any(tag in (message.extra_tags or "").split() for message in storage)
     storage.used = False
     if not queued:
-        messages.success(request, result.message, extra_tags=tag)
+        message = (
+            result.message.replace("Options saved.", "Options already saved.", 1)
+            if result.replayed
+            else result.message
+        )
+        messages.success(request, message, extra_tags=tag)
 
 
 def _destination(gang, model_key):
@@ -151,6 +160,64 @@ def _destination(gang, model_key):
     )
 
 
+def _recovery_display(request, pk, result=None):
+    from n26.core.model_choice_recovery import target_for
+    from n26.core.people import person_link
+
+    target = target_for(pk, request.user, action="options")
+    if target is None:
+        raise Http404("No such model")
+    gang = target.gang
+    here = reverse("n26-fighter-options", args=[pk])
+    recovery = here + "?recover=1"
+    badges = {}
+    owner = person_link(gang.owner, badges)
+    owner["badge"] = badges.get(owner.get("badge"))
+    values = {
+        "gang": str(gang.pk),
+        "selection": "[]",
+        "selection_label": "",
+        "snapshot": "",
+        "request_key": str(uuid4()),
+    }
+    if result is not None:
+        values.update({name: str(result.form.data.get(name, "")) for name in values})
+    props = {
+        "recoveryOnly": True,
+        "removed": bool(result and result.removed),
+        "name": target.name,
+        "role": "",
+        "gangName": gang.name,
+        "gangHref": reverse("n26-gang", args=[gang.pk]),
+        "owner": owner,
+        "figures": None,
+        "card": None,
+        "tabs": [],
+        "switcher": None,
+        "groups": [],
+        "values": values,
+        "errors": dict(result.form.errors) if result else {},
+        "conflict": None,
+        "action": recovery,
+        "recoveryHref": recovery,
+        "back": reverse("n26-gang", args=[gang.pk]),
+        "commandHref": reverse("n26-fighter-options-command", args=[pk]),
+        "signInHref": reverse("account_login") + "?" + urlencode({"next": recovery}),
+        "csrfToken": get_token(request),
+        "recoveryKey": f"model-options:{request.user.pk}:{gang.pk}:{pk}",
+        "messages": [
+            {
+                "text": str(message),
+                "tone": message.level_tag
+                if message.level_tag in {"success", "error", "warning"}
+                else "info",
+            }
+            for message in messages.get_messages(request)
+        ],
+    }
+    return {"gang": gang, "recovery_name": target.name, "options_props": props}
+
+
 @login_required
 @never_cache
 @require_http_methods(["GET", "POST"])
@@ -163,7 +230,24 @@ def fighter_options(request, pk):
         if result.saved:
             _feedback(request, result)
             return redirect(_destination(gang, pk))
-    miniature = _own_miniature_or_404(request, pk)
+    if result and result.removed:
+        return render(
+            request,
+            "n26/fighter_options.html",
+            _recovery_display(request, pk, result),
+            status=409,
+        )
+    try:
+        miniature = _own_miniature_or_404(request, pk)
+    except Http404:
+        if request.GET.get("recover") != "1":
+            raise
+        return render(
+            request,
+            "n26/fighter_options.html",
+            _recovery_display(request, pk, result),
+            status=409 if result else 200,
+        )
     form, groups = options_workflow.initial(miniature, request.user)
     if result is not None:
         form = result.form
@@ -191,6 +275,10 @@ def options_command(request, pk):
     if result.saved:
         _feedback(request, result)
         return JsonResponse({"nextUrl": _destination(gang, pk)})
+    if result.removed:
+        return JsonResponse(
+            {"code": "model_removed", "errors": dict(result.form.errors)}, status=409
+        )
     return JsonResponse(
         {
             "errors": dict(result.form.errors),

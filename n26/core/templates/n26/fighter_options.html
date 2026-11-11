@@ -1,6 +1,6 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation react %}
-{% block head_title %}{{ miniature.name }} options{% endblock head_title %}
+{% block head_title %}{% firstof miniature.name recovery_name %} options{% endblock head_title %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
     <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />

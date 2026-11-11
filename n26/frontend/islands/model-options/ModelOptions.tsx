@@ -1,4 +1,4 @@
-import { useState, type ComponentProps } from "react";
+import { useState, type ComponentProps, type FormEvent } from "react";
 import { fieldErrors } from "../../http/command";
 import {
     Alert,
@@ -14,6 +14,8 @@ import {
     UserLink,
     ModelHeader,
     useWorkflowForm,
+    WorkflowPage,
+    FormActions,
     type ModelCardData,
 } from "../../ui";
 
@@ -30,10 +32,10 @@ export type ModelOptionsProps = {
     owner: ComponentProps<typeof UserLink>;
     gangName: string;
     gangHref: string;
-    figures: ComponentProps<typeof GangFigures>["data"];
-    card: ModelCardData;
+    figures: ComponentProps<typeof GangFigures>["data"] | null;
+    card: ModelCardData | null;
     tabs: ComponentProps<typeof ModelScreenTabs>["tabs"];
-    switcher: ComponentProps<typeof QuickSwitcher>;
+    switcher: ComponentProps<typeof QuickSwitcher> | null;
     groups: Group[];
     values: {
         gang: string;
@@ -45,6 +47,9 @@ export type ModelOptionsProps = {
     errors: Record<string, string[]>;
     conflict: Current | null;
     action: string;
+    recoveryHref?: string;
+    recoveryOnly?: boolean;
+    removed?: boolean;
     back: string;
     commandHref: string;
     signInHref: string;
@@ -82,13 +87,22 @@ export function ModelOptions(
     },
 ) {
     const [current, setCurrent] = useState(props.conflict);
+    const [removed, setRemoved] = useState(!!props.removed);
     const workflow = useWorkflowForm({
         ...props,
-        initialConflict: !!props.conflict,
+        initialConflict: !!props.conflict || !!props.removed,
         optionalRecoveryFields: ["selection_label"],
         interpret(status, data) {
             if (status === 200 && typeof data.nextUrl === "string")
                 return { kind: "saved", nextUrl: data.nextUrl };
+            if (
+                status === 409 &&
+                data.code === "model_removed" &&
+                fieldErrors(data.errors)
+            ) {
+                setRemoved(true);
+                return { kind: "conflict", errors: data.errors };
+            }
             if (
                 status === 409 &&
                 data.code === "revision_conflict" &&
@@ -103,6 +117,115 @@ export function ModelOptions(
             return null;
         },
     });
+    function save(event: FormEvent<HTMLFormElement>) {
+        if (props.recoveryHref)
+            window.history.replaceState(
+                window.history.state,
+                "",
+                props.recoveryHref,
+            );
+        return workflow.save(event);
+    }
+    if (props.recoveryOnly) {
+        return (
+            <WorkflowPage
+                title="Recover options"
+                lead={props.name}
+                breadcrumb={
+                    <Breadcrumbs
+                        items={[
+                            { label: <UserLink {...props.owner} /> },
+                            { label: props.gangName, href: props.gangHref },
+                            { label: "Recover options" },
+                        ]}
+                    />
+                }
+                method="post"
+                action={props.action}
+                onSubmit={save}
+                aria-busy={workflow.pending}
+                footer={
+                    <FormActions>
+                        {workflow.conflicted ? (
+                            <Button
+                                type="button"
+                                variant="primary"
+                                onClick={() => workflow.review(props.gangHref)}
+                            >
+                                Return to gang
+                            </Button>
+                        ) : workflow.uncertain ? (
+                            <Button
+                                type="submit"
+                                variant="success"
+                                busy={workflow.pending}
+                                disabled={workflow.pending}
+                            >
+                                Retry save
+                            </Button>
+                        ) : (
+                            <ButtonLink href={props.gangHref} variant="ghost">
+                                Return to gang
+                            </ButtonLink>
+                        )}
+                    </FormActions>
+                }
+            >
+                <input
+                    type="hidden"
+                    name="csrfmiddlewaretoken"
+                    value={props.csrfToken}
+                />
+                {Object.entries(workflow.values).map(([name, value]) => (
+                    <input key={name} type="hidden" name={name} value={value} />
+                ))}
+                {props.messages.map((message, index) => (
+                    <Alert key={index} tone={message.tone}>
+                        {message.text}
+                    </Alert>
+                ))}
+                <p>This model was removed from the gang.</p>
+                {workflow.uncertain ? (
+                    <p>
+                        Submitted options:{" "}
+                        {workflow.values.selection_label || "Original options"}.
+                    </p>
+                ) : !workflow.conflicted ? (
+                    <p>No unconfirmed save was found in this browser.</p>
+                ) : null}
+                {workflow.hasErrors && (
+                    <div
+                        ref={workflow.summary}
+                        role="alert"
+                        tabIndex={-1}
+                        aria-label="Save errors"
+                    >
+                        <FieldErrors
+                            errors={[
+                                ...Object.values(workflow.errors).flat(),
+                                ...(workflow.notice ? [workflow.notice] : []),
+                            ]}
+                        />
+                    </div>
+                )}
+                {workflow.notice && (
+                    <ButtonLink
+                        href={props.signInHref}
+                        variant="ghost"
+                        onClick={(event) => {
+                            event.preventDefault();
+                            workflow.recoverAt(
+                                props.signInHref,
+                                event.currentTarget.closest("form")!,
+                            );
+                        }}
+                    >
+                        Sign in
+                    </ButtonLink>
+                )}
+            </WorkflowPage>
+        );
+    }
     const selected = selectedKeys(workflow.values.selection);
     function toggle(group: Group, key: string, checked: boolean) {
         const exclusive = group.choose !== "any";
@@ -129,7 +252,11 @@ export function ModelOptions(
             <ModelHeader
                 title={props.name}
                 lead={props.role || undefined}
-                trailing={<QuickSwitcher {...props.switcher} />}
+                trailing={
+                    props.switcher ? (
+                        <QuickSwitcher {...props.switcher} />
+                    ) : undefined
+                }
                 breadcrumb={
                     <Breadcrumbs
                         items={[
@@ -139,14 +266,20 @@ export function ModelOptions(
                         ]}
                     />
                 }
-                actions={<GangFigures data={props.figures} />}
+                actions={
+                    props.figures ? (
+                        <GangFigures data={props.figures} />
+                    ) : undefined
+                }
             >
                 <div className="lg:max-w-1/2">
-                    <ModelCard
-                        card={props.card}
-                        csrfToken={props.csrfToken}
-                        frozen={workflow.frozen}
-                    />
+                    {props.card && (
+                        <ModelCard
+                            card={props.card}
+                            csrfToken={props.csrfToken}
+                            frozen={workflow.frozen}
+                        />
+                    )}
                 </div>
                 <ModelScreenTabs tabs={props.tabs} className="" />
             </ModelHeader>
@@ -164,7 +297,7 @@ export function ModelOptions(
                         <form
                             method="post"
                             action={props.action}
-                            onSubmit={workflow.save}
+                            onSubmit={save}
                             aria-busy={workflow.pending}
                         >
                             <input
@@ -325,10 +458,16 @@ export function ModelOptions(
                                         type="button"
                                         variant="primary"
                                         onClick={() =>
-                                            workflow.review(props.action)
+                                            workflow.review(
+                                                removed
+                                                    ? props.gangHref
+                                                    : props.action,
+                                            )
                                         }
                                     >
-                                        Review current options
+                                        {removed
+                                            ? "Return to gang"
+                                            : "Review current options"}
                                     </Button>
                                 ) : (
                                     <Button
@@ -363,13 +502,16 @@ export function ModelOptions(
                                 )}
                                 {workflow.notice && (
                                     <ButtonLink
-                                        href={props.action}
+                                        href={
+                                            props.recoveryHref ?? props.action
+                                        }
                                         variant="ghost"
                                         size="sm"
                                         onClick={(event) => {
                                             event.preventDefault();
                                             workflow.recoverAt(
-                                                props.action,
+                                                props.recoveryHref ??
+                                                    props.action,
                                                 event.currentTarget.closest(
                                                     "form",
                                                 )!,

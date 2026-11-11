@@ -579,3 +579,115 @@ def test_rechoose_resolves_shared_defaults_only_once(
     assert gang.credits == 175
     assert miniature.rating == 25
     assert_reconciled(gang)
+
+
+@pytest.mark.parametrize("committed", [False, True])
+def test_explicit_recovery_get_survives_removed_model_without_editable_choices(
+    client, tester, gang, ganger, armament, vex, committed
+):
+    client.force_login(tester)
+    values = submission(client, vex, [option_key(ganger, armament[1])])
+    if committed:
+        assert client.post(command_url(vex), values).status_code == 200
+    with operation(gang, actor=tester) as op:
+        op.remove(vex.membership)
+    assert client.get(options_url(vex)).status_code == 404
+    response = client.get(options_url(vex), {"recover": "1"})
+    assert response.status_code == 200
+    props = response.context["options_props"]
+    assert props["recoveryOnly"]
+    assert props["groups"] == []
+    assert props["card"] is None
+    assert props["commandHref"] == command_url(vex)
+    assert props["recoveryKey"] == f"model-options:{tester.pk}:{gang.pk}:{vex.pk}"
+    assert "recover%3D1" in props["signInHref"]
+    assert client.post(command_url(vex), values).status_code == (
+        200 if committed else 409
+    )
+    assert_reconciled(gang)
+
+
+def test_a_terminal_removed_command_cannot_write_if_delayed_until_after_restore(
+    client, tester, gang, ganger, armament, vex
+):
+    from n26.core.models import ModelChoiceReceipt
+
+    client.force_login(tester)
+    values = submission(client, vex, [option_key(ganger, armament[1])])
+    with operation(gang, actor=tester) as op:
+        op.remove(vex.membership)
+    response = client.post(command_url(vex), values)
+    assert response.status_code == 409
+    assert response.json()["code"] == "model_removed"
+    assert ModelChoiceReceipt.objects.get().result["outcome"] == "removed"
+    with operation(gang, actor=tester) as op:
+        op.restore(vex.membership)
+    gang.refresh_from_db()
+    before = gang.credits
+    assert client.post(command_url(vex), values).status_code == 409
+    changed = {**values, "selection": json.dumps([option_key(ganger, armament[0])])}
+    assert client.post(command_url(vex), changed).status_code == 422
+    gang.refresh_from_db()
+    assert gang.credits == before
+    assert ModelChoiceReceipt.objects.count() == 1
+    assert_reconciled(gang)
+
+
+def test_removed_model_recovery_never_exposes_another_owners_metadata(
+    client, tester, gang, vex
+):
+    client.force_login(tester)
+    values = submission(client, vex)
+    assert client.post(command_url(vex), values).status_code == 200
+    with operation(gang, actor=tester) as op:
+        op.remove(vex.membership)
+    stranger = User.objects.create_user("recovery-stranger")
+    client.force_login(stranger)
+    response = client.get(options_url(vex), {"recover": "1"})
+    assert response.status_code == 404
+    assert "Vex" not in response.content.decode()
+    gang.owner = stranger
+    gang.save(update_fields=["owner"])
+    client.force_login(tester)
+    assert client.get(options_url(vex), {"recover": "1"}).status_code == 404
+
+
+def test_replayed_feedback_identifies_the_save_after_the_first_flash_was_consumed(
+    client, tester, gang, ganger, armament, vex
+):
+    client.force_login(tester)
+    values = submission(client, vex, [option_key(ganger, armament[1])])
+    client.post(command_url(vex), values)
+    assert [one["text"] for one in props(client, vex)["messages"]] == [
+        "Options saved. 25¢ charged."
+    ]
+    client.post(command_url(vex), values)
+    assert [one["text"] for one in props(client, vex)["messages"]] == [
+        "Options already saved. 25¢ charged."
+    ]
+
+
+def test_an_actor_bound_receipt_identifies_a_hard_removed_recovery_target(
+    client, tester, gang
+):
+    from uuid import uuid4
+
+    model_key = "00000000000000000000000000"
+    with operation(gang, actor=tester) as op:
+        op.record_model_choice_receipt(
+            uuid4(),
+            {"action": "options", "model": model_key},
+            {
+                "message": "Options saved.",
+                "model_name": "Removed review model",
+                "delta": 0,
+            },
+        )
+    client.force_login(tester)
+    here = reverse("n26-fighter-options", args=[model_key])
+    assert client.get(here).status_code == 404
+    response = client.get(here, {"recover": "1"})
+    assert response.status_code == 200
+    assert response.context["options_props"]["name"] == "Removed review model"
+    client.force_login(User.objects.create_user("receipt-stranger"))
+    assert client.get(here, {"recover": "1"}).status_code == 404

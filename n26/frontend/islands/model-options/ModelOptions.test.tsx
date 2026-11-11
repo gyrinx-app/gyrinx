@@ -307,3 +307,117 @@ test("no selectable alternatives produces an informational page without save con
     expect(screen.getByText(/offers no options/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Save options" })).toBeNull();
 });
+
+test("stamps a reloadable recovery address before a pending request is sent", async () => {
+    const history = vi.spyOn(window.history, "replaceState");
+    const fetch = vi.fn().mockImplementation(() => {
+        expect(history).toHaveBeenCalledWith(
+            window.history.state,
+            "",
+            "/options/?recover=1",
+        );
+        return new Promise(() => {});
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<ModelOptions {...props} recoveryHref="/options/?recover=1" />);
+    await userEvent.click(screen.getByRole("button", { name: "Save options" }));
+    expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+test("a removed-model reload restores only the original read-only command", async () => {
+    sessionStorage.setItem(
+        props.recoveryKey,
+        new URLSearchParams({
+            ...props.values,
+            selection: '["sword"]',
+            selection_label: "Chainsword",
+        }).toString(),
+    );
+    const fetch = vi.fn().mockResolvedValue(json({ nextUrl: props.gangHref }));
+    vi.stubGlobal("fetch", fetch);
+    const navigate = vi.fn();
+    render(
+        <ModelOptions
+            {...props}
+            recoveryOnly
+            recoveryHref="/options/?recover=1"
+            card={null}
+            figures={null}
+            switcher={null}
+            groups={[]}
+            csrfToken="rotated"
+            values={{
+                ...props.values,
+                request_key: "new-key",
+                snapshot: "new-snapshot",
+            }}
+            onNavigate={navigate}
+        />,
+    );
+    expect(screen.getByText("Submitted options: Chainsword.")).toBeTruthy();
+    expect(screen.queryByRole("radio")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save options" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    expect(fetch.mock.calls[0][1].body.get("request_key")).toBe("request-key");
+    expect(fetch.mock.calls[0][1].body.get("snapshot")).toBe("signed");
+    expect(fetch.mock.calls[0][1].headers["X-CSRFToken"]).toBe("rotated");
+    expect(navigate).toHaveBeenCalledWith(props.gangHref);
+});
+
+test("a durable removed-model refusal ends recovery only through return to the gang", async () => {
+    sessionStorage.setItem(
+        props.recoveryKey,
+        new URLSearchParams(props.values).toString(),
+    );
+    vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+            json(
+                {
+                    code: "model_removed",
+                    errors: { __all__: ["This save was not applied."] },
+                },
+                409,
+            ),
+        ),
+    );
+    const navigate = vi.fn();
+    render(
+        <ModelOptions
+            {...props}
+            recoveryOnly
+            card={null}
+            figures={null}
+            switcher={null}
+            groups={[]}
+            onNavigate={navigate}
+        />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    expect(await screen.findByText("This save was not applied.")).toBeTruthy();
+    expect(screen.queryByRole("radio")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry save" })).toBeNull();
+    await userEvent.click(
+        screen.getByRole("button", { name: "Return to gang" }),
+    );
+    expect(navigate).toHaveBeenCalledWith(props.gangHref);
+    expect(sessionStorage.getItem(props.recoveryKey)).toBeNull();
+});
+
+test("a recovery address without a retained command has no write control", () => {
+    render(
+        <ModelOptions
+            {...props}
+            recoveryOnly
+            card={null}
+            figures={null}
+            switcher={null}
+            groups={[]}
+        />,
+    );
+    expect(
+        screen.getByText("No unconfirmed save was found in this browser."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Retry save" })).toBeNull();
+    expect(screen.queryByRole("radio")).toBeNull();
+});

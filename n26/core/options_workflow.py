@@ -1,4 +1,8 @@
-"""Validate and retain model option changes independently of their HTTP adapter."""
+"""Validate and retain model option changes independently of their HTTP adapter.
+
+Removed-model outcomes are durable too: a delayed original command cannot write
+if the membership is later restored.
+"""
 
 from dataclasses import dataclass, field
 from uuid import uuid4
@@ -179,6 +183,7 @@ class OptionsResult:
     form: OptionsForm
     saved: bool = False
     replayed: bool = False
+    removed: bool = False
     changed: bool = False
     conflict: bool = False
     message: str = ""
@@ -224,28 +229,76 @@ def change(gang, actor, model_key, data):
                     raise Refusal(
                         "This form was already used for another selection. Reload the page."
                     )
-                result.saved = True
                 result.replayed = True
+                if previous.result.get("outcome") == "removed":
+                    result.removed = True
+                    result.message = previous.result["message"]
+                    form.add_error(None, result.message)
+                    return result
+                result.saved = True
                 result.message = previous.result["message"]
                 result.delta = previous.result["delta"]
                 result.model_name = previous.result["model_name"]
                 return result
-            try:
-                miniature = Miniature.objects.select_related(
-                    "membership__profile", "membership__ledger_entry"
-                ).get(
-                    pk=model_key,
-                    membership__gang=gang,
-                    membership__archived=False,
-                )
-            except Miniature.DoesNotExist, ValidationError:
-                raise Refusal("This model is no longer in the gang.") from None
             try:
                 snapshot = signing.loads(form.cleaned_data["snapshot"], salt=SALT)
             except signing.BadSignature:
                 raise Refusal(
                     "This form could not be verified. Reload the page."
                 ) from None
+            if (
+                not isinstance(snapshot, dict)
+                or snapshot.get("actor") != actor.pk
+                or snapshot.get("model") != str(model_key)
+                or set(snapshot)
+                != {
+                    "actor",
+                    "model",
+                    "membership",
+                    "profile",
+                    "taken",
+                    "recorded",
+                    "payment",
+                    "rating",
+                    "order",
+                    "offers",
+                }
+            ):
+                raise Refusal(
+                    "This form belongs to another model or account. Reload the page."
+                )
+            try:
+                miniature = Miniature.objects.select_related(
+                    "membership__profile", "membership__ledger_entry"
+                ).get(pk=model_key, membership__gang=gang)
+            except Miniature.DoesNotExist, ValidationError:
+                miniature = None
+            if miniature is None or miniature.membership.archived:
+                from n26.core.model_choice_recovery import target_for
+
+                target = target_for(model_key, actor, action="options")
+                if (
+                    target is None
+                    or target.gang.pk != gang.pk
+                    or (
+                        miniature is not None
+                        and snapshot["membership"] != str(miniature.membership_id)
+                    )
+                ):
+                    raise Refusal("This model is no longer in the gang.")
+                result.removed = True
+                result.message = "This model was removed before these options were saved. This save was not applied."
+                op.record_model_choice_receipt(
+                    form.cleaned_data["request_key"],
+                    payload,
+                    {
+                        "outcome": "removed",
+                        "message": result.message,
+                        "model_name": target.name,
+                    },
+                )
+                form.add_error(None, result.message)
+                return result
             current = baseline(miniature)
             if (
                 not isinstance(snapshot, dict)
