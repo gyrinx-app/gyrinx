@@ -122,9 +122,17 @@ class TestOwnershipCopy:
             assert not card.select(".truncate")
 
     def test_assets_empty_state_uses_transferable(self, client, campaign):
-        text = page(client, "n26-campaign", campaign).get_text(" ", strip=True)
-        assert "has no transferable asset types." in text
+        document = page(client, "n26-campaign", campaign)
+        assets = document.select_one("#assets")
+        text = assets.get_text(" ", strip=True)
+        assert "No transferable asset types yet." in text
         assert "Holding ownership" not in text
+        empty_cell = assets.select_one("table tbody td")
+        assert "No transferable asset types yet." in empty_cell.get_text()
+        add = empty_cell.find(
+            "a", href=reverse("n26-campaign-add-asset-type", args=[campaign.pk])
+        )
+        assert add.get_text(" ", strip=True) == "Add asset type"
 
     def test_tables_empty_state_uses_inherent(self, client, campaign):
         add_asset_type(

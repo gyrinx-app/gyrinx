@@ -10,7 +10,7 @@ rolls, including headings and counts. Possessions remain on their gang.
             {% if sheet.tables_href %}<c-ui.button size="sm"
              variant="default"
              href="{{ sheet.tables_href }}">Tables</c-ui.button>{% endif %}
-            {% if sheet.add_asset_type_href %}<c-ui.button size="sm"
+            {% if sheet.assets and sheet.add_asset_type_href %}<c-ui.button size="sm"
              variant="default"
              href="{{ sheet.add_asset_type_href }}">Add asset type</c-ui.button>{% endif %}
             {{ assets_actions }}
@@ -20,7 +20,24 @@ rolls, including headings and counts. Possessions remain on their gang.
         {% for table in sheet.assets %}
             <c-n26.campaign-assets :table="table" />
         {% empty %}
-            <p class="p-4 text-sm text-muted">{{ sheet.campaign_type }} has no transferable asset types.</p>
+            <c-n26.section :boxed="True" :flush="True" title="Assets">
+                <c-ui.table :hover="False" aria-label="Campaign assets">
+                    <tbody>
+                        <tr>
+                            <td>
+                                <div class="flex flex-col items-center gap-3 py-6 text-center">
+                                    <p class="text-sm text-muted">No transferable asset types yet.</p>
+                                    {% if sheet.add_asset_type_href %}
+                                        <c-ui.button size="sm" variant="primary" href="{{ sheet.add_asset_type_href }}">
+                                            Add asset type
+                                        </c-ui.button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </c-ui.table>
+            </c-n26.section>
         {% endfor %}
     </div>
 </div>
