@@ -861,11 +861,16 @@ def workflow_page_recipe():
 
 def model_header_recipe():
     from types import SimpleNamespace
+    from unittest import mock
 
     source = '<c-n26.model-header :miniature="miniature" />'
-    rendered = Template(CottonCompiler().process(source)).render(
-        Context({"miniature": SimpleNamespace(pk="model", name="Model")})
-    )
+    # The narrow tab overflow is an island, but recipes precede its Vite build.
+    with mock.patch(
+        "n26.core.templatetags.react._entry", return_value=("/island.js", "")
+    ):
+        rendered = Template(CottonCompiler().process(source)).render(
+            Context({"miniature": SimpleNamespace(pk="model", name="Model")})
+        )
     elements = Elements(rendered).elements
     if not elements or elements[0][0] != "div":
         raise ValueError("Model header no longer starts with its layout container")

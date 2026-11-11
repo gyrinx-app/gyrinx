@@ -213,39 +213,54 @@ test("a refusal after an unknown write does not release the original draft", asy
     expect(sessionStorage.getItem(props.recoveryKey)).toContain("request-key");
 });
 
-test("a confirmed revision conflict requires explicit review", async () => {
-    vi.stubGlobal(
-        "fetch",
-        vi.fn().mockResolvedValue(
-            json(
-                {
-                    code: "revision_conflict",
-                    current: { name: "Vex", options: ["Pistol"] },
-                    errors: { __all__: ["Review the current options."] },
-                },
-                409,
+test.each([false, true])(
+    "a confirmed revision conflict requires explicit review after uncertainty: %s",
+    async (uncertain) => {
+        const fetch = vi.fn();
+        if (uncertain) fetch.mockRejectedValueOnce(new TypeError("network"));
+        vi.stubGlobal(
+            "fetch",
+            fetch.mockResolvedValue(
+                json(
+                    {
+                        code: "revision_conflict",
+                        current: { name: "Vex", options: ["Pistol"] },
+                        errors: { __all__: ["Review the current options."] },
+                    },
+                    409,
+                ),
             ),
-        ),
-    );
-    const navigate = vi.fn();
-    render(<ModelOptions {...props} onNavigate={navigate} />);
-    await userEvent.click(screen.getByRole("button", { name: "Save options" }));
-    expect(
-        (await screen.findByRole("region", { name: "Current model options" }))
-            .textContent,
-    ).toContain("Pistol");
-    expect(
-        screen
-            .getByRole("radio", { name: "Knife" })
-            .closest("form")
-            ?.querySelector("fieldset[disabled]"),
-    ).not.toBeNull();
-    await userEvent.click(
-        screen.getByRole("button", { name: "Review current options" }),
-    );
-    expect(navigate).toHaveBeenCalledWith(props.action);
-    expect(sessionStorage.getItem(props.recoveryKey)).toBeNull();
-});
+        );
+        const navigate = vi.fn();
+        render(<ModelOptions {...props} onNavigate={navigate} />);
+        await userEvent.click(
+            screen.getByRole("button", { name: "Save options" }),
+        );
+        if (uncertain) {
+            await userEvent.click(
+                await screen.findByRole("button", { name: "Retry save" }),
+            );
+        }
+        expect(
+            (
+                await screen.findByRole("region", {
+                    name: "Current model options",
+                })
+            ).textContent,
+        ).toContain("Pistol");
+        expect(
+            screen
+                .getByRole("radio", { name: "Knife" })
+                .closest("form")
+                ?.querySelector("fieldset[disabled]"),
+        ).not.toBeNull();
+        await userEvent.click(
+            screen.getByRole("button", { name: "Review current options" }),
+        );
+        expect(navigate).toHaveBeenCalledWith(props.action);
+        expect(sessionStorage.getItem(props.recoveryKey)).toBeNull();
+    },
+);
 
 test("known validation errors keep controls editable and preserve selections", async () => {
     vi.stubGlobal(

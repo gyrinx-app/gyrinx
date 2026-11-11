@@ -502,3 +502,80 @@ def test_indexed_native_choices_require_review_after_reordering(
     gang.refresh_from_db()
     assert gang.credits == 145
     assert_reconciled(gang)
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_a_removed_uncommitted_choice_requires_review(
+    client, tester, gang, ganger, armament, vex, native
+):
+    from n26.core.models import ModelChoiceReceipt
+
+    client.force_login(tester)
+    values = submission(client, vex, [option_key(ganger, armament[1])])
+    ganger.options.filter(default_set=armament[1]).delete()
+    response = client.post(options_url(vex) if native else command_url(vex), values)
+    assert response.status_code == 409
+    current = (
+        response.context["options_props"]["conflict"]
+        if native
+        else response.json()["current"]
+    )
+    assert current["options"] == []
+    assert not ModelChoiceReceipt.objects.exists()
+    gang.refresh_from_db()
+    assert gang.credits == 145
+    assert_reconciled(gang)
+
+
+def test_hidden_defaults_do_not_become_explicit_exclusive_choices(
+    client, tester, gang, make_profile
+):
+    profile = make_profile("Shared defaults", price=0)
+    shared = DefaultAssignmentSet.objects.create(name="Standard", price=25)
+    fancy = DefaultAssignmentSet.objects.create(name="Alternative", price=40)
+    profile.options.create(default_set=shared, name="Fixed")
+    group = OptionGroup.objects.create(profile=profile, name="Optional", choose="one")
+    profile.options.create(group=group, default_set=shared, name="Standard", position=0)
+    alternative = profile.options.create(
+        group=group, default_set=fancy, name="Alternative", position=1
+    )
+    with operation(gang, actor=tester) as op:
+        miniature = op.hire(profile, "Shared", option=fancy)
+    client.force_login(tester)
+    values = submission(client, miniature)
+    assert json.loads(values["selection"]) == [str(alternative.pk)]
+    assert client.post(command_url(miniature), values).status_code == 200
+    gang.refresh_from_db()
+    assert gang.credits == 135
+    assert_reconciled(gang)
+
+
+def test_rechoose_resolves_shared_defaults_only_once(
+    client, tester, gang, make_profile
+):
+    profile = make_profile("Shared defaults", price=0)
+    shared = DefaultAssignmentSet.objects.create(name="Standard", price=25)
+    fancy = DefaultAssignmentSet.objects.create(name="Alternative", price=40)
+    optional = OptionGroup.objects.create(
+        profile=profile, name="Optional", choose="one-or-none", position=0
+    )
+    mandatory = OptionGroup.objects.create(
+        profile=profile, name="Fixed", choose="one", position=1
+    )
+    profile.options.create(
+        group=optional, default_set=shared, name="Optional standard", position=0
+    )
+    profile.options.create(
+        group=optional, default_set=fancy, name="Alternative", position=1
+    )
+    with operation(gang, actor=tester) as op:
+        miniature = op.hire(profile, "Shared", option=fancy)
+    profile.options.create(group=mandatory, default_set=shared, name="Fixed standard")
+    client.force_login(tester)
+    response = client.post(command_url(miniature), submission(client, miniature, []))
+    assert response.status_code == 200
+    gang.refresh_from_db()
+    miniature.refresh_from_db()
+    assert gang.credits == 175
+    assert miniature.rating == 25
+    assert_reconciled(gang)

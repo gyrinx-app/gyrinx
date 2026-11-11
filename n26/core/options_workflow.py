@@ -76,10 +76,23 @@ def profile_groups(profile, taken):
     grouped = profile.grouped_offers()
     if not grouped or grouped[0][0] is not None:
         grouped = [(None, []), *grouped]
+    fixed = {
+        offered[0].default_set_id
+        for group, offered in grouped
+        if len(offered) == 1 and (group is None or group.choose == "one")
+    }
     result = []
     for index, (group, offered) in enumerate(grouped):
         choose = group.choose if group else "one"
-        known = any(str(option.default_set_id) in taken for option in offered)
+        selected = {
+            option.default_set_id
+            for option in offered
+            if str(option.default_set_id) in taken
+        }
+        # A fixed default cannot identify the explicit pick when an alternative is held.
+        if choose in {"one", "one-or-none"} and len(selected) > 1:
+            selected -= fixed
+        known = bool(selected)
         result.append(
             {
                 "key": str(index),
@@ -90,7 +103,7 @@ def profile_groups(profile, taken):
                         "key": str(option.pk),
                         "name": option.name,
                         "price": option.default_set.price,
-                        "checked": str(option.default_set_id) in taken
+                        "checked": option.default_set_id in selected
                         or (not known and choose == "one" and position == 0),
                     }
                     for position, option in enumerate(offered)
@@ -151,6 +164,7 @@ def initial(miniature, actor):
             "selection": [
                 option["key"]
                 for group in groups
+                if group["visible"]
                 for option in group["options"]
                 if option["checked"]
             ],
@@ -244,6 +258,26 @@ def change(gang, actor, model_key, data):
                     "This form belongs to another model or account. Reload the page."
                 )
             profile = miniature.membership.profile
+
+            def conflict():
+                result.conflict = True
+                current_groups = profile_groups(profile, set(current["taken"]))
+                result.current = {
+                    "name": miniature.name,
+                    "options": [
+                        option["name"]
+                        for group in current_groups
+                        if group["visible"]
+                        for option in group["options"]
+                        if option["checked"]
+                    ],
+                }
+                form.add_error(
+                    None,
+                    "These options or their prices changed while you were editing. Review the current options before saving.",
+                )
+                return result
+
             try:
                 if payload["selection"] is not None:
                     selected = resolve_sets(profile, payload["selection"])
@@ -255,6 +289,13 @@ def change(gang, actor, model_key, data):
                     )
                 desired = profile.resolve_selection(selected)
             except UnavailableHire, ValueError:
+                previously_offered = {option[0] for option in snapshot["offers"]}
+                if (
+                    payload["selection"] is not None
+                    and set(payload["selection"]) <= previously_offered
+                    and snapshot["offers"] != current["offers"]
+                ):
+                    return conflict()
                 form.add_error(
                     "selection", "Choose from the options currently offered."
                 )
@@ -272,24 +313,9 @@ def change(gang, actor, model_key, data):
                     key: value for key, value in compared.items() if key != "order"
                 }
             if indexed_reordered or (not same and snapshot != compared):
-                result.conflict = True
-                current_groups = profile_groups(profile, set(current["taken"]))
-                result.current = {
-                    "name": miniature.name,
-                    "options": [
-                        option["name"]
-                        for group in current_groups
-                        for option in group["options"]
-                        if option["checked"]
-                    ],
-                }
-                form.add_error(
-                    None,
-                    "These options or their prices changed while you were editing. Review the current options before saving.",
-                )
-                return result
+                return conflict()
             before = current["payment"] or 0
-            op.rechoose(miniature.membership, option=desired)
+            op.rechoose(miniature.membership, option=selected)
             entry = getattr(miniature.membership, "ledger_entry", None)
             if entry:
                 entry.refresh_from_db()
