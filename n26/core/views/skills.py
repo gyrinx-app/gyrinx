@@ -403,7 +403,12 @@ def _recovery_display(request, pk, result=None):
             for message in messages.get_messages(request)
         ],
     }
-    return {"gang": gang, "recovery_name": target.name, "skills_props": props}
+    return {
+        "gang": gang,
+        "recovery_name": target.name,
+        "skills_title": "Recover skill selection",
+        "skills_props": props,
+    }
 
 
 @login_required
@@ -445,7 +450,12 @@ def skills(request, pk):
     return render(
         request,
         "n26/skills.html",
-        {"gang": miniature.gang, "miniature": miniature, "skills_props": props},
+        {
+            "gang": miniature.gang,
+            "miniature": miniature,
+            "skills_title": str(screen.chosen) if screen.chosen else "Skills",
+            "skills_props": props,
+        },
         status=422 if result else 200,
     )
 

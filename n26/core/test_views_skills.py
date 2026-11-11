@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.db import close_old_connections, connection
 from django.http import QueryDict
@@ -356,6 +357,10 @@ def test_collection_navigation_is_in_the_url_and_the_selected_command(
     response = client.get(url(choices), {"list": str(other.pk)})
     props = response.context["skills_props"]
     assert props["values"]["collection"] == str(other.pk)
+    assert (
+        BeautifulSoup(response.content, "html.parser").title.get_text()
+        == f"{other} — Vex | Gyrinx"
+    )
     assert props["action"].endswith(f"?list={other.pk}")
     assert (
         next(tab for tab in props["collections"] if tab["current"])["href"]
