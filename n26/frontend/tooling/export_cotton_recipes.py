@@ -877,6 +877,55 @@ def model_header_recipe():
     return class_name(elements[0][1])
 
 
+def tab_links_recipe():
+    from unittest import mock
+
+    tabs = [
+        {"label": "One", "href": "/one/", "current": False},
+        {"label": "Two", "href": "/two/", "current": True},
+        {"label": "Three", "href": "/three/", "current": False},
+    ]
+    source = '<c-n26.tab-links :tabs="tabs" label="Which list" />'
+    # Overflow composes an island before the manifest exists during a clean build.
+    with mock.patch(
+        "n26.core.templatetags.react._entry", return_value=("/island.js", "")
+    ):
+        rendered = Template(CottonCompiler().process(source)).render(
+            Context({"tabs": tabs})
+        )
+    elements = Elements(rendered).elements
+
+    def find(tag, *tokens, href=None):
+        found = {
+            class_name(attrs)
+            for name, attrs in elements
+            if name == tag
+            and set(tokens) <= set(attrs.get("class", "").split())
+            and (href is None or attrs.get("href") == href)
+        }
+        if len(found) != 1:
+            raise ValueError(f"Tab-link recipe changed: {tag}, {tokens}: {found}")
+        return found.pop()
+
+    link_index = next(
+        index
+        for index, (tag, attrs) in enumerate(elements)
+        if tag == "a" and "border-b-2" in attrs.get("class", "").split()
+    )
+    label_tag, label_attrs = elements[link_index + 1]
+    if label_tag != "span":
+        raise ValueError("Tab-link text no longer has its own span")
+    return {
+        "full": find("div", "sm:flex", "gap-x-1"),
+        "narrow": find("div", "sm:hidden", "gap-x-1"),
+        "current": find("a", "border-b-2", href="/two/"),
+        "other": find("a", "border-b-2", href="/one/"),
+        "label": class_name(label_attrs),
+        "end": find("span", "order-last"),
+        "overflow": find("span", "shrink-0", "border-b-2"),
+    }
+
+
 def name_list_recipe():
     root, item, separator, text = classes(
         "<c-n26.name-list :names=\"[{'text': 'Old Ruins'}]\" />",
@@ -1151,10 +1200,11 @@ def callout_recipe():
 
 def radio_cards_recipe():
     """Extract the wrapping group and the card states used by the composer."""
-    fieldset, legend, grid = attributes(
-        '<c-n26.radio-cards label="Kind" min="var(--radio-card-min)" />',
+    fieldset, legend, description, grid = attributes(
+        '<c-n26.radio-cards label="Kind" description="Help" min="var(--radio-card-min)" />',
         "fieldset",
         "legend",
+        "p",
         "div",
     )
     style = grid.get("style", "").strip()
@@ -1162,11 +1212,13 @@ def radio_cards_recipe():
     if not match or "var(--radio-card-min)" not in match[1]:
         raise ValueError(f"Radio-card grid style changed: {style}")
 
-    enabled = attributes(
+    enabled_source = (
         '<c-n26.radio-cards.card name="kind" value="one" label="One" '
         'description="Description" example="Example" :wrap="True">'
         '<c-slot name="flair"><c-ui.badge color="amber" size="sm">'
-        "Deprecated</c-ui.badge></c-slot></c-n26.radio-cards.card>",
+        "Deprecated</c-ui.badge></c-slot></c-n26.radio-cards.card>"
+    )
+    enabled_tags = (
         "label",
         "input",
         "span",
@@ -1179,6 +1231,24 @@ def radio_cards_recipe():
         "svg",
         "span",
     )
+    enabled = attributes(enabled_source, *enabled_tags)
+    unwrapped = attributes(
+        enabled_source.replace(':wrap="True"', ':wrap="False"'), *enabled_tags
+    )
+    detail_source = (
+        '<c-n26.radio-cards.card label="One">Details</c-n26.radio-cards.card>'
+    )
+    detail_elements = Elements(
+        Template(CottonCompiler().process(detail_source)).render(Context())
+    ).elements
+    detail = [
+        attrs
+        for tag, attrs in detail_elements
+        if tag == "span"
+        and {"mt-2", "border-t", "pt-2"} <= set(attrs.get("class", "").split())
+    ]
+    if len(detail) != 1:
+        raise ValueError("Radio-card detail slot changed")
     disabled = attributes(
         '<c-n26.radio-cards.card name="kind" value="one" label="One" '
         'reason="Reason" :wrap="True" :disabled="True" />',
@@ -1196,6 +1266,7 @@ def radio_cards_recipe():
         "group": {
             "root": class_name(fieldset),
             "legend": class_name(legend),
+            "description": class_name(description),
             "grid": class_name(grid),
             "gridTemplateColumns": match[1],
         },
@@ -1205,9 +1276,13 @@ def radio_cards_recipe():
             "input": class_name(enabled[1]),
             "content": class_name(enabled[2]),
             "label": class_name(enabled[3]),
+            "labelUnwrapped": class_name(unwrapped[3]),
             "flairText": class_name(enabled[4]),
+            "flairTextUnwrapped": class_name(unwrapped[4]),
             "flair": class_name(enabled[5]),
             "description": class_name(enabled[7]),
+            "descriptionUnwrapped": class_name(unwrapped[7]),
+            "details": class_name(detail[0]),
             "reason": class_name(disabled[5]),
             "example": class_name(enabled[8]),
             "exampleIcon": class_name(enabled[9]),
@@ -2006,6 +2081,7 @@ def recipes():
         "textarea": classes("<c-ui.textarea />", "textarea")[0],
         "workflowPage": workflow_page_recipe(),
         "modelHeader": model_header_recipe(),
+        "tabLinks": tab_links_recipe(),
         "modelPreview": model_preview_recipe(),
         "modelCard": model_card_recipe(),
         "spinner": classes(

@@ -1,12 +1,6 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation %}
-{% comment %}
-Render the model's selectable skills with the shared ChoiceOffer component. Selection
-answers a matching open starting-skill offer when its anchor has an assignment;
-otherwise it adds a standing selection. An empty grid still has a page explaining its
-state.
-{% endcomment %}
-{% block head_title %}{% if nothing_to_select %}Skills{% else %}{{ chosen }}{% endif %} — {{ miniature.name }}{% endblock head_title %}
+{% load navigation react %}
+{% block head_title %}Skills — {% firstof miniature.name recovery_name %}{% endblock head_title %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
     <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
@@ -14,62 +8,8 @@ state.
 {% block nav_items %}
     {% include "n26/_nav.html" with here="gangs" %}
 {% endblock %}
+{% block messages %}
+{% endblock messages %}
 {% block content %}
-    <c-n26.form-page action="{{ action }}"
-                     title="{{ miniature.name }}"
-                     lead="{{ pick_lead }}"
-                     submit_label="{{ submit_label }}"
-                     cancel_url="{{ cancel_url }}">
-        {% comment %}
-        Switch to the same skills page for other models, including those with no
-        available skills. The navigation bar separately switches gangs.
-        {% endcomment %}
-        <c-slot name="trailing">
-            {% fighter_switcher gang miniature as fighter_switcher_ %}
-            <c-n26.quick-switcher.of :switcher="fighter_switcher_" hotkey="r" />
-        </c-slot>
-        <c-slot name="breadcrumb">
-            <c-ui.breadcrumbs>
-                <c-ui.breadcrumbs.item>
-                    <c-n26.user-link :user="user" tone="current" />
-                </c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item href="{{ back }}">
-                    {{ gang.name }}
-                </c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item href="{{ their_page }}">
-                    {{ miniature.name }}
-                </c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item :current="True">
-                    Skills
-                </c-ui.breadcrumbs.item>
-            </c-ui.breadcrumbs>
-        </c-slot>
-        {% if nothing_to_select %}
-            {% comment %}
-            Skill categories come from content, so an ungraded model has no selection
-            list to display.
-            {% endcomment %}
-            <p class="text-muted">
-                Nothing to select. This fighter is not graded in any skill category, so
-                no skills are theirs to select — a gap in the content rather than in the
-                fighter. A profile that grades a category, or something they carry
-                that opens one up, fills this page in.
-            </p>
-        {% else %}
-            {% csrf_token %}
-            {% comment %}
-            Use links when multiple collections are available so the selected collection
-            remains URL state.
-            {% endcomment %}
-            {% if collection_tabs|length > 1 %}
-                <c-n26.tab-links label="Which list" :tabs="collection_tabs" />
-            {% endif %}
-            <c-n26.choice-offer :offer="offer">
-                <c-slot name="empty">
-                    Nothing here yet. The sets this fighter is graded in hold nothing to
-                    select — which is a gap in the content rather than in the fighter.
-                </c-slot>
-            </c-n26.choice-offer>
-        {% endif %}
-    </c-n26.form-page>
+    {% react_island "model-skills" skills_props %}
 {% endblock content %}

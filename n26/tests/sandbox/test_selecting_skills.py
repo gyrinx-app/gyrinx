@@ -138,6 +138,12 @@ def skills_url(miniature):
     return reverse("n26-skills", args=[miniature.pk])
 
 
+def skill_submission(client, miniature, thing):
+    values = dict(client.get(skills_url(miniature)).context["skills_props"]["values"])
+    values["thing"] = f"{thing._meta.label_lower}:{thing.pk}"
+    return values
+
+
 def edit_url(miniature):
     return reverse("n26-edit-fighter", args=[miniature.pk])
 
@@ -228,8 +234,11 @@ class TestTheWordForIt:
         client.force_login(player)
         response = client.get(skills_url(yolanda))
 
-        assert response.context["pick_lead"] == f"Select skills for {yolanda.name}."
-        assert response.context["submit_label"] == "Select"
+        assert (
+            response.context["skills_props"]["lead"]
+            == f"Select skills for {yolanda.name}."
+        )
+        assert response.context["skills_props"]["groups"]
 
     def test_the_sentence_afterwards_says_selected(
         self, client, player, yolanda, library
@@ -238,7 +247,7 @@ class TestTheWordForIt:
         client.force_login(player)
         response = client.post(
             skills_url(yolanda),
-            {"thing": f"{catfall._meta.label_lower}:{catfall.pk}"},
+            skill_submission(client, yolanda, catfall),
             follow=True,
         )
 
@@ -281,10 +290,12 @@ class TestWhatTheScreenShows:
         self, client, player, yolanda, library
     ):
         client.force_login(player)
-        offer = client.get(skills_url(yolanda)).context["offer"]
+        offer = client.get(skills_url(yolanda)).context["skills_props"]
 
-        assert [group.name for group in offer.groups] == ["Agility", "Savant"]
-        names = {option.name for group in offer.groups for option in group.options}
+        assert [group["name"] for group in offer["groups"]] == ["Agility", "Savant"]
+        names = {
+            option["name"] for group in offer["groups"] for option in group["options"]
+        }
         assert "Catfall" in names  # Agility is Primary for her
         assert "Connected" in names  # Savant is Secondary
         assert "Bull Charge" not in names  # Brawn is nobody's here
@@ -293,9 +304,9 @@ class TestWhatTheScreenShows:
     def test_each_set_says_which_tier_it_is(self, client, player, yolanda, library):
         """Label each skill set with its placed tier."""
         client.force_login(player)
-        offer = client.get(skills_url(yolanda)).context["offer"]
+        offer = client.get(skills_url(yolanda)).context["skills_props"]
 
-        assert [(group.name, group.caption) for group in offer.groups] == [
+        assert [(group["name"], group["caption"]) for group in offer["groups"]] == [
             ("Agility", "Primary"),
             ("Savant", "Secondary"),
         ]
@@ -309,8 +320,7 @@ class TestWhatTheScreenShows:
         response = client.get(skills_url(nobody))
 
         assert response.status_code == 200
-        body = response.content.decode()
-        assert "not graded in any skill category" in body
+        assert response.context["skills_props"]["nothingToSelect"]
 
     def test_a_fighter_with_no_grid_is_not_asked_to_select_anything(
         self, client, player, gang, gridless, catalogue
@@ -318,10 +328,7 @@ class TestWhatTheScreenShows:
         """Omit the submit action when no skills are selectable."""
         nobody = hire_with_option(gang, gridless, "Nobody")
         client.force_login(player)
-        body = client.get(skills_url(nobody)).content.decode()
-
-        # The page's only act would be Select, and there is nothing to select.
-        assert 'type="submit"' not in body
+        assert client.get(skills_url(nobody)).context["skills_props"]["nothingToSelect"]
 
     def test_somebody_else_s_fighter_is_not_there(self, client, yolanda, catalogue):
         stranger = User.objects.create_user("stranger")
@@ -333,15 +340,15 @@ class TestWhatTheScreenShows:
     ):
         select(yolanda, library["skills"]["Catfall"])
         client.force_login(player)
-        offer = client.get(skills_url(yolanda)).context["offer"]
+        offer = client.get(skills_url(yolanda)).context["skills_props"]
 
         catfall = next(
             option
-            for group in offer.groups
-            for option in group.options
-            if option.name == "Catfall"
+            for group in offer["groups"]
+            for option in group["options"]
+            if option["name"] == "Catfall"
         )
-        assert "already known" in catfall.detail
+        assert "already known" in catfall["remark"]
 
     def test_a_restricted_skill_keeps_its_place_with_a_note(
         self, client, player, yolanda, library
@@ -351,15 +358,15 @@ class TestWhatTheScreenShows:
 
         restrict_use(library["skills"]["Catfall"], create_subtype("Walker"))
         client.force_login(player)
-        offer = client.get(skills_url(yolanda)).context["offer"]
+        offer = client.get(skills_url(yolanda)).context["skills_props"]
 
         catfall = next(
             option
-            for group in offer.groups
-            for option in group.options
-            if option.name == "Catfall"
+            for group in offer["groups"]
+            for option in group["options"]
+            if option["name"] == "Catfall"
         )
-        assert "only" in catfall.detail
+        assert "only" in catfall["remark"]
 
 
 class TestGettingToTheNextFighter:
@@ -392,11 +399,8 @@ class TestGettingToTheNextFighter:
         """Use aria-current to identify the selected model independently of icons or colour."""
         hire_with_option(gang, gang_sister, "Mad Donna")
         client.force_login(player)
-        body = client.get(skills_url(yolanda)).content.decode()
-
-        # Match the link href because the same path also appears in the form action.
-        hers = body.index(f'href="{skills_url(yolanda)}"')
-        assert 'aria-current="page"' in body[hers : body.index("</a>", hers)]
+        switcher = client.get(skills_url(yolanda)).context["skills_props"]["switcher"]
+        assert switcher["current"] == skills_url(yolanda)
 
     def test_the_control_says_what_it_switches(
         self, client, player, gang, gang_sister, yolanda, catalogue
@@ -406,7 +410,12 @@ class TestGettingToTheNextFighter:
         client.force_login(player)
         body = client.get(skills_url(yolanda)).content.decode()
 
-        assert 'aria-label="Select skills for another fighter"' in body
+        assert (
+            client.get(skills_url(yolanda)).context["skills_props"]["switcher"][
+                "menuLabel"
+            ]
+            == "Select skills for another fighter"
+        )
         assert 'aria-label="Switch to another gang"' in body
 
     def test_somebody_else_s_roster_is_not_in_it(
@@ -433,11 +442,7 @@ class TestTheWayOut:
         client.force_login(player)
         response = client.get(skills_url(yolanda))
 
-        assert response.context["cancel_url"] == edit_url(yolanda)
-        # The footer link follows the breadcrumb to the same model page.
-        body = response.content.decode()
-        out = body.rindex(f'href="{edit_url(yolanda)}"')
-        assert "Cancel" in body[out : body.index("</a>", out)]
+        assert response.context["skills_props"]["back"] == edit_url(yolanda)
 
     def test_selecting_something_lands_on_the_same_page_cancel_does(
         self, client, player, yolanda, library
@@ -447,7 +452,7 @@ class TestTheWayOut:
         client.force_login(player)
         response = client.post(
             skills_url(yolanda),
-            {"thing": f"{catfall._meta.label_lower}:{catfall.pk}"},
+            skill_submission(client, yolanda, catfall),
         )
 
         assert response["Location"] == edit_url(yolanda)
@@ -457,12 +462,10 @@ class TestTheWayOut:
     ):
         """Place the model breadcrumb between its gang and the skills editor."""
         client.force_login(player)
-        body = client.get(skills_url(yolanda)).content.decode()
-
-        gang_crumb = body.index(f'href="{reverse("n26-gang", args=[yolanda.gang.pk])}"')
-        model_crumb = body.index(f'href="{edit_url(yolanda)}"')
-        assert gang_crumb < model_crumb
-        assert "Yolanda" in body[model_crumb : body.index("</a>", model_crumb)]
+        page = client.get(skills_url(yolanda)).context["skills_props"]
+        assert page["gangHref"] == reverse("n26-gang", args=[yolanda.gang.pk])
+        assert page["back"] == edit_url(yolanda)
+        assert page["name"] == "Yolanda"
 
     def test_a_fighter_with_nothing_to_select_still_has_the_way_back(
         self, client, player, gang, gridless, catalogue
@@ -470,9 +473,9 @@ class TestTheWayOut:
         """Keep a model breadcrumb when no selectable content or Cancel action is shown."""
         nobody = hire_with_option(gang, gridless, "Nobody")
         client.force_login(player)
-        body = client.get(skills_url(nobody)).content.decode()
-
-        assert f'href="{edit_url(nobody)}"' in body
+        assert client.get(skills_url(nobody)).context["skills_props"][
+            "back"
+        ] == edit_url(nobody)
 
 
 # --- The write -------------------------------------------------------------
@@ -487,7 +490,7 @@ class TestSelecting:
         client.force_login(player)
         response = client.post(
             skills_url(yolanda),
-            {"thing": f"{catfall._meta.label_lower}:{catfall.pk}"},
+            skill_submission(client, yolanda, catfall),
         )
 
         assert response.status_code == 302
@@ -503,10 +506,10 @@ class TestSelecting:
         client.force_login(player)
         response = client.post(
             skills_url(yolanda),
-            {"thing": f"{catfall._meta.label_lower}:{catfall.pk}"},
+            skill_submission(client, yolanda, catfall),
         )
 
-        assert response.status_code == 302
+        assert response.status_code == 422
         names = [line.name for line in card_for(yolanda).skills]
         assert names.count("Catfall") == 1
         assert_reconciled(gang)
@@ -519,7 +522,7 @@ class TestSelecting:
         client.force_login(player)
         client.post(
             skills_url(yolanda),
-            {"thing": f"{off_list._meta.label_lower}:{off_list.pk}"},
+            skill_submission(client, yolanda, off_list),
         )
 
         assert card_for(yolanda).skills == []
@@ -637,7 +640,7 @@ class TestTheSkillsRow:
         client.force_login(player)
         client.post(
             skills_url(leader_yolanda),
-            {"thing": f"{catfall._meta.label_lower}:{catfall.pk}"},
+            skill_submission(client, leader_yolanda, catfall),
         )
 
         card = card_for(leader_yolanda)
@@ -655,7 +658,7 @@ class TestTheSkillsRow:
         client.force_login(player)
         client.post(
             skills_url(leader_yolanda),
-            {"thing": f"{connected._meta.label_lower}:{connected.pk}"},
+            skill_submission(client, leader_yolanda, connected),
         )
 
         card = card_for(leader_yolanda)

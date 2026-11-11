@@ -766,17 +766,20 @@ export function RadioOption({
 
 export function RadioCards({
     legend,
+    description = "",
     min = "14rem",
     errors = [],
     children,
 }: {
     legend: string;
+    description?: string;
     min?: string;
     errors?: string[];
     children: ReactNode;
 }) {
     const id = useId();
     const errorId = errors.length ? `${id}-errors` : undefined;
+    const descriptionId = description ? `${id}-description` : undefined;
     const recipe = cotton.radioCards.group;
     const style = {
         "--radio-card-min": min,
@@ -786,9 +789,16 @@ export function RadioCards({
         <fieldset
             className={recipe.root}
             aria-invalid={errorId ? true : undefined}
-            aria-describedby={errorId}
+            aria-describedby={
+                [descriptionId, errorId].filter(Boolean).join(" ") || undefined
+            }
         >
             <legend className={recipe.legend}>{legend}</legend>
+            {descriptionId && (
+                <p id={descriptionId} className={recipe.description}>
+                    {description}
+                </p>
+            )}
             <div className={recipe.grid} style={style}>
                 {children}
             </div>
@@ -802,6 +812,8 @@ export function RadioCard({
     value,
     label,
     description = "",
+    details,
+    wrap = true,
     example = "",
     reason = "",
     disabled = false,
@@ -816,6 +828,8 @@ export function RadioCard({
     value: string;
     label: string;
     description?: string;
+    details?: ReactNode;
+    wrap?: boolean;
     example?: string;
     reason?: string;
     disabled?: boolean;
@@ -840,8 +854,12 @@ export function RadioCard({
                 className={recipe.input}
             />
             <span className={recipe.content}>
-                <span className={recipe.label}>
-                    <span className={recipe.flairText}>
+                <span className={wrap ? recipe.label : recipe.labelUnwrapped}>
+                    <span
+                        className={
+                            wrap ? recipe.flairText : recipe.flairTextUnwrapped
+                        }
+                    >
                         {label}
                         {flair && <span className={recipe.flair}>{flair}</span>}
                     </span>
@@ -850,11 +868,22 @@ export function RadioCard({
                     <span className={recipe.reason}>{reason}</span>
                 ) : (
                     description && (
-                        <span className={recipe.description}>
+                        <span
+                            className={
+                                wrap
+                                    ? recipe.description
+                                    : recipe.descriptionUnwrapped
+                            }
+                        >
                             {description}
                         </span>
                     )
                 )}
+                {details != null &&
+                    typeof details !== "boolean" &&
+                    details !== "" && (
+                        <span className={recipe.details}>{details}</span>
+                    )}
                 {example && !disabled && (
                     <span
                         className={recipe.example}
@@ -1650,3 +1679,5 @@ export {
     isEquipmentModel,
     type EquipmentModelData,
 } from "./EquipmentModel";
+
+export { TabLinks, type TabLink } from "./TabLinks";
