@@ -125,7 +125,7 @@ describe("island lifecycle", () => {
         expect(load).toHaveBeenCalledTimes(2);
         const url = new URL(load.mock.calls[1][0]);
         expect(url.pathname).toBe("/module.js");
-        expect(url.searchParams.get("retry")).toBe("1");
+        expect(url.searchParams.get("retry")).toMatch(/^\d+$/);
         resolve({ mount });
         await vi.waitFor(() => expect(element.textContent).toBe("Recovered"));
         expect(other.querySelector("input").value).toBe("Unsaved draft");
@@ -148,6 +148,34 @@ describe("island lifecycle", () => {
         expect(element.querySelector("button")).toBeNull();
         expect(element.querySelector("a").href).toBe(window.location.href);
         expect(load).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not reuse another sections failed retry URL for the same module", async () => {
+        const first = host("first");
+        const second = host("second");
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        let restored = false;
+        const load = vi.fn(() =>
+            restored
+                ? Promise.resolve({
+                      mount: (target) => {
+                          target.textContent = "Recovered";
+                      },
+                  })
+                : Promise.reject(new TypeError("Connection refused")),
+        );
+        mountWithin(document, load);
+        await vi.waitFor(() =>
+            expect(second.querySelector("button")).not.toBeNull(),
+        );
+        first.querySelector("button").click();
+        await vi.waitFor(() =>
+            expect(first.textContent).toContain("then reload the page"),
+        );
+        restored = true;
+        second.querySelector("button").click();
+        await vi.waitFor(() => expect(second.textContent).toBe("Recovered"));
+        expect(load.mock.calls[2][0]).not.toBe(load.mock.calls[3][0]);
     });
 
     it("describes a mounting exception separately from a failed connection", async () => {

@@ -2,6 +2,7 @@
 import { showIslandError } from "./react-island-error.js";
 
 const islands = new Map();
+let retrySequence = 0;
 
 export function mountWithin(
     scope,
@@ -18,7 +19,7 @@ export function mountWithin(
         if (attempt) {
             const fresh = new URL(url, window.location.href);
             // Browsers cache failed module imports; retry only the entry URL.
-            fresh.searchParams.set("retry", String(attempt));
+            fresh.searchParams.set("retry", String(++retrySequence));
             url = fresh.href;
         }
         let imported = false;
