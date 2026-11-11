@@ -16,13 +16,15 @@ from bs4 import BeautifulSoup
 from django.urls import reverse
 
 from n23.content.models import ContentAttribute, ContentAttributeValue
-from n23.core.models import PrintConfig
+from n23.core.models import Battle, PrintConfig
 from n23.core.models.campaign import (
+    CampaignAction,
     CampaignAsset,
     CampaignAssetType,
     CampaignListResource,
     CampaignResourceType,
 )
+from n23.core.models.crew import Crew, CrewMember
 from n23.core.models.list import ListAttributeAssignment
 from n23.core.print_cards import (
     gang_card_from_list,
@@ -683,3 +685,66 @@ def test_lore_notes_print_linked_from_the_lore_and_notes_pages(client, user, mak
         body = client.get(reverse(page, kwargs={"id": lst.id})).content.decode()
         assert print_url in body
         assert f"{print_url}?style=classic" in body
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("style", ["default", "classic"])
+@pytest.mark.parametrize("selection", ["crew", "gang", "invalid", "archived"])
+@pytest.mark.parametrize("panels", [None, True, False])
+def test_crew_print_gang_panel_defaults(
+    client, user, list_with_campaign, make_list_fighter, style, selection, panels
+):
+    lst = list_with_campaign
+    _give_resource(lst, "Print resource", 7)
+    _give_asset(lst, "Print territory")
+    _give_attribute(lst, "Print alignment", "Print outlaw")
+    CampaignAction.objects.create(
+        campaign=lst.campaign,
+        list=lst,
+        owner=user,
+        user=user,
+        description="Print action example",
+    )
+    picked = make_list_fighter(lst, "Crew fighter")
+    make_list_fighter(lst, "Benched fighter")
+    battle = Battle.objects.create(campaign=lst.campaign, mission="Print", owner=user)
+    battle.set_participants([lst])
+    crew = Crew.objects.create(
+        battle=battle,
+        list=lst,
+        owner=user,
+        status=Crew.LOCKED,
+        archived=selection == "archived",
+    )
+    CrewMember.objects.create(
+        crew=crew, list_fighter=picked, source=CrewMember.CHOSEN, owner=user
+    )
+    params = {"style": style}
+    if selection != "gang":
+        params["crew"] = "not-a-uuid" if selection == "invalid" else crew.id
+    config = None
+    if panels is not None:
+        config = PrintConfig.objects.create(
+            list=lst,
+            owner=user,
+            name="Panel choices",
+            include_assets=panels,
+            include_attributes=panels,
+            include_actions=panels,
+        )
+    client.force_login(user)
+
+    response = client.get(_print_url(lst, config, **params))
+
+    assert response.status_code == 200
+    body = response.content.decode()
+    show_panels = panels if panels is not None else selection != "crew"
+    assert ("Print territory" in body) == show_panels
+    assert ("Print outlaw" in body) == show_panels
+    assert ("Print action example" in body) == (show_panels and style == "default")
+    assert "Crew fighter" in body
+    assert ("Benched fighter" in body) == (selection != "crew")
+    if style == "default":
+        soup = BeautifulSoup(body, "html.parser")
+        for panel in ("actions", "assets", "attributes"):
+            assert bool(soup.select_one(f"#list-card-{panel}")) == show_panels
