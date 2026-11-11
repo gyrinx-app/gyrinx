@@ -109,3 +109,27 @@ class TestTheShareControl:
         page = client.get(reverse("n26-edit-fighter", args=[fighter.pk])).text
 
         assert page.count('data-react-name="share-card"') == 1
+
+
+@pytest.mark.parametrize("theme", ["light", "dark", "system"])
+def test_shared_card_theme_and_branding(client, fighter, theme):
+    response = client.get(
+        reverse("n26-shared-fighter-card", args=[fighter.pk]), {"theme": theme}
+    )
+    assert response.status_code == 200
+    assert f'data-shared-theme="{theme}"' in response.text
+    assert "n26/gyrinx-logo.svg" in response.text
+    assert response.text.index("data-shared-card") < response.text.index(
+        "n26-shared-brand"
+    )
+    if theme in {"light", "dark"}:
+        assert f'class="{theme}"' in response.text
+
+
+def test_unknown_shared_theme_uses_system(client, fighter):
+    response = client.get(
+        reverse("n26-shared-fighter-card", args=[fighter.pk]),
+        {"theme": "unrecognised-theme"},
+    )
+    assert 'data-shared-theme="system"' in response.text
+    assert "unrecognised-theme" not in response.text

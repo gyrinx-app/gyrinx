@@ -1,106 +1,142 @@
 import { domToBlob } from "modern-screenshot";
-import { useEffect, useState, type MouseEvent } from "react";
-import { Button, ButtonLink, Dialog, FormActions, Icon } from "../../ui";
+import { useEffect, useId, useState, type MouseEvent } from "react";
+import {
+    Button,
+    ButtonLink,
+    Dialog,
+    Field,
+    FormActions,
+    Icon,
+    Input,
+    Textarea,
+} from "../../ui";
 
-export type ShareCardProps = {
-    name: string;
-    gang: string;
-    /** The card's own page, which other websites may frame. */
-    cardUrl: string;
-};
+export type ShareCardProps = { name: string; gang: string; cardUrl: string };
+export type Aspect = "standard" | `${number}:${number}`;
+type Theme = "light" | "dark";
 
-// The width the card is drawn at for its picture and its measured height.
 const STAGE_WIDTH = 480;
-// Used when the card's page has not loaded by the time HTML is copied.
-const FALLBACK_HEIGHT = 420;
 const LABEL = "Share card";
+export type Stage = { card: HTMLElement; remove: () => void };
 
-/** The shared page's content, drawn out of sight on this page. */
-export type Stage = {
-    /** What the picture is taken of: the card alone. */
-    card: HTMLElement;
-    /** How tall the shared page is at the stage's width. */
-    height: number;
-    remove: () => void;
-};
-
-/** The browser calls, apart so tests can stand in for them. */
+/** Browser boundaries kept separate so tests can exercise cancellation and failures. */
 export const shareCardTools = {
     copyText(text: string) {
         return navigator.clipboard.writeText(text);
     },
-    /**
-     * The picture goes in as a promise: Safari allows a clipboard write
-     * only while the click that asked for it is still running, and the
-     * picture takes longer than that to make.
-     */
     copyImage(png: Promise<Blob>) {
         return navigator.clipboard.write([
             new ClipboardItem({ "image/png": png }),
         ]);
     },
-    /**
-     * The shared page's content, copied onto this page out of sight. This
-     * page already has the stylesheet and fonts, and the picture library
-     * cannot draw an element that lives in another document, such as a
-     * frame's. The shared page carries no script, so nothing runs.
-     */
-    async stage(url: string): Promise<Stage> {
-        const response = await fetch(url, { credentials: "omit" });
-        if (!response.ok)
-            throw new Error(`The card's page answered ${response.status}`);
-        const page = new DOMParser().parseFromString(
-            await response.text(),
-            "text/html",
-        );
-        const main = page.querySelector("main");
-        if (!main) throw new Error("The card's page has no content");
-        const holder = document.createElement("div");
-        holder.setAttribute("aria-hidden", "true");
-        holder.className = page.body.className;
-        Object.assign(holder.style, {
+    async stage(url: string, aspect: Aspect = "standard"): Promise<Stage> {
+        // An isolated document keeps explicit light exports light even on a dark page.
+        const frame = document.createElement("iframe");
+        frame.setAttribute("aria-hidden", "true");
+        frame.tabIndex = -1;
+        Object.assign(frame.style, {
             position: "fixed",
             left: "-10000px",
             top: "0",
             width: `${STAGE_WIDTH}px`,
+            height: "1000px",
+            border: "0",
             pointerEvents: "none",
         });
-        holder.append(document.importNode(main, true));
-        document.body.append(holder);
-        const card = holder.querySelector<HTMLElement>("[data-shared-card]");
-        if (!card) {
-            holder.remove();
-            throw new Error("The card's page has no card");
+        try {
+            await new Promise<void>((resolve, reject) => {
+                const timeout = window.setTimeout(
+                    () => reject(new Error("The card took too long to load")),
+                    20000,
+                );
+                frame.onload = () => {
+                    clearTimeout(timeout);
+                    resolve();
+                };
+                frame.onerror = () => {
+                    clearTimeout(timeout);
+                    reject(new Error("The card could not load"));
+                };
+                frame.src = url;
+                document.body.append(frame);
+            });
+            const doc = frame.contentDocument;
+            const card = doc?.querySelector<HTMLElement>("[data-shared-card]");
+            if (!card) throw new Error("The shared page has no card");
+            await doc?.fonts?.ready;
+            await Promise.all(
+                Array.from(card.querySelectorAll("img"), (img) =>
+                    img.decode().catch(() => {}),
+                ),
+            );
+            if (aspect !== "standard") {
+                const [across, down] = aspect.split(":").map(Number);
+                const target = down / across;
+                let low = STAGE_WIDTH,
+                    high = Math.max(
+                        STAGE_WIDTH,
+                        Math.ceil(card.getBoundingClientRect().height / target),
+                    ),
+                    best = STAGE_WIDTH;
+                const needsWiderLayout =
+                    card.getBoundingClientRect().height / STAGE_WIDTH > target;
+                if (needsWiderLayout) best = high;
+                // Keep the standard text scale; only widen the layout when needed to fit all content.
+                for (
+                    let attempt = 0;
+                    needsWiderLayout && attempt < 10;
+                    attempt++
+                ) {
+                    const width = Math.round((low + high) / 2);
+                    frame.style.width = `${width}px`;
+                    const proportion =
+                        card.getBoundingClientRect().height / width;
+                    if (proportion > target) low = width;
+                    else {
+                        best = width;
+                        high = width;
+                    }
+                }
+                frame.style.width = `${best}px`;
+                Object.assign(card.style, {
+                    minHeight: `${best * target}px`,
+                    display: "flex",
+                    flexDirection: "column",
+                });
+            }
+            return { card, remove: () => frame.remove() };
+        } catch (error) {
+            frame.remove();
+            throw error;
         }
-        return {
-            card,
-            height: Math.ceil(holder.getBoundingClientRect().height),
-            remove: () => holder.remove(),
-        };
     },
-    async picture(stage: Stage) {
-        await document.fonts?.ready;
+    async image(stage: Stage, aspect: Aspect): Promise<Blob> {
+        const background =
+            stage.card.ownerDocument.defaultView!.getComputedStyle(
+                stage.card,
+            ).backgroundColor;
+        const width = stage.card.getBoundingClientRect().width;
+        const height =
+            aspect === "standard"
+                ? stage.card.getBoundingClientRect().height
+                : (width * Number(aspect.split(":")[1])) /
+                  Number(aspect.split(":")[0]);
         const blob = await domToBlob(stage.card, {
-            scale: 2,
+            width,
+            height,
+            scale: 1440 / width,
             type: "image/png",
-            backgroundColor: getComputedStyle(stage.card).backgroundColor,
+            backgroundColor: background,
         });
-        if (!blob) throw new Error("No picture was made");
+        if (!blob) throw new Error("The image could not be made");
         return blob;
     },
-    /** Whether the device's share sheet takes this, such as a file. */
-    /** Whether the main pointer is a finger: a phone or a tablet. */
-    touchScreen() {
-        return window.matchMedia?.("(pointer: coarse)").matches ?? false;
-    },
     canShare(data: ShareData) {
-        if (!navigator.share) return false;
-        return !navigator.canShare || navigator.canShare(data);
+        return (
+            !!navigator.share &&
+            (!navigator.canShare || navigator.canShare(data))
+        );
     },
-    /**
-     * Opens the device's share sheet. Safari opens it only while the click
-     * is still running, so whatever is shared must be ready beforehand.
-     */
     share(data: ShareData) {
         return navigator.share(data);
     },
@@ -114,14 +150,6 @@ function isAbort(error: unknown) {
         error.name === "AbortError"
     );
 }
-
-/** A tiny PNG, only to ask the device whether it shares pictures at all. */
-function sharesPictures() {
-    return shareCardTools.canShare({
-        files: [new File([""], "card.png", { type: "image/png" })],
-    });
-}
-
 function escapeAttribute(text: string) {
     return text
         .replace(/&/g, "&amp;")
@@ -129,27 +157,53 @@ function escapeAttribute(text: string) {
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
 }
-
-export function embedCode(url: string, title: string, height: number) {
-    return `<iframe src="${escapeAttribute(url)}" title="${escapeAttribute(title)}" width="100%" height="${height}" style="border:0" loading="lazy"></iframe>`;
+export function embedCode(
+    url: string,
+    title: string,
+    height: number | string = "",
+    width: number | string = "100%",
+) {
+    const hasHeight = String(height).trim() !== "";
+    const heightAttribute = hasHeight
+        ? ` height="${escapeAttribute(String(height))}"`
+        : "";
+    const heightStyle = hasHeight
+        ? `;height:${escapeAttribute(embedDimensionStyle(height))}`
+        : "";
+    return `<iframe src="${escapeAttribute(url)}" title="${escapeAttribute(title)}" width="${escapeAttribute(String(width))}"${heightAttribute} style="border:0;width:${escapeAttribute(embedDimensionStyle(width))}${heightStyle}" loading="lazy"></iframe>`;
 }
-
+export function embedDimensionStyle(dimension: string | number) {
+    const value = String(dimension);
+    return /^\d+(?:\.\d+)?$/.test(value) ? `${value}px` : value;
+}
 function fileName(name: string) {
-    const slug = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "");
-    return `${slug || "card"}.png`;
+    return `${
+        name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "") || "card"
+    }.png`;
 }
-
-type Status = { text: string; tone: "working" | "copied" | "failed" };
-
-// A copy that worked is said in bold, so it stands out from the help text.
-const TONE = {
-    working: "text-muted",
-    copied: "font-semibold text-ink-900 dark:text-white",
-    failed: "text-red-600 dark:text-red-400",
-};
+function currentTheme(): Theme {
+    return document.documentElement.classList.contains("dark")
+        ? "dark"
+        : "light";
+}
+export function customRatio(width: string, height: string): Aspect | null {
+    const across = Number(width),
+        down = Number(height);
+    if (
+        !Number.isFinite(across) ||
+        !Number.isFinite(down) ||
+        across <= 0 ||
+        down <= 0 ||
+        across / down < 0.2 ||
+        across / down > 5
+    )
+        return null;
+    return `${across}:${down}`;
+}
+type Status = { text: string; failed?: boolean };
 
 function ShareDialog({
     name,
@@ -157,280 +211,504 @@ function ShareDialog({
     cardUrl,
     onDismiss,
 }: ShareCardProps & { onDismiss: () => void }) {
-    const url = new URL(cardUrl, window.location.href).href;
-    // The card's page, drawn out of sight while the dialog is open: it is
-    // measured for the embed's height and photographed for the picture.
-    const [stage, setStage] = useState<Promise<Stage> | null>(null);
-    const [height, setHeight] = useState<number | null>(null);
+    const id = useId();
+    const [theme, setTheme] = useState<Theme>(currentTheme);
+    const address = new URL(cardUrl, window.location.href);
+    address.searchParams.set("theme", theme);
+    const url = address.href;
+    const title = `${name} – ${gang}`;
+    const [aspect, setAspect] = useState<Aspect>("standard");
+    const [custom, setCustom] = useState(false);
+    const [ratioWidth, setRatioWidth] = useState("1");
+    const [ratioHeight, setRatioHeight] = useState("1");
+    const [ratioError, setRatioError] = useState("");
+    function applyRatio() {
+        const next = customRatio(ratioWidth, ratioHeight);
+        if (!next) {
+            setRatioError(
+                "Use positive numbers and a ratio between 1:5 and 5:1.",
+            );
+            return;
+        }
+        setRatioError("");
+        setAspect(next);
+    }
+    const [retry, setRetry] = useState(0);
+    const [staged, setStaged] = useState<{ key: string; stage: Stage } | null>(
+        null,
+    );
+    const [asset, setAsset] = useState<{
+        key: string;
+        file: File;
+        src: string;
+    } | null>(null);
+    const [failedKey, setFailedKey] = useState("");
+    const key = `${url}|${aspect}|${retry}`;
+    const ready = asset?.key === key ? asset : null;
+    const failed = failedKey === key;
+    const [width, setWidth] = useState("100%");
+    const [height, setHeight] = useState("");
+    const code = embedCode(url, title, height, width);
+    const [status, setStatus] = useState<Status | null>(null);
+
+    const [filesSupported] = useState(() =>
+        shareCardTools.canShare({
+            files: [new File([""], "card.png", { type: "image/png" })],
+        }),
+    );
+    const [linksSupported] = useState(() => shareCardTools.canShare({ url }));
+
     useEffect(() => {
-        let open = true;
-        const staged = shareCardTools.stage(url);
-        setStage(staged);
-        staged.then(
-            (drawn) => {
-                if (open) setHeight(drawn.height);
+        let active = true;
+        const pending = shareCardTools.stage(url, aspect);
+        pending.then(
+            (stage) => {
+                if (active) setStaged({ key: key, stage });
             },
-            () => {},
+            () => {
+                if (active) setFailedKey(key);
+            },
         );
         return () => {
-            open = false;
-            staged.then(
-                (drawn) => drawn.remove(),
+            active = false;
+            pending.then(
+                (stage) => stage.remove(),
                 () => {},
             );
         };
-    }, [url]);
-    // Where the device shares pictures, the picture is made as the dialog
-    // opens, so it is ready to hand over within the click.
-    const [pictures] = useState(sharesPictures);
-    // A phone's share sheet has its own Copy, so Copy image is left out there.
-    // Desktop share sheets have none, so computers keep the button.
-    const [copies] = useState(() => !pictures || !shareCardTools.touchScreen());
-    const [picture, setPicture] = useState<File | null>(null);
+    }, [url, aspect, retry]);
+
     useEffect(() => {
-        if (!pictures || !stage) return;
-        let open = true;
-        stage
-            .then((staged) => shareCardTools.picture(staged))
-            .then(
-                (blob) => {
-                    if (open)
-                        setPicture(
-                            new File([blob], fileName(name), {
-                                type: "image/png",
-                            }),
-                        );
-                },
-                () => {},
-            );
+        if (!staged || staged.key !== key) return;
+        let active = true;
+        let src = "";
+        shareCardTools.image(staged.stage, aspect).then(
+            (blob) => {
+                if (!active) return;
+                src = URL.createObjectURL(blob);
+                setAsset({
+                    key,
+                    file: new File([blob], fileName(name), {
+                        type: "image/png",
+                    }),
+                    src,
+                });
+            },
+            () => {
+                if (active) setFailedKey(key);
+            },
+        );
         return () => {
-            open = false;
+            active = false;
+            if (src) URL.revokeObjectURL(src);
         };
-    }, [pictures, stage, name]);
-    const title = `${name} – ${gang}`;
-    const [status, setStatus] = useState<Status | null>(null);
-    const [manual, setManual] = useState<{
-        label: string;
-        text: string;
-    } | null>(null);
-    const [download, setDownload] = useState("");
+    }, [staged, url, aspect, retry, name]);
 
-    useEffect(
-        () => () => {
-            if (download) URL.revokeObjectURL(download);
-        },
-        [download],
-    );
+    useEffect(() => {
+        setStatus(null);
+    }, [key, code]);
 
-    function copyHtml() {
-        const code = embedCode(url, title, height ?? FALLBACK_HEIGHT);
-        setManual(null);
-        const failed = () => {
-            setManual({ label: "Embed code", text: code });
+    function copyText(text: string, success: string) {
+        const fail = () =>
             setStatus({
-                text: "Your browser did not allow the copy. Select the code below and copy it.",
-                tone: "failed",
+                text: "Your browser did not allow the copy. Select the text and copy it.",
+                failed: true,
+            });
+        try {
+            shareCardTools
+                .copyText(text)
+                .then(() => setStatus({ text: success }), fail);
+        } catch {
+            fail();
+        }
+    }
+    function copyImage() {
+        if (!ready) return;
+        const fail = () => {
+            setStatus({
+                text: "Your browser did not allow the copy. Download the image instead.",
+                failed: true,
             });
         };
         try {
-            shareCardTools.copyText(code).then(
-                () =>
-                    setStatus({
-                        text: "HTML copied. Paste it where your website takes embed code.",
-                        tone: "copied",
-                    }),
-                failed,
-            );
-        } catch {
-            failed();
-        }
-    }
-
-    function copyImage() {
-        // The stage starts as the dialog opens, so it exists by any click.
-        const png = (
-            stage ?? Promise.reject(new Error("The card is not ready"))
-        ).then((staged) => shareCardTools.picture(staged));
-        setStatus({ text: "Making the picture…", tone: "working" });
-        const failed = () =>
-            png.then(
-                (blob) => {
-                    setDownload(URL.createObjectURL(blob));
-                    setStatus({
-                        text: "Your browser did not allow the copy. Download the picture instead.",
-                        tone: "failed",
-                    });
-                },
-                () =>
-                    setStatus({
-                        text: "The picture could not be made. Try again.",
-                        tone: "failed",
-                    }),
-            );
-        try {
-            shareCardTools.copyImage(png).then(
+            shareCardTools.copyImage(Promise.resolve(ready.file)).then(
                 () =>
                     setStatus({
                         text: "Image copied. Paste it into a message or document.",
-                        tone: "copied",
                     }),
-                failed,
+                fail,
             );
         } catch {
-            failed();
+            fail();
         }
     }
-
-    function sharePicture() {
-        if (!picture) return;
-        const failed = (error: unknown) => {
-            // Closing the share sheet without picking an app is not a failure.
-            if (isAbort(error)) return;
-            setStatus({
-                text: copies
-                    ? "The picture could not be shared. Use Copy image instead."
-                    : "The picture could not be shared. Try again.",
-                tone: "failed",
-            });
+    function shareImage() {
+        if (!ready) return;
+        const fail = (error: unknown) => {
+            if (!isAbort(error))
+                setStatus({
+                    text: "The image could not be shared. Copy or download it instead.",
+                    failed: true,
+                });
         };
         setStatus(null);
         try {
-            shareCardTools.share({ files: [picture], title }).catch(failed);
+            shareCardTools.share({ files: [ready.file], title }).catch(fail);
         } catch (error) {
-            failed(error);
+            fail(error);
         }
     }
-
-    function copyLink() {
-        setManual(null);
-        const failed = () => {
-            setManual({ label: "Link to the card", text: url });
-            setStatus({
-                text: "Your browser did not allow the copy. Select the link below and copy it.",
-                tone: "failed",
-            });
-        };
-        try {
-            shareCardTools
-                .copyText(url)
-                .then(
-                    () => setStatus({ text: "Link copied.", tone: "copied" }),
-                    failed,
-                );
-        } catch {
-            failed();
-        }
-    }
-
     function shareLink() {
-        // No share sheet: copy the link, as the page's Share button does.
-        if (!shareCardTools.canShare({ url })) {
-            copyLink();
-            return;
-        }
-        const failed = (error: unknown) => {
-            if (!isAbort(error)) copyLink();
+        const fail = (error: unknown) => {
+            if (!isAbort(error)) copyText(url, "Link copied.");
         };
         setStatus(null);
         try {
-            shareCardTools.share({ url, title }).catch(failed);
+            shareCardTools.share({ url, title }).catch(fail);
         } catch (error) {
-            failed(error);
+            fail(error);
         }
     }
 
     return (
         <Dialog
             title={LABEL}
+            lead={`Share ${name}’s card as an image, link or embed.`}
             className="n26-share-dialog"
-            lead={`Show ${name}’s card on another website, or send it as a picture or a link.`}
             onDismiss={onDismiss}
             onSubmit={(event) => event.preventDefault()}
         >
-            <div className="grid gap-4">
-                {/* The buttons span the dialog, so all four are one size. */}
-                {pictures && (
-                    <div className="grid gap-1">
-                        <Button
-                            onClick={sharePicture}
-                            disabled={!picture}
-                            className="n26-share-button w-full"
-                        >
-                            Share picture
-                        </Button>
-                        <p className="text-sm text-muted">
-                            {picture
-                                ? "Send the picture to another app, such as a message or email."
-                                : "Making the picture…"}
-                        </p>
-                    </div>
-                )}
-                <div className="grid gap-1">
+            <div
+                role="group"
+                aria-label="Card theme"
+                className="n26-share-theme"
+            >
+                {(
+                    [
+                        ["light", "Light", "sun"],
+                        ["dark", "Dark", "moon"],
+                    ] as const
+                ).map(([value, label, icon]) => (
                     <Button
-                        onClick={shareLink}
-                        className="n26-share-button w-full"
+                        key={value}
+                        size="xs"
+                        variant="ghost"
+                        className="n26-share-icon"
+                        aria-label={label}
+                        title={`${label} card theme`}
+                        aria-pressed={theme === value}
+                        onClick={() => setTheme(value)}
                     >
-                        Share link
+                        <Icon name={icon} />
                     </Button>
-                    <p className="text-sm text-muted">
-                        A link to the card’s own page, which anyone can open.
-                    </p>
-                </div>
-                <div className="grid gap-1">
-                    <Button
-                        onClick={copyHtml}
-                        className="n26-share-button w-full"
-                    >
-                        Embed HTML
-                    </Button>
-                    <p className="text-sm text-muted">
-                        Embed code for Google Sites, Squarespace, WordPress or
-                        any page that takes HTML. The card stays up to date.
-                    </p>
-                </div>
-                {copies && (
-                    <div className="grid gap-1">
-                        <Button
-                            onClick={copyImage}
-                            className="n26-share-button w-full"
-                        >
-                            Copy image
-                        </Button>
-                        <p className="text-sm text-muted">
-                            A picture of the card as it is now.
-                        </p>
-                    </div>
-                )}
-                <p
-                    role="status"
-                    className={
-                        status ? `text-sm ${TONE[status.tone]}` : "sr-only"
-                    }
-                >
-                    {status?.text ?? ""}
-                </p>
-                {manual && (
-                    <textarea
-                        readOnly
-                        rows={3}
-                        aria-label={manual.label}
-                        value={manual.text}
-                        onFocus={(event) => event.currentTarget.select()}
-                        className="w-full rounded-control border border-box-border bg-surface px-3 py-2 font-mono text-xs"
-                    />
-                )}
-                {download && (
-                    <div>
-                        <ButtonLink
-                            href={download}
-                            download={fileName(name)}
-                            variant="ghost"
-                        >
-                            Download picture
-                        </ButtonLink>
-                    </div>
-                )}
+                ))}
             </div>
+            <div className="n26-share-workspace">
+                <section
+                    className="min-w-0 grid content-start gap-3"
+                    aria-label="Card image"
+                >
+                    <div
+                        className="n26-share-image-preview"
+                        style={
+                            aspect === "standard"
+                                ? undefined
+                                : { aspectRatio: aspect.replace(":", " / ") }
+                        }
+                        aria-busy={!ready && !failed}
+                    >
+                        {ready ? (
+                            <a
+                                href={ready.src}
+                                target="_blank"
+                                rel="noopener"
+                                aria-label="Open full-resolution card image"
+                            >
+                                <img
+                                    src={ready.src}
+                                    alt={`${name}’s card, ${theme} theme, ${aspect === "standard" ? "standard proportions" : aspect}`}
+                                    draggable
+                                />
+                            </a>
+                        ) : (
+                            <div className="n26-share-loading">
+                                {failed ? (
+                                    <>
+                                        <p>The image could not be made.</p>
+                                        <Button
+                                            variant="ghost"
+                                            onClick={() =>
+                                                setRetry((value) => value + 1)
+                                            }
+                                        >
+                                            Try again
+                                        </Button>
+                                    </>
+                                ) : (
+                                    <p>Invoking machine spirit…</p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    <div className="n26-share-toolbar">
+                        <div
+                            role="group"
+                            aria-label="Image aspect ratio"
+                            className="flex gap-0.5"
+                        >
+                            {(["standard", "1:1", "4:5"] as const).map(
+                                (value) => (
+                                    <Button
+                                        key={value}
+                                        size="xs"
+                                        variant="ghost"
+                                        aria-pressed={
+                                            !custom && aspect === value
+                                        }
+                                        onClick={() => {
+                                            setCustom(false);
+                                            setRatioError("");
+                                            setAspect(value);
+                                        }}
+                                    >
+                                        {value === "standard"
+                                            ? "Standard"
+                                            : value}
+                                    </Button>
+                                ),
+                            )}
+                            <Button
+                                size="xs"
+                                variant="ghost"
+                                aria-pressed={custom}
+                                onClick={() => setCustom((value) => !value)}
+                            >
+                                Custom
+                            </Button>
+                        </div>
+                        <div
+                            className="flex gap-0.5"
+                            role="group"
+                            aria-label="Image actions"
+                        >
+                            <Button
+                                size="xs"
+                                variant="ghost"
+                                className="n26-share-icon"
+                                aria-label="Copy image"
+                                title="Copy image"
+                                disabled={!ready}
+                                onClick={copyImage}
+                            >
+                                <Icon name="copy" />
+                            </Button>
+                            {filesSupported && (
+                                <Button
+                                    size="xs"
+                                    variant="ghost"
+                                    className="n26-share-icon"
+                                    aria-label="Share image"
+                                    title="Share image"
+                                    disabled={!ready}
+                                    onClick={shareImage}
+                                >
+                                    <Icon name="share-2" />
+                                </Button>
+                            )}
+                            {ready && (
+                                <ButtonLink
+                                    size="xs"
+                                    variant="ghost"
+                                    className="n26-share-icon"
+                                    aria-label="Download image"
+                                    title="Download image"
+                                    href={ready.src}
+                                    download={fileName(name)}
+                                >
+                                    <Icon name="download" />
+                                </ButtonLink>
+                            )}
+                        </div>
+                    </div>
+                    {custom && (
+                        <div
+                            className="n26-share-custom"
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    applyRatio();
+                                }
+                            }}
+                        >
+                            <Input
+                                aria-label="Ratio width"
+                                type="number"
+                                min="0"
+                                step="any"
+                                value={ratioWidth}
+                                onChange={(event) =>
+                                    setRatioWidth(event.target.value)
+                                }
+                            />
+                            <span aria-hidden="true">:</span>
+                            <Input
+                                aria-label="Ratio height"
+                                type="number"
+                                min="0"
+                                step="any"
+                                value={ratioHeight}
+                                onChange={(event) =>
+                                    setRatioHeight(event.target.value)
+                                }
+                            />
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={applyRatio}
+                            >
+                                Apply ratio
+                            </Button>
+                            {ratioError && (
+                                <p
+                                    role="alert"
+                                    className="col-span-full text-sm text-red-600 dark:text-red-400"
+                                >
+                                    {ratioError}
+                                </p>
+                            )}
+                        </div>
+                    )}
+                </section>
+                <div className="min-w-0 grid content-start gap-6">
+                    <details className="n26-share-link">
+                        <summary className="cursor-pointer font-semibold">
+                            Link
+                        </summary>
+                        <div className="grid gap-2 pt-3">
+                            <p className="text-sm text-muted">
+                                Anyone with the link can view the card.
+                            </p>
+                            <div className="flex items-start gap-2">
+                                <div className="min-w-0 flex-1">
+                                    <Input
+                                        aria-label="Link to the card"
+                                        readOnly
+                                        value={url}
+                                        onFocus={(event) =>
+                                            event.currentTarget.select()
+                                        }
+                                    />
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    className="n26-share-icon"
+                                    title="Copy link"
+                                    aria-label="Copy link"
+                                    onClick={() =>
+                                        copyText(url, "Link copied.")
+                                    }
+                                >
+                                    <Icon name="copy" />
+                                </Button>
+                                {linksSupported && (
+                                    <Button
+                                        variant="ghost"
+                                        className="n26-share-icon"
+                                        title="Share link"
+                                        aria-label="Share link"
+                                        onClick={shareLink}
+                                    >
+                                        <Icon name="share-2" />
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </details>
+                    <details className="n26-share-embed">
+                        <summary className="cursor-pointer font-semibold">
+                            Embed
+                        </summary>
+                        <div className="grid gap-3 pt-3">
+                            <p className="text-sm text-muted">
+                                Add the card to your website. It stays up to
+                                date.
+                            </p>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label="Width" htmlFor={`${id}-width`}>
+                                    <Input
+                                        id={`${id}-width`}
+                                        type="text"
+                                        value={width}
+                                        placeholder="100%"
+                                        onChange={(event) =>
+                                            setWidth(event.target.value)
+                                        }
+                                    />
+                                </Field>
+                                <Field label="Height" htmlFor={`${id}-height`}>
+                                    <Input
+                                        id={`${id}-height`}
+                                        type="text"
+                                        value={height}
+                                        placeholder="Optional"
+                                        onChange={(event) =>
+                                            setHeight(event.target.value)
+                                        }
+                                    />
+                                </Field>
+                            </div>
+                            <div className="n26-share-embed-preview">
+                                <iframe
+                                    title="Embed preview"
+                                    src={url}
+                                    width={width}
+                                    style={{
+                                        width: embedDimensionStyle(width),
+                                        height: height.trim()
+                                            ? embedDimensionStyle(height)
+                                            : undefined,
+                                    }}
+                                    height={height.trim() ? height : undefined}
+                                    loading="lazy"
+                                />
+                            </div>
+                            <Textarea
+                                aria-label="Embed code"
+                                rows={5}
+                                readOnly
+                                value={code}
+                                onFocus={(event) =>
+                                    event.currentTarget.select()
+                                }
+                                className="font-mono text-xs"
+                            />
+                            <div>
+                                <Button
+                                    variant="ghost"
+                                    className="n26-share-icon"
+                                    aria-label="Copy embed code"
+                                    title="Copy embed code"
+                                    onClick={() =>
+                                        copyText(code, "Embed code copied.")
+                                    }
+                                >
+                                    <Icon name="copy" />
+                                </Button>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+            </div>
+            <p
+                role="status"
+                className={
+                    status
+                        ? `mt-3 text-sm ${status.failed ? "text-red-600 dark:text-red-400" : "font-semibold"}`
+                        : "sr-only"
+                }
+            >
+                {status?.text ?? ""}
+            </p>
             <FormActions>
                 <Button variant="ghost" onClick={onDismiss}>
                     Close
@@ -442,9 +720,7 @@ function ShareDialog({
 
 export function ShareCard(props: ShareCardProps) {
     const [open, setOpen] = useState(false);
-
     function onClick(event: MouseEvent<HTMLAnchorElement>) {
-        // A modified click opens the card's page, as the link would.
         if (
             event.button !== 0 ||
             event.metaKey ||
@@ -456,7 +732,6 @@ export function ShareCard(props: ShareCardProps) {
         event.preventDefault();
         setOpen(true);
     }
-
     return (
         <>
             <ButtonLink

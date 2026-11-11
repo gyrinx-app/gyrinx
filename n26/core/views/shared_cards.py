@@ -62,8 +62,13 @@ def shared_fighter_card(request, pk):
     if not switched_on(SHARE_FIGHTER_CARD):
         raise Http404("Sharing fighter cards is not switched on")
     gang, card = _shared_card_or_404(request, pk)
+    theme = request.GET.get("theme", "system")
+    if theme not in {"light", "dark", "system"}:
+        theme = "system"
     response = render(
-        request, "n26/shared_fighter_card.html", {"gang": gang, "card": card}
+        request,
+        "n26/shared_fighter_card.html",
+        {"gang": gang, "card": card, "share_theme": theme},
     )
     # A short cache keeps a busy page from rebuilding the roster on every
     # view, and still shows a change within the minute.
