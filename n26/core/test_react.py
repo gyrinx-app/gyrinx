@@ -40,6 +40,15 @@ def test_island_props_are_inert_json_and_asset_urls_are_rooted(monkeypatch):
     assert soup.select_one('script[type="module"]')["src"].startswith("/static/")
 
 
+def test_island_failures_have_a_cotton_alert_even_when_react_cannot_load():
+    result = Template('{% include "n26/includes/react_error.html" %}').render(Context())
+    recovery = BeautifulSoup(result, "html.parser").find(id="n26-react-error")
+    assert recovery.name == "template"
+    assert recovery.select_one('[role="alert"]') is not None
+    assert recovery.select_one("button[data-react-retry]")["type"] == "button"
+    assert recovery.select_one("a[data-react-reload]") is not None
+
+
 @override_settings(STATIC_URL="https://static.example/assets/")
 def test_island_asset_urls_preserve_an_absolute_static_host():
     assert (

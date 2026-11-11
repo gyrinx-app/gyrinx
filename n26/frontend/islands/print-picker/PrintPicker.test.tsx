@@ -354,7 +354,7 @@ describe("PrintPicker", () => {
                 models: null as unknown as PrintModel[],
             });
         });
-        expect(host.textContent).toContain("This section could not load.");
+        expect(host.textContent).toContain("This section stopped working.");
         expect(new FormData(form).getAll("picker")).toEqual([]);
         expect(new FormData(form).getAll("fighters")).toEqual([]);
         act(() => unmount());

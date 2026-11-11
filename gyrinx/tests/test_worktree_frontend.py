@@ -7,6 +7,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -206,13 +208,18 @@ def test_frontend_provision_rebuilds_after_conflict_markers_are_resolved(tmp_pat
     assert "Skipping npm run js" not in resolved.stderr
 
 
-def test_frontend_provision_skips_js_for_icon_conflict_markers(tmp_path):
+@pytest.mark.parametrize(
+    "source_path", ["n26/core/icons.py", "n26/core/static/n26/react-island-error.js"]
+)
+def test_frontend_provision_skips_js_for_external_source_conflict_markers(
+    tmp_path, source_path
+):
     worktree = _islands_worktree(tmp_path)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     _write_fake_npm(bin_dir)
     assert _provision(worktree, bin_dir).returncode == 0
-    icons = worktree / "n26/core/icons.py"
+    icons = worktree / source_path
     icons.write_text(
         "<<<<<<< HEAD\ndef resolve(name):\n    return name\n>>>>>>> main\n"
     )
@@ -318,13 +325,18 @@ def test_frontend_provision_rebuilds_when_cotton_templates_change(tmp_path):
     ]
 
 
-def test_frontend_provision_rebuilds_when_icon_sources_change(tmp_path):
+@pytest.mark.parametrize(
+    "source_path", ["n26/core/icons.py", "n26/core/static/n26/react-island-error.js"]
+)
+def test_frontend_provision_rebuilds_when_external_sources_change(
+    tmp_path, source_path
+):
     worktree = _islands_worktree(tmp_path)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     _write_fake_npm(bin_dir)
     assert _provision(worktree, bin_dir).returncode == 0
-    icons = worktree / "n26/core/icons.py"
+    icons = worktree / source_path
     icons.parent.mkdir(parents=True, exist_ok=True)
     icons.write_text("def resolve(name):\n    return name\n")
     _touch_later(icons)
