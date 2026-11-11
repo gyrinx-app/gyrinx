@@ -59,6 +59,9 @@ test("one root draws model sections, required participation and ordinary breadcr
     ).toBeTruthy();
     expect(document.querySelectorAll("[data-react-name]")).toHaveLength(0);
     expect(document.querySelector("form form")).toBeNull();
+    expect(
+        document.querySelector("[data-battle-actions].n26-battle-actions"),
+    ).toBeTruthy();
 });
 
 test("the toolbar keeps native counts, accessible labels and participant-only XP steps", () => {

@@ -433,6 +433,7 @@ export function PostBattle(props: PostBattleProps) {
                     <div
                         ref={dock}
                         className="n26-battle-actions"
+                        data-battle-actions=""
                         aria-label="Save post-battle results"
                     >
                         <div className="n26-site-container space-y-3">
