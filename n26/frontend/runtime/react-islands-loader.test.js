@@ -20,11 +20,16 @@ function host(id = "one") {
     const element = document.createElement("div");
     element.dataset.reactModule = "/module.js";
     element.dataset.reactProps = `props-${id}`;
+    element.dataset.reactError = `error-${id}`;
     const props = document.createElement("script");
     props.type = "application/json";
     props.id = element.dataset.reactProps;
     props.textContent = JSON.stringify({ label: id });
-    document.body.append(element, props);
+    const error = document.createElement("template");
+    error.id = element.dataset.reactError;
+    error.innerHTML =
+        '<div role="alert"><p data-react-error-message></p><button data-react-retry type="button">Try again</button><a data-react-reload>Reload page</a></div>';
+    document.body.append(element, props, error);
     return element;
 }
 
@@ -70,7 +75,7 @@ describe("island lifecycle", () => {
         expect(mount).not.toHaveBeenCalled();
     });
 
-    it("reports a failed import with a recovery link", async () => {
+    it("explains a failed connection and offers retry without navigation", async () => {
         const element = host();
         vi.spyOn(console, "error").mockImplementation(() => {});
         mountWithin(element, () => Promise.reject(new Error("chunk removed")));
@@ -78,9 +83,117 @@ describe("island lifecycle", () => {
             expect(element.querySelector('[role="alert"]')).not.toBeNull(),
         );
         expect(element.querySelector("a").href).toBe(window.location.href);
-        expect(element.querySelector('[role="alert"]').textContent).toBe(
-            "This section could not load. Reload the page.",
+        expect(
+            element.querySelector("[data-react-error-message]").textContent,
+        ).toBe(
+            "Gyrinx could not load this section. Check your connection and try again.",
         );
+        expect(element.querySelector("button").textContent).toBe("Try again");
+    });
+
+    it("retries a failed import at a fresh URL and leaves other sections alone", async () => {
+        const element = host();
+        const other = host("other");
+        other.innerHTML = '<input value="Unsaved draft">';
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        let resolve;
+        const mount = vi.fn((target) => {
+            target.textContent = "Recovered";
+        });
+        const load = vi
+            .fn()
+            .mockRejectedValueOnce(
+                new TypeError("Failed to fetch dynamically imported module"),
+            )
+            .mockImplementationOnce(
+                () =>
+                    new Promise((done) => {
+                        resolve = done;
+                    }),
+            );
+        mountWithin(element, load);
+        await vi.waitFor(() =>
+            expect(element.querySelector("button")).not.toBeNull(),
+        );
+        const retry = element.querySelector("button");
+        retry.click();
+        retry.click();
+        expect(retry.disabled).toBe(true);
+        expect(retry.getAttribute("aria-busy")).toBe("true");
+        expect(retry.dataset.busy).toBe("on");
+        expect(retry.hasAttribute("data-busy-disabled")).toBe(true);
+        expect(load).toHaveBeenCalledTimes(2);
+        const url = new URL(load.mock.calls[1][0]);
+        expect(url.pathname).toBe("/module.js");
+        expect(url.searchParams.get("retry")).toMatch(/^\d+$/);
+        resolve({ mount });
+        await vi.waitFor(() => expect(element.textContent).toBe("Recovered"));
+        expect(other.querySelector("input").value).toBe("Unsaved draft");
+    });
+
+    it("offers reload after a retry still cannot load a cached dependency", async () => {
+        const element = host();
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        const load = vi
+            .fn()
+            .mockRejectedValue(new TypeError("Failed dependency"));
+        mountWithin(element, load);
+        await vi.waitFor(() =>
+            expect(element.querySelector("button")).not.toBeNull(),
+        );
+        element.querySelector("button").click();
+        await vi.waitFor(() =>
+            expect(element.textContent).toContain("then reload the page"),
+        );
+        expect(element.querySelector("button")).toBeNull();
+        expect(element.querySelector("a").href).toBe(window.location.href);
+        expect(load).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not reuse another sections failed retry URL for the same module", async () => {
+        const first = host("first");
+        const second = host("second");
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        let restored = false;
+        const load = vi.fn(() =>
+            restored
+                ? Promise.resolve({
+                      mount: (target) => {
+                          target.textContent = "Recovered";
+                      },
+                  })
+                : Promise.reject(new TypeError("Connection refused")),
+        );
+        mountWithin(document, load);
+        await vi.waitFor(() =>
+            expect(second.querySelector("button")).not.toBeNull(),
+        );
+        first.querySelector("button").click();
+        await vi.waitFor(() =>
+            expect(first.textContent).toContain("then reload the page"),
+        );
+        restored = true;
+        second.querySelector("button").click();
+        await vi.waitFor(() => expect(second.textContent).toBe("Recovered"));
+        expect(load.mock.calls[2][0]).not.toBe(load.mock.calls[3][0]);
+    });
+
+    it("describes a mounting exception separately from a failed connection", async () => {
+        const element = host();
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        mountWithin(element, () =>
+            Promise.resolve({
+                mount: () => {
+                    throw new Error("Invalid props");
+                },
+            }),
+        );
+        await vi.waitFor(() =>
+            expect(element.textContent).toContain(
+                "This section stopped working.",
+            ),
+        );
+        expect(element.textContent).not.toContain("Check your connection");
     });
 
     it("leaves a server-drawn control standing when its import fails", async () => {

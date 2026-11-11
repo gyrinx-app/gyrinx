@@ -144,6 +144,7 @@
         </div>
         {# Toasts need a container present once; the demo on the toast page dispatches into it. #}
         <c-ui.toast.container position="bottom-left" />
+        {% include "n26/includes/react_error.html" %}
         {# The kit's own theming devtool, on every page — theme while you browse. #}
         <c-ui.theme-builder-widget position="bottom-right" storage_key="n26-theme-builder" />
         {% comment %}

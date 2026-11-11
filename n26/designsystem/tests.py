@@ -82,6 +82,16 @@ class TestTheReactMarks:
 class TestReactDemo:
     """Staff can compare React and Cotton without seeded library content."""
 
+    @pytest.mark.parametrize(
+        "url", ["/n26/design/react/", "/n26/design/view/view-dashboard/"]
+    )
+    def test_standalone_layouts_include_section_recovery_controls(self, reader, url):
+        soup = BeautifulSoup(reader.get(url).content, "html.parser")
+        recovery = soup.find("template", id="n26-react-error")
+        assert recovery is not None
+        assert recovery.select_one("button[data-react-retry]") is not None
+        assert recovery.select_one("a[data-react-reload]") is not None
+
     def test_sample_comparison_and_source_render_without_library_content(self, reader):
         import json
 

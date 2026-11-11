@@ -669,6 +669,7 @@ _frontend_inputs_newer() {
   local file
   for file in \
     "${wt_root}/n26/core/icons.py" \
+    "${wt_root}/n26/core/static/n26/react-island-error.js" \
     "${wt_root}/n26/core/brand_icons.py"
   do
     if [ -f "$file" ] && [ "$file" -nt "$than" ]; then
@@ -702,6 +703,7 @@ _frontend_conflict_file() {
   fi
   for file in \
     "${wt_root}/n26/core/icons.py" \
+    "${wt_root}/n26/core/static/n26/react-island-error.js" \
     "${wt_root}/n26/core/brand_icons.py"
   do
     if [ -f "$file" ] && grep -q -E '^(<<<<<<< |>>>>>>> )' "$file"; then

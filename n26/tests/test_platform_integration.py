@@ -152,9 +152,10 @@ class TestTheChangelogPanel:
             body='<script>alert("no")</script><p>fine</p>',
         )
         body = client.get("/n26/").content.decode()
-        # Check the entry payload rather than removing legitimate page scripts.
-        assert "alert" not in body
-        assert "fine" in body
+        preview = BeautifulSoup(body, "html.parser").select_one(".n26-clamp-2")
+        assert preview is not None
+        assert preview.find("script") is None
+        assert preview.get_text(strip=True) == "fine"
 
     def test_the_panel_costs_the_same_queries_however_many_entries_exist(
         self, tester, client, default_pack
@@ -387,8 +388,11 @@ class TestTheChangelogIndex:
 
         body = client.get("/changelog/").content.decode()
 
-        assert "alert" not in body
-        assert "<ul><li><strong>Safe</strong></li></ul>" in body
+        preview = BeautifulSoup(body, "html.parser").select_one(".n26-clamp-2")
+        assert preview is not None
+        assert preview.find("script") is None
+        assert preview.get_text(strip=True) == "Safe"
+        assert "<ul><li><strong>Safe</strong></li></ul>" in str(preview)
         assert f"/changelog/{entry.pk}/" in body
 
     def test_the_index_costs_the_same_queries_however_many_entries_exist(
@@ -464,8 +468,11 @@ class TestOneChangelogEntry:
 
         body = client.get(f"/changelog/{entry.pk}/").content.decode()
 
-        assert "alert" not in body
-        assert "<strong>Safe</strong>" in body
+        article = BeautifulSoup(body, "html.parser").select_one("article")
+        assert article is not None
+        assert article.find("script") is None
+        assert "alert" not in article.get_text()
+        assert "<strong>Safe</strong>" in str(article)
 
     @pytest.mark.parametrize("tags", [("N23",), ()])
     def test_an_entry_for_any_edition_is_readable(self, client, default_pack, tags):
