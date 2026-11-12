@@ -336,7 +336,9 @@ export function ScheduleEditor({
                         editor.kind === "setup" ||
                             (!values.date_mode && editor.context.needsDates)
                             ? "Cycle 1 starts"
-                            : "First projected cycle starts",
+                            : values.date_mode
+                              ? `Cycle ${editor.context.nextCycleNumber ?? 1} starts`
+                              : "First projected cycle starts",
                         { type: "date", required: true },
                     )}
                     <div className="grid grid-cols-2 gap-3">
@@ -370,7 +372,7 @@ export function ScheduleEditor({
             ) : (
                 <p className="text-sm text-muted">
                     Future cycles have no planned dates. You can add dates to
-                    individual cycles. Existing saved dates are kept.
+                    individual cycles. Existing dates are kept.
                 </p>
             )}
         </section>

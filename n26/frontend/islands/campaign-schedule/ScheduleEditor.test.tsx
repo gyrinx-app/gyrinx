@@ -588,3 +588,35 @@ test("cycle date edits allow an empty pair", async () => {
     expect(fetch.mock.calls[0][1].body.get("starts_on")).toBe("");
     expect(fetch.mock.calls[0][1].body.get("ends_on")).toBe("");
 });
+
+test.each([true, false])(
+    "planned settings name the actual next cycle while retaining legacy labels (%s)",
+    (explicit) => {
+        render(
+            <ScheduleEditor
+                editor={{
+                    ...editor,
+                    kind: "plan",
+                    context: { nextCycleNumber: 4, needsDates: true },
+                    values: {
+                        request_key: "plan",
+                        expected_revision: "1",
+                        mode: "repeating",
+                        steps: "[]",
+                        date_start: "2027-01-01",
+                        cycle_interval: "1",
+                        cycle_unit: "weeks",
+                        ...(explicit ? { date_mode: "planned" } : {}),
+                    },
+                }}
+                phases={phases}
+                onNavigate={vi.fn()}
+            />,
+        );
+        expect(
+            screen.getByLabelText(
+                explicit ? "Cycle 4 starts" : "Cycle 1 starts",
+            ),
+        ).toBeTruthy();
+    },
+);

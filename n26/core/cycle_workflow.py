@@ -322,6 +322,7 @@ def prepare(campaign, action, query):
                 else calendar.dates_for(len(state.cycles) + 1)[0],
             ).isoformat()
         context["needsDates"] = calendar is None
+        context["nextCycleNumber"] = len(state.cycles) + 1
         context["patternSteps"] = [asdict(step) for step in state.plan.steps]
         context["fixedSteps"] = [asdict(step) for step in s.editable_steps(state)]
         lead = f"This plan continues after Cycle {len(state.cycles)}. Repeating patterns count cycles already saved in the last phase."
