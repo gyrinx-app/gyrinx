@@ -1,0 +1,12 @@
+{# Offset badge padding so wrapped flair text aligns with the title. #}
+{% if entry.flairs %}
+    <span class="n26-changelog-flairs -ml-1.5 inline-flex max-w-full items-center gap-2">
+        {% for flair in entry.flairs %}
+            <span class="inline-flex min-w-0 rounded-control {% if flair.pulse %}n26-changelog-flair-pulse{% endif %}">
+                <c-ui.badge color="{{ flair.colour }}" size="sm">
+                    {{ flair.text }}
+                </c-ui.badge>
+            </span>
+        {% endfor %}
+    </span>
+{% endif %}

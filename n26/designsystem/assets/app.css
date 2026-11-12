@@ -1527,3 +1527,26 @@ select.n26-select-multiple option:checked {
     );
     color: var(--color-accent-foreground);
 }
+
+/* A pulse leaves the label readable throughout and follows motion preferences. */
+@media (prefers-reduced-motion: no-preference) {
+    .n26-changelog-flair-pulse > span {
+        animation: n26-changelog-flair-pulse 2s ease-out infinite;
+    }
+}
+
+@keyframes n26-changelog-flair-pulse {
+    0% {
+        box-shadow: 0 0 0 0 currentColor;
+    }
+    70%,
+    100% {
+        box-shadow: 0 0 0 5px transparent;
+    }
+}
+
+/* Long paired labels share the available line without splitting the pair. */
+.n26-changelog-flairs > span > span {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}

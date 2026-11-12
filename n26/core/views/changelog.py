@@ -111,7 +111,20 @@ def _menu_entries(tag):
     ``created`` is in the ordering, so it has to be loaded with the row.
     Leaving it deferred makes Django fetch it again per entry.
     """
-    return _matching_entries(tag).only("id", "title", "date", "created")
+    return _matching_entries(tag).only(
+        "id",
+        "title",
+        "date",
+        "created",
+        "flair_text",
+        "flair_colour",
+        "flair_pulse",
+        "second_flair_text",
+        "second_flair_colour",
+        "second_flair_pulse",
+        "flair_active",
+        "second_flair_active",
+    )
 
 
 def _matching_entries(tag):
@@ -188,6 +201,7 @@ def _sidebar(entries, current=None, tag=None):
     return [
         {
             "title": item.title,
+            "flairs": item.flairs,
             "date": item.date,
             "href": changelog_href(tag, item.pk),
             "current": current is not None and item.pk == current.pk,
