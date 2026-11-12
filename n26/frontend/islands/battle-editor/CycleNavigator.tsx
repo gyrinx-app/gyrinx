@@ -103,7 +103,7 @@ export function CycleNavigator({
     }, [readUrl, value]);
 
     const neighbour = (data: CycleOptions, direction: number) =>
-        data.adjacent?.anchor === selected?.order
+        data.adjacent && data.adjacent.anchor === selected?.order
             ? data.adjacent[direction < 0 ? "previous" : "next"]
             : selected
               ? selected.order + direction

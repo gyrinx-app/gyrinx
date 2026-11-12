@@ -58,7 +58,7 @@ FIELDS = {
     "delete-phase": ("phase_id", "current_choice"),
     "delete-cycle": ("target", "current_choice"),
     "plan": ("mode", "steps", *DATE_FIELDS),
-    "start": ("expected_current",),
+    "start": ("expected_current", "start_target"),
     "advance": ("expected_current",),
     "finish": ("expected_current",),
 }
@@ -111,6 +111,7 @@ class CycleEditorForm(forms.Form):
     steps = StructuredJSONField()
     expected_current = forms.CharField(max_length=26, required=False)
     current_choice = forms.CharField(required=False, max_length=200)
+    start_target = StructuredJSONField(required=False)
 
     def clean_current_number(self):
         return self.cleaned_data.get("current_number") or 1
@@ -345,7 +346,7 @@ def prepare(campaign, action, query):
                 (
                     cycle.details.ends_on
                     for cycle in state.cycles
-                    if cycle.details.ends_on
+                    if not cycle.archived and cycle.details.ends_on
                 ),
                 default=None,
             )
@@ -380,6 +381,14 @@ def prepare(campaign, action, query):
                 (c for c in state.cycles if not c.archived), None
             )
             lead = f"Start {first.name if first else 'Cycle 1'}. This will send notifications to players participating in the campaign."
+            if state.current is None and (
+                any(c.archived for c in state.cycles)
+                or any(p.archived for p in state.phases)
+            ):
+                heading = "Start cycle"
+                context["selectStart"] = True
+                context["startChoices"] = _available_cycle_choices(state)
+                lead = "Choose the cycle to start. This will send notifications to players participating in the campaign."
         else:
             lead = (
                 f"End {state.current.name} and finish the campaign. Its final cycle will remain recorded."
@@ -398,24 +407,31 @@ def _prepare_deletion(campaign, state, initial, context, victims, *, phase_id=No
         campaign=campaign, cycle_id__in=victims
     ).count()
     context["replacesCurrent"] = state.current_cycle_id in victims
+    context["currentChoices"] = (
+        _available_cycle_choices(state, victims, phase_id=phase_id)
+        if context["replacesCurrent"]
+        else []
+    )
+
+
+def _available_cycle_choices(state, victims=(), *, phase_id=None):
     choices = []
-    if context["replacesCurrent"]:
-        for cycle in (*state.cycles, *s.project(state, limit=12)):
-            saved = isinstance(cycle, s.Cycle)
-            cycle_phase = cycle.details.phase_id if saved else cycle.phase_id
-            if (
-                saved and (cycle.archived or cycle.id in victims)
-            ) or cycle_phase == phase_id:
-                continue
-            choices.append(
-                {
-                    "value": json.dumps(
-                        ref_data(s.SavedCycleRef(cycle.id) if saved else cycle.ref)
-                    ),
-                    "label": f"{cycle.name} · {s._phase(state, cycle_phase).details.name}",
-                }
-            )
-    context["currentChoices"] = choices
+    for cycle in (*state.cycles, *s.project(state, limit=12)):
+        saved = isinstance(cycle, s.Cycle)
+        cycle_phase = cycle.details.phase_id if saved else cycle.phase_id
+        if (
+            saved and (cycle.archived or cycle.id in victims)
+        ) or cycle_phase == phase_id:
+            continue
+        choices.append(
+            {
+                "value": json.dumps(
+                    ref_data(s.SavedCycleRef(cycle.id) if saved else cycle.ref)
+                ),
+                "label": f"{cycle.name} · {s._phase(state, cycle_phase).details.name}",
+            }
+        )
+    return choices
 
 
 def recovery_editor(campaign, action, query):
@@ -603,7 +619,14 @@ def perform(campaign, actor, action, data, query):
                 "finish": cycles.finish,
             }[action]
             result = command(
-                campaign, **common, expected_current=values["expected_current"]
+                campaign,
+                **common,
+                expected_current=values["expected_current"],
+                **(
+                    {"target": ref_from_data(values["start_target"])}
+                    if action == "start" and values.get("start_target")
+                    else {}
+                ),
             )
         submitted.result = result
     except cycles.CycleKeyConflict as exc:

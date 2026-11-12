@@ -2,7 +2,7 @@
 
 The schedule engine calculates changes without I/O. This boundary checks access
 under the campaign lock, recognises exact retries and persists each change with
-its transition and notification obligations. Battle and action writers can resolve
+its transition and notification deliveries. Battle and action writers can resolve
 a cycle inside their existing campaign transaction without advancing it.
 """
 
@@ -702,20 +702,27 @@ def advance(campaign, *, actor, expected_current, expected_revision, request_key
     )
 
 
-def start(campaign, *, actor, expected_current, expected_revision, request_key):
+def start(
+    campaign, *, actor, expected_current, expected_revision, request_key, target=None
+):
     def apply(act, before):
         if before.current_cycle_id != (
             str(expected_current) if expected_current else None
         ):
             raise CycleConflict("The current cycle changed. Review it before starting.")
-        change = s.start(before, now=timezone.now(), new_id=_new_id)
+        if target is not None:
+            _bounded_target(before, target)
+        change = s.start(before, now=timezone.now(), new_id=_new_id, target=target)
         return change, change.schedule.current_cycle_id
 
     return _command(
         campaign,
         actor,
         kind="start",
-        inputs={"current": str(expected_current)},
+        inputs={
+            "current": str(expected_current),
+            **({"target": ref_data(target)} if target is not None else {}),
+        },
         request_key=request_key,
         expected_revision=expected_revision,
         apply=apply,
@@ -787,6 +794,11 @@ def status_changed(act, status):
     _access(act)
     if status == "in_progress":
         if before.status == "pre_campaign":
+            if before.current is None and (
+                any(c.archived for c in before.cycles)
+                or any(p.archived for p in before.phases)
+            ):
+                raise Refusal("Choose the cycle to start in Phases & cycles.")
             change = s.start(before, now=timezone.now(), new_id=_new_id)
         else:
             change = s.ScheduleChange(

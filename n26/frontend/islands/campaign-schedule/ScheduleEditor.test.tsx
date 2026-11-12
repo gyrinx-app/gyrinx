@@ -748,3 +748,44 @@ test("single-cycle confirmation explains projected prefix and preserves the patt
     expect(screen.queryByLabelText("Current cycle after deletion")).toBeNull();
     expect(screen.getByRole("button", { name: "Delete cycle" })).toBeTruthy();
 });
+
+test("starting after deletion posts an explicit surviving cycle", async () => {
+    const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
+    vi.stubGlobal("fetch", fetch);
+    render(
+        <ScheduleEditor
+            phases={phases}
+            onNavigate={vi.fn()}
+            editor={{
+                ...editor,
+                kind: "start",
+                heading: "Start cycle",
+                context: {
+                    selectStart: true,
+                    startChoices: [
+                        {
+                            value: '{"plan_id":"pattern","index":2}',
+                            label: "Cycle 3 · Opening",
+                        },
+                    ],
+                },
+                values: {
+                    request_key: "resume",
+                    expected_revision: "3",
+                    expected_current: "",
+                    start_target: "",
+                },
+            }}
+        />,
+    );
+    await userEvent.selectOptions(
+        screen.getByLabelText("Cycle to start"),
+        '{"plan_id":"pattern","index":2}',
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Start cycle" }));
+    expect(
+        new URLSearchParams(String(fetch.mock.calls[0][1].body)).get(
+            "start_target",
+        ),
+    ).toBe('{"plan_id":"pattern","index":2}');
+});

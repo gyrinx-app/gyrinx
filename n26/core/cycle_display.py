@@ -138,6 +138,8 @@ def dashboard_summary(campaign, user):
                 action_href=editor_url(campaign, "start"),
                 action_label="Start campaign"
                 if campaign.status == Campaign.Status.PRE_CAMPAIGN
+                else "Start cycle"
+                if plan.order_for(header.next_position) > 1
                 else "Start first cycle",
             )
         elif current:
@@ -410,7 +412,11 @@ def _build_locked(campaign, user, *, page, preview, focus):
         actions["transitionLabel"] = "Start campaign"
     elif campaign.status == "in_progress" and current is None and has_cycles:
         actions["transition"] = editor_url(campaign, "start")
-        actions["transitionLabel"] = "Start first cycle"
+        actions["transitionLabel"] = (
+            "Start cycle"
+            if plan.order_for(header.next_position) > 1
+            else "Start first cycle"
+        )
     elif campaign.status == "in_progress" and current is not None:
         has_following = CampaignCycle.objects.filter(
             campaign=campaign, archived=False, order__gt=current.order

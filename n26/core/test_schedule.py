@@ -730,7 +730,14 @@ class TestDeletion:
         state = s.delete_cycle(
             state, s.SavedCycleRef(state.current_cycle_id), no_current=True
         ).schedule
-        assert s.start(state, now=NOW).schedule.current.order == 3
+        with pytest.raises(s.ScheduleError, match="Choose the cycle"):
+            s.start(state, now=NOW)
+        assert (
+            s.start(
+                state, now=NOW, target=s.SavedCycleRef(state.cycles[2].id)
+            ).schedule.current.order
+            == 3
+        )
 
     @pytest.mark.parametrize("mode", ["fixed", "repeating"])
     def test_last_phase_deletion_leaves_rebuildable_empty_fixed_schedule(
@@ -749,8 +756,8 @@ class TestDeletion:
         assert not s.project(change.schedule)
         assert all(c.archived for c in change.schedule.cycles)
         assert all(p.archived for p in change.schedule.phases)
-        with pytest.raises(s.ScheduleError, match="Add a cycle"):
-            s.start(change.schedule, now=NOW)
+        with pytest.raises(s.ScheduleError, match="saved cycle"):
+            s.start(change.schedule, now=NOW, target=s.SavedCycleRef("absent"))
         rebuilt = s.add_phase(
             change.schedule, s.PhaseDetails("Fresh"), new_id=ids
         ).schedule
@@ -760,4 +767,40 @@ class TestDeletion:
             mode="fixed",
             new_id=ids,
         ).schedule
-        assert s.start(rebuilt, now=NOW, new_id=ids).schedule.current.order == 2
+        assert (
+            s.start(
+                rebuilt, now=NOW, new_id=ids, target=s.project(rebuilt)[0].ref
+            ).schedule.current.order
+            == 2
+        )
+
+
+def test_resuming_after_current_deletion_requires_a_choice_instead_of_rewinding(ids):
+    state = configured(ids, current=0)
+    state = s.advance(state, now=LATER, new_id=ids).schedule
+    state = s.delete_cycle(
+        state, s.SavedCycleRef(state.current_cycle_id), no_current=True
+    ).schedule
+    with pytest.raises(s.ScheduleError, match="Choose the cycle"):
+        s.start(state, now=LATER)
+    target = s.project(state)[0]
+    resumed = s.start(state, now=LATER, target=target.ref, new_id=ids)
+    assert resumed.schedule.current.order == 3
+    assert resumed.transition.current_cycle.order == 3
+
+
+def test_deleted_date_ranges_do_not_block_active_manual_cycle_edits(ids):
+    state = replace(configured(ids, current=1), calendar=None)
+    deleted = state.cycles[0]
+    state = s.delete_cycle(state, s.SavedCycleRef(deleted.id)).schedule
+    changed = s.edit_cycle(
+        state,
+        s.SavedCycleRef(state.current_cycle_id),
+        replace(
+            state.current.details,
+            starts_on=deleted.details.starts_on,
+            ends_on=deleted.details.ends_on,
+        ),
+    )
+    assert changed.schedule.current.details.starts_on == deleted.details.starts_on
+    assert changed.schedule.cycles[0].details == deleted.details

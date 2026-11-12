@@ -1598,3 +1598,51 @@ class TestDeletionWorkflow:
             request_key=uuid4(),
         )
         assert build(campaign, campaign.owner).actions["transition"]
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_start_after_deleting_current_requires_explicit_resume_choice_and_replays(
+    client, campaign, configured, native
+):
+    cycles.start(
+        campaign,
+        actor=campaign.owner,
+        expected_current=configured.current_cycle_id,
+        expected_revision=configured.revision,
+        request_key=uuid4(),
+    )
+    state = cycles.load(campaign)
+    cycles.advance(
+        campaign,
+        actor=campaign.owner,
+        expected_current=state.current_cycle_id,
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    state = cycles.load(campaign)
+    cycles.delete_cycle(
+        campaign,
+        actor=campaign.owner,
+        target=s.SavedCycleRef(state.current_cycle_id),
+        no_current=True,
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    editor = props(client.get(editor_url(campaign, "start")))["editor"]
+    assert editor["context"]["selectStart"]
+    assert all(
+        json.loads(choice["value"]) != {"cycle_id": state.current_cycle_id}
+        for choice in editor["context"]["startChoices"]
+    )
+    refused = post(client, campaign, "start", editor["values"], native=native)
+    assert refused.status_code == (200 if native else 422)
+    assert cycles.load(campaign).current is None
+    target = editor["context"]["startChoices"][1]["value"]
+    data = {**editor["values"], "start_target": target}
+    assert post(client, campaign, "start", data, native=native).status_code == (
+        302 if native else 200
+    )
+    assert post(client, campaign, "start", data, native=native).status_code == (
+        302 if native else 200
+    )
+    assert cycles.load(campaign).current.order == 3

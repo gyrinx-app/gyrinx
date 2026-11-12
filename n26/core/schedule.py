@@ -259,6 +259,8 @@ class CycleCalendar:
 def validate_cycle_dates(cycles, *, required=True):
     dated = []
     for cycle in cycles:
+        if cycle.archived:
+            continue
         start, end = cycle.details.starts_on, cycle.details.ends_on
         if start is None or end is None:
             if required:
@@ -709,7 +711,8 @@ def edit_cycle(
                     ),
                 )
                 for c in change.schedule.cycles
-                if c.order > selected.order
+                if not c.archived
+                and c.order > selected.order
                 and c.details.starts_on
                 and c.details.ends_on
             ]
@@ -744,7 +747,9 @@ def _validate_projection_dates(schedule):
         and schedule.cycles
         and following
         and any(
-            c.details.ends_on and following[0].starts_on <= c.details.ends_on
+            not c.archived
+            and c.details.ends_on
+            and following[0].starts_on <= c.details.ends_on
             for c in schedule.cycles
         )
     ):
@@ -999,8 +1004,10 @@ def set_calendar(
 ) -> ScheduleChange:
     updated = []
     for cycle in schedule.cycles:
-        if fill_saved_dates and (
-            cycle.details.starts_on is None or cycle.details.ends_on is None
+        if (
+            not cycle.archived
+            and fill_saved_dates
+            and (cycle.details.starts_on is None or cycle.details.ends_on is None)
         ):
             start, end = calendar.dates_for(cycle.order)
             updated.append(
@@ -1018,7 +1025,11 @@ def set_calendar(
     validate_cycle_dates(saved, required=False)
     start, _end = calendar.dates_for(len(saved) + 1)
     latest_end = max(
-        (cycle.details.ends_on for cycle in saved if cycle.details.ends_on),
+        (
+            cycle.details.ends_on
+            for cycle in saved
+            if not cycle.archived and cycle.details.ends_on
+        ),
         default=None,
     )
     if latest_end and start <= latest_end:
@@ -1110,7 +1121,13 @@ def preview_advance(schedule: Schedule) -> TransitionPreview:
     return TransitionPreview(current, following[0] if following else None)
 
 
-def start(schedule: Schedule, *, now: datetime, new_id: NewId = _id) -> ScheduleChange:
+def start(
+    schedule: Schedule,
+    *,
+    now: datetime,
+    new_id: NewId = _id,
+    target: CycleRef | None = None,
+) -> ScheduleChange:
     if schedule.status == "post_campaign":
         raise ScheduleError("Reopen the campaign before starting a cycle.")
     if schedule.status == "in_progress" and schedule.current is not None:
@@ -1119,6 +1136,17 @@ def start(schedule: Schedule, *, now: datetime, new_id: NewId = _id) -> Schedule
         )
     change = ScheduleChange(schedule)
     selected = schedule.current
+    if target is not None:
+        if selected is not None:
+            raise ScheduleError("The current cycle is already selected.")
+        change, selected = _ensure_saved(schedule, target, new_id=new_id)
+    elif selected is None and (
+        any(c.archived for c in schedule.cycles)
+        or any(p.archived for p in schedule.phases)
+    ):
+        raise ScheduleError(
+            "Choose the cycle to start after deleting a cycle or phase."
+        )
     if selected is None:
         selected = next((c for c in schedule.cycles if not c.archived), None)
         if selected is None:

@@ -56,6 +56,7 @@ const visible: Record<string, string[]> = {
     "duplicate-phase": ["name"],
     "delete-phase": ["current_choice"],
     "delete-cycle": ["current_choice"],
+    start: ["start_target"],
     plan: ["mode", "date_mode", "date_start", "cycle_interval", "cycle_unit"],
 };
 
@@ -147,6 +148,7 @@ export function ScheduleEditor({
             "setup_definition",
             "no_current",
             "current_choice",
+            "start_target",
         ],
         onNavigate,
         onReload,
@@ -513,6 +515,43 @@ export function ScheduleEditor({
                 .map(([name, value]) => (
                     <input key={name} type="hidden" name={name} value={value} />
                 ))}
+            {editor.context.selectStart === true && !unavailable ? (
+                <Field
+                    label="Cycle to start"
+                    htmlFor="cycle-start_target"
+                    errors={errors.start_target}
+                >
+                    <NativeSelect
+                        name="start_target"
+                        value={values.start_target ?? ""}
+                        required
+                        disabled={form.frozen || confirmed}
+                        onChange={(event) =>
+                            change("start_target", event.target.value)
+                        }
+                    >
+                        <option value="">Choose a cycle</option>
+                        {(
+                            editor.context.startChoices as Array<{
+                                value: string;
+                                label: string;
+                            }>
+                        ).map((choice) => (
+                            <option key={choice.value} value={choice.value}>
+                                {choice.label}
+                            </option>
+                        ))}
+                    </NativeSelect>
+                </Field>
+            ) : (
+                editor.kind === "start" && (
+                    <input
+                        type="hidden"
+                        name="start_target"
+                        value={values.start_target ?? ""}
+                    />
+                )
+            )}
             {deletion && !unavailable && (
                 <div className="space-y-3">
                     <p>
