@@ -817,6 +817,67 @@ class TestSharedCommands:
         assert len(s.project(after)) == 6
 
 
+class TestFixedPlanConversion:
+    @pytest.mark.parametrize("saved,last", [(2, 7), (6, 7), (7, 7), (9, 14)])
+    def test_preview_reads_do_not_write_or_change_the_fixed_endpoint(
+        self, client, campaign, opened, template, saved, last
+    ):
+        cycles.configure(
+            campaign,
+            actor=campaign.owner,
+            template_id=template.pk,
+            current_position=1,
+            mode="repeating",
+            request_key=uuid4(),
+        )
+        state = cycles.load(campaign)
+        if saved > 2:
+            target = next(c for c in s.project(state) if c.order == saved)
+            cycles.edit_cycle(
+                campaign,
+                actor=campaign.owner,
+                target=target.ref,
+                details=s.CycleDetails(target.phase_id),
+                expected_revision=state.revision,
+                request_key=uuid4(),
+            )
+        before = cycles.load(campaign)
+        counts = (
+            campaign.cycles.count(),
+            campaign.cycle_plans.count(),
+            campaign.cycle_commands.count(),
+            campaign.cycle_transitions.count(),
+        )
+        proposed = None
+        for preview in (12, 24, 48):
+            response = client.get(schedule_url(campaign), {"preview": preview})
+            assert response.status_code == 200
+            editor = props(client.get(editor_url(campaign, "plan")))["editor"]
+            steps = editor["context"]["fixedSteps"]
+            assert proposed is None or steps == proposed
+            proposed = steps
+            assert saved + sum(step["count"] for step in steps) == last
+        assert cycles.load(campaign) == before
+        assert counts == (
+            campaign.cycles.count(),
+            campaign.cycle_plans.count(),
+            campaign.cycle_commands.count(),
+            campaign.cycle_transitions.count(),
+        )
+        response = post(
+            client,
+            campaign,
+            "plan",
+            {**editor["values"], "mode": "fixed", "steps": json.dumps(proposed)},
+        )
+        assert response.status_code == 200
+        after = cycles.load(campaign)
+        assert after.cycles == before.cycles
+        assert after.current.order == 2
+        assert after.plan.mode == "fixed"
+        assert after.plan.order_for(after.plan.length) - 1 == last
+
+
 class TestDisplayReads:
     def test_dashboard_card_counts_the_current_phase_and_exposes_existing_owner_workflows(
         self, client, campaign, configured

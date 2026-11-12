@@ -906,9 +906,24 @@ def editable_steps(schedule: Schedule | PlanContinuation) -> tuple[PlanStep, ...
     """A repeating pattern, or only the unsaved remainder of a fixed plan."""
     if schedule.plan.mode == "repeating":
         return schedule.plan.steps
-    consumed = schedule.next_position
+    return _remaining_steps(schedule.plan.steps, schedule.next_position)
+
+
+def fixed_steps(schedule: Schedule) -> tuple[PlanStep, ...]:
+    """Finish the repeating pass containing the last saved cycle."""
+    if schedule.plan.mode == "fixed":
+        return editable_steps(schedule)
+    consumed = schedule.next_position % schedule.plan.length
+    if not consumed and schedule.cycles:
+        return ()
+    return _remaining_steps(schedule.plan.steps, consumed)
+
+
+def _remaining_steps(
+    steps: tuple[PlanStep, ...], consumed: int
+) -> tuple[PlanStep, ...]:
     remaining = []
-    for step in schedule.plan.steps:
+    for step in steps:
         if consumed >= step.count:
             consumed -= step.count
         else:

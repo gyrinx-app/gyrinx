@@ -84,6 +84,22 @@ function props(): ScheduleProps {
     };
 }
 
+test("future previews describe a read-only repeating pattern without a shifting boundary", () => {
+    render(<CampaignSchedule {...props()} />);
+    expect(
+        screen.getByText("This pattern repeats until the campaign finishes."),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Continues after/)).toBeNull();
+    expect(
+        screen.getByText(/Previewing does not change your schedule/),
+    ).toBeTruthy();
+    expect(
+        screen
+            .getByRole("link", { name: "Preview more cycles" })
+            .getAttribute("href"),
+    ).toBe("/cycles/?preview=24");
+});
+
 test("consecutive phase groups preserve repeated occurrences and the saved cycle order", () => {
     const { container } = render(<CampaignSchedule {...props()} />);
     expect(
@@ -206,7 +222,7 @@ test("readers retain the grouped rules without management controls", () => {
     expect(screen.getAllByText("Occupation rules.")).toHaveLength(2);
     expect(
         screen
-            .getByRole("link", { name: "Show more future cycles" })
+            .getByRole("link", { name: "Preview more cycles" })
             .getAttribute("href"),
     ).toBe("/cycles/?preview=24");
 });

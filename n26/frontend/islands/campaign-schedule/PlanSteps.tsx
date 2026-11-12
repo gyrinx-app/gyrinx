@@ -7,13 +7,16 @@ export function PlanSteps({
     onChange,
     phases,
     disabled,
+    startsAfterOrder,
 }: {
     value: string;
     onChange: (value: string) => void;
     phases: Phase[];
     disabled: boolean;
+    startsAfterOrder?: number;
 }) {
     let steps: Step[] = [];
+    let valid = false;
     try {
         const parsed: unknown = JSON.parse(value);
         if (
@@ -29,8 +32,12 @@ export function PlanSteps({
                     "count" in step &&
                     typeof step.count === "number",
             )
-        )
+        ) {
             steps = parsed;
+            valid = parsed.every(
+                (step) => Number.isInteger(step.count) && step.count > 0,
+            );
+        }
     } catch {
         /* Keep the original hidden payload for server validation and exact retries. */
     }
@@ -207,6 +214,14 @@ export function PlanSteps({
             >
                 <Icon name="plus" /> Add step
             </Button>
+            {startsAfterOrder !== undefined && valid && (
+                <p className="text-sm text-muted" aria-live="polite">
+                    Ends after Cycle{" "}
+                    {startsAfterOrder +
+                        steps.reduce((total, step) => total + step.count, 0)}
+                    .
+                </p>
+            )}
         </div>
     );
 }

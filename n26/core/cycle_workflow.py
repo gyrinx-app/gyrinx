@@ -327,8 +327,9 @@ def prepare(campaign, action, query):
         context["needsDates"] = calendar is None
         context["nextCycleNumber"] = len(state.cycles) + 1
         context["patternSteps"] = [asdict(step) for step in state.plan.steps]
-        context["fixedSteps"] = [asdict(step) for step in s.editable_steps(state)]
-        lead = f"This plan continues after Cycle {len(state.cycles)}. Repeating patterns count cycles already saved in the last phase."
+        context["fixedSteps"] = [asdict(step) for step in s.fixed_steps(state)]
+        context["startsAfterOrder"] = len(state.cycles)
+        lead = "The steps below set future cycles. Existing cycles keep their dates and phases."
     else:
         initial["expected_current"] = state.current_cycle_id
         if action == "advance":

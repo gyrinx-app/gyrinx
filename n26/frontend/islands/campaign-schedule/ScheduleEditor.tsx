@@ -878,6 +878,13 @@ export function ScheduleEditor({
                                 phases={phases}
                                 disabled={form.frozen}
                                 onChange={(value) => change("steps", value)}
+                                startsAfterOrder={
+                                    values.mode === "fixed" &&
+                                    typeof editor.context.startsAfterOrder ===
+                                        "number"
+                                        ? editor.context.startsAfterOrder
+                                        : undefined
+                                }
                             />
                         </>
                     )}
