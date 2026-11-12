@@ -7,7 +7,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.html import format_html
+from django.utils.html import format_html, format_html_join
 
 from n26.core.campaigns import campaign_operation
 from n26.core.models import (
@@ -20,12 +20,10 @@ from n26.core.models import (
     Reason,
 )
 from n26.core.models.toolkit import (
-    ALERT_EVENTS,
     TAG_ICONS,
     CampaignTag,
     Intervention,
     InterventionReceipt,
-    ToolkitAlert,
     ToolkitCommand,
     ToolkitDelivery,
 )
@@ -50,12 +48,13 @@ def toolkit_href(campaign):
 
 
 def content_for(campaign, text):
+    lines = format_html_join("<br>", "{}", ((line,) for line in text.splitlines()))
     return str(
         format_html(
-            '<p><a href="{}">{}</a> · Sent by the Arbitrator.</p><p>{}</p>',
+            '<p><a href="{}">{}</a></p><p>{}</p>',
             campaign_href(campaign),
             campaign.name,
-            text,
+            lines,
         )
     )
 
@@ -364,6 +363,7 @@ def send_intervention(campaign, actor, payload):
     intervention = Intervention.objects.create(
         campaign=campaign,
         actor=actor,
+        purpose=payload.get("_purpose", "intervention"),
         title=title.strip(),
         narrative=narrative,
         mode=mode,
@@ -383,7 +383,7 @@ def send_intervention(campaign, actor, payload):
         wording = (
             f"{recipient_name}: "
             + (
-                f"Choose exactly {choices} rewards from "
+                f"Choose exactly {choices} {'reward' if choices == 1 else 'rewards'} from "
                 if mode == "choice"
                 else "Received "
             )
@@ -407,7 +407,7 @@ def send_intervention(campaign, actor, payload):
             title=intervention.title,
             text=f"{', '.join(g.username if player_target else g.name for g in gangs)} "
             + (
-                f"were offered a choice of {choices} rewards from "
+                f"were offered a choice of {choices} {'reward' if choices == 1 else 'rewards'} from "
                 if mode == "choice"
                 else "received "
             )
@@ -443,7 +443,9 @@ def choose(campaign, actor, payload):
         )
         or len(set(selected)) != len(selected)
     ):
-        raise Refusal(f"Choose exactly {intervention.choices} different rewards.")
+        raise Refusal(
+            f"Choose exactly {intervention.choices} {'reward' if intervention.choices == 1 else 'different rewards'}."
+        )
     selected = sorted(selected)
     if receipt.resolved_at:
         if receipt.selected != selected:
@@ -463,11 +465,14 @@ def choose(campaign, actor, payload):
     text = f"{recipient_name} chose {summary([intervention.rewards[i] for i in selected])}. {intervention.narrative}"
     queue(
         campaign,
-        audience(campaign) if intervention.inform_all else [recipient_id],
+        [recipient_id],
         identity=f"chosen:{receipt.pk}",
         title=intervention.title,
         text=text,
         sender=intervention.actor,
+    )
+    alert_event(
+        campaign, "offer_selected", identity=str(receipt.pk), text=text, actor=actor
     )
     return intervention.get_absolute_url()
 
@@ -479,6 +484,26 @@ def run_command(campaign, actor, action, payload):
         raise Refusal("Only the campaign arbitrator can use these tools.")
     if action == "intervention":
         return send_intervention(campaign, actor, payload)
+    if action == "tags":
+        if not isinstance(payload.get("rewards"), list) or any(
+            not isinstance(r, dict) or r.get("kind") != "tag"
+            for r in payload["rewards"]
+        ):
+            raise Refusal("Select tags to assign.")
+        send_intervention(
+            campaign,
+            actor,
+            {
+                **payload,
+                "title": "Tags: "
+                + ", ".join(str(r.get("name", "")) for r in payload["rewards"])[:190],
+                "narrative": "",
+                "mode": "bundle",
+                "inform_all": False,
+                "_purpose": "tags",
+            },
+        )
+        return toolkit_href(campaign) + "?tab=tags"
     if action == "communication":
         gangs = recipients_from(payload, campaign)
         title = payload.get("title", "")
@@ -503,16 +528,9 @@ def run_command(campaign, actor, action, payload):
         )
         return toolkit_href(campaign) + "?tab=communications"
     if action == "alerts":
-        events = payload.get("events", [])
-        if not isinstance(events, list) or any(
-            not isinstance(e, str) or e not in dict(ALERT_EVENTS) for e in events
-        ):
-            raise Refusal("Select events from this campaign's alert list.")
-        ToolkitAlert.objects.filter(campaign=campaign).exclude(
-            event__in=events
-        ).delete()
-        for event in set(events):
-            ToolkitAlert.objects.get_or_create(campaign=campaign, event=event)
+        from n26.core.toolkit_alerts import configure
+
+        configure(campaign, payload)
         return toolkit_href(campaign) + "?tab=alerts"
     if action == "remove_tag":
         tag = (
@@ -600,12 +618,6 @@ def change(campaign, actor, action, data):
 
 
 def alert_event(campaign, event, *, identity, text, actor=None):
-    if ToolkitAlert.objects.filter(campaign=campaign, event=event).exists():
-        queue(
-            campaign,
-            [campaign.owner_id],
-            identity=f"alert:{event}:{identity}",
-            title=dict(ALERT_EVENTS)[event],
-            text=text,
-            sender=actor,
-        )
+    from n26.core.toolkit_alerts import capture
+
+    return capture(campaign, event, identity=identity, text=text, actor=actor)

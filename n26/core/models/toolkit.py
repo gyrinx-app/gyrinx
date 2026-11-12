@@ -22,6 +22,11 @@ TAG_ICONS = (
 ALERT_EVENTS = (
     ("gang_added", "A player adds a gang"),
     ("battle_outcome", "A battle outcome is logged"),
+    ("battle_created", "A battle is created"),
+    ("fighter_deleted", "A fighter is deleted from a roster"),
+    ("gang_removed", "A player removes a gang"),
+    ("offer_selected", "A player selects an intervention offer"),
+    ("asset_owner_changed", "An asset changes owner"),
 )
 
 
@@ -47,6 +52,11 @@ class Intervention(Base):
         "n26.Campaign", on_delete=models.CASCADE, related_name="interventions"
     )
     actor = models.ForeignKey("auth.User", on_delete=models.PROTECT)
+    purpose = models.CharField(
+        max_length=20,
+        default="intervention",
+        choices=[("intervention", "Intervention"), ("tags", "Tags")],
+    )
     title = models.CharField(max_length=200)
     narrative = models.TextField(blank=True)
     mode = models.CharField(
@@ -172,3 +182,61 @@ class ToolkitDelivery(Base):
 
     def get_absolute_url(self):
         return self.href
+
+    def notification_context(self, sender):
+        from n26.core.people import person_link
+
+        badges = {}
+        person = person_link(sender, badges) if sender else None
+        if person:
+            person["badge"] = badges.get(person.get("badge"))
+        return {
+            "campaignName": self.campaign.name,
+            "campaignHref": reverse("n26-campaign", args=[self.campaign_id]),
+            "sender": person,
+        }
+
+
+class ToolkitAlertSettings(Base):
+    campaign = models.OneToOneField(
+        "n26.Campaign", on_delete=models.CASCADE, related_name="toolkit_alert_settings"
+    )
+    immediate = models.BooleanField(default=True)
+    report_days = models.PositiveSmallIntegerField(null=True, blank=True)
+    window_start = models.DateTimeField(null=True, blank=True)
+    next_report_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(report_days__isnull=True)
+                | models.Q(report_days__gte=1, report_days__lte=365),
+                name="toolkit_report_days_range",
+            )
+        ]
+
+
+class ToolkitAlertEvent(Base):
+    campaign = models.ForeignKey(
+        "n26.Campaign", on_delete=models.CASCADE, related_name="toolkit_alert_events"
+    )
+    event = models.CharField(max_length=32, choices=ALERT_EVENTS)
+    identity = models.CharField(max_length=200)
+    occurred_at = models.DateTimeField(db_index=True)
+    text = models.TextField()
+    actor = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["campaign", "event", "identity"],
+                name="toolkit_alert_event_identity",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["campaign", "occurred_at"], name="toolkit_report_events_idx"
+            )
+        ]

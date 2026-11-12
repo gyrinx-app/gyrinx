@@ -166,3 +166,39 @@ describe("Notification inbox", () => {
         expect(body.get("q")).toBe("");
     });
 });
+
+it("toolkit attribution shows the live sender name with their badge", () => {
+    render(
+        <NotificationInbox
+            {...props}
+            rows={[
+                {
+                    ...props.rows[0],
+                    context: {
+                        campaignName: "Ash Road",
+                        campaignHref: "/campaign/",
+                        sender: {
+                            name: "Ada",
+                            href: "/user/@Ada/",
+                            badge: {
+                                label: "Campaign supporter",
+                                svg: {
+                                    tag: "svg",
+                                    props: { viewBox: "0 0 24 24" },
+                                    children: [
+                                        { tag: "path", props: { d: "M0 0h1" } },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                },
+            ]}
+        />,
+    );
+    expect(screen.getByText("· Sent by")).toBeDefined();
+    expect(screen.getByRole("link", { name: /Ada/ })).toBeDefined();
+    expect(
+        screen.getByRole("img", { name: "Campaign supporter" }),
+    ).toBeDefined();
+});

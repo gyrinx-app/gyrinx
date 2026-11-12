@@ -191,20 +191,26 @@ export function CampaignGangs(
                                         >
                                             <span
                                                 tabIndex={0}
-                                                className="inline-flex items-center gap-1 text-xs text-muted"
+                                                className="inline-flex items-center gap-1 text-xs font-semibold text-accent-text"
+                                                style={
+                                                    gang.colour
+                                                        ? { color: gang.colour }
+                                                        : undefined
+                                                }
                                                 aria-label={`${tag.name}${tag.info ? ": " + tag.info : ""}`}
                                             >
+                                                <span className="hidden xl:inline">
+                                                    {tag.name}
+                                                </span>
                                                 <Icon
                                                     name={
                                                         tag.icon as Parameters<
                                                             typeof Icon
                                                         >[0]["name"]
                                                     }
+                                                    className="size-[1em]"
                                                     strokeWidth={1.7}
                                                 />
-                                                <span className="hidden xl:inline">
-                                                    {tag.name}
-                                                </span>
                                             </span>
                                         </Tooltip>
                                     ))}

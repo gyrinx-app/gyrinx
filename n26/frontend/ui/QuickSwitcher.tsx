@@ -27,6 +27,7 @@ export type SwitcherRow = {
 
 export type QuickSwitcherProps = {
     /** Leading link text; an empty label shows only the chevron. */
+    id?: string;
     label?: string;
     href?: string;
     heading: string;
@@ -126,6 +127,7 @@ export function QuickSwitcher({
     minWidth = "16rem",
     hotkey = "",
     triggerWords = "",
+    id: controlId,
     items,
     current = "",
     source = "",
@@ -484,6 +486,7 @@ export function QuickSwitcher({
                     aria-keyshortcuts={
                         hotkey ? `Alt+Shift+${hotkey.toUpperCase()}` : undefined
                     }
+                    id={controlId}
                     aria-haspopup="menu"
                     aria-expanded={open}
                     aria-controls={open ? panelId : undefined}

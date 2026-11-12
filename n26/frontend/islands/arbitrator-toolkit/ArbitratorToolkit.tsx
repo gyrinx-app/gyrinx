@@ -23,6 +23,7 @@ import {
     TabLinks,
     Tooltip,
     useWorkflowForm,
+    QuickSwitcher,
 } from "../../ui";
 
 type Reward = {
@@ -35,6 +36,9 @@ type Reward = {
     label?: string;
 };
 type Payload = {
+    immediate: boolean;
+    report_enabled: boolean;
+    report_days: number;
     title: string;
     narrative: string;
     body: string;
@@ -52,6 +56,9 @@ type Payload = {
     tag?: string;
 };
 const empty: Payload = {
+    immediate: true,
+    report_enabled: false,
+    report_days: 7,
     title: "",
     narrative: "",
     body: "",
@@ -108,6 +115,13 @@ export type ToolkitProps = {
     alerts?: { value: string; label: string }[];
     enabledAlerts?: string[];
     tags?: Tag[];
+    newTags?: string;
+    alertTiming?: {
+        immediate: boolean;
+        report_enabled: boolean;
+        report_days: number;
+        next_report_at: string | null;
+    };
     newIntervention?: string;
     newCommunication?: string;
     editAlerts?: string;
@@ -212,12 +226,12 @@ function Home(p: ToolkitProps) {
                 </ButtonLink>
             }
         >
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 {[
                     {
                         icon: "gift",
                         name: "Interventions",
-                        text: "Give rewards, offer choices and assign tags.",
+                        text: "Give rewards and offer choices.",
                         href: p.newIntervention!,
                         button: "Make an intervention",
                     },
@@ -226,7 +240,14 @@ function Home(p: ToolkitProps) {
                         name: "Communications",
                         text: "Send a message to players in this campaign.",
                         href: p.newCommunication!,
-                        button: "Write a communication",
+                        button: "Write a message",
+                    },
+                    {
+                        icon: "tag",
+                        name: "Tags",
+                        text: "Assign tags to players or gangs.",
+                        href: p.newTags!,
+                        button: "Assign tags",
                     },
                     {
                         icon: "bell",
@@ -263,7 +284,7 @@ function Home(p: ToolkitProps) {
                         {!p.interventions?.length && (
                             <p className="text-sm text-muted">
                                 No interventions yet. Make an intervention to
-                                send rewards or tags.
+                                send rewards.
                             </p>
                         )}
                         {p.interventions?.map((i) => (
@@ -302,7 +323,7 @@ function Home(p: ToolkitProps) {
                     <div className="divide-y divide-box-border">
                         {!p.communications?.length && (
                             <p className="text-sm text-muted">
-                                No communications yet. Write a communication to
+                                No communications yet. Write a message to
                                 message your players.
                             </p>
                         )}
@@ -332,6 +353,26 @@ function Home(p: ToolkitProps) {
                             Enabled events send a site notification to you as
                             the arbitrator.
                         </p>
+                        <p className="text-sm">
+                            Immediate alerts:{" "}
+                            {p.alertTiming?.immediate === false ? "Off" : "On"}
+                        </p>
+                        <p className="text-sm">
+                            Wrap-up reports:{" "}
+                            {p.alertTiming?.report_enabled
+                                ? `Every ${p.alertTiming.report_days} ${p.alertTiming.report_days === 1 ? "day" : "days"}`
+                                : "Off"}
+                        </p>
+                        {p.alertTiming?.next_report_at && (
+                            <p className="text-sm text-muted">
+                                Next report:{" "}
+                                <time dateTime={p.alertTiming.next_report_at}>
+                                    {new Date(
+                                        p.alertTiming.next_report_at,
+                                    ).toLocaleString()}
+                                </time>
+                            </p>
+                        )}
                         {p.alerts?.map((a) => (
                             <div
                                 key={a.value}
@@ -363,8 +404,8 @@ function Home(p: ToolkitProps) {
                     <div className="divide-y divide-box-border">
                         {!p.tags?.length && (
                             <p className="text-sm text-muted">
-                                No tags assigned yet. Make an intervention to
-                                assign a tag.
+                                No tags assigned yet. Assign a tag to a player
+                                or gang.
                             </p>
                         )}
                         {p.tags?.map((t) => (
@@ -374,8 +415,11 @@ function Home(p: ToolkitProps) {
                             >
                                 <div>
                                     <h3 className="flex items-center gap-2 font-semibold">
-                                        <Glyph name={t.icon} />
                                         {t.name}
+                                        <Glyph
+                                            name={t.icon}
+                                            className="size-[1em]"
+                                        />
                                     </h3>
                                     <p className="mt-1 text-sm text-muted">
                                         {t.gang}
@@ -424,17 +468,24 @@ function Detail(p: ToolkitProps) {
                 header={
                     <h2 className="font-semibold">
                         {p.mode === "choice"
-                            ? `Choose exactly ${p.choices} rewards`
-                            : "Rewards"}
+                            ? `Choose exactly ${p.choices} ${p.choices === 1 ? "reward" : "rewards"}`
+                            : p.rewards?.length === 1
+                              ? "Reward"
+                              : "Rewards"}
                     </h2>
                 }
             >
-                <ul className="space-y-3">
+                <ul className="list-disc space-y-3 pl-5">
                     {p.rewards?.map((r, i) => (
                         <li key={i} className="text-sm">
                             <div className="flex items-center gap-2">
-                                {r.icon && <Glyph name={r.icon} />}
                                 <span>{r.label}</span>
+                                {r.icon && (
+                                    <Glyph
+                                        name={r.icon}
+                                        className="size-[1em]"
+                                    />
+                                )}
                             </div>
                             {r.info && (
                                 <p className="mt-1 text-muted">{r.info}</p>
@@ -455,7 +506,8 @@ function Detail(p: ToolkitProps) {
                                     href={r.chooseHref}
                                     variant="primary"
                                 >
-                                    Choose rewards
+                                    Choose{" "}
+                                    {p.choices === 1 ? "reward" : "rewards"}
                                 </ButtonLink>
                             ) : (
                                 <Badge>Awaiting a choice</Badge>
@@ -473,21 +525,260 @@ function Detail(p: ToolkitProps) {
             </FormSection>
             {p.informAll && (
                 <p className="text-sm text-muted">
-                    All campaign players are notified of the offer and each
-                    confirmed choice.
+                    All campaign players are notified of the offer.
                 </p>
             )}
         </WorkflowLayout>
     );
 }
+function TagAssignmentFields({
+    p,
+    data,
+    set,
+}: {
+    p: ToolkitProps;
+    data: Payload;
+    set: (part: Partial<Payload>) => void;
+}) {
+    const [search, setSearch] = useState("");
+    const players = data.target === "players";
+    const targets = players ? (p.players ?? []) : (p.gangs ?? []);
+    const selected = players ? data.players : data.gangs;
+    const update = (index: number, part: Partial<Reward>) =>
+        set({
+            rewards: data.rewards.map((r, i) =>
+                i === index ? { ...r, ...part } : r,
+            ),
+        });
+    return (
+        <>
+            <FormSection title="Tags">
+                {data.rewards.map((tag, index) => (
+                    <Card
+                        key={index}
+                        header={
+                            <div className="flex items-center justify-between gap-2">
+                                <h3 className="text-sm font-semibold">
+                                    Tag {index + 1}
+                                </h3>
+                                {data.rewards.length > 1 && (
+                                    <Button
+                                        size="xs"
+                                        variant="ghost"
+                                        aria-label={`Remove tag ${index + 1}`}
+                                        onClick={() =>
+                                            set({
+                                                rewards: data.rewards.filter(
+                                                    (_, i) => i !== index,
+                                                ),
+                                            })
+                                        }
+                                    >
+                                        <Glyph name="x" />
+                                    </Button>
+                                )}
+                            </div>
+                        }
+                    >
+                        <div className="space-y-4">
+                            <Field
+                                label="Tag name *"
+                                htmlFor={`tag-title-${index}`}
+                            >
+                                <Input
+                                    maxLength={80}
+                                    required
+                                    value={tag.name ?? ""}
+                                    onChange={(e) =>
+                                        update(index, { name: e.target.value })
+                                    }
+                                />
+                            </Field>
+                            <fieldset className="space-y-2">
+                                <legend className="text-sm font-medium">
+                                    Icon
+                                </legend>
+                                <div className="flex flex-wrap gap-2">
+                                    {p.icons?.map((icon) => (
+                                        <Tooltip
+                                            key={icon}
+                                            label={icon}
+                                            size="sm"
+                                        >
+                                            <Button
+                                                aria-label={icon}
+                                                aria-pressed={tag.icon === icon}
+                                                variant={
+                                                    tag.icon === icon
+                                                        ? "primary"
+                                                        : "default"
+                                                }
+                                                onClick={() =>
+                                                    update(index, { icon })
+                                                }
+                                            >
+                                                <Glyph name={icon} />
+                                            </Button>
+                                        </Tooltip>
+                                    ))}
+                                </div>
+                            </fieldset>
+                            <Field
+                                label="Information"
+                                htmlFor={`tag-information-${index}`}
+                            >
+                                <Textarea
+                                    rows={3}
+                                    maxLength={1000}
+                                    value={tag.info ?? ""}
+                                    onChange={(e) =>
+                                        update(index, { info: e.target.value })
+                                    }
+                                />
+                            </Field>
+                        </div>
+                    </Card>
+                ))}
+                <Button
+                    onClick={() =>
+                        set({
+                            rewards: [
+                                ...data.rewards,
+                                {
+                                    kind: "tag",
+                                    amount: 1,
+                                    name: "",
+                                    icon: "crosshair",
+                                    info: "",
+                                },
+                            ],
+                        })
+                    }
+                >
+                    <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                        <Glyph name="plus" />
+                        Add tag
+                    </span>
+                </Button>
+            </FormSection>
+            <FormSection title="Recipients">
+                <RadioCards legend="Apply to" min="12rem">
+                    <RadioCard
+                        name="tag_target"
+                        value="gangs"
+                        label="Gangs"
+                        checked={!players}
+                        onChange={() => set({ target: "gangs" })}
+                    />
+                    <RadioCard
+                        name="tag_target"
+                        value="players"
+                        label="Players"
+                        checked={players}
+                        onChange={() => set({ target: "players" })}
+                    />
+                </RadioCards>
+                <RadioCards
+                    legend={players ? "Which players?" : "Which gangs?"}
+                    min="12rem"
+                >
+                    <RadioCard
+                        name="tag_recipient_mode"
+                        value="selected"
+                        label={players ? "Selected players" : "Selected gangs"}
+                        checked={data.recipients_mode !== "all"}
+                        onChange={() => set({ recipients_mode: "selected" })}
+                    />
+                    <RadioCard
+                        name="tag_recipient_mode"
+                        value="all"
+                        label={players ? "All players" : "All gangs"}
+                        checked={data.recipients_mode === "all"}
+                        onChange={() => set({ recipients_mode: "all" })}
+                    />
+                </RadioCards>
+                {data.recipients_mode !== "all" && (
+                    <>
+                        <Field
+                            label={players ? "Find a player" : "Find a gang"}
+                            htmlFor="tag-recipient-search"
+                        >
+                            <Input
+                                type="search"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") e.preventDefault();
+                                }}
+                            />
+                        </Field>
+                        <Card>
+                            {targets
+                                .filter((t) =>
+                                    (t.name + " " + t.owner)
+                                        .toLowerCase()
+                                        .includes(search.toLowerCase()),
+                                )
+                                .map((t) => (
+                                    <CheckboxCardItem
+                                        key={t.id}
+                                        name="tag_recipients_display"
+                                        value={t.id}
+                                        label={t.name}
+                                        meta={t.owner}
+                                        checked={selected.includes(t.id)}
+                                        onCheckedChange={(checked) =>
+                                            set(
+                                                players
+                                                    ? {
+                                                          players: checked
+                                                              ? [
+                                                                    ...data.players,
+                                                                    t.id,
+                                                                ]
+                                                              : data.players.filter(
+                                                                    (id) =>
+                                                                        id !==
+                                                                        t.id,
+                                                                ),
+                                                      }
+                                                    : {
+                                                          gangs: checked
+                                                              ? [
+                                                                    ...data.gangs,
+                                                                    t.id,
+                                                                ]
+                                                              : data.gangs.filter(
+                                                                    (id) =>
+                                                                        id !==
+                                                                        t.id,
+                                                                ),
+                                                      },
+                                            )
+                                        }
+                                    />
+                                ))}
+                        </Card>
+                    </>
+                )}
+                <p className="text-sm text-muted">
+                    Recipients are notified automatically.
+                </p>
+            </FormSection>
+        </>
+    );
+}
+
 function ToolkitForm(p: ToolkitProps) {
     const action = p.actionKind!;
     const title = (
         {
             intervention: "Make an intervention",
-            communication: "Write a communication",
+            communication: "Write a message",
             alerts: "Set alerts",
-            choose: "Choose rewards",
+            choose:
+                p.receipt?.choices === 1 ? "Choose reward" : "Choose rewards",
+            tags: "Assign tags",
             remove_tag: "Remove tag",
         } as Record<string, string>
     )[action];
@@ -565,9 +856,13 @@ function ToolkitForm(p: ToolkitProps) {
                             : (
                                   {
                                       intervention: "Send intervention",
-                                      communication: "Send communication",
+                                      communication: "Send message",
                                       alerts: "Save alerts",
-                                      choose: "Confirm choices",
+                                      choose:
+                                          p.receipt?.choices === 1
+                                              ? "Confirm choice"
+                                              : "Confirm choices",
+                                      tags: "Assign tags",
                                       remove_tag: "Remove tag",
                                   } as Record<string, string>
                               )[action]}
@@ -782,10 +1077,6 @@ function ToolkitForm(p: ToolkitProps) {
                                                                   "profile",
                                                                   "Fighter or vehicle",
                                                               ],
-                                                              [
-                                                                  "tag",
-                                                                  "Gang tag",
-                                                              ],
                                                           ]
                                                     ).map(([value, label]) => (
                                                         <option
@@ -909,57 +1200,65 @@ function ToolkitForm(p: ToolkitProps) {
                                                             }
                                                             htmlFor={`reward-item-${index}`}
                                                         >
-                                                            <NativeSelect
-                                                                required
-                                                                value={
-                                                                    reward.id ??
-                                                                    ""
-                                                                }
-                                                                onChange={(e) =>
-                                                                    updateReward(
-                                                                        index,
-                                                                        {
-                                                                            id: e
-                                                                                .target
-                                                                                .value,
-                                                                        },
-                                                                    )
-                                                                }
-                                                            >
-                                                                <option value="">
-                                                                    Select{" "}
-                                                                    {reward.kind ===
+                                                            <QuickSwitcher
+                                                                id={`reward-item-${index}`}
+                                                                heading={
+                                                                    reward.kind ===
                                                                     "profile"
-                                                                        ? "a fighter or vehicle"
-                                                                        : "a reward"}
-                                                                </option>
-                                                                {p.catalogue
-                                                                    ?.filter(
+                                                                        ? "Select a fighter or vehicle"
+                                                                        : "Select a reward"
+                                                                }
+                                                                menuLabel={`Select ${reward.kind === "profile" ? "profile" : "reward"} ${index + 1}`}
+                                                                placeholder={
+                                                                    reward.kind ===
+                                                                    "profile"
+                                                                        ? "Search profiles"
+                                                                        : "Search rewards"
+                                                                }
+                                                                empty="No rewards match"
+                                                                triggerWords={
+                                                                    p.catalogue?.find(
                                                                         (c) =>
                                                                             c.kind ===
-                                                                            reward.kind,
+                                                                                reward.kind &&
+                                                                            c.id ===
+                                                                                reward.id,
+                                                                    )?.name ??
+                                                                    (reward.kind ===
+                                                                    "profile"
+                                                                        ? "Select a fighter or vehicle"
+                                                                        : "Select a reward")
+                                                                }
+                                                                current={
+                                                                    reward.id
+                                                                }
+                                                                items={
+                                                                    p.catalogue
+                                                                        ?.filter(
+                                                                            (
+                                                                                c,
+                                                                            ) =>
+                                                                                c.kind ===
+                                                                                reward.kind,
+                                                                        )
+                                                                        .map(
+                                                                            (
+                                                                                c,
+                                                                            ) => ({
+                                                                                label: `${c.name} · ${c.detail}`,
+                                                                                value: c.id,
+                                                                            }),
+                                                                        ) ?? []
+                                                                }
+                                                                onChoose={(
+                                                                    id,
+                                                                ) =>
+                                                                    updateReward(
+                                                                        index,
+                                                                        { id },
                                                                     )
-                                                                    .map(
-                                                                        (c) => (
-                                                                            <option
-                                                                                key={
-                                                                                    c.id
-                                                                                }
-                                                                                value={
-                                                                                    c.id
-                                                                                }
-                                                                            >
-                                                                                {
-                                                                                    c.name
-                                                                                }{" "}
-                                                                                ·{" "}
-                                                                                {
-                                                                                    c.detail
-                                                                                }
-                                                                            </option>
-                                                                        ),
-                                                                    )}
-                                                            </NativeSelect>
+                                                                }
+                                                            />
                                                         </Field>
                                                     )}
                                                     <Field
@@ -1045,54 +1344,18 @@ function ToolkitForm(p: ToolkitProps) {
                                         })
                                     }
                                 >
-                                    <Glyph name="plus" />
-                                    Add{" "}
-                                    {data.mode === "choice"
-                                        ? "option"
-                                        : "reward"}
+                                    <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                                        {" "}
+                                        <Glyph name="plus" />
+                                        Add{" "}
+                                        {data.mode === "choice"
+                                            ? "option"
+                                            : "reward"}
+                                    </span>
                                 </Button>
                             </FormSection>
                         )}
                         <FormSection title="Recipients">
-                            {action === "intervention" && (
-                                <RadioCards legend="Apply to" min="12rem">
-                                    <RadioCard
-                                        name="recipient_target"
-                                        value="gangs"
-                                        label="Gangs"
-                                        description="Rewards or tags for campaign gangs."
-                                        checked={!targetPlayers}
-                                        onChange={() =>
-                                            set({ target: "gangs" })
-                                        }
-                                    />
-                                    <RadioCard
-                                        name="recipient_target"
-                                        value="players"
-                                        label="Players"
-                                        description="Informational tags for campaign players."
-                                        checked={targetPlayers}
-                                        onChange={() =>
-                                            set({
-                                                target: "players",
-                                                rewards: data.rewards.every(
-                                                    (r) => r.kind === "tag",
-                                                )
-                                                    ? data.rewards
-                                                    : [
-                                                          {
-                                                              kind: "tag",
-                                                              amount: 1,
-                                                              icon: "crosshair",
-                                                              name: "",
-                                                              info: "",
-                                                          },
-                                                      ],
-                                            })
-                                        }
-                                    />
-                                </RadioCards>
-                            )}
                             <RadioCards
                                 legend={
                                     targetPlayers
@@ -1235,7 +1498,7 @@ function ToolkitForm(p: ToolkitProps) {
                                     onCheckedChange={(checked) =>
                                         set({ inform_all: checked })
                                     }
-                                    description="Tell everyone in the campaign who received what. For a choice, announce the offer and each confirmed selection."
+                                    description="Tell everyone in the campaign who received what."
                                 />
                             </FormSection>
                         )}
@@ -1256,7 +1519,7 @@ function ToolkitForm(p: ToolkitProps) {
                                     <>
                                         <p>
                                             {data.mode === "choice"
-                                                ? `Each recipient chooses exactly ${data.choices} rewards.`
+                                                ? `Each recipient chooses exactly ${data.choices} ${data.choices === 1 ? "reward" : "rewards"}.`
                                                 : "Each recipient receives all rewards."}
                                         </p>
                                         <ul className="list-disc space-y-1 pl-5">
@@ -1272,30 +1535,78 @@ function ToolkitForm(p: ToolkitProps) {
                         </Card>
                     </>
                 )}
+                {action === "tags" && (
+                    <TagAssignmentFields p={p} data={data} set={set} />
+                )}
                 {action === "alerts" && (
-                    <FormSection title="Notify me when">
-                        <p className="text-sm text-muted">
-                            These alerts send site notifications to the campaign
-                            arbitrator.
-                        </p>
-                        {p.alertEvents?.map((event) => (
+                    <>
+                        <FormSection title="Notify me when">
+                            {p.alertEvents?.map((event) => (
+                                <CheckboxCard
+                                    key={event.value}
+                                    name="events_display"
+                                    label={event.label}
+                                    checked={data.events.includes(event.value)}
+                                    onCheckedChange={(checked) =>
+                                        set({
+                                            events: checked
+                                                ? [...data.events, event.value]
+                                                : data.events.filter(
+                                                      (v) => v !== event.value,
+                                                  ),
+                                        })
+                                    }
+                                />
+                            ))}
+                        </FormSection>
+                        <FormSection title="Delivery times">
                             <CheckboxCard
-                                key={event.value}
-                                name="events_display"
-                                label={event.label}
-                                checked={data.events.includes(event.value)}
-                                onCheckedChange={(checked) =>
-                                    set({
-                                        events: checked
-                                            ? [...data.events, event.value]
-                                            : data.events.filter(
-                                                  (v) => v !== event.value,
-                                              ),
-                                    })
+                                name="immediate_display"
+                                label="Send alerts immediately"
+                                description="Receive a site notification each time a selected action takes place."
+                                checked={data.immediate}
+                                onCheckedChange={(immediate) =>
+                                    set({ immediate })
                                 }
                             />
-                        ))}
-                    </FormSection>
+                            <CheckboxCard
+                                name="report_display"
+                                label="Send a wrap-up report"
+                                description="Receive a report even when no alerted actions took place."
+                                checked={data.report_enabled}
+                                onCheckedChange={(report_enabled) =>
+                                    set({ report_enabled })
+                                }
+                            >
+                                <Field
+                                    label="Send a report every *"
+                                    htmlFor="report-days"
+                                    description="Days. Each report covers the period since the previous report."
+                                >
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        max={365}
+                                        disabled={!data.report_enabled}
+                                        required={data.report_enabled}
+                                        value={data.report_days}
+                                        onChange={(e) =>
+                                            set({
+                                                report_days: Number(
+                                                    e.target.value,
+                                                ),
+                                            })
+                                        }
+                                        rightAddon={
+                                            <span className="text-sm text-muted">
+                                                days
+                                            </span>
+                                        }
+                                    />
+                                </Field>
+                            </CheckboxCard>
+                        </FormSection>
+                    </>
                 )}
                 {action === "choose" && p.receipt && (
                     <>
@@ -1312,30 +1623,77 @@ function ToolkitForm(p: ToolkitProps) {
                                     {p.receipt.narrative}
                                 </p>
                                 <p>
-                                    Choose exactly {p.receipt.choices} rewards.
-                                    They are applied when you confirm.
+                                    Choose exactly {p.receipt.choices}{" "}
+                                    {p.receipt.choices === 1
+                                        ? "reward"
+                                        : "rewards"}
+                                    . Applied when you confirm.
                                 </p>
                             </div>
                         </Card>
-                        <FormSection title="Your rewards">
-                            {p.receipt.rewards.map((r, index) => (
-                                <CheckboxCard
-                                    key={index}
-                                    name="choices_display"
-                                    label={r.label!}
-                                    description={r.info}
-                                    checked={data.selected.includes(index)}
-                                    onCheckedChange={(checked) =>
-                                        set({
-                                            selected: checked
-                                                ? [...data.selected, index]
-                                                : data.selected.filter(
-                                                      (i) => i !== index,
-                                                  ),
-                                        })
-                                    }
-                                />
-                            ))}
+                        <FormSection
+                            title={
+                                p.receipt.choices === 1
+                                    ? "Your reward"
+                                    : "Your rewards"
+                            }
+                        >
+                            {p.receipt.choices === 1 ? (
+                                <RadioCards
+                                    legend="Choose one reward"
+                                    min="100%"
+                                >
+                                    {p.receipt.rewards.map((r, index) => (
+                                        <RadioCard
+                                            key={index}
+                                            name="choices_display"
+                                            value={String(index)}
+                                            label={r.label!}
+                                            description={r.info}
+                                            checked={data.selected.includes(
+                                                index,
+                                            )}
+                                            onChange={() =>
+                                                set({ selected: [index] })
+                                            }
+                                        />
+                                    ))}
+                                </RadioCards>
+                            ) : (
+                                p.receipt.rewards.map((r, index) => (
+                                    <CheckboxCard
+                                        key={index}
+                                        name="choices_display"
+                                        label={r.label!}
+                                        description={r.info}
+                                        checked={data.selected.includes(index)}
+                                        disabled={
+                                            !data.selected.includes(index) &&
+                                            data.selected.length >=
+                                                p.receipt!.choices
+                                        }
+                                        onCheckedChange={(checked) => {
+                                            if (!checked)
+                                                set({
+                                                    selected:
+                                                        data.selected.filter(
+                                                            (i) => i !== index,
+                                                        ),
+                                                });
+                                            else if (
+                                                data.selected.length <
+                                                p.receipt!.choices
+                                            )
+                                                set({
+                                                    selected: [
+                                                        ...data.selected,
+                                                        index,
+                                                    ],
+                                                });
+                                        }}
+                                    />
+                                ))
+                            )}
                             <p className="text-sm text-muted">
                                 {data.selected.length} of {p.receipt.choices}{" "}
                                 chosen

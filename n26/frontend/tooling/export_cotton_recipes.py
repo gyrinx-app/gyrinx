@@ -2212,6 +2212,7 @@ def recipes():
                 for tag, attrs in Elements(str(resolve(name).body)).elements
             ]
             for name in (
+                "tag",
                 "tool-case",
                 "gift",
                 "send",

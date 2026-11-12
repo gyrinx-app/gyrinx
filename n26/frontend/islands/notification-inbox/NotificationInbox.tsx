@@ -16,6 +16,7 @@ import {
     Input,
     Link,
     NativeSelect,
+    UserLink,
 } from "../../ui";
 
 type RichNode =
@@ -30,6 +31,11 @@ type Notification = {
     subject: string;
     content: RichNode[];
     sender: string;
+    context?: {
+        campaignName: string;
+        campaignHref: string;
+        sender: React.ComponentProps<typeof UserLink> | null;
+    } | null;
     system: boolean;
     created: string;
     age: string;
@@ -396,6 +402,26 @@ export function NotificationInbox(props: NotificationInboxProps) {
                                             row.subject
                                         )}
                                     </h3>
+                                    {row.context && (
+                                        <p className="flex flex-wrap items-center gap-1 text-sm text-muted">
+                                            <Link
+                                                href={row.context.campaignHref}
+                                            >
+                                                {row.context.campaignName}
+                                            </Link>
+                                            <span>
+                                                ·{" "}
+                                                {row.context.sender
+                                                    ? "Sent by"
+                                                    : "Automatic campaign report"}
+                                            </span>
+                                            {row.context.sender && (
+                                                <UserLink
+                                                    {...row.context.sender}
+                                                />
+                                            )}
+                                        </p>
+                                    )}
                                     {row.content.length > 0 && (
                                         <div className="rich-text break-words text-sm text-muted">
                                             {richText(row.content)}

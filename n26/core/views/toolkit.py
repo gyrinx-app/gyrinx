@@ -45,13 +45,15 @@ def common(request, campaign):
 @never_cache
 def toolkit_home(request, pk):
     campaign = _own_campaign_or_404(request, pk)
+    from n26.core.toolkit_alerts import preferences
+
     tab = request.GET.get("tab", "interventions")
     if tab not in {"interventions", "communications", "alerts", "tags"}:
         tab = "interventions"
     interventions = list(
-        campaign.interventions.order_by("-created").prefetch_related("receipts__gang")[
-            :100
-        ]
+        campaign.interventions.filter(purpose="intervention")
+        .order_by("-created")
+        .prefetch_related("receipts__gang")[:100]
     )
     communications = (
         ToolkitCommand.objects.filter(campaign=campaign, action="communication")
@@ -108,6 +110,8 @@ def toolkit_home(request, pk):
         "newCommunication": reverse(
             "n26-toolkit-form", args=[campaign.pk, "communication"]
         ),
+        "newTags": reverse("n26-toolkit-form", args=[campaign.pk, "tags"]),
+        "alertTiming": preferences(campaign),
         "editAlerts": reverse("n26-toolkit-form", args=[campaign.pk, "alerts"]),
     }
     return render(
@@ -127,6 +131,7 @@ def access(request, pk, action):
 def toolkit_form(request, pk, action):
     if action not in {
         "intervention",
+        "tags",
         "communication",
         "alerts",
         "choose",
@@ -156,7 +161,20 @@ def toolkit_form(request, pk, action):
         "receipt": None,
         "tag": None,
     }
-    if action in {"intervention", "communication"}:
+    if action == "tags":
+        initial.update(
+            target="gangs",
+            rewards=[
+                {
+                    "kind": "tag",
+                    "amount": 1,
+                    "icon": "crosshair",
+                    "name": "",
+                    "info": "",
+                }
+            ],
+        )
+    if action in {"intervention", "communication", "tags"}:
         props["gangs"] = [
             {
                 "id": str(g.pk),
@@ -182,8 +200,11 @@ def toolkit_form(request, pk, action):
         if action == "intervention":
             props["catalogue"] = toolkit.catalogue(campaign)
     if action == "alerts":
+        from n26.core.toolkit_alerts import preferences
+
         initial = {
-            "events": list(campaign.toolkit_alerts.values_list("event", flat=True))
+            "events": list(campaign.toolkit_alerts.values_list("event", flat=True)),
+            **preferences(campaign),
         }
     if action == "choose":
         receipt = (

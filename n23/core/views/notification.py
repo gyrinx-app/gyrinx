@@ -9,9 +9,11 @@ notification is itself the act of reading it.
 
 import uuid
 
+from django.apps import apps
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.contenttypes.prefetch import GenericPrefetch
 from django.db.models import Q
 from django.http import HttpResponseRedirect, JsonResponse
 from django.middleware.csrf import get_token
@@ -86,8 +88,19 @@ class NotificationInboxView(LoginRequiredMixin, generic.ListView):
         # a link from the stored key and leaves resolving it to the open view.
         qs = (
             Notification.objects.for_recipient(self.request.user)
-            .select_related("sender")
-            .prefetch_related("target", "scope")
+            .select_related("sender", "sender__profile")
+            .prefetch_related(
+                GenericPrefetch(
+                    "target",
+                    [
+                        apps.get_model("n26", "ToolkitDelivery").objects.select_related(
+                            "campaign"
+                        )
+                    ],
+                ),
+                "scope",
+                "sender__badge_grants",
+            )
         )
         qs, self._resolved_filters = apply_inbox_filters(qs, self.request.GET)
         return qs.order_by("-created")
@@ -108,12 +121,63 @@ class NotificationInboxView(LoginRequiredMixin, generic.ListView):
 
         page = context["page_obj"]
         context["account_tab"] = "notifications"
+
+        from django.contrib.contenttypes.models import ContentType
+
+        delivery_model = apps.get_model("n26", "ToolkitDelivery")
+        delivery_type = ContentType.objects.get_for_model(delivery_model)
+        keys = [
+            n.target_object_id
+            for n in context["notifications"]
+            if n.target_content_type_id == delivery_type.pk
+        ]
+        deliveries = {
+            d.pk.to_uuid(): d
+            for d in delivery_model.objects.filter(pk__in=keys).select_related(
+                "campaign"
+            )
+        }
+
+        def target_for(notification):
+            # UUID-backed generic keys and N26 ULID model keys differ in prefetch caches.
+            if notification.target_content_type_id == delivery_type.pk:
+                return deliveries.get(notification.target_object_id)
+            return notification.target
+
+        def context_for(notification):
+            method = getattr(target_for(notification), "notification_context", None)
+            return method(notification.sender) if callable(method) else None
+
+        def body_for(notification):
+            is_toolkit = callable(
+                getattr(target_for(notification), "notification_context", None)
+            )
+            content = notification.content
+            if is_toolkit:
+                # Earlier toolkit deliveries stored these generated singular phrases.
+                content = content.replace(
+                    "Choose exactly 1 rewards", "Choose exactly 1 reward"
+                ).replace(
+                    "offered a choice of 1 rewards from",
+                    "offered a choice of 1 reward from",
+                )
+            nodes = rich_text_nodes(content)
+            if (
+                is_toolkit
+                and nodes
+                and isinstance(nodes[0], dict)
+                and nodes[0].get("tag") == "p"
+            ):
+                nodes = nodes[1:]
+            return nodes
+
         context["notification_inbox"] = {
             "rows": [
                 {
                     "id": str(n.id),
                     "subject": n.subject,
-                    "content": rich_text_nodes(n.content),
+                    "content": body_for(n),
+                    "context": context_for(n),
                     "sender": n.sender_label,
                     "system": n.is_system,
                     "created": n.created.isoformat(),

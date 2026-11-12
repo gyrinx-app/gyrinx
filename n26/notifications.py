@@ -222,3 +222,15 @@ task_routes += [
     TaskRoute(deliver_toolkit_notification, write_scope="n26"),
     TaskRoute(retry_toolkit_notifications, schedule="*/5 * * * *", write_scope="n26"),
 ]
+
+
+@task
+def deliver_toolkit_reports():
+    from n26.core.toolkit_alerts import deliver_due_reports
+
+    return deliver_due_reports()
+
+
+task_routes += [
+    TaskRoute(deliver_toolkit_reports, schedule="* * * * *", write_scope="n26")
+]

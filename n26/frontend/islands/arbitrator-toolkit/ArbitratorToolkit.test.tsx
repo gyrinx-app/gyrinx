@@ -43,16 +43,40 @@ afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
 });
-test("player targets offer tags and retain the requested icon choices", () => {
-    render(<ArbitratorToolkit {...base} />);
-    fireEvent.click(
-        screen.getByRole("radio", { name: /Players.*Informational/ }),
+test("tags have their own screen with the requested icon choices", () => {
+    render(
+        <ArbitratorToolkit
+            {...base}
+            actionKind="tags"
+            values={{
+                request_key: "tags-1",
+                payload: JSON.stringify({
+                    target: "gangs",
+                    rewards: [
+                        { kind: "tag", name: "", icon: "crosshair", amount: 1 },
+                    ],
+                    recipients_mode: "selected",
+                    gangs: [],
+                    players: [],
+                }),
+            }}
+        />,
     );
+    fireEvent.click(screen.getByRole("radio", { name: "Players" }));
     expect(screen.getByLabelText("Tag name *")).toBeDefined();
     for (const icon of base.icons!)
         expect(screen.getByRole("button", { name: icon })).toBeDefined();
-    expect(screen.getByRole("option", { name: "Player tag" })).toBeDefined();
-    expect(screen.queryByRole("option", { name: "Credits" })).toBeNull();
+    expect(
+        screen.queryByText("Rewards or tags for campaign gangs."),
+    ).toBeNull();
+});
+test("interventions only offer gang recipients and contain no tag type", () => {
+    render(<ArbitratorToolkit {...base} />);
+    expect(screen.queryByRole("radio", { name: /Players/ })).toBeNull();
+    expect(screen.queryByRole("option", { name: "Gang tag" })).toBeNull();
+    expect(
+        screen.getByText("Tell everyone in the campaign who received what."),
+    ).toBeDefined();
 });
 test("recipients and choice limits are included in the submitted payload", () => {
     const view = render(<ArbitratorToolkit {...base} />);
@@ -109,7 +133,7 @@ test("recipient choices show the exact required count and preserve selections", 
         },
     };
     const view = render(<ArbitratorToolkit {...props} />);
-    fireEvent.click(screen.getByRole("checkbox", { name: "60¢" }));
+    fireEvent.click(screen.getByRole("radio", { name: "60¢" }));
     expect(screen.getByText("1 of 1 chosen")).toBeDefined();
     expect(
         JSON.parse(
@@ -120,4 +144,158 @@ test("recipient choices show the exact required count and preserve selections", 
             ).value,
         ).selected,
     ).toEqual([1]);
+});
+
+test("single choices replace the selected reward instead of selecting two", () => {
+    render(
+        <ArbitratorToolkit
+            {...base}
+            actionKind="choose"
+            receipt={{
+                title: "Offer",
+                gang: "Vipers",
+                choices: 1,
+                rewards: [
+                    { kind: "credits", amount: 30, label: "30¢" },
+                    { kind: "credits", amount: 60, label: "60¢" },
+                ],
+                narrative: "Support.",
+            }}
+            values={{
+                request_key: "choice",
+                payload: JSON.stringify({ receipt: "r", selected: [] }),
+            }}
+        />,
+    );
+    fireEvent.click(screen.getByRole("radio", { name: "30¢" }));
+    fireEvent.click(screen.getByRole("radio", { name: "60¢" }));
+    expect(
+        (screen.getByRole("radio", { name: "30¢" }) as HTMLInputElement)
+            .checked,
+    ).toBe(false);
+    expect(screen.getByText("1 of 1 chosen")).toBeDefined();
+    expect(
+        screen.getByText("Choose exactly 1 reward. Applied when you confirm."),
+    ).toBeDefined();
+    expect(
+        screen.getByRole("button", { name: "Confirm choice" }),
+    ).toBeDefined();
+});
+test("multiple choices disable unselected rewards at the limit and re-enable them after deselection", () => {
+    render(
+        <ArbitratorToolkit
+            {...base}
+            actionKind="choose"
+            receipt={{
+                title: "Offer",
+                gang: "Vipers",
+                choices: 2,
+                rewards: [
+                    { kind: "credits", amount: 30, label: "30¢" },
+                    { kind: "credits", amount: 60, label: "60¢" },
+                    { kind: "credits", amount: 90, label: "90¢" },
+                ],
+                narrative: "Support.",
+            }}
+            values={{
+                request_key: "choice",
+                payload: JSON.stringify({ receipt: "r", selected: [] }),
+            }}
+        />,
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "30¢" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "60¢" }));
+    expect(
+        (screen.getByRole("checkbox", { name: "90¢" }) as HTMLInputElement)
+            .disabled,
+    ).toBe(true);
+    fireEvent.click(screen.getByRole("checkbox", { name: "30¢" }));
+    expect(
+        (screen.getByRole("checkbox", { name: "90¢" }) as HTMLInputElement)
+            .disabled,
+    ).toBe(false);
+    fireEvent.click(screen.getByRole("checkbox", { name: "90¢" }));
+    expect(screen.getByText("2 of 2 chosen")).toBeDefined();
+});
+test("profiles can be searched inside the picker and selected without submitting the form", () => {
+    const { container } = render(
+        <ArbitratorToolkit
+            {...base}
+            catalogue={[
+                {
+                    kind: "profile",
+                    id: "runner",
+                    name: "Ash runner",
+                    detail: "Fighter",
+                    rating: 50,
+                },
+                {
+                    kind: "profile",
+                    id: "crawler",
+                    name: "Cargo crawler",
+                    detail: "Vehicle",
+                    rating: 120,
+                },
+            ]}
+            values={{
+                request_key: "search",
+                payload: JSON.stringify({
+                    title: "Support",
+                    rewards: [{ kind: "profile", id: "", amount: 1 }],
+                    gangs: ["gang-a"],
+                }),
+            }}
+        />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Select profile 1" }));
+    fireEvent.change(screen.getByPlaceholderText("Search profiles"), {
+        target: { value: "cargo" },
+    });
+    expect(screen.queryByRole("menuitem", { name: /Ash runner/ })).toBeNull();
+    fireEvent.click(screen.getByRole("menuitem", { name: /Cargo crawler/ }));
+    expect(
+        JSON.parse(
+            (
+                container.querySelector(
+                    'input[name="payload"]',
+                ) as HTMLInputElement
+            ).value,
+        ).rewards[0].id,
+    ).toBe("crawler");
+});
+test("immediate alerts and wrap-up reports are independent controls", () => {
+    const { container } = render(
+        <ArbitratorToolkit
+            {...base}
+            actionKind="alerts"
+            alertEvents={[
+                { value: "battle_created", label: "A battle is created" },
+            ]}
+            values={{
+                request_key: "alerts",
+                payload: JSON.stringify({
+                    events: [],
+                    immediate: true,
+                    report_enabled: false,
+                    report_days: 7,
+                }),
+            }}
+        />,
+    );
+    fireEvent.click(
+        screen.getByRole("checkbox", { name: "Send alerts immediately" }),
+    );
+    fireEvent.click(
+        screen.getByRole("checkbox", { name: "Send a wrap-up report" }),
+    );
+    fireEvent.change(screen.getByLabelText("Send a report every *"), {
+        target: { value: "3" },
+    });
+    const values = JSON.parse(
+        (container.querySelector('input[name="payload"]') as HTMLInputElement)
+            .value,
+    );
+    expect(values.immediate).toBe(false);
+    expect(values.report_enabled).toBe(true);
+    expect(values.report_days).toBe(3);
 });

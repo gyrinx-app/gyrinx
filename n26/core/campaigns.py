@@ -431,6 +431,15 @@ class CampaignOperation:
             battle=battle,
             note=f"{scenario} on {date.isoformat()}",
         )
+        from n26.core.toolkit import alert_event
+
+        alert_event(
+            self.campaign,
+            "battle_created",
+            identity=str(battle.pk),
+            text=f"{battle.title} was created.",
+            actor=self.actor,
+        )
         if result != Battle.Result.NOT_RECORDED:
             from n26.core.toolkit import alert_event
 
@@ -1442,6 +1451,15 @@ class CampaignOperation:
         campaign_asset.save(update_fields=["holder", "ownership_revision", "modified"])
         with operation(membership.gang, actor=self.actor, batch=mark) as op:
             op.gain_asset(campaign_asset, battle=battle)
+        from n26.core.toolkit import alert_event
+
+        alert_event(
+            self.campaign,
+            "asset_owner_changed",
+            identity=f"{campaign_asset.pk}:{campaign_asset.ownership_revision}",
+            text=f"{campaign_asset} was assigned to {membership.gang.name}.",
+            actor=self.actor,
+        )
         return campaign_asset
 
     def unassign(self, campaign_asset, by_holder=None, *, battle=None, reverses=None):
@@ -1482,6 +1500,15 @@ class CampaignOperation:
                 battle=battle,
                 reversal_of=reversal,
             )
+        from n26.core.toolkit import alert_event
+
+        alert_event(
+            self.campaign,
+            "asset_owner_changed",
+            identity=f"{campaign_asset.pk}:{campaign_asset.ownership_revision}",
+            text=f"{campaign_asset} became unclaimed from {holder.gang.name}.",
+            actor=self.actor,
+        )
         return campaign_asset
 
     def transfer(
@@ -1556,6 +1583,15 @@ class CampaignOperation:
                 battle=battle,
                 reversal_of=undone.get((membership.gang_id, LedgerEvent.Kind.LOST)),
             )
+        from n26.core.toolkit import alert_event
+
+        alert_event(
+            self.campaign,
+            "asset_owner_changed",
+            identity=f"{campaign_asset.pk}:{campaign_asset.ownership_revision}",
+            text=f"{campaign_asset} moved from {loser.gang.name} to {membership.gang.name}.",
+            actor=self.actor,
+        )
         return campaign_asset
 
     # Campaign additions write only this campaign's pack and additions type;

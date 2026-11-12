@@ -58,6 +58,8 @@ from n26.core.models.toolkit import (
     Intervention,
     InterventionReceipt,
     ToolkitAlert,
+    ToolkitAlertEvent,
+    ToolkitAlertSettings,
     ToolkitCommand,
     ToolkitDelivery,
 )
@@ -68,6 +70,8 @@ __all__ = [
     "InterventionReceipt",
     "CampaignTag",
     "ToolkitAlert",
+    "ToolkitAlertSettings",
+    "ToolkitAlertEvent",
     "ToolkitDelivery",
     "SETTING_GROUPS",
     "Activity",

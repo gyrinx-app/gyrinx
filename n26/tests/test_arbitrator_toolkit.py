@@ -205,7 +205,7 @@ def test_player_targets_cannot_receive_roster_or_credit_rewards(demo):
     assert Intervention.objects.count() == 0
 
 
-def test_notifications_include_campaign_link_and_announce_offer_and_choices(
+def test_notifications_announce_offer_but_keep_selections_with_the_recipient(
     demo, django_capture_on_commit_callbacks
 ):
     campaign, arb, players, gangs = demo
@@ -235,7 +235,7 @@ def test_notifications_include_campaign_link_and_announce_offer_and_choices(
             "choose",
             {"receipt": str(receipt.pk), "selected": [0]},
         )[1]
-    assert Notification.objects.filter(owner=players[1]).count() == before + 1
+    assert Notification.objects.filter(owner=players[1]).count() == before
     for n in Notification.objects.all():
         assert campaign.name in n.subject
         assert toolkit.campaign_href(campaign) in n.content
@@ -244,7 +244,7 @@ def test_notifications_include_campaign_link_and_announce_offer_and_choices(
     from n26.notifications import retry_toolkit_notifications
 
     retry_toolkit_notifications.func()
-    assert Notification.objects.count() == 7
+    assert Notification.objects.count() == 5
 
 
 def test_communications_consolidate_duplicate_gang_owners(
@@ -427,3 +427,287 @@ def test_invalid_child_identifiers_return_not_found(client, demo):
         reverse("n26-toolkit-intervention", args=[campaign.pk, "invalid"]),
     ]:
         assert client.get(path).status_code == 404
+
+
+@pytest.mark.parametrize("method", ["remove", "refund"])
+def test_fighter_departures_trigger_alerts_once(demo, make_profile, method):
+    from n26.core.models.toolkit import ToolkitAlertEvent
+    from n26.core.operations import operation
+
+    campaign, arb, players, gangs = demo
+    command(campaign, arb, "alerts", {"events": ["fighter_deleted"]})
+    profile = make_profile("Lookout", price=50)
+    with operation(gangs[0], actor=players[0]) as op:
+        fighter = op.hire(profile, "Scout")
+    with operation(gangs[0], actor=players[0]) as op:
+        getattr(op, method)(fighter.membership)
+    with operation(gangs[0], actor=players[0]) as op:
+        getattr(op, method)(fighter.membership)
+    assert ToolkitAlertEvent.objects.filter(event="fighter_deleted").count() == 1
+    assert "Scout" in ToolkitAlertEvent.objects.get().text
+    assert check_gang(gangs[0]) == []
+
+
+def test_battle_creation_and_player_gang_removal_are_alertable(demo):
+    from n26.core.models.toolkit import ToolkitAlertEvent
+
+    campaign, arb, players, gangs = demo
+    command(campaign, arb, "alerts", {"events": ["battle_created", "gang_removed"]})
+    with campaign_operation(campaign, actor=players[0]) as act:
+        act.record_battle(date.today(), gangs, scenario="Supply road")
+    membership = campaign.memberships.get(gang=gangs[0], left__isnull=True)
+    with campaign_operation(campaign, actor=players[0]) as act:
+        act.remove_gang(membership)
+    assert set(ToolkitAlertEvent.objects.values_list("event", flat=True)) == {
+        "battle_created",
+        "gang_removed",
+    }
+
+
+def test_offer_selection_can_alert_the_arbitrator_without_a_public_broadcast(
+    demo, django_capture_on_commit_callbacks
+):
+    campaign, arb, players, gangs = demo
+    command(campaign, arb, "alerts", {"events": ["offer_selected"]})
+    with django_capture_on_commit_callbacks(execute=True):
+        command(
+            campaign,
+            arb,
+            "intervention",
+            offer(gangs[:1], mode="choice", inform_all=True),
+        )
+    receipt = InterventionReceipt.objects.get()
+    before = Notification.objects.filter(owner=players[1]).count()
+    with django_capture_on_commit_callbacks(execute=True):
+        command(
+            campaign,
+            players[0],
+            "choose",
+            {"receipt": str(receipt.pk), "selected": [0]},
+        )
+    assert Notification.objects.filter(owner=players[1]).count() == before
+    assert (
+        Notification.objects.filter(
+            owner=arb, subject__contains="selects an intervention"
+        ).count()
+        == 1
+    )
+
+
+def test_asset_assign_transfer_and_release_capture_one_event_per_change(demo):
+    from n26.core.models.toolkit import ToolkitAlertEvent
+    from n26.library.authoring import add_asset_type, create_asset
+
+    campaign, arb, players, gangs = demo
+    command(campaign, arb, "alerts", {"events": ["asset_owner_changed"]})
+    kind = add_asset_type(campaign.additions, "Workshop", "pooled")
+    asset = create_asset("Repair shed", kind, pack=campaign.pack)
+    memberships = list(campaign.memberships.select_related("gang").order_by("gang_id"))
+    with campaign_operation(campaign, actor=arb) as act:
+        held = act.add_asset(asset)
+        act.assign(held, memberships[0])
+        act.transfer(held, memberships[1])
+        act.unassign(held)
+        act.unassign(held)
+    assert ToolkitAlertEvent.objects.filter(event="asset_owner_changed").count() == 3
+
+
+def test_tags_have_a_separate_workflow_and_do_not_appear_as_interventions(client, demo):
+    campaign, arb, players, gangs = demo
+    client.force_login(arb)
+    payload = offer(
+        gangs[:1],
+        rewards=[
+            {
+                "kind": "tag",
+                "name": "Most Wanted",
+                "icon": "crosshair",
+                "info": "Bounty issued.",
+            }
+        ],
+    )
+    form, url = command(campaign, arb, "tags", payload)
+    assert url.endswith("?tab=tags"), form.errors
+    assert Intervention.objects.get().purpose == "tags"
+    response = client.get(reverse("n26-toolkit", args=[campaign.pk]))
+    assert response.context["toolkit_props"]["interventions"] == []
+    assert response.context["toolkit_props"]["tags"][0]["name"] == "Most Wanted"
+
+
+def test_inbox_attribution_uses_the_current_sender_name_and_badge(
+    client, demo, django_capture_on_commit_callbacks
+):
+    campaign, arb, players, gangs = demo
+    from gyrinx.accounts.models import UserProfile
+
+    arb.is_staff = True
+    arb.save(update_fields=["is_staff"])
+    UserProfile.objects.get_or_create(user=arb)
+    with django_capture_on_commit_callbacks(execute=True):
+        command(
+            campaign,
+            arb,
+            "communication",
+            offer(gangs[:1], title="Update", body="A message."),
+        )
+    notification = Notification.objects.get(owner=players[0])
+    notification.content = (
+        "<p>Legacy attribution</p><p>Choose exactly 1 rewards from the offer.</p>"
+    )
+    notification.save(update_fields=["content"])
+    client.force_login(players[0])
+    response = client.get(reverse("core:notifications"), HTTP_ACCEPT="application/json")
+    assert response.status_code == 200
+    assert "1 rewards" not in json.dumps(response.json())
+    assert "1 reward from" in json.dumps(response.json())
+    context = response.json()["rows"][0]["context"]
+    assert context["sender"]["name"] == arb.username
+    assert context["sender"]["badge"]["svg"]
+    assert context["campaignHref"] == toolkit.campaign_href(campaign)
+
+
+def test_report_only_alerts_capture_actions_without_immediate_notifications(
+    demo, django_capture_on_commit_callbacks
+):
+    from n26.core.models.toolkit import ToolkitAlertEvent, ToolkitAlertSettings
+    from n26.core.toolkit_alerts import deliver_due_reports
+
+    campaign, arb, players, gangs = demo
+    form, url = command(
+        campaign,
+        arb,
+        "alerts",
+        {
+            "events": ["battle_created"],
+            "immediate": False,
+            "report_enabled": True,
+            "report_days": 2,
+        },
+    )
+    assert url, form.errors
+    settings = ToolkitAlertSettings.objects.get()
+    with django_capture_on_commit_callbacks(execute=True):
+        with campaign_operation(campaign, actor=arb) as act:
+            act.record_battle(date.today(), gangs, scenario="Two-day patrol")
+    assert Notification.objects.count() == 0
+    assert ToolkitAlertEvent.objects.count() == 1
+    with django_capture_on_commit_callbacks(execute=True):
+        assert deliver_due_reports(now=settings.next_report_at) == 1
+        assert deliver_due_reports(now=settings.next_report_at) == 0
+    report = Notification.objects.get()
+    assert "Two-day patrol" in report.content
+    assert "No alerted actions" not in report.content
+    assert "Campaign wrap-up" in report.subject
+
+
+def test_quiet_reports_arrive_for_every_due_window_and_never_duplicate(
+    demo, django_capture_on_commit_callbacks
+):
+    from datetime import timedelta
+
+    from n26.core.models.toolkit import ToolkitAlertSettings
+    from n26.core.toolkit_alerts import deliver_due_reports
+
+    campaign, arb, players, gangs = demo
+    command(
+        campaign,
+        arb,
+        "alerts",
+        {
+            "events": ["battle_created"],
+            "immediate": False,
+            "report_enabled": True,
+            "report_days": 1,
+        },
+    )
+    settings = ToolkitAlertSettings.objects.get()
+    assert deliver_due_reports(now=settings.next_report_at - timedelta(seconds=1)) == 0
+    with django_capture_on_commit_callbacks(execute=True):
+        assert deliver_due_reports(now=settings.next_report_at + timedelta(days=1)) == 2
+        assert deliver_due_reports(now=settings.next_report_at + timedelta(days=1)) == 0
+    reports = list(Notification.objects.filter(owner=arb))
+    assert len(reports) == 2
+    assert all(
+        "No alerted actions took place from " in r.content and " to " in r.content
+        for r in reports
+    )
+    settings.refresh_from_db()
+    assert settings.window_start == settings.next_report_at - timedelta(days=1)
+
+
+def test_immediate_and_reports_can_both_be_enabled_and_changed_without_losing_the_window(
+    demo, django_capture_on_commit_callbacks
+):
+    from n26.core.models.toolkit import ToolkitAlertSettings
+    from n26.core.toolkit_alerts import deliver_due_reports
+
+    campaign, arb, players, gangs = demo
+    values = {
+        "events": ["battle_created"],
+        "immediate": True,
+        "report_enabled": True,
+        "report_days": 3,
+    }
+    command(campaign, arb, "alerts", values)
+    settings = ToolkitAlertSettings.objects.get()
+    start = settings.window_start
+    with django_capture_on_commit_callbacks(execute=True):
+        with campaign_operation(campaign, actor=arb) as act:
+            act.record_battle(date.today(), gangs, scenario="Patrol")
+    assert Notification.objects.count() == 1
+    command(campaign, arb, "alerts", {**values, "immediate": False, "report_days": 2})
+    settings.refresh_from_db()
+    assert settings.window_start == start
+    with django_capture_on_commit_callbacks(execute=True):
+        assert deliver_due_reports(now=settings.next_report_at) == 1
+    assert Notification.objects.count() == 2
+    command(campaign, arb, "alerts", {**values, "report_enabled": False})
+    assert ToolkitAlertSettings.objects.get().next_report_at is None
+
+
+@pytest.mark.parametrize("days", [0, -1, 366, 1.5, True])
+def test_report_intervals_are_validated_on_the_server(demo, days):
+    campaign, arb, players, gangs = demo
+    form, url = command(
+        campaign,
+        arb,
+        "alerts",
+        {"events": [], "immediate": False, "report_enabled": True, "report_days": days},
+    )
+    assert url is None
+    assert form.errors
+
+
+def test_toolkit_inbox_queries_do_not_grow_with_deliveries(
+    client, demo, django_capture_on_commit_callbacks
+):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    from gyrinx.accounts.models import UserProfile
+
+    campaign, arb, players, gangs = demo
+    UserProfile.objects.get_or_create(user=arb)
+    client.force_login(players[0])
+
+    def send(title):
+        with django_capture_on_commit_callbacks(execute=True):
+            command(campaign, arb, "communication", offer(gangs[:1], title=title))
+
+    def measure():
+        client.get(reverse("core:notifications"), HTTP_ACCEPT="application/json")
+        with CaptureQueriesContext(connection) as queries:
+            response = client.get(
+                reverse("core:notifications"), HTTP_ACCEPT="application/json"
+            )
+            assert all(
+                row["context"]["sender"]["name"] == arb.username
+                for row in response.json()["rows"]
+            )
+        return len(queries)
+
+    send("First")
+    small = measure()
+    for i in range(4):
+        send(f"Message {i}")
+    assert measure() <= small
