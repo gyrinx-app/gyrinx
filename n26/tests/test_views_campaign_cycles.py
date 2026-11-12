@@ -1487,3 +1487,114 @@ def test_unversioned_partial_date_receipt_can_be_confirmed(
     response = post(client, campaign, "cycle", data, **query)
     assert response.status_code == 422
     assert campaign.cycle_commands.count() == count
+
+
+class TestDeletionWorkflow:
+    @pytest.mark.parametrize("native", [False, True])
+    @pytest.mark.parametrize("action", ["delete-cycle", "delete-phase"])
+    def test_confirmations_share_current_choice_scope_and_retry(
+        self, client, campaign, configured, native, action
+    ):
+        query = (
+            {"cycle": configured.current.id}
+            if action == "delete-cycle"
+            else {"phase": configured.current_phase.id}
+        )
+        editor = props(client.get(editor_url(campaign, action, **query)))["editor"]
+        assert editor["context"]["replacesCurrent"]
+        choices = [
+            json.loads(choice["value"])
+            for choice in editor["context"]["currentChoices"]
+        ]
+        assert {"cycle_id": configured.current.id} not in choices
+        if action == "delete-phase":
+            assert all(choice.get("index") not in (1, 2) for choice in choices)
+        data = {**editor["values"], "current_choice": "none"}
+        response = post(client, campaign, action, data, native=native, **query)
+        assert response.status_code == (302 if native else 200)
+        assert post(
+            client, campaign, action, data, native=native, **query
+        ).status_code == (302 if native else 200)
+        assert cycles.load(campaign).current is None
+        assert props(client.get(editor_url(campaign, action, **query)))["editor"][
+            "context"
+        ]["unavailable"]
+
+    def test_deleted_cycles_are_hidden_without_renumbering_and_counts_stay_bounded(
+        self, campaign, configured
+    ):
+        cycles.replace_plan(
+            campaign,
+            actor=campaign.owner,
+            mode="repeating",
+            steps=configured.plan.steps,
+            expected_revision=configured.revision,
+            request_key=uuid4(),
+        )
+        state = cycles.load(campaign)
+        target = s.project(state, limit=60)[-1]
+        cycles.edit_cycle(
+            campaign,
+            actor=campaign.owner,
+            target=target.ref,
+            details=s.CycleDetails(target.phase_id),
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        state = cycles.load(campaign)
+        cycles.delete_phase(
+            campaign,
+            actor=campaign.owner,
+            phase_id=state.phases[1].id,
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        reader = campaign.owner
+        with CaptureQueriesContext(connection) as first_queries:
+            first = build(campaign, reader)
+        with CaptureQueriesContext(connection) as last_queries:
+            last = build(campaign, reader, page=2)
+        assert len(first_queries) == len(last_queries)
+        assert first.rows[3].order == 5
+        assert all(
+            row.phaseId != state.phases[1].id for row in (*first.rows, *last.rows)
+        )
+        assert (
+            sum(phase["count"] for phase in first.phases)
+            == CampaignCycle.objects.filter(campaign=campaign, archived=False).count()
+        )
+        assert len([row for row in first.rows if row.state != "Projected"]) == 50
+        assert first.nextHref
+
+    def test_last_phase_can_be_removed_and_rebuilt(self, client, campaign, configured):
+        for phase in configured.phases:
+            state = cycles.load(campaign)
+            cycles.delete_phase(
+                campaign,
+                actor=campaign.owner,
+                phase_id=phase.id,
+                no_current=state.current_phase is not None
+                and state.current_phase.id == phase.id,
+                expected_revision=state.revision,
+                request_key=uuid4(),
+            )
+        display = props(client.get(schedule_url(campaign)))
+        assert not display["phases"] and not display["rows"]
+        assert "transition" not in display["actions"]
+        assert display["actions"]["addPhase"]
+        editor = props(client.get(display["actions"]["addPhase"]))["editor"]
+        response = post(
+            client, campaign, "add-phase", {**editor["values"], "name": "Fresh phase"}
+        )
+        assert response.status_code == 200
+        state = cycles.load(campaign)
+        phase = next(p for p in state.phases if not p.archived)
+        cycles.replace_plan(
+            campaign,
+            actor=campaign.owner,
+            steps=(s.PlanStep("fresh", phase.id, 1),),
+            mode="fixed",
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        assert build(campaign, campaign.owner).actions["transition"]

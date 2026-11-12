@@ -202,6 +202,15 @@ class TestActionCycles:
                 request_key=uuid4(),
             )
         assert cycles.load(table.campaign).current_phase.details.name == "Takeover"
+        current = cycles.load(table.campaign)
+        cycles.delete_phase(
+            table.campaign,
+            actor=table.owner,
+            phase_id=table.state.current_phase.id,
+            expected_revision=current.revision,
+            request_key=uuid4(),
+        )
+        assert table.context.resolve().archived
         with operation(table.gang, actor=table.owner) as op:
             op.leave_campaign()
         other = found_campaign("Another campaign", campaign_type, owner=table.owner)
@@ -667,3 +676,60 @@ def test_enabling_the_flag_after_a_lost_creation_response_replays_the_original_u
     assert client.post(fresh["commandHref"], data).status_code == 200
     assert Battle.objects.count() == BattleCommand.objects.count() == 1
     assert Battle.objects.get().cycle_id is None
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_schedule_deletion_invalidates_an_open_battle_edit(client, table, native):
+    from django.urls import reverse
+
+    battle = record_battle(table)
+    client.force_login(table.owner)
+    page = client.get(
+        reverse("n26-campaign-edit-battle", args=[table.campaign.pk, battle.pk])
+    )
+    editor = page.context["battle_editor"]
+    state = cycles.load(table.campaign)
+    cycles.delete_cycle(
+        table.campaign,
+        actor=table.owner,
+        target=s.SavedCycleRef(state.current_cycle_id),
+        no_current=True,
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    response = client.post(
+        editor["action"] if native else editor["commandHref"], editor["values"]
+    )
+    assert response.status_code == (200 if native else 409)
+    battle.refresh_from_db()
+    assert battle.cycle_id is None
+
+
+def test_deleted_cycles_are_absent_from_choices_and_live_neighbours_cross_gaps(table):
+    from n26.core.cycle_selection import options
+
+    selected = s.project(table.state)[3]
+    record_battle(table, cycle=selected.ref)
+    state = cycles.load(table.campaign)
+    for cycle in state.cycles[1:4]:
+        state = cycles.load(table.campaign)
+        cycles.delete_cycle(
+            table.campaign,
+            actor=table.owner,
+            target=s.SavedCycleRef(cycle.id),
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+    visible = options(table.campaign)
+    assert [c["order"] for c in visible["choices"] if "cycle_id" in c["value"]] == [
+        1,
+        5,
+    ]
+    assert visible["adjacent"] == {"anchor": 1, "previous": None, "next": 5}
+    state = cycles.load(table.campaign)
+    assert (
+        options(table.campaign, selected=ref_data(selected.ref))["adjacent"]["previous"]
+        == 1
+    )
+    with pytest.raises(Refusal):
+        record_battle(table, cycle=s.SavedCycleRef(state.cycles[1].id))

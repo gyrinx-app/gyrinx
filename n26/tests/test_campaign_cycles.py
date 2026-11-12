@@ -792,7 +792,7 @@ class TestRetainedDelivery:
 
 
 class TestCrossCampaignValidation:
-    def test_a_phase_kept_only_by_transition_history_cannot_be_deleted(
+    def test_a_phase_kept_only_by_transition_history_is_archived(
         self, campaign, owner, configured
     ):
         cycles.duplicate_phase(
@@ -825,15 +825,27 @@ class TestCrossCampaignValidation:
             request_key=uuid4(),
         )
         after = cycles.load(campaign)
-        with pytest.raises(Refusal, match="recorded in a cycle transition"):
-            cycles.delete_phase(
-                campaign,
-                actor=owner,
-                phase_id=phase_id,
-                expected_revision=after.revision,
-                request_key=uuid4(),
+        transitions = list(
+            CampaignCycleTransition.objects.values_list(
+                "pk", "current_phase_id", "previous_phase_id"
             )
-        assert CampaignPhase.objects.filter(pk=phase_id).exists()
+        )
+        cycles.delete_phase(
+            campaign,
+            actor=owner,
+            phase_id=phase_id,
+            expected_revision=after.revision,
+            request_key=uuid4(),
+        )
+        assert CampaignPhase.objects.get(pk=phase_id).archived
+        assert (
+            list(
+                CampaignCycleTransition.objects.values_list(
+                    "pk", "current_phase_id", "previous_phase_id"
+                )
+            )
+            == transitions
+        )
 
     def test_a_cycle_cannot_take_a_foreign_phase(
         self, campaign, owner, configured, campaign_type
@@ -982,3 +994,113 @@ def test_concurrent_workers_create_one_inbox_notification(
     assert sum(results) == 1
     assert delivery.notification_id
     assert Notification.objects.count() == baseline + 1
+
+
+class TestScheduleDeletion:
+    def test_deletion_unassigns_battles_and_preserves_results_history_and_exact_retry(
+        self, campaign, owner, configured
+    ):
+        from n26.core.cycle_context import CycleContext, lock_campaign
+        from n26.core.cycle_selection import options
+        from n26.core.models import Battle
+
+        before = start_campaign(campaign, owner)
+        selected = before.current
+        with campaign_operation(campaign, actor=owner) as act:
+            battle = act.record_battle(date=date(2026, 11, 4), scenario="Deletion QA")
+            battle.result = Battle.Result.DRAW
+            battle.save(update_fields=["result"])
+        battle.refresh_from_db()
+        revision = battle.revision
+        transitions = list(
+            CampaignCycleTransition.objects.values_list("pk", "current_cycle_id")
+        )
+        inputs = dict(
+            actor=owner,
+            target=s.SavedCycleRef(selected.id),
+            no_current=True,
+            expected_revision=before.revision,
+            request_key=uuid4(),
+        )
+        first = cycles.delete_cycle(campaign, **inputs)
+        assert cycles.delete_cycle(campaign, **inputs).replayed
+        battle.refresh_from_db()
+        assert battle.cycle_id is None
+        assert battle.result == Battle.Result.DRAW
+        assert battle.revision == revision + 1
+        assert CampaignCycle.objects.get(pk=selected.id).archived
+        assert cycles.load(campaign).current is None
+        assert (
+            list(CampaignCycleTransition.objects.values_list("pk", "current_cycle_id"))
+            == transitions
+        )
+        assert not any(
+            c["value"] == {"cycle_id": selected.id}
+            for c in options(campaign)["choices"]
+        )
+        context = CycleContext(str(campaign.pk), selected.id)
+        assert str(context.resolve().pk) == selected.id
+        with pytest.raises(Refusal, match="deleted"):
+            with transaction.atomic():
+                lock_campaign(context, owner)
+        with pytest.raises(cycles.CycleKeyConflict):
+            cycles.delete_cycle(campaign, **{**inputs, "no_current": False})
+        assert first.transition_id is None
+
+    def test_global_phase_deletion_archives_saved_occurrences_and_filters_future_without_deliveries(
+        self, campaign, owner, configured
+    ):
+        state = start_campaign(campaign, owner)
+        target = s.project(state)[-1]
+        cycles.edit_cycle(
+            campaign,
+            actor=owner,
+            target=target.ref,
+            details=s.CycleDetails(target.phase_id),
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        state = cycles.load(campaign)
+        before = (
+            CampaignCycleTransition.objects.count(),
+            CampaignCycleDelivery.objects.count(),
+            LedgerEvent.objects.count(),
+        )
+        cycles.delete_phase(
+            campaign,
+            actor=owner,
+            phase_id=state.current_phase.id,
+            replacement=s.SavedCycleRef(state.cycles[3].id),
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        after = cycles.load(campaign)
+        assert [c.order for c in after.cycles if c.archived] == [1, 2, 3]
+        assert after.current.order == 4
+        assert after.cycles[3:] == state.cycles[3:]
+        assert (
+            CampaignCycleTransition.objects.count(),
+            CampaignCycleDelivery.objects.count(),
+            LedgerEvent.objects.count(),
+        ) == before
+
+    def test_stale_and_unauthorised_deletions_write_nothing(
+        self, campaign, owner, configured
+    ):
+        other = User.objects.create_user("deletion-intruder")
+        inputs = dict(
+            target=s.SavedCycleRef(configured.current_cycle_id),
+            no_current=True,
+            expected_revision=configured.revision,
+            request_key=uuid4(),
+        )
+        with pytest.raises(Refusal):
+            cycles.delete_cycle(campaign, actor=other, **inputs)
+        with pytest.raises(cycles.CycleConflict):
+            cycles.delete_cycle(
+                campaign,
+                actor=owner,
+                **{**inputs, "expected_revision": configured.revision + 1},
+            )
+        assert not CampaignCycle.objects.filter(archived=True).exists()
+        assert cycles.load(campaign) == configured

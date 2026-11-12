@@ -46,6 +46,7 @@ export type Cycle = {
     href: string;
     startedAt: string;
     endedAt: string;
+    deleteHref?: string;
 };
 export type Editor = {
     kind: string;

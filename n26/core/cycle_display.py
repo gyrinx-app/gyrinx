@@ -6,7 +6,7 @@ from urllib.parse import urlencode
 
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Exists, Max, OuterRef, Q, Subquery
+from django.db.models import Count, Max, OuterRef, Q, Subquery
 from django.urls import reverse
 
 from n26.core import schedule as s
@@ -14,9 +14,7 @@ from n26.core.cycle_data import calendar_from_data, steps_from_data
 from n26.core.models import (
     Campaign,
     CampaignCycle,
-    CampaignCycleTransition,
     CampaignPhase,
-    CampaignPlan,
     CampaignSchedule,
 )
 
@@ -83,7 +81,7 @@ def dashboard_summary(campaign, user):
     if not flags.enabled(flags.CYCLE_TRACKING, user):
         return None
     different_phase = CampaignCycle.objects.filter(
-        campaign_id=OuterRef("campaign_id")
+        campaign_id=OuterRef("campaign_id"), archived=False
     ).exclude(phase_id=OuterRef("current_cycle__phase_id"))
     before = different_phase.filter(
         order__lt=OuterRef("current_cycle__order")
@@ -116,7 +114,9 @@ def dashboard_summary(campaign, user):
         revision.starts_after_order,
         revision.start_position,
     )
-    saved_count = plan.order_for(header.next_position) - 1
+    saved_count = CampaignCycle.objects.filter(
+        campaign=campaign, archived=False
+    ).count()
     projected = s.project(s.PlanContinuation(plan, header.next_position), limit=1)
     current = header.current_cycle
     complete = campaign.status == Campaign.Status.POST_CAMPAIGN
@@ -141,7 +141,9 @@ def dashboard_summary(campaign, user):
                 else "Start first cycle",
             )
         elif current:
-            following = current.order < saved_count or bool(projected)
+            following = CampaignCycle.objects.filter(
+                campaign=campaign, archived=False, order__gt=current.order
+            ).exists() or bool(projected)
             summary.update(
                 action_href=editor_url(campaign, "advance" if following else "finish"),
                 action_label="End cycle" if following else "Finish campaign",
@@ -173,6 +175,23 @@ def dashboard_summary(campaign, user):
             starts_on=current.starts_on,
             ends_on=current.ends_on,
         )
+    if current:
+        removed = CampaignCycle.objects.filter(campaign=campaign, archived=True)
+        summary["phase_position"] -= removed.filter(
+            order__gt=previous, order__lte=current.order
+        ).count()
+        if summary["phase_count"] is not None:
+            summary["phase_count"] -= removed.filter(
+                order__gt=previous, order__lt=boundary
+            ).count()
+        if summary["cycles_until_phase"] is not None:
+            summary["cycles_until_phase"] -= removed.filter(
+                order__gt=current.order, order__lt=boundary
+            ).count()
+    if summary["cycle_limit"] is not None:
+        summary["cycle_limit"] -= CampaignCycle.objects.filter(
+            campaign=campaign, archived=True
+        ).count()
     return DashboardCycles(**summary)
 
 
@@ -192,6 +211,7 @@ class CycleLine:
     href: str
     startedAt: str = ""
     endedAt: str = ""
+    deleteHref: str = ""
 
 
 @dataclass(frozen=True)
@@ -255,23 +275,13 @@ def _build_locked(campaign, user, *, page, preview, focus):
     current = header.current_cycle
     current_order = current.order if current else 0
     phases = list(
-        CampaignPhase.objects.filter(campaign=campaign)
-        .annotate(
-            saved_count=Count("cycles"),
-            used_in_history=Exists(
-                CampaignCycleTransition.objects.filter(campaign=campaign).filter(
-                    Q(previous_phase_id=OuterRef("pk"))
-                    | Q(current_phase_id=OuterRef("pk"))
-                )
-            ),
-        )
+        CampaignPhase.objects.filter(campaign=campaign, archived=False)
+        .annotate(saved_count=Count("cycles", filter=Q(cycles__archived=False)))
         .order_by("created", "id")
     )
     phase_names = {str(phase.pk): phase.name for phase in phases}
-    plans = list(CampaignPlan.objects.filter(campaign=campaign).only("steps"))
-    used = {step["phase_id"] for plan in plans for step in plan.steps}
     saved = Paginator(
-        CampaignCycle.objects.filter(campaign=campaign)
+        CampaignCycle.objects.filter(campaign=campaign, archived=False)
         .annotate(
             actual_start=Max(
                 "starting_transitions__occurred_at",
@@ -285,7 +295,11 @@ def _build_locked(campaign, user, *, page, preview, focus):
         .order_by("order"),
         SAVED_PAGE_SIZE,
     )
-    number = page or ((focus.order if focus else current_order or 1) - 1) // 50 + 1
+    anchor = focus.order if focus else current_order or 1
+    ordinal = CampaignCycle.objects.filter(
+        campaign=campaign, archived=False, order__lte=anchor
+    ).count()
+    number = page or (max(ordinal, 1) - 1) // SAVED_PAGE_SIZE + 1
     selected = saved.get_page(number)
     rows = []
     for cycle in selected:
@@ -313,6 +327,9 @@ def _build_locked(campaign, user, *, page, preview, focus):
                 reverse("n26-campaign-cycle", args=[campaign.pk, cycle.pk]),
                 cycle.actual_start.isoformat() if cycle.actual_start else "",
                 cycle.actual_end.isoformat() if cycle.actual_end else "",
+                deleteHref=editor_url(campaign, "delete-cycle", cycle=key)
+                if manage
+                else "",
             )
         )
     plan = s.Plan(
@@ -351,6 +368,14 @@ def _build_locked(campaign, user, *, page, preview, focus):
                     if manage
                     else "",
                     "",
+                    deleteHref=editor_url(
+                        campaign,
+                        "delete-cycle",
+                        plan=plan.id,
+                        position=cycle.source.position.index,
+                    )
+                    if manage
+                    else "",
                 )
             )
     phase_display = tuple(
@@ -371,30 +396,35 @@ def _build_locked(campaign, user, *, page, preview, focus):
             else "",
             "deleteHref": editor_url(campaign, "delete-phase", phase=str(phase.pk))
             if manage
-            and not phase.saved_count
-            and not phase.used_in_history
-            and str(phase.pk) not in used
             else "",
         }
         for phase in phases
     )
     actions = {
         "plan": editor_url(campaign, "plan"),
+        "addPhase": editor_url(campaign, "add-phase"),
     }
-    if campaign.status == "pre_campaign":
+    has_cycles = bool(saved.count or projected)
+    if campaign.status == "pre_campaign" and has_cycles:
         actions["transition"] = editor_url(campaign, "start")
         actions["transitionLabel"] = "Start campaign"
-    elif campaign.status == "in_progress" and current is None:
+    elif campaign.status == "in_progress" and current is None and has_cycles:
         actions["transition"] = editor_url(campaign, "start")
         actions["transitionLabel"] = "Start first cycle"
-    elif campaign.status == "in_progress":
-        has_following = current.order < saved.count or bool(projected)
+    elif campaign.status == "in_progress" and current is not None:
+        has_following = CampaignCycle.objects.filter(
+            campaign=campaign, archived=False, order__gt=current.order
+        ).exists() or bool(projected)
         action = "advance" if has_following else "finish"
         actions["transition"] = editor_url(campaign, action)
         actions["transitionLabel"] = (
             "Advance cycle" if has_following else "Finish campaign"
         )
-    continuation = saved.count + (len(projected) if not selected.has_next() else 0)
+    continuation = (
+        plan.order_for(header.next_position)
+        - 1
+        + (len(projected) if not selected.has_next() else 0)
+    )
     following_position = header.next_position + len(projected)
     has_continuation = not selected.has_next() and (
         plan.mode == "repeating" or following_position < plan.length

@@ -226,3 +226,17 @@ test("readers retain the grouped rules without management controls", () => {
             .getAttribute("href"),
     ).toBe("/cycles/?preview=24");
 });
+
+test("saved and projected cycles expose compact deletion actions", () => {
+    const data = props();
+    data.rows = data.rows.map((cycle) => ({
+        ...cycle,
+        deleteHref: `/delete/${cycle.order}/`,
+    }));
+    render(<CampaignSchedule {...data} />);
+    for (const row of data.rows) {
+        const action = screen.getByRole("link", { name: `Delete ${row.name}` });
+        expect(action.getAttribute("href")).toBe(row.deleteHref);
+        expect(action.className).toContain("size-6");
+    }
+});

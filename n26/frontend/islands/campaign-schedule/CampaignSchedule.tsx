@@ -175,19 +175,33 @@ function CycleRow({ cycle }: { cycle: Cycle }) {
             <td className="hidden w-56 align-middle sm:table-cell">
                 <CycleDates cycle={cycle} />
             </td>
-            <td className="w-10 align-middle text-right">
-                {cycle.editHref && (
-                    <ButtonLink
-                        href={cycle.editHref}
-                        variant="ghost"
-                        size="xs"
-                        className="inline-flex! size-6! items-center justify-center p-0! leading-none"
-                        aria-label={`Edit ${cycle.name}`}
-                        title={`Edit ${cycle.name}`}
-                    >
-                        <Icon name="pencil" className="size-3.5" />
-                    </ButtonLink>
-                )}
+            <td className="w-16 align-middle text-right">
+                <div className="flex justify-end gap-1">
+                    {cycle.editHref && (
+                        <ButtonLink
+                            href={cycle.editHref}
+                            variant="ghost"
+                            size="xs"
+                            className="inline-flex! size-6! items-center justify-center p-0! leading-none"
+                            aria-label={`Edit ${cycle.name}`}
+                            title={`Edit ${cycle.name}`}
+                        >
+                            <Icon name="pencil" className="size-3.5" />
+                        </ButtonLink>
+                    )}
+                    {cycle.deleteHref && (
+                        <ButtonLink
+                            href={cycle.deleteHref}
+                            variant="ghost"
+                            size="xs"
+                            className="inline-flex! size-6! items-center justify-center p-0! leading-none text-danger"
+                            aria-label={`Delete ${cycle.name}`}
+                            title={`Delete ${cycle.name}`}
+                        >
+                            <Icon name="trash-2" className="size-3.5" />
+                        </ButtonLink>
+                    )}
+                </div>
             </td>
         </tr>
     );
@@ -425,6 +439,15 @@ function ScheduleContent(
                     </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                    {props.actions.addPhase && (
+                        <ButtonLink
+                            href={props.actions.addPhase}
+                            variant="ghost"
+                            size="sm"
+                        >
+                            <Icon name="plus" /> Add phase
+                        </ButtonLink>
+                    )}
                     {props.actions.plan && (
                         <ButtonLink href={props.actions.plan} size="sm">
                             Schedule settings
@@ -465,6 +488,12 @@ function ScheduleContent(
                     <h2 id="cycle-list-heading" className="sr-only">
                         Schedule
                     </h2>
+                    {!props.phases.length && (
+                        <p className="text-sm text-muted">
+                            No phases in this schedule. Add a phase, then choose
+                            its cycles in Schedule settings.
+                        </p>
+                    )}
                     <div className="space-y-4">
                         {groups.map((group) => (
                             <PhaseGroup

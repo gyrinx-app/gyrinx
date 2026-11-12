@@ -31,6 +31,7 @@ from n26.core.cycle_data import (
 )
 from n26.core.fields import to_ulid
 from n26.core.models import (
+    Battle,
     Campaign,
     CampaignCycle,
     CampaignCycleCommand,
@@ -117,6 +118,7 @@ def _load_locked(campaign):
             s.PhaseDetails(
                 p.name, p.description, p.effects, rewards_from_data(p.rewards)
             ),
+            archived=p.archived,
         )
         for p in CampaignPhase.objects.filter(campaign=campaign).order_by(
             "created", "id"
@@ -147,6 +149,7 @@ def _load_locked(campaign):
                 c.repetition,
                 c.step_position,
             ),
+            archived=c.archived,
         )
         for c in CampaignCycle.objects.filter(campaign=campaign).order_by("order")
     )
@@ -171,6 +174,8 @@ def _phase_record(campaign, phase):
         description=phase.details.description,
         effects=phase.details.effects,
         rewards=asdict(phase.details.rewards),
+        archived=phase.archived,
+        archived_at=timezone.now() if phase.archived else None,
     )
 
 
@@ -190,6 +195,8 @@ def _cycle_record(campaign, cycle):
         source_step=cycle.source.step_id,
         repetition=cycle.source.repetition,
         step_position=cycle.source.offset,
+        archived=cycle.archived,
+        archived_at=timezone.now() if cycle.archived else None,
     )
 
 
@@ -210,11 +217,17 @@ def _persist(act, before, change, *, command=None, transition_id=None):
         for phase in changed_phases:
             phase.modified = timezone.now()
         CampaignPhase.objects.bulk_update(
-            changed_phases, ["name", "description", "effects", "rewards", "modified"]
+            changed_phases,
+            [
+                "name",
+                "description",
+                "effects",
+                "rewards",
+                "archived",
+                "archived_at",
+                "modified",
+            ],
         )
-    removed_phases = old_phases.keys() - new_phases.keys()
-    if removed_phases:
-        CampaignPhase.objects.filter(campaign=campaign, pk__in=removed_phases).delete()
     if before is None or before.plan.id != after.plan.id:
         CampaignPlan.objects.create(
             id=after.plan.id,
@@ -240,8 +253,15 @@ def _persist(act, before, change, *, command=None, transition_id=None):
                 "ends_on",
                 "description",
                 "effects",
+                "archived",
+                "archived_at",
                 "modified",
             ],
+        )
+    removed = [c.id for c in (*change.created, *change.updated) if c.archived]
+    if removed:
+        Battle.objects.filter(campaign=campaign, cycle_id__in=removed).update(
+            cycle=None, revision=F("revision") + 1, modified=timezone.now()
         )
     header_values = {
         "current_cycle_id": after.current_cycle_id,
@@ -477,6 +497,18 @@ def edit_phase(campaign, *, actor, phase_id, details, expected_revision, request
     )
 
 
+def add_phase(campaign, *, actor, details, expected_revision, request_key):
+    return _command(
+        campaign,
+        actor,
+        kind="add_phase",
+        inputs={"details": asdict(details)},
+        request_key=request_key,
+        expected_revision=expected_revision,
+        apply=lambda act, before: (s.add_phase(before, details, new_id=_new_id), None),
+    )
+
+
 def duplicate_phase(campaign, *, actor, phase_id, name, expected_revision, request_key):
     return _command(
         campaign,
@@ -492,24 +524,75 @@ def duplicate_phase(campaign, *, actor, phase_id, name, expected_revision, reque
     )
 
 
-def delete_phase(campaign, *, actor, phase_id, expected_revision, request_key):
+def _deletion_inputs(replacement, no_current):
+    return {
+        **({"replacement": ref_data(replacement)} if replacement is not None else {}),
+        **({"no_current": True} if no_current else {}),
+    }
+
+
+def delete_cycle(
+    campaign,
+    *,
+    actor,
+    target,
+    expected_revision,
+    request_key,
+    replacement=None,
+    no_current=False,
+):
     def apply(act, before):
-        if (
-            CampaignCycleTransition.objects.filter(campaign=act.campaign)
-            .filter(Q(previous_phase_id=phase_id) | Q(current_phase_id=phase_id))
-            .exists()
-        ):
-            raise Refusal("You cannot delete a phase recorded in a cycle transition.")
-        for plan in CampaignPlan.objects.filter(campaign=act.campaign).only("steps"):
-            if any(step["phase_id"] == str(phase_id) for step in plan.steps):
-                raise Refusal("You cannot delete a phase referenced by a saved plan.")
-        return s.delete_phase(before, str(phase_id)), None
+        _bounded_target(before, target)
+        if replacement is not None:
+            _bounded_target(before, replacement)
+        return s.delete_cycle(
+            before,
+            target,
+            replacement=replacement,
+            no_current=no_current,
+            new_id=_new_id,
+        ), None
+
+    return _command(
+        campaign,
+        actor,
+        kind="delete_cycle",
+        inputs={
+            "target": ref_data(target),
+            **_deletion_inputs(replacement, no_current),
+        },
+        request_key=request_key,
+        expected_revision=expected_revision,
+        apply=apply,
+    )
+
+
+def delete_phase(
+    campaign,
+    *,
+    actor,
+    phase_id,
+    expected_revision,
+    request_key,
+    replacement=None,
+    no_current=False,
+):
+    def apply(act, before):
+        if replacement is not None:
+            _bounded_target(before, replacement)
+        return s.delete_phase(
+            before,
+            str(phase_id),
+            replacement=replacement,
+            no_current=no_current,
+            new_id=_new_id,
+        ), None
 
     return _command(
         campaign,
         actor,
         kind="delete_phase",
-        inputs={"phase": str(phase_id)},
+        inputs={"phase": str(phase_id), **_deletion_inputs(replacement, no_current)},
         request_key=request_key,
         expected_revision=expected_revision,
         apply=apply,

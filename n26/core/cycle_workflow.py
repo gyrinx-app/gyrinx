@@ -1,5 +1,6 @@
 """Validation, editor preparation and commands shared by schedule transports."""
 
+import json
 from dataclasses import asdict, dataclass
 from datetime import timedelta
 from urllib.parse import urlencode
@@ -52,8 +53,10 @@ FIELDS = {
         "shift_later",
     ),
     "phase": ("phase_id", "name", "description", "effects", "rewards"),
+    "add-phase": ("name", "description", "effects", "rewards"),
     "duplicate-phase": ("phase_id", "name"),
-    "delete-phase": ("phase_id",),
+    "delete-phase": ("phase_id", "current_choice"),
+    "delete-cycle": ("target", "current_choice"),
     "plan": ("mode", "steps", *DATE_FIELDS),
     "start": ("expected_current",),
     "advance": ("expected_current",),
@@ -65,8 +68,10 @@ HEADINGS = {
     "setup": "Set up campaign phases & cycles",
     "cycle": "Edit cycle",
     "phase": "Edit phase",
+    "add-phase": "Add phase",
     "duplicate-phase": "Duplicate phase",
     "delete-phase": "Delete phase",
+    "delete-cycle": "Delete cycle",
     "plan": "Schedule settings",
     "start": "Start campaign",
     "advance": "Advance cycle",
@@ -105,6 +110,7 @@ class CycleEditorForm(forms.Form):
     rewards = StructuredJSONField(required=False)
     steps = StructuredJSONField()
     expected_current = forms.CharField(max_length=26, required=False)
+    current_choice = forms.CharField(required=False, max_length=200)
 
     def clean_current_number(self):
         return self.cleaned_data.get("current_number") or 1
@@ -226,7 +232,7 @@ def prepare(campaign, action, query):
         )
         lead = "Choose the current cycle and add planning dates if you need them. You advance each cycle when the campaign is ready."
         context["activates"] = campaign.status == "in_progress"
-    elif action == "cycle":
+    elif action in ("cycle", "delete-cycle"):
         if query.get("fields") not in (None, "dates"):
             raise Http404("No such cycle editor")
         try:
@@ -279,9 +285,20 @@ def prepare(campaign, action, query):
             )
         else:
             lead = f"Editing {selected.name}. Changing dates does not reorder saved cycles."
+        if action == "delete-cycle":
+            victims = [selected.id] if isinstance(selected, s.Cycle) else []
+            _prepare_deletion(campaign, state, initial, context, victims)
+            context["savedCount"] = 1
+            context["projectedPrefix"] = len(preview.creates)
+            lead = f"Delete {selected.name}."
+    elif action == "add-phase":
+        initial.update(asdict(s.PhaseDetails("New phase")))
+        lead = "Add a phase, then choose its cycles in Schedule settings."
     elif action in ("phase", "duplicate-phase", "delete-phase"):
         phase_id = query.get("phase")
-        phase = next((p for p in state.phases if p.id == phase_id), None)
+        phase = next(
+            (p for p in state.phases if p.id == phase_id and not p.archived), None
+        )
         if phase is None:
             raise Http404("No such phase")
         canonical = {"phase": phase.id}
@@ -293,7 +310,21 @@ def prepare(campaign, action, query):
             initial["name"] = f"{phase.details.name} copy"[:200]
             lead = "The copy keeps these settings. Existing cycles remain assigned to their phases."
         else:
-            lead = f"Delete {phase.details.name}. A phase referenced by saved history cannot be deleted."
+            victims = [
+                c.id
+                for c in state.cycles
+                if not c.archived and c.details.phase_id == phase.id
+            ]
+            _prepare_deletion(
+                campaign, state, initial, context, victims, phase_id=phase.id
+            )
+            context["futureCount"] = sum(
+                step.count
+                for step in s.editable_steps(state)
+                if step.phase_id == phase.id
+            )
+            context["repeating"] = state.plan.mode == "repeating"
+            lead = f"Delete {phase.details.name} and all its cycles from the campaign schedule, including every future occurrence."
     elif action == "plan":
         initial.update(
             mode=state.plan.mode,
@@ -345,7 +376,9 @@ def prepare(campaign, action, query):
         elif action == "start":
             if state.status == "in_progress" and state.current is None:
                 heading = "Start first cycle"
-            first = state.current or next(iter(state.cycles), None)
+            first = state.current or next(
+                (c for c in state.cycles if not c.archived), None
+            )
             lead = f"Start {first.name if first else 'Cycle 1'}. This will send notifications to players participating in the campaign."
         else:
             lead = (
@@ -354,6 +387,35 @@ def prepare(campaign, action, query):
                 else "Finish the campaign without starting a cycle."
             )
     return PreparedEditor(action, heading, lead, initial, context, canonical, target)
+
+
+def _prepare_deletion(campaign, state, initial, context, victims, *, phase_id=None):
+    from n26.core.models import Battle
+
+    initial["current_choice"] = ""
+    context["savedCount"] = len(victims)
+    context["battleCount"] = Battle.objects.filter(
+        campaign=campaign, cycle_id__in=victims
+    ).count()
+    context["replacesCurrent"] = state.current_cycle_id in victims
+    choices = []
+    if context["replacesCurrent"]:
+        for cycle in (*state.cycles, *s.project(state, limit=12)):
+            saved = isinstance(cycle, s.Cycle)
+            cycle_phase = cycle.details.phase_id if saved else cycle.phase_id
+            if (
+                saved and (cycle.archived or cycle.id in victims)
+            ) or cycle_phase == phase_id:
+                continue
+            choices.append(
+                {
+                    "value": json.dumps(
+                        ref_data(s.SavedCycleRef(cycle.id) if saved else cycle.ref)
+                    ),
+                    "label": f"{cycle.name} · {s._phase(state, cycle_phase).details.name}",
+                }
+            )
+    context["currentChoices"] = choices
 
 
 def recovery_editor(campaign, action, query):
@@ -402,6 +464,20 @@ def _query_target(query):
         )
     except KeyError, ValueError:
         raise Refusal("Select a cycle from this campaign schedule.") from None
+
+
+def _deletion_choice(values):
+    choice = values.get("current_choice", "")
+    if not choice:
+        return {}
+    if choice == "none":
+        return {"no_current": True}
+    try:
+        return {"replacement": ref_from_data(json.loads(choice))}
+    except ValueError, s.ScheduleError:
+        raise Refusal(
+            "Choose a replacement current cycle or No current cycle."
+        ) from None
 
 
 def perform(campaign, actor, action, data, query):
@@ -455,6 +531,21 @@ def perform(campaign, actor, action, data, query):
                 and not values["starts_on"]
                 and not values["ends_on"],
             )
+        elif action == "add-phase":
+            details = phase_details_from_data(
+                {
+                    name: values[name] or {} if name == "rewards" else values[name]
+                    for name in ("name", "description", "effects", "rewards")
+                }
+            )
+            result = cycles.add_phase(campaign, **common, details=details)
+        elif action == "delete-cycle":
+            target = ref_from_data(values["target"])
+            if target != _query_target(query):
+                raise Refusal("The selected cycle changed. Reload the confirmation.")
+            result = cycles.delete_cycle(
+                campaign, **common, target=target, **_deletion_choice(values)
+            )
         elif action in ("phase", "duplicate-phase", "delete-phase"):
             if values["phase_id"] != query.get("phase"):
                 raise Refusal("The selected phase changed. Reload the editor.")
@@ -476,7 +567,10 @@ def perform(campaign, actor, action, data, query):
                 )
             else:
                 result = cycles.delete_phase(
-                    campaign, **common, phase_id=values["phase_id"]
+                    campaign,
+                    **common,
+                    phase_id=values["phase_id"],
+                    **_deletion_choice(values),
                 )
         elif action in RETIRED_FIELDS:
             inputs = (
@@ -545,7 +639,10 @@ def next_url(campaign, action, submitted):
         order = CampaignCycle.objects.values_list("order", flat=True).get(
             campaign=campaign, pk=submitted.result.cycle_id
         )
-        page = (order - 1) // SAVED_PAGE_SIZE + 1
+        ordinal = CampaignCycle.objects.filter(
+            campaign=campaign, archived=False, order__lte=order
+        ).count()
+        page = (ordinal - 1) // SAVED_PAGE_SIZE + 1
         return (
             schedule_url(campaign) + f"?page={page}#cycle-" + submitted.result.cycle_id
         )

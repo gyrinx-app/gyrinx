@@ -128,3 +128,24 @@ test("a gap in loaded history fetches the adjacent cycle rather than skipping fo
     expect(screen.queryByText("Cycle 7")).toBeNull();
     expect(fetch.mock.calls[0][0]).toContain("selected=");
 });
+
+test("deleted number gaps use the server's live neighbours", async () => {
+    const change = vi.fn();
+    render(
+        <CycleNavigator
+            initial={{
+                ...initial,
+                choices: [choice(2), choice(5)],
+                adjacent: { anchor: 2, previous: null, next: 5 },
+            }}
+            value={JSON.stringify(choice(2).value)}
+            onChange={change}
+            readUrl="/choices/"
+        />,
+    );
+    expect(
+        screen.getByRole("button", { name: "Previous cycle" }),
+    ).toHaveProperty("disabled", true);
+    await userEvent.click(screen.getByRole("button", { name: "Next cycle" }));
+    expect(change).toHaveBeenCalledWith(JSON.stringify(choice(5).value));
+});

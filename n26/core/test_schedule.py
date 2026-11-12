@@ -578,25 +578,29 @@ class TestPhasesAndValidation:
         assert changed.schedule.plan == schedule.plan
         assert changed.transition is None
 
-    def test_phases_used_by_saved_cycles_cannot_be_deleted(self, ids):
-        schedule = configured(ids)
-        with pytest.raises(s.ScheduleError, match="saved cycle"):
-            s.delete_phase(schedule, schedule.current_phase.id)
+    def test_current_phase_deletion_requires_explicit_current_selection(self, ids):
+        state = configured(ids)
+        with pytest.raises(s.ScheduleError, match="replacement current cycle"):
+            s.delete_phase(state, state.current_phase.id)
 
-    def test_phases_used_only_by_the_plan_need_explicit_removal_first(self, ids):
-        schedule = configured(ids)
-        with pytest.raises(s.ScheduleError, match="future plan"):
-            s.delete_phase(schedule, schedule.phases[1].id)
-
-    def test_an_unused_phase_can_be_deleted(self, ids):
-        schedule = configured(ids)
-        copied = s.duplicate_phase(
-            schedule, schedule.current_phase.id, name="Unused", new_id=ids
-        ).schedule
-        assert (
-            s.delete_phase(copied, copied.phases[-1].id).schedule.phases
-            == schedule.phases
+    def test_phase_deletion_removes_all_future_occurrences(self, ids):
+        state = configured(ids, mode="repeating")
+        removed = s.delete_phase(state, state.phases[1].id, new_id=ids)
+        assert all(
+            c.phase_id != state.phases[1].id
+            for c in s.project(removed.schedule, limit=20)
         )
+        assert removed.schedule.current == state.current
+        assert removed.transition is None
+
+    def test_an_unused_phase_is_archived(self, ids):
+        state = configured(ids)
+        copied = s.duplicate_phase(
+            state, state.current_phase.id, name="Unused", new_id=ids
+        ).schedule
+        after = s.delete_phase(copied, copied.phases[-1].id).schedule
+        assert after.phases[:-1] == state.phases
+        assert after.phases[-1].archived
 
     @pytest.mark.parametrize("count", [0, -1, 1.5, True])
     def test_a_step_requires_a_positive_whole_cycle_count(self, count):
@@ -637,3 +641,123 @@ class TestPhasesAndValidation:
                 mode="fixed",
                 new_id=ids,
             )
+
+
+class TestDeletion:
+    def test_projected_cycle_deletion_saves_prefix_and_preserves_pattern(self, ids):
+        state = configured(ids, mode="repeating")
+        target = s.project(state)[4]
+        change = s.delete_cycle(state, target.ref, new_id=ids)
+        assert [c.order for c in change.created] == [2, 3, 4, 5, 6]
+        assert [c.order for c in change.created if c.archived] == [6]
+        assert change.schedule.plan == state.plan
+        assert change.schedule.current == state.current
+        assert s.project(change.schedule)[0].order == 7
+        assert change.transition is None
+        with pytest.raises(s.ScheduleError, match="deleted"):
+            s._ensure_saved(change.schedule, target.ref, new_id=ids)
+
+    @pytest.mark.parametrize("mode", ["fixed", "repeating"])
+    def test_deleting_downtime_preserves_cursor_into_takeover(self, ids, mode):
+        state = configured(ids, current=3, mode=mode)
+        phase_id = state.current_phase.id
+        change = s.delete_phase(state, phase_id, no_current=True, new_id=ids)
+        assert change.schedule.current is None
+        assert change.schedule.cycles[3].archived
+        assert s.project(change.schedule)[0].phase_id == state.phases[2].id
+        assert s.project(change.schedule)[0].order == 5
+        assert change.transition is None
+
+    def test_repeated_occurrences_map_the_old_cursor_into_the_filtered_pattern(
+        self, ids
+    ):
+        template = s.ScheduleTemplate(
+            "Repeated",
+            (
+                s.Phase("a", s.PhaseDetails("A")),
+                s.Phase("b", s.PhaseDetails("B")),
+                s.Phase("c", s.PhaseDetails("C")),
+            ),
+            (
+                s.PlanStep("a1", "a", 2),
+                s.PlanStep("b", "b", 1),
+                s.PlanStep("a2", "a", 3),
+                s.PlanStep("c", "c", 2),
+            ),
+        )
+        state = s.configure(
+            template,
+            campaign_id="campaign",
+            mode="repeating",
+            current_position=4,
+            new_id=ids,
+        ).schedule
+        change = s.delete_phase(state, state.phases[0].id, no_current=True, new_id=ids)
+        assert [c.phase_id for c in s.project(change.schedule, limit=4)] == [
+            state.phases[2].id,
+            state.phases[2].id,
+            state.phases[1].id,
+            state.phases[2].id,
+        ]
+        assert [c.archived for c in change.schedule.cycles] == [
+            True,
+            True,
+            False,
+            True,
+            True,
+        ]
+
+    def test_current_cycle_replacement_does_not_start_or_advance(self, ids):
+        state = configured(ids, current=3)
+        target = s.SavedCycleRef(state.current_cycle_id)
+        with pytest.raises(s.ScheduleError, match="not being deleted"):
+            s.delete_cycle(state, target, replacement=target)
+        replacement = s.project(state)[1]
+        change = s.delete_cycle(state, target, replacement=replacement.ref, new_id=ids)
+        assert change.schedule.current.order == replacement.order
+        assert change.schedule.status == state.status
+        assert change.transition is None
+
+    def test_start_and_advance_skip_archived_saved_cycles(self, ids):
+        state = configured(ids, current=3)
+        state = s.delete_cycle(state, s.SavedCycleRef(state.cycles[1].id)).schedule
+        state = s.delete_cycle(
+            state,
+            s.SavedCycleRef(state.current_cycle_id),
+            replacement=s.SavedCycleRef(state.cycles[0].id),
+        ).schedule
+        assert s.preview_advance(state).following.order == 3
+        state = s.delete_cycle(
+            state, s.SavedCycleRef(state.current_cycle_id), no_current=True
+        ).schedule
+        assert s.start(state, now=NOW).schedule.current.order == 3
+
+    @pytest.mark.parametrize("mode", ["fixed", "repeating"])
+    def test_last_phase_deletion_leaves_rebuildable_empty_fixed_schedule(
+        self, ids, mode
+    ):
+        template = s.ScheduleTemplate(
+            "Only", (s.Phase("a", s.PhaseDetails("A")),), (s.PlanStep("a", "a", 2),)
+        )
+        state = s.configure(
+            template, campaign_id="campaign", mode=mode, current_position=0, new_id=ids
+        ).schedule
+        change = s.delete_phase(
+            state, state.current_phase.id, no_current=True, new_id=ids
+        )
+        assert change.schedule.plan.mode == "fixed"
+        assert not s.project(change.schedule)
+        assert all(c.archived for c in change.schedule.cycles)
+        assert all(p.archived for p in change.schedule.phases)
+        with pytest.raises(s.ScheduleError, match="Add a cycle"):
+            s.start(change.schedule, now=NOW)
+        rebuilt = s.add_phase(
+            change.schedule, s.PhaseDetails("Fresh"), new_id=ids
+        ).schedule
+        rebuilt = s.replace_plan(
+            rebuilt,
+            steps=(s.PlanStep("new", rebuilt.phases[-1].id, 1),),
+            mode="fixed",
+            new_id=ids,
+        ).schedule
+        assert s.start(rebuilt, now=NOW, new_id=ids).schedule.current.order == 2

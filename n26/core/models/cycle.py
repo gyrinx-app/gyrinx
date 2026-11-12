@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.urls import reverse
 
-from n26.core.models.abstract import Base, Owned
+from n26.core.models.abstract import Archived, Base, Owned
 
 
 class CampaignScheduleTemplate(Base, Owned):
@@ -46,7 +46,7 @@ class CampaignScheduleTemplate(Base, Owned):
             raise ValidationError({"definition": str(exc)}) from exc
 
 
-class CampaignPhase(Base):
+class CampaignPhase(Base, Archived):
     campaign = models.ForeignKey(
         "n26.Campaign", on_delete=models.CASCADE, related_name="cycle_phases"
     )
@@ -90,7 +90,7 @@ class CampaignPlan(Base):
         return super().save(*args, **kwargs)
 
 
-class CampaignCycle(Base):
+class CampaignCycle(Base, Archived):
     campaign = models.ForeignKey(
         "n26.Campaign", on_delete=models.CASCADE, related_name="cycles"
     )
