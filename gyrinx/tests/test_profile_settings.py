@@ -397,7 +397,7 @@ def test_legacy_links_are_preserved_until_the_owner_removes_them(client, user):
         ("discord_user_id", "a_handle"),
         ("discord_user_id", "00000000000000000"),
         ("discord_user_id", "99999999999999999999"),
-        ("location", "a" * 121),
+        ("location", "a" * 21),
         ("location", "London\nUK"),
     ],
 )
@@ -445,3 +445,9 @@ def test_location_and_social_accounts_participate_in_stale_edit_detection(client
     assert response.status_code == 409
     profile.refresh_from_db()
     assert profile.location == "New location" and not profile.instagram_handle
+
+
+def test_location_accepts_exactly_twenty_characters():
+    form = ProfileSettingsForm({"snapshot": "unused", "location": "W" * 20})
+    assert form.is_valid(), form.errors
+    assert form.cleaned_data["location"] == "W" * 20

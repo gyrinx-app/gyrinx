@@ -234,7 +234,11 @@ describe("profile settings", () => {
 it("submits location and fixed social account fields and discards their drafts on Cancel", async () => {
     render(<ProfileSettings {...props} />);
     const user = await open();
-    await user.type(screen.getByLabelText("Location"), "Nottingham, UK");
+    const location = screen.getByLabelText("Location") as HTMLInputElement;
+    await user.type(location, "W".repeat(21));
+    expect(location.value).toBe("W".repeat(20));
+    await user.clear(location);
+    await user.type(location, "Nottingham, UK");
     await user.type(screen.getByLabelText("Instagram handle"), "@ash_road");
     await user.type(screen.getByLabelText("Discord handle"), "@ash.road");
     await user.type(
@@ -261,4 +265,23 @@ it("submits location and fixed social account fields and discards their drafts o
             "",
         );
     }
+});
+
+it("rejects markup in a crop URL before it reaches the image or Cropper", () => {
+    vi.stubGlobal("URL", {
+        createObjectURL: () => 'blob:picture" onerror="alert(1)',
+        revokeObjectURL: vi.fn(),
+    });
+    const create = vi.fn();
+    window.GyrinxImageCrop = { create };
+    render(<ProfileSettings {...props} open />);
+    fireEvent.change(screen.getByLabelText("Profile picture"), {
+        target: {
+            files: [new File(["image"], "picture.png", { type: "image/png" })],
+        },
+    });
+    expect(
+        screen.getByAltText("Picture to crop").getAttribute("src"),
+    ).toBeNull();
+    expect(create).not.toHaveBeenCalled();
 });

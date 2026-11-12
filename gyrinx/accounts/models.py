@@ -275,7 +275,7 @@ class UserProfile(Base):
     )
 
     location = models.CharField(
-        max_length=120, blank=True, default="", validators=[validate_profile_location]
+        max_length=20, blank=True, default="", validators=[validate_profile_location]
     )
     instagram_handle = models.CharField(max_length=30, blank=True, default="")
     discord_handle = models.CharField(max_length=32, blank=True, default="")

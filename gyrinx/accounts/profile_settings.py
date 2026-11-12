@@ -37,7 +37,7 @@ def state(profile):
 class ProfileSettingsForm(forms.Form):
     snapshot = forms.CharField()
     location = forms.CharField(
-        required=False, max_length=120, validators=[validate_profile_location]
+        required=False, max_length=20, validators=[validate_profile_location]
     )
     instagram = forms.CharField(required=False, max_length=31)
     discord = forms.RegexField(

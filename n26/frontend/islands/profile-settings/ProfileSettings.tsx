@@ -75,6 +75,10 @@ export function ProfileSettings(props: ProfileSettingsProps) {
     const [removePicture, setRemovePicture] = useState(props.removePicture);
     const [cropFile, setCropFile] = useState<File | null>(null);
     const [cropUrl, setCropUrl] = useState("");
+    // Cropper reads the image source into markup. Blob URLs need no HTML characters.
+    const cropSource = /^blob:[A-Za-z0-9:/._%\[\]-]+$/.test(cropUrl)
+        ? cropUrl
+        : undefined;
     const [previewUrl, setPreviewUrl] = useState(props.pictureUrl);
     const [problem, setProblem] = useState("");
     const [encoding, setEncoding] = useState(false);
@@ -116,7 +120,7 @@ export function ProfileSettings(props: ProfileSettingsProps) {
     }, [cropFile]);
 
     useEffect(() => {
-        if (!cropUrl || !picture.current) return;
+        if (!cropSource || !picture.current) return;
         if (!window.GyrinxImageCrop) {
             setProblem(
                 "The picture cropper could not load. Reload the page to try again.",
@@ -155,7 +159,7 @@ export function ProfileSettings(props: ProfileSettingsProps) {
             cropper.current?.destroy();
             cropper.current = null;
         };
-    }, [cropUrl]);
+    }, [cropSource]);
 
     function restoreInput(file: File | null) {
         if (!input.current) return;
@@ -360,12 +364,12 @@ export function ProfileSettings(props: ProfileSettingsProps) {
                             label="Location"
                             htmlFor={`${id}-location`}
                             errors={props.errors.location || []}
-                            description="Your location is public. Leave blank to show “None specified”."
+                            description="Up to 20 characters. Your location is public. Leave blank to show “None specified”."
                         >
                             <Input
                                 name="location"
                                 value={location}
-                                maxLength={120}
+                                maxLength={20}
                                 onChange={(event) =>
                                     setLocation(event.target.value)
                                 }
@@ -500,7 +504,7 @@ export function ProfileSettings(props: ProfileSettingsProps) {
                             <div className="n26-crop-stage n26-crop-circle">
                                 <img
                                     ref={picture}
-                                    src={cropUrl || undefined}
+                                    src={cropSource}
                                     alt="Picture to crop"
                                     onError={() =>
                                         setProblem(
