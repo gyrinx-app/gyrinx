@@ -258,7 +258,7 @@ def validate_cycle_dates(cycles, *, required=True):
     for cycle in cycles:
         start, end = cycle.details.starts_on, cycle.details.ends_on
         if start is None or end is None:
-            if required or start is not None or end is not None:
+            if required:
                 raise ScheduleError(f"Enter both dates for {cycle.name}.")
             continue
         dated.append((start, end, cycle.name))
@@ -667,6 +667,8 @@ def edit_cycle(
             ends_on=selected.details.ends_on,
         )
     amended = replace(selected, details=details)
+    if (details.starts_on is None) != (details.ends_on is None):
+        raise ScheduleError(f"Enter both dates for {amended.name}.")
     if schedule.calendar is None:
         validate_cycle_dates((amended,), required=False)
         for other in change.schedule.cycles:

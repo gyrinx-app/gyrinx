@@ -155,7 +155,10 @@ class CycleEditorForm(forms.Form):
             )
         required = ()
         if self.action == "cycle":
-            if bool(values.get("starts_on")) != bool(values.get("ends_on")):
+            if values.get("date_version") == "1" or (
+                values.get("date_version") == "2"
+                and bool(values.get("starts_on")) != bool(values.get("ends_on"))
+            ):
                 required = ("starts_on", "ends_on")
         elif self.action in ("setup", "plan"):
             if values.get("date_mode") == "manual":

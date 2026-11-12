@@ -128,3 +128,39 @@ def test_explicit_clearing_keeps_cycle_identity_and_legacy_omission_preserves_da
     assert cleared.schedule.current.details.starts_on is None
     assert cleared.schedule.current.details.ends_on is None
     assert cleared.transition is None
+
+
+@pytest.mark.parametrize("clear", [False, True])
+def test_legacy_partial_ranges_can_be_repaired_one_cycle_at_a_time(clear):
+    state = manual()
+    state, _cycle = s._ensure_saved(state, s.project(state)[1].ref)
+    state = state.schedule
+    first, second = state.cycles
+    first = replace(first, details=replace(first.details, starts_on=date(2026, 11, 1)))
+    second = replace(
+        second, details=replace(second.details, ends_on=date(2026, 11, 14))
+    )
+    state = replace(state, cycles=(first, second))
+    details = (
+        replace(first.details, starts_on=None, ends_on=None)
+        if clear
+        else replace(first.details, ends_on=date(2026, 11, 7))
+    )
+    repaired = s.edit_cycle(
+        state, s.SavedCycleRef(first.id), details, clear_dates=clear
+    ).schedule
+    assert repaired.cycles[1] == second
+    repaired = s.edit_cycle(
+        repaired,
+        s.SavedCycleRef(second.id),
+        replace(second.details, starts_on=date(2026, 11, 8)),
+    ).schedule
+    assert repaired.cycles[1].details.starts_on == date(2026, 11, 8)
+    planned = s.replace_plan(
+        state,
+        steps=state.plan.steps,
+        mode="repeating",
+        calendar=s.CycleCalendar(date(2026, 12, 1), starts_after_order=2),
+        preserve_saved_dates=True,
+    ).schedule
+    assert planned.cycles == state.cycles

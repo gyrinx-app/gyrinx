@@ -1296,3 +1296,52 @@ class TestManualCycleDates:
         assert cycles.load(campaign) == configured
         assert post(client, campaign, "plan", old).status_code == 200
         assert cycles.load(campaign) == configured
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_unversioned_partial_date_receipt_can_be_confirmed(
+    client, campaign, configured, native
+):
+    from n26.core.cycle_data import cycle_details_data
+    from n26.core.models import CampaignCycleCommand
+
+    # A command receipt must confirm the original edit, even with incomplete dates.
+    CampaignSchedule.objects.filter(campaign=campaign).update(
+        date_settings={}, revision=2
+    )
+    CampaignCycle.objects.filter(pk=configured.current_cycle_id).update(
+        ends_on=None, custom_name="Legacy rename"
+    )
+    state = cycles.load(campaign)
+    query = {"cycle": state.current.id}
+    editor = props(client.get(editor_url(campaign, "cycle", **query)))["editor"]
+    data = {
+        name: value
+        for name, value in editor["values"].items()
+        if name != "date_version"
+    }
+    data["expected_revision"] = "1"
+    CampaignCycleCommand.objects.create(
+        campaign=campaign,
+        actor=campaign.owner,
+        request_key=data["request_key"],
+        kind="edit_cycle",
+        inputs={
+            "target": ref_data(s.SavedCycleRef(state.current.id)),
+            "details": cycle_details_data(state.current.details),
+            "expected_revision": 1,
+        },
+        result={"revision": 2, "cycle_id": state.current.id, "transition_id": None},
+    )
+    count = campaign.cycle_commands.count()
+    response = post(client, campaign, "cycle", data, native=native, **query)
+    assert response.status_code == (302 if native else 200), (
+        props(response)["editor"]["errors"] if native else response.json()
+    )
+    assert campaign.cycle_commands.count() == count
+    assert cycles.load(campaign) == state
+    data["date_version"] = "1"
+    data["request_key"] = str(uuid4())
+    response = post(client, campaign, "cycle", data, **query)
+    assert response.status_code == 422
+    assert campaign.cycle_commands.count() == count
