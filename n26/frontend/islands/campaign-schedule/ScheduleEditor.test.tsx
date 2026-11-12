@@ -432,6 +432,13 @@ test("fixed conversion shows its finite endpoint and updates it after edits", as
     await userEvent.clear(count);
     await userEvent.type(count, "2");
     expect(screen.getByText("Ends after Cycle 5.")).toBeTruthy();
+    await userEvent.click(
+        screen.getByRole("button", { name: "Remove step 2" }),
+    );
+    await userEvent.click(
+        screen.getByRole("button", { name: "Remove step 1" }),
+    );
+    expect(screen.getByText("No additional cycles.")).toBeTruthy();
 });
 
 test("switching to repeating proposes the full pattern and preserves edits to each mode", async () => {

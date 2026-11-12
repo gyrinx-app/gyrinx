@@ -216,10 +216,19 @@ export function PlanSteps({
             </Button>
             {startsAfterOrder !== undefined && valid && (
                 <p className="text-sm text-muted" aria-live="polite">
-                    Ends after Cycle{" "}
-                    {startsAfterOrder +
-                        steps.reduce((total, step) => total + step.count, 0)}
-                    .
+                    {steps.length ? (
+                        <>
+                            Ends after Cycle{" "}
+                            {startsAfterOrder +
+                                steps.reduce(
+                                    (total, step) => total + step.count,
+                                    0,
+                                )}
+                            .
+                        </>
+                    ) : (
+                        "No additional cycles."
+                    )}
                 </p>
             )}
         </div>
