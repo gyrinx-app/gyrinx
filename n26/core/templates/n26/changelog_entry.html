@@ -12,7 +12,7 @@
                     <c-ui.breadcrumbs>
                         <c-ui.breadcrumbs.item href="{% url 'changelog' %}{{ tag_query }}">Changelog</c-ui.breadcrumbs.item>
                         <c-ui.breadcrumbs.item :current="True">
-                            {{ entry.title }}
+                            {{ entry.date|date:"Y-m-d" }}
                         </c-ui.breadcrumbs.item>
                     </c-ui.breadcrumbs>
                 </c-slot>
