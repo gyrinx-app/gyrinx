@@ -23,6 +23,7 @@ from n26.core.models.toolkit import (
     ToolkitCommand,
 )
 from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_404
+from n26.rich_text import rich_text_nodes
 
 
 def identifier(value):
@@ -82,6 +83,7 @@ def toolkit_home(request, pk):
                 "id": str(c.pk),
                 "title": c.payload["title"],
                 "body": c.payload["body"],
+                "bodyNodes": rich_text_nodes(c.payload["body"]),
                 "date": c.created.isoformat(),
             }
             for c in communications
@@ -227,6 +229,7 @@ def toolkit_form(request, pk, action):
             "choices": receipt.intervention.choices,
             "rewards": receipt.intervention.rewards,
             "narrative": receipt.intervention.narrative,
+            "narrativeNodes": rich_text_nodes(receipt.intervention.narrative),
         }
     if action == "remove_tag":
         tag = (
@@ -241,6 +244,10 @@ def toolkit_form(request, pk, action):
             "name": tag.name,
             "gang": tag.gang.name if tag.gang_id else tag.player.username,
         }
+    if action in {"intervention", "communication"}:
+        from n26.core.widgets import campaign_editor_props
+
+        props["editor"] = campaign_editor_props()
     form = toolkit.CommandForm(initial={"request_key": uuid4(), "payload": initial})
     if request.method == "POST":
         form, destination = toolkit.change(campaign, request.user, action, request.POST)
@@ -297,6 +304,7 @@ def intervention_detail(request, pk, intervention_pk):
         "screen": "detail",
         "title": intervention.title,
         "narrative": intervention.narrative,
+        "narrativeNodes": rich_text_nodes(intervention.narrative),
         "mode": intervention.mode,
         "choices": intervention.choices,
         "rewards": intervention.rewards,

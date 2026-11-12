@@ -24,6 +24,10 @@ import {
     Tooltip,
     useWorkflowForm,
     QuickSwitcher,
+    RichText,
+    RichTextEditor,
+    type RichNode,
+    type RichTextEditorConfig,
 } from "../../ui";
 
 type Reward = {
@@ -90,6 +94,8 @@ type Receipt = {
     chooseHref: string;
 };
 export type ToolkitProps = {
+    editor?: RichTextEditorConfig;
+    narrativeNodes?: RichNode[];
     campaignName: string;
     campaignHref: string;
     toolkitHref: string;
@@ -110,6 +116,7 @@ export type ToolkitProps = {
         id: string;
         title: string;
         body: string;
+        bodyNodes?: RichNode[];
         date: string;
     }[];
     alerts?: { value: string; label: string }[];
@@ -143,6 +150,7 @@ export type ToolkitProps = {
         choices: number;
         rewards: Reward[];
         narrative: string;
+        narrativeNodes?: RichNode[];
     } | null;
     tag?: { name: string; gang: string } | null;
     values?: { request_key: string; payload: string };
@@ -333,9 +341,16 @@ function Home(p: ToolkitProps) {
                                 className="space-y-2 py-3 first:pt-0 last:pb-0"
                             >
                                 <h3 className="font-semibold">{c.title}</h3>
-                                <p className="whitespace-pre-wrap text-sm">
-                                    {c.body}
-                                </p>
+                                {c.bodyNodes ? (
+                                    <RichText
+                                        nodes={c.bodyNodes}
+                                        className="text-sm"
+                                    />
+                                ) : (
+                                    <p className="whitespace-pre-wrap text-sm">
+                                        {c.body}
+                                    </p>
+                                )}
                                 <p className="text-xs text-muted">
                                     {date(c.date)}
                                 </p>
@@ -461,9 +476,12 @@ function Detail(p: ToolkitProps) {
                 ) : undefined
             }
         >
-            {p.narrative && (
-                <p className="whitespace-pre-wrap text-sm">{p.narrative}</p>
-            )}
+            {p.narrative &&
+                (p.narrativeNodes ? (
+                    <RichText nodes={p.narrativeNodes} className="text-sm" />
+                ) : (
+                    <p className="whitespace-pre-wrap text-sm">{p.narrative}</p>
+                ))}
             <Card
                 header={
                     <h2 className="font-semibold">
@@ -546,40 +564,15 @@ function TagAssignmentFields({
     const selected = players ? data.players : data.gangs;
     const update = (index: number, part: Partial<Reward>) =>
         set({
-            rewards: data.rewards.map((r, i) =>
-                i === index ? { ...r, ...part } : r,
-            ),
+            rewards: data.rewards
+                .slice(0, 1)
+                .map((r, i) => (i === index ? { ...r, ...part } : r)),
         });
     return (
         <>
             <FormSection title="Tags">
-                {data.rewards.map((tag, index) => (
-                    <Card
-                        key={index}
-                        header={
-                            <div className="flex items-center justify-between gap-2">
-                                <h3 className="text-sm font-semibold">
-                                    Tag {index + 1}
-                                </h3>
-                                {data.rewards.length > 1 && (
-                                    <Button
-                                        size="xs"
-                                        variant="ghost"
-                                        aria-label={`Remove tag ${index + 1}`}
-                                        onClick={() =>
-                                            set({
-                                                rewards: data.rewards.filter(
-                                                    (_, i) => i !== index,
-                                                ),
-                                            })
-                                        }
-                                    >
-                                        <Glyph name="x" />
-                                    </Button>
-                                )}
-                            </div>
-                        }
-                    >
+                {data.rewards.slice(0, 1).map((tag, index) => (
+                    <Card key={index}>
                         <div className="space-y-4">
                             <Field
                                 label="Tag name *"
@@ -639,27 +632,6 @@ function TagAssignmentFields({
                         </div>
                     </Card>
                 ))}
-                <Button
-                    onClick={() =>
-                        set({
-                            rewards: [
-                                ...data.rewards,
-                                {
-                                    kind: "tag",
-                                    amount: 1,
-                                    name: "",
-                                    icon: "crosshair",
-                                    info: "",
-                                },
-                            ],
-                        })
-                    }
-                >
-                    <span className="inline-flex items-center gap-2 whitespace-nowrap">
-                        <Glyph name="plus" />
-                        Add tag
-                    </span>
-                </Button>
             </FormSection>
             <FormSection title="Recipients">
                 <RadioCards legend="Apply to" min="12rem">
@@ -815,6 +787,7 @@ function ToolkitForm(p: ToolkitProps) {
             payload: JSON.stringify({ ...data, ...part }),
         });
     const [search, setSearch] = useState("");
+    const [uploading, setUploading] = useState(false);
     const updateReward = (index: number, part: Partial<Reward>) =>
         set({
             rewards: data.rewards.map((r, i) =>
@@ -849,7 +822,7 @@ function ToolkitForm(p: ToolkitProps) {
                         type="submit"
                         variant={action === "remove_tag" ? "danger" : "success"}
                         busy={form.pending}
-                        disabled={form.pending}
+                        disabled={form.pending || uploading}
                     >
                         {form.uncertain
                             ? "Retry save"
@@ -897,18 +870,13 @@ function ToolkitForm(p: ToolkitProps) {
                     />
                 </div>
             )}
-            <fieldset disabled={form.frozen} className="contents">
+            <fieldset disabled={form.frozen} className="space-y-8">
                 {(action === "intervention" || action === "communication") && (
                     <>
-                        <FormSection
-                            title={
-                                action === "intervention"
-                                    ? "Intervention"
-                                    : "Message"
-                            }
-                        >
+                        <FormSection>
                             <Field label="Title *" htmlFor="toolkit-title">
                                 <Input
+                                    id="toolkit-title"
                                     name="title_display"
                                     required
                                     maxLength={200}
@@ -925,26 +893,28 @@ function ToolkitForm(p: ToolkitProps) {
                                         : "Message *"
                                 }
                                 htmlFor="toolkit-body"
-                                description={
-                                    action === "intervention"
-                                        ? "Included with the rewards and in notifications."
-                                        : "The notification includes a link to this campaign."
-                                }
                             >
-                                <Textarea
-                                    rows={4}
-                                    required={action === "communication"}
-                                    maxLength={10000}
+                                <RichTextEditor
+                                    id="toolkit-body"
+                                    label={
+                                        action === "intervention"
+                                            ? "Accompanying text"
+                                            : "Message"
+                                    }
+                                    config={p.editor}
+                                    csrfToken={p.csrfToken!}
                                     value={
                                         action === "intervention"
                                             ? data.narrative
                                             : data.body
                                     }
-                                    onChange={(e) =>
+                                    disabled={form.frozen}
+                                    onUploading={setUploading}
+                                    onChange={(value) =>
                                         set(
                                             action === "intervention"
-                                                ? { narrative: e.target.value }
-                                                : { body: e.target.value },
+                                                ? { narrative: value }
+                                                : { body: value },
                                         )
                                     }
                                 />
@@ -976,7 +946,9 @@ function ToolkitForm(p: ToolkitProps) {
                                         htmlFor="toolkit-limit"
                                     >
                                         <Input
+                                            id="toolkit-limit"
                                             type="number"
+                                            step={1}
                                             min={1}
                                             max={Math.max(
                                                 data.rewards.length,
@@ -984,13 +956,21 @@ function ToolkitForm(p: ToolkitProps) {
                                             )}
                                             required
                                             value={data.choices}
-                                            onChange={(e) =>
-                                                set({
-                                                    choices: Number(
-                                                        e.target.value,
-                                                    ),
-                                                })
-                                            }
+                                            onChange={(e) => {
+                                                const choices = Number(
+                                                    e.target.value,
+                                                );
+                                                if (
+                                                    Number.isInteger(choices) &&
+                                                    choices >= 1 &&
+                                                    choices <=
+                                                        Math.max(
+                                                            data.rewards.length,
+                                                            1,
+                                                        )
+                                                )
+                                                    set({ choices });
+                                            }}
                                         />
                                     </Field>
                                 )}
@@ -1324,6 +1304,7 @@ function ToolkitForm(p: ToolkitProps) {
                                     </Card>
                                 ))}
                                 <Button
+                                    variant="primary"
                                     onClick={() =>
                                         set({
                                             rewards: [
@@ -1498,7 +1479,7 @@ function ToolkitForm(p: ToolkitProps) {
                                     onCheckedChange={(checked) =>
                                         set({ inform_all: checked })
                                     }
-                                    description="Tell everyone in the campaign who received what."
+                                    description="Inform everyone in the campaign about this intervention."
                                 />
                             </FormSection>
                         )}
@@ -1581,7 +1562,7 @@ function ToolkitForm(p: ToolkitProps) {
                                 <Field
                                     label="Send a report every *"
                                     htmlFor="report-days"
-                                    description="Days. Each report covers the period since the previous report."
+                                    description="Each report covers the period since the previous report."
                                 >
                                     <Input
                                         type="number"
@@ -1599,7 +1580,9 @@ function ToolkitForm(p: ToolkitProps) {
                                         }
                                         rightAddon={
                                             <span className="text-sm text-muted">
-                                                days
+                                                {data.report_days === 1
+                                                    ? "day"
+                                                    : "days"}
                                             </span>
                                         }
                                     />
@@ -1619,9 +1602,15 @@ function ToolkitForm(p: ToolkitProps) {
                         >
                             <div className="space-y-2 text-sm">
                                 <p>{p.receipt.gang}</p>
-                                <p className="whitespace-pre-wrap">
-                                    {p.receipt.narrative}
-                                </p>
+                                {p.receipt.narrativeNodes ? (
+                                    <RichText
+                                        nodes={p.receipt.narrativeNodes}
+                                    />
+                                ) : (
+                                    <p className="whitespace-pre-wrap">
+                                        {p.receipt.narrative}
+                                    </p>
+                                )}
                                 <p>
                                     Choose exactly {p.receipt.choices}{" "}
                                     {p.receipt.choices === 1

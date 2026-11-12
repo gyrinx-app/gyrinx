@@ -75,7 +75,9 @@ test("interventions only offer gang recipients and contain no tag type", () => {
     expect(screen.queryByRole("radio", { name: /Players/ })).toBeNull();
     expect(screen.queryByRole("option", { name: "Gang tag" })).toBeNull();
     expect(
-        screen.getByText("Tell everyone in the campaign who received what."),
+        screen.getByText(
+            "Inform everyone in the campaign about this intervention.",
+        ),
     ).toBeDefined();
 });
 test("recipients and choice limits are included in the submitted payload", () => {
@@ -298,4 +300,48 @@ test("immediate alerts and wrap-up reports are independent controls", () => {
     expect(values.immediate).toBe(false);
     expect(values.report_enabled).toBe(true);
     expect(values.report_days).toBe(3);
+});
+
+test("choice counts reject negative, zero and fractional values", () => {
+    const view = render(<ArbitratorToolkit {...base} />);
+    fireEvent.click(screen.getByRole("radio", { name: /Offer a choice/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Add option/ }));
+    const input = screen.getByLabelText("Number of rewards to choose *");
+    for (const value of ["-1", "0", "1.5"]) {
+        fireEvent.change(input, { target: { value } });
+        expect((input as HTMLInputElement).value).toBe("1");
+    }
+    expect(view.container.querySelector("fieldset")?.className).toBe(
+        "space-y-8",
+    );
+    expect(screen.queryByRole("heading", { name: "Intervention" })).toBeNull();
+    expect(
+        screen.queryByText("Included with the rewards and in notifications."),
+    ).toBeNull();
+});
+
+test("a tag assignment has one tag and no numbered header or add button", () => {
+    render(
+        <ArbitratorToolkit
+            {...base}
+            actionKind="tags"
+            values={{
+                request_key: "tag-one",
+                payload: JSON.stringify({
+                    rewards: [
+                        {
+                            kind: "tag",
+                            amount: 1,
+                            name: "Painter",
+                            icon: "paintbrush",
+                        },
+                    ],
+                    target: "gangs",
+                }),
+            }}
+        />,
+    );
+    expect(screen.getAllByLabelText("Tag name *")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Add tag" })).toBeNull();
+    expect(screen.queryByText("Tag 1")).toBeNull();
 });

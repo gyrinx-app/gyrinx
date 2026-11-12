@@ -7,7 +7,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.html import format_html, format_html_join
+from django.utils.html import format_html, strip_tags
 
 from n26.core.campaigns import campaign_operation
 from n26.core.models import (
@@ -29,6 +29,7 @@ from n26.core.models.toolkit import (
 )
 from n26.core.operations import Refusal, operation
 from n26.library.models import Counter, Profile, Wargear, Weapon
+from n26.rich_text import authored_html, plain_html
 from n26.write_pause import write_guard
 
 REWARD_MODELS = {
@@ -47,19 +48,21 @@ def toolkit_href(campaign):
     return reverse("n26-toolkit", args=[campaign.pk])
 
 
-def content_for(campaign, text):
-    lines = format_html_join("<br>", "{}", ((line,) for line in text.splitlines()))
+def content_for(campaign, text, message=""):
     return str(
         format_html(
-            '<p><a href="{}">{}</a></p><p>{}</p>',
+            '<p><a href="{}">{}</a></p>{}{}',
             campaign_href(campaign),
             campaign.name,
-            lines,
+            plain_html(text),
+            authored_html(message),
         )
     )
 
 
-def queue(campaign, recipients, *, identity, title, text, sender, href=None):
+def queue(
+    campaign, recipients, *, identity, title, text, sender, href=None, message=""
+):
     from n26.notifications import enqueue_toolkit_delivery
 
     for recipient in sorted({x for x in recipients if x is not None}):
@@ -70,7 +73,7 @@ def queue(campaign, recipients, *, identity, title, text, sender, href=None):
                 "campaign": campaign,
                 "sender": sender,
                 "subject": f"{campaign.name}: {title}"[:255],
-                "content": content_for(campaign, text),
+                "content": content_for(campaign, text, message),
                 "href": href or campaign_href(campaign),
             },
         )
@@ -261,7 +264,7 @@ def apply_rewards(receipt, indices, actor):
         for index in indices:
             reward = intervention.rewards[index]
             kind = reward["kind"]
-            note = f"{intervention.title}: {intervention.narrative}"[:255]
+            note = f"{intervention.title}: {strip_tags(intervention.narrative)}"[:255]
             if kind == "credits":
                 op.adjust_credits(reward["amount"], note)
             elif kind == "tag":
@@ -388,7 +391,7 @@ def send_intervention(campaign, actor, payload):
                 else "Received "
             )
             + summary(rewards)
-            + f". {narrative}"
+            + "."
         )
         queue(
             campaign,
@@ -396,6 +399,7 @@ def send_intervention(campaign, actor, payload):
             identity=f"offer:{receipt.pk}",
             title=intervention.title,
             text=wording,
+            message=narrative,
             sender=actor,
             href=intervention.get_absolute_url(),
         )
@@ -412,7 +416,8 @@ def send_intervention(campaign, actor, payload):
                 else "received "
             )
             + summary(rewards)
-            + f". {narrative}",
+            + ".",
+            message=narrative,
             sender=actor,
         )
     return intervention.get_absolute_url()
@@ -462,13 +467,14 @@ def choose(campaign, actor, payload):
         apply_rewards(receipt, selected, actor)
     recipient_name = receipt.gang.name if receipt.gang_id else receipt.player.username
     recipient_id = receipt.gang.owner_id if receipt.gang_id else receipt.player_id
-    text = f"{recipient_name} chose {summary([intervention.rewards[i] for i in selected])}. {intervention.narrative}"
+    text = f"{recipient_name} chose {summary([intervention.rewards[i] for i in selected])}."
     queue(
         campaign,
         [recipient_id],
         identity=f"chosen:{receipt.pk}",
         title=intervention.title,
         text=text,
+        message=intervention.narrative,
         sender=intervention.actor,
     )
     alert_event(
@@ -485,11 +491,15 @@ def run_command(campaign, actor, action, payload):
     if action == "intervention":
         return send_intervention(campaign, actor, payload)
     if action == "tags":
-        if not isinstance(payload.get("rewards"), list) or any(
-            not isinstance(r, dict) or r.get("kind") != "tag"
-            for r in payload["rewards"]
+        if (
+            not isinstance(payload.get("rewards"), list)
+            or len(payload["rewards"]) != 1
+            or any(
+                not isinstance(r, dict) or r.get("kind") != "tag"
+                for r in payload["rewards"]
+            )
         ):
-            raise Refusal("Select tags to assign.")
+            raise Refusal("Assign one tag at a time.")
         send_intervention(
             campaign,
             actor,
@@ -513,8 +523,11 @@ def run_command(campaign, actor, action, payload):
             or not title.strip()
             or len(title) > 200
             or not isinstance(body, str)
-            or not body.strip()
             or len(body) > 10000
+            or not (
+                strip_tags(authored_html(body)).strip()
+                or "<img " in authored_html(body)
+            )
         ):
             raise Refusal("Enter a title and message of up to 10000 characters.")
         identity = f"communication:{payload['_key']}"
@@ -523,7 +536,8 @@ def run_command(campaign, actor, action, payload):
             [g.owner_id for g in gangs],
             identity=identity,
             title=title.strip(),
-            text=body,
+            text="",
+            message=body,
             sender=actor,
         )
         return toolkit_href(campaign) + "?tab=communications"

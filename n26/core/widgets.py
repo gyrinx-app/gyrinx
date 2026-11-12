@@ -40,3 +40,19 @@ CAMPAIGN_SUMMARY_CONFIG = {
     "paste_block_drop": False,
     "setup": "n26CampaignImages",
 }
+
+
+def campaign_editor_props():
+    """The campaign description editor configuration for a React-owned editor."""
+    from django.templatetags.static import static
+    from tinymce.settings import DEFAULT_CONFIG, get_js_url
+
+    config = {**DEFAULT_CONFIG, **CAMPAIGN_SUMMARY_CONFIG}
+    for callback in ("setup", "images_upload_handler"):
+        config.pop(callback, None)
+    return {
+        "scriptUrl": get_js_url(),
+        "imageSetupUrl": static("n26/richtext.js"),
+        "uploadUrl": "/tinymce/upload/",
+        "config": config,
+    }

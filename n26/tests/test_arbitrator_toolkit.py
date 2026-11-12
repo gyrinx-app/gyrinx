@@ -711,3 +711,182 @@ def test_toolkit_inbox_queries_do_not_grow_with_deliveries(
     for i in range(4):
         send(f"Message {i}")
     assert measure() <= small
+
+
+def test_rich_toolkit_messages_keep_images_and_formatting_without_executable_html(
+    client, demo, django_capture_on_commit_callbacks
+):
+    campaign, arb, players, gangs = demo
+    body = '<p>A <strong>guild message</strong>.</p><img src="https://example.test/map.png" alt="Route map" onerror="alert(1)"><script>badScript()</script><a href="javascript:badLink()">link</a>'
+    with django_capture_on_commit_callbacks(execute=True):
+        form, destination = command(
+            campaign, arb, "communication", offer(gangs[:1], body=body)
+        )
+    assert destination, form.errors
+    notification = Notification.objects.get(owner=players[0])
+    assert "<strong>guild message</strong>" in notification.content
+    assert 'alt="Route map"' in notification.content
+    assert "onerror" not in notification.content
+    assert "badScript" not in notification.content
+    assert "javascript:" not in notification.content
+    client.force_login(arb)
+    response = client.get(reverse("n26-toolkit", args=[campaign.pk]))
+    nodes = json.dumps(
+        response.context["toolkit_props"]["communications"][0]["bodyNodes"]
+    )
+    assert '"tag": "strong"' in nodes and '"tag": "img"' in nodes
+    assert "badScript" not in nodes
+    client.force_login(players[0])
+    response = client.get(reverse("core:notifications"), HTTP_ACCEPT="application/json")
+    assert '"tag": "img"' in json.dumps(response.json()["rows"][0]["content"])
+
+
+def test_rich_intervention_text_is_rendered_on_offer_and_recipient_pages(
+    client, demo, django_capture_on_commit_callbacks
+):
+    campaign, arb, players, gangs = demo
+    with django_capture_on_commit_callbacks(execute=True):
+        form, url = command(
+            campaign,
+            arb,
+            "intervention",
+            offer(
+                gangs[:1],
+                mode="choice",
+                choices=1,
+                narrative='<p><strong>Choose support</strong></p><img src="https://example.test/map.png" alt="Map">',
+            ),
+        )
+    assert url, form.errors
+    client.force_login(players[0])
+    response = client.get(url)
+    assert '"tag": "strong"' in json.dumps(
+        response.context["toolkit_props"]["narrativeNodes"]
+    )
+    receipt = InterventionReceipt.objects.get()
+    response = client.get(
+        reverse("n26-toolkit-form", args=[campaign.pk, "choose"]),
+        {"receipt": str(receipt.pk)},
+    )
+    assert '"tag": "img"' in json.dumps(
+        response.context["toolkit_props"]["receipt"]["narrativeNodes"]
+    )
+    client.force_login(arb)
+    response = client.get(
+        reverse("n26-toolkit-form", args=[campaign.pk, "intervention"])
+    )
+    editor = response.context["toolkit_props"]["editor"]
+    assert (
+        "image" in editor["config"]["toolbar"]
+        and editor["uploadUrl"] == "/tinymce/upload/"
+    )
+
+
+def test_tag_assignment_refuses_more_than_one_tag(demo):
+    campaign, arb, players, gangs = demo
+    tag = {"kind": "tag", "name": "Painter", "icon": "paintbrush", "amount": 1}
+    form, url = command(campaign, arb, "tags", offer(gangs[:1], rewards=[tag, tag]))
+    assert url is None and "one tag at a time" in str(form.errors)
+    assert not Intervention.objects.exists()
+
+
+def test_only_the_recipient_sees_an_inline_offer_and_confirmation_uses_the_shared_command(
+    client, demo, django_capture_on_commit_callbacks
+):
+    campaign, arb, players, gangs = demo
+    with django_capture_on_commit_callbacks(execute=True):
+        command(
+            campaign,
+            arb,
+            "intervention",
+            offer(gangs[:1], mode="choice", choices=1, inform_all=True),
+        )
+    client.force_login(players[0])
+    inbox = client.get(
+        reverse("core:notifications"), HTTP_ACCEPT="application/json"
+    ).json()
+    offered = [row["offer"] for row in inbox["rows"] if row["offer"]]
+    assert len(offered) == 1
+    inline = offered[0]
+    assert not inline["resolved"] and inline["gang"] == gangs[0].name
+    data = {
+        "request_key": inline["values"]["request_key"],
+        "payload": json.dumps({"receipt": inline["id"], "selected": [0]}),
+    }
+    client.force_login(players[1])
+    assert all(
+        not row["offer"]
+        for row in client.get(
+            reverse("core:notifications"), HTTP_ACCEPT="application/json"
+        ).json()["rows"]
+    )
+    assert client.post(inline["commandHref"], data).status_code == 422
+    client.force_login(players[0])
+    with django_capture_on_commit_callbacks(execute=True):
+        assert client.post(inline["commandHref"], data).status_code == 200
+        assert client.post(inline["commandHref"], data).status_code == 200
+    gangs[0].refresh_from_db()
+    assert gangs[0].credits == 1030
+    rows = client.get(
+        reverse("core:notifications"), HTTP_ACCEPT="application/json"
+    ).json()["rows"]
+    assert next(row["offer"] for row in rows if row["offer"])["resolved"]
+    assert not check_gang(gangs[0])
+
+
+def test_inline_offer_query_count_does_not_grow_with_offers(
+    client, demo, django_capture_on_commit_callbacks
+):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    campaign, arb, players, gangs = demo
+    client.force_login(players[0])
+
+    def send(title):
+        with django_capture_on_commit_callbacks(execute=True):
+            command(
+                campaign,
+                arb,
+                "intervention",
+                offer(gangs[:1], mode="choice", choices=1, title=title),
+            )
+
+    def measure(expected):
+        client.get(reverse("core:notifications"), HTTP_ACCEPT="application/json")
+        with CaptureQueriesContext(connection) as queries:
+            rows = client.get(
+                reverse("core:notifications"), HTTP_ACCEPT="application/json"
+            ).json()["rows"]
+            assert len([row for row in rows if row["offer"]]) == expected
+        return len(queries)
+
+    send("First offer")
+    small = measure(1)
+    for i in range(3):
+        send(f"Offer {i}")
+    assert measure(4) <= small
+
+
+def test_wrap_up_line_breaks_render_as_elements(demo):
+    from n26.rich_text import rich_text_nodes
+
+    campaign, arb, players, gangs = demo
+    content = toolkit.content_for(
+        campaign,
+        "Alerted actions this week:\n• A battle was created.\n• A player chose a reward.",
+    )
+    assert "&lt;br&gt;" not in content
+    nodes = json.dumps(rich_text_nodes(content))
+    assert '"tag": "br"' in nodes
+    assert "A battle was created." in nodes
+
+
+@pytest.mark.parametrize("choices", [-1, 0, 1.5, True])
+def test_intervention_choice_count_requires_a_positive_integer(demo, choices):
+    campaign, arb, players, gangs = demo
+    form, url = command(
+        campaign, arb, "intervention", offer(gangs[:1], mode="choice", choices=choices)
+    )
+    assert url is None and form.errors
+    assert not Intervention.objects.exists()

@@ -1,12 +1,4 @@
-import {
-    createElement,
-    useId,
-    useRef,
-    useState,
-    useEffect,
-    type CSSProperties,
-    type ReactNode,
-} from "react";
+import { useId, useRef, useState, useEffect } from "react";
 import {
     ActionBar,
     Badge,
@@ -17,18 +9,30 @@ import {
     Link,
     NativeSelect,
     UserLink,
+    RichText,
+    type RichNode,
+    RadioCards,
+    RadioCard,
+    CheckboxCard,
+    FieldErrors,
+    useWorkflowForm,
 } from "../../ui";
 
-type RichNode =
-    | string
-    | {
-          tag: string;
-          attrs: Record<string, string | CSSProperties>;
-          children: RichNode[];
-      };
+type Offer = {
+    id: string;
+    gang: string;
+    choices: number;
+    rewards: { label: string }[];
+    selected: number[];
+    resolved: boolean;
+    commandHref: string;
+    recoveryKey: string;
+    values: { request_key: string; payload: string };
+};
 type Notification = {
     id: string;
     subject: string;
+    offer?: Offer | null;
     content: RichNode[];
     sender: string;
     context?: {
@@ -59,15 +63,139 @@ export type NotificationInboxProps = {
     previousUrl: string;
     nextUrl: string;
 };
-function richText(nodes: RichNode[]): ReactNode[] {
-    return nodes.map((node, key) =>
-        typeof node === "string"
-            ? node
-            : createElement(
-                  node.tag,
-                  { ...node.attrs, key },
-                  ...richText(node.children),
-              ),
+function OfferChoiceForm({
+    offer,
+    csrfToken,
+}: {
+    offer: Offer;
+    csrfToken: string;
+}) {
+    const [completed, setCompleted] = useState(false);
+    const form = useWorkflowForm({
+        values: {
+            ...offer.values,
+            payload: JSON.stringify({ receipt: offer.id, selected: [] }),
+        },
+        errors: {},
+        commandHref: offer.commandHref,
+        csrfToken,
+        recoveryKey: offer.recoveryKey,
+        interpret(status, data) {
+            if (status === 200 && typeof data.nextUrl === "string")
+                return { kind: "completed" };
+            if (
+                status === 422 &&
+                data.errors &&
+                typeof data.errors === "object"
+            )
+                return {
+                    kind: "invalid",
+                    errors: data.errors as Record<string, string[]>,
+                };
+            return null;
+        },
+        onComplete: () => setCompleted(true),
+    });
+    let selected: number[] = [];
+    try {
+        selected = JSON.parse(form.values.payload).selected;
+    } catch {
+        /* Keep an unreadable draft empty. */
+    }
+    const choose = (next: number[]) =>
+        form.setValues({
+            ...form.values,
+            payload: JSON.stringify({ receipt: offer.id, selected: next }),
+        });
+    if (completed)
+        return (
+            <p className="text-sm font-semibold" role="status">
+                Applied:{" "}
+                {selected.map((i) => offer.rewards[i]?.label).join(", ")}
+            </p>
+        );
+    return (
+        <form
+            onSubmit={form.save}
+            data-busy="off"
+            aria-label={`Choose rewards for ${offer.gang}`}
+            className="space-y-4 rounded-box border border-box-border p-4"
+        >
+            <input
+                type="hidden"
+                name="request_key"
+                value={form.values.request_key}
+            />
+            <input type="hidden" name="payload" value={form.values.payload} />
+            <p className="text-sm font-semibold">
+                {offer.gang} — choose {offer.choices}{" "}
+                {offer.choices === 1 ? "reward" : "rewards"}
+            </p>
+            {form.hasErrors && (
+                <div ref={form.summary} tabIndex={-1} role="alert">
+                    <FieldErrors
+                        errors={[
+                            ...Object.values(form.errors).flat(),
+                            ...(form.notice ? [form.notice] : []),
+                        ]}
+                    />
+                </div>
+            )}
+            <fieldset disabled={form.frozen} className="space-y-3">
+                {offer.choices === 1 ? (
+                    <RadioCards legend="Choose one reward" min="100%">
+                        {offer.rewards.map((reward, index) => (
+                            <RadioCard
+                                key={index}
+                                name={`offer-${offer.id}`}
+                                value={String(index)}
+                                label={reward.label}
+                                checked={selected.includes(index)}
+                                onChange={() => choose([index])}
+                            />
+                        ))}
+                    </RadioCards>
+                ) : (
+                    offer.rewards.map((reward, index) => (
+                        <CheckboxCard
+                            key={index}
+                            name={`offer-${offer.id}`}
+                            label={reward.label}
+                            checked={selected.includes(index)}
+                            disabled={
+                                !selected.includes(index) &&
+                                selected.length >= offer.choices
+                            }
+                            onCheckedChange={(checked) =>
+                                choose(
+                                    checked
+                                        ? [...selected, index]
+                                        : selected.filter((i) => i !== index),
+                                )
+                            }
+                        />
+                    ))
+                )}
+            </fieldset>
+            <p className="text-xs text-muted">
+                {selected.length} of {offer.choices} chosen
+            </p>
+            <Button
+                type="submit"
+                variant="success"
+                busy={form.pending}
+                disabled={
+                    form.pending ||
+                    (!form.uncertain && selected.length !== offer.choices)
+                }
+            >
+                {form.uncertain
+                    ? "Retry save"
+                    : offer.choices === 1
+                      ? "Confirm choice"
+                      : "Confirm choices"}
+            </Button>
+        </form>
     );
 }
 
@@ -423,10 +551,30 @@ export function NotificationInbox(props: NotificationInboxProps) {
                                         </p>
                                     )}
                                     {row.content.length > 0 && (
-                                        <div className="rich-text break-words text-sm text-muted">
-                                            {richText(row.content)}
-                                        </div>
+                                        <RichText
+                                            nodes={row.content}
+                                            className="text-sm text-muted"
+                                        />
                                     )}
+                                    {row.offer &&
+                                        (row.offer.resolved ? (
+                                            <p className="text-sm font-semibold">
+                                                Applied:{" "}
+                                                {row.offer.selected
+                                                    .map(
+                                                        (i) =>
+                                                            row.offer!.rewards[
+                                                                i
+                                                            ]?.label,
+                                                    )
+                                                    .join(", ")}
+                                            </p>
+                                        ) : (
+                                            <OfferChoiceForm
+                                                offer={row.offer}
+                                                csrfToken={csrfToken}
+                                            />
+                                        ))}
                                     <div className="flex flex-wrap gap-x-4 gap-y-1">
                                         <Button
                                             variant="text"

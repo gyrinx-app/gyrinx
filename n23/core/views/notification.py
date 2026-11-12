@@ -138,6 +138,10 @@ class NotificationInboxView(LoginRequiredMixin, generic.ListView):
             )
         }
 
+        offers = delivery_model.notification_choices(
+            deliveries.values(), self.request.user
+        )
+
         def target_for(notification):
             # UUID-backed generic keys and N26 ULID model keys differ in prefetch caches.
             if notification.target_content_type_id == delivery_type.pk:
@@ -178,6 +182,7 @@ class NotificationInboxView(LoginRequiredMixin, generic.ListView):
                     "subject": n.subject,
                     "content": body_for(n),
                     "context": context_for(n),
+                    "offer": offers.get(n.target_object_id),
                     "sender": n.sender_label,
                     "system": n.is_system,
                     "created": n.created.isoformat(),

@@ -183,6 +183,12 @@ class ToolkitDelivery(Base):
     def get_absolute_url(self):
         return self.href
 
+    @classmethod
+    def notification_choices(cls, deliveries, viewer):
+        from n26.core.toolkit_inbox import offers_for
+
+        return offers_for(deliveries, viewer)
+
     def notification_context(self, sender):
         from n26.core.people import person_link
 
