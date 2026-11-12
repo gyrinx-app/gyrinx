@@ -201,7 +201,7 @@ describe("profile settings", () => {
             },
         );
         window.GyrinxImageCrop = { create };
-        render(<ProfileSettings {...props} open />);
+        const rendered = render(<ProfileSettings {...props} open />);
         fireEvent.change(screen.getByLabelText("Profile picture"), {
             target: {
                 files: [
@@ -209,6 +209,9 @@ describe("profile settings", () => {
                 ],
             },
         });
+        expect(screen.getByAltText("Picture to crop").getAttribute("src")).toBe(
+            "blob:picture",
+        );
         const confirm = screen.getByRole("button", {
             name: "Use this crop",
         }) as HTMLButtonElement;
@@ -223,6 +226,8 @@ describe("profile settings", () => {
             1,
             expect.any(Function),
         );
+        rendered.unmount();
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:picture");
     });
 });
 

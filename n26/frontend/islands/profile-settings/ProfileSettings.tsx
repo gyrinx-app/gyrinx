@@ -74,6 +74,7 @@ export function ProfileSettings(props: ProfileSettingsProps) {
     const [pending, setPending] = useState(false);
     const [removePicture, setRemovePicture] = useState(props.removePicture);
     const [cropFile, setCropFile] = useState<File | null>(null);
+    const [cropUrl, setCropUrl] = useState("");
     const [previewUrl, setPreviewUrl] = useState(props.pictureUrl);
     const [problem, setProblem] = useState("");
     const [encoding, setEncoding] = useState(false);
@@ -105,7 +106,17 @@ export function ProfileSettings(props: ProfileSettingsProps) {
         [],
     );
     useEffect(() => {
-        if (!cropFile || !picture.current) return;
+        if (!cropFile) {
+            setCropUrl("");
+            return;
+        }
+        const url = URL.createObjectURL(cropFile);
+        setCropUrl(url);
+        return () => URL.revokeObjectURL(url);
+    }, [cropFile]);
+
+    useEffect(() => {
+        if (!cropUrl || !picture.current) return;
         if (!window.GyrinxImageCrop) {
             setProblem(
                 "The picture cropper could not load. Reload the page to try again.",
@@ -113,11 +124,7 @@ export function ProfileSettings(props: ProfileSettingsProps) {
             return;
         }
         setCropReady(false);
-        const url = URL.createObjectURL(cropFile);
         const image = picture.current;
-        image.onerror = () =>
-            setProblem("The picture could not be read. Choose another image.");
-        image.src = url;
         let frame = 0;
         function draw() {
             cancelAnimationFrame(frame);
@@ -145,12 +152,10 @@ export function ProfileSettings(props: ProfileSettingsProps) {
         cropper.current = window.GyrinxImageCrop.create(image, 1, draw);
         return () => {
             cancelAnimationFrame(frame);
-            image.onerror = null;
             cropper.current?.destroy();
             cropper.current = null;
-            URL.revokeObjectURL(url);
         };
-    }, [cropFile]);
+    }, [cropUrl]);
 
     function restoreInput(file: File | null) {
         if (!input.current) return;
@@ -493,7 +498,16 @@ export function ProfileSettings(props: ProfileSettingsProps) {
                                 your circular profile picture.
                             </p>
                             <div className="n26-crop-stage n26-crop-circle">
-                                <img ref={picture} alt="Picture to crop" />
+                                <img
+                                    ref={picture}
+                                    src={cropUrl || undefined}
+                                    alt="Picture to crop"
+                                    onError={() =>
+                                        setProblem(
+                                            "The picture could not be read. Choose another image.",
+                                        )
+                                    }
+                                />
                             </div>
                             <canvas
                                 ref={preview}
