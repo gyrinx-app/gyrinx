@@ -818,6 +818,40 @@ class TestSharedCommands:
 
 
 class TestFixedPlanConversion:
+    @pytest.mark.parametrize("native", [False, True])
+    def test_a_replacement_pattern_keeps_one_pass_when_switched_to_fixed(
+        self, client, campaign, opened, template, native
+    ):
+        cycles.configure(
+            campaign,
+            actor=campaign.owner,
+            template_id=template.pk,
+            current_position=4,
+            mode="repeating",
+            request_key=uuid4(),
+        )
+        state = cycles.load(campaign)
+        cycles.replace_plan(
+            campaign,
+            actor=campaign.owner,
+            steps=(s.PlanStep("new-downtime", state.phases[1].id, 2),),
+            mode="repeating",
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        before = cycles.load(campaign)
+        editor = props(client.get(editor_url(campaign, "plan")))["editor"]
+        proposed = editor["context"]["fixedSteps"]
+        assert [step["count"] for step in proposed] == [2]
+        data = {**editor["values"], "mode": "fixed", "steps": json.dumps(proposed)}
+        assert post(client, campaign, "plan", data, native=native).status_code == (
+            302 if native else 200
+        )
+        after = cycles.load(campaign)
+        assert after.cycles == before.cycles
+        assert after.current_cycle_id == before.current_cycle_id
+        assert [cycle.order for cycle in s.project(after)] == [6, 7]
+
     @pytest.mark.parametrize("saved,last", [(2, 7), (6, 7), (7, 7), (9, 14)])
     def test_preview_reads_do_not_write_or_change_the_fixed_endpoint(
         self, client, campaign, opened, template, saved, last

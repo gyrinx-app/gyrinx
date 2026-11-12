@@ -835,6 +835,11 @@ def replace_plan(
 
 
 def _repeat_continuation(schedule, steps):
+    credit = _saved_tail_credit(schedule, steps)
+    return credit % sum(step.count for step in steps) if steps else 0
+
+
+def _saved_tail_credit(schedule, steps):
     """Credit the saved tail against its matching occurrence in the new pattern."""
     if not schedule.cycles:
         return 0
@@ -853,9 +858,7 @@ def _repeat_continuation(schedule, steps):
     if matching is None:
         return 0
     before = sum(step.count for step in steps[: steps.index(matching)])
-    return (before + min(tail.source.offset + 1, matching.count)) % sum(
-        step.count for step in steps
-    )
+    return before + min(tail.source.offset + 1, matching.count)
 
 
 def set_calendar(
@@ -914,7 +917,11 @@ def fixed_steps(schedule: Schedule) -> tuple[PlanStep, ...]:
     if schedule.plan.mode == "fixed":
         return editable_steps(schedule)
     consumed = schedule.next_position % schedule.plan.length
-    if not consumed and schedule.cycles:
+    completed = (
+        schedule.next_position > schedule.plan.start_position
+        or _saved_tail_credit(schedule, schedule.plan.steps) == schedule.plan.length
+    )
+    if not consumed and completed:
         return ()
     return _remaining_steps(schedule.plan.steps, consumed)
 

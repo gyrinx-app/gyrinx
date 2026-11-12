@@ -252,6 +252,33 @@ class TestRepeatingAndReplacement:
         assert fixed.cycles == schedule.cycles
         assert fixed.plan.order_for(fixed.plan.length) - 1 == 7
 
+    @pytest.mark.parametrize(
+        "saved,counts,end", [(0, [2], 7), (1, [1], 7), (2, [], 7), (3, [1], 9)]
+    )
+    def test_fixed_conversion_retains_an_unstarted_replacement_pattern(
+        self, ids, saved, counts, end
+    ):
+        schedule = configured(ids, current=4, mode="repeating")
+        downtime = schedule.phases[1].id
+        repeating = s.replace_plan(
+            schedule,
+            steps=(s.PlanStep("new-downtime", downtime, 2),),
+            mode="repeating",
+            new_id=ids,
+        ).schedule
+        if saved:
+            target = s.project(repeating)[saved - 1]
+            change, _selected = s._ensure_saved(repeating, target.ref, new_id=ids)
+            repeating = change.schedule
+        steps = s.fixed_steps(repeating)
+        assert [step.count for step in steps] == counts
+        fixed = s.replace_plan(
+            repeating, steps=steps, mode="fixed", new_id=ids
+        ).schedule
+        assert fixed.cycles == repeating.cycles
+        assert fixed.current_cycle_id == schedule.current_cycle_id
+        assert fixed.plan.order_for(fixed.plan.length) - 1 == end
+
     @pytest.mark.parametrize("current,counts", [(0, [2, 1, 3]), (3, [3]), (6, [])])
     def test_a_fixed_plan_editor_contains_only_the_unsaved_remainder(
         self, ids, current, counts
