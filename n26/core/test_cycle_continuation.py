@@ -53,11 +53,11 @@ def test_matching_step_identity_distinguishes_two_occurrences_of_the_same_phase(
     assert s.project(after, limit=2)[1].source.step_id == b.id
 
 
-def test_resaving_an_empty_reset_revision_repairs_its_continuation():
+def test_resaving_an_unstarted_revision_preserves_its_explicit_continuation():
     state = configured()
     plan = s.Plan("reset", "repeating", state.plan.steps[:2], len(state.cycles))
     reset = replace(state, plan=plan, next_position=0)
-    fixed = s.replace_plan(reset, mode="repeating", steps=plan.steps).schedule
-    assert fixed.next_position == 2
-    assert fixed.cycles == state.cycles
-    assert s.project(fixed, limit=2)[1].phase_id == plan.steps[1].phase_id
+    unchanged = s.replace_plan(reset, mode="repeating", steps=plan.steps).schedule
+    assert unchanged is reset
+    assert unchanged.next_position == 0
+    assert unchanged.cycles == state.cycles

@@ -301,7 +301,11 @@ class TestRepeatingAndReplacement:
             now=LATER,
             new_id=ids,
         ).schedule
-        proposed = s.fixed_steps(corrected)
+        resaved = s.replace_plan(
+            corrected, steps=corrected.plan.steps, mode="repeating", new_id=ids
+        ).schedule
+        assert resaved is corrected
+        proposed = s.fixed_steps(resaved)
         assert [step.count for step in proposed] == ([] if completed else [2])
         fixed = s.replace_plan(
             corrected, steps=proposed, mode="fixed", new_id=ids

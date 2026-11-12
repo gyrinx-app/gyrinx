@@ -854,6 +854,9 @@ class TestFixedPlanConversion:
         )
         before = cycles.load(campaign)
         editor = props(client.get(editor_url(campaign, "plan")))["editor"]
+        assert post(client, campaign, "plan", editor["values"]).status_code == 200
+        assert cycles.load(campaign) == before
+        editor = props(client.get(editor_url(campaign, "plan")))["editor"]
         proposed = editor["context"]["fixedSteps"]
         assert [step["count"] for step in proposed] == ([] if completed else [2])
         data = {**editor["values"], "mode": "fixed", "steps": json.dumps(proposed)}

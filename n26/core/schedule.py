@@ -815,18 +815,9 @@ def replace_plan(
         )
     )
     schedule = dated.schedule
-    position = _repeat_continuation(schedule, steps) if mode == "repeating" else 0
-    empty_restart = (
-        mode == "repeating"
-        and len(schedule.cycles) == schedule.plan.starts_after_order
-        and position != schedule.plan.start_position
-    )
-    if (
-        mode == schedule.plan.mode
-        and tuple(steps) == editable_steps(schedule)
-        and not empty_restart
-    ):
+    if mode == schedule.plan.mode and tuple(steps) == editable_steps(schedule):
         return dated
+    position = _repeat_continuation(schedule, steps) if mode == "repeating" else 0
     plan = Plan(new_id(), mode, tuple(steps), len(schedule.cycles), position)
     if plan.id == schedule.plan.id:
         raise ScheduleError("A replacement plan must have a new identity.")
