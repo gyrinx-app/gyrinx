@@ -117,6 +117,8 @@ class PlanStep:
 
 @dataclass(frozen=True)
 class Plan:
+    """An immutable continuation; a full-length start retains completed-pass credit."""
+
     id: str
     mode: Mode
     steps: tuple[PlanStep, ...]
@@ -132,7 +134,7 @@ class Plan:
         _nonnegative(self.starts_after_order, "Plan boundary")
         _nonnegative(self.start_position, "Initial plan position")
         if self.start_position and (
-            self.mode != "repeating" or self.start_position >= self.length
+            self.mode != "repeating" or self.start_position > self.length
         ):
             raise ScheduleError("Select a position within the repeating pattern.")
 
@@ -835,8 +837,7 @@ def replace_plan(
 
 
 def _repeat_continuation(schedule, steps):
-    credit = _saved_tail_credit(schedule, steps)
-    return credit % sum(step.count for step in steps) if steps else 0
+    return _saved_tail_credit(schedule, steps)
 
 
 def _saved_tail_credit(schedule, steps):
@@ -917,10 +918,7 @@ def fixed_steps(schedule: Schedule) -> tuple[PlanStep, ...]:
     if schedule.plan.mode == "fixed":
         return editable_steps(schedule)
     consumed = schedule.next_position % schedule.plan.length
-    completed = (
-        schedule.next_position > schedule.plan.start_position
-        or _saved_tail_credit(schedule, schedule.plan.steps) == schedule.plan.length
-    )
+    completed = schedule.next_position > 0
     if not consumed and completed:
         return ()
     return _remaining_steps(schedule.plan.steps, consumed)

@@ -279,6 +279,36 @@ class TestRepeatingAndReplacement:
         assert fixed.current_cycle_id == schedule.current_cycle_id
         assert fixed.plan.order_for(fixed.plan.length) - 1 == end
 
+    @pytest.mark.parametrize("completed", [False, True])
+    def test_fixed_conversion_keeps_installed_credit_after_a_saved_phase_correction(
+        self, ids, completed
+    ):
+        schedule = configured(ids, current=6 if completed else 4)
+        steps = (
+            schedule.plan.steps
+            if completed
+            else (s.PlanStep("new-downtime", schedule.phases[1].id, 2),)
+        )
+        repeating = s.replace_plan(
+            schedule, steps=steps, mode="repeating", new_id=ids
+        ).schedule
+        assert repeating.plan.start_position == (7 if completed else 0)
+        tail = repeating.cycles[-1]
+        corrected = s.edit_cycle(
+            repeating,
+            s.SavedCycleRef(tail.id),
+            replace(tail.details, phase_id=schedule.phases[0 if completed else 1].id),
+            now=LATER,
+            new_id=ids,
+        ).schedule
+        proposed = s.fixed_steps(corrected)
+        assert [step.count for step in proposed] == ([] if completed else [2])
+        fixed = s.replace_plan(
+            corrected, steps=proposed, mode="fixed", new_id=ids
+        ).schedule
+        assert fixed.cycles == corrected.cycles
+        assert fixed.plan.order_for(fixed.plan.length) - 1 == 7
+
     @pytest.mark.parametrize("current,counts", [(0, [2, 1, 3]), (3, [3]), (6, [])])
     def test_a_fixed_plan_editor_contains_only_the_unsaved_remainder(
         self, ids, current, counts
