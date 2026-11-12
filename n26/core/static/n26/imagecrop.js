@@ -11,6 +11,24 @@
  * Cropper.js.
  */
 (function () {
+    // Both native picture inputs and React editors use the same crop behaviour.
+    window.GyrinxImageCrop = {
+        create: function (picture, ratio, onCrop) {
+            return new Cropper(picture, {
+                aspectRatio: ratio,
+                viewMode: 1,
+                autoCropArea: 1,
+                dragMode: "none",
+                zoomable: false,
+                rotatable: false,
+                scalable: false,
+                movable: false,
+                toggleDragModeOnDblclick: false,
+                crop: onCrop,
+                ready: onCrop,
+            });
+        },
+    };
     function wire(input) {
         // Partial page updates can call wire again on an input that already has listeners.
         if (input.dataset.cropWired) return;
@@ -127,18 +145,7 @@
             if (!address.startsWith("blob:")) return;
             picture.src = address;
             dialog.showModal();
-            cropper = new Cropper(picture, {
-                aspectRatio: ratio,
-                // Allow selection and resizing of the crop rectangle without transforming the source image.
-                viewMode: 1,
-                autoCropArea: 1,
-                dragMode: "none",
-                zoomable: false,
-                rotatable: false,
-                scalable: false,
-                movable: false,
-                toggleDragModeOnDblclick: false,
-            });
+            cropper = window.GyrinxImageCrop.create(picture, ratio);
         });
 
         confirm.addEventListener("click", function () {

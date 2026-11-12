@@ -6,8 +6,8 @@ from n23.core.models.list import List
 
 
 @pytest.mark.django_db
-def test_own_profile_separates_public_and_unlisted_lists(client, user, content_house):
-    """Test that the owner's profile page separates public and unlisted lists."""
+def test_own_profile_groups_public_and_unlisted_lists(client, user, content_house):
+    """The owner sees public and unlisted lists in the same homepage category."""
     public_list = List.objects.create(
         name="My Public List",
         owner=user,
@@ -23,15 +23,27 @@ def test_own_profile_separates_public_and_unlisted_lists(client, user, content_h
 
     client.force_login(user)
     url = reverse("core:user", args=[user.username])
-    response = client.get(url)
+    response = client.get(url, {"category": "lists"})
     content = response.content.decode()
 
     assert response.status_code == 200
     assert public_list.name in content
     assert unlisted_list.name in content
-    # The public list should appear in the public section, unlisted in the unlisted section
-    assert "Public gangs" in content
     assert "Unlisted" in content
+    assert [
+        f"{tab['label']} {tab['count']}" for tab in response.context["category_tabs"]
+    ] == [
+        "Campaign Gangs 0",
+        "Campaigns 0",
+        "Lists 2",
+        "Content Packs 0",
+    ]
+    for old_category in ("public-gangs", "unlisted"):
+        legacy = client.get(
+            reverse("user-profile", args=[user.username]), {"category": old_category}
+        )
+        assert legacy.context["active_section"].title == "Lists"
+        assert legacy.context["page"].paginator.count == 2
 
 
 @pytest.mark.django_db
@@ -46,7 +58,7 @@ def test_own_profile_no_unlisted_section_when_none(client, user, content_house):
 
     client.force_login(user)
     url = reverse("core:user", args=[user.username])
-    response = client.get(url)
+    response = client.get(url, {"category": "lists"})
     content = response.content.decode()
 
     assert response.status_code == 200
@@ -74,7 +86,7 @@ def test_other_user_cannot_see_unlisted_lists(client, user, make_user, content_h
     other_user = make_user("otheruser", "password")
     client.force_login(other_user)
     url = reverse("core:user", args=[user.username])
-    response = client.get(url)
+    response = client.get(url, {"category": "lists"})
     content = response.content.decode()
 
     assert response.status_code == 200
@@ -99,7 +111,7 @@ def test_anonymous_user_cannot_see_unlisted_lists(client, user, content_house):
     )
 
     url = reverse("core:user", args=[user.username])
-    response = client.get(url)
+    response = client.get(url, {"category": "lists"})
     content = response.content.decode()
 
     assert response.status_code == 200

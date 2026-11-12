@@ -67,7 +67,7 @@ add:0 makes narrow_tabs a number when it is passed without the colon. Comparing 
                    class="flex min-h-11 max-w-full items-center border-b-2 px-3 text-sm no-underline focus-ring
                           {% if tab.current %}border-accent font-semibold text-ink-900 dark:text-ink-100
                           {% else %}border-box-border text-muted hover:text-ink-900 dark:hover:text-ink-100{% endif %}">
-                    <span class="truncate">{{ tab.label }}</span>
+                    <span class="truncate">{{ tab.label }}{% if tab.count is not None %} <span class="ml-1 text-xs font-normal tabular-nums text-muted">{{ tab.count }}</span>{% endif %}</span>
                 </a>
             {% endfor %}
         </c-slot>
@@ -82,7 +82,7 @@ add:0 makes narrow_tabs a number when it is passed without the colon. Comparing 
                        class="flex min-h-11 max-w-full items-center border-b-2 {% if narrow_tabs|add:0 > 2 %}px-2{% else %}px-3{% endif %} text-sm no-underline focus-ring
                               {% if tab.current %}border-accent font-semibold text-ink-900 dark:text-ink-100
                               {% else %}border-box-border text-muted hover:text-ink-900 dark:hover:text-ink-100{% endif %}">
-                        <span class="truncate">{{ tab.label }}</span>
+                        <span class="truncate">{{ tab.label }}{% if tab.count is not None %} <span class="ml-1 text-xs font-normal tabular-nums text-muted">{{ tab.count }}</span>{% endif %}</span>
                     </a>
                 {% endif %}
             {% endfor %}
