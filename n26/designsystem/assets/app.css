@@ -1527,3 +1527,27 @@ select.n26-select-multiple option:checked {
     );
     color: var(--color-accent-foreground);
 }
+
+/* Reserve a square column so taller profile details cannot overlap the picture. */
+.profile-identity {
+    --profile-picture-size: 5.25rem;
+    grid-template-columns: var(--profile-picture-size) minmax(0, 1fr);
+}
+
+@media (min-width: 40rem) {
+    .profile-identity {
+        --profile-picture-size: 5.5rem;
+    }
+}
+
+.profile-picture {
+    position: relative;
+    width: var(--profile-picture-size);
+    height: var(--profile-picture-size);
+    flex-shrink: 0;
+}
+
+.n26-crop-circle .cropper-view-box,
+.n26-crop-circle .cropper-face {
+    border-radius: 50%;
+}

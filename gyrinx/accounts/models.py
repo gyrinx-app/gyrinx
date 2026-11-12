@@ -9,6 +9,11 @@ from django.utils import timezone
 from django.utils.functional import cached_property
 from simple_history.models import HistoricalRecords
 
+from gyrinx.accounts.validators import (
+    validate_profile_colour,
+    validate_profile_location,
+    validate_social_links,
+)
 from gyrinx.badges import (
     HIDE_BADGE,
     PATREON_BADGES,
@@ -267,6 +272,20 @@ class UserProfile(Base):
         help_text="IANA timezone used when showing timestamps. Blank until "
         "detected from the browser or IP country, or chosen on the "
         "account page.",
+    )
+
+    location = models.CharField(
+        max_length=120, blank=True, default="", validators=[validate_profile_location]
+    )
+    instagram_handle = models.CharField(max_length=30, blank=True, default="")
+    discord_handle = models.CharField(max_length=32, blank=True, default="")
+    discord_user_id = models.CharField(max_length=20, blank=True, default="")
+    picture = models.ImageField(upload_to="profile-pictures/", blank=True, default="")
+    social_links = models.JSONField(
+        default=list, blank=True, validators=[validate_social_links]
+    )
+    colour = models.CharField(
+        max_length=20, blank=True, default="", validators=[validate_profile_colour]
     )
 
     # Keep the existing data and history tables when using the accounts app label.

@@ -9,6 +9,7 @@ from django.urls import include, path, re_path
 
 from gyrinx import views_debug
 from gyrinx.accounts import views as account_views
+from gyrinx.accounts.profile_settings import profile_settings
 from gyrinx.accounts.public_profiles import user_profile
 from gyrinx.admin_site import admin_gated_patterns
 from gyrinx.pages import views
@@ -46,6 +47,9 @@ urlpatterns = (
         path("robots.txt", views.robots_txt, name="robots_txt"),
         # The slash distinguishes this from legacy usernames beginning with "@".
         path("user/@<str:username>/", user_profile, name="user-profile"),
+        path(
+            "user/@<str:username>/settings/", profile_settings, name="profile-settings"
+        ),
         path(
             "accounts/settings/",
             account_views.SettingsView.as_view(),

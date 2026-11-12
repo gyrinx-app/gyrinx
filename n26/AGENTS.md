@@ -32,6 +32,8 @@ When it is present, read the relevant note before a non-trivial change.
 | `n26/uploads.py` | `gyrinx.widgets` | Reuse the authenticated rich-text image upload handler; widgets opt in through this seam. |
 | `n26/notifications.py` | `gyrinx.site.models` notifications, `gyrinx.tasks.TaskRoute` | This is the only N26 file that writes notifications. It registers retryable campaign notification delivery. |
 | `n26/impersonation.py` | `gyrinx.impersonation` | Keep the shared session and audit behaviour behind this file. |
+| `n26/core/images.py` | `gyrinx.images` | Re-export shared image shapes and validation for edition forms. |
+| `n26/core/colours.py` | `gyrinx.colours` | Re-export the shared gang and account palette. |
 | `n26/profiles.py` | `gyrinx.accounts.public_profiles` | Register public account display data and reuse canonical username lookup and redirects. |
 | `n26/write_pause.py` | `gyrinx.site.write_pause` | Keep the platform write-pause state behind this file. |
 | `n26/errors.py` | `gyrinx.errors` | Expected failures expose an explicit public message; unexpected errors keep their tracebacks. |

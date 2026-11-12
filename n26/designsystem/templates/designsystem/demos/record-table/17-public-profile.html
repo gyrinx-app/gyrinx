@@ -1,0 +1,15 @@
+{# title: Public profile rows #}
+{# note: actions=False keeps the home page name, type artwork and wealth layout without owner controls. #}
+{# layout: full #}
+<div class="@container divide-y divide-box-border border-y border-box-border">
+    {% for gang in dashboard_gangs %}
+        <c-n26.record-table.gang-row name="{{ gang.name }}"
+                                     type="{{ gang.type }}"
+                                     :type_icon="gang.type_icon"
+                                     colour="{{ gang.colour }}"
+                                     :sheet="gang.sheet"
+                                     layout="menu"
+                                     :actions="False"
+                                     href="#" />
+    {% endfor %}
+</div>

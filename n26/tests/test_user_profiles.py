@@ -62,7 +62,7 @@ def test_public_profile_shows_gang_links_without_account_or_campaign_details(
         "Private Name",
         "Hidden archive",
         "Private campaign name",
-        "Invite to campaign",
+        "Invite to N26 campaign",
     ]:
         assert hidden not in html
 
@@ -83,13 +83,26 @@ def test_public_gang_wealth_includes_models_credits_and_stashed_equipment(
     response = client.get(
         reverse("user-profile", args=[player.username]), {"tab": "n26"}
     )
-    amounts = {
-        entry.name: entry.amount for entry in response.context["sections"][0].entries
+    wealths = {
+        entry.name: entry.wealth for entry in response.context["sections"][0].entries
     }
-    assert amounts == {gang.name: "200¢", cash.name: "1,234¢"}
+    assert wealths == {gang.name: 200, cash.name: 1234}
     html = response.content.decode()
     assert "200¢" in html
-    assert "1,234¢" in html
+    assert "1234¢" in html
+    entries = {entry.name: entry for entry in response.context["sections"][0].entries}
+    sheet = entries[gang.name].sheet
+    assert (
+        sheet.model_count,
+        sheet.rating,
+        sheet.credits,
+        sheet.stash_rating,
+        sheet.wealth,
+    ) == (1, 135, 0, 65, 200)
+    soup = BeautifulSoup(html, "html.parser")
+    assert soup.select_one("[data-profile-placeholder]")
+    assert len(soup.select("[data-profile-entries] [data-record-row]")) == 2
+    assert not soup.select("[data-profile-entries] [data-react-name='action-menu']")
     assert_reconciled(gang)
     assert_reconciled(cash)
 
@@ -145,7 +158,7 @@ def test_campaign_invitation_entry_is_available_on_either_profile_tab(
     soup = BeautifulSoup(response.content, "html.parser")
     invitation = soup.find("a", href=reverse("n26-invite-user", args=[player.username]))
     assert invitation is not None
-    assert invitation.get_text(strip=True) == "Invite to campaign"
+    assert invitation.get_text(strip=True) == "Invite to N26 campaign"
 
 
 @pytest.mark.parametrize("viewer", ["owner", "visitor", "anonymous"])
@@ -172,7 +185,8 @@ def test_profile_campaigns_follow_read_access_and_include_accepted_places(
     elif viewer == "anonymous":
         client.logout()
     response = client.get(
-        reverse("user-profile", args=[player.username]), {"tab": "n26"}
+        reverse("user-profile", args=[player.username]),
+        {"tab": "n26", "category": "campaigns"},
     )
     assert response.status_code == 200
     sections = {section.title: section for section in response.context["sections"]}
@@ -439,3 +453,38 @@ def test_numeric_username_and_legacy_id_links_target_different_accounts(
         ]
         == numeric
     )
+
+
+def test_profile_gang_sorting_uses_n26_wealth_and_modification_times(
+    client, people, gang_type
+):
+    _, player, _ = people
+    found_gang("Zulu", gang_type, owner=player, budget=1500)
+    found_gang("Alpha", gang_type, owner=player, budget=900)
+    url = reverse("user-profile", args=[player.username])
+    for sort, first in (("name", "Alpha"), ("modified", "Alpha"), ("wealth", "Zulu")):
+        response = client.get(url, {"tab": "n26", "sort": sort})
+        assert response.context["page"].object_list[0].name == first
+
+
+@pytest.mark.parametrize("role", ["arbitrator", "administrator"])
+def test_profile_actions_match_the_viewers_actual_role(
+    client, people, campaign_type, role
+):
+    viewer, player, _ = people
+    if role == "administrator":
+        viewer.is_staff = True
+        viewer.is_superuser = True
+        viewer.save(update_fields=["is_staff", "is_superuser"])
+    found_campaign("Viewer's league", campaign_type, owner=viewer)
+    response = client.get(
+        reverse("user-profile", args=[player.username]), {"tab": "n26"}
+    )
+    page = BeautifulSoup(response.content, "html.parser")
+    invitation = page.find("a", href=reverse("n26-invite-user", args=[player.username]))
+    assert invitation.get_text(strip=True) == "Invite to N26 campaign"
+    impersonate = page.find(
+        "form", action=reverse("core:impersonate-start", args=[player.pk])
+    )
+    assert bool(impersonate) == (role == "administrator")
+    assert not page.select('[data-react-name="profile-settings"]')

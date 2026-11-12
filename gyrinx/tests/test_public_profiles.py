@@ -144,7 +144,10 @@ def test_n23_visibility_covers_gangs_campaigns_packs_and_archives(
         client.force_login(make_user("stranger", "password"))
     response = client.get(reverse("user-profile", args=[user.username]), {"tab": "n23"})
     assert response.status_code == 200
-    html = response.content.decode()
+    html = "".join(
+        client.get(tab["href"]).content.decode()
+        for tab in response.context["category_tabs"]
+    )
     for name in visible:
         assert name in html
     for name in private:
@@ -163,7 +166,7 @@ def test_a_public_gang_does_not_disclose_its_private_campaign_to_unrelated_reade
         status=apps.get_model("core", "List").CAMPAIGN_MODE,
         campaign=campaign,
     )
-    url = reverse("user-profile", args=[user.username])
+    url = reverse("user-profile", args=[user.username]) + "?category=campaign-gangs"
     public = client.get(url).content.decode()
     assert gang.name in public
     assert campaign.name not in public
