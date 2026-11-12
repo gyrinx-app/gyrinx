@@ -6,11 +6,28 @@ from django.urls import include, path
 
 from n26.core import views
 from n26.core.views import battle_editing, cycle_planning, options
+from n26.core.views import toolkit as toolkit_views
 from n26.core.views.skills import skills_command
 from n26.library import action_builder_views
 from n26.library import views as authoring_views
 
 urlpatterns = [
+    path("campaigns/<str:pk>/toolkit/", toolkit_views.toolkit_home, name="n26-toolkit"),
+    path(
+        "campaigns/<str:pk>/toolkit/new/<str:action>/",
+        toolkit_views.toolkit_form,
+        name="n26-toolkit-form",
+    ),
+    path(
+        "campaigns/<str:pk>/toolkit/commands/<str:action>/",
+        toolkit_views.toolkit_command,
+        name="n26-toolkit-command",
+    ),
+    path(
+        "campaigns/<str:pk>/toolkit/interventions/<str:intervention_pk>/",
+        toolkit_views.intervention_detail,
+        name="n26-toolkit-intervention",
+    ),
     path("", views.dashboard, name="n26-dashboard"),
     path("users/@<str:username>/", views.user_profile, name="n26-user-profile"),
     path("users/@<str:username>/invite/", views.invite_user, name="n26-invite-user"),

@@ -431,6 +431,16 @@ class CampaignOperation:
             battle=battle,
             note=f"{scenario} on {date.isoformat()}",
         )
+        if result != Battle.Result.NOT_RECORDED:
+            from n26.core.toolkit import alert_event
+
+            alert_event(
+                self.campaign,
+                "battle_outcome",
+                identity=f"{battle.pk}:{battle.revision}",
+                text=f"An outcome was logged for {battle.title}.",
+                actor=self.actor,
+            )
         return battle
 
     def _battle_cycle(self, target, *, existing=None):
@@ -770,6 +780,16 @@ class CampaignOperation:
             battle=battle,
             note=f"{scenario} on {date.isoformat()}",
         )
+        if before[2] == "not_recorded" and result != "not_recorded":
+            from n26.core.toolkit import alert_event
+
+            alert_event(
+                self.campaign,
+                "battle_outcome",
+                identity=f"{battle.pk}:{battle.revision}",
+                text=f"An outcome was logged for {battle.title}.",
+                actor=self.actor,
+            )
         return battle
 
     def record_outcome(self, battle, *, result, winners, revision):
@@ -805,6 +825,15 @@ class CampaignOperation:
             CampaignEvent.Kind.BATTLE_EDITED,
             battle=battle,
             note=f"{battle.title} on {battle.date.isoformat()}",
+        )
+        from n26.core.toolkit import alert_event
+
+        alert_event(
+            self.campaign,
+            "battle_outcome",
+            identity=f"{battle.pk}:{battle.revision}",
+            text=f"An outcome was logged for {battle.title}.",
+            actor=self.actor,
         )
         return battle
 

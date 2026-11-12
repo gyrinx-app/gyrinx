@@ -28,6 +28,7 @@ DEFAULT_VIEWBOX = "0 0 24 24"
 
 # Keep dynamic and stored names working while templates move to Lucide's names.
 ALIASES: dict[str, str] = {
+    "user-round-shield": "shield-user",
     "arrow-top-right-on-square": "external-link",
     "arrow-up-tray": "upload",
     "arrow-uturn-left": "undo-2",

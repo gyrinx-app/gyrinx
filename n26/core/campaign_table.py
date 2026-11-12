@@ -235,6 +235,7 @@ def gang_table_props(sheet):
             {
                 "id": line.gang_id,
                 "name": line.name,
+                "tags": line.tags,
                 "type": line.gang_type,
                 "artwork": artwork_key,
                 "owner": person_link(line.owner, badges) if line.owner else None,

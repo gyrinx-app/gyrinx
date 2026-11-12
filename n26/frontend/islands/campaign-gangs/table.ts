@@ -11,6 +11,7 @@ export type LabelColumn = Column & { colours: Record<string, string> };
 export type Gang = {
     id: string;
     name: string;
+    tags?: { name: string; icon: string; info: string }[];
     type: string;
     artwork: string;
     owner: { name: string; href: string; badge: string | null } | null;

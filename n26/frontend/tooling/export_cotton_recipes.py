@@ -2212,6 +2212,22 @@ def recipes():
                 for tag, attrs in Elements(str(resolve(name).body)).elements
             ]
             for name in (
+                "tool-case",
+                "gift",
+                "send",
+                "bell",
+                "crosshair",
+                "gem",
+                "badge-cent",
+                "sprout",
+                "siren",
+                "octagon-x",
+                "user-round-shield",
+                "parasol",
+                "key-round",
+                "paintbrush",
+                "printer",
+                "library-big",
                 "plus",
                 "search",
                 "share-2",

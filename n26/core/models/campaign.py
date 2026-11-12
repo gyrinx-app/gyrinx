@@ -152,6 +152,7 @@ class CampaignEvent(Base):
     NOTE_LENGTH = 512
 
     class Kind(models.TextChoices):
+        PLAYER_TAGGED = "player_tagged", "Player tag changed"
         CREATED = "created", "Set up"
         RENAMED = "renamed", "Renamed"
         BUDGET_SET = "budget_set", "Budget set"

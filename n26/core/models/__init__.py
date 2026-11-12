@@ -53,8 +53,22 @@ from n26.core.models.settings import (
 )
 from n26.core.models.stash import Stash
 from n26.core.models.stat_override import StatOverride
+from n26.core.models.toolkit import (
+    CampaignTag,
+    Intervention,
+    InterventionReceipt,
+    ToolkitAlert,
+    ToolkitCommand,
+    ToolkitDelivery,
+)
 
 __all__ = [
+    "ToolkitCommand",
+    "Intervention",
+    "InterventionReceipt",
+    "CampaignTag",
+    "ToolkitAlert",
+    "ToolkitDelivery",
     "SETTING_GROUPS",
     "Activity",
     "ActionAllowance",

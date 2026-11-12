@@ -1,0 +1,13 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation react %}
+{% block head_title %}Arbitrator Toolkit — {{ campaign.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock nav_items %}
+{% block content %}
+    {% react_island "arbitrator-toolkit" toolkit_props %}
+{% endblock content %}

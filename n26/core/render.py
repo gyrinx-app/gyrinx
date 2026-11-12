@@ -1668,6 +1668,7 @@ class CampaignGangLine:
     yours: bool = False
     #: The full table width: gang identity, money, counters and menu.
     detail_colspan: int = 1
+    tags: list[dict] = field(default_factory=list)
 
     @property
     def details(self):
@@ -1725,6 +1726,7 @@ class CampaignPlayerLine:
     state: str
     gangs: list[CampaignGangLine]
     participation: str
+    tags: list = field(default_factory=list)
 
 
 @dataclass
