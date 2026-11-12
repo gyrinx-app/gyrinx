@@ -760,6 +760,15 @@ def context():
     from n26.core.rating import RatingContribution, RatingReceipt
 
     return {
+        "profile_category_tabs": [
+            {"label": "Gangs", "count": 20, "href": "?category=gangs", "current": True},
+            {
+                "label": "Campaigns",
+                "count": 0,
+                "href": "?category=campaigns",
+                "current": False,
+            },
+        ],
         "name_list_items": stacked_name_items(
             ["Ruins, North", "Shop", "Shop", "Settlement"]
         ),

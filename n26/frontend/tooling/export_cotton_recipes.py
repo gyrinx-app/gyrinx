@@ -112,6 +112,22 @@ def tooltip_recipe():
     }
 
 
+def colour_picker_recipe():
+    source = '<c-n26.colour-picker label="Profile colour" />'
+    rendered = Template(CottonCompiler().process(source)).render(Context())
+    nodes = Elements(rendered).elements
+    spans = [attrs for tag, attrs in nodes if tag == "span"]
+    return {
+        "legend": class_name(next(a for t, a in nodes if t == "legend")),
+        "grid": class_name(next(a for t, a in nodes if t == "div")),
+        "label": class_name(next(a for t, a in nodes if t == "label")),
+        "input": class_name(next(a for t, a in nodes if t == "input")),
+        "none": class_name(spans[0]),
+        "swatch": _without(class_name(spans[2]), "bg-ink-500"),
+        "text": class_name(spans[1]),
+    }
+
+
 def gang_figures_recipe():
     from types import SimpleNamespace
 
@@ -2195,6 +2211,10 @@ def recipes():
         "svgProps": svg_props(),
         "rangeMenu": range_menu_recipe(),
         "userLink": user_link_recipe(),
+        "colourPicker": colour_picker_recipe(),
+        "pictureInput": classes(
+            '<c-n26.picture-input id="recipe-picture" crop="1:1" />', "input"
+        )[0],
         "colorSwatch": classes('<c-n26.color-swatch color="red" />', "span")[0],
         "toggle": toggle_recipe(),
         "popover": {
@@ -2220,6 +2240,7 @@ def recipes():
                 "chevron-right",
                 "users",
                 "ellipsis-vertical",
+                "cog",
                 "info",
                 "check",
                 "check-check",

@@ -30,6 +30,7 @@ export function MenuButton({
     label,
     title,
     className,
+    size = "default",
     trigger,
     align = "end",
     minWidth = "12rem",
@@ -38,7 +39,8 @@ export function MenuButton({
     /** The button's accessible name. */
     label: string;
     title?: string;
-    className: string;
+    className?: string;
+    size?: "default" | "sm";
     /** What the button shows. */
     trigger: ReactNode;
     align?: "start" | "end";
@@ -159,7 +161,12 @@ export function MenuButton({
             <button
                 ref={button}
                 type="button"
-                className={className}
+                className={
+                    className ??
+                    (size === "sm"
+                        ? cotton.buttonSmall.default
+                        : cotton.button.default)
+                }
                 id={triggerId}
                 aria-label={label}
                 title={title}

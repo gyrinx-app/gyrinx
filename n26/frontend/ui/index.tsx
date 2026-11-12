@@ -16,6 +16,7 @@ import { createPortal } from "react-dom";
 import cotton from "../generated/cotton.json";
 import { useBusyControl } from "./Busy";
 export { BusyControlScope, Spinner } from "./Busy";
+export { ColourPicker } from "./ColourPicker";
 export { FlowProgress, type FlowStep } from "./FlowProgress";
 
 /** A native modal using Cotton styles and React lifecycle handling. */
@@ -340,7 +341,7 @@ export function Input({
             <input
                 {...props}
                 id={field.id}
-                className={`${rightAddon ? recipe.addonControl : recipe.control} ${className}`}
+                className={`${props.type === "file" ? cotton.pictureInput : rightAddon ? recipe.addonControl : recipe.control} ${className}`}
                 aria-invalid={invalid ?? (field.errorId ? true : undefined)}
                 aria-describedby={field.describedBy}
             />
