@@ -991,15 +991,26 @@ def _saved_tail_credit(schedule, steps):
         # Deletion maps the active continuation independently of the archived tail.
         if schedule.plan.start_position:
             previous = _at(
-                replace(schedule.plan, start_position=0), schedule.plan.start_position - 1
+                replace(schedule.plan, start_position=0),
+                schedule.plan.start_position - 1,
             )
             phase_id, source = previous.phase_id, previous.source
         else:
             retained_steps = {step.id: step for step in schedule.plan.steps}
-            previous = next((c for c in reversed(schedule.cycles) if c.source.step_id in retained_steps), None)
+            previous = next(
+                (
+                    c
+                    for c in reversed(schedule.cycles)
+                    if c.source.step_id in retained_steps
+                ),
+                None,
+            )
             if previous is None:
                 return 0
-            phase_id, source = retained_steps[previous.source.step_id].phase_id, previous.source
+            phase_id, source = (
+                retained_steps[previous.source.step_id].phase_id,
+                previous.source,
+            )
     matching = next(
         (
             step

@@ -834,3 +834,55 @@ def test_changed_repeating_counts_credit_the_mapped_continuation_after_phase_del
     changed = s.replace_plan(state, mode="repeating", steps=steps, new_id=ids).schedule
     assert s.project(changed)[0].phase_id == state.phases[2].id
     assert changed.plan.start_position == 2
+
+
+@pytest.mark.parametrize("completed", [False, True])
+def test_phase_deletion_at_pattern_boundary_distinguishes_unstarted_and_completed_pass(
+    ids, completed
+):
+    template = s.ScheduleTemplate(
+        "Boundary",
+        (s.Phase("a", s.PhaseDetails("A")), s.Phase("b", s.PhaseDetails("B"))),
+        (s.PlanStep("a", "a", 3), s.PlanStep("b", "b", 1)),
+    )
+    state = s.configure(
+        template,
+        campaign_id="campaign",
+        current_position=3 if completed else 0,
+        mode="repeating",
+        new_id=ids,
+    ).schedule
+    state = s.delete_phase(
+        state, state.current_phase.id, no_current=True, new_id=ids
+    ).schedule
+    assert state.plan.start_position == 0
+    assert tuple(step.count for step in s.fixed_steps(state)) == (
+        () if completed else (1,)
+    )
+    assert (
+        s.replace_plan(
+            state, steps=state.plan.steps, mode="repeating", new_id=ids
+        ).schedule
+        is state
+    )
+
+
+def test_archived_cycle_with_a_changed_phase_retains_its_pattern_completion_credit(ids):
+    state = configured(ids, current=6, mode="repeating")
+    state = s.edit_cycle(
+        state,
+        s.SavedCycleRef(state.current_cycle_id),
+        replace(state.current.details, phase_id=state.phases[1].id),
+        now=NOW,
+    ).schedule
+    state = s.delete_phase(
+        state, state.current_phase.id, no_current=True, new_id=ids
+    ).schedule
+    assert state.plan.start_position == 0
+    assert not s.fixed_steps(state)
+    assert (
+        s.replace_plan(
+            state, steps=state.plan.steps, mode="repeating", new_id=ids
+        ).schedule
+        is state
+    )

@@ -666,7 +666,6 @@ test.each([true, false])(
     },
 );
 
-
 test("deleting the current phase retains its explicit replacement through an uncertain retry", async () => {
     const fetch = vi
         .fn()
@@ -746,6 +745,8 @@ test("single-cycle confirmation explains projected prefix and preserves the patt
         screen.getByText(/future pattern will remain unchanged/),
     ).toBeTruthy();
     expect(screen.queryByLabelText("Current cycle after deletion")).toBeNull();
+    expect(screen.queryByText(/0 battles will/)).toBeNull();
+    expect(screen.getByText(/Battles and results will be kept/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Delete cycle" })).toBeTruthy();
 });
 

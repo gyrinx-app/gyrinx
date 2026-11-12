@@ -574,12 +574,17 @@ export function ScheduleEditor({
                         </p>
                     )}
                     <p>
-                        {Number(editor.context.battleCount)}{" "}
-                        {Number(editor.context.battleCount) === 1
-                            ? "battle will"
-                            : "battles will"}{" "}
-                        have no phase. Battles and results will be kept.{" "}
-                        Recorded actions and cycle history will be kept.
+                        {Number(editor.context.battleCount) > 0 && (
+                            <>
+                                {Number(editor.context.battleCount)}{" "}
+                                {Number(editor.context.battleCount) === 1
+                                    ? "battle will"
+                                    : "battles will"}{" "}
+                                have no phase.{" "}
+                            </>
+                        )}
+                        Battles and results will be kept. Recorded actions and
+                        cycle history will be kept.
                     </p>
                     {editor.context.replacesCurrent === true ? (
                         <Field
