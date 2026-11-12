@@ -736,6 +736,73 @@ class ChangelogEntry(AppBase):
         help_text="Labels for filtering, e.g. the edition the change belongs to.",
     )
 
+    flair_active = models.BooleanField(
+        default=True,
+        help_text="Show this flair beside the entry heading.",
+    )
+    flair_text = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text="Up to 20 characters beside the heading in homepage and changelog sidebars. Leave blank to hide the flair.",
+    )
+    flair_colour = models.CharField(
+        max_length=20,
+        choices=ChangelogEntryTag.Colour,
+        default=ChangelogEntryTag.Colour.DEFAULT,
+        help_text="The flair colour. Gyrinx default follows light and dark mode.",
+    )
+    flair_pulse = models.BooleanField(
+        default=False,
+        help_text="Pulse the flair. The flair stays still when reduced motion is enabled.",
+    )
+
+    second_flair_active = models.BooleanField(
+        default=True,
+        help_text="Show the second flair beside the entry heading.",
+    )
+    second_flair_text = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text="Up to 20 characters for the second flair. Leave blank to hide it.",
+    )
+    second_flair_colour = models.CharField(
+        max_length=20,
+        choices=ChangelogEntryTag.Colour,
+        default=ChangelogEntryTag.Colour.DEFAULT,
+        help_text="The second flair colour. Gyrinx default follows light and dark mode.",
+    )
+    second_flair_pulse = models.BooleanField(
+        default=False,
+        help_text="Pulse the second flair. The flair stays still when reduced motion is enabled.",
+    )
+
+    @property
+    def flairs(self):
+        return [
+            {
+                "text": text,
+                "colour": "ink" if colour == "default" else colour,
+                "pulse": pulse,
+            }
+            for text, colour, pulse, active in (
+                (
+                    self.flair_text,
+                    self.flair_colour,
+                    self.flair_pulse,
+                    self.flair_active,
+                ),
+                (
+                    self.second_flair_text,
+                    self.second_flair_colour,
+                    self.second_flair_pulse,
+                    self.second_flair_active,
+                ),
+            )
+            if text and active
+        ]
+
     # Tag membership is deliberately not history-tracked (no ``m2m_fields``):
     # entries are edited in the admin, whose LogEntry already records the
     # change, and m2m tracking would write extra full-body historical rows

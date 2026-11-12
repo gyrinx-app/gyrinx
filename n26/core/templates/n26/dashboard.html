@@ -84,7 +84,11 @@ gangs; submitting search opens the full gangs page.
                     <c-n26.changelog.entry title="{{ entry.title }}"
                                            date="{{ entry.date|date:'j M' }}"
                                            href="{% url 'changelog-entry' entry.pk %}?tag={{ changelog_tag|urlencode }}"
-                                           :body="entry.body" />
+                                           :body="entry.body">
+                        <c-slot name="flair">
+                            {% include "n26/_changelog_flair.html" %}
+                        </c-slot>
+                    </c-n26.changelog.entry>
                 {% endfor %}
             </c-n26.changelog>
         </c-slot>

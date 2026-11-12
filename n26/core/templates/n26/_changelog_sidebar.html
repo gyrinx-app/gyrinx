@@ -3,11 +3,14 @@
                   aria-label="Changelog entries"
                   :persist_scroll="True"
                   scroll_key="n26-changelog"
-                  class="sticky top-24 max-h-[70vh] overflow-y-auto">
+                  class="sticky top-24 max-h-[70vh] overflow-y-auto divide-y divide-box-border">
         {% for item in sidebar %}
             <c-ui.navlist.item href="{{ item.href }}" :current="item.current">
                 <span class="flex min-w-0 flex-col">
-                    <span>{{ item.title }}</span>
+                    <span class="{% if item.flairs %}flex flex-wrap items-center gap-x-3.5 gap-y-1{% endif %}">
+                        <span>{{ item.title }}</span>
+                        {% include "n26/_changelog_flair.html" with entry=item %}
+                    </span>
                     <span class="text-xs text-muted">{{ item.date|date:"j M Y" }}</span>
                 </span>
             </c-ui.navlist.item>
