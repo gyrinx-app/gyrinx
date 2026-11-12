@@ -178,6 +178,23 @@ def options(campaign, *, page=None, selected=None):
                         ends_on=cycle.ends_on,
                     )
                 )
+        first_projected_order = plan.order_for(header.next_position)
+        previous_order = (
+            anchor - 1
+            if anchor > first_projected_order
+            else previous_cycle.order
+            if previous_cycle
+            else None
+        )
+        next_order = (
+            anchor + 1
+            if anchor >= first_projected_order and anchor < last_order
+            else next_cycle.order
+            if next_cycle
+            else first_projected_order
+            if anchor < first_projected_order <= last_order
+            else None
+        )
         return {
             "configured": True,
             "current": current.name if current else "No current cycle",
@@ -187,12 +204,8 @@ def options(campaign, *, page=None, selected=None):
             "lastOrder": last_order,
             "adjacent": {
                 "anchor": anchor,
-                "previous": previous_cycle.order if previous_cycle else None,
-                "next": next_cycle.order
-                if next_cycle
-                else plan.order_for(header.next_position)
-                if header.next_position < last_position
-                else None,
+                "previous": previous_order,
+                "next": next_order,
             },
             "choices": sorted(choices, key=lambda choice: choice["order"]),
             "previous": chosen.previous_page_number()

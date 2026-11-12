@@ -982,21 +982,39 @@ def _saved_tail_credit(schedule, steps):
     if not schedule.cycles:
         return 0
     tail = schedule.cycles[-1]
+    phase_id, source = tail.details.phase_id, tail.source
+    if (
+        tail.archived
+        and schedule.plan.mode == "repeating"
+        and len(schedule.cycles) == schedule.plan.starts_after_order
+    ):
+        # Deletion maps the active continuation independently of the archived tail.
+        if schedule.plan.start_position:
+            previous = _at(
+                replace(schedule.plan, start_position=0), schedule.plan.start_position - 1
+            )
+            phase_id, source = previous.phase_id, previous.source
+        else:
+            retained_steps = {step.id: step for step in schedule.plan.steps}
+            previous = next((c for c in reversed(schedule.cycles) if c.source.step_id in retained_steps), None)
+            if previous is None:
+                return 0
+            phase_id, source = retained_steps[previous.source.step_id].phase_id, previous.source
     matching = next(
         (
             step
             for step in steps
-            if step.id == tail.source.step_id and step.phase_id == tail.details.phase_id
+            if step.id == source.step_id and step.phase_id == phase_id
         ),
         None,
     )
     if matching is None:
-        candidates = [step for step in steps if step.phase_id == tail.details.phase_id]
+        candidates = [step for step in steps if step.phase_id == phase_id]
         matching = candidates[0] if len(candidates) == 1 else None
     if matching is None:
         return 0
     before = sum(step.count for step in steps[: steps.index(matching)])
-    return before + min(tail.source.offset + 1, matching.count)
+    return before + min(source.offset + 1, matching.count)
 
 
 def set_calendar(

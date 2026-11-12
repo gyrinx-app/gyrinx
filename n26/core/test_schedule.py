@@ -804,3 +804,33 @@ def test_deleted_date_ranges_do_not_block_active_manual_cycle_edits(ids):
     )
     assert changed.schedule.current.details.starts_on == deleted.details.starts_on
     assert changed.schedule.cycles[0].details == deleted.details
+
+
+def test_unchanged_repeating_settings_preserve_the_cursor_after_phase_deletion(ids):
+    state = configured(ids, current=3, mode="repeating")
+    state = s.delete_phase(
+        state, state.current_phase.id, no_current=True, new_id=ids
+    ).schedule
+    following = s.project(state)
+    assert following[0].phase_id == state.phases[2].id
+    changed = s.replace_plan(
+        state, mode="repeating", steps=state.plan.steps, new_id=ids
+    )
+    assert changed.schedule is state
+    assert s.project(changed.schedule) == following
+
+
+def test_changed_repeating_counts_credit_the_mapped_continuation_after_phase_deletion(
+    ids,
+):
+    state = configured(ids, current=3, mode="repeating")
+    state = s.delete_phase(
+        state, state.current_phase.id, no_current=True, new_id=ids
+    ).schedule
+    steps = (
+        replace(state.plan.steps[0], count=2),
+        replace(state.plan.steps[1], count=4),
+    )
+    changed = s.replace_plan(state, mode="repeating", steps=steps, new_id=ids).schedule
+    assert s.project(changed)[0].phase_id == state.phases[2].id
+    assert changed.plan.start_position == 2

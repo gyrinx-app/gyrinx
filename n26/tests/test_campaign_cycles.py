@@ -1104,3 +1104,39 @@ class TestScheduleDeletion:
             )
         assert not CampaignCycle.objects.filter(archived=True).exists()
         assert cycles.load(campaign) == configured
+
+
+def test_unchanged_schedule_save_keeps_deletion_continuation(
+    campaign, owner, template, opened
+):
+    cycles.configure(
+        campaign,
+        actor=owner,
+        template_id=template.pk,
+        current_position=3,
+        mode="repeating",
+        request_key=uuid4(),
+    )
+    state = cycles.load(campaign)
+    cycles.delete_phase(
+        campaign,
+        actor=owner,
+        phase_id=state.current_phase.id,
+        no_current=True,
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    state = cycles.load(campaign)
+    following = s.project(state)
+    assert following[0].phase_id == state.phases[2].id
+    result = cycles.replace_plan(
+        campaign,
+        actor=owner,
+        steps=state.plan.steps,
+        mode="repeating",
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    assert result.revision == state.revision
+    assert cycles.load(campaign) == state
+    assert s.project(cycles.load(campaign)) == following

@@ -733,3 +733,49 @@ def test_deleted_cycles_are_absent_from_choices_and_live_neighbours_cross_gaps(t
     )
     with pytest.raises(Refusal):
         record_battle(table, cycle=s.SavedCycleRef(state.cycles[1].id))
+
+
+@pytest.mark.parametrize("archived_gaps", [False, True])
+def test_projected_cycle_neighbours_stay_in_the_projection_after_saved_gaps(
+    table, archived_gaps
+):
+    from n26.core.cycle_selection import options
+
+    state = table.state
+    cycles.replace_plan(
+        table.campaign,
+        actor=table.owner,
+        steps=state.plan.steps,
+        mode="repeating",
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    state = cycles.load(table.campaign)
+    if archived_gaps:
+        record_battle(table, cycle=s.project(state)[3].ref)
+        state = cycles.load(table.campaign)
+        for cycle in state.cycles[1:4]:
+            state = cycles.load(table.campaign)
+            cycles.delete_cycle(
+                table.campaign,
+                actor=table.owner,
+                target=s.SavedCycleRef(cycle.id),
+                expected_revision=state.revision,
+                request_key=uuid4(),
+            )
+        state = cycles.load(table.campaign)
+    selected = s.project(state)[3]
+    display = options(table.campaign, selected=ref_data(selected.ref))
+    assert display["adjacent"] == {
+        "anchor": selected.order,
+        "previous": selected.order - 1,
+        "next": selected.order + 1,
+    }
+    available = {choice["order"] for choice in display["choices"]}
+    assert {selected.order - 1, selected.order, selected.order + 1} <= available
+    assert not any(
+        choice["value"] == {"cycle_id": c.id}
+        for choice in display["choices"]
+        for c in state.cycles
+        if c.archived
+    )
