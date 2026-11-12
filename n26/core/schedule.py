@@ -904,15 +904,16 @@ def delete_phase(schedule, phase_id, *, replacement=None, no_current=False, new_
             position = 0
         else:
             steps = tuple(step for step in plan.steps if step.phase_id != phase_id)
-            # Map the old next offset into the filtered pattern, including repeated phases.
+            # Keep a completed pass distinct from an unstarted filtered pattern.
             offset = state.next_position % plan.length
+            if not offset and state.next_position > 0:
+                offset = plan.length
             position = 0
             for step in plan.steps:
                 consumed = min(offset, step.count)
                 if step.phase_id != phase_id:
                     position += consumed
                 offset -= consumed
-            position = position % sum(step.count for step in steps) if steps else 0
         plan = Plan(
             new_id(),
             plan.mode if steps else "fixed",

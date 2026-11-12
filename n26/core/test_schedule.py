@@ -855,7 +855,7 @@ def test_phase_deletion_at_pattern_boundary_distinguishes_unstarted_and_complete
     state = s.delete_phase(
         state, state.current_phase.id, no_current=True, new_id=ids
     ).schedule
-    assert state.plan.start_position == 0
+    assert state.plan.start_position == (state.plan.length if completed else 0)
     assert tuple(step.count for step in s.fixed_steps(state)) == (
         () if completed else (1,)
     )
@@ -878,7 +878,7 @@ def test_archived_cycle_with_a_changed_phase_retains_its_pattern_completion_cred
     state = s.delete_phase(
         state, state.current_phase.id, no_current=True, new_id=ids
     ).schedule
-    assert state.plan.start_position == 0
+    assert state.plan.start_position == state.plan.length
     assert not s.fixed_steps(state)
     assert (
         s.replace_plan(
@@ -886,3 +886,36 @@ def test_archived_cycle_with_a_changed_phase_retains_its_pattern_completion_cred
         ).schedule
         is state
     )
+
+
+def test_deletion_completion_credit_survives_a_later_saved_phase_edit(ids):
+    template = s.ScheduleTemplate(
+        "Boundary",
+        (s.Phase("a", s.PhaseDetails("A")), s.Phase("b", s.PhaseDetails("B"))),
+        (s.PlanStep("a", "a", 3), s.PlanStep("b", "b", 1)),
+    )
+    state = s.configure(
+        template,
+        campaign_id="campaign",
+        current_position=3,
+        mode="repeating",
+        new_id=ids,
+    ).schedule
+    state = s.delete_phase(
+        state, state.current_phase.id, no_current=True, new_id=ids
+    ).schedule
+    assert state.plan.start_position == state.next_position == 3
+    state = s.add_phase(state, s.PhaseDetails("Correction"), new_id=ids).schedule
+    surviving = state.cycles[2]
+    state = s.edit_cycle(
+        state,
+        s.SavedCycleRef(surviving.id),
+        replace(surviving.details, phase_id=state.phases[-1].id),
+    ).schedule
+    assert state.next_position == 3
+    assert not s.fixed_steps(state)
+    fixed = s.replace_plan(
+        state, steps=s.fixed_steps(state), mode="fixed", new_id=ids
+    ).schedule
+    assert fixed.cycles == state.cycles
+    assert not s.project(fixed)
