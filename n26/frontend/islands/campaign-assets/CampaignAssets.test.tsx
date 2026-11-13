@@ -75,7 +75,7 @@ test.each([
     ["-name", ["c", "a", "b", "d"]],
     ["income", ["d", "a", "b", "c"]],
     ["-income", ["c", "b", "a", "d"]],
-    ["holder", ["d", "c", "a", "b"]],
+    ["holder", ["a", "b", "d", "c"]],
     ["-holder", ["d", "c", "b", "a"]],
 ])("%s sorting retains separate copies and their facts", (sort, expected) => {
     const data = props();
@@ -83,6 +83,113 @@ test.each([
     expect(groups[0].rows.map((row) => row.id)).toEqual(expected);
     expect(groups[0].rows.find((row) => row.id === "b")?.boon).toBe("Armour");
     expect(data.entries.map((row) => row.id)).toEqual(["b", "c", "a", "d"]);
+});
+
+test.each([
+    [
+        "holder",
+        "status",
+        [
+            ["held", ["a", "b"]],
+            ["unclaimed", ["d", "c"]],
+        ],
+    ],
+    [
+        "-holder",
+        "status",
+        [
+            ["unclaimed", ["d", "c"]],
+            ["held", ["b", "a"]],
+        ],
+    ],
+    [
+        "holder",
+        "holder",
+        [
+            ["a", ["a"]],
+            ["z", ["b"]],
+            ["unclaimed", ["d", "c"]],
+        ],
+    ],
+    [
+        "-holder",
+        "holder",
+        [
+            ["unclaimed", ["d", "c"]],
+            ["z", ["b"]],
+            ["a", ["a"]],
+        ],
+    ],
+])(
+    "%s sorting orders %s groups in the same direction",
+    (sort, group, expected) => {
+        expect(
+            assetGroups(props(), {
+                sort: sort as string,
+                group: group as string,
+            }).map((group) => [group.id, group.rows.map((row) => row.id)]),
+        ).toEqual(expected);
+    },
+);
+
+test.each(["holder", "-holder"])(
+    "%s sorting keeps same-named gangs separate and territories alphabetical",
+    (sort) => {
+        const data = props();
+        const held = data.entries.filter((entry) => entry.held);
+        for (const entry of held) {
+            entry.holder = "Same name";
+            entry.sortValues.holder = "same name";
+        }
+        data.entries.push(entry("e", "Cave", 5, "Same name", "a"));
+        const groups = assetGroups(data, { sort, group: "holder" });
+        expect(groups.map((group) => group.id)).toEqual(
+            sort === "holder"
+                ? ["a", "z", "unclaimed"]
+                : ["unclaimed", "z", "a"],
+        );
+        expect(
+            groups.find((group) => group.id === "a")?.rows.map((row) => row.id),
+        ).toEqual(["e", "a"]);
+    },
+);
+
+test("Held by headers reverse group order and restore it from the URL", async () => {
+    const user = userEvent.setup();
+    render(
+        <CampaignAssets {...props()} group="holder" onOpenDialog={vi.fn()} />,
+    );
+    const groupLabels = () =>
+        screen
+            .getAllByRole("rowheader")
+            .filter((node) => node.getAttribute("scope") === "rowgroup")
+            .map((node) => node.textContent);
+    await user.click(screen.getByRole("link", { name: "Held by" }));
+    const ascendingUrl = window.location.href;
+    expect(groupLabels()).toEqual([
+        "Alpha · 1 territory",
+        "Zulu · 1 territory",
+        "Unclaimed · 2 territories",
+    ]);
+    expect(new URL(ascendingUrl).searchParams.get("asset_sort")).toBe("holder");
+    await user.click(screen.getByRole("link", { name: "Held by" }));
+    expect(groupLabels()).toEqual([
+        "Unclaimed · 2 territories",
+        "Zulu · 1 territory",
+        "Alpha · 1 territory",
+    ]);
+    expect(new URL(window.location.href).searchParams.get("asset_sort")).toBe(
+        "-holder",
+    );
+    act(() => {
+        window.history.replaceState(null, "", ascendingUrl);
+        window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(groupLabels()).toEqual([
+        "Alpha · 1 territory",
+        "Zulu · 1 territory",
+        "Unclaimed · 2 territories",
+    ]);
 });
 
 test("default and holder groups put unclaimed first without merging same-named gangs", () => {
