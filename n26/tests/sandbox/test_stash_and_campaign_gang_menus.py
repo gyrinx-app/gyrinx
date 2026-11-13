@@ -156,34 +156,33 @@ def rivals(campaign, gang_type, arbitrator):
     return rivals
 
 
-class TestTheGangSheetRedraw:
-    """htmx sheet redraws must include the stash menu hosts."""
+class TestTheGangSheetAfterChoice:
+    """A saved campaign label returns to a complete sheet with its stash menus."""
 
-    def test_saving_a_campaign_label_redraws_the_sheet_with_its_stash_hosts(
+    def test_saving_a_campaign_label_returns_to_the_sheet_with_its_stash_hosts(
         self, client, campaign, gang, stashed
     ):
+        from n26.tests.fixtures import island_props
+
         client.force_login(gang.owner)
         page = BeautifulSoup(
             client.get(reverse("n26-gang", args=[gang.pk])).content, "html.parser"
         )
         url = page.find("a", {"aria-label": "Edit Allegiance"})["href"]
-        dialog = BeautifulSoup(
-            client.get(url, HTTP_HX_REQUEST="true").content, "html.parser"
-        )
-        choice = dialog.find("input", {"type": "radio"})["value"]
-
+        fragment = client.get(url, HTTP_HX_REQUEST="true")
+        props = island_props(fragment.content, "choice-workflow")
+        assert props["dialog"]
+        choice = props["offer"]["groups"][0]["options"][0]["key"]
+        payload = {**props["values"], "thing": choice}
         response = client.post(
-            url,
-            {"thing": choice, "return": reverse("n26-gang", args=[gang.pk])},
-            HTTP_HX_REQUEST="true",
+            props["commandHref"], payload, HTTP_ACCEPT="application/json"
         )
-
         assert response.status_code == 200
-        body = response.content.decode()
-        soup = BeautifulSoup(body, "html.parser")
-        assert soup.find(id="n26-gang-sheet")["hx-swap-oob"] == "true"
-        props = menus(body, within="n26-gang-sheet")["Actions for Respirator"]
-        assert drawn(props) == ["Reassign", "Refund", "—", "Sell", "—", "Delete"]
+        assert response.json()["nextUrl"] == reverse("n26-gang", args=[gang.pk])
+        body = client.get(response.json()["nextUrl"]).content.decode()
+        assert BeautifulSoup(body, "html.parser").find(id="n26-gang-sheet") is not None
+        menu = menus(body, within="n26-gang-sheet")["Actions for Respirator"]
+        assert drawn(menu) == ["Reassign", "Refund", "—", "Sell", "—", "Delete"]
 
 
 class TestTheCampaignGangs:

@@ -783,14 +783,22 @@ class TestTheSharedPicker:
         assert counts() == before
         assert (
             client.post(
-                url, {"thing": f"library.pickable:{content['income_pick'].pk}"}
+                url,
+                {
+                    "request_key": str(uuid4()),
+                    "thing": f"library.pickable:{content['income_pick'].pk}",
+                },
             ).status_code
             == 302
         )
         first = Assignment.objects.get(chosen_for_holding=holding, archived=False)
         assert (
             client.post(
-                url, {"thing": f"library.pickable:{content['reputation_pick'].pk}"}
+                url,
+                {
+                    "request_key": str(uuid4()),
+                    "thing": f"library.pickable:{content['reputation_pick'].pk}",
+                },
             ).status_code
             == 302
         )
@@ -817,15 +825,20 @@ class TestTheSharedPicker:
         assert client.get(url).status_code == 404
         assert (
             client.post(
-                url, {"thing": f"library.pickable:{content['income_pick'].pk}"}
+                url,
+                {
+                    "request_key": str(uuid4()),
+                    "thing": f"library.pickable:{content['income_pick'].pk}",
+                },
             ).status_code
-            == 404
+            == 409
         )
         assert (
             client.post(
-                reverse("n26-dismiss-offer", args=[gang.pk, old_key])
+                reverse("n26-dismiss-offer", args=[gang.pk, old_key]),
+                {"request_key": str(uuid4())},
             ).status_code
-            == 404
+            == 302
         )
         assert counts() == before
         assert question(gang, current, content["slot"]).chosen_name == "Extra income"
@@ -837,7 +850,7 @@ class TestTheSharedPicker:
         remove(question(gang, holding, content["slot"]).picks[0].assignment)
         key = key_for(gang, holding, content["slot"])
         dismiss = reverse("n26-dismiss-offer", args=[gang.pk, key])
-        client.post(dismiss)
+        client.post(dismiss, {"request_key": str(uuid4())})
         assert DismissedOffer.objects.filter(gang=gang, slot_key=key).exists()
 
         revise(content["slot"], allow_dismissal=False)
@@ -846,10 +859,10 @@ class TestTheSharedPicker:
         line = next(line for line in sheet.campaign.choices if line.key == key)
         assert line.allow_dismissal is False
         assert line.dismissed is False
-        response = client.post(dismiss, follow=True)
+        response = client.post(dismiss, {"request_key": str(uuid4())}, follow=True)
         assert "This choice must stay available." in response.content.decode()
         DismissedOffer.objects.filter(gang=gang).delete()
-        client.post(dismiss)
+        client.post(dismiss, {"request_key": str(uuid4())})
         assert not DismissedOffer.objects.filter(gang=gang).exists()
 
     def test_a_dismissal_hides_only_one_holding_and_one_ownership_period(
@@ -861,7 +874,10 @@ class TestTheSharedPicker:
         old_key = key_for(gang, holding, content["slot"])
 
         def dismiss(key):
-            return client.post(reverse("n26-dismiss-offer", args=[gang.pk, key]))
+            return client.post(
+                reverse("n26-dismiss-offer", args=[gang.pk, key]),
+                {"request_key": str(uuid4())},
+            )
 
         assert dismiss(old_key).status_code == 302
         assert dismiss(old_key).status_code == 302
@@ -881,7 +897,8 @@ class TestTheSharedPicker:
         assert dismiss(fresh_key).status_code == 302
         assert (
             client.post(
-                reverse("n26-restore-offer", args=[gang.pk, old_key])
+                reverse("n26-restore-offer", args=[gang.pk, old_key]),
+                {"request_key": str(uuid4())},
             ).status_code
             == 302
         )
@@ -916,9 +933,13 @@ class TestTheSharedPicker:
         assert client.get(url).status_code == 404
         assert (
             client.post(
-                url, {"thing": f"library.pickable:{content['reputation_pick'].pk}"}
+                url,
+                {
+                    "request_key": str(uuid4()),
+                    "thing": f"library.pickable:{content['reputation_pick'].pk}",
+                },
             ).status_code
-            == 404
+            == 409
         )
         with pytest.raises(Refusal):
             with operation(gang, actor=owner) as op:
@@ -937,13 +958,18 @@ class TestTheSharedPicker:
             assert client.get(url).status_code == 404
             assert (
                 client.post(
-                    url, {"thing": f"library.pickable:{content['income_pick'].pk}"}
+                    url,
+                    {
+                        "request_key": str(uuid4()),
+                        "thing": f"library.pickable:{content['income_pick'].pk}",
+                    },
                 ).status_code
                 == 404
             )
             assert (
                 client.post(
-                    reverse("n26-dismiss-offer", args=[gang.pk, key])
+                    reverse("n26-dismiss-offer", args=[gang.pk, key]),
+                    {"request_key": str(uuid4())},
                 ).status_code
                 == 404
             )
@@ -1003,6 +1029,7 @@ class TestHoldingRolls:
             client.post(
                 url,
                 {
+                    "request_key": str(uuid4()),
                     "thing": f"library.pickable:{content['income_pick'].pk}",
                     "roll": str(first_roll.pk),
                 },

@@ -17,6 +17,7 @@ from n26.flags import STAGED_CONTENT
 from n26.library.authoring import put_selected_live, stage
 from n26.library.models import Category, Collection, CollectionEntry, Profile, Weapon
 from n26.library.staged import staged_rows
+from n26.tests.fixtures import island_props
 from n26.tests.sandbox.actions import (
     add_picklist_member,
     assign,
@@ -369,7 +370,10 @@ class TestEquipping:
     ):
         gang, fighter = players_gang
         client.force_login(player)
-        client.post(equip_url(fighter, house_list.pk), {"thing": key_of(gear["spear"])})
+        client.post(
+            equip_url(fighter, house_list.pk),
+            {"request_key": str(uuid4()), "thing": key_of(gear["spear"])},
+        )
         assert not Assignment.objects.filter(wargear=gear["spear"]).exists()
 
     def test_an_author_sees_it_everywhere_and_buys_it(
@@ -386,7 +390,10 @@ class TestEquipping:
             "Plasma caliver" in client.get(equip_url(fighter, "all")).content.decode()
         )
 
-        client.post(equip_url(fighter, house_list.pk), {"thing": key_of(gear["spear"])})
+        client.post(
+            equip_url(fighter, house_list.pk),
+            {"request_key": str(uuid4()), "thing": key_of(gear["spear"])},
+        )
 
         assert Assignment.objects.filter(wargear=gear["spear"], miniature_root=fighter)
 
@@ -442,6 +449,7 @@ class TestSkills:
         client.post(
             url,
             {
+                "request_key": str(uuid4()),
                 **client.get(url).context["skills_props"]["values"],
                 "thing": key_of(skills["parry"]),
             },
@@ -460,6 +468,7 @@ class TestSkills:
         client.post(
             url,
             {
+                "request_key": str(uuid4()),
                 **client.get(url).context["skills_props"]["values"],
                 "thing": key_of(skills["parry"]),
             },
@@ -772,7 +781,9 @@ class TestRollingOnATable:
         )
         key = f"{fighter.pk}:{slot.anchor.assignment.pk}:{slot.identity.pk}"
         address = reverse("n26-choose", args=[gang.pk, key])
-        client.post(address, {"act": "enter", "rolled": "24"})
+        client.post(
+            address, {"request_key": str(uuid4()), "act": "enter", "rolled": "24"}
+        )
         event = LedgerEvent.objects.filter(kind=LedgerEvent.Kind.ROLLED).latest(
             "created"
         )
@@ -784,15 +795,29 @@ class TestRollingOnATable:
         gang, fighter = players_gang
         client.force_login(player)
         page = self.roll_page(client, gang, fighter, injuries)
-        assert "Out Cold" not in page
-        assert "This table has no result for 24." in page
+        props = island_props(page, "choice-workflow")
+        assert props["roll"]["total"] == 24
+        assert props["roll"]["landed"] == []
+        assert props["roll"]["add"] is None
+        assert all(
+            option["name"] != "Out Cold"
+            for group in props["offer"]["groups"]
+            for option in group["options"]
+        )
 
     def test_an_authors_roll_lands_on_it(self, client, author, authors_gang, injuries):
         gang, fighter = authors_gang
         client.force_login(author)
         page = self.roll_page(client, gang, fighter, injuries)
-        assert "Landed on" in page
-        assert "Out Cold" in page
+        props = island_props(page, "choice-workflow")
+        assert props["roll"]["total"] == 24
+        assert props["roll"]["landed"] == ["Out Cold"]
+        assert props["roll"]["add"]["name"] == "Out Cold"
+        assert any(
+            option["name"] == "Out Cold"
+            for group in props["offer"]["groups"]
+            for option in group["options"]
+        )
 
 
 class TestPuttingSelectedContentLive:

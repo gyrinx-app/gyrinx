@@ -177,6 +177,18 @@ unresolved business input and its key before sending, scoped to actor and task;
 restore that input with a fresh CSRF token. Never retain credentials or an old
 CSRF token with the recovery payload. A reload instruction must not discard an
 unresolved command's identity.
+Test a lost response after the server commits, both before and after reload.
+Assert that the frozen screen immediately shows the submitted names, choices,
+roles and counts. Saving a readable snapshot in the request body does not update
+React state by itself. Keep that snapshot synchronized before submission; retain
+the exact raw command separately from its display labels.
+
+Inventory older native form payloads before choosing a compatibility key. A
+revision can distinguish a cached crew edit; an unkeyed repeatable pick or roll
+cannot distinguish a retry from a new action. Reject ambiguous commands before
+writing, retain readable intent and require reload. Never invent a fresh key in
+POST or silently add one in a test fixture.
+
 Keep an earlier uncertain save frozen after any rejected retry, including a
 structured form refusal. Opt workflow forms out of the shared busy-link handler
 with `data-busy="off"`; the React `WorkflowPage` adapter does this by default.

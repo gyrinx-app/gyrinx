@@ -4,7 +4,7 @@ its result changes status. Preserve result history when later status changes rem
 conditional choice.
 """
 
-import re
+from uuid import uuid4
 
 import pytest
 from django.contrib.auth.models import User
@@ -19,6 +19,7 @@ from n26.core.render import build_model_card, option_key, slot_key
 from n26.core.status import Status
 from n26.library.models import Picklist, Slot
 from n26.library.standard_content import STANDARD_CONTENT
+from n26.tests.fixtures import island_props
 from n26.tests.sandbox.actions import (
     create_profile,
     ef_adds,
@@ -227,22 +228,30 @@ class TestThePage:
         )
         client.force_login(owner)
         page = client.get(address).content.decode()
-        assert "Roll a D6" in page
-        assert "Executed" in page and "Daring Escape" in page
+        props = island_props(page, "choice-workflow")
+        assert props["rollTable"] == {"dice": "D6", "lowest": 1, "highest": 6}
+        assert {
+            option["name"]
+            for group in props["offer"]["groups"]
+            for option in group["options"]
+        } >= {"Executed", "Daring Escape"}
 
-        client.post(address, {"act": "enter", "rolled": "6"})
+        client.post(
+            address, {"request_key": str(uuid4()), "act": "enter", "rolled": "6"}
+        )
         event = LedgerEvent.objects.get(kind=LedgerEvent.Kind.ROLLED)
         page = client.get(f"{address}?roll={event.pk}").content.decode()
-        # A single-pick slot uses radio options with the rolled result preselected.
-        assert "Landed on" in page
-        assert page.index("Landed on") < page.index("Daring Escape")
-        checked = re.search(r'<input[^>]*name="thing"[^>]*checked[^>]*>', page)
-        assert checked and "Daring Escape" not in checked.group(0)  # The submitted
-        # value is an
-        # encoded option
-        # key.
-        key = re.search(r'value="([^"]+)"', checked.group(0)).group(1)
-        assert key == option_key(result_named(tables["escape"], "Daring Escape"))
+        props = island_props(page, "choice-workflow")
+        assert props["roll"]["landed"] == ["Daring Escape"]
+        assert props["roll"]["add"] is None
+        assert props["offer"]["takesSeveral"] is False
+        group = props["offer"]["groups"][0]
+        assert group["name"] == "Landed on"
+        assert group["lifted"] is True
+        assert [option["name"] for option in group["options"]] == ["Daring Escape"]
+        key = option_key(result_named(tables["escape"], "Daring Escape"))
+        assert group["options"][0]["current"] is True
+        assert props["values"]["thing"] == key
 
     def test_the_captured_card_says_what_to_do(
         self, client, owner, gang, krago, tables

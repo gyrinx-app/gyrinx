@@ -366,8 +366,11 @@ def test_stale_status_choice_post_does_not_change_a_later_capture(
     choose(model, slot, released)
     mark(model, Status.CAPTURED)
     count = LedgerEvent.objects.count()
-    response = client.post(old_url, {"thing": f"library.pickable:{released.pk}"})
-    assert response.status_code == 404
+    response = client.post(
+        old_url,
+        {"request_key": str(uuid4()), "thing": f"library.pickable:{released.pk}"},
+    )
+    assert response.status_code == 409
     model.refresh_from_db()
     assert model.status == Status.CAPTURED
     assert LedgerEvent.objects.count() == count
@@ -451,7 +454,12 @@ def test_a_roll_from_an_earlier_capture_cannot_settle_the_current_choice(
     assert client.get(f"{url}?roll={old_roll.pk}").status_code == 404
     assert (
         client.post(
-            url, {"thing": f"library.pickable:{released.pk}", "roll": str(old_roll.pk)}
+            url,
+            {
+                "request_key": str(uuid4()),
+                "thing": f"library.pickable:{released.pk}",
+                "roll": str(old_roll.pk),
+            },
         ).status_code
         == 404
     )

@@ -12,6 +12,8 @@ Earned augmentations prevent reassignment even after choosing no tier.
 The paired bolt launchers are represented by one weapon definition.
 """
 
+from uuid import uuid4
+
 import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
@@ -743,7 +745,7 @@ class TestAuthoredPickerCopy:
     def test_the_lead_and_tier_summary_come_from_the_author(
         self, client, owner, gang, orrus, bolt_launcher_tiers
     ):
-        from bs4 import BeautifulSoup
+        from n26.tests.fixtures import island_props
 
         climb(orrus, "Bolt launchers", bolt_launcher_tiers["Tier 1"])
         ladder = ladder_of(orrus, "Bolt launchers")
@@ -763,11 +765,15 @@ class TestAuthoredPickerCopy:
             if option.name == "Tier 1"
         )
         assert tier.summary == "The launchers have Lethality 2."
-        radio = BeautifulSoup(page, "html.parser").find(
-            "input", attrs={"type": "radio", "name": "thing", "value": tier.key}
+        props = island_props(page, "choice-workflow")
+        assert props["lead"] == "Pick a tier for the bolt launchers."
+        option = next(
+            option
+            for group in props["offer"]["groups"]
+            for option in group["options"]
+            if option["key"] == tier.key
         )
-        assert radio is not None
-        assert tier.summary in radio.find_parent("label").get_text()
+        assert option["summary"] == tier.summary
 
     def test_an_empty_introduction_adds_no_generated_subhead(
         self, client, owner, gang, orrus, bolt_launcher_tiers
@@ -784,7 +790,7 @@ class TestAuthoredPickerCopy:
 
         page = client.get(reverse("n26-choose", args=[gang.pk, key]))
 
-        assert page.context["pick_lead"] == ""
+        assert page.context["choice_props"]["lead"] == ""
         assert "Bolt launchers, for Orrus." not in page.content.decode()
 
     def test_the_unpicked_tier_does_not_add_a_line_to_the_roster(
@@ -869,7 +875,11 @@ class TestManualTierChoices:
         for tier_name in ("Tier 3", "Tier 1", "Tier 2"):
             assert (
                 client.post(
-                    picker, {"thing": option_key(bolt_launcher_tiers[tier_name])}
+                    picker,
+                    {
+                        "request_key": str(uuid4()),
+                        "thing": option_key(bolt_launcher_tiers[tier_name]),
+                    },
                 ).status_code
                 == 302
             )
@@ -883,7 +893,12 @@ class TestManualTierChoices:
             assert ("Rapid Fire (2)" in traits_of(gun_of(orrus, "Bolt launchers"))) == (
                 tier_name == "Tier 3"
             )
-        assert client.post(picker, {"thing": "none"}).status_code == 302
+        assert (
+            client.post(
+                picker, {"request_key": str(uuid4()), "thing": "none"}
+            ).status_code
+            == 302
+        )
         assert stat_of(gun_of(orrus, "Bolt launchers"), "L") == "1"
         assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == [None]
         gang.refresh_from_db()
@@ -906,7 +921,10 @@ class TestManualTierChoices:
             in client.get(reverse("n26-edit-fighter", args=[orrus.pk])).content.decode()
         )
         assert (
-            client.post(picker, {"thing": option_key(tiers["Tier 2"])}).status_code
+            client.post(
+                picker,
+                {"request_key": str(uuid4()), "thing": option_key(tiers["Tier 2"])},
+            ).status_code
             == 302
         )
         drawn, _ = card_for(orrus)
@@ -943,7 +961,11 @@ class TestManualTierChoices:
         picker = self.picker(gang, orrus)
         assert (
             client.post(
-                picker, {"thing": option_key(bolt_launcher_tiers["Tier 3"])}
+                picker,
+                {
+                    "request_key": str(uuid4()),
+                    "thing": option_key(bolt_launcher_tiers["Tier 3"]),
+                },
             ).status_code
             == 302
         )
@@ -951,14 +973,22 @@ class TestManualTierChoices:
 
         assert (
             client.post(
-                picker, {"thing": option_key(bolt_launcher_tiers["Tier 1"])}
+                picker,
+                {
+                    "request_key": str(uuid4()),
+                    "thing": option_key(bolt_launcher_tiers["Tier 1"]),
+                },
             ).status_code
             == 302
         )
         assert stat_of(gun_of(orrus, "Bolt launchers"), "AP") == "-1"
         assert (
             client.post(
-                picker, {"thing": option_key(bolt_launcher_tiers["Tier 2"])}
+                picker,
+                {
+                    "request_key": str(uuid4()),
+                    "thing": option_key(bolt_launcher_tiers["Tier 2"]),
+                },
             ).status_code
             == 302
         )
@@ -972,7 +1002,12 @@ class TestManualTierChoices:
         )
         other = hire(gang, spyrer, "Kaustos", paid=200)
         launchers = orrus.assignments.get(weapon__isnull=False, archived=False)
-        assert client.post(picker, {"thing": "none"}).status_code == 302
+        assert (
+            client.post(
+                picker, {"request_key": str(uuid4()), "thing": "none"}
+            ).status_code
+            == 302
+        )
         with pytest.raises(
             Refusal, match="earned augmentations that cannot be transferred"
         ):
@@ -980,7 +1015,11 @@ class TestManualTierChoices:
                 op.reassign(launchers, other)
         assert (
             client.post(
-                picker, {"thing": option_key(bolt_launcher_tiers["Tier 2"])}
+                picker,
+                {
+                    "request_key": str(uuid4()),
+                    "thing": option_key(bolt_launcher_tiers["Tier 2"]),
+                },
             ).status_code
             == 302
         )
@@ -994,7 +1033,12 @@ class TestManualTierChoices:
         client.force_login(owner)
         picker = self.picker(gang, orrus)
 
-        assert client.post(picker, {"thing": "none"}).status_code == 302
+        assert (
+            client.post(
+                picker, {"request_key": str(uuid4()), "thing": "none"}
+            ).status_code
+            == 302
+        )
         assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == [None]
         assert (
             picker
@@ -1002,7 +1046,11 @@ class TestManualTierChoices:
         )
         assert (
             client.post(
-                picker, {"thing": option_key(bolt_launcher_tiers["Tier 1"])}
+                picker,
+                {
+                    "request_key": str(uuid4()),
+                    "thing": option_key(bolt_launcher_tiers["Tier 1"]),
+                },
             ).status_code
             == 302
         )
@@ -1031,7 +1079,7 @@ class TestDismissingTheLadderFromTheSheet:
         assert dismiss not in page
         assert dismiss in client.get(edit).content.decode()
 
-        reply = client.post(dismiss)
+        reply = client.post(dismiss, {"request_key": str(uuid4())})
         assert reply.status_code == 302
         page = client.get(sheet).content.decode()
         assert "Augmentation:" not in page
@@ -1041,7 +1089,7 @@ class TestDismissingTheLadderFromTheSheet:
         assert "Augmentation:" not in page
         assert restore not in page
         assert restore in client.get(edit).content.decode()
-        client.post(restore, {"back": edit})
+        client.post(restore, {"request_key": str(uuid4()), "back": edit})
         assert dismiss in client.get(edit).content.decode()
         assert "Augmentation: &mdash;" not in client.get(sheet).content.decode()
 
@@ -1052,12 +1100,18 @@ class TestDismissingTheLadderFromTheSheet:
 
         client.force_login(owner)
         key = self.key(orrus)
-        client.post(reverse("n26-dismiss-offer", args=[gang.pk, key]))
+        client.post(
+            reverse("n26-dismiss-offer", args=[gang.pk, key]),
+            {"request_key": str(uuid4())},
+        )
         assert DismissedOffer.objects.filter(gang=gang, slot_key=key).exists()
 
         reply = client.post(
             reverse("n26-choose", args=[gang.pk, key]),
-            {"thing": option_key(bolt_launcher_tiers["Tier 1"])},
+            {
+                "request_key": str(uuid4()),
+                "thing": option_key(bolt_launcher_tiers["Tier 1"]),
+            },
         )
 
         assert reply.status_code == 302

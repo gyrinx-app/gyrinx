@@ -10,8 +10,9 @@ granting pick retracts dependent choices and selections. See test_choosing.py
 for the picker workflow.
 """
 
+from uuid import uuid4
+
 import pytest
-from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 
 from n26.core.card import build_card, build_gang_card, build_modifier_index
@@ -27,7 +28,7 @@ from n26.core.render import (
 )
 from n26.library.authoring import targets_model as targets_model_with
 from n26.library.models import Pickable, Slot
-from n26.tests.fixtures import library_setup
+from n26.tests.fixtures import island_props, library_setup
 from n26.tests.sandbox.actions import (
     add_built_in,
     add_picklist_member,
@@ -342,7 +343,6 @@ class TestThePickerMarksWhatIsTaken:
     def test_the_pickable_the_other_choice_holds_is_marked(
         self, gang, twice_asked, houses, client, owner
     ):
-        import re
 
         from n26.core.views.choose import link_slots
 
@@ -378,10 +378,15 @@ class TestThePickerMarksWhatIsTaken:
 
         assert "already chosen for Legacy 1" in body
         # Keep the marked pick selectable.
-        control = re.search(
-            rf'<input[^>]*value="library.pickable:{houses["Cawdor"].pk}"[^>]*>', body
+        props = island_props(body, "choice-workflow")
+        control = next(
+            option
+            for group in props["offer"]["groups"]
+            for option in group["options"]
+            if option["key"] == f"library.pickable:{houses['Cawdor'].pk}"
         )
-        assert control and "disabled" not in control.group()
+        assert control["remark"] == "already chosen for Legacy 1"
+        assert not props["offer"]["takesSeveral"]
 
     def test_a_slot_type_that_allows_repeats_marks_nothing(
         self, gang, person_type, gang_type, default_pack
@@ -811,7 +816,10 @@ class TestAGangPickOpensAChoiceOnEveryModel:
 
         body = client.get(line.href).content.decode()
         assert "Nauticus" in body
-        response = client.post(line.href, {"thing": f"library.pickable:{nauticus.pk}"})
+        response = client.post(
+            line.href,
+            {"request_key": str(uuid4()), "thing": f"library.pickable:{nauticus.pk}"},
+        )
 
         assert response.status_code == 302
         assert Assignment.objects.get(pickable=nauticus).miniature == kaustos
@@ -973,7 +981,10 @@ class TestAGangGuestOpensAChoiceOnEveryModel:
 
         body = client.get(line.href).content.decode()
         assert "Nauticus" in body
-        response = client.post(line.href, {"thing": f"library.pickable:{nauticus.pk}"})
+        response = client.post(
+            line.href,
+            {"request_key": str(uuid4()), "thing": f"library.pickable:{nauticus.pk}"},
+        )
 
         assert response.status_code == 302
         assert Assignment.objects.get(pickable=nauticus).miniature == kaustos
@@ -1016,17 +1027,27 @@ class TestTheScreenBehindTheRow:
         assert "Escher" in body
         assert kaustos.name in body
         assert 'value="none"' not in body
-        said = button_labels(body)
-        assert "Save" in said
-        assert "Add" not in said and "Choose" not in said
+        props = island_props(body, "choice-workflow")
+        assert not props["offer"]["takesSeveral"]
+        assert all(
+            option["key"] != "none"
+            for group in props["offer"]["groups"]
+            for option in group["options"]
+        )
         assert_reconciled(gang)
 
-        client.post(href, {"thing": f"library.pickable:{houses['Escher'].pk}"})
+        client.post(
+            href,
+            {
+                "request_key": str(uuid4()),
+                "thing": f"library.pickable:{houses['Escher'].pk}",
+            },
+        )
 
         assert choices_of(kaustos)[0].chosen_name == "Escher"
         assert_reconciled(gang)
 
-        response = client.post(href, {"thing": "none"})
+        response = client.post(href, {"request_key": str(uuid4()), "thing": "none"})
 
         assert response.status_code == 302
         assert response.headers["Location"] == href
@@ -1035,7 +1056,10 @@ class TestTheScreenBehindTheRow:
 
         client.post(
             self.slot_line(gang).href,
-            {"thing": f"library.pickable:{houses['Cawdor'].pk}"},
+            {
+                "request_key": str(uuid4()),
+                "thing": f"library.pickable:{houses['Cawdor'].pk}",
+            },
         )
 
         (settled,) = choices_of(kaustos)
@@ -1075,19 +1099,32 @@ class TestAnOptionalChoiceOffersNone:
         client.force_login(owner)
         href = self.slot_line(gang).href
         body = client.get(href).content.decode()
-        assert 'value="none"' in body
+        props = island_props(body, "choice-workflow")
+        assert any(
+            option["key"] == "none"
+            for group in props["offer"]["groups"]
+            for option in group["options"]
+        )
         assert "None" in body
 
-        response = client.post(self.slot_line(gang).href, {"thing": "none"})
+        response = client.post(
+            self.slot_line(gang).href, {"request_key": str(uuid4()), "thing": "none"}
+        )
 
         assert response.status_code == 302
         (line,) = choices_of(kaustos)
         assert line.chosen_name is None
         assert_reconciled(gang)
 
-        client.post(href, {"thing": f"library.pickable:{houses['Escher'].pk}"})
+        client.post(
+            href,
+            {
+                "request_key": str(uuid4()),
+                "thing": f"library.pickable:{houses['Escher'].pk}",
+            },
+        )
 
-        response = client.post(href, {"thing": "none"})
+        response = client.post(href, {"request_key": str(uuid4()), "thing": "none"})
 
         assert response.status_code == 302
         (line,) = choices_of(kaustos)
@@ -1382,14 +1419,6 @@ def pickable_key_of(pickable):
     return f"library.pickable:{pickable.pk}"
 
 
-def button_labels(body):
-    """Extract rendered button labels in page order."""
-    return [
-        button.get_text(" ", strip=True)
-        for button in BeautifulSoup(body, "html.parser").find_all("button")
-    ]
-
-
 def picker_href(gang):
     """Return the linked choice on the gang's single fighter card."""
     from n26.core.views.choose import link_slots
@@ -1437,13 +1466,23 @@ class TestAChoiceThatHoldsSeveral:
         self, gang, wanderer, houses, client
     ):
         href = picker_href(gang)
-        said = button_labels(client.get(href).content.decode())
-        assert "Save" not in said
-        assert said.count("Add") == 3
+        props = island_props(client.get(href).content, "choice-workflow")
+        assert props["offer"]["takesSeveral"]
+        assert [
+            option["control"]
+            for group in props["offer"]["groups"]
+            for option in group["options"]
+        ] == ["choose"] * 3
         assert_reconciled(gang)
-        client.post(href, {"thing": pickable_key_of(houses["Cawdor"])})
+        client.post(
+            href,
+            {"request_key": str(uuid4()), "thing": pickable_key_of(houses["Cawdor"])},
+        )
 
-        landed = client.post(href, {"thing": pickable_key_of(houses["Escher"])})
+        landed = client.post(
+            href,
+            {"request_key": str(uuid4()), "thing": pickable_key_of(houses["Escher"])},
+        )
 
         (settled,) = choices_of(wanderer)
         assert sorted(node.name for node in settled.picks) == ["Cawdor", "Escher"]
@@ -1464,7 +1503,7 @@ class TestAChoiceThatHoldsSeveral:
 
         dismiss = href.replace("/choose/", "/offers/") + "dismiss/"
 
-        reply = client.post(dismiss, follow=True)
+        reply = client.post(dismiss, {"request_key": str(uuid4())}, follow=True)
 
         assert (
             "You cannot dismiss Gang Legacies. It has picks. Take them all back first."
@@ -1476,28 +1515,51 @@ class TestAChoiceThatHoldsSeveral:
         body = client.get(href).content.decode()
 
         assert "Ironhead Squats" not in body
-        assert button_labels(body).count("Remove") == 2
+        assert [
+            option["control"]
+            for group in island_props(body, "choice-workflow")["offer"]["groups"]
+            for option in group["options"]
+        ].count("remove") == 2
         assert_reconciled(gang)
 
-        client.post(href, {"thing": pickable_key_of(houses["Ironhead Squats"])})
+        client.post(
+            href,
+            {
+                "request_key": str(uuid4()),
+                "thing": pickable_key_of(houses["Ironhead Squats"]),
+            },
+        )
 
         (settled,) = choices_of(wanderer)
         assert sorted(node.name for node in settled.picks) == ["Cawdor", "Escher"]
         assert_reconciled(gang)
 
-        client.post(href, {"remove": pickable_key_of(houses["Cawdor"])})
+        client.post(
+            href,
+            {"request_key": str(uuid4()), "remove": pickable_key_of(houses["Cawdor"])},
+        )
 
         (settled,) = choices_of(wanderer)
         assert [node.name for node in settled.picks] == ["Escher"]
         assert_reconciled(gang)
 
-        client.post(href, {"thing": pickable_key_of(houses["Cawdor"])})
-        client.post(href, {"remove": pickable_key_of(houses["Escher"])})
+        client.post(
+            href,
+            {"request_key": str(uuid4()), "thing": pickable_key_of(houses["Cawdor"])},
+        )
+        client.post(
+            href,
+            {"request_key": str(uuid4()), "remove": pickable_key_of(houses["Escher"])},
+        )
 
         body = client.get(href).content.decode()
 
         assert "Ironhead Squats" in body
-        assert button_labels(body).count("Add") == 2
+        assert [
+            option["control"]
+            for group in island_props(body, "choice-workflow")["offer"]["groups"]
+            for option in group["options"]
+        ].count("choose") == 2
         assert_reconciled(gang)
 
 
@@ -1548,7 +1610,10 @@ class TestAChoiceThatHoldsNone:
                 assert "Choose" not in row
                 assert "Add" not in row
 
-        client.post(picker, {"thing": pickable_key_of(houses["Cawdor"])})
+        client.post(
+            picker,
+            {"request_key": str(uuid4()), "thing": pickable_key_of(houses["Cawdor"])},
+        )
 
         assert choices_of(kaustos)[0].picks == []
         assert not Assignment.objects.filter(
@@ -1558,7 +1623,9 @@ class TestAChoiceThatHoldsNone:
 
         from n26.core.models import DismissedOffer
 
-        reply = client.post(self.dismiss_href(gang, kaustos), follow=True)
+        reply = client.post(
+            self.dismiss_href(gang, kaustos), {"request_key": str(uuid4())}, follow=True
+        )
 
         assert "You cannot dismiss Gang Legacy. It offers nothing to choose." in (
             reply.content.decode()
@@ -1703,8 +1770,12 @@ class TestARollTableInThePicker:
         )
         body = client.get(href).content.decode()
         assert "21-26" in body
-        # The band sits just ahead of its result's name on the row.
-        assert ">11<" in body[: body.index("Lesson Learnt")][-300:]
+        props = island_props(body, "choice-workflow")
+        assert [
+            (option["band"], option["name"])
+            for group in props["offer"]["groups"]
+            for option in group["options"]
+        ] == rows
         assert_reconciled(gang)
 
 
@@ -1954,7 +2025,13 @@ class TestAChoiceThatAllowsRepeatsOnScreen:
         return line.href, reverse("n26-gang", args=[gang.pk])
 
     def _post(self, client, href, thing):
-        return client.post(href, {"thing": f"{thing._meta.label_lower}:{thing.pk}"})
+        return client.post(
+            href,
+            {
+                "request_key": str(uuid4()),
+                "thing": f"{thing._meta.label_lower}:{thing.pk}",
+            },
+        )
 
     def test_a_second_click_on_a_held_result_is_a_second_pick(
         self, client, owner, gang, yolanda, results
@@ -1971,11 +2048,12 @@ class TestAChoiceThatAllowsRepeatsOnScreen:
         assert any(m.startswith("Added Eye Injury") for m in said), said
 
         body = client.get(href).content.decode()
-        assert 'aria-label="Remove Eye Injury"' in body
-        assert 'aria-label="Add Eye Injury again"' in body
-        # The result not yet held offers only the one way in.
-        assert 'aria-label="Add Out Cold"' in body
-        assert 'aria-label="Remove Out Cold"' not in body
+        controls = {
+            option["name"]: option["control"]
+            for group in island_props(body, "choice-workflow")["offer"]["groups"]
+            for option in group["options"]
+        }
+        assert controls == {"Eye Injury": "both", "Out Cold": "choose"}
 
         assert self._post(client, href, eye).status_code == 302
 

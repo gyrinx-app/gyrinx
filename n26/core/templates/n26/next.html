@@ -1,34 +1,15 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation %}
-{% comment %}
-Display URL-selected follow-up choices after an operation. The shared arrival_blocks
-include handles submission, compulsory choices and optional skipping.
-{% endcomment %}
-{% block head_title %}Choices for {{ gang.name }}{% endblock head_title %}
+{% load react navigation %}
+{% block head_title %}Choices for {{ gang.name }}{% endblock %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
     <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
-{% endblock nav_switcher %}
+{% endblock %}
 {% block nav_items %}
     {% include "n26/_nav.html" with here="gangs" %}
 {% endblock %}
+{% block messages %}
+{% endblock messages %}
 {% block content %}
-    <div class="max-w-3xl space-y-10">
-        <c-n26.page-header title="Choices for {{ gang.name }}">
-            <c-slot name="breadcrumb">
-                <c-ui.breadcrumbs>
-                    <c-ui.breadcrumbs.item>
-                        <c-n26.user-link :user="user" tone="current" />
-                    </c-ui.breadcrumbs.item>
-                    <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">
-                        {{ gang.name }}
-                    </c-ui.breadcrumbs.item>
-                    <c-ui.breadcrumbs.item :current="True">
-                        Choices
-                    </c-ui.breadcrumbs.item>
-                </c-ui.breadcrumbs>
-            </c-slot>
-        </c-n26.page-header>
-        {% include "n26/includes/arrival_blocks.html" %}
-    </div>
-{% endblock content %}
+    <div class="max-w-3xl space-y-10">{% react_island "choice-workflow" choice_props %}</div>
+{% endblock %}

@@ -3,6 +3,8 @@ dependent House slot; replacing it retracts that slot and its answer. Content is
 authored through library verbs and choices are submitted through player pages.
 """
 
+from uuid import uuid4
+
 import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
@@ -206,7 +208,8 @@ def chosen_for(gang, label):
 
 def choose(reader, gang, label, pickable):
     return reader.post(
-        picker_url(gang, label), {"thing": f"library.pickable:{pickable.pk}"}
+        picker_url(gang, label),
+        {"request_key": str(uuid4()), "thing": f"library.pickable:{pickable.pk}"},
     )
 
 

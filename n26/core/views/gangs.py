@@ -1396,6 +1396,8 @@ def _the_trading_post():
 
 def _dismissed_gang_choices(gang):
     """The gang's live dismissed choices, without loading its models or stash."""
+    from uuid import uuid4
+
     from n26.core.card import (
         build_gang_cards,
         build_modifier_index,
@@ -1404,6 +1406,7 @@ def _dismissed_gang_choices(gang):
     )
     from n26.core.effects import compute
     from n26.core.models import DismissedOffer
+    from n26.core.owned import with_query
     from n26.core.render import GANG_SLOT_HOST, choice_lines, hide_dismissed_choices
 
     card = build_gang_cards([gang], {gang.pk: held_assets(gang)})[gang.pk]
@@ -1412,7 +1415,9 @@ def _dismissed_gang_choices(gang):
     dismissed = []
     hide_dismissed_choices(DismissedOffer.keys_for(gang), choices, removed=dismissed)
     for line in dismissed:
-        line.restore_href = reverse("n26-restore-offer", args=[gang.pk, line.key])
+        line.restore_href = with_query(
+            reverse("n26-restore-offer", args=[gang.pk, line.key]), request_key=uuid4()
+        )
     return dismissed
 
 

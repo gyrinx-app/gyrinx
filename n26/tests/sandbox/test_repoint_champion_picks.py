@@ -3,6 +3,8 @@ pickable on the current list, preserve host and choice links, and reconcile each
 before committing.
 """
 
+from uuid import uuid4
+
 import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
@@ -180,7 +182,10 @@ def chosen_on(gang, name):
 def choose(reader, gang, name, pickable):
     """Submit the model card’s single choice through its picker."""
     (line,) = card_of(gang, name).questions
-    response = reader.post(line.href, {"thing": f"library.pickable:{pickable.pk}"})
+    response = reader.post(
+        line.href,
+        {"request_key": str(uuid4()), "thing": f"library.pickable:{pickable.pk}"},
+    )
     assert response.status_code == 302, response.content.decode()
     return Assignment.objects.get(pickable=pickable, gang_root=gang, archived=False)
 

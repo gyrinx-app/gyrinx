@@ -9,7 +9,7 @@ pick with its roll when both belong in the displayed history window and day.
 """
 
 import random
-import re
+from uuid import uuid4
 
 import pytest
 from django.contrib.auth.models import User
@@ -25,7 +25,7 @@ from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_choice_offer, lift_landing, option_key
 from n26.library.models import Dice, GangType, Picklist, Slot
 from n26.library.standard_content import STANDARD_CONTENT
-from n26.tests.fixtures import library_setup
+from n26.tests.fixtures import island_props, library_setup
 from n26.tests.sandbox.actions import (
     add_picklist_member,
     create_gang_type,
@@ -470,26 +470,21 @@ class TestThePickScreen:
         key = f"{juve.pk}:{slot.anchor.assignment.pk}:{slot.identity.pk}"
         client.force_login(owner)
         page = client.get(reverse("n26-choose", args=[gang.pk, key])).content.decode()
-        assert "Roll a" not in page
-        assert 'name="rolled"' not in page
+        props = island_props(page, "choice-workflow")
+        assert props["rollTable"] is None
+        assert props["roll"] is None
 
     def test_clicking_roll_writes_the_roll_and_comes_back_at_it(
         self, client, owner, gang, address
     ):
         client.force_login(owner)
         page = client.get(address).content.decode()
-        assert "Roll a D66" in page
-        # Put the Enter submit first so pressing Enter in the field cannot trigger Roll.
-        assert page.index('value="enter"') < page.index('value="roll"')
-        assert 'min="' not in page.split("Your own roll")[0][-600:]
-        assert "The roll you made yourself" in page
-        assert "or add a result by hand" in page
-        assert 'name="rolled"' in page
-        # Use range help text instead of bounds that would block other form actions.
-        assert "(11–66)" in page
-        assert 'min="11"' not in page
+        props = island_props(page, "choice-workflow")
+        assert props["rollTable"] == {"dice": "D66", "lowest": 11, "highest": 66}
+        assert props["roll"] is None
+        assert props["values"]["rolled"] == ""
 
-        reply = client.post(address, {"act": "roll"})
+        reply = client.post(address, {"request_key": str(uuid4()), "act": "roll"})
 
         event = LedgerEvent.objects.get(kind=LedgerEvent.Kind.ROLLED)
         assert reply.status_code == 302
@@ -497,7 +492,7 @@ class TestThePickScreen:
         assert event.roll in Dice.rolls(Dice.D66)
         assert event.actor == owner
 
-        client.post(address, {"act": "roll"})
+        client.post(address, {"request_key": str(uuid4()), "act": "roll"})
         assert LedgerEvent.objects.filter(kind=LedgerEvent.Kind.ROLLED).count() == 2
         assert len([s for s in sentences(gang) if "rolled" in s]) == 2
 
@@ -505,33 +500,55 @@ class TestThePickScreen:
         self, client, owner, gang, krago, address, injuries
     ):
         client.force_login(owner)
-        reply = client.post(address, {"act": "enter", "rolled": "37"}, follow=True)
+        reply = client.post(
+            address,
+            {"request_key": str(uuid4()), "act": "enter", "rolled": "37"},
+            follow=True,
+        )
         assert "You cannot roll 37 on a D66." in reply.content.decode()
         assert not LedgerEvent.objects.filter(kind=LedgerEvent.Kind.ROLLED).exists()
-        reply = client.post(address, {"act": "enter", "rolled": ""}, follow=True)
+        reply = client.post(
+            address,
+            {"request_key": str(uuid4()), "act": "enter", "rolled": ""},
+            follow=True,
+        )
         assert "Enter the number you rolled." in reply.content.decode()
-        client.post(address, {"act": "enter", "rolled": "24"})
+        client.post(
+            address, {"request_key": str(uuid4()), "act": "enter", "rolled": "24"}
+        )
 
         event = LedgerEvent.objects.get(kind=LedgerEvent.Kind.ROLLED)
 
         page = client.get(f"{address}?roll={event.pk}").content.decode()
-        assert "Rolled 24" in page
-        assert re.search(r"Landed on <strong[^>]*>Out Cold</strong>\.", page)
-        assert "Manual roll." in page
-        assert 'aria-label="A die showing 2"' in page
-        assert 'aria-label="A die showing 4"' in page
-        # Offer the single landed result in the panel while keeping the full table below.
-        assert 'aria-label="Add Out Cold"' in page
-        assert page.index('aria-label="Add Out Cold"') < page.index("or add a result")
-        assert "The rest of the table" not in page
-        assert f'name="roll" value="{event.pk}"' in page
-        assert "Roll again" in page
-        # The plain Roll controls give way to the result.
-        assert "Roll a D66" not in page
+        props = island_props(page, "choice-workflow")
+        assert props["roll"] == {
+            "key": str(event.pk),
+            "total": 24,
+            "dice": "D66",
+            "faces": [2, 4],
+            "landed": ["Out Cold"],
+            "entered": True,
+            "applied": "",
+            "threshold": False,
+            "add": {
+                "key": option_key(result_named(injuries["table"], "Out Cold")),
+                "name": "Out Cold",
+            },
+        }
+        assert props["values"]["roll"] == str(event.pk)
+        assert props["rollTable"] is None
+        assert not any(group["lifted"] for group in props["offer"]["groups"])
 
         out_cold = result_named(injuries["table"], "Out Cold")
 
-        client.post(address, {"thing": option_key(out_cold), "roll": str(event.pk)})
+        client.post(
+            address,
+            {
+                "request_key": str(uuid4()),
+                "thing": option_key(out_cold),
+                "roll": str(event.pk),
+            },
+        )
 
         made = Assignment.objects.get(roll=event)
         assert made.assignable == out_cold
@@ -539,15 +556,19 @@ class TestThePickScreen:
         assert_reconciled(gang)
 
         page = client.get(f"{address}?roll={event.pk}").content.decode()
-        assert "Already applied: Out Cold." in page
-        assert f'name="roll" value="{event.pk}"' not in page
-        # An applied roll restores one Roll control and omits the panel's Add action.
-        assert "Roll a D66" in page
-        assert page.count('value="roll"') == 1
+        props = island_props(page, "choice-workflow")
+        assert props["roll"]["applied"] == "Out Cold"
+        assert props["roll"]["add"] is None
+        assert props["values"]["roll"] == ""
+        assert props["rollTable"]["dice"] == "D66"
 
         reply = client.post(
             address,
-            {"thing": option_key(out_cold), "roll": str(event.pk)},
+            {
+                "request_key": str(uuid4()),
+                "thing": option_key(out_cold),
+                "roll": str(event.pk),
+            },
             follow=True,
         )
         assert "already been applied" in reply.content.decode()
@@ -577,21 +598,32 @@ class TestThePickScreen:
             args=[gang.pk, f"{juve.pk}:{slot.anchor.assignment.pk}:{slot.identity.pk}"],
         )
         client.force_login(owner)
-        client.post(address, {"act": "enter", "rolled": "6"})
+        client.post(
+            address, {"request_key": str(uuid4()), "act": "enter", "rolled": "6"}
+        )
         event = LedgerEvent.objects.get(kind=LedgerEvent.Kind.ROLLED)
 
         page = client.get(f"{address}?roll={event.pk}").content.decode()
-        assert re.search(
-            r"High enough for <strong[^>]*>Toughness</strong>, <strong[^>]*>Leadership</strong>\.",
-            page,
+        props = island_props(page, "choice-workflow")
+        assert props["roll"]["landed"] == ["Toughness", "Leadership"]
+        assert props["roll"]["threshold"] is True
+        assert props["roll"]["add"] is None
+        groups = props["offer"]["groups"]
+        assert [group["name"] for group in groups] == [
+            "Rolled high enough for",
+            "Above the roll",
+        ]
+        assert groups[0]["lifted"] is True
+        assert [option["name"] for option in groups[0]["options"]] == [
+            "Toughness",
+            "Leadership",
+        ]
+        assert [option["name"] for option in groups[1]["options"]] == ["Wounds"]
+        assert all(
+            option["control"] == "choose"
+            for group in groups
+            for option in group["options"]
         )
-        assert "Rolled high enough for" in page
-        assert "Above the roll" in page
-        # Multiple landed results use their own Add controls in the highlighted group.
-        assert page.index("Rolled high enough for") < page.index(
-            'aria-label="Add Toughness"'
-        )
-        assert 'aria-label="Add Wounds"' in page
 
     def test_a_full_choice_offers_no_roll(
         self, client, owner, gang, gang_type, fighter_type, default_pack
@@ -616,11 +648,15 @@ class TestThePickScreen:
             args=[gang.pk, f"{juve.pk}:{slot.anchor.assignment.pk}:{slot.identity.pk}"],
         )
         client.force_login(owner)
-        assert "Roll a D6" in client.get(address).content.decode()
+        props = island_props(client.get(address).content, "choice-workflow")
+        assert props["rollTable"]["dice"] == "D6"
         pick(juve, "Scars", scar)
-        assert "Roll a D6" not in client.get(address).content.decode()
+        props = island_props(client.get(address).content, "choice-workflow")
+        assert props["rollTable"] is None
 
-        reply = client.post(address, {"act": "roll"}, follow=True)
+        reply = client.post(
+            address, {"request_key": str(uuid4()), "act": "roll"}, follow=True
+        )
         assert "Take one back before rolling." in reply.content.decode()
         assert not LedgerEvent.objects.filter(kind=LedgerEvent.Kind.ROLLED).exists()
 
@@ -649,12 +685,20 @@ class TestThePickScreen:
             args=[gang.pk, f"{juve.pk}:{slot.anchor.assignment.pk}:{slot.identity.pk}"],
         )
         client.force_login(owner)
-        client.post(address, {"act": "enter", "rolled": "5"})
+        client.post(
+            address, {"request_key": str(uuid4()), "act": "enter", "rolled": "5"}
+        )
         event = LedgerEvent.objects.get(kind=LedgerEvent.Kind.ROLLED)
         page = client.get(f"{address}?roll={event.pk}").content.decode()
-        assert "Landed on" in page
-        assert 'aria-label="Add Blessed"' not in page
-        assert page.count('name="thing"') >= 2  # the radios, not a button
+        props = island_props(page, "choice-workflow")
+        assert props["roll"]["landed"] == ["Blessed"]
+        assert props["roll"]["add"] is None
+        assert props["offer"]["takesSeveral"] is False
+        assert [
+            option["name"]
+            for group in props["offer"]["groups"]
+            for option in group["options"]
+        ] == ["Blessed", "Doomed", "None"]
 
     def test_a_roll_made_for_another_gang_is_no_such_roll(
         self, client, owner, gang, gang_type, fighter_type, address, injuries
@@ -670,6 +714,7 @@ class TestThePickScreen:
         reply = client.post(
             address,
             {
+                "request_key": str(uuid4()),
                 "thing": option_key(result_named(injuries["table"], "Out Cold")),
                 "roll": str(stray.pk),
             },
@@ -690,6 +735,7 @@ class TestThePickScreen:
         reply = client.post(
             address,
             {
+                "request_key": str(uuid4()),
                 "thing": option_key(result_named(injuries["table"], "Out Cold")),
                 "roll": str(theirs.pk),
             },

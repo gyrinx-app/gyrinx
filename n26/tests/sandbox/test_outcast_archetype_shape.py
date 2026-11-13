@@ -4,6 +4,8 @@ model. Authored display modifiers can show the gang pick on affected member card
 without adding controls.
 """
 
+from uuid import uuid4
+
 import pytest
 from django.apps import apps as model_registry
 from django.contrib.auth.models import User
@@ -182,7 +184,8 @@ def picker_url(gang, name):
 
 def choose(reader, gang, name, pickable):
     return reader.post(
-        picker_url(gang, name), {"thing": f"library.pickable:{pickable.pk}"}
+        picker_url(gang, name),
+        {"request_key": str(uuid4()), "thing": f"library.pickable:{pickable.pk}"},
     )
 
 

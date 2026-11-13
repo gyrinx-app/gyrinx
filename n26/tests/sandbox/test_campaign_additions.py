@@ -11,6 +11,7 @@ See design/campaign-assets.md.
 """
 
 import json
+from uuid import uuid4
 
 import pytest
 from bs4 import BeautifulSoup
@@ -756,9 +757,11 @@ class TestALabel:
             bool(campaign_row.find("a", attrs={"aria-label": "Edit Faction"})) == owner
         )
         dismiss = reverse("n26-dismiss-offer", args=[gang.pk, question.key])
-        assert bool(campaign_row.find("form", action=dismiss)) == (
-            owner and not answered
-        )
+        assert bool(
+            campaign_row.find(
+                "form", action=lambda url: url and url.split("?", 1)[0] == dismiss
+            )
+        ) == (owner and not answered)
 
     def test_a_campaign_question_can_be_dismissed_and_restored(
         self, client, campaign, gang_type, player
@@ -771,7 +774,8 @@ class TestALabel:
         client.force_login(player)
         assert (
             client.post(
-                reverse("n26-dismiss-offer", args=[gang.pk, question.key])
+                reverse("n26-dismiss-offer", args=[gang.pk, question.key]),
+                {"request_key": str(uuid4())},
             ).status_code
             == 302
         )
@@ -783,7 +787,8 @@ class TestALabel:
         )
         assert (
             client.post(
-                reverse("n26-restore-offer", args=[gang.pk, question.key])
+                reverse("n26-restore-offer", args=[gang.pk, question.key]),
+                {"request_key": str(uuid4())},
             ).status_code
             == 302
         )

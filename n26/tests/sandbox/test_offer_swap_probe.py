@@ -4,6 +4,8 @@ and slots-and-picks versions must both expose answerable questions anchored on s
 assignments.
 """
 
+from uuid import uuid4
+
 import pytest
 from django.contrib.auth.models import User
 
@@ -300,7 +302,10 @@ class TestWhetherTheQuestionCanBeSettled:
         assert "Gunner" in body and "Sniper" not in body
         response = client.post(
             line.href,
-            {"thing": f"library.affiliation:{affiliations['Gunner'].pk}"},
+            {
+                "request_key": str(uuid4()),
+                "thing": f"library.affiliation:{affiliations['Gunner'].pk}",
+            },
         )
 
         assert response.status_code == 302

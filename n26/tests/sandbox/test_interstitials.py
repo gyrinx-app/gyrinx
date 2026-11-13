@@ -11,7 +11,6 @@ from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
 import pytest
-from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.test import RequestFactory
 from django.urls import reverse
@@ -28,6 +27,7 @@ from n26.library.authoring import (
     create_interstitial,
     revise,
 )
+from n26.tests.fixtures import island_props
 from n26.tests.sandbox.actions import (
     add_built_in,
     create_pickable,
@@ -176,16 +176,16 @@ def pick_key(pickable):
     return f"{pickable._meta.label_lower}:{pickable.pk}"
 
 
-def skip_href(body):
-    """Return the Skip link target, or an empty string when absent."""
-    return next(
-        (
-            link["href"]
-            for link in BeautifulSoup(body, "html.parser").find_all("a", href=True)
-            if link.get_text(" ", strip=True) == "Skip"
-        ),
-        "",
-    )
+def screen_props(body):
+    return island_props(body, "choice-workflow")
+
+
+def questions(body):
+    return [
+        question
+        for block in screen_props(body)["blocks"]
+        for question in block["questions"]
+    ]
 
 
 class TestFoundingAGang:
@@ -220,15 +220,11 @@ class TestFoundingAGang:
         response, gang = found_through_the_page(client, owner, gang_type)
         body = page(client, response["Location"])
 
-        assert "Choose Archetype to continue." in body
-        assert (
-            f'href="{reverse("n26-gang", args=[gang.pk])}"'
-            not in body.split("Choose Archetype to continue.")[0].rsplit("<button", 1)[
-                1
-            ]
-        )
-
-        assert ">Skip<" not in body
+        props = screen_props(body)
+        assert props["outstanding"] == "Archetype"
+        assert props["mayContinue"] is False
+        assert props["back"] == reverse("n26-gang", args=[gang.pk])
+        assert props["skipHref"] == ""
 
     def test_founding_a_gang_whose_slots_carry_nothing_goes_straight_to_the_sheet(
         self, client, owner, gang_type, archetype_slot
@@ -467,11 +463,13 @@ class TestWhatArrived:
         for name, view in (
             ("gangs", "create_gang"),
             ("hire", "hire_fighter"),
-            # Pick navigation calls onward through _landing.
-            ("choose", "_landing"),
         ):
             assert "onward(" in inspect.getsource(getattr(module(name), view)), view
-        assert "_landing(" in inspect.getsource(module("choose").choose)
+        from n26.core import choice_workflow
+
+        assert "choice_workflow.change(" in inspect.getsource(module("choose").choose)
+        assert "_arrival_keys(" in inspect.getsource(choice_workflow.destination)
+        assert "toward(" in inspect.getsource(choice_workflow.destination)
         for name in ("equip", "cloning", "options", "owned"):
             assert "onward(" not in inspect.getsource(module(name)), name
 
@@ -508,7 +506,13 @@ class TestPickingOnTheScreen:
         gang, here = landed
         key = sheet_slot(gang, "Archetype").key
 
-        response = client.post(here, {f"thing:{key}": pick_key(archetypes["Brawler"])})
+        response = client.post(
+            here,
+            {
+                "request_key": str(uuid4()),
+                f"thing:{key}": pick_key(archetypes["Brawler"]),
+            },
+        )
 
         assert response.status_code == 302
         assert response["Location"] == reverse("n26-gang", args=[gang.pk])
@@ -522,11 +526,20 @@ class TestPickingOnTheScreen:
 
         gang, here = landed
         key = sheet_slot(gang, "Archetype").key
-        response = client.post(reverse("n26-dismiss-offer", args=[gang.pk, key]))
+        response = client.post(
+            reverse("n26-dismiss-offer", args=[gang.pk, key]),
+            {"request_key": str(uuid4())},
+        )
         assert response.status_code == 302
         assert key in DismissedOffer.keys_for(gang)
 
-        response = client.post(here, {f"thing:{key}": pick_key(archetypes["Brawler"])})
+        response = client.post(
+            here,
+            {
+                "request_key": str(uuid4()),
+                f"thing:{key}": pick_key(archetypes["Brawler"]),
+            },
+        )
 
         assert response.status_code == 302
         assert response["Location"] == reverse("n26-gang", args=[gang.pk])
@@ -538,7 +551,7 @@ class TestPickingOnTheScreen:
     ):
         gang, here = landed
 
-        response = client.post(here, {})
+        response = client.post(here, {"request_key": str(uuid4())})
 
         assert response["Location"] == reverse("n26-gang", args=[gang.pk])
         assert not Assignment.objects.filter(pickable__isnull=False).exists()
@@ -551,7 +564,13 @@ class TestPickingOnTheScreen:
         elsewhere = reverse("n26-hire-fighter", args=[gang.pk])
         here = screen_url(gang, [key], back=elsewhere)
 
-        response = client.post(here, {f"thing:{key}": pick_key(archetypes["Brawler"])})
+        response = client.post(
+            here,
+            {
+                "request_key": str(uuid4()),
+                f"thing:{key}": pick_key(archetypes["Brawler"]),
+            },
+        )
 
         assert response["Location"] == elsewhere
 
@@ -560,7 +579,9 @@ class TestPickingOnTheScreen:
         key = sheet_slot(gang, "Archetype").key
         stranger = create_pickable("Stranger", legacy)
 
-        response = client.post(here, {f"thing:{key}": pick_key(stranger)})
+        response = client.post(
+            here, {"request_key": str(uuid4()), f"thing:{key}": pick_key(stranger)}
+        )
 
         assert asks_in(response["Location"]) == asks_in(here)
         body = page(client, response["Location"])
@@ -574,11 +595,20 @@ class TestPickingOnTheScreen:
 
         response = client.post(
             here,
-            {"thing:gang:nothing:nothing": pick_key(archetypes["Brawler"])},
+            {
+                "request_key": str(uuid4()),
+                "thing:gang:nothing:nothing": pick_key(archetypes["Brawler"]),
+            },
         )
 
-        body = page(client, response["Location"])
-        assert "That choice is no longer on this screen." in body
+        assert response.status_code == 409
+        props = screen_props(response.content)
+        assert props["terminal"] is True
+        assert (
+            "A choice was removed before these picks were saved. This save was not applied."
+            in props["errors"]["__all__"]
+        )
+        assert not Assignment.objects.filter(pickable=archetypes["Brawler"]).exists()
 
     def test_a_pick_on_the_pick_screen_reached_from_here_joins_the_address(
         self, client, landed, archetypes, legacy, picklist
@@ -601,7 +631,12 @@ class TestPickingOnTheScreen:
         )
 
         response = client.post(
-            picker, {"thing": pick_key(archetypes["Brawler"]), "return": here}
+            picker,
+            {
+                "request_key": str(uuid4()),
+                "thing": pick_key(archetypes["Brawler"]),
+                "return": here,
+            },
         )
 
         path, asks, back = asks_in(response["Location"])
@@ -629,7 +664,10 @@ class TestPickingOnTheScreen:
         client.force_login(owner)
         picker = reverse("n26-choose", args=[gang.pk, sheet_slot(gang, "Paths").key])
 
-        response = client.post(picker, {"thing": pick_key(archetypes["Brawler"])})
+        response = client.post(
+            picker,
+            {"request_key": str(uuid4()), "thing": pick_key(archetypes["Brawler"])},
+        )
 
         path, asks, back = asks_in(response["Location"])
         assert path == reverse("n26-next", args=[gang.pk])
@@ -664,14 +702,24 @@ class TestPickingOnTheScreen:
         )
 
         response = client.post(
-            picker, {"thing": pick_key(archetypes["Gunslinger"]), "return": here}
+            picker,
+            {
+                "request_key": str(uuid4()),
+                "thing": pick_key(archetypes["Gunslinger"]),
+                "return": here,
+            },
         )
         assert response["Location"].startswith(
             reverse("n26-choose", args=[gang.pk, key])
         )
 
         response = client.post(
-            picker, {"thing": pick_key(archetypes["Brawler"]), "return": here}
+            picker,
+            {
+                "request_key": str(uuid4()),
+                "thing": pick_key(archetypes["Brawler"]),
+                "return": here,
+            },
         )
         path, asks, back = asks_in(response["Location"])
         assert path == reverse("n26-next", args=[gang.pk])
@@ -709,7 +757,12 @@ class TestPickingOnTheScreen:
         )
 
         first = client.post(
-            picker, {"thing": pick_key(archetypes["Brawler"]), "return": arrival}
+            picker,
+            {
+                "request_key": str(uuid4()),
+                "thing": pick_key(archetypes["Brawler"]),
+                "return": arrival,
+            },
         )
         path, asks, back = asks_in(first["Location"])
         assert path == reverse("n26-next", args=[gang.pk])
@@ -717,7 +770,12 @@ class TestPickingOnTheScreen:
         assert back == picker
 
         second = client.post(
-            picker, {"thing": pick_key(archetypes["Gunslinger"]), "return": arrival}
+            picker,
+            {
+                "request_key": str(uuid4()),
+                "thing": pick_key(archetypes["Gunslinger"]),
+                "return": arrival,
+            },
         )
         path, asks, back = asks_in(second["Location"])
         assert path == reverse("n26-next", args=[gang.pk])
@@ -758,7 +816,12 @@ class TestPickingOnTheScreen:
         )
 
         response = client.post(
-            picker, {"thing": pick_key(archetypes["Brawler"]), "return": arrival}
+            picker,
+            {
+                "request_key": str(uuid4()),
+                "thing": pick_key(archetypes["Brawler"]),
+                "return": arrival,
+            },
         )
 
         assert response.status_code == 302
@@ -782,7 +845,13 @@ class TestPickingOnTheScreen:
         create_interstitial("Creed", slots=[creed], skippable=True)
         key = sheet_slot(gang, "Archetype").key
 
-        response = client.post(here, {f"thing:{key}": pick_key(archetypes["Brawler"])})
+        response = client.post(
+            here,
+            {
+                "request_key": str(uuid4()),
+                f"thing:{key}": pick_key(archetypes["Brawler"]),
+            },
+        )
 
         # Continue has answered the original question; only newly granted questions
         # belong on the next screen.
@@ -814,11 +883,11 @@ class TestSkipAndContinue:
         client.force_login(owner)
 
         together = page(client, screen_url(gang, [archetype, path]))
-        assert skip_href(together) == ""
+        assert screen_props(together)["skipHref"] == ""
         assert kal.name in together
 
         alone = page(client, screen_url(gang, [path]))
-        assert skip_href(alone) == reverse("n26-gang", args=[gang.pk])
+        assert screen_props(alone)["skipHref"] == reverse("n26-gang", args=[gang.pk])
 
     def test_a_skippable_question_never_holds_continue(
         self, client, owner, gang, hunter, archetypes
@@ -831,12 +900,19 @@ class TestSkipAndContinue:
         here = screen_url(gang, [archetype, path])
 
         body = page(client, here)
-        assert "Choose Archetype to continue." in body
-        assert "Hunter's path to continue." not in body
+        props = screen_props(body)
+        assert props["outstanding"] == "Archetype"
+        assert props["mayContinue"] is False
 
-        client.post(here, {f"thing:{archetype}": pick_key(archetypes["Brawler"])})
+        client.post(
+            here,
+            {
+                "request_key": str(uuid4()),
+                f"thing:{archetype}": pick_key(archetypes["Brawler"]),
+            },
+        )
 
-        assert "to continue." not in page(client, here)
+        assert screen_props(page(client, here))["mayContinue"] is True
 
     def test_continue_waits_for_every_pick_a_choice_asks_for(
         self, client, owner, gang_type, legacy, picklist, archetypes
@@ -852,16 +928,30 @@ class TestSkipAndContinue:
         key = sheet_slot(gang, "Paths").key
         here = screen_url(gang, [key])
 
-        client.post(here, {f"thing:{key}": pick_key(archetypes["Brawler"])})
+        client.post(
+            here,
+            {
+                "request_key": str(uuid4()),
+                f"thing:{key}": pick_key(archetypes["Brawler"]),
+            },
+        )
         body = page(client, here)
-        assert "Chosen: Brawler" in body
-        assert "Choose Paths to continue." in body
+        props = screen_props(body)
+        assert questions(body)[0]["chosen"] == "Brawler"
+        assert props["outstanding"] == "Paths"
+        assert props["mayContinue"] is False
 
-        client.post(here, {f"thing:{key}": pick_key(archetypes["Gunslinger"])})
+        client.post(
+            here,
+            {
+                "request_key": str(uuid4()),
+                f"thing:{key}": pick_key(archetypes["Gunslinger"]),
+            },
+        )
         body = page(client, here)
 
-        assert "to continue." not in body
-        assert f'href="{reverse("n26-gang", args=[gang.pk])}"' in body
+        assert screen_props(body)["mayContinue"] is True
+        assert screen_props(body)["back"] == reverse("n26-gang", args=[gang.pk])
 
     def test_when_nothing_is_left_to_ask_the_reader_goes_on(self, client, owner, gang):
         client.force_login(owner)
@@ -915,9 +1005,9 @@ class TestSkipAndContinue:
 
         body = page(client, screen_url(gang, [sheet_slot(gang, "Fate").key]))
 
-        assert "Nothing is available to choose here." in body
-        assert "to continue." not in body
-        assert f'href="{reverse("n26-gang", args=[gang.pk])}"' in body
+        assert questions(body)[0]["offer"]["empty"] is True
+        assert screen_props(body)["mayContinue"] is True
+        assert screen_props(body)["back"] == reverse("n26-gang", args=[gang.pk])
 
     def test_a_block_with_no_question_of_its_own_draws_no_skip(
         self, client, owner, gang, archetype_slot
@@ -932,7 +1022,7 @@ class TestSkipAndContinue:
         body = page(client, screen_url(gang, [key]))
 
         assert "Also asked" in body
-        assert ">Skip<" not in body
+        assert screen_props(body)["skipHref"] == ""
 
     def test_a_screen_asks_its_slots_in_the_order_the_author_gave_them(
         self, client, owner, gang, hunter, legacy, picklist
@@ -986,7 +1076,7 @@ class TestSkipAndContinue:
 
         body = page(client, screen_url(gang, [creed_key]))
 
-        assert skip_href(body) == reverse("n26-gang", args=[gang.pk])
+        assert screen_props(body)["skipHref"] == reverse("n26-gang", args=[gang.pk])
         assert not Assignment.objects.filter(pickable__in=archetypes.values()).exists()
 
     def test_a_slot_carrying_no_screen_is_not_asked_about(
@@ -1028,7 +1118,13 @@ class TestTheAddress:
         body = page(client, here)
         assert "elsewhere.example" not in body
 
-        response = client.post(here, {f"thing:{key}": pick_key(archetypes["Brawler"])})
+        response = client.post(
+            here,
+            {
+                "request_key": str(uuid4()),
+                f"thing:{key}": pick_key(archetypes["Brawler"]),
+            },
+        )
         assert response["Location"] == reverse("n26-gang", args=[gang.pk])
 
     def test_asking_more_costs_the_offers_and_not_another_derivation(
@@ -1075,11 +1171,17 @@ class TestTheAddress:
         client.force_login(owner)
         key = sheet_slot(gang, "Fate").key
         here = screen_url(gang, [key])
-        assert "Roll on its own page" in page(client, here)
+        assert questions(page(client, here))[0]["rollHref"]
 
-        client.post(here, {f"thing:{key}": pick_key(archetypes["Brawler"])})
+        client.post(
+            here,
+            {
+                "request_key": str(uuid4()),
+                f"thing:{key}": pick_key(archetypes["Brawler"]),
+            },
+        )
 
-        assert "Roll on its own page" not in page(client, here)
+        assert questions(page(client, here))[0]["rollHref"] == ""
 
     def test_the_address_is_capped_at_twenty_questions(self):
         from django.http import QueryDict
@@ -1132,7 +1234,7 @@ class TestTheAddress:
         body = page(client, screen_url(gang, [spelled]))
 
         assert "Hunter's path" in body and "Kal" in body
-        assert f'name="thing:{spelled}"' in body
+        assert questions(body)[0]["key"] == spelled
 
     def test_a_post_naming_a_question_no_screen_draws_settles_nothing(
         self, client, owner, gang, person_type, gang_type, legacy, picklist, archetypes
@@ -1149,12 +1251,22 @@ class TestTheAddress:
         here = screen_url(gang, [archetype, bare])
 
         body = page(client, here)
-        assert "Bare" not in body
+        assert all(question["key"] != bare for question in questions(body))
 
-        response = client.post(here, {f"thing:{bare}": pick_key(archetypes["Brawler"])})
+        response = client.post(
+            here,
+            {
+                "request_key": str(uuid4()),
+                f"thing:{bare}": pick_key(archetypes["Brawler"]),
+            },
+        )
 
-        assert "That choice is no longer on this screen." in page(
-            client, response["Location"]
+        assert response.status_code == 409
+        props = screen_props(response.content)
+        assert props["terminal"] is True
+        assert (
+            "A choice was removed before these picks were saved. This save was not applied."
+            in props["errors"]["__all__"]
         )
         assert not Assignment.objects.filter(pickable=archetypes["Brawler"]).exists()
 
@@ -1186,11 +1298,7 @@ class TestTheAddress:
 
         body = page(client, here)
 
-        assert "Roll on its own page" in body
-        link = (
-            body.split("Roll on its own page")[0].rsplit('href="', 1)[1].split('"')[0]
-        )
-        link = link.replace("&amp;", "&")
+        link = questions(body)[0]["rollHref"]
         assert link.startswith(reverse("n26-choose", args=[gang.pk, key]))
         returned = parse_qs(urlsplit(link).query)["return"][0]
         assert asks_in(returned) == (
@@ -1208,7 +1316,6 @@ class TestReadingTheScreenAloud:
     def test_each_picker_is_named_by_the_heading_that_asks_it(
         self, client, owner, gang_type, shown, legacy, picklist
     ):
-        import re
 
         several = create_slot(
             "Paths", legacy, picklist, max_picks=2, assigned_to="gang"
@@ -1223,8 +1330,11 @@ class TestReadingTheScreenAloud:
         body = page(client, screen_url(gang, [one, many]))
 
         for key in (one, many):
-            (heading,) = re.findall(rf'id="(ask-\d+-{key.replace(":", "-")})"', body)
-            assert f'aria-labelledby="{heading}' in body
+            (question,) = [
+                question for question in questions(body) if question["key"] == key
+            ]
+            assert question["headingId"].startswith("ask-")
+            assert question["headingId"].endswith(key.replace(":", "-"))
 
     def test_a_question_under_two_screens_is_named_apart_under_each(
         self, client, owner, gang_type, shown, archetype_slot
@@ -1232,7 +1342,6 @@ class TestReadingTheScreenAloud:
         """Repeated slots need unique heading IDs for each rendered picker, with every
         aria-labelledby reference resolving to its own heading.
         """
-        import re
 
         create_interstitial("Also asked", slots=[archetype_slot], skippable=True)
         gang = found_gang("The Forgotten", gang_type, owner=owner, budget=1000)
@@ -1241,15 +1350,10 @@ class TestReadingTheScreenAloud:
 
         body = page(client, screen_url(gang, [key]))
 
-        assert "Choose Archetype to continue." in body
-        ids = re.findall(r'\bid="(ask-[^"]+)"', body)
-        assert len(ids) == len(set(ids))
-        headings = [i for i in ids if i.endswith(key.replace(":", "-"))]
-        assert len(headings) == 2
-        named = [
-            value.split()[0] for value in re.findall(r'aria-labelledby="([^"]+)"', body)
-        ]
-        assert sorted(named) == sorted(headings)
+        assert screen_props(body)["outstanding"] == "Archetype"
+        headings = [question["headingId"] for question in questions(body)]
+        assert len(headings) == len(set(headings)) == 2
+        assert all(heading.endswith(key.replace(":", "-")) for heading in headings)
 
 
 class TestWhatTheScreenSays:
