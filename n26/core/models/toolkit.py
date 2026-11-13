@@ -1,5 +1,7 @@
 """Campaign interventions, per-gang choices and retryable inbox deliveries."""
 
+from uuid import uuid4
+
 from django.db import models
 from django.urls import reverse
 
@@ -18,13 +20,16 @@ TAG_ICONS = (
     "paintbrush",
     "printer",
     "library-big",
+    "tombstone",
+    "trophy",
+    "snail",
 )
 ALERT_EVENTS = (
     ("gang_added", "A player adds a gang"),
+    ("gang_removed", "A player removes a gang"),
     ("battle_outcome", "A battle outcome is logged"),
     ("battle_created", "A battle is created"),
     ("fighter_deleted", "A fighter is deleted from a roster"),
-    ("gang_removed", "A player removes a gang"),
     ("offer_selected", "A player selects an intervention offer"),
     ("asset_owner_changed", "An asset changes owner"),
 )
@@ -114,6 +119,7 @@ class InterventionReceipt(Base):
 
 
 class CampaignTag(Base):
+    assignment_key = models.UUIDField(default=uuid4, db_index=True)
     campaign = models.ForeignKey(
         "n26.Campaign", on_delete=models.CASCADE, related_name="gang_tags"
     )
@@ -159,7 +165,23 @@ class ToolkitAlert(Base):
         ]
 
 
+class ToolkitCommunicationRevision(Base):
+    communication = models.ForeignKey(
+        ToolkitCommand, on_delete=models.PROTECT, related_name="communication_revisions"
+    )
+    actor = models.ForeignKey("auth.User", on_delete=models.PROTECT)
+    title = models.CharField(max_length=200)
+    body = models.TextField()
+
+    class Meta:
+        ordering = ["-created", "-pk"]
+
+
 class ToolkitDelivery(Base):
+    original_subject = models.CharField(max_length=255, blank=True)
+    original_content = models.TextField(blank=True)
+    edited_at = models.DateTimeField(null=True, blank=True)
+    needs_sync = models.BooleanField(default=False)
     campaign = models.ForeignKey("n26.Campaign", on_delete=models.CASCADE)
     recipient = models.ForeignKey(
         "auth.User", on_delete=models.CASCADE, related_name="+"

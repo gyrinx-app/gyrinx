@@ -10,6 +10,7 @@ import {
     NativeSelect,
     UserLink,
     RichText,
+    Card,
     type RichNode,
     RadioCards,
     RadioCard,
@@ -32,6 +33,11 @@ type Offer = {
 type Notification = {
     id: string;
     subject: string;
+    edited?: {
+        at: string;
+        originalSubject: string;
+        originalContent: RichNode[];
+    } | null;
     offer?: Offer | null;
     content: RichNode[];
     sender: string;
@@ -63,6 +69,43 @@ export type NotificationInboxProps = {
     previousUrl: string;
     nextUrl: string;
 };
+function OriginalMessage({
+    edit,
+}: {
+    edit: NonNullable<Notification["edited"]>;
+}) {
+    const [open, setOpen] = useState(false);
+    return (
+        <div className="space-y-3">
+            <p className="text-xs text-muted">
+                Edited{" "}
+                <time dateTime={edit.at}>
+                    {new Date(edit.at).toLocaleString()}
+                </time>
+            </p>
+            <Button
+                size="sm"
+                variant="text"
+                aria-expanded={open}
+                onClick={() => setOpen(!open)}
+            >
+                {open ? "Hide original" : "View original"}
+            </Button>
+            {open && (
+                <Card>
+                    <h4 className="mb-3 text-sm font-semibold">
+                        {edit.originalSubject}
+                    </h4>
+                    <RichText
+                        nodes={edit.originalContent}
+                        className="text-sm"
+                    />
+                </Card>
+            )}
+        </div>
+    );
+}
+
 function OfferChoiceForm({
     offer,
     csrfToken,
@@ -555,6 +598,9 @@ export function NotificationInbox(props: NotificationInboxProps) {
                                             nodes={row.content}
                                             className="text-sm text-muted"
                                         />
+                                    )}
+                                    {row.edited && (
+                                        <OriginalMessage edit={row.edited} />
                                     )}
                                     {row.offer &&
                                         (row.offer.resolved ? (

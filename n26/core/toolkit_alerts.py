@@ -4,6 +4,7 @@ from datetime import timedelta
 
 from django.db import transaction
 from django.utils import timezone
+from django.utils.html import format_html, format_html_join
 
 from n26.core.models.toolkit import (
     ALERT_EVENTS,
@@ -94,6 +95,21 @@ def period(start, end):
     return f"from {start.strftime('%d %b %Y, %H:%M UTC')} to {end.strftime('%d %b %Y, %H:%M UTC')}"
 
 
+def report_content(start, end, events):
+    events = list(events)
+    if not events:
+        return f"No alerted actions took place {period(start, end)}.", ""
+    sections = []
+    for event, label in ALERT_EVENTS:
+        entries = [e for e in events if e.event == event]
+        if entries:
+            items = format_html_join("", "<li>{}</li>", ((e.text,) for e in entries))
+            sections.append(format_html("<h3>{}</h3><ul>{}</ul>", label, items))
+    return f"Alerted actions {period(start, end)}:", str(
+        format_html_join("", "{}", ((s,) for s in sections))
+    )
+
+
 def deliver_due_reports(*, now=None):
     from n26.core.toolkit import queue
 
@@ -130,21 +146,14 @@ def deliver_due_reports(*, now=None):
                         occurred_at__lt=end,
                     ).order_by("occurred_at", "pk")
                 )
-                covered = period(start, end)
-                text = (
-                    (
-                        f"Alerted actions {covered}:\n"
-                        + "\n".join(f"• {e.text}" for e in events)
-                    )
-                    if events
-                    else f"No alerted actions took place {covered}."
-                )
+                text, message = report_content(start, end, events)
                 queue(
                     settings.campaign,
                     [settings.campaign.owner_id],
                     identity=f"report:{settings.pk}:{end.isoformat()}",
                     title="Campaign wrap-up",
                     text=text,
+                    message=message,
                     sender=None,
                 )
                 settings.window_start = end

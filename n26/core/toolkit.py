@@ -1,5 +1,7 @@
 """Validate campaign toolkit commands and apply rewards through gang operations."""
 
+from uuid import uuid5
+
 from django import forms
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -195,6 +197,8 @@ def rewards_from(data, campaign):
 
 
 def recipients_from(payload, campaign):
+    if payload.get("recipients_mode") not in {"all", "selected"}:
+        raise Refusal("Choose selected gangs or all gangs.")
     found = Gang.objects.filter(
         campaign_memberships__campaign=campaign,
         campaign_memberships__left__isnull=True,
@@ -241,6 +245,7 @@ def apply_rewards(receipt, indices, actor):
                 name=reward["name"],
                 icon=reward["icon"],
                 info=reward["info"],
+                assignment_key=uuid5(intervention.pk.to_uuid(), f"tag:{index}"),
             )
             with campaign_operation(intervention.campaign, actor=actor) as act:
                 act.event(
@@ -275,6 +280,7 @@ def apply_rewards(receipt, indices, actor):
                     name=reward["name"],
                     icon=reward["icon"],
                     info=reward["info"],
+                    assignment_key=uuid5(intervention.pk.to_uuid(), f"tag:{index}"),
                 )
                 op.event(
                     None,
@@ -488,6 +494,14 @@ def run_command(campaign, actor, action, payload):
         return choose(campaign, actor, payload)
     if campaign.owner_id != actor.pk:
         raise Refusal("Only the campaign arbitrator can use these tools.")
+    if action == "edit_communication":
+        from n26.core.toolkit_edit import edit_communication
+
+        return edit_communication(campaign, actor, payload)
+    if action == "edit_tag":
+        from n26.core.toolkit_edit import edit_tag
+
+        return edit_tag(campaign, actor, payload)
     if action == "intervention":
         return send_intervention(campaign, actor, payload)
     if action == "tags":
@@ -625,6 +639,7 @@ def change(campaign, actor, action, data):
             )
             return form, destination
     except Refusal as exc:
+        form.conflicted = getattr(exc, "revision_conflict", False)
         form.add_error(None, exc.public_message)
     except ValidationError:
         form.add_error("payload", "Check the selected gangs and rewards.")

@@ -18,10 +18,12 @@ from n26.core.models import CampaignParticipant, Gang
 from n26.core.models.toolkit import (
     ALERT_EVENTS,
     TAG_ICONS,
+    CampaignTag,
     Intervention,
     InterventionReceipt,
     ToolkitCommand,
 )
+from n26.core.toolkit_edit import communication_values, signed_state, tag_state
 from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_404
 from n26.rich_text import rich_text_nodes
 
@@ -59,6 +61,7 @@ def toolkit_home(request, pk):
     communications = (
         ToolkitCommand.objects.filter(campaign=campaign, action="communication")
         .select_related("actor")
+        .prefetch_related("communication_revisions")
         .order_by("-created")[:100]
     )
     props = {
@@ -81,9 +84,13 @@ def toolkit_home(request, pk):
         "communications": [
             {
                 "id": str(c.pk),
-                "title": c.payload["title"],
-                "body": c.payload["body"],
-                "bodyNodes": rich_text_nodes(c.payload["body"]),
+                "title": communication_values(c)["title"],
+                "body": communication_values(c)["body"],
+                "bodyNodes": rich_text_nodes(communication_values(c)["body"]),
+                "editHref": reverse(
+                    "n26-toolkit-form", args=[campaign.pk, "edit_communication"]
+                )
+                + f"?communication={c.pk}",
                 "date": c.created.isoformat(),
             }
             for c in communications
@@ -97,6 +104,8 @@ def toolkit_home(request, pk):
                 "icon": t.icon,
                 "info": t.info,
                 "gang": t.gang.name if t.gang_id else t.player.username,
+                "editHref": reverse("n26-toolkit-form", args=[campaign.pk, "edit_tag"])
+                + f"?tag={t.pk}",
                 "removeHref": reverse(
                     "n26-toolkit-form", args=[campaign.pk, "remove_tag"]
                 )
@@ -138,6 +147,8 @@ def toolkit_form(request, pk, action):
         "alerts",
         "choose",
         "remove_tag",
+        "edit_communication",
+        "edit_tag",
     }:
         raise Http404
     campaign = access(request, pk, action)
@@ -152,6 +163,8 @@ def toolkit_form(request, pk, action):
         "gangs": [],
         "inform_all": False,
     }
+    if action == "intervention":
+        initial.update(mode="", recipients_mode="", rewards=[{"kind": "", "amount": 1}])
     props = {
         **common(request, campaign),
         "screen": "form",
@@ -163,7 +176,7 @@ def toolkit_form(request, pk, action):
         "receipt": None,
         "tag": None,
     }
-    if action == "tags":
+    if action in {"tags", "edit_tag"}:
         initial.update(
             target="gangs",
             rewards=[
@@ -176,7 +189,7 @@ def toolkit_form(request, pk, action):
                 }
             ],
         )
-    if action in {"intervention", "communication", "tags"}:
+    if action in {"intervention", "communication", "tags", "edit_tag"}:
         props["gangs"] = [
             {
                 "id": str(g.pk),
@@ -244,7 +257,68 @@ def toolkit_form(request, pk, action):
             "name": tag.name,
             "gang": tag.gang.name if tag.gang_id else tag.player.username,
         }
-    if action in {"intervention", "communication"}:
+    if action == "edit_communication":
+        communication = (
+            ToolkitCommand.objects.filter(
+                campaign=campaign,
+                action="communication",
+                pk=identifier(request.GET.get("communication")),
+            )
+            .prefetch_related("communication_revisions")
+            .first()
+        )
+        if communication is None:
+            raise Http404
+        current = communication_values(communication)
+        initial = {
+            "communication": str(communication.pk),
+            "title": current["title"],
+            "body": current["body"],
+            "snapshot": signed_state(
+                "communication", communication, request.user, current["revision"]
+            ),
+        }
+        props["recipientNames"] = list(
+            campaign.toolkitdelivery_set.filter(
+                identity=f"communication:{communication.request_key}"
+            ).values_list("recipient__username", flat=True)
+        )
+    if action == "edit_tag":
+        anchor = CampaignTag.objects.filter(
+            campaign=campaign, pk=identifier(request.GET.get("tag"))
+        ).first()
+        if anchor is None:
+            raise Http404
+        tags = list(
+            CampaignTag.objects.filter(
+                campaign=campaign,
+                assignment_key=anchor.assignment_key,
+                removed_at__isnull=True,
+            )
+        )
+        if not tags:
+            raise Http404
+        current = tags[0]
+        initial = {
+            "tag": str(anchor.pk),
+            "target": "players" if anchor.player_id else "gangs",
+            "recipients_mode": "selected",
+            "players": [str(t.player_id) for t in tags if t.player_id],
+            "gangs": [str(t.gang_id) for t in tags if t.gang_id],
+            "rewards": [
+                {
+                    "kind": "tag",
+                    "amount": 1,
+                    "name": current.name,
+                    "icon": current.icon,
+                    "info": current.info,
+                }
+            ],
+            "snapshot": signed_state("tag", anchor, request.user, tag_state(tags)),
+        }
+    if action in {"edit_tag", "edit_communication"}:
+        props["reviewHref"] = request.get_full_path()
+    if action in {"intervention", "communication", "edit_communication"}:
         from n26.core.widgets import campaign_editor_props
 
         props["editor"] = campaign_editor_props()
@@ -262,9 +336,10 @@ def toolkit_form(request, pk, action):
                 else form["payload"].value(),
             },
             "errors": dict(form.errors),
+            "conflicted": getattr(form, "conflicted", False),
             "csrfToken": get_token(request),
             "commandHref": reverse("n26-toolkit-command", args=[campaign.pk, action]),
-            "recoveryKey": f"toolkit:{request.user.pk}:{campaign.pk}:{action}:{initial.get('receipt', initial.get('tag', ''))}",
+            "recoveryKey": f"toolkit:{request.user.pk}:{campaign.pk}:{action}:{initial.get('receipt', initial.get('tag', initial.get('communication', '')))}",
         }
     )
     return render(
@@ -280,7 +355,15 @@ def toolkit_command(request, pk, action):
     form, destination = toolkit.change(campaign, request.user, action, request.POST)
     if destination:
         return JsonResponse({"nextUrl": destination})
-    return JsonResponse({"errors": dict(form.errors)}, status=422)
+    return JsonResponse(
+        {
+            "errors": dict(form.errors),
+            "code": "revision_conflict"
+            if getattr(form, "conflicted", False)
+            else "invalid",
+        },
+        status=409 if getattr(form, "conflicted", False) else 422,
+    )
 
 
 @login_required

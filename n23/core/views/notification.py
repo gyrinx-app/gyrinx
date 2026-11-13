@@ -152,11 +152,26 @@ class NotificationInboxView(LoginRequiredMixin, generic.ListView):
             method = getattr(target_for(notification), "notification_context", None)
             return method(notification.sender) if callable(method) else None
 
+        def edit_for(notification):
+            target = target_for(notification)
+            if not getattr(target, "edited_at", None):
+                return None
+            nodes = rich_text_nodes(target.original_content)
+            return {
+                "at": target.edited_at.isoformat(),
+                "originalSubject": target.original_subject,
+                "originalContent": nodes[1:] if nodes else [],
+            }
+
         def body_for(notification):
             is_toolkit = callable(
                 getattr(target_for(notification), "notification_context", None)
             )
-            content = notification.content
+            content = (
+                target_for(notification).content
+                if getattr(target_for(notification), "edited_at", None)
+                else notification.content
+            )
             if is_toolkit:
                 # Earlier toolkit deliveries stored these generated singular phrases.
                 content = content.replace(
@@ -179,7 +194,10 @@ class NotificationInboxView(LoginRequiredMixin, generic.ListView):
             "rows": [
                 {
                     "id": str(n.id),
-                    "subject": n.subject,
+                    "subject": target_for(n).subject
+                    if getattr(target_for(n), "edited_at", None)
+                    else n.subject,
+                    "edited": edit_for(n),
                     "content": body_for(n),
                     "context": context_for(n),
                     "offer": offers.get(n.target_object_id),

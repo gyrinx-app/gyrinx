@@ -1,6 +1,7 @@
 """Resolve n26 icon names to trusted inline SVG bodies.
 
-General-purpose icons come from the pinned Lucide package. The package stays on
+General-purpose icons come from the pinned Lucide package and licensed release
+supplements under static/n26/icons/lucide. The package stays on
 the server: each response contains only the drawings its templates render, with
 no icon font, sprite, stylesheet or JavaScript bundle sent to the browser.
 
@@ -25,6 +26,7 @@ from django.utils.safestring import SafeString, mark_safe
 from n26.core.brand_icons import BRAND_ICONS
 
 DEFAULT_VIEWBOX = "0 0 24 24"
+SUPPLEMENTAL_LUCIDE = {"tombstone"}
 
 # Keep dynamic and stored names working while templates move to Lucide's names.
 ALIASES: dict[str, str] = {
@@ -96,9 +98,12 @@ def _lucide_names() -> tuple[str, ...]:
 
     return tuple(
         sorted(
-            filename.removesuffix(".svg")
-            for filename in _lucide_archive().namelist()
-            if filename.endswith(".svg")
+            {
+                filename.removesuffix(".svg")
+                for filename in _lucide_archive().namelist()
+                if filename.endswith(".svg")
+            }
+            | SUPPLEMENTAL_LUCIDE
         )
     )
 
@@ -111,7 +116,17 @@ def _local_name(tag: str) -> str:
 def _lucide_body(name: str) -> SafeString:
     """Extract and validate child geometry from a packaged Lucide SVG."""
 
-    root = ElementTree.fromstring(_lucide_archive().read(f"{name}.svg"))  # noqa: S314
+    try:
+        source = _lucide_archive().read(f"{name}.svg")
+    except KeyError:
+        if name not in SUPPLEMENTAL_LUCIDE:
+            raise
+        source = (
+            files("n26.core")
+            .joinpath(f"static/n26/icons/lucide/{name}.svg")
+            .read_bytes()
+        )
+    root = ElementTree.fromstring(source)  # noqa: S314
     if _local_name(root.tag) != "svg" or root.attrib.get("viewBox") != DEFAULT_VIEWBOX:
         raise ValueError(f"Lucide icon {name!r} has an unexpected SVG canvas")
 

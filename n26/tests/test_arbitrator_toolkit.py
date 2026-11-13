@@ -890,3 +890,308 @@ def test_intervention_choice_count_requires_a_positive_integer(demo, choices):
     )
     assert url is None and form.errors
     assert not Intervention.objects.exists()
+
+
+def edit_values(client, campaign, arb, action, **query):
+    client.force_login(arb)
+    response = client.get(
+        reverse("n26-toolkit-form", args=[campaign.pk, action]), query
+    )
+    assert response.status_code == 200
+    return json.loads(response.context["toolkit_props"]["values"]["payload"])
+
+
+def test_message_edits_update_existing_notifications_and_preserve_the_original(
+    client, demo, django_capture_on_commit_callbacks
+):
+    from n26.core.models.toolkit import ToolkitCommand, ToolkitCommunicationRevision
+
+    campaign, arb, players, gangs = demo
+    with django_capture_on_commit_callbacks(execute=True):
+        command(
+            campaign,
+            arb,
+            "communication",
+            offer(gangs, title="Original title", body="<p>Original message.</p>"),
+        )
+    source = ToolkitCommand.objects.get(action="communication")
+    notification = Notification.objects.get(owner=players[0])
+    notification.is_read = True
+    notification.save(update_fields=["is_read"])
+    payload = edit_values(
+        client, campaign, arb, "edit_communication", communication=str(source.pk)
+    )
+    payload.update(title="Revised title", body="<p><strong>New details.</strong></p>")
+    key = uuid4()
+    with django_capture_on_commit_callbacks(execute=True):
+        form, url = command(campaign, arb, "edit_communication", payload, key=key)
+        assert url, form.errors
+        assert command(campaign, arb, "edit_communication", payload, key=key)[1] == url
+    assert Notification.objects.count() == 2
+    assert ToolkitCommunicationRevision.objects.count() == 1
+    notification.refresh_from_db()
+    assert notification.is_read
+    assert (
+        notification.subject.endswith("Revised title")
+        and "New details." in notification.content
+    )
+    source.refresh_from_db()
+    assert source.payload["body"] == "<p>Original message.</p>"
+    client.force_login(players[0])
+    row = client.get(
+        reverse("core:notifications"), HTTP_ACCEPT="application/json"
+    ).json()["rows"][0]
+    assert row["edited"]["originalSubject"].endswith("Original title")
+    assert "Original message." in json.dumps(row["edited"]["originalContent"])
+    payload = edit_values(
+        client, campaign, arb, "edit_communication", communication=str(source.pk)
+    )
+    payload.update(body="<p>Third version.</p>")
+    with django_capture_on_commit_callbacks(execute=True):
+        assert command(campaign, arb, "edit_communication", payload)[1]
+    assert ToolkitDelivery.objects.first().original_content.endswith(
+        "<p>Original message.</p>"
+    )
+    assert Notification.objects.count() == 2
+
+
+def test_stale_message_edits_require_review_and_other_players_cannot_edit(
+    client, demo, django_capture_on_commit_callbacks
+):
+    from n26.core.models.toolkit import ToolkitCommand, ToolkitCommunicationRevision
+
+    campaign, arb, players, gangs = demo
+    with django_capture_on_commit_callbacks(execute=True):
+        command(campaign, arb, "communication", offer(gangs, body="Original."))
+    source = ToolkitCommand.objects.get(action="communication")
+    draft = edit_values(
+        client, campaign, arb, "edit_communication", communication=str(source.pk)
+    )
+    with django_capture_on_commit_callbacks(execute=True):
+        assert command(
+            campaign, arb, "edit_communication", {**draft, "body": "First edit."}
+        )[1]
+    url = reverse("n26-toolkit-command", args=[campaign.pk, "edit_communication"])
+    response = client.post(
+        url,
+        {
+            "request_key": str(uuid4()),
+            "payload": json.dumps({**draft, "body": "Stale edit."}),
+        },
+    )
+    assert (
+        response.status_code == 409 and response.json()["code"] == "revision_conflict"
+    )
+    assert ToolkitCommunicationRevision.objects.count() == 1
+    assert command(campaign, players[0], "edit_communication", draft)[1] is None
+    assert Notification.objects.count() == 2
+
+
+def test_message_update_delivery_is_retryable_and_does_not_recreate_notifications(
+    client, demo, django_capture_on_commit_callbacks, monkeypatch
+):
+    from n26.core.models.toolkit import ToolkitCommand
+    from n26.notifications import deliver_toolkit_notification
+
+    campaign, arb, players, gangs = demo
+    with django_capture_on_commit_callbacks(execute=True):
+        command(campaign, arb, "communication", offer(gangs[:1], body="Original."))
+    source = ToolkitCommand.objects.get(action="communication")
+    draft = edit_values(
+        client, campaign, arb, "edit_communication", communication=str(source.pk)
+    )
+    draft["body"] = "Changed."
+    monkeypatch.setattr("n26.notifications.enqueue_toolkit_delivery", lambda *_: None)
+    with django_capture_on_commit_callbacks(execute=True):
+        assert command(campaign, arb, "edit_communication", draft)[1]
+    delivery = ToolkitDelivery.objects.get()
+    assert delivery.needs_sync
+    assert "Original." in Notification.objects.get().content
+    assert deliver_toolkit_notification.func(str(delivery.pk))
+    assert not deliver_toolkit_notification.func(str(delivery.pk))
+    assert "Changed." in Notification.objects.get().content
+    assert Notification.objects.count() == 1
+    delivery.refresh_from_db()
+    assert not delivery.needs_sync
+
+
+def test_tag_edits_notify_new_recipients_only_and_preserve_existing_assignments(
+    client, demo, django_capture_on_commit_callbacks
+):
+    campaign, arb, players, gangs = demo
+    with django_capture_on_commit_callbacks(execute=True):
+        command(
+            campaign,
+            arb,
+            "tags",
+            offer(
+                gangs[:1],
+                rewards=[
+                    {"kind": "tag", "name": "Guide", "icon": "snail", "amount": 1}
+                ],
+            ),
+        )
+    anchor = CampaignTag.objects.get()
+    draft = edit_values(client, campaign, arb, "edit_tag", tag=str(anchor.pk))
+    draft["rewards"][0].update(
+        name="Road guide", icon="trophy", info="Contact this gang."
+    )
+    draft["gangs"] = [str(g.pk) for g in gangs]
+    with django_capture_on_commit_callbacks(execute=True):
+        form, url = command(campaign, arb, "edit_tag", draft)
+        assert url, form.errors
+    anchor.refresh_from_db()
+    assert anchor.name == "Road guide" and anchor.removed_at is None
+    tags = list(CampaignTag.objects.filter(removed_at__isnull=True))
+    assert len(tags) == 2
+    assert len({t.assignment_key for t in tags}) == 1
+    assert Notification.objects.filter(owner=players[0]).count() == 1
+    assert Notification.objects.filter(owner=players[1]).count() == 1
+    draft = edit_values(client, campaign, arb, "edit_tag", tag=str(anchor.pk))
+    with django_capture_on_commit_callbacks(execute=True):
+        assert command(campaign, arb, "edit_tag", draft)[1]
+    assert Notification.objects.count() == 2
+    draft["gangs"] = [str(gangs[1].pk)]
+    with django_capture_on_commit_callbacks(execute=True):
+        assert command(campaign, arb, "edit_tag", draft)[1]
+    anchor.refresh_from_db()
+    assert anchor.removed_at is not None
+    assert Notification.objects.count() == 2
+    for gang in gangs:
+        assert not check_gang(gang)
+
+
+def test_player_tags_can_be_edited_without_notifying_retained_players(
+    client, demo, django_capture_on_commit_callbacks
+):
+    campaign, arb, players, gangs = demo
+    with django_capture_on_commit_callbacks(execute=True):
+        command(
+            campaign,
+            arb,
+            "tags",
+            offer(
+                [],
+                target="players",
+                players=[str(players[0].pk)],
+                rewards=[
+                    {
+                        "kind": "tag",
+                        "name": "Painter",
+                        "icon": "paintbrush",
+                        "amount": 1,
+                    }
+                ],
+            ),
+        )
+    tag = CampaignTag.objects.get()
+    draft = edit_values(client, campaign, arb, "edit_tag", tag=str(tag.pk))
+    draft["players"] = [str(p.pk) for p in players]
+    draft["rewards"][0]["info"] = "Coordinates painting."
+    with django_capture_on_commit_callbacks(execute=True):
+        form, url = command(campaign, arb, "edit_tag", draft)
+        assert url, form.errors
+    assert CampaignTag.objects.filter(removed_at__isnull=True).count() == 2
+    assert Notification.objects.filter(owner=players[0]).count() == 1
+    assert Notification.objects.filter(owner=players[1]).count() == 1
+
+
+def test_reports_group_actions_by_type_and_skip_empty_sections():
+    from types import SimpleNamespace
+
+    from django.utils import timezone
+
+    from n26.core.toolkit_alerts import report_content
+
+    now = timezone.now()
+    text, message = report_content(
+        now,
+        now,
+        [
+            SimpleNamespace(event="battle_created", text="Battle two."),
+            SimpleNamespace(event="offer_selected", text="A reward was chosen."),
+            SimpleNamespace(event="battle_created", text="Battle one."),
+        ],
+    )
+    assert message.count("<h3>") == 2
+    assert message.count("<li>") == 3
+    assert (
+        message.index("Battle two.")
+        < message.index("Battle one.")
+        < message.index("A reward was chosen.")
+    )
+    assert "fighter" not in message and "A player removes a gang" not in message
+    assert "Alerted actions from" in text
+
+
+def test_existing_tag_groups_survive_the_edit_migration(demo):
+    from importlib import import_module
+    from uuid import uuid4
+
+    from django.apps import apps
+
+    from n26.write_pause import write_guard
+
+    campaign, arb, players, gangs = demo
+    assert command(
+        campaign,
+        arb,
+        "tags",
+        offer(
+            gangs,
+            rewards=[{"kind": "tag", "name": "Guide", "icon": "snail", "amount": 1}],
+        ),
+    )[1]
+    with write_guard():
+        for tag in CampaignTag.objects.all():
+            CampaignTag.objects.filter(pk=tag.pk).update(assignment_key=uuid4())
+        import_module("n26.core.migrations.0091_toolkit_edits").group_existing_tags(
+            apps, None
+        )
+    assert CampaignTag.objects.values("assignment_key").distinct().count() == 1
+    assert list(CampaignTag.objects.values_list("name", flat=True)) == [
+        "Guide",
+        "Guide",
+    ]
+
+
+def test_edited_message_listing_has_flat_query_growth(
+    client, demo, django_capture_on_commit_callbacks
+):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    from n26.core.models.toolkit import ToolkitCommand
+
+    campaign, arb, players, gangs = demo
+    client.force_login(arb)
+
+    def send_and_edit(index):
+        with django_capture_on_commit_callbacks(execute=True):
+            command(
+                campaign,
+                arb,
+                "communication",
+                offer(gangs, title=f"Message {index}", body="Original."),
+            )
+        source = ToolkitCommand.objects.filter(action="communication").latest("created")
+        draft = edit_values(
+            client, campaign, arb, "edit_communication", communication=str(source.pk)
+        )
+        draft["body"] = f"Changed {index}."
+        with django_capture_on_commit_callbacks(execute=True):
+            assert command(campaign, arb, "edit_communication", draft)[1]
+
+    def measure(expected):
+        url = reverse("n26-toolkit", args=[campaign.pk])
+        client.get(url)
+        with CaptureQueriesContext(connection) as queries:
+            response = client.get(url)
+            assert len(response.context["toolkit_props"]["communications"]) == expected
+        return len(queries)
+
+    send_and_edit(0)
+    small = measure(1)
+    for index in range(1, 4):
+        send_and_edit(index)
+    assert measure(4) <= small

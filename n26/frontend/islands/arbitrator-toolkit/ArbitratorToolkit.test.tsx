@@ -345,3 +345,82 @@ test("a tag assignment has one tag and no numbered header or add button", () => 
     expect(screen.queryByRole("button", { name: "Add tag" })).toBeNull();
     expect(screen.queryByText("Tag 1")).toBeNull();
 });
+
+test("interventions require rewards, application mode and recipients before sending", () => {
+    render(
+        <ArbitratorToolkit
+            {...base}
+            values={{
+                request_key: "required",
+                payload: JSON.stringify({
+                    title: "Supply",
+                    mode: "",
+                    recipients_mode: "",
+                    gangs: [],
+                    rewards: [{ kind: "", amount: 1 }],
+                }),
+            }}
+        />,
+    );
+    const send = screen.getByRole("button", { name: "Send intervention" });
+    expect(send).toHaveProperty("disabled", true);
+    expect(screen.getByText("Select a reward type.").className).toContain(
+        "text-red",
+    );
+    expect(screen.getByRole("note").textContent).toContain(
+        "cannot be undone once sent",
+    );
+    fireEvent.click(screen.getByRole("radio", { name: /All rewards/ }));
+    fireEvent.change(screen.getByLabelText("Type"), {
+        target: { value: "credits" },
+    });
+    expect(send).toHaveProperty("disabled", true);
+    fireEvent.click(screen.getByRole("radio", { name: "All gangs" }));
+    expect(send).toHaveProperty("disabled", false);
+});
+
+test("reward picker names follow the selected type", () => {
+    render(<ArbitratorToolkit {...base} />);
+    for (const [kind, label, button] of [
+        ["resource", "Resource type *", "Select resource type 1"],
+        ["weapon", "Weapon *", "Select weapon 1"],
+        ["equipment", "Equipment *", "Select equipment 1"],
+    ]) {
+        fireEvent.change(screen.getByLabelText("Type"), {
+            target: { value: kind },
+        });
+        expect(screen.getByLabelText(label)).toBeDefined();
+        expect(screen.getByRole("button", { name: button })).toBeDefined();
+        expect(
+            screen.getByRole("button", { name: "Send intervention" }),
+        ).toHaveProperty("disabled", true);
+    }
+});
+
+test("a conflicting communication edit freezes its draft until review", async () => {
+    vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+            status: 409,
+            headers: new Headers({ "Content-Type": "application/json" }),
+            json: async () => ({
+                code: "revision_conflict",
+                errors: { __all__: ["This content has changed."] },
+            }),
+        }),
+    );
+    render(
+        <ArbitratorToolkit
+            {...base}
+            actionKind="edit_communication"
+            reviewHref="/edit-message/"
+            recipientNames={["Ada"]}
+        />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save message" }));
+    await screen.findByRole("button", { name: "Review current version" });
+    expect(screen.getByLabelText("Title *").closest("fieldset")).toHaveProperty(
+        "disabled",
+        true,
+    );
+});

@@ -5,10 +5,11 @@ records the operation independently of notification delivery.
 import logging
 
 from django.db import transaction
+from django.db.models import Q
 from django.tasks import task
 from django.utils import timezone
 
-from gyrinx.site.models import NotificationType, notify
+from gyrinx.site.models import Notification, NotificationType, notify
 from gyrinx.tasks import TaskRoute
 
 logger = logging.getLogger(__name__)
@@ -187,11 +188,22 @@ def deliver_toolkit_notification(delivery_id: str):
         delivery = (
             ToolkitDelivery.objects.select_for_update(of=("self",))
             .select_related("recipient", "sender")
-            .filter(pk=delivery_id, delivered_at__isnull=True)
+            .filter(Q(delivered_at__isnull=True) | Q(needs_sync=True), pk=delivery_id)
             .first()
         )
         if delivery is None:
             return False
+        if delivery.delivered_at is not None:
+            from django.contrib.contenttypes.models import ContentType
+
+            Notification.objects.filter(
+                target_content_type=ContentType.objects.get_for_model(ToolkitDelivery),
+                target_object_id=delivery.pk.to_uuid(),
+                owner_id=delivery.recipient_id,
+            ).update(subject=delivery.subject, content=delivery.content)
+            delivery.needs_sync = False
+            delivery.save(update_fields=["needs_sync", "modified"])
+            return True
         notification = tell(
             delivery.recipient,
             delivery.subject,
@@ -202,7 +214,8 @@ def deliver_toolkit_notification(delivery_id: str):
         if notification is None:
             raise RuntimeError("Toolkit notification creation failed.")
         delivery.delivered_at = timezone.now()
-        delivery.save(update_fields=["delivered_at", "modified"])
+        delivery.needs_sync = False
+        delivery.save(update_fields=["delivered_at", "needs_sync", "modified"])
         return True
 
 
@@ -211,7 +224,9 @@ def retry_toolkit_notifications():
     from n26.core.models.toolkit import ToolkitDelivery
 
     for pk in (
-        ToolkitDelivery.objects.filter(delivered_at__isnull=True)
+        ToolkitDelivery.objects.filter(
+            Q(delivered_at__isnull=True) | Q(needs_sync=True)
+        )
         .order_by("created")
         .values_list("pk", flat=True)[:100]
     ):

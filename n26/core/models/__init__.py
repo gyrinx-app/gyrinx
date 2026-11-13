@@ -61,11 +61,13 @@ from n26.core.models.toolkit import (
     ToolkitAlertEvent,
     ToolkitAlertSettings,
     ToolkitCommand,
+    ToolkitCommunicationRevision,
     ToolkitDelivery,
 )
 
 __all__ = [
     "ToolkitCommand",
+    "ToolkitCommunicationRevision",
     "Intervention",
     "InterventionReceipt",
     "CampaignTag",

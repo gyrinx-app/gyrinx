@@ -17,6 +17,7 @@ import {
     CheckboxCard,
     CheckboxCardItem,
     Card,
+    Alert,
     Link,
     Badge,
     Icon,
@@ -79,6 +80,7 @@ const empty: Payload = {
 };
 type Tag = {
     id: string;
+    editHref?: string;
     name: string;
     icon: string;
     info: string;
@@ -96,6 +98,9 @@ type Receipt = {
 export type ToolkitProps = {
     editor?: RichTextEditorConfig;
     narrativeNodes?: RichNode[];
+    conflicted?: boolean;
+    reviewHref?: string;
+    recipientNames?: string[];
     campaignName: string;
     campaignHref: string;
     toolkitHref: string;
@@ -117,6 +122,7 @@ export type ToolkitProps = {
         title: string;
         body: string;
         bodyNodes?: RichNode[];
+        editHref?: string;
         date: string;
     }[];
     alerts?: { value: string; label: string }[];
@@ -214,8 +220,8 @@ function Home(p: ToolkitProps) {
     const tabs = [
         ["interventions", "Interventions"],
         ["communications", "Communications"],
-        ["alerts", "Alerts"],
         ["tags", "Tags"],
+        ["alerts", "Alerts"],
     ].map(([value, label]) => ({
         label,
         href: p.toolkitHref + "?tab=" + value,
@@ -340,7 +346,18 @@ function Home(p: ToolkitProps) {
                                 key={c.id}
                                 className="space-y-2 py-3 first:pt-0 last:pb-0"
                             >
-                                <h3 className="font-semibold">{c.title}</h3>
+                                <div className="flex items-center justify-between gap-3">
+                                    <h3 className="font-semibold">{c.title}</h3>
+                                    {c.editHref && (
+                                        <ButtonLink
+                                            size="sm"
+                                            variant="ghost"
+                                            href={c.editHref}
+                                        >
+                                            Edit
+                                        </ButtonLink>
+                                    )}
+                                </div>
                                 {c.bodyNodes ? (
                                     <RichText
                                         nodes={c.bodyNodes}
@@ -445,13 +462,24 @@ function Home(p: ToolkitProps) {
                                         </p>
                                     )}
                                 </div>
-                                <ButtonLink
-                                    href={t.removeHref}
-                                    size="sm"
-                                    variant="ghost"
-                                >
-                                    Remove
-                                </ButtonLink>
+                                <div className="flex items-center gap-2">
+                                    {t.editHref && (
+                                        <ButtonLink
+                                            href={t.editHref}
+                                            size="sm"
+                                            variant="ghost"
+                                        >
+                                            Edit
+                                        </ButtonLink>
+                                    )}
+                                    <ButtonLink
+                                        href={t.removeHref}
+                                        size="sm"
+                                        variant="ghost"
+                                    >
+                                        Remove
+                                    </ButtonLink>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -467,14 +495,6 @@ function Detail(p: ToolkitProps) {
             title={p.title!}
             lead={p.campaignName}
             breadcrumb={<Breadcrumb p={p} current={p.title} />}
-            actions={
-                p.isArbitrator ? (
-                    <ButtonLink size="sm" href={p.toolkitHref}>
-                        <Glyph name="tool-case" />
-                        Arbitrator Toolkit
-                    </ButtonLink>
-                ) : undefined
-            }
         >
             {p.narrative &&
                 (p.narrativeNodes ? (
@@ -634,22 +654,24 @@ function TagAssignmentFields({
                 ))}
             </FormSection>
             <FormSection title="Recipients">
-                <RadioCards legend="Apply to" min="12rem">
-                    <RadioCard
-                        name="tag_target"
-                        value="gangs"
-                        label="Gangs"
-                        checked={!players}
-                        onChange={() => set({ target: "gangs" })}
-                    />
-                    <RadioCard
-                        name="tag_target"
-                        value="players"
-                        label="Players"
-                        checked={players}
-                        onChange={() => set({ target: "players" })}
-                    />
-                </RadioCards>
+                {p.actionKind !== "edit_tag" && (
+                    <RadioCards legend="Apply to" min="12rem">
+                        <RadioCard
+                            name="tag_target"
+                            value="gangs"
+                            label="Gangs"
+                            checked={!players}
+                            onChange={() => set({ target: "gangs" })}
+                        />
+                        <RadioCard
+                            name="tag_target"
+                            value="players"
+                            label="Players"
+                            checked={players}
+                            onChange={() => set({ target: "players" })}
+                        />
+                    </RadioCards>
+                )}
                 <RadioCards
                     legend={players ? "Which players?" : "Which gangs?"}
                     min="12rem"
@@ -658,7 +680,7 @@ function TagAssignmentFields({
                         name="tag_recipient_mode"
                         value="selected"
                         label={players ? "Selected players" : "Selected gangs"}
-                        checked={data.recipients_mode !== "all"}
+                        checked={data.recipients_mode === "selected"}
                         onChange={() => set({ recipients_mode: "selected" })}
                     />
                     <RadioCard
@@ -752,17 +774,29 @@ function ToolkitForm(p: ToolkitProps) {
                 p.receipt?.choices === 1 ? "Choose reward" : "Choose rewards",
             tags: "Assign tags",
             remove_tag: "Remove tag",
+            edit_tag: "Edit tag",
+            edit_communication: "Edit message",
         } as Record<string, string>
     )[action];
     const form = useWorkflowForm({
         values: p.values!,
         errors: p.errors!,
+        initialConflict: p.conflicted,
         commandHref: p.commandHref!,
         csrfToken: p.csrfToken!,
         recoveryKey: p.recoveryKey!,
         interpret(status, data) {
             if (status === 200 && typeof data.nextUrl === "string")
                 return { kind: "saved", nextUrl: data.nextUrl };
+            if (
+                status === 409 &&
+                data.code === "revision_conflict" &&
+                data.errors
+            )
+                return {
+                    kind: "conflict",
+                    errors: data.errors as Record<string, string[]>,
+                };
             if (
                 status === 422 &&
                 data.errors &&
@@ -797,17 +831,53 @@ function ToolkitForm(p: ToolkitProps) {
     const targetPlayers = data.target === "players";
     const targets = targetPlayers ? (p.players ?? []) : (p.gangs ?? []);
     const selectedTargets = targetPlayers ? data.players : data.gangs;
-    const targetNames = (
-        data.recipients_mode === "all"
+    const targetNames =
+        p.recipientNames ??
+        (data.recipients_mode === "all"
             ? targets
             : targets.filter((g) => selectedTargets.includes(g.id))
-    ).map((g) => g.name);
-    const rewardText = (r: Reward) =>
-        r.kind === "credits"
+        ).map((g) => g.name);
+    const rewardKind = (kind: string) =>
+        (
+            ({
+                profile: "Profile",
+                resource: "Resource type",
+                weapon: "Weapon",
+                equipment: "Equipment",
+                credits: "Credits",
+            }) as Record<string, string>
+        )[kind] || "Reward";
+    const missingReward = (r: Reward) =>
+        !r.kind ||
+        !(Number.isInteger(r.amount) && r.amount > 0) ||
+        (r.kind !== "credits" &&
+            r.kind !== "tag" &&
+            !p.catalogue?.some((c) => c.kind === r.kind && c.id === r.id));
+    const invalidIntervention =
+        action === "intervention" &&
+        (!data.rewards.length ||
+            data.rewards.some(missingReward) ||
+            !["bundle", "choice"].includes(data.mode) ||
+            !["all", "selected"].includes(data.recipients_mode) ||
+            !targetNames.length);
+    const rewardText = (r: Reward) => {
+        if (!r.kind) return "Select a reward type.";
+        if (!(Number.isInteger(r.amount) && r.amount > 0))
+            return "Enter an amount greater than zero, using whole numbers.";
+        if (missingReward(r))
+            return r.kind === "resource"
+                ? "Select a resource type."
+                : r.kind === "profile"
+                  ? "Select a fighter or vehicle."
+                  : r.kind === "equipment"
+                    ? "Select equipment."
+                    : "Select a weapon.";
+        return r.kind === "credits"
             ? `${r.amount}¢`
             : r.kind === "tag"
               ? r.name || "Unnamed tag"
-              : `${r.amount} × ${p.catalogue?.find((c) => c.kind === r.kind && c.id === r.id)?.name || "Select a reward"}`;
+              : `${r.amount} × ${p.catalogue?.find((c) => c.kind === r.kind && c.id === r.id)?.name}`;
+    };
     return (
         <WorkflowPage
             title={title}
@@ -822,7 +892,12 @@ function ToolkitForm(p: ToolkitProps) {
                         type="submit"
                         variant={action === "remove_tag" ? "danger" : "success"}
                         busy={form.pending}
-                        disabled={form.pending || uploading}
+                        disabled={
+                            form.pending ||
+                            uploading ||
+                            (!form.uncertain &&
+                                (invalidIntervention || form.conflicted))
+                        }
                     >
                         {form.uncertain
                             ? "Retry save"
@@ -837,6 +912,8 @@ function ToolkitForm(p: ToolkitProps) {
                                               : "Confirm choices",
                                       tags: "Assign tags",
                                       remove_tag: "Remove tag",
+                                      edit_tag: "Save tag",
+                                      edit_communication: "Save message",
                                   } as Record<string, string>
                               )[action]}
                     </Button>
@@ -870,8 +947,15 @@ function ToolkitForm(p: ToolkitProps) {
                     />
                 </div>
             )}
+            {form.conflicted && p.reviewHref && (
+                <Button onClick={() => form.review(p.reviewHref!)}>
+                    Review current version
+                </Button>
+            )}
             <fieldset disabled={form.frozen} className="space-y-8">
-                {(action === "intervention" || action === "communication") && (
+                {(action === "intervention" ||
+                    action === "communication" ||
+                    action === "edit_communication") && (
                     <>
                         <FormSection>
                             <Field label="Title *" htmlFor="toolkit-title">
@@ -922,7 +1006,10 @@ function ToolkitForm(p: ToolkitProps) {
                         </FormSection>
                         {action === "intervention" && (
                             <FormSection title="Rewards">
-                                <RadioCards legend="Apply rewards" min="12rem">
+                                <RadioCards
+                                    legend="Apply rewards *"
+                                    min="12rem"
+                                >
                                     <RadioCard
                                         name="reward_mode"
                                         value="bundle"
@@ -1016,6 +1103,7 @@ function ToolkitForm(p: ToolkitProps) {
                                                 htmlFor={`reward-kind-${index}`}
                                             >
                                                 <NativeSelect
+                                                    required
                                                     value={reward.kind}
                                                     onChange={(e) =>
                                                         updateReward(index, {
@@ -1029,6 +1117,9 @@ function ToolkitForm(p: ToolkitProps) {
                                                         })
                                                     }
                                                 >
+                                                    <option value="">
+                                                        Select a type
+                                                    </option>
                                                     {(targetPlayers
                                                         ? [
                                                               [
@@ -1167,17 +1258,12 @@ function ToolkitForm(p: ToolkitProps) {
                                                         />
                                                     </Field>
                                                 </>
-                                            ) : (
+                                            ) : reward.kind ? (
                                                 <>
                                                     {reward.kind !==
                                                         "credits" && (
                                                         <Field
-                                                            label={
-                                                                reward.kind ===
-                                                                "profile"
-                                                                    ? "Profile *"
-                                                                    : "Reward *"
-                                                            }
+                                                            label={`${rewardKind(reward.kind)} *`}
                                                             htmlFor={`reward-item-${index}`}
                                                         >
                                                             <QuickSwitcher
@@ -1186,16 +1272,16 @@ function ToolkitForm(p: ToolkitProps) {
                                                                     reward.kind ===
                                                                     "profile"
                                                                         ? "Select a fighter or vehicle"
-                                                                        : "Select a reward"
+                                                                        : `Select ${reward.kind === "resource" ? "a resource type" : reward.kind === "equipment" ? "equipment" : "a weapon"}`
                                                                 }
-                                                                menuLabel={`Select ${reward.kind === "profile" ? "profile" : "reward"} ${index + 1}`}
+                                                                menuLabel={`Select ${rewardKind(reward.kind).toLowerCase()} ${index + 1}`}
                                                                 placeholder={
                                                                     reward.kind ===
                                                                     "profile"
                                                                         ? "Search profiles"
-                                                                        : "Search rewards"
+                                                                        : `Search ${reward.kind === "resource" ? "resource types" : reward.kind === "equipment" ? "equipment" : "weapons"}`
                                                                 }
-                                                                empty="No rewards match"
+                                                                empty={`No ${reward.kind === "resource" ? "resource types" : reward.kind === "profile" ? "profiles" : reward.kind === "equipment" ? "equipment" : "weapons"} match`}
                                                                 triggerWords={
                                                                     p.catalogue?.find(
                                                                         (c) =>
@@ -1207,7 +1293,7 @@ function ToolkitForm(p: ToolkitProps) {
                                                                     (reward.kind ===
                                                                     "profile"
                                                                         ? "Select a fighter or vehicle"
-                                                                        : "Select a reward")
+                                                                        : `Select ${reward.kind === "resource" ? "a resource type" : reward.kind === "equipment" ? "equipment" : "a weapon"}`)
                                                                 }
                                                                 current={
                                                                     reward.id
@@ -1299,7 +1385,7 @@ function ToolkitForm(p: ToolkitProps) {
                                                         </p>
                                                     )}
                                                 </>
-                                            )}
+                                            ) : null}
                                         </div>
                                     </Card>
                                 ))}
@@ -1336,133 +1422,149 @@ function ToolkitForm(p: ToolkitProps) {
                                 </Button>
                             </FormSection>
                         )}
-                        <FormSection title="Recipients">
-                            <RadioCards
-                                legend={
-                                    targetPlayers
-                                        ? "Which players?"
-                                        : "Which gangs?"
+                        {action === "edit_communication" ? (
+                            <Card
+                                header={
+                                    <h2 className="font-semibold">
+                                        Recipients
+                                    </h2>
                                 }
-                                min="12rem"
                             >
-                                <RadioCard
-                                    name="recipient_mode"
-                                    value="selected"
-                                    label={
+                                <p className="text-sm">
+                                    {targetNames.join(", ")}
+                                </p>
+                            </Card>
+                        ) : (
+                            <FormSection title="Recipients *">
+                                <RadioCards
+                                    legend={
                                         targetPlayers
-                                            ? "Selected players"
-                                            : "Selected gangs"
+                                            ? "Which players?"
+                                            : "Which gangs?"
                                     }
-                                    checked={data.recipients_mode !== "all"}
-                                    onChange={() =>
-                                        set({ recipients_mode: "selected" })
-                                    }
-                                />
-                                <RadioCard
-                                    name="recipient_mode"
-                                    value="all"
-                                    label={
-                                        targetPlayers
-                                            ? "All players"
-                                            : "All gangs"
-                                    }
-                                    checked={data.recipients_mode === "all"}
-                                    onChange={() =>
-                                        set({ recipients_mode: "all" })
-                                    }
-                                />
-                            </RadioCards>
-                            {data.recipients_mode !== "all" && (
-                                <>
-                                    <Field
+                                    min="12rem"
+                                >
+                                    <RadioCard
+                                        name="recipient_mode"
+                                        value="selected"
                                         label={
                                             targetPlayers
-                                                ? "Find a player"
-                                                : "Find a gang"
+                                                ? "Selected players"
+                                                : "Selected gangs"
                                         }
-                                        htmlFor="recipient-search"
-                                    >
-                                        <Input
-                                            type="search"
-                                            value={search}
-                                            onChange={(e) =>
-                                                setSearch(e.target.value)
+                                        checked={
+                                            data.recipients_mode === "selected"
+                                        }
+                                        onChange={() =>
+                                            set({ recipients_mode: "selected" })
+                                        }
+                                    />
+                                    <RadioCard
+                                        name="recipient_mode"
+                                        value="all"
+                                        label={
+                                            targetPlayers
+                                                ? "All players"
+                                                : "All gangs"
+                                        }
+                                        checked={data.recipients_mode === "all"}
+                                        onChange={() =>
+                                            set({ recipients_mode: "all" })
+                                        }
+                                    />
+                                </RadioCards>
+                                {data.recipients_mode !== "all" && (
+                                    <>
+                                        <Field
+                                            label={
+                                                targetPlayers
+                                                    ? "Find a player"
+                                                    : "Find a gang"
                                             }
-                                            onKeyDown={(e) => {
-                                                if (e.key === "Enter")
-                                                    e.preventDefault();
-                                            }}
-                                        />
-                                    </Field>
-                                    <Card>
-                                        <div className="space-y-1">
-                                            {targets
-                                                .filter((g) =>
-                                                    (g.name + " " + g.owner)
-                                                        .toLowerCase()
-                                                        .includes(
-                                                            search.toLowerCase(),
-                                                        ),
-                                                )
-                                                .map((g) => (
-                                                    <CheckboxCardItem
-                                                        key={g.id}
-                                                        name="recipients_display"
-                                                        value={g.id}
-                                                        label={g.name}
-                                                        meta={g.owner}
-                                                        checked={selectedTargets.includes(
-                                                            g.id,
-                                                        )}
-                                                        onCheckedChange={(
-                                                            checked,
-                                                        ) =>
-                                                            set(
-                                                                targetPlayers
-                                                                    ? {
-                                                                          players:
-                                                                              checked
+                                            htmlFor="recipient-search"
+                                        >
+                                            <Input
+                                                type="search"
+                                                value={search}
+                                                onChange={(e) =>
+                                                    setSearch(e.target.value)
+                                                }
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter")
+                                                        e.preventDefault();
+                                                }}
+                                            />
+                                        </Field>
+                                        <Card>
+                                            <div className="space-y-1">
+                                                {targets
+                                                    .filter((g) =>
+                                                        (g.name + " " + g.owner)
+                                                            .toLowerCase()
+                                                            .includes(
+                                                                search.toLowerCase(),
+                                                            ),
+                                                    )
+                                                    .map((g) => (
+                                                        <CheckboxCardItem
+                                                            key={g.id}
+                                                            name="recipients_display"
+                                                            value={g.id}
+                                                            label={g.name}
+                                                            meta={g.owner}
+                                                            checked={selectedTargets.includes(
+                                                                g.id,
+                                                            )}
+                                                            onCheckedChange={(
+                                                                checked,
+                                                            ) =>
+                                                                set(
+                                                                    targetPlayers
+                                                                        ? {
+                                                                              players:
+                                                                                  checked
+                                                                                      ? [
+                                                                                            ...data.players,
+                                                                                            g.id,
+                                                                                        ]
+                                                                                      : data.players.filter(
+                                                                                            (
+                                                                                                id,
+                                                                                            ) =>
+                                                                                                id !==
+                                                                                                g.id,
+                                                                                        ),
+                                                                          }
+                                                                        : {
+                                                                              gangs: checked
                                                                                   ? [
-                                                                                        ...data.players,
+                                                                                        ...data.gangs,
                                                                                         g.id,
                                                                                     ]
-                                                                                  : data.players.filter(
+                                                                                  : data.gangs.filter(
                                                                                         (
                                                                                             id,
                                                                                         ) =>
                                                                                             id !==
                                                                                             g.id,
                                                                                     ),
-                                                                      }
-                                                                    : {
-                                                                          gangs: checked
-                                                                              ? [
-                                                                                    ...data.gangs,
-                                                                                    g.id,
-                                                                                ]
-                                                                              : data.gangs.filter(
-                                                                                    (
-                                                                                        id,
-                                                                                    ) =>
-                                                                                        id !==
-                                                                                        g.id,
-                                                                                ),
-                                                                      },
-                                                            )
-                                                        }
-                                                    />
-                                                ))}
-                                            {!targets.length && (
-                                                <p className="text-sm text-muted">
-                                                    No recipients in this
-                                                    campaign yet.
-                                                </p>
-                                            )}
-                                        </div>
-                                    </Card>
-                                </>
-                            )}
-                        </FormSection>
+                                                                          },
+                                                                )
+                                                            }
+                                                        />
+                                                    ))}
+                                                {!targets.length && (
+                                                    <p className="text-sm text-muted">
+                                                        No recipients in this
+                                                        campaign yet.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </Card>
+                                    </>
+                                )}
+                            </FormSection>
+                        )}
                         {action === "intervention" && (
                             <FormSection title="Notifications">
                                 <p className="text-sm text-muted">
@@ -1493,19 +1595,44 @@ function ToolkitForm(p: ToolkitProps) {
                             <div className="space-y-2 text-sm">
                                 <p>
                                     <strong>To: </strong>
-                                    {targetNames.join(", ") ||
-                                        "Select recipients above."}
+                                    <span
+                                        className={
+                                            !targetNames.length
+                                                ? "text-red-600 dark:text-red-400"
+                                                : undefined
+                                        }
+                                    >
+                                        {targetNames.join(", ") ||
+                                            "Select at least one recipient."}
+                                    </span>
                                 </p>
                                 {action === "intervention" ? (
                                     <>
-                                        <p>
+                                        <p
+                                            className={
+                                                !data.mode
+                                                    ? "text-red-600 dark:text-red-400"
+                                                    : undefined
+                                            }
+                                        >
                                             {data.mode === "choice"
                                                 ? `Each recipient chooses exactly ${data.choices} ${data.choices === 1 ? "reward" : "rewards"}.`
-                                                : "Each recipient receives all rewards."}
+                                                : data.mode === "bundle"
+                                                  ? "Each recipient receives all rewards."
+                                                  : "Choose how rewards are applied."}
                                         </p>
                                         <ul className="list-disc space-y-1 pl-5">
                                             {data.rewards.map((r, i) => (
-                                                <li key={i}>{rewardText(r)}</li>
+                                                <li
+                                                    key={i}
+                                                    className={
+                                                        missingReward(r)
+                                                            ? "text-red-600 dark:text-red-400"
+                                                            : undefined
+                                                    }
+                                                >
+                                                    {rewardText(r)}
+                                                </li>
                                             ))}
                                         </ul>
                                     </>
@@ -1514,9 +1641,19 @@ function ToolkitForm(p: ToolkitProps) {
                                 )}
                             </div>
                         </Card>
+                        {action === "intervention" && (
+                            <Alert
+                                tone="warning"
+                                dismissible={false}
+                                role="note"
+                            >
+                                Interventions cannot be undone once sent. Check
+                                the rewards and recipients before sending.
+                            </Alert>
+                        )}
                     </>
                 )}
-                {action === "tags" && (
+                {(action === "tags" || action === "edit_tag") && (
                     <TagAssignmentFields p={p} data={data} set={set} />
                 )}
                 {action === "alerts" && (

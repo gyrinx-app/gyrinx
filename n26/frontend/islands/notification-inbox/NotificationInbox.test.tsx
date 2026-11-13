@@ -279,3 +279,27 @@ it("limits multiple rewards and retains an uncertain inline choice for reload", 
         screen.getByRole("checkbox", { name: "60¢" }).closest("fieldset"),
     ).toHaveProperty("disabled", true);
 });
+
+it("shows edited content and lets the reader open the original version", () => {
+    render(
+        <NotificationInbox
+            {...props}
+            rows={[
+                {
+                    ...props.rows[0],
+                    edited: {
+                        at: "2026-11-12T12:00:00Z",
+                        originalSubject: "Original title",
+                        originalContent: ["Original message."],
+                    },
+                },
+            ]}
+        />,
+    );
+    expect(screen.getByText(/Edited/)).toBeDefined();
+    expect(screen.queryByText("Original message.")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View original" }));
+    expect(screen.getByText("Original message.")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Hide original" }));
+    expect(screen.queryByText("Original message.")).toBeNull();
+});
