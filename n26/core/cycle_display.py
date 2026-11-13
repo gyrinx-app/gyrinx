@@ -190,10 +190,6 @@ def dashboard_summary(campaign, user):
             summary["cycles_until_phase"] -= removed.filter(
                 order__gt=current.order, order__lt=boundary
             ).count()
-    if summary["cycle_limit"] is not None:
-        summary["cycle_limit"] -= CampaignCycle.objects.filter(
-            campaign=campaign, archived=True
-        ).count()
     return DashboardCycles(**summary)
 
 

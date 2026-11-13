@@ -119,6 +119,7 @@ export function CycleNavigator({
             return;
         }
         const order = neighbour(options, direction);
+        if (order === null) return;
         const available = options.choices.find(
             (choice) => choice.order === order,
         );
@@ -130,11 +131,13 @@ export function CycleNavigator({
         setError("");
         try {
             const updated = await read(readUrl, value);
+            const nextOrder = neighbour(updated, direction);
+            setOptions(updated);
+            if (nextOrder === null) return;
             const next = updated.choices.find(
-                (choice) => choice.order === neighbour(updated, direction),
+                (choice) => choice.order === nextOrder,
             );
             if (!next) throw new Error();
-            setOptions(updated);
             onChange(key(next));
         } catch {
             setError("The cycle could not be loaded. Try again.");

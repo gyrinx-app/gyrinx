@@ -1646,3 +1646,32 @@ def test_start_after_deleting_current_requires_explicit_resume_choice_and_replay
         302 if native else 200
     )
     assert cycles.load(campaign).current.order == 3
+
+
+@pytest.mark.parametrize("delete_phase", [False, True])
+def test_dashboard_final_cycle_number_stays_consistent_after_deletion(
+    campaign, opened, template, delete_phase
+):
+    cycles.configure(
+        campaign,
+        actor=campaign.owner,
+        template_id=template.pk,
+        current_position=6,
+        mode="fixed",
+        request_key=uuid4(),
+    )
+    state = cycles.load(campaign)
+    common = {
+        "actor": campaign.owner,
+        "expected_revision": state.revision,
+        "request_key": uuid4(),
+    }
+    if delete_phase:
+        cycles.delete_phase(campaign, phase_id=state.phases[1].id, **common)
+    else:
+        cycles.delete_cycle(
+            campaign, target=s.SavedCycleRef(state.cycles[1].id), **common
+        )
+    summary = dashboard_summary(campaign, campaign.owner)
+    assert summary.name == "Cycle 7"
+    assert summary.order == summary.cycle_limit == 7
