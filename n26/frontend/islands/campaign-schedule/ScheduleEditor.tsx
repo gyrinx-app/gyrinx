@@ -266,6 +266,7 @@ export function ScheduleEditor({
                 values,
                 { ...modeDrafts.current, [values.mode]: values.steps },
                 planDraft.baseline,
+                planDraft.savedStepCounts,
             );
     }, [editor, values, form.frozen]);
     const setGuard = navigation?.setGuard;

@@ -1764,3 +1764,44 @@ def test_phase_deletion_confirms_revision_after_projected_replacement(
     before = {step["id"]: step["count"] for step in json.loads(old["values"]["steps"])}
     after = json.loads(fresh["values"]["steps"])
     assert any(step["count"] < before[step["id"]] for step in after)
+
+
+def test_phase_deletion_reports_saved_source_counts_across_repetitions(
+    client, campaign, opened
+):
+    definition = s.ScheduleTemplate(
+        "Repeating",
+        (s.Phase("a", s.PhaseDetails("A")), s.Phase("b", s.PhaseDetails("B"))),
+        (s.PlanStep("a-step", "a", 1), s.PlanStep("b-step", "b", 2)),
+    )
+    cycles.configure(
+        campaign,
+        actor=campaign.owner,
+        template_id=None,
+        current_position=0,
+        mode="repeating",
+        request_key=uuid4(),
+        definition=template_data(definition),
+    )
+    state = cycles.load(campaign)
+    before = props(client.get(editor_url(campaign, "plan")))["editor"]
+    a, b = state.plan.steps
+    assert before["context"]["savedStepCounts"] == {a.id: 1}
+    target = next(cycle for cycle in s.project(state) if cycle.order == 5)
+    phase = state.current_phase.id
+    editor = props(client.get(editor_url(campaign, "delete-phase", phase=phase)))[
+        "editor"
+    ]
+    response = post(
+        client,
+        campaign,
+        "delete-phase",
+        {**editor["values"], "current_choice": json.dumps(ref_data(target.ref))},
+        phase=phase,
+    )
+    assert response.status_code == 200
+    after = props(client.get(response.json()["nextUrl"]))["editor"]
+    assert after["context"]["savedStepCounts"] == {a.id: 2, b.id: 3}
+    assert after["context"]["fixedSteps"] == [
+        {"id": b.id, "phase_id": b.phase_id, "count": 1}
+    ]

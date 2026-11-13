@@ -16,7 +16,7 @@ type Draft = {
     modes: Values;
     revision: string;
     confirmedRevision?: string;
-    fixedBaseline?: string;
+    savedStepCounts?: Record<string, number>;
 };
 export const planDraftKey = (editor: Editor) =>
     `${editor.recoveryKey}:plan-draft`;
@@ -41,38 +41,44 @@ function liveSteps(value: string, phases: Phase[]) {
     }
 }
 
+function savedCounts(value: unknown): Record<string, number> | null {
+    if (
+        !value ||
+        typeof value !== "object" ||
+        Array.isArray(value) ||
+        !Object.values(value).every(
+            (count) =>
+                typeof count === "number" &&
+                Number.isInteger(count) &&
+                count >= 0,
+        )
+    )
+        return null;
+    return value as Record<string, number>;
+}
+
 function remainingDraftSteps(
-    baseline: string,
     draft: string,
-    fresh: string,
+    consumed: Record<string, number>,
     phases: Phase[],
 ) {
     try {
-        const before = JSON.parse(liveSteps(baseline, phases)) as Step[];
         const edited = JSON.parse(liveSteps(draft, phases)) as Step[];
-        const after = JSON.parse(liveSteps(fresh, phases)) as Step[];
         if (
-            ![before, edited, after].every(
-                (steps) =>
-                    Array.isArray(steps) &&
-                    steps.every(
-                        (step) =>
-                            step &&
-                            typeof step.id === "string" &&
-                            typeof step.count === "number",
-                    ),
+            !Array.isArray(edited) ||
+            !edited.every(
+                (step) =>
+                    step &&
+                    typeof step.id === "string" &&
+                    typeof step.count === "number",
             )
         )
             return liveSteps(draft, phases);
         return JSON.stringify(
             edited.flatMap((step) => {
-                const previous = before.find((value) => value.id === step.id);
-                const current = after.find((value) => value.id === step.id);
-                const consumed = previous
-                    ? previous.count - (current?.count ?? 0)
-                    : 0;
-                const count = step.count - consumed;
-                return consumed > 0 && count <= 0 ? [] : [{ ...step, count }];
+                const saved = consumed[step.id] ?? 0;
+                const count = step.count - saved;
+                return saved > 0 && count <= 0 ? [] : [{ ...step, count }];
             }),
         );
     } catch {
@@ -115,6 +121,7 @@ export function restorePlanDraft(editor: Editor, phases: Phase[]) {
         values: editor.values,
         modes: {} as Values,
         baseline: editor.values,
+        savedStepCounts: savedCounts(editor.context.savedStepCounts),
     };
     if (
         editor.kind !== "plan" ||
@@ -152,62 +159,89 @@ export function restorePlanDraft(editor: Editor, phases: Phase[]) {
                 liveSteps(steps, phases),
             ]),
         );
-        const fixedBaseline =
-            draft.fixedBaseline ??
-            (draft.baseline.mode === "fixed"
-                ? draft.baseline.steps
-                : undefined);
-        const fixedFresh = Array.isArray(editor.context.fixedSteps)
-            ? JSON.stringify(editor.context.fixedSteps)
-            : editor.values.mode === "fixed"
-              ? editor.values.steps
-              : undefined;
         // Only the exact confirmed deletion may consume steps and advance the date baseline.
         if (
             draft.confirmedRevision === editor.values.expected_revision &&
-            Number(draft.confirmedRevision) === Number(draft.revision) + 1 &&
-            (values.mode !== "fixed" ||
-                (typeof fixedBaseline === "string" && fixedFresh !== undefined))
+            Number(draft.confirmedRevision) === Number(draft.revision) + 1
         ) {
+            const before = savedCounts(draft.savedStepCounts);
+            const after = savedCounts(editor.context.savedStepCounts);
+            if (
+                !before ||
+                !after ||
+                Object.entries(before).some(
+                    ([id, count]) => (after[id] ?? 0) < count,
+                )
+            ) {
+                values.expected_revision = draft.revision;
+                return {
+                    values,
+                    baseline: draft.baseline,
+                    modes,
+                    savedStepCounts: before,
+                };
+            }
+            const consumed = Object.fromEntries(
+                Object.entries(after).map(([id, count]) => [
+                    id,
+                    count - (before[id] ?? 0),
+                ]),
+            );
             for (const field of fields)
                 if (
                     field !== "steps" &&
                     draft.values[field] === draft.baseline[field]
                 )
                     values[field] = editor.values[field];
-            if (typeof fixedBaseline === "string" && fixedFresh !== undefined) {
-                const reconcile = (steps: string) =>
-                    remainingDraftSteps(
-                        fixedBaseline,
-                        steps,
-                        fixedFresh,
-                        phases,
-                    );
-                if (values.mode === "fixed")
-                    values.steps = reconcile(draft.values.steps);
-                if (modes.fixed) modes.fixed = reconcile(modes.fixed);
-            }
+            if (values.mode === "fixed")
+                values.steps = remainingDraftSteps(
+                    draft.values.steps,
+                    consumed,
+                    phases,
+                );
+            if (modes.fixed)
+                modes.fixed = remainingDraftSteps(
+                    modes.fixed,
+                    consumed,
+                    phases,
+                );
             if (values.steps === "[]" && editor.values.mode === "fixed")
                 values.mode = "fixed";
-            return { values, baseline: editor.values, modes };
+            return {
+                values,
+                baseline: editor.values,
+                modes,
+                savedStepCounts: after,
+            };
         }
         // A separate plan edit must still conflict; phase changes may refresh the revision.
         if (baseline.steps === "[]" && editor.values.mode === "fixed") {
             baseline.mode = "fixed";
             if (values.steps === "[]") values.mode = "fixed";
         }
-        const changed = fields.some(
-            (field) =>
-                baseline[field] !==
-                (field === "steps"
-                    ? liveSteps(editor.values[field], phases)
-                    : editor.values[field]),
-        );
+        const before = savedCounts(draft.savedStepCounts);
+        const after = savedCounts(editor.context.savedStepCounts);
+        const savedChanged =
+            before &&
+            after &&
+            Object.keys({ ...before, ...after }).some(
+                (id) => (before[id] ?? 0) !== (after[id] ?? 0),
+            );
+        const changed =
+            savedChanged ||
+            fields.some(
+                (field) =>
+                    baseline[field] !==
+                    (field === "steps"
+                        ? liveSteps(editor.values[field], phases)
+                        : editor.values[field]),
+            );
         if (changed) values.expected_revision = draft.revision;
         return {
             values,
             baseline: changed ? draft.baseline : editor.values,
             modes,
+            savedStepCounts: changed ? before : after,
         };
     } catch {
         return fallback;
@@ -219,6 +253,7 @@ export function retainPlanDraft(
     values: Values,
     modes: Values,
     baseline = editor.values,
+    counts = savedCounts(editor.context.savedStepCounts),
 ) {
     try {
         sessionStorage.setItem(
@@ -228,11 +263,7 @@ export function retainPlanDraft(
                 values: business(values),
                 modes,
                 revision: values.expected_revision,
-                fixedBaseline: Array.isArray(editor.context.fixedSteps)
-                    ? JSON.stringify(editor.context.fixedSteps)
-                    : baseline.mode === "fixed"
-                      ? baseline.steps
-                      : undefined,
+                savedStepCounts: counts ?? undefined,
             }),
         );
     } catch {

@@ -1,6 +1,7 @@
 """Validation, editor preparation and commands shared by schedule transports."""
 
 import json
+from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import timedelta
 from urllib.parse import urlencode
@@ -361,6 +362,9 @@ def prepare(campaign, action, query):
         context["patternSteps"] = [asdict(step) for step in state.plan.steps]
         context["fixedSteps"] = [asdict(step) for step in s.fixed_steps(state)]
         context["startsAfterOrder"] = len(state.cycles)
+        context["savedStepCounts"] = dict(
+            Counter(cycle.source.step_id for cycle in state.cycles)
+        )
         lead = "The steps below set future cycles. Existing cycles keep their dates and phases."
     else:
         initial["expected_current"] = state.current_cycle_id

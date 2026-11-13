@@ -15,7 +15,7 @@ const phases = [{ id: "opening" }, { id: "downtime" }] as Phase[];
 const editor: Editor = {
     heading: "Phase and schedule settings",
     lead: "",
-    context: {},
+    context: { savedStepCounts: {} },
     initialConflict: false,
     current: null,
     templates: [],
@@ -133,6 +133,7 @@ test.each([false, true])(
         );
         const fresh = {
             ...baseline,
+            context: { savedStepCounts: { two: 2 } },
             values: {
                 ...baseline.values,
                 request_key: "fresh-key",
@@ -200,7 +201,10 @@ test.each(["before", "after"])(
 test("a fixed-mode draft consumes only the saved prefix when the persisted plan was repeating", () => {
     const baseline = {
         ...editor,
-        context: { fixedSteps: [{ ...steps[1], count: 4 }] },
+        context: {
+            fixedSteps: [{ ...steps[1], count: 4 }],
+            savedStepCounts: {},
+        },
         values: { ...editor.values, mode: "repeating" },
     };
     const draft = {
@@ -220,7 +224,10 @@ test("a fixed-mode draft consumes only the saved prefix when the persisted plan 
     );
     const fresh = {
         ...baseline,
-        context: { fixedSteps: [{ ...steps[1], count: 2 }] },
+        context: {
+            fixedSteps: [{ ...steps[1], count: 2 }],
+            savedStepCounts: { two: 2 },
+        },
         values: {
             ...baseline.values,
             expected_revision: "2",
@@ -233,4 +240,152 @@ test("a fixed-mode draft consumes only the saved prefix when the persisted plan 
     expect(JSON.parse(restored.values.steps)).toEqual([
         { ...steps[1], count: 5 },
     ]);
+});
+
+test("a fixed draft subtracts every newly saved cycle across repetition boundaries", () => {
+    const a = { id: "a-step", phase_id: "opening", count: 1 };
+    const b = { id: "b-step", phase_id: "downtime", count: 2 };
+    const baseline = {
+        ...editor,
+        context: {
+            fixedSteps: [b],
+            savedStepCounts: { "a-step": 1, "b-step": 0 },
+        },
+        values: {
+            ...editor.values,
+            mode: "repeating",
+            steps: JSON.stringify([a, b]),
+        },
+    };
+    const draft = {
+        ...baseline.values,
+        mode: "fixed",
+        steps: JSON.stringify([{ ...b, count: 5 }]),
+    };
+    retainPlanDraft(baseline, draft, { fixed: draft.steps });
+    confirmPhaseDeletion(
+        {
+            ...editor,
+            kind: "delete-phase",
+            context: { planRecoveryKey: editor.recoveryKey },
+        },
+        { expected_revision: "1" },
+        2,
+    );
+    const fresh = {
+        ...baseline,
+        context: {
+            fixedSteps: [{ ...b, count: 1 }],
+            savedStepCounts: { "a-step": 2, "b-step": 3 },
+        },
+        values: {
+            ...baseline.values,
+            expected_revision: "2",
+            steps: JSON.stringify([b]),
+        },
+    };
+    const restored = restorePlanDraft(fresh, phases.slice(1));
+    expect(restored.values.expected_revision).toBe("2");
+    expect(JSON.parse(restored.values.steps)).toEqual([{ ...b, count: 2 }]);
+    expect(JSON.parse(restored.modes.fixed)).toEqual([{ ...b, count: 2 }]);
+});
+
+test("a fully consumed fixed step still deducts its newly saved cycle from the edited draft", () => {
+    const baseline = {
+        ...editor,
+        values: { ...editor.values, steps: JSON.stringify([steps[1]]) },
+    };
+    const draft = {
+        ...baseline.values,
+        steps: JSON.stringify([{ ...steps[1], count: 5 }]),
+    };
+    retainPlanDraft(baseline, draft, { fixed: draft.steps });
+    confirmPhaseDeletion(
+        {
+            ...editor,
+            kind: "delete-phase",
+            context: { planRecoveryKey: editor.recoveryKey },
+        },
+        { expected_revision: "1" },
+        2,
+    );
+    const fresh = {
+        ...baseline,
+        context: { savedStepCounts: { two: 1 } },
+        values: { ...baseline.values, expected_revision: "2", steps: "[]" },
+    };
+    const restored = restorePlanDraft(fresh, phases.slice(1));
+    expect(restored.values.expected_revision).toBe("2");
+    expect(JSON.parse(restored.values.steps)).toEqual([
+        { ...steps[1], count: 4 },
+    ]);
+});
+
+test("an older draft without saved-cycle provenance keeps its revision after confirmed deletion", () => {
+    const baseline = { ...editor, context: {} };
+    retainPlanDraft(baseline, baseline.values, {});
+    confirmPhaseDeletion(
+        {
+            ...editor,
+            kind: "delete-phase",
+            context: { planRecoveryKey: editor.recoveryKey },
+        },
+        { expected_revision: "1" },
+        2,
+    );
+    const fresh = {
+        ...editor,
+        context: { savedStepCounts: { two: 1 } },
+        values: {
+            ...editor.values,
+            expected_revision: "2",
+            steps: JSON.stringify([steps[1]]),
+        },
+    };
+    expect(
+        restorePlanDraft(fresh, phases.slice(1)).values.expected_revision,
+    ).toBe("1");
+});
+
+test("an unrelated saved prefix after deletion keeps conflicting across repeated visits", () => {
+    const baseline = {
+        ...editor,
+        values: { ...editor.values, mode: "repeating" },
+    };
+    const draft = {
+        ...baseline.values,
+        mode: "fixed",
+        steps: JSON.stringify([{ ...steps[1], count: 5 }]),
+    };
+    retainPlanDraft(baseline, draft, {});
+    confirmPhaseDeletion(
+        {
+            ...editor,
+            kind: "delete-phase",
+            context: { planRecoveryKey: editor.recoveryKey },
+        },
+        { expected_revision: "1" },
+        2,
+    );
+    const fresh = {
+        ...baseline,
+        context: { savedStepCounts: { two: 3 } },
+        values: {
+            ...baseline.values,
+            expected_revision: "3",
+            steps: JSON.stringify([steps[1]]),
+        },
+    };
+    const restored = restorePlanDraft(fresh, phases.slice(1));
+    expect(restored.values.expected_revision).toBe("1");
+    retainPlanDraft(
+        fresh,
+        restored.values,
+        restored.modes,
+        restored.baseline,
+        restored.savedStepCounts,
+    );
+    expect(
+        restorePlanDraft(fresh, phases.slice(1)).values.expected_revision,
+    ).toBe("1");
 });
