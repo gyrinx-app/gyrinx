@@ -4,6 +4,7 @@ Small, interactive prototypes for discussing product behaviour and the data stru
 
 | Exploration | Purpose |
 | --- | --- |
+| [Action history](action-history/README.md) | Gang undo/redo, retained branches, snapshots and shared campaign activity. |
 | [Fighter actions](fighter-actions/README.md) | n26 Suit Evolution, advancements, assignable actions, payments and earned allowances. |
 
 For a new exploration:
