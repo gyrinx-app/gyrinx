@@ -4,7 +4,6 @@ operation. Cover redirects, skip behaviour, stale or invalid addresses, accessib
 labels and unchanged print/text output.
 """
 
-import re
 from dataclasses import replace
 from html import unescape
 from pathlib import Path
@@ -12,6 +11,7 @@ from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.test import RequestFactory
 from django.urls import reverse
@@ -177,11 +177,15 @@ def pick_key(pickable):
 
 
 def skip_href(body):
-    """Return the Skip link target, or an empty string when absent. Allow whitespace around
-    its label because rendered controls can span lines.
-    """
-    found = re.search(r'<a[^>]*href="([^"]*)"[^>]*>\s*Skip\s*</a>', body)
-    return found.group(1).replace("&amp;", "&") if found else ""
+    """Return the Skip link target, or an empty string when absent."""
+    return next(
+        (
+            link["href"]
+            for link in BeautifulSoup(body, "html.parser").find_all("a", href=True)
+            if link.get_text(" ", strip=True) == "Skip"
+        ),
+        "",
+    )
 
 
 class TestFoundingAGang:
