@@ -207,7 +207,7 @@ class TestTheWrapper:
             'trigger="inline-chevron" />',
             items=[link("Reassign", "/r")],
         )
-        soup, (host,) = hosts(html)
+        _, (host,) = hosts(html)
         assert props_of(html)["trigger"] == "inline-chevron"
         assert set(host.find("button")["class"]) == set(
             model_card_recipe()["menuTrigger"].split()

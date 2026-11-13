@@ -82,7 +82,7 @@ class TestTheGangSheetStash:
         props = menus(body)["Actions for Respirator"]
         assert drawn(props) == ["Reassign", "Refund", "—", "Sell", "—", "Delete"]
         assert (props["trigger"], props["variant"], props["align"]) == (
-            "chevron",
+            "inline-chevron",
             "default",
             "end",
         )
