@@ -33,6 +33,14 @@ case "$DB_HOST" in
   localhost|127.0.0.1|/tmp|/private/tmp) ;;
   *) codex_error "Cleanup requires a local PostgreSQL host or socket directory." ;;
 esac
+
+# Release server connections only after validating the cleanup target.
+if [ "$DRY_RUN" = true ]; then
+  ./scripts/dev.sh --status
+else
+  ./scripts/dev.sh --stop
+fi
+
 PG_ARGS=(--host="$DB_HOST" --port=5432 --username="$(whoami)" --no-password)
 DB_PATTERN="^(${DB_NAME}|test_${DB_NAME}(_gw[0-9]+)?)$"
 # Capture first: a failed query must fail cleanup, not look like an empty list.

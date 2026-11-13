@@ -15,6 +15,10 @@ The Gyrinx dev server is started with `scripts/dev.sh`. It handles per-worktree 
 
 ```bash
 ./scripts/dev.sh              # Normal startup (runserver + CSS watch)
+./scripts/dev.sh --background # Agent preview; survives the launching tool call
+./scripts/dev.sh --status     # State, owner, session identifier and ready URL
+./scripts/dev.sh --stop       # Stop this worktree's managed server and watchers
+./scripts/dev.sh --prune      # Clean abandoned managed servers across repo worktrees
 ./scripts/dev.sh --no-watch   # Skip npm watch (if CSS is already built)
 ./scripts/dev.sh --reset-db   # Drop and re-fork the worktree database, then start
 ```
@@ -26,9 +30,35 @@ This single command:
 3. Runs pending migrations
 4. Runs `npm install` if `node_modules` is missing or out of date (vs. `package*.json`)
 5. Runs an **initial** `npm run css` build if `styles.css` is missing or stale
-6. Starts `npm run watch` in the background (watches scss/html → rebuilds CSS on change)
-7. Starts Django `runserver` in the foreground
+6. Starts `npm run watch` (rebuilds React and CSS when source files change)
+7. Starts Django `runserver` inside a supervised process group
 8. Logs to `./logs/runserver.log`, `./logs/npm-watch.log`, and `./logs/npm-css-build.log`
+
+**Agent previews must use `--background`.** It returns once the detached
+supervisor has registered; provisioning may still be running. Use `--status`
+until the state is `running`, confirm `CSS ready:` and `CSS file:` in
+`logs/dev-supervisor.log`, then share the printed URL. Do not keep the preview
+inside a foreground tool session, and do not stop it just because your turn
+has finished. Returning hours later should work while the owning process lives.
+
+The supervisor records the worktree, owner PID and process start time, available
+session identifier, and selected port in `logs/dev-server.json`. An exclusive
+worktree lock prevents concurrent starts from creating duplicate servers.
+Foreground `./scripts/dev.sh` uses the same supervisor and stops on Ctrl-C.
+`--setup-only` remains synchronous and leaves no server behind.
+
+`--stop` and `--status` apply to the current worktree. `--prune` checks managed
+records across registered worktrees: it stops servers whose owner has exited,
+cleans verified orphan process groups, and removes stale records. It checks
+process birth times before signalling, so PID reuse does not target an unrelated
+process. Unmanaged servers started directly with `manage runserver` are outside
+these lifecycle commands.
+
+Process inspection and port binding may require the shell tool's normal
+approval flow outside a restricted sandbox. If process inspection is denied,
+the command fails without signalling a process or removing its record. Rerun
+with permission. Never use a
+broad `pkill` to recover a worktree preview.
 
 ## Verifying CSS Is Built
 
@@ -124,10 +154,20 @@ lsof -i :$PORT -sTCP:LISTEN
   instead. Set `GYRINX_DEV_MEMORY_LIMIT_MB` to change the limit, or `0` to turn
   it off.
 - Started from an agent session, it stops when that session's process exits.
-  Claude Code is found through `CLAUDE_PID`, Codex among the process's
-  ancestors.
-- Started from an agent session, it stops after 120 minutes with no requests.
-  Set `GYRINX_DEV_IDLE_MINUTES` to change that, or `0` to turn it off.
+  Ownership is captured before detaching and preserved through autoreloads.
+  Claude Code is found through `CLAUDE_PID`, Codex among the process's ancestors.
+  The PID and process start time must still match. A saved chat can outlive this
+  process; closing the owning process also closes its preview.
+- A live agent owner's server has **no idle cutoff**. Ending a turn or leaving
+  the browser idle for several hours does not stop it.
+- Without a verified agent owner, it stops after 1,440 minutes (24 hours)
+  without requests. Set `GYRINX_DEV_IDLE_MINUTES` to change this fallback, or `0`
+  to turn it off. This also bounds directly launched, unowned servers.
+
+The supervisor stops the whole Django and frontend watcher process group on
+owner exit, explicit stop, worktree removal, or server exit. It escalates from
+TERM to KILL after five seconds for descendants which do not stop. Worktree
+cleanup runs `--stop` before removing databases; its dry run only shows status.
 
 Each of these prints a line starting `Restarting the dev server:` or
 `Stopping the dev server:`, with the reason. Under `./scripts/dev.sh` that line

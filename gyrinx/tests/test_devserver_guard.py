@@ -9,12 +9,10 @@ from gyrinx.devserver.guard import (
     RESTART,
     STOP,
     Guard,
-    Owner,
-    agent_name,
     exit_plan,
-    find_owner,
     memory_mb,
 )
+from gyrinx.devserver.processes import Owner, agent_name, find_owner
 
 
 class Clock:
@@ -47,11 +45,11 @@ def make_guard(
     return guard, clock, state
 
 
-AGENT = Owner(pid=4242, name="Claude Code")
+AGENT = Owner(pid=4242, name="Claude Code", started="birth")
 
 
 def test_a_server_within_its_limit_keeps_running():
-    guard, clock, _ = make_guard()
+    guard, clock, _ = make_guard(owner=AGENT)
     clock.advance(10 * 3600)
     assert guard.check() is None
 
@@ -126,18 +124,14 @@ def test_a_server_stops_when_its_agent_session_ends():
     assert "Claude Code" in reason and "4242" in reason
 
 
-def test_an_agents_idle_server_stops():
+def test_a_live_agents_idle_server_keeps_running():
     guard, clock, _ = make_guard(owner=AGENT, idle_minutes=60)
-    clock.advance(59 * 60)
+    clock.advance(48 * 3600)
     assert guard.check() is None
-    clock.advance(60)
-    code, reason = guard.check()
-    assert code == STOP
-    assert "60 minutes" in reason
 
 
 def test_a_request_keeps_an_agents_server_running():
-    guard, clock, _ = make_guard(owner=AGENT, idle_minutes=60)
+    guard, clock, _ = make_guard(owner=None, idle_minutes=60)
     clock.advance(59 * 60)
     guard.request_started()
     clock.advance(10 * 60)
@@ -147,21 +141,26 @@ def test_a_request_keeps_an_agents_server_running():
     assert guard.check() is None
 
 
-def test_a_server_nobody_owns_is_never_stopped_for_being_idle():
-    guard, clock, _ = make_guard(owner=None, idle_minutes=60)
-    clock.advance(24 * 3600)
+def test_an_unowned_server_expires_after_an_idle_day():
+    guard, clock, _ = make_guard(owner=None, idle_minutes=1440)
+    clock.advance(24 * 3600 - 1)
     assert guard.check() is None
+    clock.advance(1)
+    code, reason = guard.check()
+    assert code == STOP
+    assert "no verified agent owner" in reason
 
 
 def test_an_idle_limit_of_zero_turns_the_idle_check_off():
-    guard, clock, _ = make_guard(owner=AGENT, idle_minutes=0)
+    guard, clock, _ = make_guard(owner=None, idle_minutes=0)
     clock.advance(24 * 3600)
     assert guard.check() is None
 
 
-def test_claude_code_names_its_own_process():
+def test_claude_code_names_its_own_process(monkeypatch):
+    fake_ps(monkeypatch, {1234: "claude"})
     owner = find_owner({"CLAUDE_PID": "1234"}, alive=lambda pid: True)
-    assert owner == Owner(1234, "Claude Code")
+    assert owner == Owner(1234, "Claude Code", "birth")
 
 
 def test_a_claude_pid_whose_process_has_gone_is_ignored(monkeypatch):
@@ -171,18 +170,13 @@ def test_a_claude_pid_whose_process_has_gone_is_ignored(monkeypatch):
     assert owner is None
 
 
-class PsResult:
-    def __init__(self, stdout):
-        self.stdout = stdout
-
-
 def fake_ps(monkeypatch, table):
     """Answer ``ps -o ppid=,comm= -p PID`` from ``table`` of pid to output."""
 
-    def run(argv, **kwargs):
-        return PsResult(table.get(int(argv[-1]), ""))
-
-    monkeypatch.setattr("gyrinx.devserver.guard.subprocess.run", run)
+    monkeypatch.setattr(
+        "gyrinx.devserver.processes.ps", lambda pid, columns: table.get(pid, "").strip()
+    )
+    monkeypatch.setattr("gyrinx.devserver.processes.process_start", lambda pid: "birth")
 
 
 def test_an_agent_is_found_among_the_ancestors(monkeypatch):
@@ -194,12 +188,12 @@ def test_an_agent_is_found_among_the_ancestors(monkeypatch):
             300: "    1 /usr/local/lib/node_modules/@openai/codex/bin/codex",
         },
     )
-    assert find_owner({}, parent_pid=500) == Owner(300, "Codex")
+    assert find_owner({}, parent_pid=500) == Owner(300, "Codex", "birth")
 
 
 def test_a_process_title_names_the_agent(monkeypatch):
     fake_ps(monkeypatch, {500: "  400 /bin/zsh", 400: "  1 claude bg-spare --x"})
-    assert find_owner({}, parent_pid=500) == Owner(400, "Claude Code")
+    assert find_owner({}, parent_pid=500) == Owner(400, "Claude Code", "birth")
 
 
 def test_an_ancestor_walk_without_an_agent_finds_nothing(monkeypatch):
@@ -314,7 +308,13 @@ def test_the_start_up_line_says_what_the_memory_limit_does(monkeypatch):
     assert guard.rules() == [
         "restarts past 2,048 MB",
         "stops when Claude Code (pid 4242) exits",
-        "stops after 120 minutes without a request",
     ]
     monkeypatch.delenv("RUN_MAIN")
     assert guard.rules()[0] == "stops past 2,048 MB"
+
+
+def test_the_startup_line_explains_unowned_expiry():
+    guard, _, _ = make_guard(owner=None, idle_minutes=1440)
+    assert guard.rules()[-1] == (
+        "stops after 1440 minutes without a request (no verified agent owner)"
+    )

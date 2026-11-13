@@ -26,7 +26,12 @@ _main_worktree() {
   # The main worktree is the first stanza of `git worktree list --porcelain`,
   # which begins with `worktree <path>`.  Use --porcelain so paths containing
   # spaces aren't truncated by field-splitting.
-  git worktree list --porcelain | sed -n 's/^worktree //p' | head -1
+  # Consume the complete listing: head can SIGPIPE sed under pipefail when
+  # many worktrees are registered, aborting dev.sh before provisioning.
+  local listing
+  listing=$(git worktree list --porcelain) || return
+  listing=${listing#worktree }
+  printf '%s\n' "${listing%%$'\n'*}"
 }
 
 _is_main_worktree() {
