@@ -302,6 +302,8 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 previous.search === next.search
             ) {
                 current.current = next.href;
+                renderedIndex.current = index.current;
+                if (restoreScroll) setScrollTarget({ ...restoreScroll });
                 return;
             }
             void load(next.href, "none", restoreScroll);

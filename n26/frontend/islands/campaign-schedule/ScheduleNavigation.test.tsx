@@ -307,6 +307,60 @@ test("rapid Back then Forward cancels the obsolete read even when the editor is 
     expect(screen.queryByText("Loading schedule…")).toBeNull();
 });
 
+test("rapid Back twice restores the schedule and retains later viewport changes", async () => {
+    vi.stubGlobal("scrollY", 1188);
+    let finish!: (response: ReturnType<typeof json>) => void;
+    const slow = new Promise<ReturnType<typeof json>>((resolve) => {
+        finish = resolve;
+    });
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(json(data(editor)))
+        .mockResolvedValueOnce(json(data()))
+        .mockReturnValueOnce(slow)
+        .mockResolvedValueOnce(json(data(editor)))
+        .mockResolvedValueOnce(json(data()));
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...data()} />);
+    await userEvent.click(screen.getByRole("link", { name: "Edit Cycle 1" }));
+    await screen.findByRole("dialog", { name: "Edit cycle" });
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    window.history.back();
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    vi.stubGlobal("scrollY", 575);
+    window.history.back();
+    await waitFor(() =>
+        expect(fetch.mock.calls[2][1].signal.aborted).toBe(true),
+    );
+    await waitFor(() =>
+        expect(window.scrollTo).toHaveBeenCalledExactlyOnceWith({
+            left: 0,
+            top: 1188,
+            behavior: "instant",
+        }),
+    );
+    await act(async () => finish(json(data(editor))));
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    vi.mocked(window.scrollTo).mockClear();
+    vi.stubGlobal("scrollY", 1640);
+    await userEvent.click(screen.getByRole("link", { name: "Edit Cycle 1" }));
+    await screen.findByRole("dialog", { name: "Edit cycle" });
+    expect(window.scrollTo).not.toHaveBeenCalled();
+    window.history.back();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() =>
+        expect(window.scrollTo).toHaveBeenCalledExactlyOnceWith({
+            left: 0,
+            top: 1640,
+            behavior: "instant",
+        }),
+    );
+    expect(fetch).toHaveBeenCalledTimes(5);
+});
+
 test("a failed cancel read cannot be retried while a save is pending or uncertain", async () => {
     let reject!: (error: Error) => void;
     const saving = new Promise<never>((_resolve, fail) => {
