@@ -732,6 +732,7 @@ class TestSuitEvolutionForms:
         from bs4 import BeautifulSoup
 
         from n26.core.render import option_key
+        from n26.tests.fixtures import island_props
 
         record, _, _ = start(client, hunt, hunt.upgrade)
         choose = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"])
@@ -803,9 +804,16 @@ class TestSuitEvolutionForms:
         )
         key = f"{hunt.fighter.pk}:{tier_slot.pk}:{tier_slot.slot_id}"
         picker = reverse("n26-choose", args=[hunt.gang.pk, key])
-        assert client.post(picker, {"thing": "none"}).status_code == 302
+        props = island_props(client.get(picker).content, "choice-workflow")
         assert (
-            client.post(picker, {"thing": option_key(hunt.tiers[0])}).status_code == 302
+            client.post(picker, {**props["values"], "thing": "none"}).status_code == 302
+        )
+        props = island_props(client.get(picker).content, "choice-workflow")
+        assert (
+            client.post(
+                picker, {**props["values"], "thing": option_key(hunt.tiers[0])}
+            ).status_code
+            == 302
         )
         hunt.kills.refresh_from_db()
         assert hunt.kills.counter_value.value == 2

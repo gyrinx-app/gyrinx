@@ -356,45 +356,48 @@ def test_campaign_label_dialog_saves_and_redraws_all_affected_gang_facts(
     _, pencil = label_control(client, gang)
     url = pencil["href"]
     response = client.get(url, HTTP_HX_REQUEST="true")
-    dialog = BeautifulSoup(response.content, "html.parser").find(
-        id="n26-campaign-state-dialog"
-    )
-    assert dialog.find("form")["hx-post"] == url
-    choice = dialog.find("input", {"type": "radio"})["value"]
+    props = island_props(response.content, "choice-workflow")
+    assert props["dialog"] is True
+    assert props["action"] == url
+    assert not BeautifulSoup(response.content, "html.parser").find("html")
+    choice = props["offer"]["groups"][0]["options"][0]["key"]
     response = client.post(
-        url,
-        {"thing": "invalid", "return": reverse("n26-gang", args=[gang.pk])},
-        HTTP_HX_REQUEST="true",
+        props["commandHref"],
+        {**props["values"], "thing": "invalid"},
+        HTTP_ACCEPT="application/json",
     )
-    assert response.status_code == 200
-    assert BeautifulSoup(response.content, "html.parser").find(
-        id="n26-campaign-state-dialog"
+    assert response.status_code == 422
+    assert response.json()["errors"]["thing"]
+    props = island_props(
+        client.get(url, HTTP_HX_REQUEST="true").content, "choice-workflow"
     )
-    assert json.loads(response["HX-Trigger"])["n26-toasts"][0]["variant"] == "error"
-    response = client.post(
-        url,
-        {"thing": choice, "return": reverse("n26-gang", args=[gang.pk])},
-        HTTP_HX_REQUEST="true",
-    )
-    assert response.status_code == 200
-    soup = BeautifulSoup(response.content, "html.parser")
-    assert soup.find(id="n26-gang-sheet")["hx-swap-oob"] == "true"
-    assert not soup.find("html")
+    response = client.post(url, {**props["values"], "thing": choice})
+    assert response.status_code == 302
+    assert response.url == reverse("n26-gang", args=[gang.pk])
+    refreshed = client.get(response.url)
+    soup = BeautifulSoup(refreshed.content, "html.parser")
+    assert soup.find("html")
+    assert soup.find(id="n26-gang-sheet")
     assert len(soup.find_all(id="n26-campaign-state-dialog-host")) == 1
     assert not soup.find(id="n26-campaign-state-dialog-host").get_text(strip=True)
-    assert response["HX-Replace-Url"] == reverse("n26-gang", args=[gang.pk])
     _, pencil = label_control(client, gang)
     response = client.get(pencil["href"], HTTP_HX_REQUEST="true")
-    assert (
-        BeautifulSoup(response.content, "html.parser").find("input", {"checked": True})[
-            "value"
-        ]
-        == choice
-    )
+    saved = island_props(response.content, "choice-workflow")
+    assert saved["values"]["thing"] == choice
+    assert next(
+        option
+        for group in saved["offer"]["groups"]
+        for option in group["options"]
+        if option["key"] == choice
+    )["current"]
     client.force_login(User.objects.create_user("stranger"))
     assert client.get(url, HTTP_HX_REQUEST="true").status_code == 404
+    assert client.post(url, {**props["values"], "thing": choice}).status_code == 404
     assert (
-        client.post(url, {"thing": choice}, HTTP_HX_REQUEST="true").status_code == 404
+        client.post(
+            props["commandHref"], {**props["values"], "thing": choice}
+        ).status_code
+        == 404
     )
 
 
