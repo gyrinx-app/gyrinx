@@ -78,7 +78,6 @@ def test_enabling_future_dates_keeps_saved_dated_and_undated_cycles():
         steps=state.plan.steps,
         mode="repeating",
         calendar=s.CycleCalendar(date(2026, 12, 1), starts_after_order=2),
-        preserve_saved_dates=True,
     )
     assert planned.schedule.cycles == state.cycles
     assert planned.updated == ()
@@ -89,7 +88,9 @@ def test_enabling_future_dates_keeps_saved_dated_and_undated_cycles():
 
 
 @pytest.mark.parametrize("projected", [False, True])
-def test_manual_date_edits_reject_partial_and_overlapping_ranges(projected):
+def test_manual_date_edits_reject_known_overlap_with_partial_or_complete_ranges(
+    projected,
+):
     state = s.start(manual(), now=NOW).schedule
     first = state.current
     state = s.edit_cycle(
@@ -103,7 +104,7 @@ def test_manual_date_edits_reject_partial_and_overlapping_ranges(projected):
     else:
         state = s.advance(state, now=NOW).schedule
         ref, details = s.SavedCycleRef(state.current.id), state.current.details
-    with pytest.raises(s.ScheduleError, match="both dates"):
+    with pytest.raises(s.ScheduleError, match="overlap"):
         s.edit_cycle(state, ref, replace(details, starts_on=date(2026, 11, 2)))
     with pytest.raises(s.ScheduleError, match="overlap"):
         s.edit_cycle(
@@ -113,7 +114,7 @@ def test_manual_date_edits_reject_partial_and_overlapping_ranges(projected):
         )
 
 
-def test_explicit_clearing_keeps_cycle_identity_and_legacy_omission_preserves_dates():
+def test_clearing_dates_keeps_cycle_identity_without_inheriting_calendar_dates():
     state = s.configure(
         s.DEFAULT_TEMPLATE,
         campaign_id="dated",
@@ -122,8 +123,7 @@ def test_explicit_clearing_keeps_cycle_identity_and_legacy_omission_preserves_da
     ).schedule
     first = state.current
     details = replace(first.details, starts_on=None, ends_on=None)
-    assert s.edit_cycle(state, s.SavedCycleRef(first.id), details).schedule == state
-    cleared = s.edit_cycle(state, s.SavedCycleRef(first.id), details, clear_dates=True)
+    cleared = s.edit_cycle(state, s.SavedCycleRef(first.id), details)
     assert cleared.schedule.current.id == first.id
     assert cleared.schedule.current.details.starts_on is None
     assert cleared.schedule.current.details.ends_on is None
@@ -131,7 +131,7 @@ def test_explicit_clearing_keeps_cycle_identity_and_legacy_omission_preserves_da
 
 
 @pytest.mark.parametrize("clear", [False, True])
-def test_legacy_partial_ranges_can_be_repaired_one_cycle_at_a_time(clear):
+def test_partial_ranges_can_be_edited_or_cleared_independently(clear):
     state = manual()
     state, _cycle = s._ensure_saved(state, s.project(state)[1].ref)
     state = state.schedule
@@ -146,9 +146,7 @@ def test_legacy_partial_ranges_can_be_repaired_one_cycle_at_a_time(clear):
         if clear
         else replace(first.details, ends_on=date(2026, 11, 7))
     )
-    repaired = s.edit_cycle(
-        state, s.SavedCycleRef(first.id), details, clear_dates=clear
-    ).schedule
+    repaired = s.edit_cycle(state, s.SavedCycleRef(first.id), details).schedule
     assert repaired.cycles[1] == second
     repaired = s.edit_cycle(
         repaired,
@@ -161,6 +159,5 @@ def test_legacy_partial_ranges_can_be_repaired_one_cycle_at_a_time(clear):
         steps=state.plan.steps,
         mode="repeating",
         calendar=s.CycleCalendar(date(2026, 12, 1), starts_after_order=2),
-        preserve_saved_dates=True,
     ).schedule
     assert planned.cycles == state.cycles

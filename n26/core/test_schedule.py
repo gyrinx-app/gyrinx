@@ -1,7 +1,7 @@
 """Executable campaign schedules distinguish planning, saving and activation."""
 
 from dataclasses import FrozenInstanceError, replace
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from itertools import count
 
 import pytest
@@ -919,3 +919,314 @@ def test_deletion_completion_credit_survives_a_later_saved_phase_edit(ids):
     ).schedule
     assert fixed.cycles == state.cycles
     assert not s.project(fixed)
+
+
+class TestIndependentCycleDates:
+    """Known bounds constrain dates without inventing the missing endpoints."""
+
+    @pytest.mark.parametrize("calendar", [None, s.CycleCalendar(date(2026, 11, 1))])
+    @pytest.mark.parametrize("projected", [False, True])
+    @pytest.mark.parametrize(
+        "known_start,known_end",
+        [(False, False), (True, False), (False, True), (True, True)],
+    )
+    def test_submitted_bounds_are_authoritative_for_saved_and_projected_cycles(
+        self, calendar, projected, known_start, known_end, ids
+    ):
+        state = s.configure(
+            s.DEFAULT_TEMPLATE,
+            campaign_id="campaign",
+            current_position=0,
+            mode="repeating",
+            calendar=calendar,
+            new_id=ids,
+        ).schedule
+        selected = s.project(state)[0] if projected else state.current
+        target = selected.ref if projected else s.SavedCycleRef(selected.id)
+        phase = selected.phase_id if projected else selected.details.phase_id
+        first_day = 8 if projected else 1
+        details = s.CycleDetails(
+            phase,
+            starts_on=date(2026, 11, first_day) if known_start else None,
+            ends_on=date(2026, 11, first_day + 6) if known_end else None,
+        )
+        change = s.edit_cycle(state, target, details, new_id=ids)
+        saved = s._selected(change.schedule, target)
+        assert saved.details == details
+        assert saved.source == selected.source
+        assert change.schedule.current_cycle_id == state.current_cycle_id
+        assert change.transition is None
+        if projected:
+            assert change.created == (saved,)
+        else:
+            assert saved.id == selected.id
+        assert (
+            s.edit_cycle(change.schedule, target, details).schedule == change.schedule
+        )
+
+    @pytest.mark.parametrize("action", ["save", "start", "advance"])
+    def test_ordinary_prefix_materialisation_validates_new_dates(self, action, ids):
+        state = configured(ids, mode="repeating")
+        first = state.current
+        first = replace(
+            first,
+            details=replace(first.details, starts_on=date(2026, 11, 15), ends_on=None),
+        )
+        state = replace(state, cycles=(first,))
+        target = s.project(state)[0].ref
+        with pytest.raises(s.ScheduleError, match="overlap"):
+            if action == "save":
+                s._ensure_saved(state, target, new_id=ids)
+            elif action == "start":
+                s.start(
+                    replace(state, status="pre_campaign", current_cycle_id=None),
+                    target=target,
+                    now=NOW,
+                    new_id=ids,
+                )
+            else:
+                s.advance(state, now=NOW, new_id=ids)
+        assert state.cycles == (first,)
+
+    def test_metadata_and_unrelated_date_edits_leave_other_date_relationships_alone(
+        self, ids
+    ):
+        state = s.configure(
+            s.DEFAULT_TEMPLATE, campaign_id="campaign", current_position=2, new_id=ids
+        ).schedule
+        state = replace(
+            state,
+            cycles=tuple(
+                replace(
+                    cycle, details=replace(cycle.details, starts_on=date(2026, 11, day))
+                )
+                for cycle, day in zip(state.cycles, (20, 10, 25), strict=True)
+            ),
+        )
+        first, second, third = state.cycles
+        renamed = s.edit_cycle(
+            state,
+            s.SavedCycleRef(first.id),
+            replace(first.details, custom_name="Opening"),
+        ).schedule
+        assert renamed.cycles[0].details.custom_name == "Opening"
+        moved = s.edit_cycle(
+            renamed,
+            s.SavedCycleRef(third.id),
+            replace(third.details, starts_on=date(2026, 11, 26)),
+        ).schedule
+        assert moved.cycles[1] == second
+        with pytest.raises(s.ScheduleError, match="must follow"):
+            s.edit_cycle(
+                moved,
+                s.SavedCycleRef(third.id),
+                replace(third.details, starts_on=date(2026, 11, 19)),
+            )
+
+    @pytest.mark.parametrize("calendar", [False, True])
+    @pytest.mark.parametrize(
+        "old_end,days", [(None, 3), (date(2026, 11, 7), 3), (date(2026, 11, 12), -2)]
+    )
+    def test_opt_in_shifts_each_known_later_bound_and_preserves_unknowns(
+        self, calendar, old_end, days, ids
+    ):
+        state = s.configure(
+            s.DEFAULT_TEMPLATE,
+            campaign_id="campaign",
+            current_position=4,
+            mode="repeating",
+            new_id=ids,
+        ).schedule
+        later_start = 13 if old_end == date(2026, 11, 12) else 8
+        bounds = [(1, None), (later_start, None), (None, 21), (None, None), (22, 28)]
+        cycles = tuple(
+            replace(
+                cycle,
+                archived=index == 4,
+                details=replace(
+                    cycle.details,
+                    starts_on=date(2026, 11, start) if start else None,
+                    ends_on=old_end
+                    if index == 0
+                    else date(2026, 11, end)
+                    if end
+                    else None,
+                ),
+            )
+            for index, (cycle, (start, end)) in enumerate(
+                zip(state.cycles, bounds, strict=True)
+            )
+        )
+        state = replace(
+            state,
+            cycles=cycles,
+            current_cycle_id=cycles[0].id,
+            calendar=s.CycleCalendar(date(2026, 12, 1), starts_after_order=5)
+            if calendar
+            else None,
+        )
+        selected = state.cycles[0]
+        details = replace(selected.details, ends_on=date(2026, 11, 10))
+        if old_end != date(2026, 11, 12):
+            with pytest.raises(s.ScheduleError, match="overlap"):
+                s.edit_cycle(state, s.SavedCycleRef(selected.id), details)
+        change = s.edit_cycle(
+            state, s.SavedCycleRef(selected.id), details, shift_later=True
+        )
+        assert change.schedule.cycles[1].details.starts_on == date(
+            2026, 11, later_start
+        ) + timedelta(days=days)
+        assert change.schedule.cycles[1].details.ends_on is None
+        assert change.schedule.cycles[2].details.starts_on is None
+        assert change.schedule.cycles[2].details.ends_on == date(
+            2026, 11, 21
+        ) + timedelta(days=days)
+        assert change.schedule.cycles[3:] == state.cycles[3:]
+        assert [(c.id, c.source, c.order) for c in change.schedule.cycles] == [
+            (c.id, c.source, c.order) for c in state.cycles
+        ]
+        if calendar:
+            assert s.project(change.schedule)[0].starts_on == date(
+                2026, 12, 1
+            ) + timedelta(days=days)
+        assert change.transition is None
+
+    def test_cleared_end_never_shifts_later_dates_even_when_opted_in(self, ids):
+        state = configured(ids, current=2)
+        first = state.cycles[0]
+        change = s.edit_cycle(
+            state,
+            s.SavedCycleRef(first.id),
+            replace(first.details, ends_on=None),
+            shift_later=True,
+        )
+        assert change.schedule.cycles[0].details.ends_on is None
+        assert change.schedule.cycles[1:] == state.cycles[1:]
+        assert change.schedule.calendar == state.calendar
+
+    def test_calendar_changes_preserve_all_saved_bounds_and_check_known_starts(
+        self, ids
+    ):
+        state = s.configure(
+            s.DEFAULT_TEMPLATE,
+            campaign_id="campaign",
+            current_position=1,
+            mode="repeating",
+            new_id=ids,
+        ).schedule
+        first, second = state.cycles
+        first = replace(
+            first, details=replace(first.details, starts_on=date(2026, 11, 10))
+        )
+        state = replace(state, cycles=(first, second))
+        calendar = s.CycleCalendar(date(2026, 11, 11), starts_after_order=2)
+        changed = s.set_calendar(state, calendar)
+        assert changed.schedule.cycles == state.cycles
+        assert changed.updated == ()
+        with pytest.raises(s.ScheduleError, match="future cycle"):
+            s.set_calendar(state, replace(calendar, starts_on=date(2026, 11, 10)))
+        replaced = s.replace_plan(
+            state,
+            steps=state.plan.steps,
+            mode="repeating",
+            calendar=calendar,
+            new_id=ids,
+        )
+        assert replaced.schedule.cycles == state.cycles
+
+    @pytest.mark.parametrize("action", ["replace", "template"])
+    def test_a_new_continuation_is_validated_after_replacing_an_exhausted_plan(
+        self, action, ids
+    ):
+        template = s.ScheduleTemplate(
+            "One",
+            (s.Phase("phase", s.PhaseDetails("Opening")),),
+            (s.PlanStep("step", "phase", 1),),
+        )
+        state = s.configure(
+            template,
+            campaign_id="campaign",
+            current_position=0,
+            calendar=s.CycleCalendar(date(2026, 11, 1)),
+            new_id=ids,
+        ).schedule
+        first = replace(
+            state.current,
+            details=replace(
+                state.current.details, starts_on=date(2026, 11, 20), ends_on=None
+            ),
+        )
+        state = replace(state, cycles=(first,))
+        assert s.project(state) == ()
+        with pytest.raises(s.ScheduleError, match="future cycle"):
+            if action == "replace":
+                s.replace_plan(
+                    state, steps=state.plan.steps, mode="repeating", new_id=ids
+                )
+            else:
+                s.apply_template(state, template, mode="repeating", new_id=ids)
+
+    def test_preview_uses_the_virtual_prefix_and_every_later_known_date(self, ids):
+        state = configured(ids, mode="repeating")
+        target = s.project(state)[2]
+        preview = s.preview_cycle_edit(
+            state, target.ref, s.CycleDetails(target.phase_id)
+        )
+        assert [cycle.order for cycle in preview.creates] == [2, 3, 4]
+        assert preview.following_on == state.calendar.dates_for(5)[0]
+        state = s.configure(
+            s.DEFAULT_TEMPLATE, campaign_id="campaign", current_position=2, new_id=ids
+        ).schedule
+        first, second, third = state.cycles
+        second = replace(
+            second, details=replace(second.details, starts_on=date(2026, 11, 20))
+        )
+        third = replace(
+            third, details=replace(third.details, ends_on=date(2026, 11, 10))
+        )
+        state = replace(state, cycles=(first, second, third))
+        assert s.preview_cycle_edit(
+            state, s.SavedCycleRef(first.id), first.details
+        ).following_on == date(2026, 11, 10)
+
+    def test_preview_omits_an_unsupported_following_date_but_writes_reject_overflow(
+        self, ids
+    ):
+        state = s.configure(
+            s.DEFAULT_TEMPLATE,
+            campaign_id="campaign",
+            current_position=None,
+            mode="repeating",
+            calendar=s.CycleCalendar(date(9990, 1, 1), unit="months"),
+            new_id=ids,
+        ).schedule
+        target = s.ProjectedCycleRef(s.PlannedPosition(state.plan.id, 118))
+        selected = s._selected(state, target)
+        details = s.CycleDetails(
+            selected.phase_id, starts_on=selected.starts_on, ends_on=selected.ends_on
+        )
+        preview = s.preview_cycle_edit(state, target, details)
+        assert preview.following_on is None
+        assert len(preview.creates) == 119
+        with pytest.raises(s.ScheduleError, match="supported calendar"):
+            s.edit_cycle(state, target, details, shift_later=True, new_id=ids)
+        assert state.cycles == ()
+
+    def test_shifting_a_partial_bound_beyond_the_calendar_rejects_the_whole_edit(
+        self, ids
+    ):
+        state = s.configure(
+            s.DEFAULT_TEMPLATE, campaign_id="campaign", current_position=1, new_id=ids
+        ).schedule
+        first, second = state.cycles
+        first = replace(first, details=replace(first.details, starts_on=date.min))
+        second = replace(second, details=replace(second.details, starts_on=date.max))
+        state = replace(state, cycles=(first, second))
+        with pytest.raises(s.ScheduleError, match="supported calendar"):
+            s.edit_cycle(
+                state,
+                s.SavedCycleRef(first.id),
+                replace(first.details, ends_on=date.max),
+                shift_later=True,
+            )
+        assert state.cycles == (first, second)

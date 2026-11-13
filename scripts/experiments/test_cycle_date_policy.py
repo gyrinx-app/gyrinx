@@ -1,4 +1,4 @@
-"""Executable date-policy proposal; the application retains its paired-date rule."""
+"""Executable date-policy oracle and bridges to the production schedule engine."""
 
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
@@ -211,9 +211,8 @@ def test_actual_prefix_model_can_preserve_a_partial_override_and_full_projection
     ).schedule
     target = s.project(state)[2]
     details = s.CycleDetails(target.phase_id, starts_on=target.starts_on or d(15))
-    change, saved = s._ensure_saved(
-        state, target.ref, selected_details=details, clear_dates=True
-    )
+    change = s.edit_cycle(state, target.ref, details)
+    saved = change.created[-1]
     assert saved.details.starts_on == (target.starts_on or d(15))
     assert saved.details.ends_on is None
     assert saved.source == target.source
@@ -259,7 +258,6 @@ def test_future_calendar_settings_can_preserve_unknown_saved_bounds():
         steps=state.plan.steps,
         mode="repeating",
         calendar=s.CycleCalendar(d(15), starts_after_order=1),
-        preserve_saved_dates=True,
     ).schedule
     assert changed.cycles == state.cycles
     assert changed.current_cycle_id == state.current_cycle_id
@@ -268,16 +266,37 @@ def test_future_calendar_settings_can_preserve_unknown_saved_bounds():
     assert codes(model_entries(changed), future_start=d(1)) == {"projection_boundary"}
 
 
-def test_application_edit_rule_has_not_been_changed_by_the_experiment():
+def test_application_edit_preserves_an_independently_known_start():
     state = s.configure(
         s.DEFAULT_TEMPLATE, campaign_id="model", current_position=0, mode="repeating"
     ).schedule
-    with pytest.raises(s.ScheduleError, match="both dates"):
-        s.edit_cycle(
-            state,
-            s.SavedCycleRef(state.current_cycle_id),
-            replace(state.current.details, starts_on=d(1)),
-        )
+    changed = s.edit_cycle(
+        state,
+        s.SavedCycleRef(state.current_cycle_id),
+        replace(state.current.details, starts_on=d(1)),
+    ).schedule
+    assert changed.current.details.starts_on == d(1)
+    assert changed.current.details.ends_on is None
+
+
+def test_production_validation_matches_the_exhaustive_chronological_oracle():
+    for left, right in product(ALL_BOUNDS, repeat=2):
+        try:
+            cycles = tuple(
+                s.Cycle(
+                    str(order),
+                    order,
+                    s.CycleDetails("phase", starts_on=bounds.start, ends_on=bounds.end),
+                    s.CycleSource(s.PlannedPosition("plan", order - 1), "step", 0, 0),
+                )
+                for order, bounds in enumerate((left, right), 1)
+            )
+            s.validate_cycle_dates(cycles)
+        except s.ScheduleError:
+            accepted = False
+        else:
+            accepted = True
+        assert accepted == possible(left, right, True), (left, right)
 
 
 @pytest.mark.parametrize(

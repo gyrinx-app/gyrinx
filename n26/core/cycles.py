@@ -453,7 +453,6 @@ def edit_cycle(
     expected_revision,
     request_key,
     shift_later=False,
-    clear_dates=False,
 ):
     def apply(act, before):
         _bounded_target(before, target)
@@ -464,7 +463,6 @@ def edit_cycle(
             now=timezone.now(),
             new_id=_new_id,
             shift_later=shift_later,
-            clear_dates=clear_dates,
         )
         selected = s._selected(change.schedule, target)
         return change, selected.id
@@ -477,7 +475,6 @@ def edit_cycle(
             "target": ref_data(target),
             "details": cycle_details_data(details),
             **({"shift_later": True} if shift_later else {}),
-            **({"clear_dates": True} if clear_dates else {}),
         },
         request_key=request_key,
         expected_revision=expected_revision,
@@ -609,9 +606,8 @@ def replace_plan(
     request_key,
     calendar=None,
     clear_calendar=False,
-    future_dates=False,
 ):
-    """Keep legacy calendar anchors unless future-only planning is explicit."""
+    """Plan future dates while preserving every saved cycle bound."""
     raw_steps = [asdict(step) for step in steps]
 
     def apply(act, before):
@@ -619,9 +615,7 @@ def replace_plan(
         if dates is not None:
             dates = replace(
                 dates,
-                starts_after_order=len(before.cycles)
-                if future_dates or before.calendar is not None
-                else 0,
+                starts_after_order=len(before.cycles),
             )
             if before.calendar is not None and (
                 dates.interval == before.calendar.interval
@@ -637,7 +631,6 @@ def replace_plan(
             new_id=_new_id,
             calendar=dates,
             clear_calendar=clear_calendar,
-            preserve_saved_dates=future_dates,
         ), None
 
     return _command(
@@ -648,7 +641,6 @@ def replace_plan(
             "steps": raw_steps,
             "mode": mode,
             **({"clear_calendar": True} if clear_calendar else {}),
-            **({"future_dates": True} if future_dates else {}),
             **({"calendar": calendar_data(calendar)} if calendar is not None else {}),
         },
         request_key=request_key,

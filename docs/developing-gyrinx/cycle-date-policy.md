@@ -1,9 +1,9 @@
-# Proposal: independently optional cycle dates
+# Independently optional cycle dates
 
-This is an executable proposal, not an application change. The current public
-cycle editor still requires both dates or neither. The model lives in
-`scripts/experiments/cycle_date_policy.py`; its tests also exercise the existing
-pure schedule engine without database writes.
+Cycle starts and ends are independently optional. The production rules live in
+`n26/core/schedule.py`. The small model in
+`scripts/experiments/cycle_date_policy.py` supplies an independent oracle; its
+tests also exercise the pure schedule engine without database writes.
 
 ## Meaning of a missing date
 
@@ -11,7 +11,7 @@ A missing date means **unknown**, not an interval extending to infinity. It
 must remain null when saving, advancing a cycle or changing future settings.
 Dates describe a cycle; they never choose its order, identity or current status.
 
-| Start | End | Recommended behavior |
+| Start | End | Behaviour |
 | --- | --- | --- |
 | Missing | Missing | Allow an undated cycle, advanced manually. |
 | Set | Missing | Allow a known start with an undecided end. |
@@ -28,13 +28,13 @@ validator can assert. It does not write the known date into the missing field.
 
 ## Relationships between cycles
 
-**Recommendation: known dates should follow cycle order.** This would be a new
-restriction: the application currently permits date ranges in reverse cycle
-order when they do not overlap. The experiment tests both policies so this
-choice can be reviewed before integration.
+**Known dates follow cycle order.** Date edits and newly saved dates are checked
+against the other active cycles. Unrelated metadata edits do not revalidate
+unchanged date relationships. The experimental oracle also tests the alternative
+policy allowing disjoint dates in reverse order; production uses chronology.
 
 The following matrix enumerates all 16 combinations for an earlier cycle A and
-a later cycle B under the recommended chronological policy. Each complete range
+a later cycle B under the chronological policy. Each complete range
 must also pass its own start/end check. A condition requires strict inequality
 because dates are inclusive.
 
@@ -66,7 +66,7 @@ must revalidate the candidate. Normal forms need no extra warning banner.
 
 ## Manual schedules and calendar projections
 
-| Case | Recommended behavior |
+| Case | Behaviour |
 | --- | --- |
 | No calendar | Future projections are undated. Manual advancement still works. |
 | Calendar enabled | Generated projections have complete start/end dates. |
@@ -85,7 +85,7 @@ out-of-order saved dates: projections must still follow the saved prefix.
 Dates never move silently. Offer an explicit choice where there are later known
 saved dates or dated projections:
 
-| Edit | Recommended offer |
+| Edit | Offer |
 | --- | --- |
 | Old and new end both known | Shift subsequent dates by their difference, earlier or later. |
 | Previously unknown end becomes known and reaches a later known date | Offer the smallest forward shift that puts all later known dates after the new end. |
@@ -106,28 +106,23 @@ candidate before committing; an invalid or out-of-range date rejects the action
 without partial writes. A proposed shift is not itself proof that saving will
 succeed, especially when moving dates earlier.
 
-## Application integration after agreement
+## Command boundaries
 
-No schema change appears necessary: the persisted start and end columns are
-already independently nullable. The following application work is still needed:
+The persisted start and end columns are already independently nullable. Submitted
+cycle details are authoritative: an empty endpoint clears that endpoint, including
+when overriding a projected cycle. Ordinary prefix materialisation keeps calendar
+dates, while edits validate the final candidate after any accepted suffix shift.
+Battle recording, starting and advancing also validate newly materialised dates.
 
-1. Replace the paired-date form/API/public-engine guards with independent-date
-   validation. Existing validation skips partial ranges, so removing only those
-   guards would be unsafe.
-2. Apply date-order rules to newly configured or edited dates. Do not block
-   unrelated operations because legacy dates are already out of order, and never
-   silently reorder cycles to repair them. The experimental validator reports
-   all conflicts; command integration must select the affected relationships.
-3. Include known starts, not just ends, in the saved-prefix/projection boundary.
-4. Preserve nulls through calendar changes. Existing `set_calendar()` defaults
-   can fill missing saved bounds; explicit preservation must cover each caller.
-5. Shift partial saved bounds and calendar offsets together; validate and write
-   atomically through the existing locked command boundary.
-6. Version changed command semantics without breaking old command receipts or
-   exact retries. Update body/help text once per form, without repeated
-   instructions requiring both dates.
-7. Test form/API/receipt paths and native date controls. The experiment proves
-   date-policy behavior and underlying representation, not public UI support.
+Calendar settings affect projections; they never fill missing saved endpoints.
+The saved-prefix boundary checks both starts and ends. Cycle identity, ordering,
+source positions and transition timestamps remain independent of planning dates.
+
+Writes retain the campaign lock, revision check and exact request-key receipts.
+The receipt records the submitted nullable bounds and shift choice. An exact retry
+returns its recorded result before recalculating the shift, so subsequent dates
+move once. Reusing the key for different input is rejected. Prelaunch paired-date
+and calendar-backfill compatibility modes are removed.
 
 ## Verification
 
@@ -145,5 +140,5 @@ each chronology policy, plus 252 saved-prefix/projection boundary cases.
 Bridge tests use the actual immutable schedule engine to check that partial
 bounds can be represented, prefix saving preserves them, transitions do not
 invent dates, and a future-calendar offset shifts projections without changing
-cycle identity. A separate test confirms that the public editor still rejects
-partial dates: the proposal has not altered application behavior.
+cycle identity. Production validation is also compared with the independent
+chronological oracle for all 1,296 input pairs.
