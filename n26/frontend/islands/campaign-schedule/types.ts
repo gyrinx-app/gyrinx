@@ -99,3 +99,27 @@ export interface ScheduleProps {
     onNavigate?: (url: string) => void;
     onReload?: () => void;
 }
+
+export function isPhaseEditor(editor: Editor | null) {
+    return (
+        !!editor &&
+        ["phase", "add-phase", "duplicate-phase", "delete-phase"].includes(
+            editor.kind,
+        )
+    );
+}
+
+export function isPageEditor(editor: Editor | null): editor is Editor & {
+    kind:
+        | "plan"
+        | "setup"
+        | "phase"
+        | "add-phase"
+        | "duplicate-phase"
+        | "delete-phase";
+} {
+    return (
+        !!editor &&
+        (["setup", "plan"].includes(editor.kind) || isPhaseEditor(editor))
+    );
+}

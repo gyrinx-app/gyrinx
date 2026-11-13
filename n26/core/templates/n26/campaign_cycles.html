@@ -1,7 +1,7 @@
 {% extends "n26/layouts/base.html" %}
 {% load react %}
 {% block head_title %}
-    {% if schedule_props.editor.kind == "plan" or schedule_props.editor.kind == "setup" %}
+    {% if schedule_props.editor.kind == "plan" or schedule_props.editor.kind == "setup" or schedule_props.editor.kind == "phase" or schedule_props.editor.kind == "add-phase" or schedule_props.editor.kind == "duplicate-phase" or schedule_props.editor.kind == "delete-phase" %}
         {{ schedule_props.editor.heading }}
     {% else %}
         Phases &amp; cycles

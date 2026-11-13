@@ -14,7 +14,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from n26 import flags
 from n26.core import cycle_workflow as workflow
-from n26.core.cycle_display import build, schedule_url
+from n26.core.cycle_display import build
 from n26.core.models import CampaignCycle, CampaignCycleCommand
 from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_404
 
@@ -179,7 +179,7 @@ def cycle_command(request, pk, action):
                 "code": "revision_conflict",
                 "errors": errors,
                 "current": submitted.current,
-                "reviewUrl": schedule_url(campaign),
+                "reviewUrl": workflow.editor_back(campaign, action),
             },
             status=409,
         )

@@ -1,6 +1,5 @@
 import {
     ActionBar,
-    ActionMenu,
     Alert,
     Badge,
     BusyControlScope,
@@ -14,7 +13,14 @@ import {
 } from "../../ui";
 import { ScheduleEditor } from "./ScheduleEditor";
 import { useScheduleNavigation } from "./useScheduleNavigation";
-import type { Credits, Cycle, Phase, ScheduleProps } from "./types";
+import {
+    isPageEditor,
+    isPhaseEditor,
+    type Credits,
+    type Cycle,
+    type Phase,
+    type ScheduleProps,
+} from "./types";
 
 export function creditsText(amount: Credits | undefined) {
     if (!amount) return "0¢";
@@ -231,12 +237,10 @@ function PhaseGroup({
     phase,
     cycles,
     anchor,
-    canManage,
 }: {
     phase: Phase;
     cycles: Cycle[];
     anchor: boolean;
-    canManage: boolean;
 }) {
     const heading = `phase-heading-${cycles[0]?.key ?? phase.id}`;
     const rewards = phaseRewards(phase);
@@ -272,46 +276,6 @@ function PhaseGroup({
                         </p>
                     )}
                 </div>
-                {canManage && phase.editHref && (
-                    <div className="flex shrink-0 items-center gap-1">
-                        <ButtonLink
-                            href={phase.editHref}
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Edit ${phase.name}`}
-                            title={`Edit ${phase.name}`}
-                        >
-                            <Icon name="pencil" />
-                        </ButtonLink>
-                        <ActionMenu
-                            label={`More actions for ${phase.name}`}
-                            variant="ghost"
-                            align="end"
-                            items={[
-                                ...(phase.duplicateHref
-                                    ? [
-                                          {
-                                              label: "Duplicate phase",
-                                              href: phase.duplicateHref,
-                                              tone: "default" as const,
-                                              separatorBefore: false,
-                                          },
-                                      ]
-                                    : []),
-                                ...(phase.deleteHref
-                                    ? [
-                                          {
-                                              label: "Delete phase",
-                                              href: phase.deleteHref,
-                                              tone: "danger" as const,
-                                              separatorBefore: true,
-                                          },
-                                      ]
-                                    : []),
-                            ]}
-                        />
-                    </div>
-                )}
             </ActionBar>
             {cycles.length ? (
                 <Card>
@@ -359,12 +323,13 @@ function ScheduleContent(
         };
     },
 ) {
-    if (props.editor?.kind === "plan" || props.editor?.kind === "setup")
+    if (isPageEditor(props.editor))
         return (
             <ScheduleEditor
                 key={`${props.editor.recoveryKey}:${props.editor.values.request_key}`}
                 editor={props.editor}
                 phases={props.phases}
+                addPhaseHref={props.actions.addPhase}
                 breadcrumb={
                     <Breadcrumbs
                         items={[
@@ -377,6 +342,14 @@ function ScheduleContent(
                                 label: "Phases & cycles",
                                 href: props.scheduleHref,
                             },
+                            ...(isPhaseEditor(props.editor)
+                                ? [
+                                      {
+                                          label: "Phase and schedule settings",
+                                          href: props.editor.back,
+                                      },
+                                  ]
+                                : []),
                             { label: props.editor.heading },
                         ]}
                     />
@@ -404,10 +377,6 @@ function ScheduleContent(
                 shown.add(phase.id);
             }
         }
-    }
-    for (const phase of props.phases) {
-        if (!shown.has(phase.id))
-            groups.push({ phase, cycles: [], anchor: true });
     }
     return (
         <div className="space-y-4">
@@ -439,18 +408,9 @@ function ScheduleContent(
                     </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    {props.actions.addPhase && (
-                        <ButtonLink
-                            href={props.actions.addPhase}
-                            variant="ghost"
-                            size="sm"
-                        >
-                            <Icon name="plus" /> Add phase
-                        </ButtonLink>
-                    )}
                     {props.actions.plan && (
                         <ButtonLink href={props.actions.plan} size="sm">
-                            Schedule settings
+                            Phase and schedule settings
                         </ButtonLink>
                     )}
                     {props.actions.transition && (
@@ -499,7 +459,6 @@ function ScheduleContent(
                             <PhaseGroup
                                 key={group.cycles[0]?.key ?? group.phase.id}
                                 {...group}
-                                canManage={props.canManage}
                             />
                         ))}
                     </div>

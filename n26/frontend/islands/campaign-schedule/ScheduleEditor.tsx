@@ -25,6 +25,8 @@ import {
     WorkflowPage,
     useWorkflowForm,
 } from "../../ui";
+import { PhaseSettings } from "./PhaseSettings";
+import { restorePlanDraft, retainPlanDraft, clearPlanDraft } from "./planState";
 import { PlanSteps } from "./PlanSteps";
 import { SetupDraft } from "./SetupDraft";
 import { RewardSettings } from "./RewardSettings";
@@ -34,7 +36,7 @@ import {
     setupDraftKey,
     setupStageHref,
 } from "./setupState";
-import type { Editor, Phase } from "./types";
+import { isPageEditor, type Editor, type Phase } from "./types";
 
 const visible: Record<string, string[]> = {
     setup: [
@@ -120,7 +122,9 @@ export function ScheduleEditor({
     onReload,
     navigation,
     breadcrumb,
+    addPhaseHref,
 }: {
+    addPhaseHref?: string;
     editor: Editor;
     phases: Phase[];
     onNavigate?: (url: string) => void;
@@ -137,7 +141,10 @@ export function ScheduleEditor({
     const [current, setCurrent] = useState(editor.current);
     const [reviewUrl, setReviewUrl] = useState(editor.back);
     const setupCompleted = useRef(false);
-    const [initialValues] = useState(() => restoreSetupDraft(editor));
+    const [planDraft] = useState(() => restorePlanDraft(editor, phases));
+    const [initialValues] = useState(() =>
+        editor.kind === "plan" ? planDraft.values : restoreSetupDraft(editor),
+    );
     const form = useWorkflowForm({
         ...editor,
         values: initialValues,
@@ -158,6 +165,7 @@ export function ScheduleEditor({
         interpret(status, data) {
             if (status === 200 && typeof data.nextUrl === "string") {
                 setupCompleted.current = true;
+                if (editor.kind === "plan") clearPlanDraft(editor);
                 if (editor.kind === "setup") {
                     try {
                         sessionStorage.removeItem(setupDraftKey(editor));
@@ -242,8 +250,18 @@ export function ScheduleEditor({
         previousSetupStage.current = setupStage;
     }, [editor.kind, setupStage]);
     const modeDrafts = useRef<Record<string, string>>({
+        ...planDraft.modes,
         [values.mode]: values.steps,
     });
+    useEffect(() => {
+        if (editor.kind === "plan" && !setupCompleted.current && !form.frozen)
+            retainPlanDraft(
+                editor,
+                values,
+                { ...modeDrafts.current, [values.mode]: values.steps },
+                planDraft.baseline,
+            );
+    }, [editor, values, form.frozen]);
     const setGuard = navigation?.setGuard;
     useEffect(() => {
         setGuard?.(form.pending || form.uncertain || confirmed);
@@ -432,11 +450,11 @@ export function ScheduleEditor({
             {form.conflicted || (unavailable && !form.uncertain) ? (
                 <Button
                     variant="primary"
-                    onClick={() =>
-                        form.conflicted
-                            ? form.review(reviewUrl)
-                            : navigate(editor.back)
-                    }
+                    onClick={() => {
+                        if (editor.kind === "plan") clearPlanDraft(editor);
+                        if (form.conflicted) form.review(reviewUrl);
+                        else navigate(editor.back);
+                    }}
                 >
                     Review current schedule
                 </Button>
@@ -480,11 +498,11 @@ export function ScheduleEditor({
                     confirmed ||
                     navigation?.pending
                 }
-                onClick={() =>
-                    form.conflicted
-                        ? form.review(editor.back)
-                        : navigate(editor.back)
-                }
+                onClick={() => {
+                    if (editor.kind === "plan") clearPlanDraft(editor);
+                    if (form.conflicted) form.review(editor.back);
+                    else navigate(editor.back);
+                }}
             >
                 Cancel
             </Button>
@@ -492,7 +510,7 @@ export function ScheduleEditor({
     );
     return (
         <EditorFrame
-            page={editor.kind === "plan" || editor.kind === "setup"}
+            page={isPageEditor(editor)}
             back={editor.back}
             footer={footer}
             title={editor.heading}
@@ -1072,6 +1090,16 @@ export function ScheduleEditor({
                     )}
                     {editor.kind === "plan" && (
                         <>
+                            <PhaseSettings
+                                phases={phases}
+                                addHref={addPhaseHref}
+                                disabled={
+                                    form.frozen ||
+                                    confirmed ||
+                                    !!navigation?.pending
+                                }
+                            />
+                            <h2 className="text-lg font-semibold">Schedule</h2>
                             {dates}
                             {mode}
                             <PlanSteps
