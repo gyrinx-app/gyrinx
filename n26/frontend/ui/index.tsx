@@ -1602,15 +1602,17 @@ export function FormSection({
     title,
     children,
 }: {
-    title: string;
+    title?: string;
     children: ReactNode;
 }) {
     const s = cotton.workflowPage.section;
     return (
         <section className={s[0]}>
-            <div className={s[1]}>
-                <h2 className={s[2]}>{title}</h2>
-            </div>
+            {title && (
+                <div className={s[1]}>
+                    <h2 className={s[2]}>{title}</h2>
+                </div>
+            )}
             <div className={s[4]}>{children}</div>
         </section>
     );
@@ -1698,3 +1700,6 @@ export {
 } from "./EquipmentModel";
 
 export { TabLinks, type TabLink } from "./TabLinks";
+
+export { RichText, type RichNode } from "./RichText";
+export { RichTextEditor, type RichTextEditorConfig } from "./RichTextEditor";

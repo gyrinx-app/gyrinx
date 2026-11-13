@@ -5,7 +5,7 @@ from html.parser import HTMLParser
 from gyrinx.site.templatetags.platform_tags import safe_rich_text
 
 
-def rich_text_nodes(value):
+def rich_text_nodes(value, *, sanitize=safe_rich_text):
     class Parser(HTMLParser):
         def __init__(self):
             super().__init__(convert_charrefs=True)
@@ -51,5 +51,5 @@ def rich_text_nodes(value):
             self.stack[-1][1].append(data)
 
     parser = Parser()
-    parser.feed(str(safe_rich_text(value)))
+    parser.feed(str(sanitize(value)))
     return parser.nodes

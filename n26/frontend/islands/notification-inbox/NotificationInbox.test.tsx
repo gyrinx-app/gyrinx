@@ -52,10 +52,14 @@ const props: NotificationInboxProps = {
         },
     })),
 };
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+    vi.unstubAllGlobals();
+    sessionStorage.clear();
+});
 function response(data: unknown = { ok: true }) {
     return {
         ok: true,
+        status: 200,
         redirected: false,
         headers: new Headers({ "Content-Type": "application/json" }),
         json: async () => data,
@@ -165,4 +169,137 @@ describe("Notification inbox", () => {
         expect(body.get("bucket")).toBe("inbox");
         expect(body.get("q")).toBe("");
     });
+});
+
+it("toolkit attribution shows the live sender name with their badge", () => {
+    render(
+        <NotificationInbox
+            {...props}
+            rows={[
+                {
+                    ...props.rows[0],
+                    context: {
+                        campaignName: "Ash Road",
+                        campaignHref: "/campaign/",
+                        sender: {
+                            name: "Ada",
+                            href: "/user/@Ada/",
+                            badge: {
+                                label: "Campaign supporter",
+                                svg: {
+                                    tag: "svg",
+                                    props: { viewBox: "0 0 24 24" },
+                                    children: [
+                                        { tag: "path", props: { d: "M0 0h1" } },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                },
+            ]}
+        />,
+    );
+    expect(screen.getByText("· Sent by")).toBeDefined();
+    expect(screen.getByRole("link", { name: /Ada/ })).toBeDefined();
+    expect(
+        screen.getByRole("img", { name: "Campaign supporter" }),
+    ).toBeDefined();
+});
+
+const offered = (choices = 1): NotificationInboxProps => ({
+    ...props,
+    rows: [
+        {
+            ...props.rows[0],
+            offer: {
+                id: "receipt-a",
+                gang: "Glass Vipers",
+                choices,
+                resolved: false,
+                selected: [],
+                rewards: [{ label: "30¢" }, { label: "60¢" }, { label: "90¢" }],
+                commandHref: "/toolkit/choose/command/",
+                recoveryKey: "toolkit-offer-a",
+                values: { request_key: "offer-command-1", payload: "" },
+            },
+        },
+    ],
+});
+
+it("confirms a radio choice inside the notification without navigating", async () => {
+    const fetch = vi
+        .fn()
+        .mockResolvedValue(response({ nextUrl: "/intervention/" }));
+    vi.stubGlobal("fetch", fetch);
+    render(<NotificationInbox {...offered()} />);
+    fireEvent.click(screen.getByRole("radio", { name: "30¢" }));
+    fireEvent.click(screen.getByRole("radio", { name: "60¢" }));
+    expect(screen.getAllByRole("radio", { checked: true })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Confirm choice" }));
+    await screen.findByText("Applied: 60¢");
+    const [url, options] = fetch.mock.calls[0];
+    expect(url).toBe("/toolkit/choose/command/");
+    expect(JSON.parse(options.body.get("payload"))).toEqual({
+        receipt: "receipt-a",
+        selected: [1],
+    });
+    expect(options.headers["X-CSRFToken"]).toBe("token");
+    expect(sessionStorage.getItem("toolkit-offer-a")).toBeNull();
+});
+
+it("limits multiple rewards and retains an uncertain inline choice for reload", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    const view = render(<NotificationInbox {...offered(2)} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "30¢" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "60¢" }));
+    expect(screen.getByRole("checkbox", { name: "90¢" })).toHaveProperty(
+        "disabled",
+        true,
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "30¢" }));
+    expect(screen.getByRole("checkbox", { name: "90¢" })).toHaveProperty(
+        "disabled",
+        false,
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "90¢" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm choices" }));
+    await screen.findByRole("button", { name: "Retry save" });
+    expect(sessionStorage.getItem("toolkit-offer-a")).toContain(
+        "offer-command-1",
+    );
+    view.unmount();
+    render(<NotificationInbox {...offered(2)} csrfToken="fresh-token" />);
+    expect(screen.getByRole("button", { name: "Retry save" })).toBeDefined();
+    expect(screen.getByRole("checkbox", { name: "60¢" })).toHaveProperty(
+        "checked",
+        true,
+    );
+    expect(
+        screen.getByRole("checkbox", { name: "60¢" }).closest("fieldset"),
+    ).toHaveProperty("disabled", true);
+});
+
+it("shows edited content and lets the reader open the original version", () => {
+    render(
+        <NotificationInbox
+            {...props}
+            rows={[
+                {
+                    ...props.rows[0],
+                    edited: {
+                        at: "2026-11-12T12:00:00Z",
+                        originalSubject: "Original title",
+                        originalContent: ["Original message."],
+                    },
+                },
+            ]}
+        />,
+    );
+    expect(screen.getByText(/Edited/)).toBeDefined();
+    expect(screen.queryByText("Original message.")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View original" }));
+    expect(screen.getByText("Original message.")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Hide original" }));
+    expect(screen.queryByText("Original message.")).toBeNull();
 });

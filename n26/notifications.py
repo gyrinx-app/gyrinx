@@ -5,10 +5,11 @@ records the operation independently of notification delivery.
 import logging
 
 from django.db import transaction
+from django.db.models import Q
 from django.tasks import task
 from django.utils import timezone
 
-from gyrinx.site.models import NotificationType, notify
+from gyrinx.site.models import Notification, NotificationType, notify
 from gyrinx.tasks import TaskRoute
 
 logger = logging.getLogger(__name__)
@@ -168,4 +169,83 @@ task_routes = [
     TaskRoute(
         retry_pending_cycle_notifications, schedule="*/5 * * * *", write_scope="n26"
     ),
+]
+
+
+def enqueue_toolkit_delivery(delivery_id):
+    try:
+        deliver_toolkit_notification.func(delivery_id)
+    except Exception:
+        logger.exception("Toolkit notification delivery pending: %s", delivery_id)
+
+
+@task
+def deliver_toolkit_notification(delivery_id: str):
+    from n26.core.models.toolkit import ToolkitDelivery
+    from n26.write_pause import write_guard
+
+    with transaction.atomic(), write_guard():
+        delivery = (
+            ToolkitDelivery.objects.select_for_update(of=("self",))
+            .select_related("recipient", "sender")
+            .filter(Q(delivered_at__isnull=True) | Q(needs_sync=True), pk=delivery_id)
+            .first()
+        )
+        if delivery is None:
+            return False
+        if delivery.delivered_at is not None:
+            from django.contrib.contenttypes.models import ContentType
+
+            Notification.objects.filter(
+                target_content_type=ContentType.objects.get_for_model(ToolkitDelivery),
+                target_object_id=delivery.pk.to_uuid(),
+                owner_id=delivery.recipient_id,
+            ).update(subject=delivery.subject, content=delivery.content)
+            delivery.needs_sync = False
+            delivery.save(update_fields=["needs_sync", "modified"])
+            return True
+        notification = tell(
+            delivery.recipient,
+            delivery.subject,
+            delivery.content,
+            sender=delivery.sender,
+            about=delivery,
+        )
+        if notification is None:
+            raise RuntimeError("Toolkit notification creation failed.")
+        delivery.delivered_at = timezone.now()
+        delivery.needs_sync = False
+        delivery.save(update_fields=["delivered_at", "needs_sync", "modified"])
+        return True
+
+
+@task
+def retry_toolkit_notifications():
+    from n26.core.models.toolkit import ToolkitDelivery
+
+    for pk in (
+        ToolkitDelivery.objects.filter(
+            Q(delivered_at__isnull=True) | Q(needs_sync=True)
+        )
+        .order_by("created")
+        .values_list("pk", flat=True)[:100]
+    ):
+        enqueue_toolkit_delivery(str(pk))
+
+
+task_routes += [
+    TaskRoute(deliver_toolkit_notification, write_scope="n26"),
+    TaskRoute(retry_toolkit_notifications, schedule="*/5 * * * *", write_scope="n26"),
+]
+
+
+@task
+def deliver_toolkit_reports():
+    from n26.core.toolkit_alerts import deliver_due_reports
+
+    return deliver_due_reports()
+
+
+task_routes += [
+    TaskRoute(deliver_toolkit_reports, schedule="* * * * *", write_scope="n26")
 ]

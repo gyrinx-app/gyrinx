@@ -783,7 +783,21 @@ class Operation:
         membership = CampaignMembership.objects.create(campaign=campaign, gang=gang)
         # The join and subsequent grant events must name this campaign.
         self._campaign = campaign
-        self.event(None, LedgerEvent.Kind.JOINED_CAMPAIGN)
+        joined_event = self.event(None, LedgerEvent.Kind.JOINED_CAMPAIGN)
+        if (
+            self.actor
+            and self.actor.pk == gang.owner_id
+            and self.actor.pk != campaign.owner_id
+        ):
+            from n26.core.toolkit import alert_event
+
+            alert_event(
+                campaign,
+                "gang_added",
+                identity=str(joined_event.pk),
+                text=f"{self.actor.username} added {gang.name} to the campaign.",
+                actor=self.actor,
+            )
         membership.type_carrier = self._carry(campaign.campaign_type)
         membership.additions_carrier = self._carry(campaign.additions)
         membership.save(update_fields=["type_carrier", "additions_carrier", "modified"])
@@ -836,13 +850,38 @@ class Operation:
             campaign_asset.save(
                 update_fields=["holder", "ownership_revision", "modified"]
             )
-            self.event(campaign_asset, LedgerEvent.Kind.LOST, note=str(campaign_asset))
+            lost_event = self.event(
+                campaign_asset, LedgerEvent.Kind.LOST, note=str(campaign_asset)
+            )
+            from n26.core.toolkit import alert_event
+
+            alert_event(
+                membership.campaign,
+                "asset_owner_changed",
+                identity=str(lost_event.pk),
+                text=f"{campaign_asset} became unclaimed after {self.gang.name} left the campaign.",
+                actor=self.actor,
+            )
         for carrier in (membership.type_carrier, membership.additions_carrier):
             if carrier is not None:
                 self.remove(carrier)
         membership.left = _now()
         membership.save(update_fields=["left", "modified"])
-        self.event(None, LedgerEvent.Kind.LEFT_CAMPAIGN)
+        left_event = self.event(None, LedgerEvent.Kind.LEFT_CAMPAIGN)
+        if (
+            self.actor
+            and self.actor.pk == self.gang.owner_id
+            and self.actor.pk != membership.campaign.owner_id
+        ):
+            from n26.core.toolkit import alert_event
+
+            alert_event(
+                membership.campaign,
+                "gang_removed",
+                identity=str(left_event.pk),
+                text=f"{self.actor.username} removed {self.gang.name} from the campaign.",
+                actor=self.actor,
+            )
         self._campaign = None
         return membership
 
@@ -1385,7 +1424,36 @@ class Operation:
                     else descendant_event_fields
                 ),
             )
+        self._alert_roster_departure(assignment)
         return assignment
+
+    def _alert_roster_departure(self, assignment):
+        if (
+            not assignment.gang_id
+            or not assignment.profile_id
+            or not assignment.miniature_root_id
+        ):
+            return
+        if assignment.profile.profile_type.name != "Fighter":
+            return
+        event = (
+            assignment.ledger_events.filter(
+                batch=self.batch,
+                kind__in=[LedgerEvent.Kind.REMOVED, LedgerEvent.Kind.REFUNDED],
+            )
+            .order_by("-created")
+            .first()
+        )
+        if event and event.campaign_id:
+            from n26.core.toolkit import alert_event
+
+            alert_event(
+                event.campaign,
+                "fighter_deleted",
+                identity=str(event.pk),
+                text=f"{assignment.miniature_root.name} was deleted from {self.gang.name}'s roster.",
+                actor=self.actor,
+            )
 
     def restore(self, assignment, note="", **event_fields):
         """Restore this archived assignment without restoring its dependants.
@@ -1451,6 +1519,7 @@ class Operation:
                     "modified",
                 ]
             )
+        self._alert_roster_departure(assignment)
         return assignment
 
     def sell(self, assignment, note=""):
@@ -2738,6 +2807,28 @@ class Operation:
         if weapon.built_ins_id is not None:
             self.reconcile_defaults(assignment)
         return assignment
+
+    def reward_to_stash(self, assignable, *, rating, note=""):
+        """Give equipment to the gang stash with its rating and no credit payment."""
+        from n26.core.models import Stash
+
+        stash, _ = Stash.objects.get_or_create(gang=self.gang)
+        held = self.assign(
+            assignable,
+            stash=stash,
+            paid=0,
+            list_price=rating,
+            discount=rating,
+            rating=rating,
+            reason=Reason.REWARD,
+            note=note,
+        )
+        from n26.library.models import Weapon
+
+        if isinstance(assignable, Weapon):
+            self._grant_free_profiles(assignable, held)
+        self.reconcile_defaults(held)
+        return held
 
     def _grant_free_profiles(self, weapon, assignment, sold_separately=frozenset()):
         """Grant a weapon's free profiles on every acquisition path.

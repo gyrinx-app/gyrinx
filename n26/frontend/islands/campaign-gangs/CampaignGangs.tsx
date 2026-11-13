@@ -13,6 +13,7 @@ import {
     runCampaignDialog,
     useCampaignDialogRequests,
     UserLink,
+    Tooltip,
 } from "../../ui";
 import {
     BASE_COLUMNS,
@@ -181,6 +182,40 @@ export function CampaignGangs(
                                     {gang.name}
                                 </Link>
                             </span>
+                            {!!gang.tags?.length && (
+                                <div className="flex flex-wrap gap-1 py-1">
+                                    {gang.tags.map((tag, index) => (
+                                        <Tooltip
+                                            key={index}
+                                            label={`${tag.name}${tag.info ? ": " + tag.info : ""}`}
+                                        >
+                                            <span
+                                                tabIndex={0}
+                                                className="inline-flex items-center gap-1 text-xs font-semibold text-accent-text"
+                                                style={
+                                                    gang.colour
+                                                        ? { color: gang.colour }
+                                                        : undefined
+                                                }
+                                                aria-label={`${tag.name}${tag.info ? ": " + tag.info : ""}`}
+                                            >
+                                                <span className="hidden xl:inline">
+                                                    {tag.name}
+                                                </span>
+                                                <Icon
+                                                    name={
+                                                        tag.icon as Parameters<
+                                                            typeof Icon
+                                                        >[0]["name"]
+                                                    }
+                                                    className="size-[1em]"
+                                                    strokeWidth={1.7}
+                                                />
+                                            </span>
+                                        </Tooltip>
+                                    ))}
+                                </div>
+                            )}
                             <span className="text-xs text-muted">
                                 {gang.type}
                                 {props.artwork[gang.artwork] && (

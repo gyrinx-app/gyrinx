@@ -966,6 +966,8 @@ def _tell(e, row, alive):
                 at,
                 Span(f"{went_as} to the trading post"),
             ), "credits"
+        case Kind.TOOLKIT_TAG:
+            return (Span(e.note[:1].lower() + e.note[1:]),), "gang"
         case Kind.NOTED:
             # About no model, so about the gang — as a rename is.
             if model is None:
@@ -1147,6 +1149,7 @@ def _for(model, at, word="for"):
 #: also appear as raw bookkeeping beneath it.
 _NOTE_IS_MACHINERY = {
     Kind.CLONED,
+    Kind.TOOLKIT_TAG,
     Kind.STATUS_SET,
     Kind.TRANSFERRED,
     Kind.INCOME,
@@ -1734,6 +1737,8 @@ def _tell_campaign(e, catalogue=None):
         case kinds.ASSET_CREATED:
             what = f"the asset {e.note}" if e.note else "an asset"
             return (Span(f"created {what}"),), "campaign"
+        case kinds.PLAYER_TAGGED:
+            return (Span(e.note[:1].lower() + e.note[1:]),), "campaign"
         case kinds.COUNTER_ADDED:
             # The note holds the name and the opening value, as a budget
             # note holds its two figures.

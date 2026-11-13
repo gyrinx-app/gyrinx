@@ -176,6 +176,7 @@ class LedgerEvent(Base):
         TOOK_AWAY = "took_away", "Took away"
         # Journal-only changes have no entry or deltas to reconcile.
         RENAMED = "renamed", "Renamed"
+        TOOLKIT_TAG = "toolkit_tag", "Campaign tag changed"
         NOTED = "noted", "Notes edited"
         LORE_EDITED = "lore_edited", "Lore edited"
         IMAGE_SET = "image_set", "Picture set"

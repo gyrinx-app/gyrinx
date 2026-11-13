@@ -195,6 +195,13 @@ def campaign(request, pk):
         :BATTLES_ON_THE_PAGE
     ]
     players = list(_players(found))
+    from n26.core.models.toolkit import CampaignTag
+
+    player_tags = {}
+    for tag in CampaignTag.objects.filter(
+        campaign=found, player__isnull=False, removed_at__isnull=True
+    ).order_by("name"):
+        player_tags.setdefault(tag.player_id, []).append(tag)
     player_lines = []
     for player in players:
         gangs = [
@@ -208,7 +215,13 @@ def campaign(request, pk):
             else player.get_state_display()
         )
         player_lines.append(
-            CampaignPlayerLine(player.user, player.state, gangs, participation)
+            CampaignPlayerLine(
+                player.user,
+                player.state,
+                gangs,
+                participation,
+                player_tags.get(player.user_id, []),
+            )
         )
     player_count = sum(player.state == accepted for player in players)
     invitation_count = sum(player.waiting for player in players)
@@ -343,7 +356,17 @@ def _fill_addresses(sheet, campaign, *, yours, viewer, request=None, current_url
 
         prepare_gang_table(sheet, request, here, current_url=current_url)
         preferences = table_query(request, current_url=sheet.table_href)
+    from n26.core.models.toolkit import CampaignTag
+
+    tags = {}
+    for tag in CampaignTag.objects.filter(
+        campaign=campaign, gang__isnull=False, removed_at__isnull=True
+    ).order_by("name"):
+        tags.setdefault(str(tag.gang_id), []).append(
+            {"name": tag.name, "icon": tag.icon, "info": tag.info}
+        )
     for line in sheet.gangs:
+        line.tags = tags.get(line.gang_id, [])
         line.href = reverse("n26-gang", args=[line.gang_id])
         if not line.credits_unlimited and (
             line.yours or (yours and not campaign.archived)
