@@ -416,7 +416,8 @@ def _prepare_deletion(campaign, state, initial, context, victims, *, phase_id=No
 
 def _available_cycle_choices(state, victims=(), *, phase_id=None):
     choices = []
-    for cycle in (*state.cycles, *s.project(state, limit=cycles.MAX_PREFIX)):
+    continuation = s.PlanContinuation(state.plan, state.next_position)
+    for cycle in (*state.cycles, *s.project(continuation, limit=cycles.MAX_PREFIX)):
         saved = isinstance(cycle, s.Cycle)
         cycle_phase = cycle.details.phase_id if saved else cycle.phase_id
         if (
