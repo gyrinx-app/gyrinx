@@ -700,7 +700,14 @@ def editor_props(
         "kind": prepared.action,
         "heading": prepared.heading,
         "lead": prepared.lead,
-        "context": prepared.context,
+        "context": {
+            **prepared.context,
+            **(
+                {"planRecoveryKey": f"cycles:{actor.pk}:{campaign.pk}:plan:"}
+                if prepared.action == "delete-phase"
+                else {}
+            ),
+        },
         "values": values,
         "errors": {name: list(messages) for name, messages in form.errors.items()},
         "initialConflict": conflict,

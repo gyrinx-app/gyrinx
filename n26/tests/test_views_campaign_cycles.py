@@ -1737,3 +1737,30 @@ def test_settings_queries_stay_flat_as_phase_list_grows(client, campaign, config
         expanded = client.get(url, HTTP_ACCEPT="application/json").json()["schedule"]
     assert len(expanded["phases"]) == len(initial["phases"]) + 4
     assert len(large) == len(small)
+
+
+def test_phase_deletion_confirms_revision_after_projected_replacement(
+    client, campaign, configured
+):
+    old = props(client.get(editor_url(campaign, "plan")))["editor"]
+    target = next(
+        cycle
+        for cycle in s.project(configured)
+        if cycle.phase_id == configured.phases[-1].id
+    )
+    phase = configured.current_phase.id
+    editor = props(client.get(editor_url(campaign, "delete-phase", phase=phase)))[
+        "editor"
+    ]
+    assert editor["context"]["planRecoveryKey"] == old["recoveryKey"]
+    values = {**editor["values"], "current_choice": json.dumps(ref_data(target.ref))}
+    response = post(client, campaign, "delete-phase", values, phase=phase)
+    assert response.status_code == 200
+    replay = post(client, campaign, "delete-phase", values, phase=phase)
+    assert replay.json() == response.json()
+    fresh = props(client.get(response.json()["nextUrl"]))["editor"]
+    assert str(response.json()["revision"]) == fresh["values"]["expected_revision"]
+    assert fresh["values"]["date_start"] > old["values"]["date_start"]
+    before = {step["id"]: step["count"] for step in json.loads(old["values"]["steps"])}
+    after = json.loads(fresh["values"]["steps"])
+    assert any(step["count"] < before[step["id"]] for step in after)

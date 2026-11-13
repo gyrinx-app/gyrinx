@@ -26,7 +26,12 @@ import {
     useWorkflowForm,
 } from "../../ui";
 import { PhaseSettings } from "./PhaseSettings";
-import { restorePlanDraft, retainPlanDraft, clearPlanDraft } from "./planState";
+import {
+    restorePlanDraft,
+    retainPlanDraft,
+    clearPlanDraft,
+    confirmPhaseDeletion,
+} from "./planState";
 import { PlanSteps } from "./PlanSteps";
 import { SetupDraft } from "./SetupDraft";
 import { RewardSettings } from "./RewardSettings";
@@ -165,6 +170,7 @@ export function ScheduleEditor({
         interpret(status, data) {
             if (status === 200 && typeof data.nextUrl === "string") {
                 setupCompleted.current = true;
+                confirmPhaseDeletion(editor, form.values, data.revision);
                 if (editor.kind === "plan") clearPlanDraft(editor);
                 if (editor.kind === "setup") {
                     try {

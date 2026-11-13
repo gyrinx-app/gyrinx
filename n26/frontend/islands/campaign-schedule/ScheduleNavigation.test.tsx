@@ -989,3 +989,109 @@ test("an uncertain settings save blocks phase links until its original command i
         screen.getByRole("heading", { level: 1, name: settings.heading }),
     ).toBeTruthy();
 });
+
+test("deleting the current phase into a projected replacement saves the reconciled settings draft", async () => {
+    const opening = { id: "opening-step", phase_id: "phase", count: 2 };
+    const downtime = { id: "downtime-step", phase_id: "downtime", count: 4 };
+    const settings = settingsEditor();
+    settings.values = {
+        ...settings.values,
+        steps: JSON.stringify([opening, downtime]),
+        date_mode: "planned",
+        date_start: "2026-11-08",
+    };
+    const initial = data(settings);
+    initial.phases[0].deleteHref = base + "edit/delete-phase/?phase=phase";
+    initial.phases.push({
+        ...initial.phases[0],
+        id: "downtime",
+        name: "Downtime",
+        count: 0,
+    });
+    const deletion: Editor = {
+        ...phaseEditor("delete-phase"),
+        heading: "Delete phase",
+        context: {
+            planRecoveryKey: settings.recoveryKey,
+            replacesCurrent: true,
+            currentChoices: [
+                {
+                    value: '{"plan_id":"plan","index":3}',
+                    label: "Cycle 4 · Downtime",
+                },
+            ],
+        },
+        values: {
+            request_key: "delete-key",
+            expected_revision: "1",
+            phase_id: "phase",
+            current_choice: "",
+        },
+    };
+    const fresh = settingsEditor("2");
+    fresh.values = {
+        ...fresh.values,
+        steps: JSON.stringify([{ ...downtime, count: 2 }]),
+        date_mode: "planned",
+        date_start: "2026-11-22",
+    };
+    const returned = { ...data(fresh), phases: initial.phases.slice(1) };
+    const saved = (value: Record<string, unknown>, status = 200) => ({
+        status,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => value,
+    });
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(json({ ...initial, editor: deletion }))
+        .mockResolvedValueOnce(saved({ nextUrl: settings.action, revision: 2 }))
+        .mockResolvedValueOnce(json(returned))
+        .mockImplementationOnce((_url, request) =>
+            request.body.get("expected_revision") === "2"
+                ? saved({ nextUrl: base })
+                : saved(
+                      {
+                          code: "revision_conflict",
+                          errors: { __all__: ["The schedule changed."] },
+                          current: {
+                              revision: 2,
+                              cycle: "Cycle 4",
+                              phase: "Downtime",
+                          },
+                      },
+                      409,
+                  ),
+        )
+        .mockResolvedValueOnce(json(data()));
+    vi.stubGlobal("fetch", fetch);
+    window.history.replaceState(null, "", settings.action);
+    render(<CampaignSchedule {...initial} />);
+    await userEvent.clear(screen.getByLabelText("Step 2 cycles"));
+    await userEvent.type(screen.getByLabelText("Step 2 cycles"), "7");
+    fireEvent.change(screen.getByLabelText("Cycle 1 starts"), {
+        target: { value: "2026-12-10" },
+    });
+    await userEvent.click(
+        screen.getByRole("link", { name: "Delete Occupation" }),
+    );
+    await screen.findByRole("heading", { level: 1, name: "Delete phase" });
+    await userEvent.selectOptions(
+        screen.getByLabelText("Current cycle after deletion"),
+        '{"plan_id":"plan","index":3}',
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Delete phase" }));
+    await screen.findByRole("heading", { level: 1, name: settings.heading });
+    expect(screen.getByLabelText("Step 1 cycles")).toHaveProperty("value", "5");
+    expect(screen.getByLabelText("Cycle 1 starts")).toHaveProperty(
+        "value",
+        "2026-12-10",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByRole("heading", { level: 1, name: "Phases & cycles" });
+    const payload = fetch.mock.calls[3][1].body as URLSearchParams;
+    expect(payload.get("expected_revision")).toBe("2");
+    expect(JSON.parse(payload.get("steps")!)).toEqual([
+        { ...downtime, count: 5 },
+    ]);
+    expect(payload.get("date_start")).toBe("2026-12-10");
+});

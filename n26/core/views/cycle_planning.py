@@ -171,7 +171,12 @@ def cycle_command(request, pk, action):
     )
     if submitted.result:
         _feedback(request, campaign, action, submitted)
-        return JsonResponse({"nextUrl": workflow.next_url(campaign, action, submitted)})
+        return JsonResponse(
+            {
+                "nextUrl": workflow.next_url(campaign, action, submitted),
+                "revision": submitted.result.revision,
+            }
+        )
     errors = {name: list(items) for name, items in submitted.form.errors.items()}
     if submitted.conflict:
         return JsonResponse(
