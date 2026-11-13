@@ -15,6 +15,10 @@ Starts the full development environment with a single command. Handles per-workt
 ./scripts/dev.sh --reset-db   # Drop and re-fork the worktree database
 ```
 
+Startup reads the whole `git worktree list --porcelain` listing and keeps the
+first `worktree` path. Piping that listing into `head` exits under `pipefail`
+once many worktrees are registered (`sed: stdout: Broken pipe` on macOS).
+
 The server restarts itself when it grows past 2,048 MB
 (`GYRINX_DEV_MEMORY_LIMIT_MB`); run with `--noreload`, it stops there instead.
 When an agent session started it, it also stops

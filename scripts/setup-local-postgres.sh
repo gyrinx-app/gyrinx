@@ -276,7 +276,7 @@ else
   VENV_PATH="${SCRIPT_DIR}/../.venv"
   if [ ! -d "$VENV_PATH" ]; then
     # Try main worktree
-    MAIN_WT=$(git -C "${SCRIPT_DIR}" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | head -1)
+    MAIN_WT=$(_main_worktree "${SCRIPT_DIR}" 2>/dev/null || true)
     if [ -n "$MAIN_WT" ] && [ -d "${MAIN_WT}/.venv" ]; then
       VENV_PATH="${MAIN_WT}/.venv"
     fi
@@ -307,7 +307,7 @@ echo
 echo "--- [8/8] venv activation hook ---"
 VENV_DIR="${SCRIPT_DIR}/../.venv"
 if [ ! -d "$VENV_DIR" ]; then
-  MAIN_WT=$(git -C "${SCRIPT_DIR}" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | head -1)
+  MAIN_WT=$(_main_worktree "${SCRIPT_DIR}" 2>/dev/null || true)
   if [ -n "$MAIN_WT" ] && [ -d "${MAIN_WT}/.venv" ]; then
     VENV_DIR="${MAIN_WT}/.venv"
   fi

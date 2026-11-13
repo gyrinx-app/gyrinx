@@ -86,7 +86,9 @@ the generated image out of git and check it for private data before uploading.
 - `lib/worktree.sh`: Shared helpers for per-worktree database names, Django ports,
   the worktree Python interpreter used by git hook scripts, and stamped venv and
   React-asset provisioners. Sourced by `dev.sh`, `activate_venv_hook.sh`,
-  `.codex/run.sh`, cleanup scripts, and pre-commit wrappers.
+  `.codex/run.sh`, cleanup scripts, and pre-commit wrappers. The main checkout
+  path is the first line of `git worktree list --porcelain`, read from the
+  captured listing so a long worktree list does not SIGPIPE under `pipefail`.
 - `test.sh`: Thin wrapper over `pytest`. All args are passed through. Parallel execution
   (`-n auto`) is already enabled via `pyproject.toml` addopts; use `-n 0` to force serial.
 - `check_migrations.sh`: Runs `makemigrations --check`. The pre-commit hook
