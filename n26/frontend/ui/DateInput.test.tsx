@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { DateInput, Field } from "./index";
 
 describe("date input", () => {
-    it("clears the submitted value without submitting and returns focus to the date field", async () => {
+    it("clears the native field and submitted value without refocusing or submitting", async () => {
         const changed = vi.fn();
         const submitted = vi.fn((event: FormEvent<HTMLFormElement>) =>
             event.preventDefault(),
@@ -52,15 +52,29 @@ describe("date input", () => {
         expect(changed).toHaveBeenLastCalledWith("2026-11-08");
         await userEvent.click(clear);
         expect(changed).toHaveBeenLastCalledWith("");
-        expect(input.value).toBe("");
+        const emptied = screen.getByLabelText("Start date") as HTMLInputElement;
+        expect(emptied).not.toBe(input);
+        expect(emptied.value).toBe("");
+        expect(emptied.valueAsDate).toBeNull();
+        expect(screen.getByText("No date")).toBeTruthy();
+        expect(emptied.getAttribute("aria-describedby")!.split(" ")).toEqual(
+            descriptions,
+        );
         expect(
             new FormData(
                 screen.getByRole("form", { name: "Dates" }) as HTMLFormElement,
             ).get("starts_on"),
         ).toBe("");
         expect(submitted).not.toHaveBeenCalled();
-        expect(document.activeElement).toBe(input);
-        expect(clear.disabled).toBe(true);
+        expect(document.activeElement).toBe(clear);
+        expect(clear.disabled).toBe(false);
+        const beforeRepeat = changed.mock.calls.length;
+        await userEvent.click(clear);
+        expect(changed).toHaveBeenCalledTimes(beforeRepeat + 1);
+        expect(screen.getByLabelText("Start date")).not.toBe(emptied);
+        expect(
+            (screen.getByLabelText("Start date") as HTMLInputElement).value,
+        ).toBe("");
         expect(screen.getByRole("button", { name: "Clear start date" })).toBe(
             clear,
         );
