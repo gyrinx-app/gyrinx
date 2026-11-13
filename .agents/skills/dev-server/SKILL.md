@@ -19,6 +19,12 @@ The Gyrinx dev server is started with `scripts/dev.sh`. It handles per-worktree 
 ./scripts/dev.sh --reset-db   # Drop and re-fork the worktree database, then start
 ```
 
+`./scripts/dev.sh` resolves the main checkout from the whole
+`git worktree list --porcelain` listing and keeps the first `worktree` path.
+Do not pipe that listing into `head`. Under `set -o pipefail`, `head` closing
+the pipe makes startup exit once many worktrees are registered. On macOS the
+only message is `sed: stdout: Broken pipe`.
+
 This single command:
 
 1. Ensures local Postgres is running

@@ -30,8 +30,14 @@ if command -v _main_worktree >/dev/null 2>&1; then
   MAIN_WT=$(cd "$PROJECT_DIR" 2>/dev/null && _main_worktree || true)
 fi
 if [ -z "$MAIN_WT" ]; then
-  MAIN_WT=$(git -C "$PROJECT_DIR" worktree list --porcelain 2>/dev/null \
-    | sed -n 's/^worktree //p' | head -1)
+  # Same first-line read as _main_worktree. `head` would SIGPIPE under pipefail.
+  MAIN_WT=$(
+    listing=$(git -C "$PROJECT_DIR" worktree list --porcelain 2>/dev/null || true)
+    line=${listing%%$'\n'*}
+    case "$line" in
+      "worktree "*) printf '%s\n' "${line#worktree }" ;;
+    esac
+  )
 fi
 
 PG_BIN_DIR=""
