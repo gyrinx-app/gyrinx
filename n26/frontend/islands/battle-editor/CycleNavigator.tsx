@@ -17,6 +17,7 @@ export type CycleOptions = {
     current: string;
     currentValue: CycleChoice["value"] | null;
     lastOrder: number;
+    adjacent?: { anchor: number; previous: number | null; next: number | null };
     choices: CycleChoice[];
     previous: number | null;
     next: number | null;
@@ -101,6 +102,13 @@ export function CycleNavigator({
         return () => controller.abort();
     }, [readUrl, value]);
 
+    const neighbour = (data: CycleOptions, direction: number) =>
+        data.adjacent && data.adjacent.anchor === selected?.order
+            ? data.adjacent[direction < 0 ? "previous" : "next"]
+            : selected
+              ? selected.order + direction
+              : null;
+
     async function move(direction: number) {
         if (moving !== null) return;
         if (!selected) {
@@ -110,7 +118,8 @@ export function CycleNavigator({
             if (first) onChange(key(first));
             return;
         }
-        const order = selected.order + direction;
+        const order = neighbour(options, direction);
+        if (order === null) return;
         const available = options.choices.find(
             (choice) => choice.order === order,
         );
@@ -122,11 +131,13 @@ export function CycleNavigator({
         setError("");
         try {
             const updated = await read(readUrl, value);
+            const nextOrder = neighbour(updated, direction);
+            setOptions(updated);
+            if (nextOrder === null) return;
             const next = updated.choices.find(
-                (choice) => choice.order === order,
+                (choice) => choice.order === nextOrder,
             );
             if (!next) throw new Error();
-            setOptions(updated);
             onChange(key(next));
         } catch {
             setError("The cycle could not be loaded. Try again.");
@@ -146,7 +157,10 @@ export function CycleNavigator({
                         className="min-h-11 shrink-0"
                         busy={moving === -1}
                         disabled={
-                            !selected || selected.order <= 1 || moving !== null
+                            !selected ||
+                            neighbour(options, -1) === null ||
+                            selected.order <= 1 ||
+                            moving !== null
                         }
                         onClick={() => void move(-1)}
                     >
@@ -209,7 +223,8 @@ export function CycleNavigator({
                         busy={moving === 1}
                         disabled={
                             (selected
-                                ? selected.order >= options.lastOrder
+                                ? neighbour(options, 1) === null ||
+                                  selected.order >= options.lastOrder
                                 : !options.choices.length) || moving !== null
                         }
                         onClick={() => void move(1)}

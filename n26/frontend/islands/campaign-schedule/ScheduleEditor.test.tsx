@@ -665,3 +665,128 @@ test.each([true, false])(
         ).toBeTruthy();
     },
 );
+
+test("deleting the current phase retains its explicit replacement through an uncertain retry", async () => {
+    const fetch = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Lost response"))
+        .mockResolvedValueOnce(json({ nextUrl: "/cycles/" }));
+    vi.stubGlobal("fetch", fetch);
+    render(
+        <ScheduleEditor
+            phases={phases}
+            onNavigate={vi.fn()}
+            editor={{
+                ...editor,
+                kind: "delete-phase",
+                heading: "Delete phase",
+                lead: "Delete Opening and all its cycles.",
+                context: {
+                    savedCount: 3,
+                    battleCount: 2,
+                    futureCount: 4,
+                    repeating: true,
+                    replacesCurrent: true,
+                    currentChoices: [
+                        {
+                            value: '{"cycle_id":"replacement"}',
+                            label: "Cycle 4 · Downtime",
+                        },
+                    ],
+                },
+                values: {
+                    request_key: "delete-command",
+                    expected_revision: "2",
+                    phase_id: "opening",
+                    current_choice: "",
+                },
+            }}
+        />,
+    );
+    expect(screen.getByText(/every repetition/)).toBeTruthy();
+    expect(screen.getByText(/2 battles will have no phase/)).toBeTruthy();
+    await userEvent.selectOptions(
+        screen.getByLabelText("Current cycle after deletion"),
+        "none",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Delete phase" }));
+    expect(
+        await screen.findByRole("button", { name: "Retry save" }),
+    ).toBeTruthy();
+    expect(
+        screen.getByLabelText("Current cycle after deletion"),
+    ).toHaveProperty("disabled", true);
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const first = String(fetch.mock.calls[0][1].body);
+    expect(new URLSearchParams(first).get("current_choice")).toBe("none");
+    expect(String(fetch.mock.calls[1][1].body)).toBe(first);
+});
+
+test("single-cycle confirmation explains projected prefix and preserves the pattern", () => {
+    render(
+        <ScheduleEditor
+            phases={phases}
+            editor={{
+                ...editor,
+                kind: "delete-cycle",
+                heading: "Delete cycle",
+                context: { savedCount: 1, battleCount: 0, projectedPrefix: 3 },
+                values: {
+                    request_key: "delete-cycle",
+                    expected_revision: "1",
+                    target: '{"plan_id":"pattern","index":3}',
+                    current_choice: "",
+                },
+            }}
+        />,
+    );
+    expect(
+        screen.getByText(/future pattern will remain unchanged/),
+    ).toBeTruthy();
+    expect(screen.queryByLabelText("Current cycle after deletion")).toBeNull();
+    expect(screen.queryByText(/0 battles will/)).toBeNull();
+    expect(screen.getByText(/Battles and results will be kept/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Delete cycle" })).toBeTruthy();
+});
+
+test("starting after deletion posts an explicit surviving cycle", async () => {
+    const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
+    vi.stubGlobal("fetch", fetch);
+    render(
+        <ScheduleEditor
+            phases={phases}
+            onNavigate={vi.fn()}
+            editor={{
+                ...editor,
+                kind: "start",
+                heading: "Start cycle",
+                context: {
+                    selectStart: true,
+                    startChoices: [
+                        {
+                            value: '{"plan_id":"pattern","index":2}',
+                            label: "Cycle 3 · Opening",
+                        },
+                    ],
+                },
+                values: {
+                    request_key: "resume",
+                    expected_revision: "3",
+                    expected_current: "",
+                    start_target: "",
+                },
+            }}
+        />,
+    );
+    await userEvent.selectOptions(
+        screen.getByLabelText("Cycle to start"),
+        '{"plan_id":"pattern","index":2}',
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Start cycle" }));
+    expect(
+        new URLSearchParams(String(fetch.mock.calls[0][1].body)).get(
+            "start_target",
+        ),
+    ).toBe('{"plan_id":"pattern","index":2}');
+});

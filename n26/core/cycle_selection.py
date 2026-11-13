@@ -73,6 +73,7 @@ def options(campaign, *, page=None, selected=None):
                 retained = (
                     CampaignCycle.objects.filter(
                         campaign=campaign,
+                        archived=False,
                         source_plan_id=to_ulid(target.position.plan_id),
                         source_position=target.position.index,
                     )
@@ -91,7 +92,7 @@ def options(campaign, *, page=None, selected=None):
                     header.current_cycle
                     if target.cycle_id == str(header.current_cycle_id)
                     else CampaignCycle.objects.filter(
-                        campaign=campaign, pk=to_ulid(target.cycle_id)
+                        campaign=campaign, archived=False, pk=to_ulid(target.cycle_id)
                     )
                     .select_related("phase")
                     .first()
@@ -102,29 +103,30 @@ def options(campaign, *, page=None, selected=None):
             # Invalid retained selections do not become choices from another campaign.
             pass
         saved = Paginator(
-            CampaignCycle.objects.filter(campaign=campaign)
+            CampaignCycle.objects.filter(campaign=campaign, archived=False)
             .select_related("phase")
             .order_by("order"),
             50,
         )
-        chosen = saved.get_page(page or (min(anchor, saved.count) - 1) // 50 + 1)
+        ordinal = CampaignCycle.objects.filter(
+            campaign=campaign, archived=False, order__lte=anchor
+        ).count()
+        chosen = saved.get_page(page or (max(ordinal, 1) - 1) // 50 + 1)
         visible = list(chosen)
         visible_orders = {cycle.order for cycle in visible}
         for extra in (selected_saved, retained):
             if extra and extra.order not in visible_orders:
                 visible.append(extra)
                 visible_orders.add(extra.order)
-        missing = {
-            order
-            for order in (anchor - 1, anchor + 1)
-            if 1 <= order <= saved.count and order not in visible_orders
-        }
-        if missing:
-            visible.extend(
-                CampaignCycle.objects.filter(
-                    campaign=campaign, order__in=missing
-                ).select_related("phase")
-            )
+        adjacent = CampaignCycle.objects.filter(
+            campaign=campaign, archived=False
+        ).select_related("phase")
+        previous_cycle = adjacent.filter(order__lt=anchor).order_by("-order").first()
+        next_cycle = adjacent.filter(order__gt=anchor).order_by("order").first()
+        for extra in (previous_cycle, next_cycle):
+            if extra and extra.order not in visible_orders:
+                visible.append(extra)
+                visible_orders.add(extra.order)
         choices = [
             _choice(
                 ref_data(s.SavedCycleRef(str(cycle.pk))),
@@ -152,7 +154,9 @@ def options(campaign, *, page=None, selected=None):
             )
         phase_names = {
             str(key): name
-            for key, name in campaign.cycle_phases.values_list("id", "name")
+            for key, name in campaign.cycle_phases.filter(archived=False).values_list(
+                "id", "name"
+            )
         }
         start = max(header.next_position, plan.position_for(anchor) - 1)
         limit = min(12, last_position - start)
@@ -174,6 +178,23 @@ def options(campaign, *, page=None, selected=None):
                         ends_on=cycle.ends_on,
                     )
                 )
+        first_projected_order = plan.order_for(header.next_position)
+        previous_order = (
+            anchor - 1
+            if anchor > first_projected_order
+            else previous_cycle.order
+            if previous_cycle
+            else None
+        )
+        next_order = (
+            anchor + 1
+            if anchor >= first_projected_order and anchor < last_order
+            else next_cycle.order
+            if next_cycle
+            else first_projected_order
+            if anchor < first_projected_order <= last_order
+            else None
+        )
         return {
             "configured": True,
             "current": current.name if current else "No current cycle",
@@ -181,6 +202,11 @@ def options(campaign, *, page=None, selected=None):
             if current
             else None,
             "lastOrder": last_order,
+            "adjacent": {
+                "anchor": anchor,
+                "previous": previous_order,
+                "next": next_order,
+            },
             "choices": sorted(choices, key=lambda choice: choice["order"]),
             "previous": chosen.previous_page_number()
             if chosen.has_previous()

@@ -117,7 +117,11 @@ def template_from_data(name, data):
 
 def template_data(template):
     return {
-        "phases": [asdict(p) for p in template.phases],
+        "phases": [
+            {"id": p.id, "details": asdict(p.details)}
+            for p in template.phases
+            if not p.archived
+        ],
         "steps": [asdict(step) for step in template.steps],
     }
 

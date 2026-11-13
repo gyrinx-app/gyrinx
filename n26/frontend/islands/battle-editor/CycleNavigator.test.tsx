@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, expect, test, vi } from "vitest";
@@ -128,3 +128,66 @@ test("a gap in loaded history fetches the adjacent cycle rather than skipping fo
     expect(screen.queryByText("Cycle 7")).toBeNull();
     expect(fetch.mock.calls[0][0]).toContain("selected=");
 });
+
+test("deleted number gaps use the server's live neighbours", async () => {
+    const change = vi.fn();
+    render(
+        <CycleNavigator
+            initial={{
+                ...initial,
+                choices: [choice(2), choice(5)],
+                adjacent: { anchor: 2, previous: null, next: 5 },
+            }}
+            value={JSON.stringify(choice(2).value)}
+            onChange={change}
+            readUrl="/choices/"
+        />,
+    );
+    expect(
+        screen.getByRole("button", { name: "Previous cycle" }),
+    ).toHaveProperty("disabled", true);
+    await userEvent.click(screen.getByRole("button", { name: "Next cycle" }));
+    expect(change).toHaveBeenCalledWith(JSON.stringify(choice(5).value));
+});
+
+test.each(["Previous cycle", "Next cycle"])(
+    "a refreshed %s boundary keeps the selection without showing an error",
+    async (label) => {
+        const forwards = label === "Next cycle";
+        const fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            headers: new Headers({ "content-type": "application/json" }),
+            json: async () => ({
+                ...initial,
+                choices: forwards ? [choice(2), choice(5)] : [choice(2)],
+                adjacent: forwards
+                    ? { anchor: 5, previous: 2, next: null }
+                    : { anchor: 2, previous: null, next: null },
+            }),
+        });
+        vi.stubGlobal("fetch", fetch);
+        render(
+            <Navigator
+                data={{
+                    ...initial,
+                    choices: forwards ? [choice(2), choice(5)] : [choice(2)],
+                    ...(forwards
+                        ? { adjacent: { anchor: 2, previous: null, next: 5 } }
+                        : {}),
+                }}
+            />,
+        );
+        const button = screen.getByRole("button", { name: label });
+        if (forwards) {
+            await userEvent.click(button);
+            expect(screen.getByText("Cycle 5")).toBeTruthy();
+            expect(fetch).not.toHaveBeenCalled();
+        }
+        expect(button).toHaveProperty("disabled", false);
+        await userEvent.click(button);
+        await waitFor(() => expect(button).toHaveProperty("disabled", true));
+        expect(screen.getByText(forwards ? "Cycle 5" : "Cycle 2")).toBeTruthy();
+        expect(screen.queryByRole("alert")).toBeNull();
+        expect(fetch).toHaveBeenCalledTimes(1);
+    },
+);

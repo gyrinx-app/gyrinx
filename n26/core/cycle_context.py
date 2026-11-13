@@ -52,7 +52,10 @@ def lock_campaign(context, actor):
     )
     if campaign is None or campaign.archived:
         raise Refusal("Select a cycle from this campaign.")
-    return context.resolve()
+    cycle = context.resolve()
+    if cycle.archived or cycle.phase.archived:
+        raise Refusal("Select a cycle that has not been deleted.")
+    return cycle
 
 
 def require_membership(cycle, gang):

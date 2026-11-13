@@ -52,7 +52,11 @@ const visible: Record<string, string[]> = {
         "effects",
     ],
     phase: ["name", "description", "effects"],
+    "add-phase": ["name", "description", "effects"],
     "duplicate-phase": ["name"],
+    "delete-phase": ["current_choice"],
+    "delete-cycle": ["current_choice"],
+    start: ["start_target"],
     plan: ["mode", "date_mode", "date_start", "cycle_interval", "cycle_unit"],
 };
 
@@ -143,6 +147,8 @@ export function ScheduleEditor({
             "shift_later",
             "setup_definition",
             "no_current",
+            "current_choice",
+            "start_target",
         ],
         onNavigate,
         onReload,
@@ -230,6 +236,12 @@ export function ScheduleEditor({
         return () => setGuard?.(false);
     }, [form.pending, form.uncertain, confirmed, setGuard]);
     const unavailable = editor.context.unavailable === true;
+    const deletion =
+        editor.kind === "delete-phase" || editor.kind === "delete-cycle";
+    const currentChoices = (editor.context.currentChoices ?? []) as Array<{
+        value: string;
+        label: string;
+    }>;
     const change = (name: string, value: string) =>
         form.setValues({ ...values, [name]: value });
     const datesOnly =
@@ -407,7 +419,9 @@ export function ScheduleEditor({
                     variant={
                         editor.kind === "setup" && setupStage < 3
                             ? "primary"
-                            : "success"
+                            : deletion
+                              ? "danger"
+                              : "success"
                     }
                     disabled={form.pending || confirmed || navigation?.pending}
                 >
@@ -424,6 +438,7 @@ export function ScheduleEditor({
                                   "start",
                                   "finish",
                                   "delete-phase",
+                                  "delete-cycle",
                               ].includes(editor.kind)
                             ? editor.heading
                             : "Save"}
@@ -500,6 +515,117 @@ export function ScheduleEditor({
                 .map(([name, value]) => (
                     <input key={name} type="hidden" name={name} value={value} />
                 ))}
+            {editor.context.selectStart === true && !unavailable ? (
+                <Field
+                    label="Cycle to start"
+                    htmlFor="cycle-start_target"
+                    errors={errors.start_target}
+                >
+                    <NativeSelect
+                        name="start_target"
+                        value={values.start_target ?? ""}
+                        required
+                        disabled={form.frozen || confirmed}
+                        onChange={(event) =>
+                            change("start_target", event.target.value)
+                        }
+                    >
+                        <option value="">Choose a cycle</option>
+                        {(
+                            editor.context.startChoices as Array<{
+                                value: string;
+                                label: string;
+                            }>
+                        ).map((choice) => (
+                            <option key={choice.value} value={choice.value}>
+                                {choice.label}
+                            </option>
+                        ))}
+                    </NativeSelect>
+                </Field>
+            ) : (
+                editor.kind === "start" && (
+                    <input
+                        type="hidden"
+                        name="start_target"
+                        value={values.start_target ?? ""}
+                    />
+                )
+            )}
+            {deletion && !unavailable && (
+                <div className="space-y-3">
+                    <p>
+                        {Number(editor.context.savedCount)}{" "}
+                        {editor.kind === "delete-phase" ? "saved " : ""}
+                        {Number(editor.context.savedCount) === 1
+                            ? "cycle will"
+                            : "cycles will"}{" "}
+                        be removed from the schedule.
+                        {editor.kind === "delete-phase" &&
+                            (editor.context.repeating
+                                ? " This phase will also be removed from every repetition of the future pattern."
+                                : ` ${Number(editor.context.futureCount)} projected cycles will also be removed.`)}
+                    </p>
+                    {Number(editor.context.projectedPrefix) > 0 && (
+                        <p>
+                            Earlier projected cycles will be saved to keep their
+                            original numbers. The future pattern will remain
+                            unchanged.
+                        </p>
+                    )}
+                    <p>
+                        {Number(editor.context.battleCount) > 0 && (
+                            <>
+                                {Number(editor.context.battleCount)}{" "}
+                                {Number(editor.context.battleCount) === 1
+                                    ? "battle will"
+                                    : "battles will"}{" "}
+                                have no phase.{" "}
+                            </>
+                        )}
+                        Battles and results will be kept. Recorded actions and
+                        cycle history will be kept.
+                    </p>
+                    {editor.context.replacesCurrent === true ? (
+                        <Field
+                            label="Current cycle after deletion"
+                            htmlFor="cycle-current_choice"
+                            errors={errors.current_choice}
+                        >
+                            <NativeSelect
+                                name="current_choice"
+                                value={values.current_choice ?? ""}
+                                required
+                                disabled={form.frozen || confirmed}
+                                onChange={(event) =>
+                                    change("current_choice", event.target.value)
+                                }
+                            >
+                                <option value="">Choose a current cycle</option>
+                                <option value="none">No current cycle</option>
+                                {currentChoices.map((choice) => (
+                                    <option
+                                        key={choice.value}
+                                        value={choice.value}
+                                    >
+                                        {choice.label}
+                                    </option>
+                                ))}
+                            </NativeSelect>
+                        </Field>
+                    ) : (
+                        <input
+                            type="hidden"
+                            name="current_choice"
+                            value={values.current_choice ?? ""}
+                        />
+                    )}
+                    <p className="text-sm text-muted">
+                        Deleting does not start a cycle, give rewards or send
+                        notifications.
+                    </p>
+                </div>
+            )}
             {form.hasErrors && (
                 <Alert
                     tone="error"
@@ -856,7 +982,7 @@ export function ScheduleEditor({
                             />
                         </Field>
                     )}
-                    {editor.kind === "phase" && (
+                    {["phase", "add-phase"].includes(editor.kind) && (
                         <RewardSettings
                             value={values.rewards}
                             onChange={(value) => change("rewards", value)}

@@ -103,6 +103,7 @@ class PhaseDetails:
 class Phase:
     id: str
     details: PhaseDetails
+    archived: bool = False
 
 
 @dataclass(frozen=True)
@@ -258,6 +259,8 @@ class CycleCalendar:
 def validate_cycle_dates(cycles, *, required=True):
     dated = []
     for cycle in cycles:
+        if cycle.archived:
+            continue
         start, end = cycle.details.starts_on, cycle.details.ends_on
         if start is None or end is None:
             if required:
@@ -278,6 +281,7 @@ class Cycle:
     order: int
     details: CycleDetails
     source: CycleSource
+    archived: bool = False
 
     @property
     def name(self):
@@ -319,7 +323,7 @@ class Schedule:
         _unique((cycle.id for cycle in self.cycles), "Cycles")
         _unique((cycle.source.position for cycle in self.cycles), "Cycle sources")
         if self.current_cycle_id is not None and self.current_cycle_id not in {
-            cycle.id for cycle in self.cycles
+            cycle.id for cycle in self.cycles if not cycle.archived
         }:
             raise ScheduleError("Select a saved current cycle.")
         if tuple(cycle.order for cycle in self.cycles) != tuple(
@@ -327,7 +331,8 @@ class Schedule:
         ):
             raise ScheduleError("Saved cycles must keep their consecutive order.")
         phase_ids = {phase.id for phase in self.phases}
-        if any(step.phase_id not in phase_ids for step in self.plan.steps) or any(
+        active_phases = {phase.id for phase in self.phases if not phase.archived}
+        if any(step.phase_id not in active_phases for step in self.plan.steps) or any(
             cycle.details.phase_id not in phase_ids for cycle in self.cycles
         ):
             raise ScheduleError("Select phases from this campaign.")
@@ -442,7 +447,7 @@ class CycleContext:
 
 def _phase(schedule, phase_id):
     for phase in schedule.phases:
-        if phase.id == phase_id:
+        if phase.id == phase_id and not phase.archived:
             return phase
     raise ScheduleError("Select a phase from this campaign.")
 
@@ -494,6 +499,8 @@ def _dated(cycle, calendar):
 
 def _selected(schedule, target):
     for cycle in schedule.cycles:
+        if cycle.archived:
+            continue
         if (
             isinstance(target, SavedCycleRef)
             and cycle.id == target.cycle_id
@@ -509,6 +516,8 @@ def _selected(schedule, target):
         raise ScheduleError(
             "The plan changed. Select a cycle from the current schedule."
         )
+    if target.position.index < schedule.next_position:
+        raise ScheduleError("That cycle has been deleted. Select another cycle.")
     return _dated(_at(schedule.plan, target.position.index), schedule.calendar)
 
 
@@ -702,7 +711,8 @@ def edit_cycle(
                     ),
                 )
                 for c in change.schedule.cycles
-                if c.order > selected.order
+                if not c.archived
+                and c.order > selected.order
                 and c.details.starts_on
                 and c.details.ends_on
             ]
@@ -737,7 +747,9 @@ def _validate_projection_dates(schedule):
         and schedule.cycles
         and following
         and any(
-            c.details.ends_on and following[0].starts_on <= c.details.ends_on
+            not c.archived
+            and c.details.ends_on
+            and following[0].starts_on <= c.details.ends_on
             for c in schedule.cycles
         )
     ):
@@ -764,6 +776,18 @@ def edit_phase(
     )
 
 
+def add_phase(
+    schedule: Schedule, details: PhaseDetails, *, new_id: NewId = _id
+) -> ScheduleChange:
+    return ScheduleChange(
+        replace(
+            schedule,
+            phases=schedule.phases + (Phase(new_id(), details),),
+            revision=schedule.revision + 1,
+        )
+    )
+
+
 def duplicate_phase(
     schedule: Schedule, phase_id: str, *, name: str, new_id: NewId = _id
 ) -> ScheduleChange:
@@ -778,18 +802,141 @@ def duplicate_phase(
     )
 
 
-def delete_phase(schedule: Schedule, phase_id: str) -> ScheduleChange:
-    _phase(schedule, phase_id)
-    if any(c.details.phase_id == phase_id for c in schedule.cycles):
-        raise ScheduleError("You cannot delete a phase used by a saved cycle.")
-    if any(step.phase_id == phase_id for step in schedule.plan.steps):
-        raise ScheduleError("Remove the phase from the future plan before deleting it.")
+def _archive_cycles(
+    schedule, victims, *, replacement=None, no_current=False, new_id=_id
+):
+    current = schedule.current_cycle_id
+    change = ScheduleChange(schedule)
+    if current in victims:
+        if (replacement is None) == (not no_current):
+            raise ScheduleError(
+                "Choose a replacement current cycle or No current cycle."
+            )
+        if replacement is not None:
+            selected = _selected(schedule, replacement)
+            if isinstance(selected, Cycle) and selected.id in victims:
+                raise ScheduleError("Choose a current cycle that is not being deleted.")
+            change, selected = _ensure_saved(schedule, replacement, new_id=new_id)
+            current = selected.id
+        else:
+            current = None
+    elif replacement is not None or no_current:
+        raise ScheduleError(
+            "The current cycle is not being deleted. Leave it unchanged."
+        )
+    archived = tuple(
+        replace(c, archived=True) for c in change.schedule.cycles if c.id in victims
+    )
+    replacements = {c.id: c for c in archived}
     return ScheduleChange(
         replace(
-            schedule,
-            phases=tuple(p for p in schedule.phases if p.id != phase_id),
+            change.schedule,
+            cycles=tuple(replacements.get(c.id, c) for c in change.schedule.cycles),
+            current_cycle_id=current,
             revision=schedule.revision + 1,
+        ),
+        created=tuple(replacements.get(c.id, c) for c in change.created),
+        updated=tuple(
+            c for c in archived if c.id not in {c.id for c in change.created}
+        ),
+    )
+
+
+def delete_cycle(schedule, target, *, replacement=None, no_current=False, new_id=_id):
+    """Keep the original identity and source position without starting a cycle."""
+    change, selected = _ensure_saved(schedule, target, new_id=new_id)
+    removed = _archive_cycles(
+        change.schedule,
+        {selected.id},
+        replacement=replacement,
+        no_current=no_current,
+        new_id=new_id,
+    )
+    archived = {c.id: c for c in removed.schedule.cycles}
+    created = tuple(archived[c.id] for c in change.created) + removed.created
+    return ScheduleChange(
+        replace(removed.schedule, revision=schedule.revision + 1),
+        created=created,
+        updated=tuple(
+            c for c in removed.updated if c.id not in {c.id for c in created}
+        ),
+    )
+
+
+def delete_phase(schedule, phase_id, *, replacement=None, no_current=False, new_id=_id):
+    """Remove every occurrence while retaining saved identities for audit history."""
+    _phase(schedule, phase_id)
+    if replacement is not None:
+        selected = _selected(schedule, replacement)
+        selected_phase = (
+            selected.details.phase_id
+            if isinstance(selected, Cycle)
+            else selected.phase_id
         )
+        if selected_phase == phase_id:
+            raise ScheduleError(
+                "Choose a current cycle outside the phase being deleted."
+            )
+    victims = {
+        c.id
+        for c in schedule.cycles
+        if not c.archived and c.details.phase_id == phase_id
+    }
+    change = _archive_cycles(
+        schedule, victims, replacement=replacement, no_current=no_current, new_id=new_id
+    )
+    # A replacement can save a prefix containing more occurrences of this phase.
+    extra = tuple(
+        replace(c, archived=True) if c.details.phase_id == phase_id else c
+        for c in change.created
+    )
+    replacements = {c.id: c for c in extra}
+    state = replace(
+        change.schedule,
+        cycles=tuple(replacements.get(c.id, c) for c in change.schedule.cycles),
+    )
+    plan = state.plan
+    if any(step.phase_id == phase_id for step in plan.steps):
+        if plan.mode == "fixed":
+            steps = tuple(
+                step for step in editable_steps(state) if step.phase_id != phase_id
+            )
+            position = 0
+        else:
+            steps = tuple(step for step in plan.steps if step.phase_id != phase_id)
+            # Keep a completed pass distinct from an unstarted filtered pattern.
+            offset = state.next_position % plan.length
+            if not offset and state.next_position > 0:
+                offset = plan.length
+            position = 0
+            for step in plan.steps:
+                consumed = min(offset, step.count)
+                if step.phase_id != phase_id:
+                    position += consumed
+                offset -= consumed
+        plan = Plan(
+            new_id(),
+            plan.mode if steps else "fixed",
+            steps,
+            len(state.cycles),
+            position,
+        )
+        next_position = position
+    else:
+        next_position = state.next_position
+    return ScheduleChange(
+        replace(
+            state,
+            phases=tuple(
+                replace(p, archived=True) if p.id == phase_id else p
+                for p in state.phases
+            ),
+            plan=plan,
+            next_position=next_position,
+            revision=schedule.revision + 1,
+        ),
+        created=extra,
+        updated=change.updated,
     )
 
 
@@ -836,21 +983,50 @@ def _saved_tail_credit(schedule, steps):
     if not schedule.cycles:
         return 0
     tail = schedule.cycles[-1]
+    phase_id, source = tail.details.phase_id, tail.source
+    if (
+        tail.archived
+        and schedule.plan.mode == "repeating"
+        and len(schedule.cycles) == schedule.plan.starts_after_order
+    ):
+        # Deletion maps the active continuation independently of the archived tail.
+        if schedule.plan.start_position:
+            previous = _at(
+                replace(schedule.plan, start_position=0),
+                schedule.plan.start_position - 1,
+            )
+            phase_id, source = previous.phase_id, previous.source
+        else:
+            retained_steps = {step.id: step for step in schedule.plan.steps}
+            previous = next(
+                (
+                    c
+                    for c in reversed(schedule.cycles)
+                    if c.source.step_id in retained_steps
+                ),
+                None,
+            )
+            if previous is None:
+                return 0
+            phase_id, source = (
+                retained_steps[previous.source.step_id].phase_id,
+                previous.source,
+            )
     matching = next(
         (
             step
             for step in steps
-            if step.id == tail.source.step_id and step.phase_id == tail.details.phase_id
+            if step.id == source.step_id and step.phase_id == phase_id
         ),
         None,
     )
     if matching is None:
-        candidates = [step for step in steps if step.phase_id == tail.details.phase_id]
+        candidates = [step for step in steps if step.phase_id == phase_id]
         matching = candidates[0] if len(candidates) == 1 else None
     if matching is None:
         return 0
     before = sum(step.count for step in steps[: steps.index(matching)])
-    return before + min(tail.source.offset + 1, matching.count)
+    return before + min(source.offset + 1, matching.count)
 
 
 def set_calendar(
@@ -858,8 +1034,10 @@ def set_calendar(
 ) -> ScheduleChange:
     updated = []
     for cycle in schedule.cycles:
-        if fill_saved_dates and (
-            cycle.details.starts_on is None or cycle.details.ends_on is None
+        if (
+            not cycle.archived
+            and fill_saved_dates
+            and (cycle.details.starts_on is None or cycle.details.ends_on is None)
         ):
             start, end = calendar.dates_for(cycle.order)
             updated.append(
@@ -877,7 +1055,11 @@ def set_calendar(
     validate_cycle_dates(saved, required=False)
     start, _end = calendar.dates_for(len(saved) + 1)
     latest_end = max(
-        (cycle.details.ends_on for cycle in saved if cycle.details.ends_on),
+        (
+            cycle.details.ends_on
+            for cycle in saved
+            if not cycle.archived and cycle.details.ends_on
+        ),
         default=None,
     )
     if latest_end and start <= latest_end:
@@ -960,13 +1142,22 @@ def preview_advance(schedule: Schedule) -> TransitionPreview:
     current = schedule.current
     if current is None:
         raise ScheduleError("Start a cycle before advancing.")
-    if current.order < len(schedule.cycles):
-        return TransitionPreview(current, schedule.cycles[current.order])
+    following_saved = next(
+        (c for c in schedule.cycles if not c.archived and c.order > current.order), None
+    )
+    if following_saved is not None:
+        return TransitionPreview(current, following_saved)
     following = project(schedule, limit=1)
     return TransitionPreview(current, following[0] if following else None)
 
 
-def start(schedule: Schedule, *, now: datetime, new_id: NewId = _id) -> ScheduleChange:
+def start(
+    schedule: Schedule,
+    *,
+    now: datetime,
+    new_id: NewId = _id,
+    target: CycleRef | None = None,
+) -> ScheduleChange:
     if schedule.status == "post_campaign":
         raise ScheduleError("Reopen the campaign before starting a cycle.")
     if schedule.status == "in_progress" and schedule.current is not None:
@@ -975,10 +1166,20 @@ def start(schedule: Schedule, *, now: datetime, new_id: NewId = _id) -> Schedule
         )
     change = ScheduleChange(schedule)
     selected = schedule.current
+    if target is not None:
+        if selected is not None:
+            raise ScheduleError("The current cycle is already selected.")
+        change, selected = _ensure_saved(schedule, target, new_id=new_id)
+    elif selected is None and (
+        any(c.archived for c in schedule.cycles)
+        or any(p.archived for p in schedule.phases)
+    ):
+        raise ScheduleError(
+            "Choose the cycle to start after deleting a cycle or phase."
+        )
     if selected is None:
-        if schedule.cycles:
-            selected = schedule.cycles[0]
-        else:
+        selected = next((c for c in schedule.cycles if not c.archived), None)
+        if selected is None:
             following = project(schedule, limit=1)
             if not following:
                 raise ScheduleError("Add a cycle before starting.")
