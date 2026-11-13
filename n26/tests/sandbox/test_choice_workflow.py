@@ -543,3 +543,49 @@ def test_arrivals_emit_one_flat_event_per_changed_choice_and_none_for_empty_cont
         verb == analytics.EventVerb.CONFIRM and set(facts) == {"offer", "picked"}
         for verb, facts in events
     )
+
+
+def test_arrivals_settle_in_url_order_and_ignore_json_object_order_on_replay(
+    choices, monkeypatch
+):
+    import json
+
+    from n26.library.authoring import create_interstitial
+
+    choices.slot.max_picks = 1
+    choices.slot.save()
+    second = create_slot(
+        "Second result",
+        choices.slot.slot_type,
+        choices.slot.picklist,
+        assigned_to="gang",
+    )
+    with operation(choices.gang, actor=choices.owner) as op:
+        anchor = op.assign(second, gang=choices.gang)
+    second_key = f"gang:{anchor.pk}:{second.pk}"
+    keys = [choices.key, second_key]
+    create_interstitial("Starting results", slots=[choices.slot, second])
+    data = command(
+        choices,
+        asks=json.dumps(keys),
+        selection=json.dumps({key: option_key(choices.pick) for key in reversed(keys)}),
+    )
+    written = []
+    apply_pick = choice_workflow.write_pick
+
+    def remember(op, gang, actor, key, *args, **kwargs):
+        written.append(key)
+        return apply_pick(op, gang, actor, key, *args, **kwargs)
+
+    monkeypatch.setattr(choice_workflow, "write_pick", remember)
+    back = reverse("n26-gang", args=[choices.gang.pk])
+    assert choice_workflow.change_arrivals(
+        choices.gang, choices.owner, keys, data, back=back
+    ).saved
+    assert written == keys
+    data["selection"] = json.dumps({key: option_key(choices.pick) for key in keys})
+    replay = choice_workflow.change_arrivals(
+        choices.gang, choices.owner, keys, data, back=back
+    )
+    assert replay.saved and replay.replayed
+    assert written == keys

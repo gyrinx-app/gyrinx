@@ -189,6 +189,12 @@ cannot distinguish a retry from a new action. Reject ambiguous commands before
 writing, retain readable intent and require reload. Never invent a fresh key in
 POST or silently add one in a test fixture.
 
+Round-trip actual GET display values through the command: give JSONField native
+lists or dictionaries as initial values, because BoundField.value already encodes
+them. Keep known unsent or rejected drafts scoped to their original URL task when
+nested choice pages open, while unresolved submitted commands keep their exact
+body and protect the actor's workflow across those URLs.
+
 Keep an earlier uncertain save frozen after any rejected retry, including a
 structured form refusal. Opt workflow forms out of the shared busy-link handler
 with `data-busy="off"`; the React `WorkflowPage` adapter does this by default.

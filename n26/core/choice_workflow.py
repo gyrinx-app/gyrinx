@@ -591,6 +591,7 @@ def change_arrivals(gang, actor, keys, data, *, back):
                         "facts": {},
                     }
                 else:
+                    picks = {key: picks[key] for key in read.found if key in picks}
                     confirmations = []
                     facts = []
                     individual = False

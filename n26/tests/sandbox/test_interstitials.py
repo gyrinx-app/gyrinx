@@ -275,7 +275,10 @@ class TestHiringAModel:
         assert asks == [sheet_slot(gang, "Hunter's path").key]
         assert back == reverse("n26-hire-fighter", args=[gang.pk])
         body = page(client, response["Location"])
-        assert "Hired Kal — Hunter, 100¢." in body
+        assert {"text": "Hired Kal — Hunter, 100¢.", "tone": "success"} in island_props(
+            body, "choice-workflow"
+        )["messages"]
+        assert body.count("Hired Kal") == 1
         assert "Kal" in body and "Hunter's path" in body
 
     def test_a_hire_bringing_nothing_lands_where_it_always_did(
