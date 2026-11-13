@@ -17,6 +17,7 @@ from gyrinx.devserver.processes import (
     Owner,
     ProcessInspectionError,
     find_owner,
+    group_processes,
     process_start,
 )
 from scripts import dev_server
@@ -48,6 +49,20 @@ def test_a_reused_pid_is_not_the_original_owner(monkeypatch):
         "gyrinx.devserver.processes.process_start", lambda pid: "new birth"
     )
     assert not owner.alive()
+
+
+def test_process_identity_survives_a_change_in_callers_timezone(monkeypatch):
+    pid = os.getpid()
+    monkeypatch.setenv("TZ", "UTC")
+    started = process_start(pid)
+    owner = Owner(pid, "Codex", started)
+    for zone in ("America/New_York", "Asia/Tokyo"):
+        monkeypatch.setenv("TZ", zone)
+        assert owner.alive()
+        member = next(
+            item for item in group_processes(os.getpgid(pid)) if item["pid"] == pid
+        )
+        assert member["started"] == started
 
 
 def test_an_explicit_dead_owner_is_preserved_after_detachment(monkeypatch):
@@ -248,6 +263,34 @@ def test_foreground_supervisor_cleans_up_when_its_server_command_exits(preview):
     (root / "scripts/dev.sh").write_text("exit 7\n")
     assert dev_server.start(root, [], False) == 7
     assert dev_server.read_state(root)["state"] == "stopped"
+
+
+def test_foreground_terminal_hangup_stops_all_descendants(preview):
+    root, _, _ = preview
+    launch_code = (
+        "from pathlib import Path; from scripts.dev_server import start; "
+        "import sys; sys.exit(start(Path(sys.argv[1]), [], False))"
+    )
+    with (root / "logs/foreground.log").open("w") as output:
+        supervisor = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                launch_code,
+                str(root),
+            ],
+            stdout=output,
+            stderr=subprocess.STDOUT,
+        )
+        try:
+            pids = descendant_pids(root)
+            supervisor.send_signal(signal.SIGHUP)
+            assert supervisor.wait(timeout=12) == 0
+            wait_for(lambda: all(process_start(pid) is None for pid in pids))
+        finally:
+            if supervisor.poll() is None:
+                supervisor.terminate()
+                supervisor.wait(timeout=12)
 
 
 def test_stop_recovers_a_process_group_after_its_supervisor_is_killed(preview):

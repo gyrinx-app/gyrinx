@@ -100,7 +100,7 @@ def status(root):
     if state:
         owner = Owner.decode(json.dumps(state.get("owner")))
         if owner:
-            print(f"Owner: {owner.name} (pid {owner.pid}, started {owner.started})")
+            print(f"Owner: {owner.name} (pid {owner.pid}, started {owner.started} UTC)")
         else:
             print("Owner: unverified; idle expiry applies")
         if state.get("session_id"):
@@ -213,7 +213,7 @@ def supervise(root, args, lock):
 
     previous_handlers = {
         signum: signal.signal(signum, request_stop)
-        for signum in (signal.SIGTERM, signal.SIGINT)
+        for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
     }
     child = None
     reason = "startup failed"

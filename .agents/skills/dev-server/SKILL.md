@@ -45,7 +45,9 @@ The supervisor records the worktree, owner PID and process start time, available
 session identifier, selected port and process-group member identities in
 `logs/dev-server.json`. An exclusive
 worktree lock prevents concurrent starts from creating duplicate servers.
-Foreground `./scripts/dev.sh` uses the same supervisor and stops on Ctrl-C.
+Foreground `./scripts/dev.sh` uses the same supervisor and stops on Ctrl-C or
+terminal hangup. Process birth times are read in UTC so Django's timezone
+configuration cannot change their identity.
 `--setup-only` remains synchronous and leaves no server behind.
 
 `--stop` and `--status` apply to the current worktree. `--prune` checks managed

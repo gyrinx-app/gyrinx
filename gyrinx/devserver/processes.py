@@ -20,7 +20,7 @@ def _ps(args):
             capture_output=True,
             text=True,
             timeout=5,
-            env={**os.environ, "LC_ALL": "C"},
+            env={**os.environ, "LC_ALL": "C", "TZ": "UTC"},
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise ProcessInspectionError(
