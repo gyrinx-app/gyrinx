@@ -1,4 +1,6 @@
-import { Button, Field, Icon, Input } from "../../ui";
+import { useState } from "react";
+import { Button, Field, Icon, Input, Textarea } from "../../ui";
+import { RewardSettings } from "./RewardSettings";
 import { PlanSteps } from "./PlanSteps";
 import type { Phase, SetupDefinition } from "./types";
 
@@ -38,8 +40,21 @@ export function SetupDraft({
     review: boolean;
 }) {
     const draft = setupDraft(value);
-    if (!draft) return <p>Choose a starting template to preview its phases.</p>;
+    const [editing, setEditing] = useState<string | null>(null);
+    if (!draft) return <p>Add phases and steps to your schedule.</p>;
     const save = (next: SetupDefinition) => onChange(JSON.stringify(next));
+    const update = (
+        id: string,
+        details: Partial<SetupDefinition["phases"][number]["details"]>,
+    ) =>
+        save({
+            ...draft,
+            phases: draft.phases.map((phase) =>
+                phase.id === id
+                    ? { ...phase, details: { ...phase.details, ...details } }
+                    : phase,
+            ),
+        });
     const phases = draft.phases.map((phase) => ({
         id: phase.id,
         ...phase.details,
@@ -74,39 +89,91 @@ export function SetupDraft({
     return (
         <section className="space-y-3" aria-label="Customise campaign phases">
             <p className="text-sm text-muted">
-                These changes belong to your campaign. The starting template
-                stays unchanged.
+                Edit each phase’s name, narrative, effects and rewards. These
+                changes belong to your campaign.
             </p>
             <div className="flex flex-col gap-3">
                 {draft.phases.map((phase, index) => (
-                    <Field
+                    <section
                         key={phase.id}
-                        label={`Phase ${index + 1} name`}
-                        htmlFor={`setup-phase-${index}`}
+                        className="space-y-3 rounded border border-box-border p-3"
                     >
-                        <Input
-                            id={`setup-phase-${index}`}
-                            required
-                            maxLength={200}
-                            value={phase.details.name}
-                            onChange={(event) =>
-                                save({
-                                    ...draft,
-                                    phases: draft.phases.map((item) =>
-                                        item.id === phase.id
-                                            ? {
-                                                  ...item,
-                                                  details: {
-                                                      ...item.details,
-                                                      name: event.target.value,
-                                                  },
-                                              }
-                                            : item,
-                                    ),
-                                })
+                        <Field
+                            label={`Phase ${index + 1} name`}
+                            htmlFor={`setup-phase-${index}`}
+                        >
+                            <Input
+                                id={`setup-phase-${index}`}
+                                required
+                                maxLength={200}
+                                value={phase.details.name}
+                                onChange={(event) =>
+                                    update(phase.id, {
+                                        name: event.target.value,
+                                    })
+                                }
+                            />
+                        </Field>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-expanded={editing === phase.id}
+                            aria-controls={`setup-details-${phase.id}`}
+                            onClick={() =>
+                                setEditing(
+                                    editing === phase.id ? null : phase.id,
+                                )
                             }
-                        />
-                    </Field>
+                        >
+                            {editing === phase.id ? "Hide" : "Edit"} phase{" "}
+                            {index + 1} details
+                        </Button>
+                        {editing === phase.id && (
+                            <div
+                                id={`setup-details-${phase.id}`}
+                                className="space-y-4"
+                            >
+                                <Field
+                                    label="Phase narrative"
+                                    htmlFor={`setup-narrative-${phase.id}`}
+                                >
+                                    <Textarea
+                                        maxLength={32000}
+                                        value={phase.details.description}
+                                        onChange={(event) =>
+                                            update(phase.id, {
+                                                description: event.target.value,
+                                            })
+                                        }
+                                    />
+                                </Field>
+                                <Field
+                                    label="Phase effects"
+                                    htmlFor={`setup-effects-${phase.id}`}
+                                >
+                                    <Textarea
+                                        maxLength={32000}
+                                        value={phase.details.effects}
+                                        onChange={(event) =>
+                                            update(phase.id, {
+                                                effects: event.target.value,
+                                            })
+                                        }
+                                    />
+                                </Field>
+                                <RewardSettings
+                                    value={JSON.stringify(
+                                        phase.details.rewards,
+                                    )}
+                                    onChange={(rewards) =>
+                                        update(phase.id, {
+                                            rewards: JSON.parse(rewards),
+                                        })
+                                    }
+                                />
+                            </div>
+                        )}
+                    </section>
                 ))}
                 <div className="self-end">
                     <Button
@@ -118,6 +185,7 @@ export function SetupDraft({
                                 .randomUUID()
                                 .replaceAll("-", "")
                                 .slice(0, 26);
+                            setEditing(id);
                             const reward = {
                                 credits: { fixed: 0, dice: null },
                                 reputation: 0,

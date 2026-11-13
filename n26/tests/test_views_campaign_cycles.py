@@ -724,6 +724,87 @@ class TestSharedCommands:
         assert post(client, campaign, "setup", data).status_code == 200
         assert campaign.cycle_commands.count() == 1
 
+    @pytest.mark.parametrize("native", [False, True])
+    def test_custom_setup_needs_no_template_and_keeps_complete_phase_details(
+        self, client, campaign, opened, native
+    ):
+        page = props(client.get(editor_url(campaign, "setup")))["editor"]
+        assert page["values"]["template_id"] == ""
+        definition = json.loads(page["values"]["setup_definition"])
+        assert len(definition["phases"]) == 1
+        assert definition["phases"][0]["details"]["name"] == "Phase 1"
+        assert definition["steps"][0]["count"] == 1
+        details = definition["phases"][0]["details"]
+        details.update(
+            name="Opening",
+            description="The gates open.",
+            effects="Use the opening missions.",
+        )
+        details["rewards"]["win"] = {
+            "credits": {
+                "fixed": 25,
+                "dice": {"count": 2, "sides": 6, "multiplier": 10},
+            },
+            "reputation": 2,
+        }
+        details["rewards"]["entry_credits"] = {"fixed": 50, "dice": None}
+        data = {
+            **page["values"],
+            "setup_definition": json.dumps(definition),
+            "no_current": "on",
+        }
+        first = post(client, campaign, "setup", data, native=native)
+        assert first.status_code == (302 if native else 200)
+        state = cycles.load(campaign)
+        assert state.current is None
+        assert not state.cycles
+        assert not campaign.cycle_transitions.exists()
+        assert asdict(state.phases[0].details) == details
+        assert (
+            post(client, campaign, "setup", data, native=native).status_code
+            == first.status_code
+        )
+        assert campaign.cycle_commands.count() == 1
+        campaign.refresh_from_db()
+        assert campaign.status == "pre_campaign"
+        changed = {
+            **data,
+            "setup_definition": json.dumps(
+                {**definition, "steps": [{**definition["steps"][0], "count": 2}]}
+            ),
+        }
+        rejected = post(client, campaign, "setup", changed, native=native)
+        assert rejected.status_code == (200 if native else 409)
+        if native:
+            assert "A different change was saved from this form." in str(
+                props(rejected)["editor"]["errors"]
+            )
+        assert campaign.cycle_commands.count() == 1
+
+    @pytest.mark.parametrize("definition", [None, {}, {"phases": [], "steps": []}])
+    def test_custom_setup_requires_an_explicit_valid_definition(
+        self, client, campaign, opened, definition
+    ):
+        data = props(client.get(editor_url(campaign, "setup")))["editor"]["values"]
+        data["setup_definition"] = (
+            json.dumps(definition) if definition is not None else ""
+        )
+        assert post(client, campaign, "setup", data).status_code == 422
+        assert not CampaignSchedule.objects.filter(campaign=campaign).exists()
+
+    def test_custom_definition_cannot_bypass_template_ownership(
+        self, client, campaign, opened
+    ):
+        other = User.objects.create_user("private-template-author")
+        data = props(client.get(editor_url(campaign, "setup")))["editor"]["values"]
+        private = CampaignScheduleTemplate.objects.create(
+            owner=other, name="Private", definition=json.loads(data["setup_definition"])
+        )
+        data["template_id"] = str(private.pk)
+        response = post(client, campaign, "setup", data)
+        assert response.status_code == 422
+        assert not CampaignSchedule.objects.filter(campaign=campaign).exists()
+
     def test_unchanged_future_plan_does_not_replay_consumed_cycles(
         self, client, campaign, configured
     ):

@@ -376,7 +376,9 @@ def configure(
     def apply(act, before):
         if before is not None:
             raise Refusal("This campaign already has a cycle schedule.")
-        template = _template_for(actor, template_id)
+        template = _template_for(actor, template_id) if template_id else None
+        if template is None and definition is None:
+            raise Refusal("Add a phase and a step to your custom schedule.")
         if calendar is None:
             raise Refusal("Enter cycle date settings before setting up this campaign.")
         if current_position is not None and (
@@ -385,7 +387,7 @@ def configure(
             raise Refusal("Select an initial cycle within the first 1,000 cycles.")
         change = s.configure(
             template_from_data(
-                template.name,
+                template.name if template else "Custom",
                 definition if definition is not None else template.definition,
             ),
             campaign_id=str(campaign.pk),

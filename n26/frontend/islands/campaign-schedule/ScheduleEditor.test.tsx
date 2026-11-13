@@ -165,7 +165,7 @@ test.each([false, true])(
         expect(screen.queryByRole("dialog")).toBeNull();
         expect(screen.queryByText(/notifies accepted players/)).toBeNull();
         await userEvent.selectOptions(
-            screen.getByRole("combobox", { name: "Starting template" }),
+            screen.getByRole("combobox", { name: "Starting schedule" }),
             "template",
         );
         expect(screen.getByText(/1. Opening/)).toBeTruthy();
@@ -175,11 +175,11 @@ test.each([false, true])(
         screen.getByRole("button", { name: "Back" }).focus();
         await userEvent.keyboard("{Enter}");
         expect(document.activeElement?.textContent).toContain(
-            "Choose a starting template",
+            "Choose a starting schedule",
         );
         await userEvent.tab();
         expect(document.activeElement).toBe(
-            screen.getByRole("combobox", { name: "Starting template" }),
+            screen.getByRole("combobox", { name: "Starting schedule" }),
         );
         await userEvent.click(
             screen.getByRole("button", { name: "Customise schedule" }),

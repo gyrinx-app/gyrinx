@@ -536,7 +536,7 @@ export function ScheduleEditor({
                         <section className="space-y-4">
                             <FlowProgress
                                 steps={[
-                                    "Starting template",
+                                    "Starting schedule",
                                     "Customise schedule",
                                     "Review schedule",
                                 ].map((label, index) => ({
@@ -555,32 +555,20 @@ export function ScheduleEditor({
                                 className="text-sm font-medium"
                             >
                                 {setupStage === 1
-                                    ? "Choose a starting template"
+                                    ? "Choose a starting schedule"
                                     : setupStage === 2
                                       ? "Customise your campaign"
                                       : "Review schedule"}
                             </h2>
-                            {setupStage > 1 && !values.template_id && (
-                                <Alert tone="info" dismissible={false}>
-                                    Choose a starting template before
-                                    customising your schedule.{" "}
-                                    <a
-                                        href={stageHref(1)}
-                                        className="underline"
-                                    >
-                                        Choose a template
-                                    </a>
-                                </Alert>
-                            )}
                             {setupStage === 1 && (
                                 <Field
-                                    label="Starting template"
+                                    label="Starting schedule"
                                     htmlFor="cycle-template"
                                     errors={errors.template_id}
+                                    description="Start with a custom schedule or use a template. You can edit every phase before saving."
                                 >
                                     <NativeSelect
                                         name="template_id"
-                                        required
                                         value={values.template_id}
                                         onChange={(event) => {
                                             const template =
@@ -597,13 +585,14 @@ export function ScheduleEditor({
                                                         ? JSON.stringify(
                                                               template.definition,
                                                           )
-                                                        : "",
+                                                        : JSON.stringify(
+                                                              editor.context
+                                                                  .customDefinition,
+                                                          ),
                                             });
                                         }}
                                     >
-                                        <option value="">
-                                            Choose a template
-                                        </option>
+                                        <option value="">Custom</option>
                                         {editor.templates.map((template) => (
                                             <option
                                                 key={template.id}

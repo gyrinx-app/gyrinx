@@ -21,7 +21,7 @@ export function restoreSetupDraft(editor: Editor) {
             sessionStorage.getItem(setupDraftKey(editor)) ?? "null",
         );
         if (!saved || typeof saved !== "object") return editor.values;
-        return {
+        const restored = {
             ...editor.values,
             ...Object.fromEntries(
                 fields.flatMap((name) => {
@@ -30,6 +30,9 @@ export function restoreSetupDraft(editor: Editor) {
                 }),
             ),
         };
+        if (!restored.template_id && !restored.setup_definition)
+            restored.setup_definition = editor.values.setup_definition;
+        return restored;
     } catch {
         return editor.values;
     }

@@ -530,7 +530,7 @@ test("setup steps have URLs, retain edits through Back/Forward and refresh witho
     vi.stubGlobal("fetch", fetch);
     const view = render(<CampaignSchedule {...data(setup)} />);
     await userEvent.selectOptions(
-        screen.getByLabelText("Starting template"),
+        screen.getByLabelText("Starting schedule"),
         "template",
     );
     await userEvent.click(
@@ -550,7 +550,7 @@ test("setup steps have URLs, retain edits through Back/Forward and refresh witho
             new PopStateEvent("popstate", { state: previous }),
         );
     });
-    expect(screen.getByLabelText("Starting template")).toBeTruthy();
+    expect(screen.getByLabelText("Starting schedule")).toBeTruthy();
     await userEvent.click(
         screen.getByRole("button", { name: "Customise schedule" }),
     );
