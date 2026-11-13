@@ -866,18 +866,18 @@ export function ScheduleEditor({
                         <>
                             {dates}
                             {mode}
-                            {values.mode !== editor.values.mode && (
-                                <Alert tone="info" dismissible={false}>
-                                    Review the phase counts below before
-                                    switching modes. Saved cycles and their
-                                    dates are retained.
-                                </Alert>
-                            )}
                             <PlanSteps
                                 value={values.steps}
                                 phases={phases}
                                 disabled={form.frozen}
                                 onChange={(value) => change("steps", value)}
+                                startsAfterOrder={
+                                    values.mode === "fixed" &&
+                                    typeof editor.context.startsAfterOrder ===
+                                        "number"
+                                        ? editor.context.startsAfterOrder
+                                        : undefined
+                                }
                             />
                         </>
                     )}

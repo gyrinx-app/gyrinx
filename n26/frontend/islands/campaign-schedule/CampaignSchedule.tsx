@@ -478,9 +478,8 @@ function ScheduleContent(
                         (cycle) => cycle.state === "Projected",
                     ) && (
                         <p className="text-xs text-muted">
-                            Cycles shown in grey are previews.
-                            {props.canManage &&
-                                " Edit one to save it and any earlier previews."}
+                            Grey cycles are previews. Previewing does not change
+                            your schedule.
                         </p>
                     )}
                     {props.plan && !props.nextHref && (
@@ -515,7 +514,9 @@ function ScheduleContent(
                                 </ol>
                             </div>
                             <p className="text-xs">
-                                Continues after {props.plan.startsAfter}.
+                                {props.plan.mode === "repeating"
+                                    ? "This pattern repeats until the campaign finishes."
+                                    : `Continues after ${props.plan.startsAfter}.`}
                             </p>
                         </div>
                     )}
@@ -533,7 +534,7 @@ function ScheduleContent(
                             )}
                             {props.moreHref && (
                                 <Link href={props.moreHref}>
-                                    Show more future cycles
+                                    Preview more cycles
                                 </Link>
                             )}
                         </div>

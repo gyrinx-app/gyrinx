@@ -396,6 +396,51 @@ test("keyboard reordering submits phase identities and counts in the chosen orde
     ]);
 });
 
+test("fixed conversion shows its finite endpoint and updates it after edits", async () => {
+    const full = [
+        { id: "one", phase_id: "opening", count: 3 },
+        { id: "two", phase_id: "downtime", count: 1 },
+    ];
+    render(
+        <ScheduleEditor
+            editor={{
+                ...editor,
+                kind: "plan",
+                context: {
+                    patternSteps: full,
+                    fixedSteps: [{ ...full[0], count: 1 }, full[1]],
+                    startsAfterOrder: 2,
+                },
+                values: {
+                    request_key: "convert-key",
+                    expected_revision: "1",
+                    mode: "repeating",
+                    steps: JSON.stringify(full),
+                },
+            }}
+            phases={phases}
+            onNavigate={vi.fn()}
+        />,
+    );
+    expect(screen.queryByText(/Ends after Cycle/)).toBeNull();
+    await userEvent.selectOptions(
+        screen.getByRole("combobox", { name: "Planning mode" }),
+        "fixed",
+    );
+    expect(screen.getByText("Ends after Cycle 4.")).toBeTruthy();
+    const count = screen.getByRole("spinbutton", { name: "Step 1 cycles" });
+    await userEvent.clear(count);
+    await userEvent.type(count, "2");
+    expect(screen.getByText("Ends after Cycle 5.")).toBeTruthy();
+    await userEvent.click(
+        screen.getByRole("button", { name: "Remove step 2" }),
+    );
+    await userEvent.click(
+        screen.getByRole("button", { name: "Remove step 1" }),
+    );
+    expect(screen.getByText("No additional cycles.")).toBeTruthy();
+});
+
 test("switching to repeating proposes the full pattern and preserves edits to each mode", async () => {
     const full = [
         { id: "one", phase_id: "opening", count: 3 },

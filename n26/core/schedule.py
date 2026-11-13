@@ -117,6 +117,8 @@ class PlanStep:
 
 @dataclass(frozen=True)
 class Plan:
+    """An immutable continuation; a full-length start retains completed-pass credit."""
+
     id: str
     mode: Mode
     steps: tuple[PlanStep, ...]
@@ -132,7 +134,7 @@ class Plan:
         _nonnegative(self.starts_after_order, "Plan boundary")
         _nonnegative(self.start_position, "Initial plan position")
         if self.start_position and (
-            self.mode != "repeating" or self.start_position >= self.length
+            self.mode != "repeating" or self.start_position > self.length
         ):
             raise ScheduleError("Select a position within the repeating pattern.")
 
@@ -813,18 +815,9 @@ def replace_plan(
         )
     )
     schedule = dated.schedule
-    position = _repeat_continuation(schedule, steps) if mode == "repeating" else 0
-    empty_restart = (
-        mode == "repeating"
-        and len(schedule.cycles) == schedule.plan.starts_after_order
-        and position != schedule.plan.start_position
-    )
-    if (
-        mode == schedule.plan.mode
-        and tuple(steps) == editable_steps(schedule)
-        and not empty_restart
-    ):
+    if mode == schedule.plan.mode and tuple(steps) == editable_steps(schedule):
         return dated
+    position = _repeat_continuation(schedule, steps) if mode == "repeating" else 0
     plan = Plan(new_id(), mode, tuple(steps), len(schedule.cycles), position)
     if plan.id == schedule.plan.id:
         raise ScheduleError("A replacement plan must have a new identity.")
@@ -835,6 +828,10 @@ def replace_plan(
 
 
 def _repeat_continuation(schedule, steps):
+    return _saved_tail_credit(schedule, steps)
+
+
+def _saved_tail_credit(schedule, steps):
     """Credit the saved tail against its matching occurrence in the new pattern."""
     if not schedule.cycles:
         return 0
@@ -853,9 +850,7 @@ def _repeat_continuation(schedule, steps):
     if matching is None:
         return 0
     before = sum(step.count for step in steps[: steps.index(matching)])
-    return (before + min(tail.source.offset + 1, matching.count)) % sum(
-        step.count for step in steps
-    )
+    return before + min(tail.source.offset + 1, matching.count)
 
 
 def set_calendar(
@@ -906,9 +901,25 @@ def editable_steps(schedule: Schedule | PlanContinuation) -> tuple[PlanStep, ...
     """A repeating pattern, or only the unsaved remainder of a fixed plan."""
     if schedule.plan.mode == "repeating":
         return schedule.plan.steps
-    consumed = schedule.next_position
+    return _remaining_steps(schedule.plan.steps, schedule.next_position)
+
+
+def fixed_steps(schedule: Schedule) -> tuple[PlanStep, ...]:
+    """Finish the repeating pass containing the last saved cycle."""
+    if schedule.plan.mode == "fixed":
+        return editable_steps(schedule)
+    consumed = schedule.next_position % schedule.plan.length
+    completed = schedule.next_position > 0
+    if not consumed and completed:
+        return ()
+    return _remaining_steps(schedule.plan.steps, consumed)
+
+
+def _remaining_steps(
+    steps: tuple[PlanStep, ...], consumed: int
+) -> tuple[PlanStep, ...]:
     remaining = []
-    for step in schedule.plan.steps:
+    for step in steps:
         if consumed >= step.count:
             consumed -= step.count
         else:

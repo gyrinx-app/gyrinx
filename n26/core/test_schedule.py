@@ -203,6 +203,116 @@ class TestProjectionAndSaving:
 
 
 class TestRepeatingAndReplacement:
+    @pytest.mark.parametrize(
+        "saved,counts,end",
+        [
+            (0, [3, 1, 3], 7),
+            (2, [1, 1, 3], 7),
+            (6, [1], 7),
+            (7, [], 7),
+            (9, [1, 1, 3], 14),
+            (14, [], 14),
+        ],
+    )
+    def test_fixed_conversion_finishes_the_saved_tail_pass(
+        self, ids, saved, counts, end
+    ):
+        schedule = configured(
+            ids, current=saved - 1 if saved else None, mode="repeating"
+        )
+        steps = s.fixed_steps(schedule)
+        assert [step.count for step in steps] == counts
+        fixed = s.replace_plan(schedule, steps=steps, mode="fixed", new_id=ids).schedule
+        assert fixed.cycles == schedule.cycles
+        assert fixed.current_cycle_id == schedule.current_cycle_id
+        assert fixed.calendar == schedule.calendar
+        assert fixed.plan.order_for(fixed.plan.length) - 1 == end
+
+    def test_fixed_conversion_uses_future_saved_tail_without_moving_current(self, ids):
+        schedule = configured(ids, current=1, mode="repeating")
+        future = next(cycle for cycle in s.project(schedule) if cycle.order == 9)
+        change, _selected = s._ensure_saved(schedule, future.ref, new_id=ids)
+        schedule = change.schedule
+        fixed = s.replace_plan(
+            schedule, steps=s.fixed_steps(schedule), mode="fixed", new_id=ids
+        ).schedule
+        assert fixed.cycles == schedule.cycles
+        assert fixed.current.order == 2
+        assert [cycle.order for cycle in s.project(fixed)] == [10, 11, 12, 13, 14]
+
+    @pytest.mark.parametrize("saved", [2, 7])
+    def test_fixed_conversion_respects_a_credited_repeat_start(self, ids, saved):
+        schedule = configured(ids, current=saved - 1)
+        repeating = s.replace_plan(
+            schedule, steps=schedule.plan.steps, mode="repeating", new_id=ids
+        ).schedule
+        fixed = s.replace_plan(
+            repeating, steps=s.fixed_steps(repeating), mode="fixed", new_id=ids
+        ).schedule
+        assert fixed.cycles == schedule.cycles
+        assert fixed.plan.order_for(fixed.plan.length) - 1 == 7
+
+    @pytest.mark.parametrize(
+        "saved,counts,end", [(0, [2], 7), (1, [1], 7), (2, [], 7), (3, [1], 9)]
+    )
+    def test_fixed_conversion_retains_an_unstarted_replacement_pattern(
+        self, ids, saved, counts, end
+    ):
+        schedule = configured(ids, current=4, mode="repeating")
+        downtime = schedule.phases[1].id
+        repeating = s.replace_plan(
+            schedule,
+            steps=(s.PlanStep("new-downtime", downtime, 2),),
+            mode="repeating",
+            new_id=ids,
+        ).schedule
+        if saved:
+            target = s.project(repeating)[saved - 1]
+            change, _selected = s._ensure_saved(repeating, target.ref, new_id=ids)
+            repeating = change.schedule
+        steps = s.fixed_steps(repeating)
+        assert [step.count for step in steps] == counts
+        fixed = s.replace_plan(
+            repeating, steps=steps, mode="fixed", new_id=ids
+        ).schedule
+        assert fixed.cycles == repeating.cycles
+        assert fixed.current_cycle_id == schedule.current_cycle_id
+        assert fixed.plan.order_for(fixed.plan.length) - 1 == end
+
+    @pytest.mark.parametrize("completed", [False, True])
+    def test_fixed_conversion_keeps_installed_credit_after_a_saved_phase_correction(
+        self, ids, completed
+    ):
+        schedule = configured(ids, current=6 if completed else 4)
+        steps = (
+            schedule.plan.steps
+            if completed
+            else (s.PlanStep("new-downtime", schedule.phases[1].id, 2),)
+        )
+        repeating = s.replace_plan(
+            schedule, steps=steps, mode="repeating", new_id=ids
+        ).schedule
+        assert repeating.plan.start_position == (7 if completed else 0)
+        tail = repeating.cycles[-1]
+        corrected = s.edit_cycle(
+            repeating,
+            s.SavedCycleRef(tail.id),
+            replace(tail.details, phase_id=schedule.phases[0 if completed else 1].id),
+            now=LATER,
+            new_id=ids,
+        ).schedule
+        resaved = s.replace_plan(
+            corrected, steps=corrected.plan.steps, mode="repeating", new_id=ids
+        ).schedule
+        assert resaved is corrected
+        proposed = s.fixed_steps(resaved)
+        assert [step.count for step in proposed] == ([] if completed else [2])
+        fixed = s.replace_plan(
+            corrected, steps=proposed, mode="fixed", new_id=ids
+        ).schedule
+        assert fixed.cycles == corrected.cycles
+        assert fixed.plan.order_for(fixed.plan.length) - 1 == 7
+
     @pytest.mark.parametrize("current,counts", [(0, [2, 1, 3]), (3, [3]), (6, [])])
     def test_a_fixed_plan_editor_contains_only_the_unsaved_remainder(
         self, ids, current, counts
