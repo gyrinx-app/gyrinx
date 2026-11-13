@@ -5,7 +5,7 @@
   "scripts": {
     "build": "vite build && tailwindcss --input src/theme.css --output dist/theme.css --minify && node build-shadow-theme.mjs",
     "start": "vite preview --host 127.0.0.1 --port 8776 --strictPort",
-    "check": "node check_card_manager.mjs && node check_group_boxes.mjs && node check_visibility.mjs",
+    "check": "node check_roster_model.mjs && node check_card_manager.mjs && node check_group_boxes.mjs && node check_visibility.mjs && node check_roster_view.mjs && node check_roster_spacing.mjs",
     "format:check": "prettier --check \"src/*.{js,jsx,css}\" \"*.mjs\" \"*.js\" \"package*.json\""
   },
   "dependencies": {
