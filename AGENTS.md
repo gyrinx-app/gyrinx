@@ -88,7 +88,10 @@ artifacts when the IDE Canvas surface is unavailable.
   works when PATH has no interpreter.
 - Use `./scripts/test.sh` for the full suite, or build React with `npm run js`
   before direct pytest runs on a clean checkout. `pyproject.toml` already runs
-  pytest with xdist and `--nomigrations`.
+  pytest with xdist and `--nomigrations`. The test database is built from the
+  current models, so a migration test that needs an earlier declaration uses
+  `historical_state` in `gyrinx/historical_state.py` rather than
+  `django.apps.apps`.
 - Run pytest via this worktree's interpreter: `.venv/bin/python -m pytest`. A
   sibling worktree's `pytest` on PATH imports that checkout's code. The root
   conftest exits if it detects that mismatch. pytest also exits when another
