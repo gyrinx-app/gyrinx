@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Field, Icon, Input, Textarea } from "../../ui";
+import { Button, Field, Icon, Input, Table, Textarea } from "../../ui";
 import { RewardSettings } from "./RewardSettings";
 import { PlanSteps } from "./PlanSteps";
 import type { Phase, SetupDefinition } from "./types";
@@ -65,26 +65,32 @@ export function SetupDraft({
     })) as Phase[];
     if (review)
         return (
-            <ol className="divide-y divide-box-border border border-box-border">
-                {draft.steps.map((step, index) => (
-                    <li
-                        key={step.id}
-                        className="flex justify-between gap-3 px-3 py-2 text-sm"
-                    >
-                        <span>
-                            {index + 1}.{" "}
-                            {
-                                phases.find(
-                                    (phase) => phase.id === step.phase_id,
-                                )?.name
-                            }
-                        </span>
-                        <span className="shrink-0">
-                            {step.count} {step.count === 1 ? "cycle" : "cycles"}
-                        </span>
-                    </li>
-                ))}
-            </ol>
+            <Table
+                hover={false}
+                className="border border-box-border [&_tbody_th]:font-semibold [&_tbody_th]:text-ink-900 dark:[&_tbody_th]:text-ink-100 [&_tbody_th]:whitespace-normal"
+            >
+                <caption className="pb-2 text-left font-semibold">
+                    Phase pattern
+                </caption>
+                <tbody>
+                    {draft.steps.map((step, index) => (
+                        <tr key={step.id}>
+                            <th scope="row" className="w-1/2">
+                                {index + 1}.{" "}
+                                {
+                                    phases.find(
+                                        (phase) => phase.id === step.phase_id,
+                                    )?.name
+                                }
+                            </th>
+                            <td className="text-right whitespace-nowrap">
+                                {step.count}{" "}
+                                {step.count === 1 ? "cycle" : "cycles"}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </Table>
         );
     return (
         <section className="space-y-3" aria-label="Customise campaign phases">

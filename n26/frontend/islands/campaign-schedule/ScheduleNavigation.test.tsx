@@ -124,6 +124,7 @@ test.each([
     },
 );
 beforeEach(() => {
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
     window.history.replaceState(null, "", base);
     HTMLDialogElement.prototype.showModal = vi.fn(function (
         this: HTMLDialogElement,
@@ -162,6 +163,7 @@ test("opening and closing an editor use JSON reads while retaining the schedule 
     expect(window.location.pathname).toBe(base);
     expect(row.isConnected).toBe(true);
     expect(document.activeElement).toBe(trigger);
+    expect(window.scrollTo).not.toHaveBeenCalled();
 });
 
 test("a confirmed save refreshes rows through JSON and returns to the cycle anchor", async () => {
@@ -453,6 +455,7 @@ test("Schedule settings uses a full page and keeps loading inside its trigger", 
     expect(trigger.getAttribute("data-busy")).toBe("on");
     expect(screen.queryByText("Loading schedule…")).toBeNull();
     expect(row.isConnected).toBe(true);
+    expect(window.scrollTo).not.toHaveBeenCalled();
     await act(async () => finish(json(data(plan))));
     const heading = await screen.findByRole("heading", {
         level: 1,
@@ -461,9 +464,17 @@ test("Schedule settings uses a full page and keeps loading inside its trigger", 
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(row.isConnected).toBe(false);
     expect(document.activeElement).toBe(heading);
+    await waitFor(() =>
+        expect(window.scrollTo).toHaveBeenCalledExactlyOnceWith({
+            left: 0,
+            top: 0,
+            behavior: "instant",
+        }),
+    );
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await screen.findByRole("heading", { level: 1, name: "Phases & cycles" });
     expect(window.location.pathname).toBe(base);
+    await waitFor(() => expect(window.scrollTo).toHaveBeenCalledTimes(2));
 });
 
 test("schedule messages use dismissible design-system alerts and repeated saves show a fresh message", async () => {
@@ -537,6 +548,14 @@ test("setup steps have URLs, retain edits through Back/Forward and refresh witho
         screen.getByRole("button", { name: "Customise schedule" }),
     );
     expect(window.location.search).toBe("?step=2");
+    await waitFor(() =>
+        expect(window.scrollTo).toHaveBeenCalledExactlyOnceWith({
+            left: 0,
+            top: 0,
+            behavior: "instant",
+        }),
+    );
+    vi.mocked(window.scrollTo).mockClear();
     fireEvent.change(screen.getByLabelText("Phase 1 name"), {
         target: { value: "My phase" },
     });
@@ -551,15 +570,26 @@ test("setup steps have URLs, retain edits through Back/Forward and refresh witho
         );
     });
     expect(screen.getByLabelText("Starting schedule")).toBeTruthy();
+    expect(window.scrollTo).not.toHaveBeenCalled();
     await userEvent.click(
         screen.getByRole("button", { name: "Customise schedule" }),
     );
     expect(
         (screen.getByLabelText("Phase 1 name") as HTMLInputElement).value,
     ).toBe("My phase");
+    await waitFor(() => expect(window.scrollTo).toHaveBeenCalledOnce());
+    vi.mocked(window.scrollTo).mockClear();
     await userEvent.click(
         screen.getByRole("button", { name: "Review schedule" }),
     );
+    await waitFor(() =>
+        expect(window.scrollTo).toHaveBeenCalledExactlyOnceWith({
+            left: 0,
+            top: 0,
+            behavior: "instant",
+        }),
+    );
+    vi.mocked(window.scrollTo).mockClear();
     expect(window.location.search).toBe("?step=3");
     expect(screen.getByText(/1. My phase/)).toBeTruthy();
     const forward = window.history.state;
@@ -580,6 +610,7 @@ test("setup steps have URLs, retain edits through Back/Forward and refresh witho
     });
     expect(screen.getByText(/1. My phase/)).toBeTruthy();
     expect(fetch).not.toHaveBeenCalled();
+    expect(window.scrollTo).not.toHaveBeenCalled();
     const draft = sessionStorage.getItem(setup.recoveryKey + ":setup-draft")!;
     expect(draft).not.toContain("csrf");
     expect(draft).not.toContain("request_key");
@@ -595,4 +626,54 @@ test("setup steps have URLs, retain edits through Back/Forward and refresh witho
         />,
     );
     expect(screen.getByText(/1. My phase/)).toBeTruthy();
+});
+
+test("expanding the timeline keeps the viewport position", async () => {
+    const initial = { ...data(), moreHref: base + "?preview=24" };
+    const fetch = vi.fn().mockResolvedValue(json({ ...initial, moreHref: "" }));
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...initial} />);
+    await userEvent.click(
+        screen.getByRole("link", { name: "Preview more cycles" }),
+    );
+    await waitFor(() => expect(window.location.search).toBe("?preview=24"));
+    expect(
+        screen.queryByRole("link", { name: "Preview more cycles" }),
+    ).toBeNull();
+    expect(window.scrollTo).not.toHaveBeenCalled();
+});
+
+test("a failed page read keeps the viewport until the destination is loaded", async () => {
+    const plan = {
+        ...editor,
+        kind: "plan",
+        heading: "Schedule settings",
+        action: base + "edit/plan/",
+        values: {
+            request_key: "plan-key",
+            expected_revision: "1",
+            mode: "fixed",
+            steps: "[]",
+        },
+    };
+    const fetch = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Offline"))
+        .mockResolvedValueOnce(json(data(plan)));
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...data()} />);
+    await userEvent.click(
+        screen.getByRole("link", { name: "Schedule settings" }),
+    );
+    await screen.findByRole("alert");
+    expect(window.scrollTo).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await screen.findByRole("heading", { level: 1, name: "Schedule settings" });
+    await waitFor(() =>
+        expect(window.scrollTo).toHaveBeenCalledExactlyOnceWith({
+            left: 0,
+            top: 0,
+            behavior: "instant",
+        }),
+    );
 });

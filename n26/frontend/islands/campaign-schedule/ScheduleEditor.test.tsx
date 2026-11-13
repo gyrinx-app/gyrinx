@@ -790,3 +790,51 @@ test("starting after deletion posts an explicit surviving cycle", async () => {
         ),
     ).toBe('{"plan_id":"pattern","index":2}');
 });
+
+test("cycle dates can be cleared explicitly and submitted as an undated pair", async () => {
+    const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
+    vi.stubGlobal("fetch", fetch);
+    render(
+        <ScheduleEditor
+            phases={phases}
+            onNavigate={vi.fn()}
+            editor={{
+                ...editor,
+                values: {
+                    ...editor.values,
+                    date_version: "2",
+                    starts_on: "2026-11-01",
+                    ends_on: "2026-11-07",
+                },
+            }}
+        />,
+    );
+    const help = screen.getByText("Enter both dates or leave both blank.");
+    expect(
+        screen.getAllByText("Enter both dates or leave both blank."),
+    ).toHaveLength(1);
+    expect(
+        screen.getByLabelText("Start date").getAttribute("aria-describedby"),
+    ).toContain(help.id);
+    expect(
+        screen.getByLabelText("End date").getAttribute("aria-describedby"),
+    ).toContain(help.id);
+    await userEvent.click(
+        screen.getByRole("button", { name: "Clear start date" }),
+    );
+    await userEvent.click(
+        screen.getByRole("button", { name: "Clear end date" }),
+    );
+    expect(fetch).not.toHaveBeenCalled();
+    expect(
+        (screen.getByLabelText("Start date") as HTMLInputElement).value,
+    ).toBe("");
+    expect((screen.getByLabelText("End date") as HTMLInputElement).value).toBe(
+        "",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch.mock.calls[0][1].body.get("starts_on")).toBe("");
+    expect(fetch.mock.calls[0][1].body.get("ends_on")).toBe("");
+    expect(fetch.mock.calls[0][1].body.get("date_version")).toBe("2");
+});

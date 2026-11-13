@@ -1,0 +1,41 @@
+{# title: Icons and labels #}
+{# note: Buttons and button links keep icons beside their labels. Groups wrap between controls at narrow widths; each label stays on one line. #}
+{# layout: col #}
+<div class="flex flex-wrap gap-2">
+    <c-ui.button href="#" variant="ghost" size="sm">
+        <c-n26.icon name="plus" class="size-4" />
+        Add phase
+    </c-ui.button>
+    <c-ui.button href="#" size="sm">
+        Schedule settings
+    </c-ui.button>
+    <c-ui.button href="#" variant="primary" size="sm">
+        Advance cycle
+    </c-ui.button>
+</div>
+<div class="flex flex-wrap items-center gap-2">
+    <c-ui.button size="xs">
+        <c-n26.icon name="pencil" class="size-3" />
+        Edit
+    </c-ui.button>
+    <c-ui.button size="sm">
+        <c-n26.icon name="plus" class="size-4" />
+        Add step
+    </c-ui.button>
+    <c-ui.button>
+        <c-n26.icon name="check" class="size-4" />
+        Confirm
+    </c-ui.button>
+    <c-ui.button variant="primary" size="sm" data-busy="on">
+        <c-n26.icon name="plus" class="size-4" />
+        Add step
+    </c-ui.button>
+</div>
+<p class="text-sm">
+    Follow the
+    <c-ui.button href="#" variant="text">
+        <c-n26.icon name="arrow-right" class="size-4" />
+        next step
+    </c-ui.button>
+    to continue.
+</p>
