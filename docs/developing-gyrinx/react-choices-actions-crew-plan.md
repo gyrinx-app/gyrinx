@@ -35,7 +35,9 @@ shared files. Do not introduce a client router or a general API framework.
 For each workflow, extract HTTP-independent preparation from its views into a
 small owning module. Native POST and JSON adapters use the same current access
 checks, validation, commands, outcome and feedback. Keep request-dependent
-messages and analytics in the adapters, once per new action.
+messages and analytics in the adapters. Emit analytics once per new action; keep
+at most one queued confirmation per request key, including recovery after a lost
+response.
 
 Initial props and later reads use one explicit display builder. Include only
 permitted, JSON-safe facts. Embed initial data in the page; do not fetch it again
@@ -52,8 +54,8 @@ Recheck current authority under the existing write locks, then recall an earlier
 result before resolving mutable offers, roster entries or catalogue records.
 Serialise identical keys under those locks. Commit any generated randomness,
 domain writes and success receipt in the same transaction. A failed transaction
-leaves none of them committed. Messages and analytics run only for a newly
-completed command.
+leaves none of them committed. Replayed confirmations describe the historical
+result when the current state may have changed; they must not imply a fresh write.
 
 A retry recalls the original result even when a choice closes itself. It must
 not create another roll, repeated pick, payment, assignment or crew draw.
