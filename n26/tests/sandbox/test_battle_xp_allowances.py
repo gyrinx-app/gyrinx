@@ -1,5 +1,6 @@
 """A battle XP award earns one durable choice, with reversible unused grants."""
 
+import json
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from types import SimpleNamespace
@@ -28,7 +29,7 @@ from n26.core.post_battle import (
 )
 from n26.core.reconcile import assert_reconciled
 from n26.library import authoring as a
-from n26.tests.fixtures import library_setup
+from n26.tests.fixtures import island_props, library_setup
 from n26.tests.sandbox.actions import found_gang, hire
 
 pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("counter_tracking")]
@@ -606,14 +607,27 @@ def test_an_interstitial_cannot_settle_an_earned_battle_choice(setup, client, he
     client.force_login(s.owner)
     page = client.get(here)
     assert page.status_code == 200
-    assert f'name="thing:{key}"' in page.content.decode()
+    props = island_props(page.content, "choice-workflow")
+    questions = [
+        question for block in props["blocks"] for question in block["questions"]
+    ]
+    assert [question["key"] for question in questions] == [key]
+    picked = f"library.pickable:{s.pick.pk}"
+    assert picked in {
+        option["key"]
+        for group in questions[0]["offer"]["groups"]
+        for option in group["options"]
+    }
     response = client.post(
-        here, {f"thing:{key}": f"library.pickable:{s.pick.pk}"}, follow=True
+        here,
+        {**props["values"], "selection": json.dumps({key: picked})},
+        follow=True,
     )
-    assert (
-        "On hold" in response.content.decode()
-        if held
-        else "earned action flow" in response.content.decode()
+    assert response.status_code == 200
+    refused = island_props(response.content, "choice-workflow")
+    assert any(
+        ("On hold" if held else "earned action flow") in message["text"]
+        for message in refused["messages"]
     )
     assert not Assignment.objects.filter(
         miniature_root=s.fighter, pickable=s.pick, archived=False
@@ -1250,14 +1264,18 @@ def test_held_pick_controls_show_the_recorded_removal_and_new_pick_ratings(
     )
     page = client.get(url)
     assert page.status_code == 200
-    html = page.content.decode()
-    if repeats:
-        assert "Rating per added pick 7¢" in html
-        assert "Rating of next removed pick 5¢" in html
-    else:
-        assert "Rating 5¢" in html
+    props = island_props(page.content, "choice-workflow")
+    shown = next(
+        option
+        for group in props["offer"]["groups"]
+        for option in group["options"]
+        if option["key"] == option_key(s.pick)
+    )
+    assert shown["control"] == ("both" if repeats else "remove")
+    assert shown["rating"] == (7 if repeats else 5)
+    assert shown["removalRating"] == 5
     before = s.fighter.recompute_rating()
-    response = client.post(url, {"remove": option_key(s.pick)})
+    response = client.post(url, {**props["values"], "remove": option_key(s.pick)})
     assert response.status_code == 302
     original.refresh_from_db()
     assert original.archived
