@@ -314,3 +314,39 @@ Feature-specific work should concentrate on fields, layout, display data and
 domain response handling. Mounting, styling, transport and recovery already
 have established homes. See the [migration plan](react.md) for required checks
 and the prerequisites for more complex tasks such as Hire and Equip.
+
+Action stages keep their URL, submitted record revision and exact stage intent in
+the command. A generated roll, entered total, promotion decline and signed review
+are separate commands even when the domain has an older roll key. Recall the
+outer receipt before resolving the current stage, then display its recorded facts
+separately from the current flow. Publish success only after operation settlement
+exits. A settlement refusal must roll back both the domain writes and receipt.
+
+Keep unknown commands recoverable across the whole action workflow. Scope known
+unsent or rejected drafts by action use, stage, allowance and correction pick. A
+draft from another stage must not replace the current controls; an older record
+revision requires explicit review. Preserve native forms outside the root, such
+as one-click history Undo, by rendering their command key and record revision
+into the existing POST. Never invent those values while handling an old POST.
+
+Preserve absent and explicitly blank URL selectors separately. An absent
+correction pick can select the stored result, while an explicit blank leaves it
+unselected. Keep that distinction in JSON display links and native form targets.
+Put the write-pause barrier before workflow row locks. Publish terminal
+acknowledgements only after settlement too: a rolled-back refusal receipt cannot
+release an uncertain command. Only a validated revision conflict or durable
+terminal refusal permits review; a key refusal leaves an earlier save uncertain.
+
+Stamp the owned recovery URL before sending a command so ordinary browser
+refresh can mount recovery after removal or archive. Clear the passive draft
+identified by the submitted command, which can differ from the current page's
+draft after navigation to another stage. Test those cross-stage acknowledgements
+and reviews without losing the current page's unrelated draft.
+
+Put read-only radio-card facts in `details`. `RadioCard` children are separate
+controls outside the choice label; `details` keeps the divider, indentation and
+muted text inside the clickable choice. Compare each native footer variant,
+including left-aligned Back, red ghost Cancel and Undo, and the small Change
+selection control. Check review captions, completed Choice and Result summaries,
+and empty error markup as well as the inputs: an empty child can change section
+spacing through collapsed margins.

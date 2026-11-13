@@ -36,6 +36,11 @@ def test_export_bootstraps_without_a_manifest_or_database_queries(
         "arrivalQuestion",
         "nextPage",
     }
+    assert exported["paymentFigures"]["list"]
+    assert exported["paymentFigures"]["unit"]
+    assert exported["actionFacts"]["caption"]
+    assert exported["actionFacts"]["back"] == "mr-auto"
+    assert "text-red-600!" in exported["actionFacts"]["danger"]
     assert exported["icons"]["dices"]
     assert exported["choice"]["nextPage"]["root"]
     assert exported["choice"]["nextPage"]["footer"]

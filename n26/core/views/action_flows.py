@@ -1,1038 +1,212 @@
-"""Owner-scoped forms for starting and completing fighter actions."""
-
-from copy import copy
-from dataclasses import replace
-from urllib.parse import urlencode
-from uuid import uuid4
+"""Native and JSON adapters for the complete model action workflow."""
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core import signing
-from django.core.exceptions import ValidationError
-from django.http import Http404
-from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
+from django.http import JsonResponse
+from django.shortcuts import redirect, render
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_GET, require_POST
 
-from n26.core.access import actions_for
-from n26.core.action_flow import (
-    earned_threshold,
-    payment_figures,
-    payment_tallies,
-    receipt_lines,
+from n26.core.action_display import page_data
+from n26.core.action_stages import (
+    StageNavigation,
+    _review_payments,
+    _review_token,
+    _steps,
+    _submitted_review,
+    flow_url,
+    flow_url_for,
+    link_action_panels,
+    split_action_panels,
 )
-from n26.core.action_forms import (
-    ActionOutcomeForm,
-    ActionSelectionForm,
-    ApplyByHandForm,
-    ConfirmActionForm,
-    EmptyActionForm,
-    StartActionForm,
-)
-from n26.core.action_payments import Balance, Quote, QuotedLine, Resource
-from n26.core.action_records import (
-    active_action_record,
-    preview_changes_review,
-    quote_for,
-)
-from n26.core.counter_tracking import is_active as counter_tracking_is_active
-from n26.core.flow import FlowStep
-from n26.core.models import ActionAllowance, ActionRecord, LedgerEvent
-from n26.core.operations import Refusal, operation
-from n26.core.views.permissions import _own_miniature_or_404
-from n26.library.models import (
-    Action,
-    ApplyChanges,
-    AugmentCarriedItem,
-    ResolveAdvancement,
-)
+from n26.core.action_workflow import ActionTarget, change, read, target_from
 
-REVIEW_SALT = "n26.fighter-action-review"
-UNDO_SALT = "n26.fighter-action-undo"
+__all__ = [
+    "action_start",
+    "action_by_hand",
+    "action_flow",
+    "action_command",
+    "action_display",
+    "flow_url",
+    "flow_url_for",
+    "link_action_panels",
+    "split_action_panels",
+    "_steps",
+    "_review_token",
+    "_submitted_review",
+    "_review_payments",
+]
 
 
-def flow_url(fighter, record, step):
-    return flow_url_for(fighter, record.pk, step)
-
-
-def flow_url_for(fighter, record_id, step):
-    return reverse("n26-action-flow", args=[fighter.pk, record_id, step])
-
-
-def link_action_panels(fighter, panels):
-    """Attach navigation to the read-only values used below the model card."""
-    for panel in panels:
-        if (
-            not panel.problem
-            and panel.available_uses != 0
-            and not any(not draft.suspended for draft in panel.drafts)
-        ):
-            panel.start_href = reverse(
-                "n26-action-start", args=[fighter.pk, panel.action_id]
-            )
-            if panel.allowance_id:
-                panel.start_href += f"?allowance={panel.allowance_id}"
-                panel.menu = [
-                    {
-                        "label": "Mark as applied",
-                        "href": reverse(
-                            "n26-action-by-hand", args=[fighter.pk, panel.action_id]
-                        )
-                        + f"?allowance={panel.allowance_id}",
-                    }
-                ]
-        panel.menu += [
-            {
-                "label": "Mark as applied"
-                if len(panel.drafts) == 1
-                else f"Mark flow {number} as applied",
-                "href": flow_url_for(fighter, draft.key, "by-hand"),
-            }
-            for number, draft in enumerate(panel.drafts, start=1)
-            if draft.earned and not draft.problem
-        ]
-        panel.drafts = [
-            replace(draft, href=flow_url_for(fighter, draft.key, "resume"))
-            for draft in panel.drafts
-        ]
-        panel.completed = [
-            replace(
-                completed, reopen_href=flow_url_for(fighter, completed.key, "reopen")
-            )
-            if completed.applied_by_hand
-            else replace(
-                completed,
-                href=flow_url_for(fighter, completed.key, "done"),
-                undo_href=flow_url_for(fighter, completed.key, "undo")
-                if completed.undoable
-                else "",
-            )
-            for completed in panel.completed
-        ]
-    return panels
-
-
-def split_action_panels(panels):
-    """Separate actions the model can use now from completed results."""
-
-    return (
-        [
-            panel
-            for panel in panels
-            if panel.start_href or panel.drafts or panel.held_uses
-        ],
-        [panel for panel in panels if panel.completed],
+def _target(kind, key, request, step=""):
+    return ActionTarget(
+        kind,
+        str(key),
+        step,
+        request.GET.get("allowance"),
+        request.GET.get("pick"),
     )
 
 
-def _outcomes(action):
-    return [
-        member.outcome
-        for member in action.outcomes.select_related(
-            "outcome__augment_carried_item__slot_type",
-            "outcome__resolve_advancement__slot",
-            "outcome__apply_changes",
-        )
-    ]
+def _notices(request, notices):
+    for notice in notices:
+        getattr(messages, notice["tone"])(request, notice["text"])
 
 
-def _description(outcome):
-    configured = outcome.operation
-    if isinstance(configured, AugmentCarriedItem):
-        return "Raise the level of one carried item by one tier."
-    if isinstance(configured, ApplyChanges):
-        return ""
-    return "Gain an advancement."
-
-
-def _steps(record=None, *, action=None, stage="start", correction=False):
-    """Keep step numbering stable by marking unused steps as skipped.
-
-    Cancellation and unavailable pages have no current step.
-    """
-    if stage in {"undo", "on-hold"}:
-        return []
-    configured = record.outcome.operation if record and record.outcome_id else None
-    if record is None and action:
-        outcomes = _outcomes(action)
-        if len(outcomes) == 1:
-            configured = outcomes[0].operation
-    skipped = set()
-    if isinstance(configured, ResolveAdvancement):
-        from n26.core.promotions import replaces_roll
-
-        promotion = record is not None and replaces_roll(record, configured)
-        stages = [] if correction else [("start", "Choice"), ("roll", "Roll")]
-        stages += [
-            ("advancement", "Promotion" if promotion else "Advancement"),
-            ("skill", "Skill or power"),
-            ("review", "Review"),
-            ("done", "Completed"),
-        ]
-        if promotion:
-            skipped.add("roll")
-        target = record.review.get("target", {}) if record else {}
-        skill = getattr(record, "skill_selection", None)
-        takes_a_skill = (
-            stage == "skill"
-            or (stage == "review" and isinstance(target, dict) and target.get("skill"))
-            or (
-                stage == "done"
-                and skill
-                and skill.skill_assignment_id
-                and not skill.skill_assignment.archived
-            )
-        )
-        if stage in {"review", "done"} and not takes_a_skill:
-            skipped.add("skill")
-    else:
-        middle = (
-            [("choose", "Item and tier")]
-            if isinstance(configured, AugmentCarriedItem)
-            else ([("choose", "Selection")] if configured is None else [])
-        )
-        stages = (
-            [("correct", "Choose tier")]
-            if correction
-            else [("start", "Choice"), *middle]
-        )
-        stages += [("review", "Review"), ("done", "Completed")]
-    keys = [key for key, _ in stages]
-    current = keys.index(stage) if stage in keys else None
-    return [
-        FlowStep(
-            label,
-            current=index == current,
-            complete=current is not None and index < current and key not in skipped,
-            skipped=key in skipped,
-        )
-        for index, (key, label) in enumerate(stages)
-    ]
-
-
-def _record_or_404(fighter, key):
-    try:
-        return get_object_or_404(
-            ActionRecord.objects.select_related(
-                "action", "outcome", "allowance__rank_table__counter"
-            ),
-            pk=key,
-            fighter=fighter,
-            gang=fighter.gang,
-        )
-    except ValidationError:
-        raise Http404("No such action use") from None
-
-
-def _review_token(record):
-    return signing.dumps(
-        {
-            "record": str(record.pk),
-            "revision": record.revision,
-            "review": record.review,
-        },
-        salt=REVIEW_SALT,
-        compress=True,
+def _native(request, pk, target):
+    result = (
+        change(request.user, pk, target, request.POST)
+        if request.method == "POST"
+        else None
     )
+    if result and result.saved:
+        _notices(request, result.notices)
+        return redirect(result.next_url)
+    if result and result.errors and target.step in {"cancel", "reopen"}:
+        from django.urls import reverse
 
-
-def _submitted_review(record, token):
-    try:
-        reviewed = signing.loads(token, salt=REVIEW_SALT)
-    except signing.BadSignature:
-        raise Refusal("Review this action again before confirming it.") from None
-    if reviewed.get("record") != str(record.pk):
-        raise Refusal("That confirmation belongs to another action use.")
-    return reviewed
-
-
-def _review_payments(record):
-    return payment_tallies(
-        Quote(
-            tuple(
-                QuotedLine(
-                    Balance(
-                        Resource(part["resource"]),
-                        part["gang_id"],
-                        part["assignment_id"],
-                    ),
-                    part["amount"],
-                    part["available"],
-                    part["position"],
-                    part["name"],
-                )
-                for part in record.review.get("price", [])
-            )
+        for texts in result.errors.values():
+            for text in texts:
+                messages.error(request, text)
+        return redirect(reverse("n26-edit-fighter", args=[pk]))
+    page = (
+        result.page
+        if result and result.page
+        else read(
+            request.user,
+            pk,
+            target,
+            recover=request.GET.get("recover") == "1",
+            gang_id=request.GET.get("gang_id", ""),
         )
     )
+    if isinstance(page, StageNavigation):
+        _notices(request, page.notices)
+        if result and result.errors:
+            for texts in result.errors.values():
+                for text in texts:
+                    messages.error(request, text)
+        return redirect(page.href)
+    if result and result.errors and page.context.get("form") is not None:
+        from copy import copy
 
-
-def _page(
-    request,
-    fighter,
-    action,
-    *,
-    record=None,
-    allowance=None,
-    stage="start",
-    correction=False,
-    **context,
-):
-    back = reverse("n26-edit-fighter", args=[fighter.pk])
-    cancel_href = flow_url(fighter, record, "cancel") if _can_cancel(record) else ""
-    outcome_href = (
-        flow_url(fighter, record, "outcome")
-        if _can_cancel(record)
-        and not correction
-        and stage not in {"start", "done", "cancel", "by-hand", "on-hold"}
-        else ""
+        form = copy(page.context["form"])
+        form.data = request.POST
+        form.is_bound = True
+        form._errors = None
+        form.full_clean()
+        for name, texts in result.errors.items():
+            for text in texts:
+                field = None if name == "__all__" or name not in form.fields else name
+                if text not in form.errors.get(name, []):
+                    form.add_error(field, text)
+        page.context["form"] = form
+    props = page_data(
+        request,
+        page,
+        target,
+        errors=result.errors if result else None,
+        conflict=result.code in {"revision_conflict", "unavailable"}
+        if result
+        else False,
     )
-    done_href = ""
-    if stage == "done":
-        done_href = back
-        back_href = context.get("correct_href", "")
-        back_label = "Change result" if back_href else ""
-    elif stage == "cancel":
-        back_href = flow_url(fighter, record, "resume")
-        back_label = "Save and return later"
-    elif stage == "skill":
-        back_href = flow_url(fighter, record, "correct" if correction else "choose")
-        if correction:
-            back_href += "?" + urlencode({"pick": context["selected_pick"]})
-        back_label = "← Back"
-    elif stage == "review" and context.get("change_href"):
-        target = record.review.get("target", {})
-        if isinstance(target, dict) and target.get("skill"):
-            back_href = flow_url(fighter, record, "skill")
-            if correction:
-                back_href += "?" + urlencode(
-                    {"pick": record.review["terms"]["pickable_id"]}
-                )
-        else:
-            back_href = context["change_href"]
-        back_label = "← Back"
-    elif (
-        stage == "advancement"
-        and not correction
-        and context.get("roll_value")
-        and not record.completed_event_id
-    ):
-        back_href = flow_url(fighter, record, "roll")
-        back_label = "← Back"
-    elif outcome_href:
-        back_href = outcome_href
-        back_label = "← Back"
-    else:
-        back_href = back
-        back_label = "← Back to model"
     return render(
-        request,
-        "n26/action_flow.html",
-        {
-            "miniature": fighter,
-            "gang": fighter.gang,
-            "action": action,
-            "record": record,
-            "earned_threshold": earned_threshold(
-                record.allowance if record is not None else allowance
-            ),
-            "stage": stage,
-            "correction": correction,
-            "steps": _steps(record, action=action, stage=stage, correction=correction),
-            "back": back,
-            "back_href": back_href,
-            "back_label": back_label,
-            "done_href": done_href,
-            "cancel_href": cancel_href,
-            "selection_summary": _selection_summary(record, stage),
-            "outcome_href": outcome_href,
-            **context,
-        },
+        request, "n26/action_flow.html", {**page.context, "action_props": props}
     )
 
 
-def _refusal_page(request, fighter, action, refusal, *, record=None, correction=False):
-    form = EmptyActionForm({})
-    form.add_error(None, str(refusal))
-    return _page(
-        request,
-        fighter,
-        action,
-        record=record,
-        stage="unavailable",
-        correction=correction,
-        form=form,
-        submit_label="",
-    )
-
-
-def _can_cancel(record):
-    if record is None or record.state != ActionRecord.State.STARTED:
-        return False
-    advancement = getattr(record, "advancement_selection", None)
-    skill = getattr(record, "skill_selection", None)
-    return not (advancement and advancement.roll_event_id) and not (
-        skill and skill.random_attempts
-    )
-
-
-def _selection_summary(record, stage):
-    if record is None:
-        return ""
-    if stage == "review":
-        target = record.review.get("target", {})
-        selected = target.get("selection") if isinstance(target, dict) else None
-        if selected:
-            effect = selected["effect"]
-            return f"{selected['item_name']}: {selected['candidate_tier']}. {effect[:1].upper()}{effect[1:]}"
-        if isinstance(target, dict) and target.get("result"):
-            return (
-                f"{target['result']}: {target['skill']}"
-                if target.get("skill")
-                else target["result"]
-            )
-    if stage in {"done", "undo"}:
-        selection = getattr(record, "slot_selection", None)
-        if selection and selection.item_assignment and selection.intended_pick:
-            return f"{selection.item_assignment.assignable}: {selection.intended_pick}."
-        advancement = getattr(record, "advancement_selection", None)
-        if advancement and advancement.intended_pick:
-            skill = getattr(record, "skill_selection", None)
-            return (
-                f"{advancement.intended_pick}: {skill.selected}."
-                if skill
-                and skill.selected
-                and skill.skill_assignment_id
-                and not skill.skill_assignment.archived
-                else str(advancement.intended_pick)
-            )
-    return ""
-
-
-def _review_choice(record):
-    """Name the result selected inside a reviewed outcome."""
-
-    target = record.review.get("target", {})
-    if not isinstance(target, dict):
-        return None
-    selected = target.get("selection")
-    if selected:
-        return {
-            "label": "Selection",
-            "title": f"{selected['item_name']}: {selected['candidate_tier']}",
-            "description": selected["effect"],
-            "meta": (
-                f"Model rating {selected['rating_before']}¢ → "
-                f"{selected['rating_after']}¢"
-            ),
-        }
-    if target.get("result"):
-        stashed = target.get("promotion", {}) or {}
-        equipment = stashed.get("stash", [])
-        equipment_note = (
-            "Move to stash: " + ", ".join(item["name"] for item in equipment)
-            if equipment
-            else ""
-        )
-        return {
-            "label": "Advancement",
-            "title": target["result"],
-            "description": ". ".join(
-                text.rstrip(". ")
-                for text in [
-                    target.get("skill"),
-                    target.get("promotion_result"),
-                    equipment_note,
-                ]
-                if text
-            ),
-            "meta": f"Rating +{target['rating']}¢" if target.get("rating") else "",
-        }
-    return None
-
-
+@never_cache
 @login_required
 def action_start(request, pk, action_id):
-    fighter = _own_miniature_or_404(request, pk)
-    gang = fighter.gang
-    try:
-        action = get_object_or_404(Action, pk=action_id)
-    except ValidationError:
-        raise Http404("No such action") from None
-    if request.method == "POST":
-        try:
-            request_key = StartActionForm.base_fields["request_key"].clean(
-                request.POST.get("request_key")
-            )
-        except ValidationError:
-            request_key = None
-        existing = (
-            ActionRecord.objects.filter(
-                gang=gang, fighter=fighter, action=action, request_key=request_key
-            ).first()
-            if request_key
-            else None
-        )
-        if existing:
-            return redirect(flow_url(fighter, existing, "resume"))
-    existing = active_action_record(fighter, action)
-    if existing:
-        return redirect(flow_url(fighter, existing, "resume"))
-    allowances = list(
-        ActionAllowance.objects.filter(fighter=fighter, action=action)
-        .unused()
-        .with_progression_value()
-        .select_related("rank_table__counter")
-        .order_by("threshold", "created", "pk")
-    )
-    if not allowances and action.pk not in {
-        access.action.pk for access in actions_for(fighter)
-    }:
-        raise Http404("No such action")
-    if not counter_tracking_is_active():
-        form = EmptyActionForm({})
-        form.add_error(
-            None,
-            "This flow is temporarily unavailable.",
-        )
-        try:
-            prices = payment_figures(quote_for(fighter, action))
-        except Refusal as refusal:
-            form.add_error(None, str(refusal))
-            prices = ()
-        return _page(
-            request,
-            fighter,
-            action,
-            form=form,
-            prices=prices,
-            tracking_unavailable=True,
-            submit_label="",
-            submit_variant="primary",
-        )
-    from n26.core.allowances import allowance_hold_reason
-
-    held = [row for row in allowances if allowance_hold_reason(row)]
-    allowances = [row for row in allowances if not allowance_hold_reason(row)]
-    if not allowances and held:
-        return _held_page(request, fighter, action, allowance_hold_reason(held[0]))
-    outcomes = _outcomes(action)
-    initial = {
-        "request_key": uuid4(),
-        "outcome": str(outcomes[0].pk) if len(outcomes) == 1 else "",
-        "allowance": request.GET.get("allowance")
-        or (str(allowances[0].pk) if allowances else ""),
-    }
-    form = StartActionForm(
-        request.POST or None, initial=initial, outcomes=outcomes, allowances=allowances
-    )
-    if request.method == "POST" and form.is_valid():
-        outcome = next(
-            item for item in outcomes if str(item.pk) == form.cleaned_data["outcome"]
-        )
-        allowance = next(
-            (
-                item
-                for item in allowances
-                if str(item.pk) == form.cleaned_data["allowance"]
-            ),
-            None,
-        )
-        try:
-            with operation(gang, actor=request.user) as op:
-                record = op.start_action(
-                    fighter,
-                    action,
-                    form.cleaned_data["request_key"],
-                    allowance=allowance,
-                )
-                if record.state != ActionRecord.State.STARTED:
-                    return redirect(flow_url(fighter, record, "done"))
-                if (
-                    record.outcome_id is not None
-                    or record.request_key != form.cleaned_data["request_key"]
-                ):
-                    return redirect(flow_url(fighter, record, "resume"))
-                record = op.save_action_choices(record, outcome=outcome, terms={})
-                if isinstance(outcome.operation, ApplyChanges):
-                    record = op.review_action(
-                        record, outcome=outcome, terms=record.terms
-                    )
-            return redirect(flow_url(fighter, record, "resume"))
-        except Refusal as refusal:
-            form.add_error(None, str(refusal))
-    try:
-        quote = quote_for(fighter, action)
-    except Refusal as refusal:
-        return _refusal_page(request, fighter, action, refusal)
-    return _page(
-        request,
-        fighter,
-        action,
-        form=form,
-        allowance=next(
-            (
-                row
-                for row in allowances
-                if str(row.pk) == str(form["allowance"].value())
-            ),
-            None,
-        ),
-        prices=payment_figures(quote),
-        outcomes=[
-            {
-                "key": str(item.pk),
-                "name": str(item),
-                "description": _description(item),
-                "checked": str(form["outcome"].value()) == str(item.pk),
-            }
-            for item in outcomes
-        ],
-        submit_label="Continue",
-        submit_variant="primary",
-    )
+    return _native(request, pk, _target("start", action_id, request))
 
 
+@never_cache
 @login_required
 def action_by_hand(request, pk, action_id):
-    """Confirm, then mark an unused earned use as applied by hand."""
-    fighter = _own_miniature_or_404(request, pk)
-    try:
-        action = get_object_or_404(Action, pk=action_id)
-    except ValidationError:
-        raise Http404("No such action") from None
-    try:
-        allowance = (
-            ActionAllowance.objects.filter(
-                pk=request.GET.get("allowance"), fighter=fighter, action=action
-            )
-            .select_related("rank_table__counter")
-            .first()
-            if request.GET.get("allowance")
-            else None
-        )
-    except ValidationError:
-        allowance = None
-    form = ApplyByHandForm(request.POST or None, initial={"request_key": uuid4()})
-    if request.method == "POST" and form.is_valid():
-        try:
-            with operation(fighter.gang, actor=request.user) as op:
-                record = op.apply_allowance_by_hand(
-                    fighter, action, form.cleaned_data["request_key"], allowance
-                )
-            if record.state == ActionRecord.State.APPLIED_BY_HAND:
-                messages.success(request, f"{action} marked as applied by hand.")
-            else:
-                messages.info(request, "This form is out of date. Nothing changed.")
-            return redirect("n26-edit-fighter", pk=fighter.pk)
-        except Refusal as refusal:
-            form.add_error(None, str(refusal))
-    if allowance is None:
-        allowance = (
-            ActionAllowance.objects.filter(fighter=fighter, action=action)
-            .unused()
-            .eligible()
-            .select_related("rank_table__counter")
-            .order_by("threshold", "created", "pk")
-            .first()
-        )
-    return _by_hand_page(request, fighter, action, form, allowance=allowance)
+    return _native(request, pk, _target("by-hand", action_id, request))
 
 
-def _by_hand_page(request, fighter, action, form, *, record=None, allowance=None):
-    return _page(
-        request,
-        fighter,
-        action,
-        record=record,
-        allowance=allowance,
-        stage="by-hand",
-        form=form,
-        submit_label="Mark as applied",
-        submit_variant="success",
-    )
-
-
+@never_cache
 @login_required
 def action_flow(request, pk, record_id, step):
-    fighter = _own_miniature_or_404(request, pk)
-    record = _record_or_404(fighter, record_id)
-    if record.state == ActionRecord.State.CANCELLED:
-        messages.info(request, "This flow was cancelled.")
-        return redirect("n26-edit-fighter", pk=fighter.pk)
-    if step == "undo":
-        return _undo(request, fighter, record)
-    if (
-        record.state == ActionRecord.State.STARTED
-        and record.allowance_id
-        and step not in {"cancel", "reopen"}
-    ):
-        from n26.core.allowances import require_allowance_available
-
-        try:
-            require_allowance_available(record.allowance)
-        except Refusal as refusal:
-            return _held_page(
-                request, fighter, record.action, str(refusal), record=record
-            )
-    if step == "by-hand" and record.state == ActionRecord.State.STARTED:
-        form = EmptyActionForm(request.POST or None)
-        if request.method == "POST":
-            try:
-                with operation(fighter.gang, actor=request.user) as op:
-                    op.apply_action_by_hand(record)
-                messages.success(request, f"{record.action} marked as applied by hand.")
-                return redirect("n26-edit-fighter", pk=fighter.pk)
-            except Refusal as refusal:
-                form.add_error(None, str(refusal))
-        return _by_hand_page(request, fighter, record.action, form, record=record)
-    if step == "reopen":
-        if request.method == "POST":
-            try:
-                with operation(fighter.gang, actor=request.user) as op:
-                    op.reopen_action(record)
-                messages.success(request, f"{record.action} is waiting again.")
-            except Refusal as refusal:
-                messages.error(request, str(refusal))
-        return redirect("n26-edit-fighter", pk=fighter.pk)
-    if record.state == ActionRecord.State.APPLIED_BY_HAND:
-        messages.info(request, "This earned use was applied by hand.")
-        return redirect("n26-edit-fighter", pk=fighter.pk)
-    if not record.outcome_id and step in {
-        "resume",
-        "choose",
-        "correct",
-        "skill",
-        "roll",
-    }:
-        return redirect(flow_url(fighter, record, "outcome"))
-    if step == "resume":
-        next_step = (
-            "done"
-            if record.state == ActionRecord.State.COMPLETED
-            else (
-                "review"
-                if record.review
-                else (
-                    "skill"
-                    if isinstance(record.outcome.operation, ResolveAdvancement)
-                    and record.terms.get("pickable_id")
-                    else "choose"
-                )
-            )
-        )
-        return redirect(flow_url(fighter, record, next_step))
-    if step == "cancel":
-        if request.method == "POST":
-            try:
-                with operation(fighter.gang, actor=request.user) as op:
-                    op.cancel_action(record)
-                messages.success(request, "Flow cancelled.")
-            except Refusal as refusal:
-                messages.error(request, str(refusal))
-            return redirect("n26-edit-fighter", pk=fighter.pk)
-        return _page(
-            request,
-            fighter,
-            record.action,
-            record=record,
-            stage="cancel",
-            form=EmptyActionForm(),
-            submit_label="Cancel flow",
-            submit_variant="danger",
-        )
-    if step == "done":
-        if record.state != ActionRecord.State.COMPLETED:
-            return redirect(flow_url(fighter, record, "resume"))
-        can_correct = not isinstance(record.outcome.operation, ApplyChanges)
-        return _page(
-            request,
-            fighter,
-            record.action,
-            record=record,
-            stage="done",
-            receipt=receipt_lines(record),
-            correct_href=flow_url(fighter, record, "correct") if can_correct else "",
-            undo_href=flow_url(fighter, record, "undo")
-            if record.allowance_id
-            and isinstance(record.outcome.operation, ResolveAdvancement)
-            else "",
-        )
-    correction = record.state == ActionRecord.State.COMPLETED
-    if step == "outcome" and not correction:
-        return _choose_outcome(request, fighter, record)
-    if step == "review":
-        return _review(request, fighter, record, correction=correction)
-    if step not in {"choose", "correct", "skill", "roll"}:
-        raise Http404("No such flow step")
-    if correction and step not in {"correct", "skill"}:
-        return redirect(flow_url(fighter, record, "done"))
-    configured = record.outcome.operation if record.outcome_id else None
-    if step == "roll" and not isinstance(configured, ResolveAdvancement):
-        return redirect(flow_url(fighter, record, "choose"))
-    if isinstance(configured, AugmentCarriedItem):
-        try:
-            return _choose_augmentation(
-                request, fighter, record, configured, correction=correction
-            )
-        except Refusal as refusal:
-            return _refusal_page(
-                request,
-                fighter,
-                record.action,
-                refusal,
-                record=record,
-                correction=correction,
-            )
-    if isinstance(configured, ApplyChanges):
-        return redirect(flow_url(fighter, record, "review"))
-    from n26.core.views.advancement_flows import advancement_step
-
-    try:
-        return advancement_step(
-            request, fighter, record, step=step, correction=correction
-        )
-    except Refusal as refusal:
-        form = EmptyActionForm({})
-        form.add_error(None, str(refusal))
-        return _page(
-            request,
-            fighter,
-            record.action,
-            record=record,
-            form=form,
-            stage="advancement",
-            correction=correction,
-        )
+    return _native(request, pk, _target("flow", record_id, request, step))
 
 
-def _choose_outcome(request, fighter, record):
-    outcomes = _outcomes(record.action)
-    form = ActionOutcomeForm(
-        request.POST or None,
-        outcomes=outcomes,
-        initial={"outcome": str(record.outcome_id)},
-    )
-    if request.method == "POST" and form.is_valid():
-        outcome = next(
-            item for item in outcomes if str(item.pk) == form.cleaned_data["outcome"]
+@never_cache
+@require_POST
+def action_command(request, pk):
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {"error": "Sign in again before retrying this save."}, status=401
         )
-        try:
-            with operation(fighter.gang, actor=request.user) as op:
-                record = op.save_action_choices(record, outcome=outcome, terms={})
-                if isinstance(outcome.operation, ApplyChanges):
-                    record = op.review_action(
-                        record, outcome=outcome, terms=record.terms
-                    )
-            return redirect(flow_url(fighter, record, "resume"))
-        except Refusal as refusal:
-            form.add_error(None, str(refusal))
-    try:
-        prices = payment_figures(quote_for(fighter, record.action))
-    except Refusal as refusal:
-        return _refusal_page(request, fighter, record.action, refusal, record=record)
-    return _page(
-        request,
-        fighter,
-        record.action,
-        record=record,
-        form=form,
-        prices=prices,
-        outcomes=[
+    result = change(request.user, pk, target_from(request.POST), request.POST)
+    if not result.saved:
+        return JsonResponse(
             {
-                "key": str(item.pk),
-                "name": str(item),
-                "description": _description(item),
-                "checked": str(form["outcome"].value()) == str(item.pk),
-            }
-            for item in outcomes
-        ],
-        submit_label="Continue",
-        submit_variant="primary",
-    )
-
-
-def _choose_augmentation(request, fighter, record, configured, *, correction):
-    from n26.core.augmentations import augmentation_options
-
-    options = augmentation_options(record, configured)
-    choices = [
-        (
-            f"{item.item_assignment_id}|{item.candidate_pick_id}",
-            f"{item.item_name}: {item.candidate_tier}",
+                "errors": result.errors,
+                "conflict": result.conflict,
+                "code": result.code,
+                "terminal": result.terminal,
+                "reviewUrl": result.review_url,
+            },
+            status=409 if result.conflict else 422,
         )
-        for item in options.candidates
-    ]
-    previous = record.terms
-    initial = {
-        "selection": f"{previous.get('item_assignment', '')}|{previous.get('intended_pick', '')}"
-    }
-    form = ActionSelectionForm(request.POST or None, choices=choices, initial=initial)
-    if request.method == "POST" and form.is_valid():
-        item, tier = form.cleaned_data["selection"].split("|")
-        terms = {"item_assignment": item, "intended_pick": tier}
-        try:
-            with operation(fighter.gang, actor=request.user) as op:
-                if correction:
-                    record = op.review_action_correction(record, terms=terms)
-                else:
-                    record = op.save_action_choices(
-                        record, outcome=record.outcome, terms=terms
-                    )
-                    record = op.review_action(
-                        record, outcome=record.outcome, terms=record.terms
-                    )
-            return redirect(flow_url(fighter, record, "review"))
-        except Refusal as refusal:
-            form.add_error(None, str(refusal))
-    return _page(
-        request,
-        fighter,
-        record.action,
-        record=record,
-        stage="correct" if correction else "choose",
-        correction=correction,
-        form=form,
-        item_options=[
-            {"item": item, "key": key, "checked": str(form["selection"].value()) == key}
-            for item, (key, _) in zip(options.candidates, choices, strict=True)
-        ],
-        submit_label="Review" if choices else "",
-        submit_variant="primary",
+    if not result.replayed:
+        _notices(request, result.notices)
+    return JsonResponse(
+        {
+            "saved": True,
+            "replayed": result.replayed,
+            "nextUrl": result.next_url,
+            "reviewUrl": result.review_url,
+            "facts": result.facts,
+            "notices": result.notices,
+        }
     )
 
 
-def _review(request, fighter, record, *, correction):
-    if request.method != "POST" and not record.review:
-        return redirect(
-            flow_url(fighter, record, "correct" if correction else "outcome")
+@never_cache
+@require_GET
+def action_display(request, pk):
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {"error": "Sign in again to continue this flow."}, status=401
         )
-    if (
-        request.method != "POST"
-        and not correction
-        and isinstance(record.outcome.operation, ApplyChanges)
-    ):
-        try:
-            # The signed form carries this preview into confirmation. Reading
-            # a draft must not rewrite it or invalidate another open tab.
-            record = copy(record)
-            record.review = preview_changes_review(record)
-        except Refusal as refusal:
-            return _refusal_page(
-                request, fighter, record.action, refusal, record=record
-            )
-    form = ConfirmActionForm(
-        request.POST or None, initial={"review": _review_token(record)}
+    target = target_from(request.GET)
+    page = read(
+        request.user,
+        pk,
+        target,
+        recover=request.GET.get("recover") == "1",
+        gang_id=request.GET.get("gang_id", ""),
     )
-    if request.method == "POST" and form.is_valid():
-        try:
-            reviewed = _submitted_review(record, form.cleaned_data["review"])
-            correction = reviewed["review"].get("correction") is True
-            with operation(fighter.gang, actor=request.user) as op:
-                if correction:
-                    op.correct_action(
-                        record,
-                        revision=reviewed["revision"],
-                        review=reviewed["review"],
-                        terms=reviewed["review"]["terms"],
-                    )
-                else:
-                    op.complete_action(
-                        record,
-                        revision=reviewed["revision"],
-                        review=reviewed["review"],
-                        outcome=record.outcome,
-                    )
-            return redirect(flow_url(fighter, record, "done"))
-        except Refusal as refusal:
-            form.add_error(None, str(refusal))
-    return _page(
-        request,
-        fighter,
-        record.action,
-        record=record,
-        stage="review",
-        correction=correction,
-        form=form,
-        prices=(),
-        payment_tallies=() if correction else _review_payments(record),
-        outcome_description=_description(record.outcome),
-        review_choice=_review_choice(record),
-        show_outcome=not isinstance(record.outcome.operation, ResolveAdvancement),
-        change_preview=record.review.get("target", [])
-        if isinstance(record.outcome.operation, ApplyChanges)
-        else [],
-        retained_payment=bool(record.payment_id),
-        retained_roll=bool(
-            getattr(
-                getattr(record, "advancement_selection", None), "roll_event_id", None
-            )
-        ),
-        change_href=flow_url(fighter, record, "correct" if correction else "choose")
-        if not isinstance(record.outcome.operation, ApplyChanges)
-        else flow_url(fighter, record, "outcome"),
-        submit_label="Save correction" if correction else "Confirm",
-        submit_variant="success",
-    )
+    if isinstance(page, StageNavigation):
+        _notices(request, page.notices)
+        return JsonResponse({"nextUrl": page.href})
+    # Native form destinations stay canonical; a display URL is never a form target.
+    from django.urls import reverse
 
-
-def _undo(request, fighter, record):
-    from n26.core.advancements import advancement_undo_snapshot
-
-    if request.method == "POST":
-        form = ConfirmActionForm(request.POST)
-        if form.is_valid():
-            try:
-                try:
-                    expected = signing.loads(
-                        form.cleaned_data["review"], salt=UNDO_SALT
-                    )
-                except signing.BadSignature:
-                    raise Refusal(
-                        "Review this advancement again before undoing it."
-                    ) from None
-                if expected.get("record") != str(record.pk):
-                    raise Refusal("That confirmation belongs to another advancement.")
-                with operation(fighter.gang, actor=request.user) as op:
-                    op.undo_action(record, expected=expected)
-                messages.success(
-                    request, "Advancement undone. Its earned use is waiting again."
-                )
-                return redirect("n26-edit-fighter", pk=fighter.pk)
-            except Refusal as refusal:
-                form.add_error(None, str(refusal))
-    else:
-        try:
-            expected = advancement_undo_snapshot(record)
-        except Refusal as refusal:
-            return _refusal_page(
-                request, fighter, record.action, refusal, record=record
-            )
-        form = ConfirmActionForm(
-            initial={"review": signing.dumps(expected, salt=UNDO_SALT, compress=True)}
+    here = (
+        flow_url_for(page.context["miniature"], target.key, target.step)
+        if target.kind == "flow"
+        else reverse(
+            "n26-action-start" if target.kind == "start" else "n26-action-by-hand",
+            args=[pk, target.key],
         )
-    return _page(
-        request,
-        fighter,
-        record.action,
-        record=record,
-        stage="undo",
-        form=form,
-        submit_label="Undo advancement",
-        submit_variant="danger",
-        keeps_stashed_weapons=record.ledger_events.filter(
-            kind=LedgerEvent.Kind.MOVED, note="Promotion"
-        ).exists(),
     )
+    props = page_data(request, page, target)
+    from urllib.parse import urlencode
 
-
-def _held_page(request, fighter, action, reason, *, record=None):
-    return _page(
-        request,
-        fighter,
-        action,
-        record=record,
-        stage="on-hold",
-        form=EmptyActionForm(),
-        hold_reason=reason,
-        submit_label="",
+    props["action"] = here + ("?" + urlencode(target.query) if target.query else "")
+    props["recoveryHref"] = (
+        here
+        + "?"
+        + urlencode(
+            {**target.query, "recover": "1", "gang_id": str(page.context["gang"].pk)}
+        )
     )
+    props["signInHref"] = (
+        reverse("account_login") + "?" + urlencode({"next": props["recoveryHref"]})
+    )
+    return JsonResponse({"props": props})

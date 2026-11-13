@@ -1,0 +1,383 @@
+"""The roll and skill forms within a generic fighter action flow."""
+
+from contextlib import nullcontext
+from urllib.parse import urlencode
+from uuid import uuid4
+
+from n26.core.action_forms import (
+    ActionRollForm,
+    AdvancementForm,
+    AdvancementRollForm,
+    EmptyActionForm,
+    SkillRollForm,
+    SkillSelectionForm,
+)
+from n26.core.action_stages import navigate
+from n26.core.operations import Refusal
+
+
+def advancement_step(command, fighter, record, *, step="choose", correction=False):
+    from n26.core.action_stages import _page, flow_url
+    from n26.core.advancements import _advancement_read, _skill_options
+    from n26.core.promotions import (
+        may_decline,
+        prepare_promotion,
+        promotion_for,
+        replaces_roll,
+    )
+
+    configured = record.outcome.operation
+    selection = getattr(record, "advancement_selection", None)
+    promotion = promotion_for(record, configured)
+    replacement = replaces_roll(record, configured)
+    if replacement and command.submitted and command.data.get("decline_promotion"):
+        form = ActionRollForm(command.data)
+        if form.is_valid():
+            try:
+                with nullcontext(command.op) as op:
+                    op.record_action_roll(
+                        record,
+                        configured,
+                        form.cleaned_data["request_key"],
+                        decline_promotion=True,
+                    )
+            except Refusal as refusal:
+                from n26.core.action_stages import _refusal_page
+
+                return _refusal_page(
+                    command, fighter, record.action, refusal, record=record
+                )
+            return navigate(flow_url(fighter, record, "choose"))
+    if (
+        step == "roll"
+        and record.completed_event_id
+        and selection
+        and selection.roll_event_id
+    ):
+        return navigate(flow_url(fighter, record, "choose"))
+    if not replacement and (
+        step == "roll" or selection is None or selection.roll_event_id is None
+    ):
+        if correction:
+            raise Refusal("This advancement has no recorded roll to correct.")
+        previous_roll = (
+            selection.roll_event if selection and selection.roll_event_id else None
+        )
+        form = AdvancementRollForm(
+            command.data or None,
+            initial={
+                "request_key": uuid4(),
+                "roll_mode": "record" if previous_roll else "roll",
+                "rolled": previous_roll.roll if previous_roll else None,
+                "previous_roll": previous_roll.pk if previous_roll else None,
+            },
+        )
+        if command.submitted and form.is_valid():
+            try:
+                with nullcontext(command.op) as op:
+                    op.record_action_roll(
+                        record,
+                        configured,
+                        form.cleaned_data["request_key"],
+                        rolled=form.cleaned_data["rolled"],
+                        previous_roll=form.cleaned_data["previous_roll"] or None,
+                    )
+                return navigate(flow_url(fighter, record, "choose"))
+            except Refusal as refusal:
+                if command.submitted:
+                    raise
+                form.add_error(None, str(refusal))
+        return _page(
+            command,
+            fighter,
+            record.action,
+            record=record,
+            stage="roll",
+            form=form,
+            advancement_roll=_roll_props(
+                form,
+                dice="2D6",
+                total_help="If you rolled your own dice, enter their total.",
+                previous_roll=previous_roll.roll if previous_roll else None,
+            ),
+            submit_label="Continue",
+            submit_variant="primary",
+        )
+
+    read = _advancement_read(record, configured)
+    options = tuple(option for option in read[0] if option.gainable)
+    threshold_roll = (
+        not replacement and configured.slot.picklist.roll_selects == "threshold"
+    )
+    if threshold_roll:
+        options = tuple(
+            sorted(options, key=lambda option: option.roll_minimum or 0, reverse=True)
+        )
+    roll_explanation = ""
+    if not replacement and options:
+        if not any(option.landed for option in options):
+            roll_explanation = "None of the rolled results can change this model. Choose another available advancement."
+        elif threshold_roll:
+            roll_explanation = "Choose any result at or below your roll."
+    if step == "skill":
+        pick_id = (
+            command.query.get("pick") if correction else record.terms.get("pickable_id")
+        )
+        chosen = next((option for option in options if option.id == str(pick_id)), None)
+        if chosen is None or not chosen.needs_skill:
+            return navigate(
+                flow_url(fighter, record, "correct" if correction else "choose")
+            )
+        groups = _skill_options(record, configured, chosen.id, read=read)
+        return _skill_step(
+            command, fighter, record, configured, chosen, groups, correction=correction
+        )
+
+    previous = record.review.get("terms", record.terms) if correction else record.terms
+    form = AdvancementForm(
+        command.data or None,
+        options=options,
+        initial={
+            "pickable_id": command.query.get("pick", previous.get("pickable_id"))
+            if correction
+            else previous.get("pickable_id")
+        },
+    )
+    if command.submitted and form.is_valid():
+        chosen = next(
+            option
+            for option in options
+            if option.id == form.cleaned_data["pickable_id"]
+        )
+        terms = {"pickable_id": chosen.id}
+        try:
+            if chosen.needs_skill:
+                if not correction:
+                    with nullcontext(command.op) as op:
+                        if replacement:
+                            record = prepare_promotion(op, record, configured)
+                        op.save_action_choices(
+                            record, outcome=record.outcome, terms=terms
+                        )
+                tail = "?" + urlencode({"pick": chosen.id}) if correction else ""
+                return navigate(flow_url(fighter, record, "skill") + tail)
+            with nullcontext(command.op) as op:
+                if replacement and not correction:
+                    record = prepare_promotion(op, record, configured)
+                if correction:
+                    op.review_action_correction(record, terms=terms)
+                else:
+                    record = op.save_action_choices(
+                        record, outcome=record.outcome, terms=terms
+                    )
+                    op.review_action(record, outcome=record.outcome, terms=record.terms)
+            return navigate(flow_url(fighter, record, "review"))
+        except Refusal as refusal:
+            if command.submitted:
+                raise
+            form.add_error(None, str(refusal))
+    return _page(
+        command,
+        fighter,
+        record.action,
+        record=record,
+        stage="advancement",
+        correction=correction,
+        form=form,
+        roll_value=selection.roll_event.roll
+        if selection and selection.roll_event_id
+        else None,
+        advancement_title="Choose a promotion"
+        if replacement
+        else "Choose an advancement",
+        roll_explanation=roll_explanation,
+        threshold_roll=threshold_roll,
+        promotion_description=(
+            "Choose one result instead of rolling this advancement."
+            if replacement
+            else ""
+        ),
+        decline_promotion=not correction
+        and replacement
+        and may_decline(record, promotion),
+        promotion_request_key=uuid4(),
+        advancement_options=[
+            {"option": option, "checked": str(form["pickable_id"].value()) == option.id}
+            for option in options
+        ],
+        submit_label="Continue" if options else "",
+        submit_variant="primary",
+    )
+
+
+def _roll_props(form, *, dice, total_help, previous_roll=None, choices=None):
+    """Props for the roll island: roll in Gyrinx, or record a table roll."""
+    rolled = form.fields["rolled"]
+    rolled_value = form["rolled"].value()
+    return {
+        "dice": dice,
+        "minimum": rolled.min_value,
+        "maximum": rolled.max_value,
+        "totalLabel": rolled.label,
+        "totalHelp": total_help,
+        "mode": form["roll_mode"].value() or "",
+        "rolled": "" if rolled_value is None else str(rolled_value),
+        "modeErrors": list(form["roll_mode"].errors),
+        "rolledErrors": list(form["rolled"].errors),
+        "previousRoll": previous_roll,
+        "choices": choices,
+    }
+
+
+def _skill_roll_props(form, groups, carried, *, legend, set_noun):
+    selected = str(form["skill_set_id"].value() or "")
+    props = _roll_props(
+        form,
+        dice="D6",
+        total_help="If you rolled your own die, enter the number.",
+        choices={
+            "legend": legend,
+            "name": "skill_set_id",
+            "value": selected,
+            "errors": list(form["skill_set_id"].errors),
+            "options": [
+                {
+                    "value": str(group.pk),
+                    "label": str(group),
+                    "carried": (
+                        f"Your D6 roll of {carried[str(group.pk)]} carries over "
+                        f"to this {set_noun}."
+                    )
+                    if str(group.pk) in carried
+                    else "",
+                }
+                for group in groups
+                if group is not None
+            ],
+        },
+    )
+    props["mode"] = props["mode"] or "roll"
+    return props
+
+
+def _skill_step(command, fighter, record, configured, chosen, groups, *, correction):
+    from n26.core.action_stages import _page, flow_url
+    from n26.core.advancements import carried_skill_rolls, recorded_skill
+
+    selection = getattr(record, "skill_selection", None)
+    attempts = selection.random_attempts if selection else []
+    random = chosen.skill_mode == "random"
+    selected = recorded_skill(record, configured, chosen.id) if random else None
+    resolved = selected is not None
+    if random and resolved and command.submitted and "request_key" in command.data:
+        return navigate(flow_url(fighter, record, "skill"))
+    if random and not resolved and not correction:
+        form = SkillRollForm(
+            command.data or None,
+            groups=groups,
+            label=f"Select a {chosen.choice_set_noun}",
+            initial={
+                "request_key": uuid4(),
+                "roll_mode": "roll",
+                "skill_set_id": str(selection.skill_set_id)
+                if selection and selection.skill_set_id
+                else "",
+            },
+        )
+        submit_label = "Continue"
+    elif random:
+        form = EmptyActionForm(command.data or None)
+        submit_label = "Review" if resolved else ""
+    else:
+        previous = (
+            record.review.get("terms", record.terms) if correction else record.terms
+        )
+        form = SkillSelectionForm(
+            command.data or None,
+            groups=groups,
+            label=f"Select a {chosen.choice_noun}",
+            initial={"skill_id": previous.get("skill_id")},
+        )
+        submit_label = "Review"
+    if command.submitted and form.is_valid():
+        terms = {"pickable_id": chosen.id}
+        try:
+            with nullcontext(command.op) as op:
+                if random and not resolved and not correction:
+                    op.record_skill_roll(
+                        record,
+                        configured,
+                        form.cleaned_data["request_key"],
+                        pickable_id=chosen.id,
+                        skill_set_id=form.cleaned_data["skill_set_id"],
+                        rolled=form.cleaned_data["rolled"],
+                    )
+                    return navigate(flow_url(fighter, record, "skill"))
+                if not random:
+                    terms["skill_id"] = form.cleaned_data["skill_id"]
+                    terms["skill_kind"] = next(
+                        skill._meta.model_name
+                        for skills in groups.values()
+                        for skill in skills
+                        if str(skill.pk) == terms["skill_id"]
+                    )
+                if correction:
+                    op.review_action_correction(record, terms=terms)
+                else:
+                    record = op.save_action_choices(
+                        record, outcome=record.outcome, terms=terms
+                    )
+                    op.review_action(record, outcome=record.outcome, terms=record.terms)
+            return navigate(flow_url(fighter, record, "review"))
+        except Refusal as refusal:
+            if command.submitted:
+                raise
+            form.add_error(None, str(refusal))
+    return _page(
+        command,
+        fighter,
+        record.action,
+        record=record,
+        stage="skill",
+        correction=correction,
+        form=form,
+        selected_pick=chosen.id,
+        skill_random=random,
+        skill_resolved=resolved,
+        skill_selected=str(selected) if resolved else "",
+        skill_title=f"Roll for a {chosen.choice_noun}"
+        if chosen.forced_random
+        else f"Select a {chosen.choice_noun}",
+        skill_empty=f"No {chosen.choice_noun} is available for this result.",
+        skill_attempts=attempts,
+        skill_roll=_skill_roll_props(
+            form,
+            groups,
+            carried_skill_rolls(record, configured, chosen.id, groups),
+            legend=f"Select a {chosen.choice_set_noun}",
+            set_noun=chosen.choice_set_noun,
+        )
+        if isinstance(form, SkillRollForm)
+        else None,
+        skill_groups=[
+            {
+                "key": "" if group is None else str(group.pk),
+                "name": "Other skills" if group is None else str(group),
+                "checked": group is not None
+                and "skill_set_id" in form.fields
+                and str(form["skill_set_id"].value()) == str(group.pk),
+                "skills": [
+                    {
+                        "key": str(skill.pk),
+                        "name": str(skill),
+                        "checked": "skill_id" in form.fields
+                        and str(form["skill_id"].value()) == str(skill.pk),
+                    }
+                    for skill in skills
+                ],
+            }
+            for group, skills in groups.items()
+        ],
+        submit_label=submit_label,
+        submit_variant="primary",
+    )

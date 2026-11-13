@@ -445,6 +445,16 @@ urlpatterns = [
     path("fighters/<str:pk>/edit/", views.edit_fighter, name="n26-edit-fighter"),
     path("fighters/<str:pk>/rating/", views.base_rating, name="n26-base-rating"),
     path(
+        "fighters/<str:pk>/actions/command/",
+        views.action_command,
+        name="n26-action-command",
+    ),
+    path(
+        "fighters/<str:pk>/actions/display/",
+        views.action_display,
+        name="n26-action-display",
+    ),
+    path(
         "fighters/<str:pk>/actions/<str:action_id>/",
         views.action_start,
         name="n26-action-start",

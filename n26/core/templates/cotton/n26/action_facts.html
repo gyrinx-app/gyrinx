@@ -1,0 +1,98 @@
+{% comment %}
+<c-n26.action-facts> — Stored choices, reviews and consequences in an action flow.
+
+Pass prepared display values. This component does not resolve choices or write data.
+Stage selects the presentation; navigation and confirmation belong to the caller.
+{% endcomment %}
+<c-vars stage="review" model_name="" outcome="" summary="" :show_outcome="False" description="" selection_label="" selection_title="" selection_description="" selection_meta="" change_href="" :changes="[]" :correction="False" :retained_payment="False" :retained_roll="False" :receipt="[]" hold_reason="" :threshold="False" :keeps_stashed_weapons="False" roll_value="" roll_explanation="" :attempts="[]" class="" />
+{% if stage == "review" %}
+    <div data-action-part="review" class="divide-y divide-box-border rounded-box border border-box-border {{ class }}">
+        {% if show_outcome %}
+            <div data-action-part="outcome" class="space-y-1 p-4">
+                <p data-action-part="caption" class="text-xs font-semibold uppercase tracking-wide text-muted">Choice</p>
+                <h3 data-action-part="outcomeTitle" class="text-base font-semibold text-ink-900 dark:text-ink-100">{{ outcome }}</h3>
+                {% if description %}<p data-action-part="muted" class="text-sm text-muted">{{ description }}</p>{% endif %}
+            </div>
+        {% endif %}
+        {% if selection_title %}
+            <div data-action-part="selection" class="p-4">
+                <div data-action-part="selectionRow" class="flex flex-wrap items-start justify-between gap-3">
+                    <div data-action-part="selectionContent" class="min-w-0 space-y-1">
+                        <p data-action-part="caption" class="text-xs font-semibold uppercase tracking-wide text-muted">{{ selection_label }}</p>
+                        <h3 data-action-part="title" class="font-semibold text-ink-900 dark:text-ink-100">{{ selection_title }}</h3>
+                        {% if selection_description %}<p data-action-part="description" class="whitespace-pre-line text-sm">{{ selection_description|capfirst }}</p>{% endif %}
+                        {% if selection_meta %}<p data-action-part="muted" class="text-sm text-muted">{{ selection_meta }}</p>{% endif %}
+                    </div>
+                    {% if change_href %}<c-ui.button href="{{ change_href }}" variant="default" size="sm">Change selection</c-ui.button>{% endif %}
+                </div>
+            </div>
+        {% endif %}
+        {% if changes %}
+            <div data-action-part="changes" class="space-y-2 p-4">
+                <p data-action-part="caption" class="text-xs font-semibold uppercase tracking-wide text-muted">Changes</p>
+                {% for change in changes %}
+                    {% if change.kind == "counter" %}
+                        <p>{{ change.name }}: {{ change.before }} → {{ change.after }}</p>
+                    {% elif change.removed_count %}
+                        <p>Remove {{ change.removed_count }} {{ change.slot_type }} choice{{ change.removed_count|pluralize }}.</p>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    {% if correction and retained_payment %}<p data-action-part="retainedPayment" class="mt-3 text-sm text-muted">The original payment is retained.</p>{% endif %}
+    {% if correction and retained_roll %}<p data-action-part="note" class="mt-1 text-sm text-muted">The recorded rolls are retained.</p>{% endif %}
+{% elif stage == "done" %}
+    <div data-action-part="completed" class="rounded-box border border-box-border p-4 {{ class }}">
+        <div data-action-part="completedRow" class="flex items-start gap-3">
+            <c-n26.icon data-action-part="completedIcon" name="circle-check" class="mt-0.5 size-5 shrink-0 text-green-600 dark:text-green-400" label="Completed" />
+            <div data-action-part="selectionContent" class="min-w-0 space-y-1">
+                <p data-action-part="caption" class="text-xs font-semibold uppercase tracking-wide text-muted">Choice</p>
+                <h3 data-action-part="title" class="font-semibold text-ink-900 dark:text-ink-100">{{ outcome }}</h3>
+                {% if summary %}<p>{{ summary }}</p>{% endif %}
+            </div>
+        </div>
+    </div>
+    {% if receipt %}
+        <div data-action-part="result" class="mt-5 max-w-sm">
+            <h3 data-action-part="resultTitle" class="mb-2 text-sm font-semibold text-ink-900 dark:text-ink-100">Result</h3>
+            <c-n26.tally :facts="receipt" />
+        </div>
+    {% endif %}
+{% elif stage == "on-hold" %}
+    <p class="{{ class }}">{{ hold_reason }}</p>
+    <p data-action-part="note" class="mt-1 text-sm text-muted">Recorded rolls and choices are kept.</p>
+{% elif stage == "undo" %}
+    <p data-action-part="title" class="font-semibold text-ink-900 dark:text-ink-100 {{ class }}">Undo this advancement for {{ model_name }}?</p>
+    {% if summary %}<p data-action-part="undoSummary" class="mt-2">{{ summary }}</p>{% endif %}
+    <p data-action-part="note" class="mt-1 text-sm text-muted">Its result, rating increase and any promotion will be removed. The earned use will be waiting again, with its recorded rolls and choices kept.</p>
+    {% if threshold %}<p data-action-part="note" class="mt-1 text-sm text-muted">The earned use is available only while its rank threshold is met.</p>{% endif %}
+    {% if keeps_stashed_weapons %}<p data-action-part="note" class="mt-1 text-sm text-muted">Weapons moved to the stash stay there.</p>{% endif %}
+{% elif stage == "by-hand" %}
+    <p data-action-part="title" class="font-semibold text-ink-900 dark:text-ink-100 {{ class }}">Did you apply this result to {{ model_name }} outside Gyrinx?</p>
+    <p data-action-part="note" class="mt-1 text-sm text-muted">Gyrinx stops showing this earned use as available. Nothing on the model changes. You can undo this from Action history.</p>
+{% elif stage == "cancel" %}
+    <div data-action-part="cancel" class="rounded-box border border-red-500/40 bg-red-500/5 p-4 {{ class }}">
+        <p data-action-part="title" class="font-semibold text-ink-900 dark:text-ink-100">Cancel this unfinished flow?</p>
+        <p data-action-part="note" class="mt-1 text-sm text-muted">Your saved choices will be discarded.</p>
+    </div>
+{% elif stage == "roll" %}
+    {% if roll_value %}<p data-action-part="rollValue" class="text-lg font-semibold {{ class }}">2D6: {{ roll_value }}</p>{% endif %}
+    {% if roll_explanation %}<p data-action-part="explanation" class="text-muted">{{ roll_explanation }}</p>{% endif %}
+{% elif stage == "attempts" %}
+    <ol data-action-part="attempts" class="space-y-2 {{ class }}">
+        {% for attempt in attempts %}
+            <li>
+                <span data-action-part="attemptValue" class="font-semibold">D6: {{ attempt.roll }}</span>
+                {% if attempt.result_name %}— {{ attempt.result_name }}{% endif %}
+                {% if not attempt.is_available %}<p data-action-part="muted" class="text-sm text-muted">{{ attempt.unavailable_reason }}</p>{% endif %}
+            </li>
+        {% endfor %}
+    </ol>
+{% elif stage == "detail" %}
+    <span data-action-part="detail" class="block text-muted {{ class }}">{{ slot }}</span>
+{% elif stage == "back" %}
+    <c-ui.button data-action-part="back" href="{{ change_href }}" variant="ghost" class="mr-auto {{ class }}">Back</c-ui.button>
+{% elif stage == "danger" %}
+    <c-ui.button data-action-part="danger" href="{{ change_href }}" variant="ghost" class="text-red-600! dark:text-red-400! {{ class }}">Cancel</c-ui.button>
+{% endif %}

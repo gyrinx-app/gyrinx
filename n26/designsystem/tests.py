@@ -535,6 +535,22 @@ class TestTheHeaderBandSpecimens:
             assert not card.skills
 
 
+class TestTheActionFactsPage:
+    """Prepared action facts render every gallery stage without library data."""
+
+    def test_review_completed_and_consequence_examples_render(self, reader):
+        page = reader.get("/n26/design/c/action-facts/")
+        assert page.status_code == 200
+        rendered = BeautifulSoup(page.content, "html.parser")
+        for part in ("review", "completed", "cancel", "undoSummary"):
+            assert rendered.select_one(f'[data-action-part="{part}"]')
+        assert "Selection" in rendered.get_text(" ", strip=True)
+        assert "Did you apply this result to Mara outside Gyrinx?" in rendered.get_text(
+            " ", strip=True
+        )
+        assert "The earned use is on hold." in rendered.get_text(" ", strip=True)
+
+
 class TestTheRadioCardsPage:
     """Render radio-card props, parts and demos."""
 
