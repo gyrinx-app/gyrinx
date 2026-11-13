@@ -38,6 +38,7 @@ const visible: Record<string, string[]> = {
         "template_id",
         "mode",
         "current_number",
+        "date_mode",
         "date_start",
         "cycle_interval",
         "cycle_unit",
@@ -52,7 +53,7 @@ const visible: Record<string, string[]> = {
     ],
     phase: ["name", "description", "effects"],
     "duplicate-phase": ["name"],
-    plan: ["mode", "date_start", "cycle_interval", "cycle_unit"],
+    plan: ["mode", "date_mode", "date_start", "cycle_interval", "cycle_unit"],
 };
 
 function EditorFrame({
@@ -138,6 +139,7 @@ export function ScheduleEditor({
             "cycle_interval",
             "cycle_unit",
             "date_version",
+            "date_mode",
             "shift_later",
             "setup_definition",
             "no_current",
@@ -240,6 +242,7 @@ export function ScheduleEditor({
                   ? [
                         "mode",
                         ...(noCurrent ? [] : ["current_number"]),
+                        "date_mode",
                         "date_start",
                         "cycle_interval",
                         "cycle_unit",
@@ -303,48 +306,73 @@ export function ScheduleEditor({
             </NativeSelect>
         </Field>
     );
+    const plannedDates = values.date_mode !== "manual";
     const dates = "date_start" in editor.values && (
         <section className="space-y-3" aria-label="Cycle dates">
-            <h3 className="font-semibold">Cycle dates</h3>
-            {text(
-                "date_start",
-                editor.kind === "setup" || editor.context.needsDates
-                    ? "Cycle 1 starts"
-                    : "First projected cycle starts",
-                { type: "date", required: values.date_version === "1" },
-            )}
-            <div className="grid grid-cols-2 gap-3">
-                {text("cycle_interval", "Cycle length", {
-                    type: "number",
-                    min: "1",
-                    max: "520",
-                    required: values.date_version === "1",
-                })}
-                <Field
-                    label="Unit"
-                    htmlFor="cycle-cycle_unit"
-                    errors={errors.cycle_unit}
+            <Field
+                label="Cycle dates"
+                htmlFor="cycle-date_mode"
+                errors={errors.date_mode}
+            >
+                <NativeSelect
+                    name="date_mode"
+                    value={values.date_mode ?? "planned"}
+                    onChange={(event) =>
+                        change("date_mode", event.target.value)
+                    }
                 >
-                    <NativeSelect
-                        name="cycle_unit"
-                        value={values.cycle_unit}
-                        onChange={(event) =>
-                            change("cycle_unit", event.target.value)
-                        }
-                    >
-                        <option value="weeks">Weeks</option>
-                        <option value="months">Calendar months</option>
-                    </NativeSelect>
-                </Field>
-            </div>
+                    <option value="manual">No planned dates</option>
+                    <option value="planned">Plan cycle dates</option>
+                </NativeSelect>
+            </Field>
             <p className="text-sm text-muted">
-                Each range includes its start and end dates. Saved cycle dates
-                stay unchanged when future timing changes.
+                You advance each cycle when the campaign is ready. Dates are for
+                planning.
             </p>
-            {editor.context.needsDates === true && (
-                <p className="text-sm">
-                    These settings fill missing dates on saved cycles. Existing
-                    date ranges are retained.
+            {plannedDates ? (
+                <>
+                    {text(
+                        "date_start",
+                        editor.kind === "setup" ||
+                            (!values.date_mode && editor.context.needsDates)
+                            ? "Cycle 1 starts"
+                            : values.date_mode
+                              ? `Cycle ${editor.context.nextCycleNumber ?? 1} starts`
+                              : "First projected cycle starts",
+                        { type: "date", required: true },
+                    )}
+                    <div className="grid grid-cols-2 gap-3">
+                        {text("cycle_interval", "Cycle length", {
+                            type: "number",
+                            min: "1",
+                            max: "520",
+                            required: true,
+                        })}
+                        <Field
+                            label="Unit"
+                            htmlFor="cycle-cycle_unit"
+                            errors={errors.cycle_unit}
+                        >
+                            <NativeSelect
+                                name="cycle_unit"
+                                value={values.cycle_unit}
+                                onChange={(event) =>
+                                    change("cycle_unit", event.target.value)
+                                }
+                            >
+                                <option value="weeks">Weeks</option>
+                                <option value="months">Calendar months</option>
+                            </NativeSelect>
+                        </Field>
+                    </div>
+                    <p className="text-sm text-muted">
+                        Each range includes its start and end dates.
+                    </p>
+                </>
+            ) : (
+                <p className="text-sm text-muted">
+                    Future cycles have no planned dates. You can add dates to
+                    individual cycles. Existing dates are kept.
                 </p>
             )}
         </section>
@@ -647,31 +675,51 @@ export function ScheduleEditor({
                                                 ? "Repeating"
                                                 : "Fixed"}
                                         </dd>
-                                        <dt>Cycle 1 starts</dt>
+                                        <dt>Cycle dates</dt>
                                         <dd>
-                                            <time dateTime={values.date_start}>
-                                                {values.date_start
-                                                    ? new Date(
-                                                          `${values.date_start}T00:00:00Z`,
-                                                      ).toLocaleDateString(
-                                                          "en-GB",
-                                                          {
-                                                              day: "numeric",
-                                                              month: "short",
-                                                              year: "numeric",
-                                                              timeZone: "UTC",
-                                                          },
-                                                      )
-                                                    : "Not set"}
-                                            </time>
+                                            {plannedDates
+                                                ? "Planned dates"
+                                                : "No planned dates"}
                                         </dd>
-                                        <dt>Cycle length</dt>
-                                        <dd>
-                                            {values.cycle_interval}{" "}
-                                            {Number(values.cycle_interval) === 1
-                                                ? values.cycle_unit.slice(0, -1)
-                                                : values.cycle_unit}
-                                        </dd>
+                                        {plannedDates && (
+                                            <>
+                                                <dt>Cycle 1 starts</dt>
+                                                <dd>
+                                                    <time
+                                                        dateTime={
+                                                            values.date_start
+                                                        }
+                                                    >
+                                                        {values.date_start
+                                                            ? new Date(
+                                                                  `${values.date_start}T00:00:00Z`,
+                                                              ).toLocaleDateString(
+                                                                  "en-GB",
+                                                                  {
+                                                                      day: "numeric",
+                                                                      month: "short",
+                                                                      year: "numeric",
+                                                                      timeZone:
+                                                                          "UTC",
+                                                                  },
+                                                              )
+                                                            : "Not set"}
+                                                    </time>
+                                                </dd>
+                                                <dt>Cycle length</dt>
+                                                <dd>
+                                                    {values.cycle_interval}{" "}
+                                                    {Number(
+                                                        values.cycle_interval,
+                                                    ) === 1
+                                                        ? values.cycle_unit.slice(
+                                                              0,
+                                                              -1,
+                                                          )
+                                                        : values.cycle_unit}
+                                                </dd>
+                                            </>
+                                        )}
                                         <dt>Current cycle</dt>
                                         <dd>
                                             {noCurrent
@@ -682,7 +730,7 @@ export function ScheduleEditor({
                                     <p className="text-sm">
                                         {noCurrent
                                             ? "No cycle will be started. Cycles remain previews until you edit, use or start them."
-                                            : `Cycles 1 through ${currentNumber} will be saved with dates. Later cycles remain previews until recorded.`}{" "}
+                                            : `Cycles 1 through ${currentNumber} will be saved${plannedDates ? " with dates" : ""}. Later cycles remain previews until recorded.`}{" "}
                                         Your campaign keeps its own phases and
                                         pattern.
                                     </p>
@@ -740,11 +788,11 @@ export function ScheduleEditor({
                             <div className="grid gap-3 sm:grid-cols-2">
                                 {text("starts_on", "Start date", {
                                     type: "date",
-                                    required: values.date_version === "1",
+                                    help: "Optional. Enter both dates or leave both blank.",
                                 })}
                                 {text("ends_on", "End date", {
                                     type: "date",
-                                    required: values.date_version === "1",
+                                    help: "Optional. Enter both dates or leave both blank.",
                                 })}
                             </div>
                         </>

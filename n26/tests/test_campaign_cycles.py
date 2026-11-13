@@ -197,19 +197,21 @@ class TestSetupAndAccess:
             )
         assert not CampaignSchedule.objects.filter(campaign=campaign).exists()
 
-    def test_new_setup_without_explicit_dates_is_refused(
+    def test_new_setup_can_save_cycles_without_planning_dates(
         self, campaign, owner, opened, template
     ):
-        with pytest.raises(Refusal, match="date settings"):
-            cycles.configure(
-                campaign,
-                actor=owner,
-                template_id=template.pk,
-                current_position=0,
-                mode="fixed",
-                request_key=uuid4(),
-            )
-        assert not CampaignSchedule.objects.filter(campaign=campaign).exists()
+        cycles.configure(
+            campaign,
+            actor=owner,
+            template_id=template.pk,
+            current_position=0,
+            mode="fixed",
+            request_key=uuid4(),
+        )
+        state = cycles.load(campaign)
+        assert state.calendar is None
+        assert state.current.details.starts_on is None
+        assert state.current.details.ends_on is None
 
     def test_seeding_the_template_is_repeatable_and_does_not_opt_existing_campaigns_in(
         self, campaign

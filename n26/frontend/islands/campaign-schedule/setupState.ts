@@ -4,6 +4,7 @@ const fields = [
     "template_id",
     "setup_definition",
     "mode",
+    "date_mode",
     "date_start",
     "cycle_interval",
     "cycle_unit",
@@ -14,6 +15,17 @@ export const setupDraftKey = (editor: Editor) =>
     `${editor.recoveryKey}:setup-draft`;
 
 export function restoreSetupDraft(editor: Editor) {
+    try {
+        const pending = sessionStorage.getItem(editor.recoveryKey);
+        if (pending) {
+            const body = new URLSearchParams(pending);
+            if (!body.has("date_mode") && body.get("date_start"))
+                return { ...editor.values, date_mode: "planned" };
+            return editor.values;
+        }
+    } catch {
+        /* The workflow controller owns command recovery. */
+    }
     if (editor.kind !== "setup" || Object.keys(editor.errors).length)
         return editor.values;
     try {
@@ -30,6 +42,8 @@ export function restoreSetupDraft(editor: Editor) {
                 }),
             ),
         };
+        if (!("date_mode" in saved) && "date_start" in saved)
+            restored.date_mode = "planned";
         if (!restored.template_id && !restored.setup_definition)
             restored.setup_definition = editor.values.setup_definition;
         return restored;

@@ -564,3 +564,59 @@ test("an unavailable editor offers review while retaining exact reload recovery"
     expect(data.toString()).toBe(retained);
     expect(navigate).toHaveBeenCalledWith("/cycles/");
 });
+
+test("cycle date edits allow an empty pair", async () => {
+    const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
+    vi.stubGlobal("fetch", fetch);
+    render(
+        <ScheduleEditor
+            editor={{
+                ...editor,
+                values: { ...editor.values, date_version: "2" },
+            }}
+            phases={phases}
+            onNavigate={vi.fn()}
+        />,
+    );
+    expect(
+        (screen.getByLabelText("Start date") as HTMLInputElement).required,
+    ).toBe(false);
+    expect(
+        (screen.getByLabelText("End date") as HTMLInputElement).required,
+    ).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(fetch.mock.calls[0][1].body.get("starts_on")).toBe("");
+    expect(fetch.mock.calls[0][1].body.get("ends_on")).toBe("");
+});
+
+test.each([true, false])(
+    "planned settings name the actual next cycle while retaining legacy labels (%s)",
+    (explicit) => {
+        render(
+            <ScheduleEditor
+                editor={{
+                    ...editor,
+                    kind: "plan",
+                    context: { nextCycleNumber: 4, needsDates: true },
+                    values: {
+                        request_key: "plan",
+                        expected_revision: "1",
+                        mode: "repeating",
+                        steps: "[]",
+                        date_start: "2027-01-01",
+                        cycle_interval: "1",
+                        cycle_unit: "weeks",
+                        ...(explicit ? { date_mode: "planned" } : {}),
+                    },
+                }}
+                phases={phases}
+                onNavigate={vi.fn()}
+            />,
+        );
+        expect(
+            screen.getByLabelText(
+                explicit ? "Cycle 4 starts" : "Cycle 1 starts",
+            ),
+        ).toBeTruthy();
+    },
+);
