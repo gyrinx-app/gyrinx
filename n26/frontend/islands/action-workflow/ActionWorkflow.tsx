@@ -172,7 +172,7 @@ type SavedFacts = {
     outcome: string;
     selection: string;
     rolls: { roll: number; dice: string }[];
-    attempts?: { result_name?: string }[];
+    attempts?: { result_name?: string | null }[];
 };
 function savedFacts(value: unknown): value is SavedFacts {
     if (!value || typeof value !== "object" || Array.isArray(value))
@@ -190,6 +190,7 @@ function savedFacts(value: unknown): value is SavedFacts {
                         attempt &&
                         typeof attempt === "object" &&
                         (attempt.result_name === undefined ||
+                            attempt.result_name === null ||
                             typeof attempt.result_name === "string"),
                 ))) &&
         Array.isArray(facts.rolls) &&

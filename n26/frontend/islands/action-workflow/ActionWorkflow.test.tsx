@@ -582,3 +582,139 @@ test("tier details remain inside the radio label and empty errors do not change 
         "text-red-600!",
     );
 });
+
+const gapFacts = {
+    ...saved,
+    selection: "Random skill or power",
+    rolls: [3, 6, 1].map((roll) => ({ roll, dice: "d6" })),
+    attempts: [
+        { roll: 3, result_name: null },
+        { roll: 6, result_name: null },
+        { roll: 1, result_name: "QA First whisper" },
+    ],
+};
+const randomSkillProps: ActionWorkflowProps = {
+    ...props,
+    facts: {
+        ...props.facts,
+        stage: "skill",
+        roll: null,
+        skill_random: true,
+        skillRoll: {
+            ...props.facts.roll!,
+            dice: "D6",
+            minimum: 1,
+            maximum: 6,
+            choices: {
+                legend: "Select a power family",
+                name: "skill_set_id",
+                value: "whispers",
+                errors: [],
+                options: [
+                    { value: "whispers", label: "QA Whispers", carried: "" },
+                ],
+            },
+        },
+    },
+    values: {
+        ...props.values,
+        draft_key: "draft:record:skill",
+        target_step: "skill",
+        skill_set_id: "whispers",
+    },
+    fields: ["request_key", "roll_mode", "rolled", "skill_set_id"],
+    hiddenFields: ["request_key"],
+    action: "/flow/skill/",
+    draftKey: "draft:record:skill",
+    recoveryHref: "/flow/skill/?recover=1&gang_id=gang",
+};
+
+test("a successful random power draw accepts empty faces before its named result", async () => {
+    const fetch = vi
+        .fn()
+        .mockResolvedValue(
+            json({
+                saved: true,
+                replayed: false,
+                facts: gapFacts,
+                nextUrl: "/flow/skill/",
+            }),
+        );
+    vi.stubGlobal("fetch", fetch);
+    const navigate = vi.fn();
+    render(<ActionWorkflow {...randomSkillProps} onNavigate={navigate} />);
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(navigate).toHaveBeenCalledWith("/flow/skill/");
+    expect(sessionStorage.getItem(props.recoveryKey)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry save" })).toBeNull();
+});
+
+test("an uncertain random power draw recalls gap attempts without remaining frozen", async () => {
+    const retained = new URLSearchParams({
+        ...randomSkillProps.values,
+        submitted_summary: "Roll D6 for QA Whispers",
+    });
+    retained.delete("rolled");
+    sessionStorage.setItem(props.recoveryKey, retained.toString());
+    const fetch = vi
+        .fn()
+        .mockResolvedValue(
+            json({
+                saved: true,
+                replayed: true,
+                facts: gapFacts,
+                nextUrl: "/flow/skill/",
+            }),
+        );
+    vi.stubGlobal("fetch", fetch);
+    const navigate = vi.fn();
+    render(
+        <ActionWorkflow
+            {...randomSkillProps}
+            csrfToken="rotated-token"
+            onNavigate={navigate}
+        />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    const expected = new URLSearchParams(retained);
+    expected.set("csrfmiddlewaretoken", "rotated-token");
+    expect((fetch.mock.calls[0][1].body as URLSearchParams).toString()).toBe(
+        expected.toString(),
+    );
+    expect(screen.getByText("Earlier action confirmed")).toBeTruthy();
+    expect(screen.getByText("Recorded result: QA First whisper")).toBeTruthy();
+    expect(screen.getAllByText(/^Recorded result:/)).toHaveLength(1);
+    expect(
+        screen
+            .getByRole("link", { name: "Review current flow" })
+            .getAttribute("href"),
+    ).toBe("/flow/skill/");
+    expect(screen.queryByRole("button", { name: "Retry save" })).toBeNull();
+    expect(sessionStorage.getItem(props.recoveryKey)).toBeNull();
+    expect(navigate).not.toHaveBeenCalled();
+});
+
+test.each([17, false, { name: "QA First whisper" }, ["QA First whisper"]])(
+    "a malformed attempt name %j keeps the command available for retry",
+    async (result_name) => {
+        vi.stubGlobal(
+            "fetch",
+            vi
+                .fn()
+                .mockResolvedValue(
+                    json({
+                        saved: true,
+                        replayed: true,
+                        facts: { ...gapFacts, attempts: [{ result_name }] },
+                        nextUrl: "/flow/skill/",
+                    }),
+                ),
+        );
+        const navigate = vi.fn();
+        render(<ActionWorkflow {...randomSkillProps} onNavigate={navigate} />);
+        await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+        expect(screen.getByRole("button", { name: "Retry save" })).toBeTruthy();
+        expect(sessionStorage.getItem(props.recoveryKey)).toBeTruthy();
+        expect(navigate).not.toHaveBeenCalled();
+    },
+);
