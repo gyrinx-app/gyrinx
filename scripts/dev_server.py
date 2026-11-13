@@ -174,7 +174,7 @@ def stop(root):
                 ):
                     print("Dev-server state changed while stopping. Retry --stop.")
                     return 1
-                if group_processes(state.get("group_pid")):
+                if group_processes(current.get("group_pid")):
                     print(
                         f"Dev-server processes remain in {root}; recovery record retained."
                     )

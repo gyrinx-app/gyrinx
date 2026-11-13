@@ -412,24 +412,31 @@ def test_prune_removes_stale_records_without_stopping_reused_pids(preview, monke
     assert owner_process.poll() is None
 
 
+@pytest.mark.parametrize("initial_group", [None, 5678])
 def test_supervisor_exit_does_not_report_success_while_members_remain(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, initial_group
 ):
     (tmp_path / "logs").mkdir()
-    state = {"worktree": str(tmp_path), "pid": 1234, "group_pid": 5678}
+    state = {"worktree": str(tmp_path), "pid": 1234, "group_pid": initial_group}
+    current = {**state, "group_pid": 5678}
     dev_server.write_state(tmp_path, state)
     alive = iter([True, False])
     monkeypatch.setattr(dev_server, "supervisor_alive", lambda state: next(alive))
     monkeypatch.setattr(
-        dev_server, "group_processes", lambda pgid: [{"pid": 5679, "started": "birth"}]
+        dev_server,
+        "group_processes",
+        lambda pgid: [{"pid": 5679, "started": "birth"}] if pgid == 5678 else [],
     )
     signals = []
-    monkeypatch.setattr(
-        dev_server.os, "kill", lambda pid, sig: signals.append((pid, sig))
-    )
+
+    def signal_supervisor(pid, sig):
+        signals.append((pid, sig))
+        dev_server.write_state(tmp_path, current)
+
+    monkeypatch.setattr(dev_server.os, "kill", signal_supervisor)
     assert dev_server.stop(tmp_path) == 1
     assert signals == [(1234, signal.SIGTERM)]
-    assert dev_server.read_state(tmp_path) == state
+    assert dev_server.read_state(tmp_path) == current
 
 
 @pytest.mark.parametrize("action", ["--background", "--status", "--stop"])
