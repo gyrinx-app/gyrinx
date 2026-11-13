@@ -17,8 +17,10 @@ import traceback
 from contextlib import contextmanager
 from dataclasses import replace
 from datetime import date, timedelta
+from urllib.parse import urlencode
 
 from django.contrib import messages
+from django.core import signing
 from django.core.exceptions import (
     MultipleObjectsReturned,
     ObjectDoesNotExist,
@@ -67,6 +69,7 @@ __all__ = [
     "rehost_gang_picks",
     "repair_doubled_refunds",
     "repair_campaign_reputation",
+    "reset_prelaunch_campaign_cycles",
     "repoint_champion_picks",
     "seed_journal_content",
     "seed_territory_boons",
@@ -240,6 +243,10 @@ class Operation(models.TextChoices):
         "n26_finish_spyrer_augmentations",
         "n26: finish the Spyrer augmentation launch",
     )
+    RESET_PRELAUNCH_CAMPAIGN_CYCLES = (
+        "n26_reset_prelaunch_campaign_cycles",
+        "n26: reset prelaunch campaign cycles",
+    )
 
 
 #: Use a distinct advisory lock per operation. Running guards only inspect their own
@@ -273,6 +280,7 @@ LOCK_KEYS = {
     Operation.PREVIEW_ACTION_ALLOWANCES: 826_020_630,
     Operation.REPAIR_CAMPAIGN_REPUTATION: 826_020_633,
     Operation.RESET_SPYRER_BUILT_INS: 826_020_628,
+    Operation.RESET_PRELAUNCH_CAMPAIGN_CYCLES: 826_020_634,
 }
 
 
@@ -3181,11 +3189,161 @@ register_control_operation(
 )
 
 
+def _require_prelaunch_cycle_flag_off(*, lock=True):
+    from gyrinx.site.models import Availability, FeatureFlag
+    from n26.core.cycle_reset import ResetRefused
+    from n26.flags import CYCLE_TRACKING
+
+    flags = FeatureFlag.objects.filter(slug=CYCLE_TRACKING)
+    if lock:
+        flags = flags.select_for_update()
+    configured = flags.first()
+    if configured is not None and configured.availability != Availability.OFF:
+        raise ResetRefused(
+            "Turn campaign cycles off before resetting prelaunch cycle data."
+        )
+
+
+@task
+def reset_prelaunch_campaign_cycles(backfill_id, **unused):
+    from n26.core.cycle_reset import ResetRefused, apply
+
+    if not Backfill.objects.filter(
+        pk=backfill_id, operation=Operation.RESET_PRELAUNCH_CAMPAIGN_CYCLES
+    ).exists():
+        return
+
+    _run_recorded(
+        backfill_id,
+        Operation.RESET_PRELAUNCH_CAMPAIGN_CYCLES,
+        "Prelaunch campaign cycle reset",
+        lambda: apply(
+            _approved_plan(backfill_id),
+            require_disabled=_require_prelaunch_cycle_flag_off,
+        ),
+        (ResetRefused,),
+    )
+
+
+PRELAUNCH_CYCLE_RESET_WORDS = {
+    "intro": (
+        "Remove the captured prelaunch campaign schedules, plans, cycles, phases and transitions. "
+        "Clear cycle attribution from battles, actions and ledger events while keeping their "
+        "other facts and financial totals. Keep templates, battle and action receipts, notifications "
+        "and campaign events. Old cycle command keys are retained and cannot replay their changes. "
+        "Campaign cycles must be off. A completed reset cannot capture later schedules."
+    ),
+    "nothing_heading": "Nothing to reset",
+    "nothing_words": "No prelaunch campaign cycle data was found.",
+    "refuses_heading": "The reset cannot run",
+    "button": "Reset the captured cycle data",
+    "confirm": "Remove this prelaunch cycle data and clear its attribution? This cannot be undone.",
+}
+
+
+def reset_prelaunch_campaign_cycles_view(request):
+    from n26.core.cycle_reset import ResetRefused, empty_plan, find
+    from n26.write_pause import SCOPE, exclusive_write_scope
+
+    operation = Operation.RESET_PRELAUNCH_CAMPAIGN_CYCLES
+    address = reverse(f"admin:maintenance_{operation.value}")
+    signer = signing.Signer(salt="n26.prelaunch-cycle-reset")
+    completed = Backfill.objects.filter(
+        operation=operation, status=Backfill.Status.DONE
+    ).first()
+    if request.method == "POST":
+        try:
+            with exclusive_write_scope(SCOPE):
+                completed = Backfill.objects.filter(
+                    operation=operation, status=Backfill.Status.DONE
+                ).first()
+                running = running_guard(operation)
+                if completed is not None or running is not None:
+                    record = completed or running
+                    return HttpResponseRedirect(
+                        reverse("admin:maintenance_backfill_detail", args=[record.pk])
+                    )
+                _require_prelaunch_cycle_flag_off()
+                plan = find()
+                if plan.nothing_here:
+                    messages.info(
+                        request, "No prelaunch campaign cycle data was found."
+                    )
+                    return HttpResponseRedirect(address)
+                try:
+                    approved = signer.unsign(request.GET.get("scope", ""))
+                except signing.BadSignature:
+                    raise ResetRefused(
+                        "Prepare and review a prelaunch cycle reset preview first."
+                    ) from None
+                if approved != plan.fingerprint:
+                    raise ResetRefused(
+                        "Campaign cycle data changed after the preview. Prepare and review a new preview."
+                    )
+                record = Backfill.objects.create(
+                    operation=operation,
+                    triggered_by=request.user,
+                    status=Backfill.Status.RUNNING,
+                    summary={
+                        "preview": list(plan.preview()),
+                        "attempts": 0,
+                        **plan.recorded(),
+                    },
+                )
+            reset_prelaunch_campaign_cycles.enqueue(backfill_id=str(record.pk))
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[record.pk])
+            )
+        except (ResetRefused, WritesPaused) as exc:
+            messages.error(request, str(exc))
+            return HttpResponseRedirect(address)
+    plan = empty_plan() if completed is not None else find()
+    if completed is None:
+        try:
+            _require_prelaunch_cycle_flag_off(lock=False)
+        except ResetRefused as exc:
+            plan = replace(plan, problems=(str(exc),))
+    words = dict(PRELAUNCH_CYCLE_RESET_WORDS)
+    if completed is not None:
+        words["nothing_words"] = (
+            "This reset has already finished. Later schedules are kept."
+        )
+    return render(
+        request,
+        "admin/maintenance/n26/delete.html",
+        page_context(
+            request,
+            operation.label,
+            plan=plan,
+            preview=list(plan.preview()),
+            words=words,
+            apply_url=address
+            + "?"
+            + urlencode({"scope": signer.sign(plan.fingerprint)}),
+            recent=Backfill.objects.filter(operation=operation)[:10],
+        ),
+    )
+
+
+register_control_operation(
+    MaintenanceOperation(
+        operation=Operation.RESET_PRELAUNCH_CAMPAIGN_CYCLES.value,
+        name=Operation.RESET_PRELAUNCH_CAMPAIGN_CYCLES.label,
+        added=date(2026, 11, 13),
+        description=PRELAUNCH_CYCLE_RESET_WORDS["intro"],
+        view=reset_prelaunch_campaign_cycles_view,
+    )
+)
+
+
 #: The task registry imports these routes through n26/core/tasks.py. Keep long-running
 #: acknowledgement deadlines aligned with the deployed request timeout (--timeout in
 #: cloudbuild.yaml) to avoid redelivery while work still holds its lock. Cloud Scheduler
 #: provisions the propagation sweep; the local backend does not run schedules.
 task_routes = [
+    N26TaskRoute(
+        reset_prelaunch_campaign_cycles, exclusive_write=True, ack_deadline=600
+    ),
     N26TaskRoute(repair_campaign_reputation, ack_deadline=600),
     N26TaskRoute(reset_spyrer_built_ins, ack_deadline=600),
     N26PausedTaskRoute(activate_counter_history, ack_deadline=600),

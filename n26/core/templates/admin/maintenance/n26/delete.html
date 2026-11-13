@@ -40,6 +40,7 @@ words, apply_url, recent.
             {% for line in preview %}<li>{{ line }}</li>{% endfor %}
         </ul>
         <form method="post"
+              action="{{ apply_url }}"
               class="mt-form"
               onsubmit="return confirm('{{ words.confirm|escapejs }}')">
             {% csrf_token %}
