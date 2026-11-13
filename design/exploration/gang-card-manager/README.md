@@ -128,3 +128,55 @@ Browser layout storage has no cross-tab transaction guarantee. The sample sheet
 and statlines are display fixtures rather than authoritative rules data. The
 prototype adds no server scheduler, application routes, migrations or production
 API. Assistive-technology and cross-browser testing remain required before release.
+
+## Advanced roster view controls
+
+The Lucide View button beside **Hire fighters** opens a React settings menu.
+Small, Standard and Large change card width and grid density while keeping text
+legible. Mobile keeps a full-width card and hides the desktop size choices.
+
+**Side-scroll mode** puts model cards in one horizontal row, with gang panels
+above it. **Separate rows by group** gives each group an independent carousel,
+keeping consecutive runs of ungrouped models between them in roster order.
+Pets follow their owner, and hidden cards remain hidden. Empty model/panel
+sections disappear. Native touch and trackpad gestures, mouse dragging, arrow
+buttons and Left/Right/Home/End keys navigate the rows. Reduced motion skips
+smooth scrolling. Group outlines, label clearance, card widths and heading
+positions stay consistent when changing carousel layouts. Separate-row headings
+use their group's colour and open the existing group editor.
+
+View preferences use `gyrinx-roster-view-v1`, independently of saved Card Manager
+layouts. Invalid preferences fall back to the default view without rewriting
+storage. Unavailable storage keeps changes in memory and displays a message.
+Tab selections survive changes between grid and carousel rows. Hiring is a
+placeholder action in this standalone preview, with no application writes.
+
+The controls build on [Card Manager PR #3287](https://github.com/gyrinx-app/gyrinx/pull/3287).
+The snap scrolling, card gutters and mouse-drag exclusions adapt the carousel in
+[Gang Tactics PR #2980](https://github.com/gyrinx-app/gyrinx/pull/2980). This branch
+uses the original cards so its review remains focused on the view controls;
+[the redesigned cards in PR #3288](https://github.com/gyrinx-app/gyrinx/pull/3288)
+remain separate. The controls were also checked in the combined redesigned-card
+demo, including temporary portrait retention.
+
+To run a separate preview alongside the combined card-design demo, use port
+8778 and point the checks at the same origin:
+
+```bash
+npm start -- --port 8778
+# In a second terminal:
+BASE_URL=http://127.0.0.1:8778 npm run check
+npm run format:check
+```
+
+`src/roster-view.jsx` owns the settings and carousel interactions;
+`src/roster-view-model.js` validates preferences and prepares ordered rows.
+`src/card-session.jsx` keeps tab selections during row changes.
+`check_roster_model.mjs`, `check_roster_view.mjs` and `check_roster_spacing.mjs`
+cover corrupt preferences, all-hidden rosters, released-outside drags, sizing,
+menu focus, keyboard controls, groups, pets, persistence and stable outline/card
+geometry at desktop, 390px and 320px. Captures stay under ignored `qa/`.
+
+This is an already-React design exploration. Production integration still needs
+permission-aware server props and durable per-gang preferences, plus real hiring
+navigation. No production APIs, application routes or migrations are changed.

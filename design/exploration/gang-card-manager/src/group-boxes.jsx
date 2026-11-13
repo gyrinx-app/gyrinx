@@ -2,7 +2,13 @@ import React, { useLayoutEffect, useState } from "react";
 import { groupColour } from "./card-manager-model.js";
 import { groupBoxShapes } from "./group-box-geometry.js";
 
-export function GroupBoxes({ saved, grid, onEditGroup }) {
+export function GroupBoxes({
+    saved,
+    grid,
+    onEditGroup,
+    showLabels = true,
+    fitMembers = false,
+}) {
     const [shapes, setShapes] = useState([]);
     useLayoutEffect(() => {
         const element = grid.current;
@@ -11,7 +17,11 @@ export function GroupBoxes({ saved, grid, onEditGroup }) {
         const measure = () => {
             if (!active) return;
             const cells = [...element.children]
-                .filter((cell) => cell.getClientRects().length)
+                .filter(
+                    (cell) =>
+                        cell.matches(".gang-card, .gang-panel-stack") &&
+                        cell.getClientRects().length,
+                )
                 .map((cell) => ({
                     id: (
                         cell.dataset.flip ||
@@ -71,7 +81,14 @@ export function GroupBoxes({ saved, grid, onEditGroup }) {
                                               ),
                                           ) + 6,
                                       top: top - 14,
-                                      bottom: rowBottoms[row] + 6,
+                                      bottom:
+                                          (fitMembers
+                                              ? Math.max(
+                                                    ...membersHere.map(
+                                                        (cell) => cell.bottom,
+                                                    ),
+                                                )
+                                              : rowBottoms[row]) + 6,
                                   },
                               ]
                             : [];
@@ -81,7 +98,7 @@ export function GroupBoxes({ saved, grid, onEditGroup }) {
                         id: `${group.id}-${index}`,
                         groupId: group.id,
                         colour: group.colour,
-                        label: index === 0 ? group.name : null,
+                        label: showLabels && index === 0 ? group.name : null,
                     }));
                 });
             setShapes((previous) =>
@@ -99,7 +116,7 @@ export function GroupBoxes({ saved, grid, onEditGroup }) {
             active = false;
             observer.disconnect();
         };
-    }, [saved, grid]);
+    }, [saved, grid, showLabels, fitMembers]);
     return (
         <div className="gang-group-boxes">
             {shapes.map((shape) => (

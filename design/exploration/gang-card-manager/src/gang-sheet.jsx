@@ -1,6 +1,7 @@
-import React, { useId, useState } from "react";
+import React, { useId, useRef, useState } from "react";
 import {
     LayoutFreeform,
+    UserPlus,
     ChevronDown,
     Users,
     SunMoon,
@@ -20,6 +21,13 @@ import {
 import { Button, Icon, useModal } from "./controls.jsx";
 import cotton from "./cotton.json";
 import { GroupBoxes } from "./group-boxes.jsx";
+import {
+    ViewControls,
+    CarouselRow,
+    useRosterView,
+    rosterRows,
+} from "./roster-view.jsx";
+import { CardSession, useCardSession } from "./card-session.jsx";
 import * as M from "./card-manager-model.js";
 import {
     physical,
@@ -137,7 +145,10 @@ function ModelDetails({ model, pet }) {
     );
 }
 function ModelCard({ node, pet, owner, index, hidden }) {
-    const [tab, setTab] = useState(0),
+    const [tab, setTab] = useCardSession(
+            `${pet ? `${node.id}-pet-${index}` : node.id}:tab`,
+            0,
+        ),
         id = useId();
     const model = pet
         ? {
@@ -406,7 +417,25 @@ function Panel({ node, hidden }) {
         </article>
     );
 }
-function GangGrid({ saved, page, onEditGroup }) {
+function GangPanels({ children, saved, onEditGroup }) {
+    const grid = useRef(null);
+    return (
+        <div
+            className="gang-panel-roster"
+            hidden={
+                !React.Children.toArray(children).some(
+                    (panel) => !panel.props.hidden,
+                )
+            }
+        >
+            <div className="gang-panel-grid" ref={grid}>
+                {children}
+            </div>
+            <GroupBoxes saved={saved} grid={grid} onEditGroup={onEditGroup} />
+        </div>
+    );
+}
+function GangGrid({ saved, page, onEditGroup, view }) {
     const groups = new Map(
         saved
             .filter((n) => n.children)
@@ -465,8 +494,41 @@ function GangGrid({ saved, page, onEditGroup }) {
             );
         }
     }
+    if (view.sideScroll) {
+        const panels = rendered.filter(
+            (card) =>
+                card.type === Panel ||
+                card.props.className === "gang-panel-stack",
+        );
+        const rows = rosterRows(saved, view.separateGroups);
+        return (
+            <div
+                className="gang-roster gang-carousel-roster"
+                data-card-size={view.size}
+                ref={page}
+            >
+                <GangPanels saved={saved} onEditGroup={onEditGroup}>
+                    {panels}
+                </GangPanels>
+                {rows.map((row) => (
+                    <CarouselRow
+                        key={row.id}
+                        row={row}
+                        saved={saved}
+                        onEditGroup={onEditGroup}
+                    >
+                        {rendered.filter(
+                            (card) =>
+                                card.type === ModelCard &&
+                                row.ids.has(card.props.node.id),
+                        )}
+                    </CarouselRow>
+                ))}
+            </div>
+        );
+    }
     return (
-        <div className="gang-roster">
+        <div className="gang-roster" data-card-size={view.size}>
             <div
                 className={`gang-grid n26-roster-grid ${boxed ? "gang-grid-boxed" : ""}`}
                 ref={page}
@@ -494,6 +556,7 @@ export function GangSheet({
     onNotice,
 }) {
     const [info, setInfo] = useState(null);
+    const [view, setView] = useRosterView(onNotice);
     const members = M.flatten(saved).filter((n) => !M.models[n.id].special);
     const rating = members.reduce((n, m) => n + M.models[m.id].rating, 0);
     const count = members.reduce(
@@ -665,7 +728,24 @@ export function GangSheet({
                         {notice}
                     </div>
                 )}
-                <GangGrid saved={saved} page={page} onEditGroup={onEditGroup} />
+                <div className="gang-roster-toolbar">
+                    <ViewControls view={view} onChange={setView} />
+                    <Button
+                        variant="primary"
+                        icon={UserPlus}
+                        onClick={() => setInfo("Hire fighters")}
+                    >
+                        Hire fighters
+                    </Button>
+                </div>
+                <CardSession>
+                    <GangGrid
+                        saved={saved}
+                        page={page}
+                        onEditGroup={onEditGroup}
+                        view={view}
+                    />
+                </CardSession>
                 <p className="gang-disclaimer">
                     Sample gang. Layout saves in this browser. Refund, archive
                     and delete are simulated.
@@ -693,9 +773,11 @@ export function GangSheet({
                         </dl>
                     ) : (
                         <p>
-                            {info === "Gang notes"
-                                ? "No notes yet."
-                                : "Nothing written yet."}
+                            {info === "Hire fighters"
+                                ? "Hiring is simulated in this preview. Use Card Manager to arrange the sample roster."
+                                : info === "Gang notes"
+                                  ? "No notes yet."
+                                  : "Nothing written yet."}
                         </p>
                     )}
                 </InfoDialog>
