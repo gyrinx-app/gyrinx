@@ -2236,6 +2236,7 @@ def recipes():
                 "arrow-down",
                 "arrow-right",
                 "pencil",
+                "copy",
                 "image",
                 "layers",
                 "flag",

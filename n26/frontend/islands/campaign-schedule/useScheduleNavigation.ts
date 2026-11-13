@@ -5,7 +5,7 @@ import {
     useState,
     type MouseEvent,
 } from "react";
-import type { ScheduleProps } from "./types";
+import { isPageEditor, type ScheduleProps } from "./types";
 import type { AlertTone } from "../../ui";
 
 function readNotices(value: unknown) {
@@ -60,7 +60,7 @@ function savedScroll(value: unknown): ScrollPosition | undefined {
 }
 
 function pageEditor(data: ScheduleProps) {
-    return data.editor?.kind === "setup" || data.editor?.kind === "plan";
+    return isPageEditor(data.editor);
 }
 
 export function useScheduleNavigation(initial: ScheduleProps) {
@@ -316,7 +316,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
     }, [load]);
 
     useEffect(() => {
-        document.title = `${data.editor?.kind === "plan" || data.editor?.kind === "setup" ? data.editor.heading : "Phases & cycles"} — ${data.campaignName} | Gyrinx`;
+        document.title = `${isPageEditor(data.editor) ? data.editor.heading : "Phases & cycles"} — ${data.campaignName} | Gyrinx`;
         const target =
             window.location.hash.slice(1) ||
             (data.focusId ? `cycle-${data.focusId}` : "");

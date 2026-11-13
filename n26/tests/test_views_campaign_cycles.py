@@ -1675,3 +1675,133 @@ def test_dashboard_final_cycle_number_stays_consistent_after_deletion(
     summary = dashboard_summary(campaign, campaign.owner)
     assert summary.name == "Cycle 7"
     assert summary.order == summary.cycle_limit == 7
+
+
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize(
+    "action", ["phase", "add-phase", "duplicate-phase", "delete-phase"]
+)
+def test_phase_management_returns_to_settings(
+    client, campaign, configured, native, action
+):
+    query = {} if action == "add-phase" else {"phase": configured.phases[0].id}
+    response = client.get(editor_url(campaign, action, **query))
+    editor = props(response)["editor"]
+    settings = editor_url(campaign, "plan")
+    assert editor["back"] == settings
+    values = editor["values"]
+    if action == "delete-phase":
+        values["current_choice"] = "none"
+    if action == "phase":
+        values["name"] = "Updated phase"
+    saved = post(client, campaign, action, values, native=native, **query)
+    assert saved.status_code == (302 if native else 200)
+    assert (saved.url if native else saved.json()["nextUrl"]) == settings
+    returned = props(client.get(settings))
+    assert returned["editor"]["heading"] == "Phase and schedule settings"
+    assert (
+        int(returned["editor"]["values"]["expected_revision"])
+        == configured.revision + 1
+    )
+    assert returned["editor"]["values"]["request_key"] != values["request_key"]
+
+
+def test_settings_exposes_all_active_phases_with_actions(client, campaign, configured):
+    page = props(client.get(editor_url(campaign, "plan")))
+    assert {phase["id"] for phase in page["phases"]} == {
+        phase.id for phase in configured.phases
+    }
+    assert page["actions"]["addPhase"] == editor_url(campaign, "add-phase")
+    assert all(
+        phase["editHref"] and phase["duplicateHref"] and phase["deleteHref"]
+        for phase in page["phases"]
+    )
+
+
+def test_settings_queries_stay_flat_as_phase_list_grows(client, campaign, configured):
+    url = editor_url(campaign, "plan")
+    client.get(url, HTTP_ACCEPT="application/json")
+    with CaptureQueriesContext(connection) as small:
+        initial = client.get(url, HTTP_ACCEPT="application/json").json()["schedule"]
+    state = configured
+    for index in range(4):
+        cycles.add_phase(
+            campaign,
+            actor=campaign.owner,
+            details=s.PhaseDetails(f"Extra phase {index}"),
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        state = cycles.load(campaign)
+    with CaptureQueriesContext(connection) as large:
+        expanded = client.get(url, HTTP_ACCEPT="application/json").json()["schedule"]
+    assert len(expanded["phases"]) == len(initial["phases"]) + 4
+    assert len(large) == len(small)
+
+
+def test_phase_deletion_confirms_revision_after_projected_replacement(
+    client, campaign, configured
+):
+    old = props(client.get(editor_url(campaign, "plan")))["editor"]
+    target = next(
+        cycle
+        for cycle in s.project(configured)
+        if cycle.phase_id == configured.phases[-1].id
+    )
+    phase = configured.current_phase.id
+    editor = props(client.get(editor_url(campaign, "delete-phase", phase=phase)))[
+        "editor"
+    ]
+    assert editor["context"]["planRecoveryKey"] == old["recoveryKey"]
+    values = {**editor["values"], "current_choice": json.dumps(ref_data(target.ref))}
+    response = post(client, campaign, "delete-phase", values, phase=phase)
+    assert response.status_code == 200
+    replay = post(client, campaign, "delete-phase", values, phase=phase)
+    assert replay.json() == response.json()
+    fresh = props(client.get(response.json()["nextUrl"]))["editor"]
+    assert str(response.json()["revision"]) == fresh["values"]["expected_revision"]
+    assert fresh["values"]["date_start"] > old["values"]["date_start"]
+    before = {step["id"]: step["count"] for step in json.loads(old["values"]["steps"])}
+    after = json.loads(fresh["values"]["steps"])
+    assert any(step["count"] < before[step["id"]] for step in after)
+
+
+def test_phase_deletion_reports_saved_source_counts_across_repetitions(
+    client, campaign, opened
+):
+    definition = s.ScheduleTemplate(
+        "Repeating",
+        (s.Phase("a", s.PhaseDetails("A")), s.Phase("b", s.PhaseDetails("B"))),
+        (s.PlanStep("a-step", "a", 1), s.PlanStep("b-step", "b", 2)),
+    )
+    cycles.configure(
+        campaign,
+        actor=campaign.owner,
+        template_id=None,
+        current_position=0,
+        mode="repeating",
+        request_key=uuid4(),
+        definition=template_data(definition),
+    )
+    state = cycles.load(campaign)
+    before = props(client.get(editor_url(campaign, "plan")))["editor"]
+    a, b = state.plan.steps
+    assert before["context"]["savedStepCounts"] == {a.id: 1}
+    target = next(cycle for cycle in s.project(state) if cycle.order == 5)
+    phase = state.current_phase.id
+    editor = props(client.get(editor_url(campaign, "delete-phase", phase=phase)))[
+        "editor"
+    ]
+    response = post(
+        client,
+        campaign,
+        "delete-phase",
+        {**editor["values"], "current_choice": json.dumps(ref_data(target.ref))},
+        phase=phase,
+    )
+    assert response.status_code == 200
+    after = props(client.get(response.json()["nextUrl"]))["editor"]
+    assert after["context"]["savedStepCounts"] == {a.id: 2, b.id: 3}
+    assert after["context"]["fixedSteps"] == [
+        {"id": b.id, "phase_id": b.phase_id, "count": 1}
+    ]
