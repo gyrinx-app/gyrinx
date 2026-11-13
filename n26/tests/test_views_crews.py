@@ -886,6 +886,11 @@ class TestCrewWorkflowCommands:
         assert client.get(replay.json()["nextUrl"]).status_code == 200
         fresh = payload | {"revision": "1", "request_key": str(uuid4())}
         assert client.post(command_address(table), fresh).status_code == 409
+        native_replay = client.post(address(table), payload)
+        assert native_replay.status_code == 302
+        assert client.get(native_replay.url).status_code == 200
+        assert client.post(address(table), fresh).status_code == 404
+        assert client.post(address(table), {}).status_code == 404
         assert BattleCrew.objects.get().revision == 1
         assert client.get(address(table)).status_code == 404
         recovery = client.get(address(table) + "?recover=1")
@@ -1141,8 +1146,9 @@ def test_crew_json_commands_enforce_csrf(client, table):
 
 
 @pytest.mark.parametrize("change", ["owner", "participant", "archive"])
+@pytest.mark.parametrize("transport", ["native", "json"])
 def test_crew_authority_and_archive_are_rechecked_under_the_write_locks(
-    client, table, monkeypatch, change
+    client, table, monkeypatch, change, transport
 ):
     from contextlib import contextmanager
     from uuid import uuid4
@@ -1165,8 +1171,10 @@ def test_crew_authority_and_archive_are_rechecked_under_the_write_locks(
 
     monkeypatch.setattr(crew_workflow, "locked_crew", changed_before_lock)
     response = client.post(
-        command_address(table), fields(table, request_key=str(uuid4()))
+        command_address(table) if transport == "json" else address(table),
+        fields(table, request_key=str(uuid4())),
     )
-    assert response.status_code == 409
-    assert "acknowledged" not in response.json()
+    assert response.status_code == (409 if transport == "json" else 404)
+    if transport == "json":
+        assert "acknowledged" not in response.json()
     assert not BattleCrew.objects.exists() and not CrewCommandReceipt.objects.exists()

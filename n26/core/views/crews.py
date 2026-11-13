@@ -156,10 +156,8 @@ def edit_crew(request, pk, battle_pk, gang_pk):
             result = crew_workflow.perform(
                 battle=battle, gang=gang, actor=request.user, data=request.POST
             )
-        except Refusal as exc:
-            form = CrewForm(request.POST, roster=crew_roster(gang, crew), crew=crew)
-            form.is_valid()
-            form.add_error(None, exc.public_message)
+        except Refusal:
+            raise Http404("No such crew") from None
         else:
             if result.saved:
                 _feedback(request, result)
@@ -171,6 +169,8 @@ def edit_crew(request, pk, battle_pk, gang_pk):
                         + f"?recover=1&saved={result.receipt.request_key}"
                     )
                 return redirect(_next(campaign, battle, gang, result))
+            if result.read_only:
+                raise Http404("No such crew")
             form = result.form
             crew = result.crew
             conflict = result.conflict
