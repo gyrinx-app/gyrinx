@@ -7,7 +7,6 @@ const fields = [
     "date_start",
     "cycle_interval",
     "cycle_unit",
-    "date_version",
 ];
 type Values = Record<string, string>;
 type Draft = {

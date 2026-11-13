@@ -157,7 +157,6 @@ export function ScheduleEditor({
             "date_start",
             "cycle_interval",
             "cycle_unit",
-            "date_version",
             "date_mode",
             "shift_later",
             "setup_definition",
@@ -214,13 +213,22 @@ export function ScheduleEditor({
         values.no_current === "on" || values.no_current === "True";
     const currentNumber = values.current_number || "1";
     const shiftContext = editor.context.shiftLater as
-        { endsOn: string } | undefined;
-    const shiftDays =
-        shiftContext && values.ends_on
-            ? (Date.parse(`${values.ends_on}T00:00:00Z`) -
-                  Date.parse(`${shiftContext.endsOn}T00:00:00Z`)) /
-              86400000
-            : 0;
+        { endsOn: string; followingOn: string } | undefined;
+    const shiftDaysFor = (end: string) => {
+        if (!shiftContext || !end) return 0;
+        const endTime = Date.parse(`${end}T00:00:00Z`);
+        return shiftContext.endsOn
+            ? (endTime - Date.parse(`${shiftContext.endsOn}T00:00:00Z`)) /
+                  86400000
+            : Math.max(
+                  0,
+                  (endTime +
+                      86400000 -
+                      Date.parse(`${shiftContext.followingOn}T00:00:00Z`)) /
+                      86400000,
+              );
+    };
+    const shiftDays = shiftDaysFor(values.ends_on);
     const shiftLater =
         values.shift_later === "on" || values.shift_later === "True";
     const routeStage = Number(editor.context.setupStage ?? 1);
@@ -281,8 +289,18 @@ export function ScheduleEditor({
         value: string;
         label: string;
     }>;
-    const change = (name: string, value: string) =>
-        form.setValues({ ...values, [name]: value });
+    const change = (name: string, value: string) => {
+        const changed = { ...values, [name]: value };
+        if (
+            name === "ends_on" &&
+            (!value ||
+                (shiftContext &&
+                    !shiftContext.endsOn &&
+                    shiftDaysFor(value) <= 0))
+        )
+            changed.shift_later = "";
+        form.setValues(changed);
+    };
     const datesOnly =
         editor.kind === "cycle" && editor.context.datesOnly === true;
     const fields = new Set(
@@ -1025,14 +1043,19 @@ export function ScheduleEditor({
                                     })}
                                 </div>
                                 <FieldDescription id="cycle-dates-help">
-                                    Enter both dates or leave both blank.
+                                    Start and end dates are optional. You can
+                                    set either one.
                                 </FieldDescription>
                             </div>
                         </>
                     )}
                     {editor.kind === "cycle" &&
                         shiftContext &&
-                        (shiftDays !== 0 || shiftLater) && (
+                        values.ends_on &&
+                        Number.isFinite(shiftDays) &&
+                        (shiftContext.endsOn
+                            ? shiftDays !== 0 || shiftLater
+                            : shiftDays > 0) && (
                             <section
                                 className="space-y-1"
                                 aria-label="Later cycle dates"
@@ -1052,8 +1075,8 @@ export function ScheduleEditor({
                                     shiftDays !== 0
                                         ? `${Math.abs(shiftDays)} ${Math.abs(shiftDays) === 1 ? "day" : "days"} ${shiftDays < 0 ? "earlier" : "later"}. `
                                         : ""}
-                                    Moves later saved dates and previews,
-                                    keeping their lengths and gaps unchanged.
+                                    Moves each known later date by the same
+                                    amount. Dates that are not set stay unset.
                                 </p>
                             </section>
                         )}

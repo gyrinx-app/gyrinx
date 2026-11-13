@@ -69,7 +69,12 @@ test("end date changes offer an explicit shift and retain it for an exact retry"
             onNavigate={vi.fn()}
             editor={{
                 ...editor,
-                context: { shiftLater: { endsOn: "2026-11-07" } },
+                context: {
+                    shiftLater: {
+                        endsOn: "2026-11-07",
+                        followingOn: "2026-11-08",
+                    },
+                },
                 values: {
                     ...editor.values,
                     starts_on: "2026-11-01",
@@ -151,7 +156,6 @@ test.each([false, true])(
                         date_start: "2026-11-01",
                         cycle_interval: "1",
                         cycle_unit: "weeks",
-                        date_version: "1",
                     },
                 }}
             />,
@@ -528,7 +532,6 @@ test("retained plan commands survive the addition of date controls without chang
                     date_start: "2026-11-01",
                     cycle_interval: "1",
                     cycle_unit: "weeks",
-                    date_version: "1",
                 },
             }}
             phases={phases}
@@ -539,7 +542,6 @@ test("retained plan commands survive the addition of date controls without chang
     const body = fetch.mock.calls[0][1].body as URLSearchParams;
     expect(body.get("request_key")).toBe("earlier-plan");
     expect(body.has("date_start")).toBe(false);
-    expect(body.has("date_version")).toBe(false);
 });
 
 test("malformed recovered structured input stays available for exact retry", async () => {
@@ -610,29 +612,48 @@ test("an unavailable editor offers review while retaining exact reload recovery"
     expect(navigate).toHaveBeenCalledWith("/cycles/");
 });
 
-test("cycle date edits allow an empty pair", async () => {
-    const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
-    vi.stubGlobal("fetch", fetch);
-    render(
-        <ScheduleEditor
-            editor={{
-                ...editor,
-                values: { ...editor.values, date_version: "2" },
-            }}
-            phases={phases}
-            onNavigate={vi.fn()}
-        />,
-    );
-    expect(
-        (screen.getByLabelText("Start date") as HTMLInputElement).required,
-    ).toBe(false);
-    expect(
-        (screen.getByLabelText("End date") as HTMLInputElement).required,
-    ).toBe(false);
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(fetch.mock.calls[0][1].body.get("starts_on")).toBe("");
-    expect(fetch.mock.calls[0][1].body.get("ends_on")).toBe("");
-});
+test.each([
+    ["", ""],
+    ["2026-11-01", ""],
+    ["", "2026-11-07"],
+    ["2026-11-01", "2026-11-07"],
+])(
+    "cycle date edits submit independently optional bounds (%s, %s)",
+    async (start, end) => {
+        const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
+        vi.stubGlobal("fetch", fetch);
+        render(
+            <ScheduleEditor
+                editor={{
+                    ...editor,
+                    values: {
+                        ...editor.values,
+                        starts_on: start,
+                        ends_on: end,
+                    },
+                }}
+                phases={phases}
+                onNavigate={vi.fn()}
+            />,
+        );
+        expect(screen.getByLabelText("Start date")).toHaveProperty(
+            "required",
+            false,
+        );
+        expect(screen.getByLabelText("End date")).toHaveProperty(
+            "required",
+            false,
+        );
+        expect(
+            screen.getByText(
+                "Start and end dates are optional. You can set either one.",
+            ),
+        ).toBeTruthy();
+        await userEvent.click(screen.getByRole("button", { name: "Save" }));
+        expect(fetch.mock.calls[0][1].body.get("starts_on")).toBe(start);
+        expect(fetch.mock.calls[0][1].body.get("ends_on")).toBe(end);
+    },
+);
 
 test.each([true, false])(
     "planned settings name the actual next cycle while retaining legacy labels (%s)",
@@ -791,7 +812,57 @@ test("starting after deletion posts an explicit surviving cycle", async () => {
     ).toBe('{"plan_id":"pattern","index":2}');
 });
 
-test("cycle dates can be cleared explicitly and submitted as an undated pair", async () => {
+test.each(["start", "end", "both"])(
+    "clearing %s cycle dates leaves the other bound unchanged",
+    async (bound) => {
+        const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
+        vi.stubGlobal("fetch", fetch);
+        render(
+            <ScheduleEditor
+                phases={phases}
+                onNavigate={vi.fn()}
+                editor={{
+                    ...editor,
+                    values: {
+                        ...editor.values,
+                        starts_on: "2026-11-01",
+                        ends_on: "2026-11-07",
+                    },
+                }}
+            />,
+        );
+        const help = screen.getByText(
+            "Start and end dates are optional. You can set either one.",
+        );
+        expect(
+            screen
+                .getByLabelText("Start date")
+                .getAttribute("aria-describedby"),
+        ).toContain(help.id);
+        expect(
+            screen.getByLabelText("End date").getAttribute("aria-describedby"),
+        ).toContain(help.id);
+        if (bound !== "end")
+            await userEvent.click(
+                screen.getByRole("button", { name: "Clear start date" }),
+            );
+        if (bound !== "start")
+            await userEvent.click(
+                screen.getByRole("button", { name: "Clear end date" }),
+            );
+        expect(fetch).not.toHaveBeenCalled();
+        await userEvent.click(screen.getByRole("button", { name: "Save" }));
+        expect(fetch).toHaveBeenCalledOnce();
+        expect(fetch.mock.calls[0][1].body.get("starts_on")).toBe(
+            bound === "end" ? "2026-11-01" : "",
+        );
+        expect(fetch.mock.calls[0][1].body.get("ends_on")).toBe(
+            bound === "start" ? "2026-11-07" : "",
+        );
+    },
+);
+
+test("a missing old end offers a shift only when the new end reaches the following date", async () => {
     const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
     vi.stubGlobal("fetch", fetch);
     render(
@@ -800,41 +871,80 @@ test("cycle dates can be cleared explicitly and submitted as an undated pair", a
             onNavigate={vi.fn()}
             editor={{
                 ...editor,
-                values: {
-                    ...editor.values,
-                    date_version: "2",
-                    starts_on: "2026-11-01",
-                    ends_on: "2026-11-07",
+                context: {
+                    shiftLater: { endsOn: "", followingOn: "2026-11-10" },
                 },
+                values: { ...editor.values, shift_later: "" },
             }}
         />,
     );
-    const help = screen.getByText("Enter both dates or leave both blank.");
+    fireEvent.change(screen.getByLabelText("End date"), {
+        target: { value: "2026-11-08" },
+    });
     expect(
-        screen.getAllByText("Enter both dates or leave both blank."),
-    ).toHaveLength(1);
-    expect(
-        screen.getByLabelText("Start date").getAttribute("aria-describedby"),
-    ).toContain(help.id);
-    expect(
-        screen.getByLabelText("End date").getAttribute("aria-describedby"),
-    ).toContain(help.id);
-    await userEvent.click(
-        screen.getByRole("button", { name: "Clear start date" }),
-    );
-    await userEvent.click(
-        screen.getByRole("button", { name: "Clear end date" }),
-    );
-    expect(fetch).not.toHaveBeenCalled();
-    expect(
-        (screen.getByLabelText("Start date") as HTMLInputElement).value,
-    ).toBe("");
-    expect((screen.getByLabelText("End date") as HTMLInputElement).value).toBe(
-        "",
-    );
+        screen.queryByRole("switch", { name: "Move later cycle dates too" }),
+    ).toBeNull();
+    fireEvent.change(screen.getByLabelText("End date"), {
+        target: { value: "2026-11-12" },
+    });
+    const shift = screen.getByRole("switch", {
+        name: "Move later cycle dates too",
+    });
+    expect(shift.getAttribute("aria-checked")).toBe("false");
+    expect(screen.getByText(/3 days later/)).toBeTruthy();
+    await userEvent.click(shift);
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(fetch).toHaveBeenCalledOnce();
     expect(fetch.mock.calls[0][1].body.get("starts_on")).toBe("");
-    expect(fetch.mock.calls[0][1].body.get("ends_on")).toBe("");
-    expect(fetch.mock.calls[0][1].body.get("date_version")).toBe("2");
+    expect(fetch.mock.calls[0][1].body.get("ends_on")).toBe("2026-11-12");
+    expect(fetch.mock.calls[0][1].body.get("shift_later")).toBe("on");
 });
+
+test.each([
+    ["", ""],
+    ["", "2026-11-09"],
+    ["2026-11-07", ""],
+])(
+    "a shift is cleared when the replacement end cannot move following dates (%s, %s)",
+    async (oldEnd, end) => {
+        const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
+        vi.stubGlobal("fetch", fetch);
+        render(
+            <ScheduleEditor
+                phases={phases}
+                onNavigate={vi.fn()}
+                editor={{
+                    ...editor,
+                    context: {
+                        shiftLater: {
+                            endsOn: oldEnd,
+                            followingOn: "2026-11-10",
+                        },
+                    },
+                    values: {
+                        ...editor.values,
+                        starts_on: "2026-11-01",
+                        shift_later: "",
+                    },
+                }}
+            />,
+        );
+        fireEvent.change(screen.getByLabelText("End date"), {
+            target: { value: "2026-11-12" },
+        });
+        await userEvent.click(
+            screen.getByRole("switch", { name: "Move later cycle dates too" }),
+        );
+        fireEvent.change(screen.getByLabelText("End date"), {
+            target: { value: end },
+        });
+        expect(
+            screen.queryByRole("switch", {
+                name: "Move later cycle dates too",
+            }),
+        ).toBeNull();
+        await userEvent.click(screen.getByRole("button", { name: "Save" }));
+        expect(fetch.mock.calls[0][1].body.get("shift_later")).toBe("");
+        expect(fetch.mock.calls[0][1].body.get("starts_on")).toBe("2026-11-01");
+        expect(fetch.mock.calls[0][1].body.get("ends_on")).toBe(end);
+    },
+);

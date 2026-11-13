@@ -192,26 +192,69 @@ export function CycleNavigator({
                         )}
                         {selected && (
                             <p className="mt-1 text-sm">
-                                {selected.startsOn &&
-                                    !selected.endsOn &&
-                                    "From "}
-                                {!selected.startsOn &&
-                                    selected.endsOn &&
-                                    "Until "}
-                                {selected.startsOn && (
-                                    <time dateTime={selected.startsOn}>
-                                        {dateLabel(selected.startsOn)}
-                                    </time>
+                                {!selected.startsOn && !selected.endsOn ? (
+                                    "Dates not set"
+                                ) : (
+                                    <>
+                                        <span
+                                            className={
+                                                selected.startsOn &&
+                                                selected.endsOn
+                                                    ? undefined
+                                                    : "block"
+                                            }
+                                        >
+                                            {selected.startsOn ? (
+                                                <>
+                                                    <span className="sr-only">
+                                                        Start date:
+                                                    </span>
+                                                    <time
+                                                        dateTime={
+                                                            selected.startsOn
+                                                        }
+                                                    >
+                                                        {dateLabel(
+                                                            selected.startsOn,
+                                                        )}
+                                                    </time>
+                                                </>
+                                            ) : (
+                                                "Start date not set"
+                                            )}
+                                        </span>
+                                        {selected.startsOn &&
+                                            selected.endsOn &&
+                                            " – "}
+                                        <span
+                                            className={
+                                                selected.startsOn &&
+                                                selected.endsOn
+                                                    ? undefined
+                                                    : "block"
+                                            }
+                                        >
+                                            {selected.endsOn ? (
+                                                <>
+                                                    <span className="sr-only">
+                                                        End date:
+                                                    </span>
+                                                    <time
+                                                        dateTime={
+                                                            selected.endsOn
+                                                        }
+                                                    >
+                                                        {dateLabel(
+                                                            selected.endsOn,
+                                                        )}
+                                                    </time>
+                                                </>
+                                            ) : (
+                                                "End date not set"
+                                            )}
+                                        </span>
+                                    </>
                                 )}
-                                {selected.startsOn && selected.endsOn && " – "}
-                                {selected.endsOn && (
-                                    <time dateTime={selected.endsOn}>
-                                        {dateLabel(selected.endsOn)}
-                                    </time>
-                                )}
-                                {!selected.startsOn &&
-                                    !selected.endsOn &&
-                                    "Dates not set"}
                             </p>
                         )}
                     </div>
