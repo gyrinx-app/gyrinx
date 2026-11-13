@@ -33,7 +33,7 @@ def setup_checklist(campaign, sheet, players, cycles, *, actor):
     if cycles is not None:
         items.append(
             {
-                "label": "Set up cycles",
+                "label": "Set up phases & cycles",
                 "href": cycles.setup_href or cycles.schedule_href,
                 "complete": not bool(cycles.setup_href),
             }

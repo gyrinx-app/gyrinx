@@ -89,7 +89,7 @@ function EditorFrame({
                 breadcrumb ?? (
                     <Breadcrumbs
                         items={[
-                            { label: "Campaign cycles", href: back },
+                            { label: "Phases & cycles", href: back },
                             { label: props.title },
                         ]}
                     />
@@ -390,7 +390,7 @@ export function ScheduleEditor({
                               ? "Customise schedule"
                               : setupStage === 2
                                 ? "Review schedule"
-                                : "Set up cycles"
+                                : "Set up phases & cycles"
                           : [
                                   "advance",
                                   "start",
@@ -430,10 +430,10 @@ export function ScheduleEditor({
             lead={
                 editor.kind === "setup"
                     ? setupStage === 1
-                        ? "Choose a starting point. You can change its phases, cycle counts and dates before saving."
+                        ? "Choose a starting point. You can change its phases, cycle counts and dates before setting up your campaign."
                         : setupStage === 2
                           ? "Set the phases, timing and current cycle for your campaign."
-                          : "Check your schedule before saving its campaign-owned copy."
+                          : "Review phases, cycle counts and dates before setting up this campaign."
                     : editor.lead
             }
             formProps={{ method: "post", action: editor.action }}
@@ -538,7 +538,7 @@ export function ScheduleEditor({
                                 steps={[
                                     "Starting template",
                                     "Customise schedule",
-                                    "Review and save",
+                                    "Review schedule",
                                 ].map((label, index) => ({
                                     label,
                                     current: index + 1 === setupStage,
@@ -558,7 +558,7 @@ export function ScheduleEditor({
                                     ? "Choose a starting template"
                                     : setupStage === 2
                                       ? "Customise your campaign"
-                                      : "Review and save"}
+                                      : "Review schedule"}
                             </h2>
                             {setupStage > 1 && !values.template_id && (
                                 <Alert tone="info" dismissible={false}>
@@ -699,10 +699,12 @@ export function ScheduleEditor({
                                     </p>
                                 </>
                             )}
-                            {editor.context.activates === true &&
+                            {setupStage === 3 &&
+                                editor.context.activates === true &&
                                 !noCurrent && (
                                     <Alert tone="warning" dismissible={false}>
-                                        Saving starts the selected cycle and
+                                        Selecting “Set up phases &amp; cycles”
+                                        starts Cycle {currentNumber} and
                                         notifies accepted players.
                                     </Alert>
                                 )}
@@ -840,12 +842,6 @@ export function ScheduleEditor({
                                 onChange={(value) => change("steps", value)}
                             />
                         </>
-                    )}
-                    {editor.context.savesNext === true && (
-                        <Alert tone="info" dismissible={false}>
-                            The next projected cycle will be saved and activated
-                            together.
-                        </Alert>
                     )}
                 </fieldset>
             </div>

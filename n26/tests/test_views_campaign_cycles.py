@@ -96,7 +96,7 @@ def test_dashboard_groups_cycle_information_and_management_menu(
         ("Counters and labels", False),
         ("Asset types", False),
         ("Gang grouping", False),
-        ("Schedule & cycles", True),
+        ("Phases & cycles", True),
         ("Battles", False),
         ("Activity log", False),
         ("Archive campaign", True),
@@ -134,7 +134,9 @@ class TestFlagAndOwnership:
         assert post(client, campaign, "setup", setup_data(template)).status_code == 404
         page = client.get(reverse("n26-campaign", args=[campaign.pk]))
         assert page.status_code == 200
-        assert "Set up cycles" not in page.content.decode()
+        assert "Set up phases & cycles" not in [
+            item["label"] for item in page.context["campaign_setup"]["items"]
+        ]
         assert not CampaignSchedule.objects.exists()
 
     def test_an_empty_schedule_offers_setup_only_to_the_arbitrator(
@@ -914,7 +916,7 @@ class TestDisplayReads:
         assert schedule_url(campaign) in body
         assert "Occupation" in body
         assert any(
-            item.label == "Schedule & cycles" for item in page.context["more_actions"]
+            item.label == "Phases & cycles" for item in page.context["more_actions"]
         )
 
     def test_projection_growth_does_not_add_queries(self, campaign, configured):
