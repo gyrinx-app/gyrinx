@@ -22,9 +22,11 @@ workflow's endpoints with its React consumer; do not start a separate API rewrit
 A client-rendered page or workflow step starts at the top after its destination
 has rendered. Preserve scroll position for inline dialogs, filters, previews and
 read refreshes. Keep the current viewport during a pending or failed page read.
-Back and Forward use the browser's scroll restoration; focus new headings with
-`preventScroll` so focus does not override it. Do not reset scroll on every
-render or intercept unrelated history changes globally.
+Back and Forward restore the saved position after the destination renders: native
+restoration can otherwise clamp against a shorter outgoing page. Save coordinates
+in the workflow's own history entries, and leave unrelated history and global
+scroll restoration alone. Focus new headings with `preventScroll`. Do not reset
+scroll on every render.
 
 ## Workflow migration plan
 
