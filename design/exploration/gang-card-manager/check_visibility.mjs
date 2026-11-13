@@ -58,6 +58,29 @@ try {
     await page.goto(
         `${process.env.BASE_URL || "http://127.0.0.1:8776"}/gang/?names=short`,
     );
+    await open();
+    for (const width of [1440, 390, 320]) {
+        await page.setViewportSize({ width, height: 1000 });
+        const columns = await manager.evaluate((el) => {
+            const centers = (selector) =>
+                [...el.querySelectorAll(selector)].map((button) => {
+                    const rect = button.getBoundingClientRect();
+                    return rect.x + rect.width / 2;
+                });
+            return {
+                eyes: centers(".cm-visibility svg"),
+                grips: centers(".cm-grip svg"),
+            };
+        });
+        for (const [name, centers] of Object.entries(columns)) {
+            assert(
+                Math.max(...centers) - Math.min(...centers) < 0.5,
+                `${name} align across group, grouped-card and ungrouped-card rows at ${width}px.`,
+            );
+        }
+    }
+    await manager.getByRole("button", { name: "Cancel", exact: true }).click();
+    await page.setViewportSize({ width: 1440, height: 1000 });
     await card("vesper")
         .getByRole("tab", { name: "Lore", exact: true })
         .click();

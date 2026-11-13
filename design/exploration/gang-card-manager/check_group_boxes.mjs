@@ -95,6 +95,13 @@ async function seed(layout) {
         .getByRole("button", { name: "Card Manager", exact: true })
         .waitFor();
     await page.evaluate(() => document.fonts.ready);
+    // Let ResizeObserver measure the loaded fonts and React commit the outline.
+    await page.evaluate(
+        () =>
+            new Promise((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(resolve)),
+            ),
+    );
 }
 const group = (ids, extra = {}) => ({
     id: "test-group",

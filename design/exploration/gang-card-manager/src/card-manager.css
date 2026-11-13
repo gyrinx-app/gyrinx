@@ -714,6 +714,8 @@
 .cm-group-header {
     display: flex;
     align-items: center;
+    font-size: 12px;
+    line-height: 20px;
     min-height: 28px;
     padding: 0 5px 0 8px;
     background: color-mix(
@@ -724,17 +726,13 @@
     border-bottom: 1px solid
         color-mix(in srgb, var(--group-colour) 25%, var(--color-box-border));
 }
-.cm-group-name {
-    font-size: 12px;
-    font-weight: 600;
-}
 .cm-count {
-    font-size: 10px;
+    font-size: 12px;
     color: var(--cm-subtle);
 }
 .cm-pin-label {
     margin-left: auto;
-    font-size: 10px;
+    font-size: 12px;
     color: var(--cm-subtle);
     display: flex;
     gap: 3px;
@@ -754,6 +752,7 @@
 }
 .cm-row-wrap {
     position: relative;
+    border-inline: 1px solid transparent;
 }
 .cm-row-wrap:hover .cm-row {
     background: color-mix(in srgb, var(--color-ink-400) 5%, transparent);
@@ -771,7 +770,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 14px;
+    font-size: var(--cm-name-size);
     font-weight: 400;
     white-space: nowrap;
 }
@@ -1029,9 +1028,6 @@
     .cm-list {
         padding-inline: 12px;
     }
-    .cm-model-name {
-        font-size: 13px;
-    }
     .cm-type {
         font-size: 11px;
         max-width: 100px;
@@ -1115,9 +1111,9 @@
     text-overflow: ellipsis;
     text-align: left;
     padding: 2px;
-    font-size: 12px;
+    font-size: var(--cm-name-size);
     line-height: 20px;
-    font-weight: 600;
+    font-weight: 400;
 }
 .cm-name-block {
     flex: 1;
@@ -1545,15 +1541,6 @@
     border-left: 1px solid var(--color-box-border);
 }
 
-/* One scale for group-heading labels and Lucide icons. */
-.cm-group-header,
-.cm-group-header .cm-group-name,
-.cm-group-header .cm-count,
-.cm-group-header .cm-pin-label {
-    font-size: 12px;
-    line-height: 20px;
-}
-
 /* Standard N26 cards and segmented tabs. */
 .gang-standard .gang-card-controls {
     align-items: center;
@@ -1723,21 +1710,16 @@
 .cm-dialog {
     --cm-name-size: 14px;
 }
-.cm-model-name,
-.gang-page .cm-group-name {
-    font-size: var(--cm-name-size);
-    font-weight: 400;
-}
-.cm-group-header .cm-count,
-.cm-group-header .cm-pin-label {
-    font-size: 12px;
-}
 .cm-visibility {
     flex-shrink: 0;
     min-width: 26px;
     min-height: 29px;
     padding: 3px;
     color: var(--cm-subtle);
+}
+/* Match the model row's 8px gap between visibility and drag controls. */
+.cm-group-header > .cm-visibility {
+    margin-right: 5px;
 }
 .cm-hidden .cm-name-text,
 .cm-hidden .cm-group-name {
