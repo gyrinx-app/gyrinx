@@ -25,7 +25,9 @@ ruff check --fix .
 echo "Running npm fmt..."
 npm run fmt
 
-# Run Markdown linting
+# .markdownlint-cli2.mjs ignores every node_modules tree. A bare
+# "node_modules" pattern matches only the top-level directory, so a
+# canvas-viewer install would fail this step on dependency READMEs.
 echo "Running markdownlint..."
 npx markdownlint-cli2 --fix "**/*.md"
 
