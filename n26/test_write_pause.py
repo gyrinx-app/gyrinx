@@ -312,6 +312,7 @@ def test_every_ordinary_n26_maintenance_page_declares_its_write_scope():
         "n26_seed_territory_boons",
         "n26_seed_territory_boon_choices",
         "n26_remove_published_journal_boons",
+        "n26_reset_prelaunch_campaign_cycles",
     }
     assert {
         operation.operation
