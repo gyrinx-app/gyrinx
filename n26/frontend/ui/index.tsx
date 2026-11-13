@@ -348,13 +348,14 @@ export function Input({
     );
 }
 
-/** A controlled native date field with an explicit, keyboard-accessible clear action. */
+/** A controlled native date field with an explicit empty state and clear action. */
 export function DateInput({
     value,
     onValueChange,
     clearLabel = "Clear date",
     disabled = false,
     readOnly = false,
+    className = "",
     ...props
 }: Omit<
     ComponentProps<typeof Input>,
@@ -364,28 +365,39 @@ export function DateInput({
     onValueChange: (value: string) => void;
     clearLabel?: string;
 }) {
-    const input = useRef<HTMLInputElement>(null);
+    const [clears, setClears] = useState(0);
+    const empty = !value;
     return (
         <div className="flex items-center gap-1">
-            <div className="min-w-0 flex-1">
+            <div className="group/date relative min-w-0 flex-1">
                 <Input
+                    key={clears}
                     {...props}
-                    ref={input}
                     type="date"
                     value={value}
                     disabled={disabled}
                     readOnly={readOnly}
+                    className={`${empty ? "text-transparent! focus:text-ink-900! dark:focus:text-ink-100!" : ""} ${className}`}
                     onChange={(event) => onValueChange(event.target.value)}
                 />
+                {empty && (
+                    <span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted group-focus-within/date:hidden"
+                    >
+                        No date
+                    </span>
+                )}
             </div>
             <Button
                 variant="ghost"
                 size="xs"
                 aria-label={clearLabel}
-                disabled={disabled || readOnly || !value}
+                disabled={disabled || readOnly}
                 onClick={() => {
                     onValueChange("");
-                    input.current?.focus();
+                    // Remount the native field to discard partially edited date segments.
+                    setClears((count) => count + 1);
                 }}
             >
                 Clear
