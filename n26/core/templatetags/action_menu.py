@@ -13,7 +13,7 @@ from n26.core.listing import DANGER, LINK, Action
 
 register = template.Library()
 
-TRIGGERS = ("ellipsis", "chevron")
+TRIGGERS = ("ellipsis", "chevron", "inline-chevron")
 VARIANTS = ("default", "ghost")
 ALIGNS = ("start", "end")
 

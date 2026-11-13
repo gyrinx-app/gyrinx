@@ -6,6 +6,7 @@ An item with no href is left out. With no items left, nothing is drawn.
 Separators come from the items. The server decides each one for each caller.
 label is the button's accessible name and its tooltip.
 trigger is ellipsis (dots and a chevron) or chevron (a chevron alone, which turns while open).
+inline-chevron uses the fighter card's compact ghost control for equipment lines.
 The body is what shows until the island mounts. It matches the island's button, so nothing moves on mount.
 scriptless draws the links as a list when JavaScript is off.
 That list is plain links, not a menu: with no script, nothing handles a menu's keys, so each link must stay in the tab order.
@@ -20,14 +21,14 @@ Keep one outer element. react_host puts preload links and scripts beside the hos
 {% if props_.items %}
     <div {{ attrs }} class="relative inline-block {{ class }}"{% if scriptless %} data-action-menu-scriptless{% endif %}>
         {% react_host "action-menu" props_ %}
-            <c-ui.button size="sm"
-                         variant="{{ props_.variant }}"
-                         class="{% if props_.trigger == 'chevron' %}px-1.5!{% endif %}"
+            <c-ui.button size="{% if props_.trigger == 'inline-chevron' %}xs{% else %}sm{% endif %}"
+                         variant="{% if props_.trigger == 'inline-chevron' %}ghost{% else %}{{ props_.variant }}{% endif %}"
+                         class="{% if props_.trigger == 'inline-chevron' %}flex items-center px-1! py-0! text-ink-500 dark:text-ink-400{% elif props_.trigger == 'chevron' %}px-1.5!{% endif %}"
                          aria-label="{{ label }}"
                          title="{{ label }}"
                          aria-haspopup="menu"
                          aria-expanded="false">
-                {% if props_.trigger == "chevron" %}
+                {% if props_.trigger != "ellipsis" %}
                     <span class="n26-icon-only">
                         <c-n26.icon name="chevron-down" class="size-3 transition-transform" stroke_width="2.5" />
                     </span>

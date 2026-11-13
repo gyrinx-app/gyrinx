@@ -743,7 +743,7 @@ class TestTheShellStillDraws:
         page = reader.get("/n26/design/shell/gang/").content.decode()
         assert "Spend founding TP" in page
         assert "Complete action" in page
-        # Match the stash heading separately from the wealth figure with the same name.
+        # The stash sits below the activities square.
         assert page.index("Spend founding TP") < page.index(">Stash</span>")
 
     def test_a_range_menu_with_two_thumbs_binds_both(self, reader):

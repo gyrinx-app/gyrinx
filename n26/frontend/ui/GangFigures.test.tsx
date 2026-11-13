@@ -20,7 +20,13 @@ const data: GangFiguresData = {
             absent: "",
             href: "/credits/",
         },
-        { short: "St", label: "Stash", value: "0¢", absent: "", href: "" },
+        {
+            short: "Eq",
+            label: "Stashed equipment value",
+            value: "0¢",
+            absent: "",
+            href: "",
+        },
         { short: "W", label: "Wealth", value: "125¢", absent: "", href: "" },
     ],
     roster: {
