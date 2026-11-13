@@ -2135,7 +2135,7 @@ GROUPS: list[Group] = [
                 template="n26/wealth/index.html",
                 summary=(
                     "A gang's Trade Points or model count, then rating, credits, "
-                    "stash and wealth, as a figure strip."
+                    "stashed equipment value and wealth, as a figure strip."
                 ),
                 needs=(ALPINE, KIT_JS),
                 parts=(
@@ -2151,7 +2151,7 @@ GROUPS: list[Group] = [
                 notes=(
                     "Pass the whole GangSheet as :sheet rather than loose integers, "
                     "which in the same units are easy to swap and hard to notice. "
-                    "Rating, credits, stash and wealth read left to right as the "
+                    "Rating, credits, stashed equipment value and wealth read left to right as the "
                     "sum they make. Trade Points lead, behind a rule, because they "
                     "are not money and not part of that sum. A zero is a real "
                     "figure and only an unset value draws a dash, which is how a "
@@ -2345,7 +2345,9 @@ GROUPS: list[Group] = [
                     "with the contents would move every model after it around the "
                     "grid. :total is the stash rating and has to be passed, since a "
                     "stacked line shows the rating for one copy. Stashed gear "
-                    "counts in the gang's wealth, not in the models' rating. The "
+                    "counts in the gang's wealth, not in the models' rating. "
+                    "Credits and equipment value have separate labelled lines; "
+                    "the controls slot sits beside the credits balance. The "
                     "gear list scrolls after a maximum height. Each line's menu is "
                     "a c-n26.action-menu, whose panel is fixed, so that box does "
                     "not clip it."

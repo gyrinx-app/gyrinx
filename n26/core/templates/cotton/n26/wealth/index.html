@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.wealth> — Trade Points or the model count, then rating, credits, stash and wealth for a gang.
+<c-n26.wealth> — Trade Points or the model count, then rating, credits, equipment and wealth for a gang.
 
 Trade Points are not money and sit outside the sum. They carry no credits sign.
 Rating is what the models are worth. Stashed gear counts in wealth instead.
@@ -36,7 +36,7 @@ Gang lists use it. The gang page shows Trade Points, because its roster count si
                              :value="sheet.credits"
                              unset="{% if sheet.credits_unlimited %}Unlimited credits{% endif %}"
                              href="{{ credits_href }}" />
-        <c-n26.wealth.figure short="St" full="Stash" :value="sheet.stash_rating" />
+        <c-n26.wealth.figure short="Eq" full="Stashed equipment value" :value="sheet.stash_rating" />
         <c-n26.wealth.figure short="W" full="Wealth" :value="sheet.wealth" />
     </dl>
 </div>

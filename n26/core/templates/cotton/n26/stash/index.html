@@ -6,10 +6,10 @@ Pass credits to show the cash balance before the equipment value. Omit it for un
 Stashed gear counts in wealth, not in the models' rating.
 regroup needs dictsort first. Without it, the same kind appearing twice becomes two groups.
 Named slots use .strip because a cotton slot of newlines is not empty.
-controls draws in the header before the credits and equipment value.
+controls draws beside the credits balance, above the equipment value.
 Put text links (c-n26.action-link) in controls, never buttons.
 A button is taller than the header line, so it pushes the header open and breaks the baseline.
-On a narrow card the controls and total drop to a second row. The Stash group never wraps inside itself.
+On a narrow card the controls wrap below the credits balance.
 An empty stash still draws the card. A slot that comes and goes would shift every model after it in the grid.
 The gear list scrolls after max-h-80. Line menus use fixed placement so that box does not clip them.
 {% endcomment %}
@@ -20,27 +20,31 @@ The gear list scrolls after max-h-80. Line menus use fixed placement so that box
     <c-slot name="header">
 
         {# -mx-2: the kit header hardcodes px-6, and the rows below are px-4. #}
-        {# The two groups wrap as whole rows: neither shrinks, so neither breaks apart inside. #}
-        <div class="-mx-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <div class="flex-[1_0_auto]">
-                <c-n26.action-links class="text-sm">
-                    <span class="font-semibold text-ink-900 dark:text-ink-100">Stash</span>
-                    {% if actions.strip %}
-                        {{ actions }}
-                    {% endif %}
-                </c-n26.action-links>
-            </div>
-            <div class="flex shrink-0 items-center gap-2 text-sm">
-                {% if controls.strip %}
-                    {{ controls }}
+        <div class="-mx-2 flex flex-col gap-2">
+            <c-n26.action-links class="text-sm">
+                <span class="font-semibold text-ink-900 dark:text-ink-100">Stash</span>
+                {% if actions.strip %}
+                    {{ actions }}
                 {% endif %}
-                <span class="whitespace-nowrap tabular-nums text-muted">
-                    {% if credits is not None and not credits_unlimited %}
-                        <span class="sr-only">Credits: </span>{{ credits }}¢ +
-                    {% endif %}
-                    <span class="sr-only">Stashed equipment: </span>{{ total }}¢
-                </span>
-            </div>
+            </c-n26.action-links>
+            <dl class="flex flex-col gap-1 text-sm">
+                {% if credits is not None and not credits_unlimited %}
+                    <div class="flex items-baseline gap-1">
+                        <dt class="text-muted">Credits:</dt>
+                        <dd class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                            <span class="whitespace-nowrap tabular-nums">{{ credits }}¢</span>
+                            {% if controls.strip %}{{ controls }}{% endif %}
+                        </dd>
+                    </div>
+                {% endif %}
+                <div class="flex flex-wrap items-baseline gap-1">
+                    <dt class="text-muted">Equipment value:</dt>
+                    <dd class="whitespace-nowrap tabular-nums">{{ total }}¢</dd>
+                </div>
+            </dl>
+            {% if credits is None or credits_unlimited %}
+                {% if controls.strip %}<div class="text-sm">{{ controls }}</div>{% endif %}
+            {% endif %}
         </div>
     </c-slot>
     {% if notice.strip %}

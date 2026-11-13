@@ -199,6 +199,20 @@ class TestLinkActions:
 
 
 class TestTheWrapper:
+    def test_the_inline_chevron_matches_the_fighter_card_before_mounting(self):
+        from n26.frontend.tooling.export_cotton_recipes import model_card_recipe
+
+        html = render(
+            '<c-n26.action-menu :items="items" label="Actions for Respirator" '
+            'trigger="inline-chevron" />',
+            items=[link("Reassign", "/r")],
+        )
+        soup, (host,) = hosts(html)
+        assert props_of(html)["trigger"] == "inline-chevron"
+        assert set(host.find("button")["class"]) == set(
+            model_card_recipe()["menuTrigger"].split()
+        )
+
     def test_it_hands_the_island_an_action_list(self):
         html = render(
             '<c-n26.action-menu :items="items" label="Actions for Respirator" '

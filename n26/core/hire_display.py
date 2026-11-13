@@ -239,7 +239,7 @@ def figures_data(gang, summary, *, trade_points_href="", credits_href=""):
                 absent="Unlimited credits" if gang.credits_unlimited else "",
                 href=credits_href,
             ),
-            figure("St", "Stash", gang.stash_rating),
+            figure("Eq", "Stashed equipment value", gang.stash_rating),
             figure("W", "Wealth", gang.wealth),
         ],
         "roster": {
