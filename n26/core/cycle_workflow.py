@@ -72,7 +72,7 @@ HEADINGS = {
     "duplicate-phase": "Duplicate phase",
     "delete-phase": "Delete phase",
     "delete-cycle": "Delete cycle",
-    "plan": "Schedule settings",
+    "plan": "Phase and schedule settings",
     "start": "Start campaign",
     "advance": "Advance cycle",
     "finish": "Finish campaign",
@@ -294,7 +294,7 @@ def prepare(campaign, action, query):
             lead = f"Delete {selected.name}."
     elif action == "add-phase":
         initial.update(asdict(s.PhaseDetails("New phase")))
-        lead = "Add a phase, then choose its cycles in Schedule settings."
+        lead = "Add a phase, then add its cycles to the schedule."
     elif action in ("phase", "duplicate-phase", "delete-phase"):
         phase_id = query.get("phase")
         phase = next(
@@ -654,7 +654,20 @@ def perform(campaign, actor, action, data, query):
     return submitted
 
 
+PHASE_ACTIONS = {"phase", "add-phase", "duplicate-phase", "delete-phase"}
+
+
+def editor_back(campaign, action):
+    return (
+        editor_url(campaign, "plan")
+        if action in PHASE_ACTIONS
+        else schedule_url(campaign)
+    )
+
+
 def next_url(campaign, action, submitted):
+    if action in PHASE_ACTIONS:
+        return editor_back(campaign, action)
     if submitted.result.cycle_id:
         from n26.core.cycle_display import SAVED_PAGE_SIZE
         from n26.core.models import CampaignCycle
@@ -670,8 +683,6 @@ def next_url(campaign, action, submitted):
             schedule_url(campaign) + f"?page={page}#cycle-" + submitted.result.cycle_id
         )
     url = schedule_url(campaign)
-    if action in ("phase", "duplicate-phase"):
-        return url + "#phase-" + submitted.form.cleaned_data["phase_id"]
     return url
 
 
@@ -704,5 +715,5 @@ def editor_props(
         + suffix,
         "csrfToken": csrf_token,
         "recoveryKey": f"cycles:{actor.pk}:{campaign.pk}:{prepared.action}:{query}",
-        "back": schedule_url(campaign),
+        "back": editor_back(campaign, prepared.action),
     }

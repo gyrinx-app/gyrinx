@@ -123,9 +123,7 @@ test("consecutive phase groups preserve repeated occurrences and the saved cycle
         within(occupation[1]).queryByText("Projected", { exact: true }),
     ).toBeNull();
     expect(container.querySelectorAll("#phase-occupation")).toHaveLength(1);
-    expect(
-        screen.getByRole("region", { name: "Unused phase" }).textContent,
-    ).toContain("No cycles on this page.");
+    expect(screen.queryByRole("region", { name: "Unused phase" })).toBeNull();
 });
 
 test("future saved cycles have no badge and previews retain their edit actions", () => {
@@ -178,7 +176,7 @@ test("phase rules and configured rewards sit above their cycle rows", () => {
     ).not.toBeNull();
 });
 
-test("phase management uses the shared keyboard menu and cycle details expand in place", async () => {
+test("timeline phase headings are read-only and cycle details expand in place", async () => {
     const value = props();
     value.focusId = "saved-3";
     value.rows[2].effects = "Recover equipment after this cycle.";
@@ -194,21 +192,10 @@ test("phase management uses the shared keyboard menu and cycle details expand in
             .getByText("Recover equipment after this cycle.")
             .closest("details")?.open,
     ).toBe(true);
-    const trigger = screen.getByRole("button", {
-        name: "More actions for Downtime",
-    });
-    trigger.focus();
-    await userEvent.keyboard("{ArrowDown}");
-    expect(screen.getByRole("menuitem", { name: "Duplicate phase" })).toBe(
-        document.activeElement,
-    );
     expect(
-        screen
-            .getByRole("menuitem", { name: "Duplicate phase" })
-            .getAttribute("href"),
-    ).toBe("/phase/downtime/duplicate/");
-    await userEvent.keyboard("{Escape}");
-    expect(trigger).toBe(document.activeElement);
+        screen.queryByRole("button", { name: "More actions for Downtime" }),
+    ).toBeNull();
+    expect(screen.queryByRole("link", { name: "Edit Downtime" })).toBeNull();
 });
 
 test("readers retain the grouped rules without management controls", () => {
