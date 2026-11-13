@@ -1,10 +1,10 @@
 {% comment %}
-<c-ui.description> — Secondary text under a label or heading.
+<c-ui.description> — Small supporting text beneath or beside a form control.
 
-Attributes come from attrs.attrs_dict, not attrs.dict. Only attrs_dict drops props declared in c-vars, which would otherwise become HTML attributes.
-Class is merged through attrs, so a caller class= adds to the muted style instead of replacing it.
+Field instructions use text-sm; ordinary explanatory paragraphs use the body size.
+Declare class explicitly so caller attributes preserve the typography defaults.
 {% endcomment %}
-
-<div {{ attrs.attrs_dict|merge:'class:text-ink-600 dark:text-ink-400 mt-1.5' }}>
+<c-vars class="" />
+<div {{ attrs }} class="text-sm text-ink-600 dark:text-ink-400 mt-1.5 {{ class }}">
     {{ slot }}
 </div>

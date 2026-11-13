@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import { useLayoutEffect } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
 import { ScheduleEditor } from "./ScheduleEditor";
@@ -326,4 +327,50 @@ test("older uncertain dated setup retries its exact input against new manual def
     expect(body.get("request_key")).toBe("custom-key");
     body.delete("csrfmiddlewaretoken");
     expect(body.toString()).toBe(original.toString());
+});
+
+test("schedule review exposes two named tables with row labels and values", () => {
+    const editor = setup();
+    editor.context.setupStage = 3;
+    editor.values.date_mode = "manual";
+    render(<ScheduleEditor editor={editor} phases={[]} />);
+    const pattern = screen.getByRole("table", { name: "Phase pattern" });
+    expect(
+        within(pattern).getByRole("rowheader", { name: "1. Phase 1" }),
+    ).toBeTruthy();
+    expect(within(pattern).getByRole("cell", { name: "1 cycle" })).toBeTruthy();
+    const settings = screen.getByRole("table", { name: "Schedule settings" });
+    for (const label of ["Campaign length", "Cycle dates", "Current cycle"])
+        expect(
+            within(settings).getByRole("rowheader", { name: label }),
+        ).toBeTruthy();
+    expect(within(settings).getByRole("cell", { name: "Fixed" })).toBeTruthy();
+    expect(
+        within(settings).getByRole("cell", { name: "No planned dates" }),
+    ).toBeTruthy();
+    expect(within(settings).getByRole("cell", { name: "None" })).toBeTruthy();
+});
+
+test("a history destination renders its setup step before layout effects restore scrolling", () => {
+    const editor = setup();
+    const observed: string[] = [];
+    function Page({ step }: { step: number }) {
+        useLayoutEffect(() => {
+            observed.push(
+                document.getElementById("cycle-setup-step")?.textContent ?? "",
+            );
+        }, [step]);
+        return (
+            <ScheduleEditor
+                editor={{
+                    ...editor,
+                    context: { ...editor.context, setupStage: step },
+                }}
+                phases={[]}
+            />
+        );
+    }
+    const view = render(<Page step={3} />);
+    view.rerender(<Page step={2} />);
+    expect(observed).toEqual(["Review schedule", "Customise your campaign"]);
 });

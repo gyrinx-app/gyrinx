@@ -11,6 +11,7 @@ for the picker workflow.
 """
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 
 from n26.core.card import build_card, build_gang_card, build_modifier_index
@@ -1383,11 +1384,9 @@ def pickable_key_of(pickable):
 
 def button_labels(body):
     """Extract rendered button labels in page order."""
-    import re
-
     return [
-        label.strip()
-        for label in re.findall(r"<button[^>]*>(.*?)</button>", body, re.DOTALL)
+        button.get_text(" ", strip=True)
+        for button in BeautifulSoup(body, "html.parser").find_all("button")
     ]
 
 

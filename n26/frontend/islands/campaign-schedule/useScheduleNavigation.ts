@@ -46,9 +46,30 @@ function scheduleData(value: unknown): value is ScheduleProps {
     );
 }
 
+type ScrollPosition = { left: number; top: number };
+
+function viewport(): ScrollPosition {
+    return { left: window.scrollX, top: window.scrollY };
+}
+
+function savedScroll(value: unknown): ScrollPosition | undefined {
+    if (!value || typeof value !== "object") return;
+    const point = value as ScrollPosition;
+    if (Number.isFinite(point.left) && Number.isFinite(point.top))
+        return { left: point.left, top: point.top };
+}
+
+function pageEditor(data: ScheduleProps) {
+    return data.editor?.kind === "setup" || data.editor?.kind === "plan";
+}
+
 export function useScheduleNavigation(initial: ScheduleProps) {
     const [data, setData] = useState(initial);
     const [pending, setPending] = useState(false);
+    const [scrollTarget, setScrollTarget] = useState<ScrollPosition | null>(
+        null,
+    );
+    const page = useRef(pageEditor(initial));
     const [busyControl, setBusyControl] = useState<string | null>(null);
     const interaction = useRef<string | null>(null);
     const [error, setError] = useState("");
@@ -57,8 +78,12 @@ export function useScheduleNavigation(initial: ScheduleProps) {
     const guarded = useRef(false);
     const scope = useRef(crypto.randomUUID());
     const index = useRef(0);
+    const renderedIndex = useRef(0);
     const current = useRef(window.location.href);
     const retryTarget = useRef(window.location.href);
+    const retryHistory = useRef<"push" | "none">("push");
+    const retryScroll = useRef<ScrollPosition | undefined>(undefined);
+    const scrollPositions = useRef(new Map<number, ScrollPosition>());
 
     const inSchedule = useCallback(
         (url: URL) =>
@@ -67,7 +92,11 @@ export function useScheduleNavigation(initial: ScheduleProps) {
         [initial.scheduleHref],
     );
     const load = useCallback(
-        async (href: string, history: "push" | "none" = "push") => {
+        async (
+            href: string,
+            history: "push" | "none" = "push",
+            restoreScroll?: ScrollPosition,
+        ) => {
             const url = new URL(href, window.location.href);
             if (!inSchedule(url)) {
                 (
@@ -90,11 +119,23 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 withoutStep(url) === withoutStep(previous);
             const remember = () => {
                 if (history === "push" && url.href !== window.location.href) {
-                    window.history.replaceState(
-                        { ...window.history.state, htmx: false },
-                        "",
-                        window.location.href,
-                    );
+                    if (renderedIndex.current === index.current) {
+                        const scroll = viewport();
+                        scrollPositions.current.set(index.current, scroll);
+                        window.history.replaceState(
+                            {
+                                ...window.history.state,
+                                htmx: false,
+                                n26Schedule: {
+                                    scope: scope.current,
+                                    index: index.current,
+                                    scroll,
+                                },
+                            },
+                            "",
+                            window.location.href,
+                        );
+                    }
                     window.history.pushState(
                         {
                             ...window.history.state,
@@ -109,6 +150,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                     );
                 }
                 current.current = url.href;
+                renderedIndex.current = index.current;
             };
             if (localStep) {
                 controller.current?.abort();
@@ -118,6 +160,9 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 interaction.current = null;
                 setError("");
                 remember();
+                if (restoreScroll) setScrollTarget({ ...restoreScroll });
+                else if (history === "push")
+                    setScrollTarget({ left: 0, top: 0 });
                 const step = Number(url.searchParams.get("step") ?? "1");
                 setData((data) =>
                     data.editor?.kind === "setup"
@@ -141,6 +186,8 @@ export function useScheduleNavigation(initial: ScheduleProps) {
             const request = new AbortController();
             controller.current = request;
             retryTarget.current = url.href;
+            retryHistory.current = history;
+            retryScroll.current = restoreScroll;
             setPending(true);
             setBusyControl(interaction.current);
             interaction.current = null;
@@ -168,8 +215,16 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 )
                     throw new Error();
                 if (controller.current !== request) return;
+                const movesPage =
+                    history === "push" &&
+                    url.href !== previous.href &&
+                    (pageEditor(result.schedule) ||
+                        (page.current && result.schedule.editor === null));
                 remember();
+                page.current = pageEditor(result.schedule);
                 setData(result.schedule);
+                if (restoreScroll) setScrollTarget({ ...restoreScroll });
+                else if (movesPage) setScrollTarget({ left: 0, top: 0 });
                 setNotices(
                     readNotices("notices" in result ? result.notices : []),
                 );
@@ -187,6 +242,15 @@ export function useScheduleNavigation(initial: ScheduleProps) {
         },
         [inSchedule, initial.onNavigate],
     );
+
+    useEffect(() => {
+        if (!scrollTarget) return;
+        // Native history restoration can clamp against the previous, shorter page.
+        const frame = window.requestAnimationFrame(() =>
+            window.scrollTo({ ...scrollTarget, behavior: "instant" }),
+        );
+        return () => window.cancelAnimationFrame(frame);
+    }, [scrollTarget]);
 
     useEffect(() => {
         window.history.replaceState(
@@ -216,6 +280,14 @@ export function useScheduleNavigation(initial: ScheduleProps) {
             }
             const previous = new URL(current.current);
             const next = new URL(window.location.href);
+            const ownEntry = target?.scope === scope.current;
+            const restoringEntry = ownEntry && target.index !== index.current;
+            if (renderedIndex.current === index.current)
+                scrollPositions.current.set(index.current, viewport());
+            const restoreScroll = restoringEntry
+                ? (scrollPositions.current.get(target.index) ??
+                  savedScroll(target.scroll))
+                : undefined;
             index.current =
                 target?.scope === scope.current ? target.index : index.current;
             controller.current?.abort();
@@ -230,9 +302,11 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 previous.search === next.search
             ) {
                 current.current = next.href;
+                renderedIndex.current = index.current;
+                if (restoreScroll) setScrollTarget({ ...restoreScroll });
                 return;
             }
-            void load(next.href, "none");
+            void load(next.href, "none", restoreScroll);
         }
         window.addEventListener("popstate", restore);
         return () => {
@@ -304,7 +378,11 @@ export function useScheduleNavigation(initial: ScheduleProps) {
             void load(window.location.href, "none");
         }, [load]),
         retry: useCallback(() => {
-            void load(retryTarget.current);
+            void load(
+                retryTarget.current,
+                retryHistory.current,
+                retryScroll.current,
+            );
         }, [load]),
     };
 }

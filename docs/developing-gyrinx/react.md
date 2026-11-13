@@ -19,6 +19,17 @@ command endpoints. Continue with post-battle and model choices using the plan ab
 islands for interactions that already have an independent owner. Build each
 workflow's endpoints with its React consumer; do not start a separate API rewrite.
 
+## Page navigation and scrolling
+
+A client-rendered page or workflow step starts at the top after its destination
+has rendered. Preserve scroll position for inline dialogs, filters, previews and
+read refreshes. Keep the current viewport during a pending or failed page read.
+Back and Forward restore the saved position after the destination renders: native
+restoration can otherwise clamp against a shorter outgoing page. Save coordinates
+in the workflow's own history entries, and leave unrelated history and global
+scroll restoration alone. Focus new headings with `preventScroll`. Do not reset
+scroll on every render.
+
 ## Workflow migration plan
 
 The goals are incremental delivery, a repeatable implementation, preserved
