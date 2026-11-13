@@ -80,7 +80,11 @@ function CreditFields({
                     }
                 />
             </Field>
-            <Field label={`${label} dice`} htmlFor={`${prefix}-dice`}>
+            <Field
+                label={`${label} die type`}
+                htmlFor={`${prefix}-dice`}
+                description="Optional. Roll dice for extra credits."
+            >
                 <NativeSelect
                     value={value.dice?.sides ?? ""}
                     onChange={(event) =>
@@ -127,6 +131,7 @@ function CreditFields({
                     <Field
                         label={`${label} multiplier`}
                         htmlFor={`${prefix}-multiplier`}
+                        description="Multiply the total rolled, then add the fixed credits."
                     >
                         <Input
                             type="number"
