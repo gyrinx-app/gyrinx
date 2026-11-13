@@ -1,0 +1,239 @@
+/* New style shares classic card content and the callout frame's top strip. */
+.gang-new,
+:host(.dark) .gang-new {
+    --theme: var(--color-box-border);
+    --card-top-padding: var(--header-height);
+    --card-header-overhang: 0px;
+    --card-background: var(--color-surface);
+    --card-label: var(--gang-theme);
+    --card-attribute-label: var(--cm-text);
+    --card-stat-highlight: color-mix(
+        in srgb,
+        var(--gang-theme) 7%,
+        transparent
+    );
+    --card-nameplate: var(--color-black);
+    --card-nameplate-inset: 0px;
+    --card-tab-gap: 6px;
+    --card-controls-bg: var(--color-ink-700);
+    --card-controls-ink: var(--color-white);
+    --card-controls-hover: var(--color-ink-600);
+    --card-menu-hover: var(--color-ink-100);
+    --card-controls-height: calc(32px + var(--card-tab-gap));
+    --card-portrait-width: 64px;
+    /* Classic artwork is 945 × 1300; cover the tab and body as one surface. */
+    --card-paper-width: max(
+        100cqw,
+        calc(var(--card-paper-height, 500px) * 945 / 1300)
+    );
+    --card-bevel: 0.5rem;
+    border-color: var(--color-ink-400);
+}
+:host(.dark) .gang-new {
+    --card-controls-bg: var(--color-ink-900);
+    --card-paper-background: var(--color-surface);
+    --card-nameplate-inset: calc(-1 * var(--card-border));
+    --card-tab-gap: 3px;
+    --card-menu-hover: var(--color-neutral-800);
+    --card-nameplate: color-mix(in srgb, var(--gang-theme) 33%, transparent);
+    --card-stat-highlight: var(--card-nameplate);
+    border-color: var(--theme);
+}
+.gang-new:has(> .gang-model-prompt) {
+    --card-action-offset: 35px;
+}
+.gang-new::before {
+    /* One stripe surface continues behind the empty portrait area. */
+    height: calc(var(--header-height) + var(--card-header-height));
+    border-top-right-radius: inherit;
+    corner-shape: bevel;
+}
+.gang-new .gang-card-header,
+:host(.dark) .gang-new .gang-card-header {
+    background: linear-gradient(
+        to right,
+        var(--color-surface) 0 calc(100% - var(--card-portrait-width)),
+        transparent calc(100% - var(--card-portrait-width))
+    );
+    color: var(--color-white);
+    border-radius: 0;
+}
+.gang-new .gang-card-header::before {
+    clip-path: none;
+    right: 0;
+}
+.gang-new .gang-card-header::after {
+    /* A single tear joins the nameplate and rating without clipping their text. */
+    content: "";
+    position: absolute;
+    top: calc(100% - 2px);
+    left: var(--card-nameplate-inset);
+    right: 0;
+    height: 7px;
+    background: var(--card-nameplate);
+    clip-path: var(--nameplate-edge);
+    z-index: -1;
+    pointer-events: none;
+}
+:host(.dark) .gang-new .gang-card-header::after {
+    display: none;
+}
+.gang-new .gang-card-header::before,
+.gang-new .gang-header-link {
+    left: var(--card-nameplate-inset);
+}
+.gang-new .gang-header-link {
+    right: var(--card-portrait-width);
+}
+:host(:not(.dark)) .gang-new .gang-header-link:hover {
+    background: transparent;
+}
+:host(.dark) .gang-new .gang-card-header::before {
+    right: var(--card-portrait-width);
+    box-shadow: inset 0 0 0 1px var(--gang-theme);
+}
+.gang-new .gang-card-header .gang-profile {
+    color: inherit;
+    align-items: baseline;
+}
+.gang-new .gang-header-marks {
+    width: var(--card-portrait-width);
+    min-height: calc(var(--header-height) + var(--card-header-height));
+    flex-direction: column;
+    align-items: stretch;
+    align-self: stretch;
+    top: 0;
+    margin: calc(-1 * (var(--header-height) + var(--card-space)))
+        calc(-1 * var(--card-control-inset)) calc(-1 * var(--card-space)) 0;
+    gap: 0;
+}
+.gang-new .gang-card-controls,
+.gang-new .gang-model-prompt + .gang-card-controls {
+    padding-top: var(--card-tab-gap);
+    padding-left: 0;
+    background-clip: padding-box;
+}
+.gang-new .gang-card-tabs > [role="tab"] {
+    border-radius: 0 var(--card-bevel) 0 0;
+    corner-shape: bevel;
+    border-bottom: 0;
+    padding-bottom: 7px;
+}
+.gang-new .gang-card-tabs > [role="tab"]:first-child {
+    border-left: 0;
+}
+.gang-new .gang-card-tabs > [aria-selected="true"] {
+    z-index: 1;
+}
+.gang-new > .gang-card-panel {
+    border-radius: 0 0 calc(2 * var(--card-bevel) - var(--card-border)) 0;
+    corner-shape: bevel;
+}
+.gang-new > .gang-card-panel,
+.gang-new .gang-card-tabs > [aria-selected="true"] {
+    background: var(--card-paper-background);
+    background-size:
+        auto,
+        var(--card-paper-width) auto;
+    background-position:
+        0 0,
+        calc((100cqw - var(--card-paper-width)) / 2 + var(--paper-x, 0px))
+            var(--paper-y, 0px);
+}
+.gang-new .gang-name-copy[data-wrapped="true"] {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding-top: 22px;
+    line-height: 22px;
+}
+.gang-new .gang-name-copy[data-wrapped="true"] > h2 {
+    display: contents;
+}
+.gang-new .gang-name-continuation {
+    align-self: baseline;
+}
+.gang-new .gang-name-copy[data-wrapped="true"] .gang-name-line:first-child {
+    position: absolute;
+    inset: 0 0 auto;
+}
+.gang-new .gang-name-copy[data-wrapped="true"] > .gang-profile {
+    position: static;
+    flex-shrink: 0;
+}
+.gang-new .gang-portrait-wrap,
+.gang-new .gang-portrait-placeholder {
+    flex: 1;
+    min-height: 0;
+}
+.gang-new .gang-portrait-wrap {
+    display: block;
+}
+.gang-new .gang-portrait-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--cm-text);
+    cursor: pointer;
+    pointer-events: auto;
+}
+.gang-new .gang-portrait,
+.gang-new .gang-portrait-placeholder {
+    border-radius: 0 var(--card-bevel) 0 0;
+    corner-shape: bevel;
+}
+.gang-new .gang-portrait {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    outline: 0;
+}
+.gang-new .gang-portrait:focus-visible {
+    outline: 2px solid var(--gang-theme);
+    outline-offset: -2px;
+}
+.gang-new .gang-model-actions > .gang-picture-control {
+    display: none;
+}
+.gang-new .gang-weapons :is(th, td):nth-child(n + 2):nth-child(-n + 6) {
+    white-space: nowrap;
+}
+@container (max-width: 340px) {
+    .gang-new .gang-weapons :is(th, td):nth-child(n + 2):nth-child(-n + 6) {
+        padding-inline: 2px;
+    }
+}
+.gang-picture-crop {
+    pointer-events: auto;
+}
+.gang-new .gang-rating,
+:host(.dark) .gang-new .gang-rating {
+    width: 100%;
+    height: var(--header-height);
+    flex: 0 0 var(--header-height);
+    border: 0;
+    outline: 0;
+    border-radius: 0;
+    background: var(--color-black);
+    color: var(--color-white);
+    font-size: 13px;
+    line-height: var(--header-height);
+}
+:host(.dark) .gang-new .gang-rating {
+    background: var(--gang-theme);
+    color: var(--gang-rating-ink, var(--color-black));
+}
+.gang-theme-picker {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.gang-theme-picker select {
+    width: auto;
+}

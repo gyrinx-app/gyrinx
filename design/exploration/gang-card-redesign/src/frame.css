@@ -1,0 +1,24 @@
+.callout-frame {
+    --theme: var(--color-box-border);
+    --header-height: 1rem;
+    --callout-radius: 0 0.5rem 1rem 0;
+    border-radius: var(--callout-radius);
+    corner-shape: bevel;
+}
+
+.callout-frame::before {
+    position: absolute;
+    inset: 0 0 auto;
+    height: var(--header-height);
+    background: color-mix(in srgb, var(--theme) 25%, transparent);
+    content: "";
+    pointer-events: none;
+}
+
+.callout-frame[data-striped]::before {
+    background-image: repeating-linear-gradient(
+        -45deg,
+        transparent 0 0.3125rem,
+        var(--theme) 0.3125rem 0.625rem
+    );
+}
