@@ -12,6 +12,7 @@ import {
     PinOff,
     Group,
     Unlink,
+    SquareDashed,
     RotateCcw,
     Skull,
     Wrench,
@@ -36,6 +37,8 @@ import { Button, Icon, TextInput, useModal } from "./controls.jsx";
 import cotton from "./cotton.json";
 import * as M from "./card-manager-model.js";
 import { GangSheet } from "./gang-sheet.jsx";
+import { GroupEditor } from "./group-editor.jsx";
+import { GroupColourPalette } from "./group-colour-palette.jsx";
 
 function IconButton({ icon, label, ...props }) {
     return <Button icon={icon} aria-label={label} title={label} {...props} />;
@@ -553,7 +556,7 @@ function CardManager({ saved, onSave, onClose }) {
                 style={
                     parent
                         ? {
-                              "--group-colour": `var(--color-${parent.colour}-500)`,
+                              "--group-colour": M.groupColour(parent.colour),
                           }
                         : undefined
                 }
@@ -668,7 +671,7 @@ function CardManager({ saved, onSave, onClose }) {
                 data-group-id={n.id}
                 className={`cm-group-header cm-group-start ${isChecked(n) ? "cm-selected" : ""} ${drag?.ids.includes(n.id) ? "cm-dragging" : ""} ${dropClass(n.id)}`}
                 data-drop={n.id}
-                style={{ "--group-colour": `var(--color-${n.colour}-500)` }}
+                style={{ "--group-colour": M.groupColour(n.colour) }}
             >
                 {checkbox(n)}
                 <Button
@@ -699,11 +702,30 @@ function CardManager({ saved, onSave, onClose }) {
                 />
 
                 <IconButton
+                    icon={SquareDashed}
+                    label="Show group box"
+                    aria-pressed={Boolean(n.showBox)}
+                    iconSize={12}
+                    className="cm-header-box"
+                    onClick={() =>
+                        update(
+                            M.setGroupBox(
+                                draft,
+                                M.groupActionIds(draft, ids, n.id),
+                                !n.showBox,
+                            ),
+                            n.showBox
+                                ? "Group boxes hidden."
+                                : "Group boxes shown.",
+                        )
+                    }
+                />
+                <IconButton
                     icon={Unlink}
                     label={`Ungroup ${n.name}`}
                     iconSize={12}
                     className="cm-header-ungroup"
-                    onClick={() => ungroup([n.id])}
+                    onClick={() => ungroup(M.groupActionIds(draft, ids, n.id))}
                 />
 
                 {n.pin && (
@@ -1026,49 +1048,21 @@ function CardManager({ saved, onSave, onClose }) {
                         }}
                     >
                         <span>Group colour</span>
-                        <div>
-                            {cotton.colours.map((c) => (
-                                <button
-                                    type="button"
-                                    key={c.name}
-                                    aria-label={`${c.name} group colour`}
-                                    title={c.name}
-                                    aria-pressed={
-                                        colourGroups.length > 0 &&
-                                        colourGroups.every(
-                                            (g) =>
-                                                g.colour ===
-                                                c.name.toLowerCase(),
+                        <GroupColourPalette
+                            selected={colourGroups.map((group) => group.colour)}
+                            onChange={(colour) =>
+                                update(
+                                    draft.map((node) =>
+                                        colourGroups.some(
+                                            (group) => group.id === node.id,
                                         )
-                                    }
-                                    style={{
-                                        backgroundColor: `var(${c.token})`,
-                                    }}
-                                    onClick={() =>
-                                        update(
-                                            draft.map((n) =>
-                                                colourGroups.some(
-                                                    (g) => g.id === n.id,
-                                                )
-                                                    ? {
-                                                          ...n,
-                                                          colour: c.name.toLowerCase(),
-                                                      }
-                                                    : n,
-                                            ),
-                                            "Group colour changed.",
-                                        )
-                                    }
-                                >
-                                    {colourGroups.length > 0 &&
-                                        colourGroups.every(
-                                            (g) =>
-                                                g.colour ===
-                                                c.name.toLowerCase(),
-                                        ) && <Icon icon={Check} size={13} />}
-                                </button>
-                            ))}
-                        </div>
+                                            ? { ...node, colour }
+                                            : node,
+                                    ),
+                                    "Group colour changed.",
+                                )
+                            }
+                        />
                     </div>
                 )}
             </div>
@@ -1214,6 +1208,7 @@ function App() {
         ),
     );
     const [saved, setSaved] = useState(stored.layout);
+    const [editingGroup, setEditingGroup] = useState(null);
     const [open, setOpen] = useState(false),
         [dark, setDark] = useState(false),
         [notice, setNotice] = useState(stored.notice);
@@ -1226,6 +1221,22 @@ function App() {
     function close() {
         setOpen(false);
         requestAnimationFrame(() => trigger.current?.focus());
+    }
+    function updateGroup(id, changes) {
+        const nodes = saved.map((node) =>
+            node.id === id ? { ...node, ...changes } : node,
+        );
+        setSaved(nodes);
+        const persisted = M.storeLayout(
+            () => localStorage,
+            nodes,
+            stored.writable,
+        );
+        setNotice(
+            persisted
+                ? "Group saved."
+                : "The group changed for this visit, but could not be saved in this browser.",
+        );
     }
     function save(nodes, actions) {
         capturePage();
@@ -1251,10 +1262,19 @@ function App() {
                 page={page}
                 trigger={trigger}
                 onOpen={() => setOpen(true)}
+                onEditGroup={setEditingGroup}
                 onToggleTheme={() => setDark(!dark)}
                 notice={notice}
                 onNotice={setNotice}
             />
+            {editingGroup && (
+                <GroupEditor
+                    group={M.find(saved, editingGroup)}
+                    onSave={(changes) => updateGroup(editingGroup, changes)}
+                    onClose={() => setEditingGroup(null)}
+                    onManager={() => setOpen(true)}
+                />
+            )}
             {open && (
                 <CardManager saved={saved} onSave={save} onClose={close} />
             )}

@@ -372,6 +372,27 @@ export function ungroup(nodes, selection) {
         ),
     );
 }
+export function groupColour(colour) {
+    return colour === "none"
+        ? "var(--color-ink-400)"
+        : `var(--color-${colour}-500)`;
+}
+export function groupActionIds(nodes, selection, clickedId) {
+    const groups = nodes.filter(
+        (n) =>
+            n.children &&
+            (selection.includes(n.id) ||
+                n.children.every((child) => selection.includes(child.id))),
+    );
+    return groups.length > 1 && groups.some((n) => n.id === clickedId)
+        ? groups.map((n) => n.id)
+        : [clickedId];
+}
+export function setGroupBox(nodes, groupIds, showBox) {
+    return nodes.map((n) =>
+        n.children && groupIds.includes(n.id) ? { ...n, showBox } : n,
+    );
+}
 export function setPin(nodes, selection, pin) {
     const ids = selectedIds(nodes, selection);
     return clean(
@@ -454,7 +475,9 @@ export function validLayout(value, colours) {
                 typeof node.name === "string" &&
                 node.name.trim().length > 0 &&
                 node.name.length <= 120 &&
-                colours.includes(node.colour) &&
+                (node.colour === "none" || colours.includes(node.colour)) &&
+                (!Object.hasOwn(node, "showBox") ||
+                    typeof node.showBox === "boolean") &&
                 Array.isArray(node.children) &&
                 node.children.length > 0 &&
                 node.children.every(

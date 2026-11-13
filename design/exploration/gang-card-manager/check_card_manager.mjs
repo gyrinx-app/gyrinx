@@ -260,7 +260,8 @@ try {
     await page.goto(`${baseURL}/gang/?names=short`);
     await page.evaluate(() => document.fonts.ready);
     assert.equal(await page.locator(".gang-material").count(), 0);
-    assert.ok((await page.locator(".gang-standard").count()) > 0);
+    assert.equal(await page.locator(".gang-standard").count(), 13);
+    assert.equal(await page.locator(".gang-special").count(), 3);
     await page.screenshot({
         path: "qa/card-manager-standard-cards.png",
         fullPage: true,
@@ -489,7 +490,7 @@ try {
             .getByRole("group", { name: "Group colour", exact: true })
             .getByRole("button")
             .count(),
-        18,
+        19,
     );
     await manager
         .getByRole("button", { name: "Violet group colour", exact: true })
@@ -689,6 +690,7 @@ try {
                 ".cm-group-name",
                 ".cm-count",
                 ".cm-colour-dot",
+                ".cm-header-box",
                 ".cm-header-ungroup",
                 ".cm-pin-label",
                 ".cm-grip",

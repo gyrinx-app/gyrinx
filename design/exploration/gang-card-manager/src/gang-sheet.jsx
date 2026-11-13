@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button, Icon, useModal } from "./controls.jsx";
 import cotton from "./cotton.json";
+import { GroupBoxes } from "./group-boxes.jsx";
 import * as M from "./card-manager-model.js";
 import {
     physical,
@@ -403,7 +404,15 @@ function Panel({ node }) {
         </article>
     );
 }
-function GangGrid({ saved, page }) {
+function GangGrid({ saved, page, onEditGroup }) {
+    const groups = new Map(
+        saved
+            .filter((n) => n.children)
+            .flatMap((group) =>
+                group.children.map((child) => [child.id, group.id]),
+            ),
+    );
+    const boxed = saved.some((group) => group.children && group.showBox);
     const cards = M.flatten(saved),
         rendered = [];
     for (let i = 0; i < cards.length; i++) {
@@ -414,7 +423,8 @@ function GangGrid({ saved, page }) {
             ["stash", "actions"].includes(n.id) &&
             next &&
             ["stash", "actions"].includes(next.id) &&
-            next.id !== n.id
+            next.id !== n.id &&
+            groups.get(n.id) === groups.get(next.id)
         ) {
             rendered.push(
                 <div className="gang-panel-stack" key={`${n.id}-${next.id}`}>
@@ -440,8 +450,20 @@ function GangGrid({ saved, page }) {
         }
     }
     return (
-        <div className="gang-grid n26-roster-grid" ref={page}>
-            {rendered}
+        <div className="gang-roster">
+            <div
+                className={`gang-grid n26-roster-grid ${boxed ? "gang-grid-boxed" : ""}`}
+                ref={page}
+            >
+                {rendered}
+            </div>
+            {boxed && (
+                <GroupBoxes
+                    saved={saved}
+                    grid={page}
+                    onEditGroup={onEditGroup}
+                />
+            )}
         </div>
     );
 }
@@ -450,6 +472,7 @@ export function GangSheet({
     page,
     trigger,
     onOpen,
+    onEditGroup,
     onToggleTheme,
     notice,
     onNotice,
@@ -626,7 +649,7 @@ export function GangSheet({
                         {notice}
                     </div>
                 )}
-                <GangGrid saved={saved} page={page} />
+                <GangGrid saved={saved} page={page} onEditGroup={onEditGroup} />
                 <p className="gang-disclaimer">
                     Sample gang. Layout saves in this browser. Refund, archive
                     and delete are simulated.
