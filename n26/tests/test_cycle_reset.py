@@ -1,11 +1,14 @@
 """The one-off prelaunch reset retains facts and applies only its reviewed raw scope."""
 
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from threading import Event
 from uuid import uuid4
 
 import pytest
 from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
+from django.db import close_old_connections, connections
 from django.db.models import QuerySet
 from django.urls import reverse
 from django.utils import timezone
@@ -336,3 +339,72 @@ def test_operation_uses_exclusive_n26_task_and_separate_operation_lock():
     assert len(maintenance.LOCK_KEYS.values()) == len(
         set(maintenance.LOCK_KEYS.values())
     )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_cancellation_waits_for_deletion_and_completion_to_commit_together(
+    captured, monkeypatch
+):
+    plan = reset.find()
+    run = Backfill.objects.create(
+        operation=maintenance.Operation.RESET_PRELAUNCH_CAMPAIGN_CYCLES,
+        status=Backfill.Status.RUNNING,
+        summary=plan.recorded(),
+    )
+    applied, release, cancelling, cancelled = Event(), Event(), Event(), Event()
+    original = reset.apply
+
+    def pause_after_deletion(*args, **kwargs):
+        report = original(*args, **kwargs)
+        applied.set()
+        assert release.wait(10)
+        return report
+
+    monkeypatch.setattr(reset, "apply", pause_after_deletion)
+
+    def execute():
+        close_old_connections()
+        try:
+            maintenance.reset_prelaunch_campaign_cycles.call(backfill_id=str(run.pk))
+        finally:
+            connections.close_all()
+
+    def cancel():
+        close_old_connections()
+        try:
+            cancelling.set()
+            return Backfill.objects.filter(
+                pk=run.pk, status=Backfill.Status.RUNNING
+            ).update(status=Backfill.Status.CANCELLED, modified=timezone.now())
+        finally:
+            cancelled.set()
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        worker = pool.submit(execute)
+        try:
+            assert applied.wait(10)
+            cancellation = pool.submit(cancel)
+            assert cancelling.wait(10)
+            assert not cancelled.wait(0.2)
+        finally:
+            release.set()
+        worker.result(timeout=10)
+        assert cancellation.result(timeout=10) == 0
+    run.refresh_from_db()
+    assert run.status == Backfill.Status.DONE
+    assert run.summary["report"]
+    assert reset.find().nothing_here
+
+
+def test_cancellation_before_execution_keeps_captured_cycle_data(captured):
+    plan = reset.find()
+    run = Backfill.objects.create(
+        operation=maintenance.Operation.RESET_PRELAUNCH_CAMPAIGN_CYCLES,
+        status=Backfill.Status.CANCELLED,
+        summary=plan.recorded(),
+    )
+    maintenance.reset_prelaunch_campaign_cycles.call(backfill_id=str(run.pk))
+    run.refresh_from_db()
+    assert run.status == Backfill.Status.CANCELLED
+    assert reset.find().rows == plan.rows

@@ -3207,20 +3207,45 @@ def _require_prelaunch_cycle_flag_off(*, lock=True):
 @task
 def reset_prelaunch_campaign_cycles(backfill_id, **unused):
     from n26.core.cycle_reset import ResetRefused, apply
+    from n26.write_pause import SCOPE, exclusive_write_scope
 
-    if not Backfill.objects.filter(
-        pk=backfill_id, operation=Operation.RESET_PRELAUNCH_CAMPAIGN_CYCLES
-    ).exists():
+    operation = Operation.RESET_PRELAUNCH_CAMPAIGN_CYCLES
+    if not Backfill.objects.filter(pk=backfill_id, operation=operation).exists():
         return
+
+    started = timezone.now()
+
+    def apply_and_finish():
+        with exclusive_write_scope(SCOPE):
+            record = Backfill.objects.select_for_update().get(pk=backfill_id)
+            if (
+                record.operation != operation
+                or record.status != Backfill.Status.RUNNING
+            ):
+                raise ResetRefused("The prelaunch cycle reset is no longer running.")
+            report = apply(
+                record.summary.get("plan"),
+                require_disabled=_require_prelaunch_cycle_flag_off,
+            )
+            # Deletion and its completion must commit together before cancellation.
+            if not _write(
+                backfill_id,
+                status=Backfill.Status.DONE,
+                summary_patch={
+                    "report": list(report),
+                    "seconds": int((timezone.now() - started).total_seconds()),
+                },
+            ):
+                raise ResetRefused(
+                    "The prelaunch cycle reset stopped. Nothing was reset."
+                )
+            return report
 
     _run_recorded(
         backfill_id,
-        Operation.RESET_PRELAUNCH_CAMPAIGN_CYCLES,
+        operation,
         "Prelaunch campaign cycle reset",
-        lambda: apply(
-            _approved_plan(backfill_id),
-            require_disabled=_require_prelaunch_cycle_flag_off,
-        ),
+        apply_and_finish,
         (ResetRefused,),
     )
 
