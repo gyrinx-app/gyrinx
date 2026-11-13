@@ -193,7 +193,11 @@ Round-trip actual GET display values through the command: give JSONField native
 lists or dictionaries as initial values, because BoundField.value already encodes
 them. Keep known unsent or rejected drafts scoped to their original URL task when
 nested choice pages open, while unresolved submitted commands keep their exact
-body and protect the actor's workflow across those URLs.
+body and protect the actor's workflow across those URLs. Reconcile passive
+selections against each question's saved starting state when returning from a
+nested choice; keep unaffected siblings and transfer them into an expanded task
+only after its confirmed continuation. Use fresh page metadata and command keys
+for passive drafts, and retain displayed roll identifiers in recovery URLs.
 
 Keep an earlier uncertain save frozen after any rejected retry, including a
 structured form refusal. Opt workflow forms out of the shared busy-link handler

@@ -107,7 +107,9 @@ def picker(
                 "",
             )
     values["summary"] = str(request.POST.get("summary", ""))[:2000]
-    recovery_href = with_query(here, recover="1")
+    recovery_href = with_query(
+        here, recover="1", **({"roll": event.pk} if event else {})
+    )
     props = {
         "title": offer.label if offer else "Recover choice",
         "lead": found.slot.slot.introduction if found and found.slot.slot else "",
@@ -149,6 +151,7 @@ def picker(
         else reverse("n26-choice-command", args=[gang.pk, slot_key]),
         "csrfToken": get_token(request),
         "recoveryKey": f"n26-choice:{request.user.pk}:{gang.pk}:{slot_key}",
+        "arrivalRecoveryKey": f"n26-arrivals:{request.user.pk}:{gang.pk}",
         "recoveryHref": recovery_href,
         "signInHref": reverse("account_login")
         + "?"

@@ -22,6 +22,7 @@ from django.urls import reverse
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST
 
+# Preserve the chooser import surface while native card and asset callers migrate.
 from n26.core.choice_workflow import (
     NotOnTheList as NotOnTheList,
 )

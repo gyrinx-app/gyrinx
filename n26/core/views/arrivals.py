@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST
 
+from gyrinx.http import safe_redirect
 from n26.core import choice_display, choice_workflow
 from n26.core.arrivals import MAX_ASKS
 from n26.core.views.choose import _choice_feedback
@@ -52,7 +53,9 @@ def gang_next(request, pk):
             for errors in result.form.errors.values():
                 for message in errors:
                     messages.error(request, message)
-            return redirect(request.get_full_path())
+            return safe_redirect(
+                request, request.get_full_path(), reverse("n26-next", args=[gang.pk])
+            )
     read = choice_workflow.prepare_arrivals(gang, request.user, keys, back)
     if not read.screen.blocks and not result and request.GET.get("recover") != "1":
         return redirect(back)

@@ -570,22 +570,108 @@ def test_arrivals_settle_in_url_order_and_ignore_json_object_order_on_replay(
         asks=json.dumps(keys),
         selection=json.dumps({key: option_key(choices.pick) for key in reversed(keys)}),
     )
-    written = []
-    apply_pick = choice_workflow.write_pick
+    from unittest.mock import Mock
 
-    def remember(op, gang, actor, key, *args, **kwargs):
-        written.append(key)
-        return apply_pick(op, gang, actor, key, *args, **kwargs)
-
-    monkeypatch.setattr(choice_workflow, "write_pick", remember)
+    write_pick = Mock(wraps=choice_workflow.write_pick)
+    monkeypatch.setattr(choice_workflow, "write_pick", write_pick)
     back = reverse("n26-gang", args=[choices.gang.pk])
     assert choice_workflow.change_arrivals(
         choices.gang, choices.owner, keys, data, back=back
     ).saved
-    assert written == keys
+    assert [call.args[3] for call in write_pick.call_args_list] == keys
+    write_pick.reset_mock()
     data["selection"] = json.dumps({key: option_key(choices.pick) for key in keys})
     replay = choice_workflow.change_arrivals(
         choices.gang, choices.owner, keys, data, back=back
     )
     assert replay.saved and replay.replayed
-    assert written == keys
+    write_pick.assert_not_called()
+
+
+def test_rejected_pick_recovery_and_sign_in_keep_the_displayed_roll(client, choices):
+    from urllib.parse import parse_qs, urlsplit
+
+    from n26.tests.fixtures import island_props
+
+    client.force_login(choices.owner)
+    url = reverse("n26-choose", args=[choices.gang.pk, choices.key])
+    initial = island_props(client.get(url).content, "choice-workflow")
+    rolled = client.post(
+        initial["commandHref"], {**initial["values"], "act": "enter", "rolled": "4"}
+    )
+    assert rolled.status_code == 200
+    shown = island_props(
+        client.get(rolled.json()["nextUrl"]).content, "choice-workflow"
+    )
+    event = shown["roll"]["key"]
+    rejected = client.post(
+        shown["commandHref"], {**shown["values"], "act": "choose", "thing": "invalid"}
+    )
+    assert rejected.status_code == 422
+    assert parse_qs(urlsplit(shown["recoveryHref"]).query)["roll"] == [event]
+    signed_in_next = parse_qs(urlsplit(shown["signInHref"]).query)["next"][0]
+    assert signed_in_next == shown["recoveryHref"]
+    recovered = island_props(
+        client.get(shown["recoveryHref"]).content, "choice-workflow"
+    )
+    assert recovered["roll"]["key"] == recovered["values"]["roll"] == event
+    assert recovered["roll"]["total"] == 4
+    assert (
+        LedgerEvent.objects.filter(
+            gang=choices.gang, kind=LedgerEvent.Kind.ROLLED
+        ).count()
+        == 1
+    )
+
+
+def test_an_arrival_refusal_does_not_redirect_to_a_network_path(
+    client, choices, monkeypatch
+):
+    import json
+
+    from django.core.handlers.wsgi import WSGIRequest
+
+    from n26.core.arrivals import next_url
+    from n26.library.authoring import create_interstitial
+    from n26.tests.fixtures import island_props
+
+    create_interstitial("Starting results", slots=[choices.slot])
+    client.force_login(choices.owner)
+    here = next_url(
+        choices.gang, [choices.key], reverse("n26-gang", args=[choices.gang.pk])
+    )
+    props = island_props(client.get(here).content, "choice-workflow")
+    monkeypatch.setattr(
+        WSGIRequest, "get_full_path", lambda self: "//outside.example/escape"
+    )
+    response = client.post(
+        here, {**props["values"], "selection": json.dumps({choices.key: "invalid"})}
+    )
+    assert response.status_code == 302
+    assert response.url == reverse("n26-next", args=[choices.gang.pk])
+    assert not Assignment.objects.filter(
+        gang_root=choices.gang, pickable=choices.pick
+    ).exists()
+
+
+def test_a_nested_picker_uses_its_owners_arrival_draft_namespace(client, choices):
+    from n26.core.arrivals import next_url
+    from n26.library.authoring import create_interstitial
+    from n26.tests.fixtures import island_props
+
+    create_interstitial("Starting results", slots=[choices.slot])
+    client.force_login(choices.owner)
+    arrivals = island_props(
+        client.get(
+            next_url(
+                choices.gang, [choices.key], reverse("n26-gang", args=[choices.gang.pk])
+            )
+        ).content,
+        "choice-workflow",
+    )
+    picker = island_props(
+        client.get(reverse("n26-choose", args=[choices.gang.pk, choices.key])).content,
+        "choice-workflow",
+    )
+    assert picker["arrivalRecoveryKey"] == arrivals["recoveryKey"]
+    assert picker["arrivalRecoveryKey"] != picker["recoveryKey"]

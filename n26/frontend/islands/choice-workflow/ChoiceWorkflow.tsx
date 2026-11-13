@@ -96,6 +96,7 @@ export type ChoiceWorkflowProps = {
     commandHref: string;
     csrfToken: string;
     recoveryKey: string;
+    arrivalRecoveryKey?: string;
     recoveryHref: string;
     signInHref: string;
     recoveryOnly: boolean;
@@ -336,6 +337,111 @@ function arrivalDraftKey(
     return `${base}:draft:${JSON.stringify([asks, value("next")])}`;
 }
 
+function stringMap(value: string | null): Record<string, string> | null {
+    try {
+        const parsed: unknown = JSON.parse(value ?? "null");
+        return parsed &&
+            typeof parsed === "object" &&
+            !Array.isArray(parsed) &&
+            Object.values(parsed).every((value) => typeof value === "string")
+            ? (parsed as Record<string, string>)
+            : null;
+    } catch {
+        return null;
+    }
+}
+
+function questionState(question: ChoiceQuestion) {
+    return JSON.stringify([
+        question.chosen,
+        question.settled,
+        question.offer.groups
+            .flatMap((group) => group.options)
+            .filter((option) => option.current)
+            .map((option) => option.key)
+            .sort(),
+    ]);
+}
+
+function retainArrivalReturn(
+    props: ChoiceWorkflowProps,
+    nextUrl: string,
+    intent: string,
+) {
+    const namespace = props.arrivalRecoveryKey;
+    if (
+        !namespace ||
+        props.blocks !== undefined ||
+        !["choose", "remove"].includes(intent)
+    )
+        return;
+    try {
+        const global = sessionStorage.getItem(namespace);
+        if (
+            global &&
+            new URLSearchParams(global).get("__workflow_rejected") !== "1"
+        )
+            return;
+        const marker = JSON.parse(
+            sessionStorage.getItem(`${namespace}:nested`) ?? "null",
+        ) as {
+            draftKey?: unknown;
+            picker?: unknown;
+            question?: unknown;
+        } | null;
+        if (
+            !marker ||
+            typeof marker.draftKey !== "string" ||
+            typeof marker.question !== "string" ||
+            !marker.draftKey.startsWith(`${namespace}:draft:`) ||
+            marker.picker !==
+                new URL(props.action, window.location.href).pathname
+        )
+            return;
+        const stored = sessionStorage.getItem(marker.draftKey);
+        if (!stored) return;
+        const retained = new URLSearchParams(stored);
+        const target = new URL(nextUrl, window.location.href);
+        const asks: unknown = JSON.parse(retained.get("asks") ?? "null");
+        const returned = target.searchParams.getAll("ask");
+        if (!Array.isArray(asks) || !asks.includes(marker.question)) return;
+        // A confirmed nested answer wins even when it matches the starting state.
+        const selected = stringMap(retained.get("selection")) ?? {};
+        delete selected[marker.question];
+        retained.set("selection", JSON.stringify(selected));
+        sessionStorage.setItem(marker.draftKey, retained.toString());
+        if (
+            target.origin !== window.location.origin ||
+            target.pathname !== retained.get("__arrival_path") ||
+            target.searchParams.get("next") !== retained.get("next") ||
+            !asks.every(
+                (key) => typeof key === "string" && returned.includes(key),
+            )
+        )
+            return;
+        retained.set("asks", JSON.stringify(returned));
+        const targetKey = arrivalDraftKey(namespace, retained);
+        const existing = new URLSearchParams(
+            sessionStorage.getItem(targetKey) ?? "",
+        );
+        for (const field of ["selection", "__arrival_baseline"])
+            retained.set(
+                field,
+                JSON.stringify({
+                    ...stringMap(existing.get(field)),
+                    ...stringMap(retained.get(field)),
+                }),
+            );
+        const merged = stringMap(retained.get("selection")) ?? {};
+        delete merged[marker.question];
+        retained.set("selection", JSON.stringify(merged));
+        sessionStorage.setItem(targetKey, retained.toString());
+        sessionStorage.removeItem(`${namespace}:nested`);
+    } catch {
+        // A confirmed save remains confirmed if passive storage is unavailable.
+    }
+}
+
 function prepareArrivalRecovery(props: ChoiceWorkflowProps): ArrivalRecovery {
     if (props.blocks === undefined)
         return { values: props.values, draftKey: null, blocked: false };
@@ -360,14 +466,35 @@ function prepareArrivalRecovery(props: ChoiceWorkflowProps): ArrivalRecovery {
             Object.keys(props.values)
                 .filter((name) => name !== "summary")
                 .every((name) => retained.has(name));
-        const values = complete
-            ? Object.fromEntries(
-                  Object.entries(props.values).map(([name, value]) => [
-                      name,
-                      retained.get(name) ?? value,
-                  ]),
-              )
-            : props.values;
+        const values = { ...props.values };
+        if (complete) {
+            const selected = stringMap(retained.get("selection")) ?? {};
+            const baseline = stringMap(retained.get("__arrival_baseline"));
+            values.selection = JSON.stringify(
+                Object.fromEntries(
+                    props.blocks
+                        .flatMap((block) => block.questions)
+                        .filter(
+                            (question) =>
+                                question.key in selected &&
+                                (baseline
+                                    ? baseline[question.key] ===
+                                      questionState(question)
+                                    : !question.chosen &&
+                                      !question.settled &&
+                                      !question.offer.groups.some((group) =>
+                                          group.options.some(
+                                              (option) => option.current,
+                                          ),
+                                      )),
+                        )
+                        .map((question) => [
+                            question.key,
+                            selected[question.key],
+                        ]),
+                ),
+            );
+        }
         return { values, draftKey, blocked: false };
     } catch {
         return { values: props.values, draftKey, blocked: true };
@@ -384,14 +511,21 @@ export function ChoiceWorkflow(
     const ownRollId = useId();
     const [busyControl, setBusyControl] = useState<string | null>(null);
     const [arrivalRecovery] = useState(() => prepareArrivalRecovery(props));
+    const submittedIntent = useRef("");
     const workflow = useWorkflowForm({
         ...props,
         values: arrivalRecovery.values,
         optionalRecoveryFields: ["summary"],
         initialConflict: props.terminal,
         interpret(status, data) {
-            if (status === 200 && typeof data.nextUrl === "string")
+            if (status === 200 && typeof data.nextUrl === "string") {
+                retainArrivalReturn(
+                    props,
+                    data.nextUrl,
+                    submittedIntent.current,
+                );
                 return { kind: "saved", nextUrl: data.nextUrl };
+            }
             if (
                 status === 409 &&
                 data.code === "choice_unavailable" &&
@@ -435,6 +569,7 @@ export function ChoiceWorkflow(
                 ? (submitter.dataset.busyId ?? null)
                 : null,
         );
+        if (workflow.uncertain) submittedIntent.current = values.act;
         if (!workflow.uncertain) {
             const button = (event.nativeEvent as SubmitEvent).submitter;
             const intent =
@@ -458,6 +593,7 @@ export function ChoiceWorkflow(
                 act: intent ?? (isArrivals ? "continue" : "choose"),
                 summary: summary || values.summary || "Save selected choices.",
             };
+            submittedIntent.current = next.act;
             if (intent === "choose" && thing) next.thing = thing;
             next.remove = intent === "remove" ? thing : "";
             if (isArrivals) {
@@ -500,7 +636,7 @@ export function ChoiceWorkflow(
         if (frozen) return;
         (props.onNavigate ?? ((href) => window.location.assign(href)))(url);
     }
-    function openArrivalRoll(url: string) {
+    function openArrivalRoll(url: string, question: string) {
         if (frozen || !formRef.current || !arrivalRecovery.draftKey) return;
         try {
             const retained = new URLSearchParams();
@@ -509,9 +645,34 @@ export function ChoiceWorkflow(
             );
             retained.delete("csrfmiddlewaretoken");
             retained.set("__workflow_rejected", "1");
+            retained.set(
+                "__arrival_baseline",
+                JSON.stringify(
+                    Object.fromEntries(
+                        props
+                            .blocks!.flatMap((block) => block.questions)
+                            .map((question) => [
+                                question.key,
+                                questionState(question),
+                            ]),
+                    ),
+                ),
+            );
+            retained.set(
+                "__arrival_path",
+                new URL(props.action, window.location.href).pathname,
+            );
             sessionStorage.setItem(
                 arrivalRecovery.draftKey,
                 retained.toString(),
+            );
+            sessionStorage.setItem(
+                `${props.recoveryKey}:nested`,
+                JSON.stringify({
+                    draftKey: arrivalRecovery.draftKey,
+                    question,
+                    picker: new URL(url, window.location.href).pathname,
+                }),
             );
         } catch {
             workflow.recoverAt(url, formRef.current);
@@ -754,6 +915,7 @@ export function ChoiceWorkflow(
                                                         event.preventDefault();
                                                         openArrivalRoll(
                                                             question.rollHref,
+                                                            question.key,
                                                         );
                                                     }}
                                                 >

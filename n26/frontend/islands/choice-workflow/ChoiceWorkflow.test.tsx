@@ -573,8 +573,15 @@ test("authored arrival instructions preserve single line breaks and separate par
 });
 
 function arrivalFixture(keys: string[], next = "/edit/"): ChoiceWorkflowProps {
+    const action = `/arrivals/?${new URLSearchParams([
+        ...keys.map((key) => ["ask", key]),
+        ["next", next],
+    ])}`;
     return {
         ...props,
+        action,
+        recoveryKey: "arrivals:actor:gang",
+        recoveryHref: `${action}&recover=1`,
         offer: null,
         rollTable: null,
         values: {
@@ -670,7 +677,7 @@ test("an unsent A+B draft stays separate from a new C screen and returns to A+B"
 test("an unknown A+B command stays frozen on C and retries its original scope", async () => {
     const original = arrivalFixture(["A", "B"]);
     sessionStorage.setItem(
-        props.recoveryKey,
+        original.recoveryKey,
         new URLSearchParams({
             ...original.values,
             selection: '{"A":"armour"}',
@@ -691,4 +698,320 @@ test("an unknown A+B command stays frozen on C and retries its original scope", 
     expect(body.get("asks")).toBe('["A","B"]');
     expect(JSON.parse(body.get("selection")!)).toEqual({ A: "armour" });
     expect(body.get("request_key")).toBe("A-B-key");
+});
+
+test("a nested saved answer replaces its stale draft while its sibling remains unsent", async () => {
+    const original = arrivalFixture(["A", "B"]);
+    const first = render(<ChoiceWorkflow {...original} onNavigate={vi.fn()} />);
+    for (const name of ["A for Vex", "B for Vex"])
+        await userEvent.click(
+            within(screen.getByRole("group", { name })).getByRole("radio"),
+        );
+    await userEvent.click(
+        screen.getByRole("link", { name: "Roll on its own page" }),
+    );
+    first.unmount();
+    const current = arrivalFixture(["A", "B"]);
+    current.values.request_key = "fresh-return-key";
+    const b = current.blocks![0].questions[1];
+    b.chosen = "Helmet";
+    b.settled = true;
+    b.offer.groups[0].options.push({
+        ...b.offer.groups[0].options[0],
+        key: "helmet",
+        name: "Helmet",
+        current: true,
+    });
+    const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/gang/" }));
+    vi.stubGlobal("fetch", fetch);
+    render(<ChoiceWorkflow {...current} onNavigate={vi.fn()} />);
+    expect(
+        (
+            within(screen.getByRole("group", { name: "A for Vex" })).getByRole(
+                "radio",
+            ) as HTMLInputElement
+        ).checked,
+    ).toBe(true);
+    expect(
+        (screen.getByRole("radio", { name: /Helmet/ }) as HTMLInputElement)
+            .checked,
+    ).toBe(true);
+    expect(
+        (
+            within(screen.getByRole("group", { name: "B for Vex" })).getByRole(
+                "radio",
+                { name: /Extra armour/ },
+            ) as HTMLInputElement
+        ).checked,
+    ).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    const body = fetch.mock.calls[0][1].body as URLSearchParams;
+    expect(JSON.parse(body.get("selection")!)).toEqual({ A: "armour" });
+    expect(body.get("request_key")).toBe("fresh-return-key");
+});
+
+test("a confirmed nested save carries unchanged drafts into its expanded arrival task", async () => {
+    const original = arrivalFixture(["A", "B"]);
+    const first = render(<ChoiceWorkflow {...original} onNavigate={vi.fn()} />);
+    await userEvent.click(
+        within(screen.getByRole("group", { name: "A for Vex" })).getByRole(
+            "radio",
+        ),
+    );
+    await userEvent.click(
+        screen.getByRole("link", { name: "Roll on its own page" }),
+    );
+    first.unmount();
+    const expanded = arrivalFixture(["A", "B", "C"]);
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(json({ nextUrl: expanded.action }))
+        .mockResolvedValueOnce(json({ nextUrl: "/gang/" }));
+    vi.stubGlobal("fetch", fetch);
+    const nested = render(
+        <ChoiceWorkflow
+            {...props}
+            action="/roll-B/"
+            arrivalRecoveryKey={original.recoveryKey}
+            onNavigate={vi.fn()}
+        />,
+    );
+    await userEvent.click(
+        screen.getByRole("button", { name: "Add Extra armour again" }),
+    );
+    nested.unmount();
+    expanded.values.request_key = "expanded-key";
+    const b = expanded.blocks![0].questions[1];
+    b.chosen = "Extra armour";
+    b.settled = true;
+    b.offer.groups[0].options[0].current = true;
+    render(<ChoiceWorkflow {...expanded} onNavigate={vi.fn()} />);
+    expect(
+        (
+            within(screen.getByRole("group", { name: "A for Vex" })).getByRole(
+                "radio",
+            ) as HTMLInputElement
+        ).checked,
+    ).toBe(true);
+    expect(
+        (
+            within(screen.getByRole("group", { name: "C for Vex" })).getByRole(
+                "radio",
+            ) as HTMLInputElement
+        ).checked,
+    ).toBe(false);
+    await userEvent.click(
+        within(screen.getByRole("group", { name: "C for Vex" })).getByRole(
+            "radio",
+        ),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    const body = fetch.mock.calls[1][1].body as URLSearchParams;
+    expect(body.get("asks")).toBe('["A","B","C"]');
+    expect(JSON.parse(body.get("selection")!)).toEqual({
+        A: "armour",
+        C: "armour",
+    });
+    expect(body.get("request_key")).toBe("expanded-key");
+});
+
+test("a rejected save keeps its displayed roll in the stamped recovery URL", async () => {
+    vi.stubGlobal(
+        "fetch",
+        vi
+            .fn()
+            .mockResolvedValue(
+                json({ errors: { thing: ["Review this result."] } }, 422),
+            ),
+    );
+    const replace = vi.spyOn(window.history, "replaceState");
+    render(
+        <ChoiceWorkflow
+            {...props}
+            recoveryHref="/choices/?roll=recorded-roll&recover=1"
+            values={{ ...props.values, roll: "recorded-roll" }}
+            rollTable={null}
+            roll={{
+                key: "recorded-roll",
+                total: 4,
+                dice: "D6",
+                faces: [4],
+                landed: ["Extra armour"],
+                entered: true,
+                applied: "",
+                threshold: false,
+                add: { key: "armour", name: "Extra armour" },
+            }}
+        />,
+    );
+    await userEvent.click(
+        screen.getByRole("button", { name: "Add Extra armour" }),
+    );
+    expect(screen.getByText("Review this result.")).toBeTruthy();
+    expect(replace.mock.calls.at(-1)?.[2]).toBe(
+        "/choices/?roll=recorded-roll&recover=1",
+    );
+    expect(screen.getByRole("img", { name: "A die showing 4" })).toBeTruthy();
+});
+
+test.each([
+    { keys: ["A", "C"], next: "/edit/" },
+    { keys: ["A", "B", "C"], next: "/another-task/" },
+])(
+    "a confirmed nested return cannot transfer drafts into another task $keys $next",
+    async ({ keys, next }) => {
+        const original = arrivalFixture(["A", "B"]);
+        const first = render(
+            <ChoiceWorkflow {...original} onNavigate={vi.fn()} />,
+        );
+        await userEvent.click(
+            within(screen.getByRole("group", { name: "A for Vex" })).getByRole(
+                "radio",
+            ),
+        );
+        await userEvent.click(
+            screen.getByRole("link", { name: "Roll on its own page" }),
+        );
+        first.unmount();
+        const unrelated = arrivalFixture(keys, next);
+        vi.stubGlobal(
+            "fetch",
+            vi.fn().mockResolvedValue(json({ nextUrl: unrelated.action })),
+        );
+        const nested = render(
+            <ChoiceWorkflow
+                {...props}
+                action="/roll-B/"
+                arrivalRecoveryKey={original.recoveryKey}
+                onNavigate={vi.fn()}
+            />,
+        );
+        await userEvent.click(
+            screen.getByRole("button", { name: "Add Extra armour again" }),
+        );
+        nested.unmount();
+        render(<ChoiceWorkflow {...unrelated} onNavigate={vi.fn()} />);
+        expect(
+            (
+                within(
+                    screen.getByRole("group", { name: "A for Vex" }),
+                ).getByRole("radio") as HTMLInputElement
+            ).checked,
+        ).toBe(false);
+    },
+);
+
+test("passive nested handoff never rewrites an unknown arrival command", async () => {
+    const original = arrivalFixture(["A", "B"]);
+    const first = render(<ChoiceWorkflow {...original} onNavigate={vi.fn()} />);
+    await userEvent.click(
+        within(screen.getByRole("group", { name: "A for Vex" })).getByRole(
+            "radio",
+        ),
+    );
+    await userEvent.click(
+        screen.getByRole("link", { name: "Roll on its own page" }),
+    );
+    first.unmount();
+    const submitted = new URLSearchParams({
+        ...original.values,
+        selection: '{"A":"armour","B":"armour"}',
+    }).toString();
+    sessionStorage.setItem(original.recoveryKey, submitted);
+    const expanded = arrivalFixture(["A", "B", "C"]);
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(json({ nextUrl: expanded.action }))
+        .mockResolvedValueOnce(json({ nextUrl: "/gang/" }));
+    vi.stubGlobal("fetch", fetch);
+    const nested = render(
+        <ChoiceWorkflow
+            {...props}
+            action="/roll-B/"
+            arrivalRecoveryKey={original.recoveryKey}
+            onNavigate={vi.fn()}
+        />,
+    );
+    await userEvent.click(
+        screen.getByRole("button", { name: "Add Extra armour again" }),
+    );
+    nested.unmount();
+    expect(sessionStorage.getItem(original.recoveryKey)).toBe(submitted);
+    render(<ChoiceWorkflow {...expanded} onNavigate={vi.fn()} />);
+    expect(
+        (
+            within(screen.getByRole("group", { name: "A for Vex" })).getByRole(
+                "radio",
+            ) as HTMLInputElement
+        ).disabled,
+    ).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    const body = fetch.mock.calls[1][1].body as URLSearchParams;
+    const exact = new URLSearchParams(body);
+    exact.delete("csrfmiddlewaretoken");
+    expect(exact.toString()).toBe(submitted);
+});
+
+test("a confirmed nested answer wins even when its saved state is unchanged", async () => {
+    const original = arrivalFixture(["A", "B"]);
+    const b = original.blocks![0].questions[1];
+    const helmet = {
+        ...b.offer.groups[0].options[0],
+        key: "helmet",
+        name: "Helmet",
+        current: true,
+    };
+    b.chosen = "Helmet";
+    b.settled = true;
+    b.offer.groups[0].options.push(helmet);
+    const first = render(<ChoiceWorkflow {...original} onNavigate={vi.fn()} />);
+    for (const name of ["A for Vex", "B for Vex"])
+        await userEvent.click(
+            within(screen.getByRole("group", { name })).getByRole("radio", {
+                name: /Extra armour/,
+            }),
+        );
+    await userEvent.click(
+        screen.getByRole("link", { name: "Roll on its own page" }),
+    );
+    first.unmount();
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(json({ nextUrl: original.action }))
+        .mockResolvedValueOnce(json({ nextUrl: "/gang/" }));
+    vi.stubGlobal("fetch", fetch);
+    const nested = render(
+        <ChoiceWorkflow
+            {...props}
+            action="/roll-B/"
+            arrivalRecoveryKey={original.recoveryKey}
+            values={{ ...props.values, thing: "helmet" }}
+            offer={{
+                ...props.offer!,
+                takesSeveral: false,
+                groups: [{ ...props.offer!.groups[0], options: [helmet] }],
+            }}
+            onNavigate={vi.fn()}
+        />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    nested.unmount();
+    render(<ChoiceWorkflow {...original} onNavigate={vi.fn()} />);
+    expect(
+        (screen.getByRole("radio", { name: /Helmet/ }) as HTMLInputElement)
+            .checked,
+    ).toBe(true);
+    expect(
+        (
+            within(screen.getByRole("group", { name: "A for Vex" })).getByRole(
+                "radio",
+            ) as HTMLInputElement
+        ).checked,
+    ).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(
+        JSON.parse(
+            (fetch.mock.calls[1][1].body as URLSearchParams).get("selection")!,
+        ),
+    ).toEqual({ A: "armour" });
 });
