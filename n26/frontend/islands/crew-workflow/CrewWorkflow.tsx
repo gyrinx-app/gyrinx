@@ -184,6 +184,14 @@ export function CrewWorkflow(
         onComplete() {},
     });
     const { values, errors, setValues, pending, uncertain } = form;
+    const modelErrors = props.models.flatMap((model) =>
+        [model.role.name, model.card.name, model.override.name].flatMap(
+            (name) =>
+                (errors[name] ?? []).map(
+                    (message) => `${model.name}: ${message}`,
+                ),
+        ),
+    );
     const selected = props.models.filter(
         (model) => values[model.role.name] && values[model.role.name] !== "out",
     );
@@ -423,15 +431,18 @@ export function CrewWorkflow(
                                 errors={[
                                     ...(errors.__all__ ?? []),
                                     ...(errors.revision ?? []),
+                                    ...modelErrors,
                                     ...(form.notice ? [form.notice] : []),
                                 ]}
                             />
-                            {!form.notice && !errors.__all__?.length && (
-                                <p>
-                                    Check the highlighted fields. Your
-                                    selections have been kept.
-                                </p>
-                            )}
+                            {!form.notice &&
+                                !errors.__all__?.length &&
+                                !modelErrors.length && (
+                                    <p>
+                                        Check the highlighted fields. Your
+                                        selections have been kept.
+                                    </p>
+                                )}
                         </div>
                     )}
                     {form.conflicted && (

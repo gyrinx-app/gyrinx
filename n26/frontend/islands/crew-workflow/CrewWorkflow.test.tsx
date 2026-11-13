@@ -569,3 +569,38 @@ it("shows the exact two submitted manual selections immediately after a lost dra
     );
     expect(JSON.parse(stored.get("submitted_snapshot")!)).toHaveLength(2);
 });
+
+it.each([
+    ["card_a", "Select an equipment set that is still available."],
+    ["role_a", "This model is no longer available. Remove it from the crew."],
+    [
+        "override_a",
+        "Allow this model for this battle or remove it from the crew.",
+    ],
+])("labels %s errors when search hides the model", async (field, message) => {
+    const fetch = vi
+        .fn()
+        .mockResolvedValue(json({ errors: { [field]: [message] } }, 422));
+    vi.stubGlobal("fetch", fetch);
+    render(
+        <CrewWorkflow {...props([model("a", "Mara"), model("b", "Nell")])} />,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("checkbox", { name: "Select Mara" }));
+    await user.type(
+        screen.getByRole("searchbox", { name: "Find a model" }),
+        "Nell",
+    );
+    expect(screen.queryByRole("checkbox", { name: "Select Mara" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    const summary = await screen.findByRole("alert", {
+        name: "Crew save errors",
+    });
+    expect(summary.textContent).toContain(`Mara: ${message}`);
+    expect(summary.textContent).not.toContain("Check the highlighted fields.");
+    await waitFor(() => expect(document.activeElement).toBe(summary));
+    expect(fetch.mock.calls[0][1].body.get("role_a")).toBe("starting");
+    expect(
+        screen.getByRole("searchbox", { name: "Find a model" }),
+    ).toHaveProperty("value", "Nell");
+});

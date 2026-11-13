@@ -1178,3 +1178,77 @@ def test_crew_authority_and_archive_are_rechecked_under_the_write_locks(
     if transport == "json":
         assert "acknowledged" not in response.json()
     assert not BattleCrew.objects.exists() and not CrewCommandReceipt.objects.exists()
+
+
+@pytest.mark.parametrize("change", ["equipment", "roster", "status"])
+@pytest.mark.parametrize("transport", ["native", "json"])
+def test_stale_crew_revision_allows_review_despite_mutable_field_errors(
+    client, table, change, transport
+):
+    from uuid import uuid4
+
+    from n26.core.models import CrewCommandReceipt
+
+    stale = fields(table, request_key=str(uuid4()))
+    assert client.post(address(table), fields(table)).status_code == 302
+    if change == "equipment":
+        table.card.delete()
+    elif change == "roster":
+        hire(table.gang, table.models[0].membership.profile, "Cal")
+    else:
+        with operation(table.gang, actor=table.owner) as act:
+            act.set_status(table.models[0], Status.RECOVERY)
+    receipts = CrewCommandReceipt.objects.count()
+
+    response = client.post(
+        command_address(table) if transport == "json" else address(table), stale
+    )
+    if transport == "json":
+        assert response.status_code == 409
+        assert response.json()["code"] == "revision_conflict"
+        assert response.json()["current"]["revision"] == 1
+    else:
+        assert response.status_code == 200
+        assert response.context["crew_workflow"]["initialConflict"] is True
+        assert response.context["crew_workflow"]["values"]["revision"] == "0"
+    assert BattleCrew.objects.get().revision == 1
+    assert CrewCommandReceipt.objects.count() == receipts
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        {"revision": ""},
+        {"revision": "not a number"},
+        {"request_key": ""},
+        {"request_key": "not a key"},
+    ],
+)
+def test_invalid_crew_revision_or_key_cannot_confirm_a_stale_retry(
+    client, table, invalid
+):
+    from uuid import uuid4
+
+    from n26.core.models import CrewCommandReceipt
+
+    stale = fields(table, request_key=str(uuid4())) | invalid
+    assert client.post(address(table), fields(table)).status_code == 302
+    table.card.delete()
+    receipts = CrewCommandReceipt.objects.count()
+    response = client.post(command_address(table), stale)
+    assert response.status_code == 422
+    assert response.json()["code"] == "invalid"
+    assert BattleCrew.objects.get().revision == 1
+    assert CrewCommandReceipt.objects.count() == receipts
+
+
+def test_crew_key_conflict_precedes_a_stale_revision_and_roster_errors(client, table):
+    from uuid import uuid4
+
+    original = fields(table, request_key=str(uuid4()))
+    assert client.post(command_address(table), original).status_code == 200
+    table.card.delete()
+    response = client.post(command_address(table), original | {"action": "draft"})
+    assert response.status_code == 409
+    assert response.json()["code"] == "key_conflict"
+    assert BattleCrew.objects.get().revision == 1

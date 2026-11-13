@@ -251,6 +251,8 @@ A frozen recovery view needs a readable snapshot of the submitted draft. Synchro
 
 Test names, roles, equipment and counts immediately after a lost response and again after reload. A newer saved state must not replace that submitted snapshot.
 
+After receipt and key checks, compare a valid submitted revision with the locked revision before returning mutable roster errors. Keep errors for filtered-out models visible in a labelled summary so the reader can resolve them.
+
 The server's retry contract depends on the action:
 
 | Action | Contract |

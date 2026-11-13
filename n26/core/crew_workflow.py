@@ -136,6 +136,16 @@ def perform(*, battle, gang, actor, data, require_key=False):
                 "This save reference belongs to a different change. Retry the original save before continuing.",
             )
             return submitted
+        if "revision" in form.cleaned_data and form.cleaned_data["revision"] != (
+            crew.revision if crew else 0
+        ):
+            submitted.status = 409
+            submitted.conflict = True
+            form.add_error(
+                None,
+                "This crew changed while you were editing it. Reload the saved crew before saving again.",
+            )
+            return submitted
         if form.errors:
             return submitted
         action = data.get("action", "save")
