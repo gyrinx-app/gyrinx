@@ -242,6 +242,47 @@ def test_two_concurrent_starts_use_one_supervisor(preview):
     assert dev_server.supervisor_alive(wait_for(lambda: dev_server.read_state(root)))
 
 
+def test_stop_refuses_startup_before_its_record_is_published(preview):
+    root, _, _ = preview
+    launch_code = """
+from pathlib import Path
+from scripts import dev_server
+import sys
+import time
+
+root = Path(sys.argv[1])
+original_write = dev_server.write_state
+def publish(root, state):
+    (root / 'logs/registration-paused').touch()
+    while not (root / 'logs/registration-release').exists():
+        time.sleep(0.05)
+    original_write(root, state)
+dev_server.write_state = publish
+sys.exit(dev_server.start(root, [], False))
+"""
+    with (root / "logs/registration.log").open("w") as output:
+        supervisor = subprocess.Popen(
+            [sys.executable, "-c", launch_code, str(root)],
+            stdout=output,
+            stderr=subprocess.STDOUT,
+        )
+        try:
+            wait_for(lambda: (root / "logs/registration-paused").exists())
+            assert dev_server.read_state(root) is None
+            assert dev_server.stop(root) == 1
+            assert supervisor.poll() is None
+            (root / "logs/registration-release").touch()
+            pids = descendant_pids(root)
+            assert dev_server.stop(root) == 0
+            assert supervisor.wait(timeout=12) == 0
+            wait_for(lambda: all(process_start(pid) is None for pid in pids))
+        finally:
+            (root / "logs/registration-release").touch()
+            if supervisor.poll() is None:
+                supervisor.terminate()
+                supervisor.wait(timeout=12)
+
+
 def test_stop_never_signals_a_pid_reused_since_the_record_was_written(preview):
     root, owner_process, owner = preview
     dev_server.write_state(

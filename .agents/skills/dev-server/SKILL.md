@@ -57,6 +57,10 @@ process birth times before signalling, so PID reuse does not target an unrelated
 process. Unmanaged servers started directly with `manage runserver` are outside
 these lifecycle commands.
 
+`--stop` fails if startup still holds the lock before publishing its record.
+Wait for registration and retry; worktree database cleanup must not continue
+until stop succeeds.
+
 Surviving member identities allow cleanup after both the supervisor and group
 leader exit. If a surviving group cannot be verified, stop and prune fail and
 retain its record. Inspect that group before taking further action.

@@ -126,39 +126,61 @@ def open_lock(root):
 def stop(root):
     state = read_state(root)
     if not supervisor_alive(state):
-        group = group_state(state)
-        if group == "unverified":
-            print(
-                f"Cannot verify surviving dev-server group in {root}; recovery record retained."
-            )
+        lock = open_lock(root)
+        if lock is None:
+            print("Dev-server startup or shutdown is in progress. Retry --stop.")
             return 1
-        if group == "verified":
-            stop_group(state["group_pid"])
-            if not group_gone(state["group_pid"]):
+        with lock:
+            # The launcher holds this lock before it publishes its PID record.
+            if read_state(root) != state:
+                print("Dev-server state changed while stopping. Retry --stop.")
+                return 1
+            group = group_state(state)
+            if group == "unverified":
                 print(
-                    f"Dev-server processes remain in {root}; recovery record retained."
+                    f"Cannot verify surviving dev-server group in {root}; recovery record retained."
                 )
                 return 1
-            print(f"Stopped orphaned dev-server process group in {root}.")
+            if group == "verified":
+                stop_group(state["group_pid"])
+                if not group_gone(state["group_pid"]):
+                    print(
+                        f"Dev-server processes remain in {root}; recovery record retained."
+                    )
+                    return 1
+                print(f"Stopped orphaned dev-server process group in {root}.")
+                return 0
+            print(f"No managed dev server is running in {root}.")
             return 0
-        print(f"No managed dev server is running in {root}.")
-        return 0
     # Check both PID and birth time before signalling; a stale record must
     # never stop an unrelated process which has reused the same PID.
     try:
         os.kill(state["pid"], signal.SIGTERM)
     except ProcessLookupError:
-        return 0
+        print("Dev-server state changed while stopping. Retry --stop.")
+        return 1
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline:
         if not supervisor_alive(state):
-            if group_processes(state.get("group_pid")):
-                print(
-                    f"Dev-server processes remain in {root}; recovery record retained."
-                )
+            lock = open_lock(root)
+            if lock is None:
+                print("Dev-server startup or shutdown is in progress. Retry --stop.")
                 return 1
-            print(f"Stopped dev server in {root}.")
-            return 0
+            with lock:
+                current = read_state(root)
+                if not current or (current.get("pid"), current.get("started")) != (
+                    state.get("pid"),
+                    state.get("started"),
+                ):
+                    print("Dev-server state changed while stopping. Retry --stop.")
+                    return 1
+                if group_processes(state.get("group_pid")):
+                    print(
+                        f"Dev-server processes remain in {root}; recovery record retained."
+                    )
+                    return 1
+                print(f"Stopped dev server in {root}.")
+                return 0
         time.sleep(0.1)
     print(f"Dev server did not stop; inspect {root / 'logs/dev-supervisor.log'}.")
     return 1
