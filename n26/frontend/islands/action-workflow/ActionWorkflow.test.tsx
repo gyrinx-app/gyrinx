@@ -630,16 +630,14 @@ const randomSkillProps: ActionWorkflowProps = {
 };
 
 test("a successful random power draw accepts empty faces before its named result", async () => {
-    const fetch = vi
-        .fn()
-        .mockResolvedValue(
-            json({
-                saved: true,
-                replayed: false,
-                facts: gapFacts,
-                nextUrl: "/flow/skill/",
-            }),
-        );
+    const fetch = vi.fn().mockResolvedValue(
+        json({
+            saved: true,
+            replayed: false,
+            facts: gapFacts,
+            nextUrl: "/flow/skill/",
+        }),
+    );
     vi.stubGlobal("fetch", fetch);
     const navigate = vi.fn();
     render(<ActionWorkflow {...randomSkillProps} onNavigate={navigate} />);
@@ -656,16 +654,14 @@ test("an uncertain random power draw recalls gap attempts without remaining froz
     });
     retained.delete("rolled");
     sessionStorage.setItem(props.recoveryKey, retained.toString());
-    const fetch = vi
-        .fn()
-        .mockResolvedValue(
-            json({
-                saved: true,
-                replayed: true,
-                facts: gapFacts,
-                nextUrl: "/flow/skill/",
-            }),
-        );
+    const fetch = vi.fn().mockResolvedValue(
+        json({
+            saved: true,
+            replayed: true,
+            facts: gapFacts,
+            nextUrl: "/flow/skill/",
+        }),
+    );
     vi.stubGlobal("fetch", fetch);
     const navigate = vi.fn();
     render(
@@ -699,16 +695,14 @@ test.each([17, false, { name: "QA First whisper" }, ["QA First whisper"]])(
     async (result_name) => {
         vi.stubGlobal(
             "fetch",
-            vi
-                .fn()
-                .mockResolvedValue(
-                    json({
-                        saved: true,
-                        replayed: true,
-                        facts: { ...gapFacts, attempts: [{ result_name }] },
-                        nextUrl: "/flow/skill/",
-                    }),
-                ),
+            vi.fn().mockResolvedValue(
+                json({
+                    saved: true,
+                    replayed: true,
+                    facts: { ...gapFacts, attempts: [{ result_name }] },
+                    nextUrl: "/flow/skill/",
+                }),
+            ),
         );
         const navigate = vi.fn();
         render(<ActionWorkflow {...randomSkillProps} onNavigate={navigate} />);

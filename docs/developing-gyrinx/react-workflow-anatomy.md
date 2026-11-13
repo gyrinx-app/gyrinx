@@ -350,3 +350,8 @@ including left-aligned Back, red ghost Cancel and Undo, and the small Change
 selection control. Check review captions, completed Choice and Result summaries,
 and empty error markup as well as the inputs: an empty child can change section
 spacing through collapsed margins.
+
+Validate acknowledgements against actual serialized command results. Optional
+result names can be null when a dice table has a gap; that is a valid recorded
+attempt. Test both ordinary success and retained replay with those values so a
+confirmed roll does not remain frozen behind a response-shape error.
