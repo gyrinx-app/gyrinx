@@ -348,6 +348,52 @@ export function Input({
     );
 }
 
+/** A controlled native date field with an explicit, keyboard-accessible clear action. */
+export function DateInput({
+    value,
+    onValueChange,
+    clearLabel = "Clear date",
+    disabled = false,
+    readOnly = false,
+    ...props
+}: Omit<
+    ComponentProps<typeof Input>,
+    "type" | "value" | "defaultValue" | "onChange" | "rightAddon" | "ref"
+> & {
+    value: string;
+    onValueChange: (value: string) => void;
+    clearLabel?: string;
+}) {
+    const input = useRef<HTMLInputElement>(null);
+    return (
+        <div className="flex items-center gap-1">
+            <div className="min-w-0 flex-1">
+                <Input
+                    {...props}
+                    ref={input}
+                    type="date"
+                    value={value}
+                    disabled={disabled}
+                    readOnly={readOnly}
+                    onChange={(event) => onValueChange(event.target.value)}
+                />
+            </div>
+            <Button
+                variant="ghost"
+                size="xs"
+                aria-label={clearLabel}
+                disabled={disabled || readOnly || !value}
+                onClick={() => {
+                    onValueChange("");
+                    input.current?.focus();
+                }}
+            >
+                Clear
+            </Button>
+        </div>
+    );
+}
+
 export function Textarea({
     id,
     className = "",

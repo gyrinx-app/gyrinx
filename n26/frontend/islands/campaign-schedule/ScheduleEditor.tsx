@@ -11,12 +11,15 @@ import {
     Breadcrumbs,
     Button,
     Dialog,
+    DateInput,
     Field,
+    FieldDescription,
     FieldErrors,
     FormActions,
     FlowProgress,
     Input,
     NativeSelect,
+    Table,
     Textarea,
     Toggle,
     WorkflowPage,
@@ -76,7 +79,7 @@ function EditorFrame({
 }) {
     const heading = useRef<HTMLHeadingElement>(null);
     useEffect(() => {
-        if (page) heading.current?.focus();
+        if (page) heading.current?.focus({ preventScroll: true });
     }, [page]);
     if (!page)
         return (
@@ -223,7 +226,9 @@ export function ScheduleEditor({
             editor.kind === "setup" &&
             previousSetupStage.current !== setupStage
         ) {
-            document.getElementById("cycle-setup-step")?.focus();
+            document
+                .getElementById("cycle-setup-step")
+                ?.focus({ preventScroll: true });
         }
         previousSetupStage.current = setupStage;
     }, [editor.kind, setupStage]);
@@ -273,6 +278,7 @@ export function ScheduleEditor({
             min?: string;
             max?: string;
             help?: string;
+            describedBy?: string;
         } = {},
     ) => (
         <Field
@@ -281,15 +287,28 @@ export function ScheduleEditor({
             errors={errors[name]}
             description={options.help}
         >
-            <Input
-                name={name}
-                value={values[name] ?? ""}
-                type={options.type ?? "text"}
-                required={options.required}
-                min={options.min}
-                max={options.max}
-                onChange={(event) => change(name, event.target.value)}
-            />
+            {options.type === "date" ? (
+                <DateInput
+                    name={name}
+                    value={values[name] ?? ""}
+                    required={options.required}
+                    min={options.min}
+                    max={options.max}
+                    clearLabel={`Clear ${label.toLowerCase()}`}
+                    aria-describedby={options.describedBy}
+                    onValueChange={(value) => change(name, value)}
+                />
+            ) : (
+                <Input
+                    name={name}
+                    value={values[name] ?? ""}
+                    type={options.type ?? "text"}
+                    required={options.required}
+                    min={options.min}
+                    max={options.max}
+                    onChange={(event) => change(name, event.target.value)}
+                />
+            )}
         </Field>
     );
     const mode = (
@@ -337,7 +356,7 @@ export function ScheduleEditor({
                     <option value="planned">Plan cycle dates</option>
                 </NativeSelect>
             </Field>
-            <p className="text-sm text-muted">
+            <p className="text-base">
                 You advance each cycle when the campaign is ready. Dates are for
                 planning.
             </p>
@@ -706,7 +725,11 @@ export function ScheduleEditor({
                             <h2
                                 id="cycle-setup-step"
                                 tabIndex={-1}
-                                className="text-sm font-medium"
+                                className={
+                                    setupStage === 3
+                                        ? "sr-only"
+                                        : "text-sm font-medium"
+                                }
                             >
                                 {setupStage === 1
                                     ? "Choose a starting schedule"
@@ -794,66 +817,111 @@ export function ScheduleEditor({
                             )}
                             {setupStage === 3 && (
                                 <>
-                                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
-                                        <dt>Campaign length</dt>
-                                        <dd>
-                                            {values.mode === "repeating"
-                                                ? "Repeating"
-                                                : "Fixed"}
-                                        </dd>
-                                        <dt>Cycle dates</dt>
-                                        <dd>
-                                            {plannedDates
-                                                ? "Planned dates"
-                                                : "No planned dates"}
-                                        </dd>
-                                        {plannedDates && (
-                                            <>
-                                                <dt>Cycle 1 starts</dt>
-                                                <dd>
-                                                    <time
-                                                        dateTime={
-                                                            values.date_start
-                                                        }
-                                                    >
-                                                        {values.date_start
-                                                            ? new Date(
-                                                                  `${values.date_start}T00:00:00Z`,
-                                                              ).toLocaleDateString(
-                                                                  "en-GB",
-                                                                  {
-                                                                      day: "numeric",
-                                                                      month: "short",
-                                                                      year: "numeric",
-                                                                      timeZone:
-                                                                          "UTC",
-                                                                  },
-                                                              )
-                                                            : "Not set"}
-                                                    </time>
-                                                </dd>
-                                                <dt>Cycle length</dt>
-                                                <dd>
-                                                    {values.cycle_interval}{" "}
-                                                    {Number(
-                                                        values.cycle_interval,
-                                                    ) === 1
-                                                        ? values.cycle_unit.slice(
-                                                              0,
-                                                              -1,
-                                                          )
-                                                        : values.cycle_unit}
-                                                </dd>
-                                            </>
-                                        )}
-                                        <dt>Current cycle</dt>
-                                        <dd>
-                                            {noCurrent
-                                                ? "None"
-                                                : `Cycle ${currentNumber}`}
-                                        </dd>
-                                    </dl>
-                                    <p className="text-sm">
+                                    <Table
+                                        hover={false}
+                                        className="border border-box-border [&_tbody_th]:font-semibold [&_tbody_th]:text-ink-900 dark:[&_tbody_th]:text-ink-100 [&_tbody_th]:whitespace-normal"
+                                    >
+                                        <caption className="pb-2 text-left font-semibold">
+                                            Schedule settings
+                                        </caption>
+                                        <tbody>
+                                            <tr>
+                                                <th
+                                                    scope="row"
+                                                    className="w-1/2"
+                                                >
+                                                    Campaign length
+                                                </th>
+                                                <td className="text-right">
+                                                    {values.mode === "repeating"
+                                                        ? "Repeating"
+                                                        : "Fixed"}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th
+                                                    scope="row"
+                                                    className="w-1/2"
+                                                >
+                                                    Cycle dates
+                                                </th>
+                                                <td className="text-right">
+                                                    {plannedDates
+                                                        ? "Planned dates"
+                                                        : "No planned dates"}
+                                                </td>
+                                            </tr>
+                                            {plannedDates && (
+                                                <>
+                                                    <tr>
+                                                        <th
+                                                            scope="row"
+                                                            className="w-1/2"
+                                                        >
+                                                            Cycle 1 starts
+                                                        </th>
+                                                        <td className="text-right">
+                                                            <time
+                                                                dateTime={
+                                                                    values.date_start
+                                                                }
+                                                            >
+                                                                {values.date_start
+                                                                    ? new Date(
+                                                                          `${values.date_start}T00:00:00Z`,
+                                                                      ).toLocaleDateString(
+                                                                          "en-GB",
+                                                                          {
+                                                                              day: "numeric",
+                                                                              month: "short",
+                                                                              year: "numeric",
+                                                                              timeZone:
+                                                                                  "UTC",
+                                                                          },
+                                                                      )
+                                                                    : "Not set"}
+                                                            </time>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <th
+                                                            scope="row"
+                                                            className="w-1/2"
+                                                        >
+                                                            Cycle length
+                                                        </th>
+                                                        <td className="text-right">
+                                                            {
+                                                                values.cycle_interval
+                                                            }{" "}
+                                                            {Number(
+                                                                values.cycle_interval,
+                                                            ) === 1
+                                                                ? values.cycle_unit.slice(
+                                                                      0,
+                                                                      -1,
+                                                                  )
+                                                                : values.cycle_unit}
+                                                        </td>
+                                                    </tr>
+                                                </>
+                                            )}
+                                            <tr>
+                                                <th
+                                                    scope="row"
+                                                    className="w-1/2"
+                                                >
+                                                    Current cycle
+                                                </th>
+                                                <td className="text-right">
+                                                    {noCurrent
+                                                        ? "None"
+                                                        : `Cycle ${currentNumber}`}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </Table>
+                                    <p className="text-base">
                                         {noCurrent
                                             ? "No cycle will be started. Cycles remain previews until you edit, use or start them."
                                             : `Cycles 1 through ${currentNumber} will be saved${plannedDates ? " with dates" : ""}. Later cycles remain previews until recorded.`}{" "}
@@ -911,15 +979,20 @@ export function ScheduleEditor({
                                     })}
                                 </>
                             )}
-                            <div className="grid gap-3 sm:grid-cols-2">
-                                {text("starts_on", "Start date", {
-                                    type: "date",
-                                    help: "Optional. Enter both dates or leave both blank.",
-                                })}
-                                {text("ends_on", "End date", {
-                                    type: "date",
-                                    help: "Optional. Enter both dates or leave both blank.",
-                                })}
+                            <div className="space-y-1">
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                    {text("starts_on", "Start date", {
+                                        type: "date",
+                                        describedBy: "cycle-dates-help",
+                                    })}
+                                    {text("ends_on", "End date", {
+                                        type: "date",
+                                        describedBy: "cycle-dates-help",
+                                    })}
+                                </div>
+                                <FieldDescription id="cycle-dates-help">
+                                    Enter both dates or leave both blank.
+                                </FieldDescription>
                             </div>
                         </>
                     )}

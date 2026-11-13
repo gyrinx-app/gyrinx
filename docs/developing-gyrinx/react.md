@@ -17,6 +17,15 @@ command endpoints. Continue with Hire and Equip using the delivery sequence abov
 islands for interactions that already have an independent owner. Build each
 workflow's endpoints with its React consumer; do not start a separate API rewrite.
 
+## Page navigation and scrolling
+
+A client-rendered page or workflow step starts at the top after its destination
+has rendered. Preserve scroll position for inline dialogs, filters, previews and
+read refreshes. Keep the current viewport during a pending or failed page read.
+Back and Forward use the browser's scroll restoration; focus new headings with
+`preventScroll` so focus does not override it. Do not reset scroll on every
+render or intercept unrelated history changes globally.
+
 ## Workflow migration plan
 
 The goals are incremental delivery, a repeatable implementation, preserved

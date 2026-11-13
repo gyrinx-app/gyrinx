@@ -46,9 +46,15 @@ function scheduleData(value: unknown): value is ScheduleProps {
     );
 }
 
+function pageEditor(data: ScheduleProps) {
+    return data.editor?.kind === "setup" || data.editor?.kind === "plan";
+}
+
 export function useScheduleNavigation(initial: ScheduleProps) {
     const [data, setData] = useState(initial);
     const [pending, setPending] = useState(false);
+    const [pageNavigation, setPageNavigation] = useState(0);
+    const page = useRef(pageEditor(initial));
     const [busyControl, setBusyControl] = useState<string | null>(null);
     const interaction = useRef<string | null>(null);
     const [error, setError] = useState("");
@@ -118,6 +124,8 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 interaction.current = null;
                 setError("");
                 remember();
+                if (history === "push")
+                    setPageNavigation((navigation) => navigation + 1);
                 const step = Number(url.searchParams.get("step") ?? "1");
                 setData((data) =>
                     data.editor?.kind === "setup"
@@ -168,8 +176,16 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 )
                     throw new Error();
                 if (controller.current !== request) return;
+                const movesPage =
+                    history === "push" &&
+                    url.href !== previous.href &&
+                    (pageEditor(result.schedule) ||
+                        (page.current && result.schedule.editor === null));
                 remember();
+                page.current = pageEditor(result.schedule);
                 setData(result.schedule);
+                if (movesPage)
+                    setPageNavigation((navigation) => navigation + 1);
                 setNotices(
                     readNotices("notices" in result ? result.notices : []),
                 );
@@ -187,6 +203,15 @@ export function useScheduleNavigation(initial: ScheduleProps) {
         },
         [inSchedule, initial.onNavigate],
     );
+
+    useEffect(() => {
+        if (!pageNavigation) return;
+        // Wait for the destination and its focus effects before moving the viewport.
+        const frame = window.requestAnimationFrame(() =>
+            window.scrollTo({ left: 0, top: 0, behavior: "instant" }),
+        );
+        return () => window.cancelAnimationFrame(frame);
+    }, [pageNavigation]);
 
     useEffect(() => {
         window.history.replaceState(
