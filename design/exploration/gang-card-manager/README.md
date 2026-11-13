@@ -27,6 +27,11 @@ current build without the sandbox's Django asset-version workaround.
 - Open Card Manager to edit a draft. Select cards with All/None or checkboxes,
   move them with arrows, or drag one or several selected cards by a handle.
   Adjacent selected cards retain their order. Pets always follow their owner.
+- Use the eye button beside each drag handle to hide or show a card or group.
+  Hidden entries remain in Card Manager with a crossed-out name and a Hidden
+  label. Hiding a model also hides its pets. A hidden group retains each card
+  visibility choice; show the group before changing its cards. Changes apply
+  to the roster on Save and persist in this browser.
 - Hold over a card for 650 ms to group cards. Drag a group to move it or merge
   it with another card or group. Drag a child out to remove it from its group.
   Use the name to rename a group, its colour dot to choose from the N26 palette,

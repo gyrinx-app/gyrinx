@@ -106,6 +106,25 @@ export const flatten = (nodes) =>
     nodes.flatMap((n) => (n.children ? n.children : [n]));
 export const find = (nodes, id) =>
     nodes.find((n) => n.id === id) || flatten(nodes).find((n) => n.id === id);
+export function isHidden(nodes, id) {
+    const parent = nodes.find((n) =>
+        n.children?.some((child) => child.id === id),
+    );
+    return Boolean(parent?.hidden || find(nodes, id)?.hidden);
+}
+export function setHidden(nodes, id, hidden) {
+    return nodes.map((node) => ({
+        ...node,
+        ...(node.id === id ? { hidden } : {}),
+        ...(node.children
+            ? {
+                  children: node.children.map((child) =>
+                      child.id === id ? { ...child, hidden } : child,
+                  ),
+              }
+            : {}),
+    }));
+}
 export function effectivePin(nodes, id) {
     const parent = nodes.find((n) => n.children?.some((c) => c.id === id));
     return parent?.pin || find(nodes, id)?.pin || null;
@@ -461,7 +480,8 @@ export function validLayout(value, colours) {
             Array.isArray(node) ||
             typeof node.id !== "string" ||
             seen.has(node.id) ||
-            !validPin(node.pin)
+            !validPin(node.pin) ||
+            (Object.hasOwn(node, "hidden") && typeof node.hidden !== "boolean")
         )
             return false;
         seen.add(node.id);

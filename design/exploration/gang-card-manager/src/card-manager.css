@@ -1553,10 +1553,6 @@
     font-size: 12px;
     line-height: 20px;
 }
-.cm-group-header svg {
-    width: 12px;
-    height: 12px;
-}
 
 /* Standard N26 cards and segmented tabs. */
 .gang-standard .gang-card-controls {
@@ -1718,4 +1714,46 @@
 .cm-group-editor-fields legend {
     padding: 0;
     margin-bottom: 8px;
+}
+
+/* Visibility changes keep cards mounted while removing them from the roster flow. */
+.gang-roster [hidden] {
+    display: none !important;
+}
+.cm-dialog {
+    --cm-name-size: 14px;
+}
+.cm-model-name,
+.gang-page .cm-group-name {
+    font-size: var(--cm-name-size);
+    font-weight: 400;
+}
+.cm-group-header .cm-count,
+.cm-group-header .cm-pin-label {
+    font-size: 12px;
+}
+.cm-visibility {
+    flex-shrink: 0;
+    min-width: 26px;
+    min-height: 29px;
+    padding: 3px;
+    color: var(--cm-subtle);
+}
+.cm-hidden .cm-name-text,
+.cm-hidden .cm-group-name {
+    text-decoration: line-through;
+    color: var(--cm-subtle);
+}
+.cm-visibility-note {
+    color: var(--cm-subtle);
+    font-size: 10px;
+    white-space: nowrap;
+}
+@media (max-width: 440px) {
+    .cm-dialog {
+        --cm-name-size: 13px;
+    }
+    .cm-hidden .cm-name-line {
+        flex-wrap: wrap;
+    }
 }

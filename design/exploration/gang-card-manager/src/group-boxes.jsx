@@ -10,16 +10,18 @@ export function GroupBoxes({ saved, grid, onEditGroup }) {
         let active = true;
         const measure = () => {
             if (!active) return;
-            const cells = [...element.children].map((cell) => ({
-                id: (
-                    cell.dataset.flip ||
-                    cell.querySelector("[data-flip]")?.dataset.flip
-                )?.slice(5),
-                left: cell.offsetLeft,
-                right: cell.offsetLeft + cell.offsetWidth,
-                top: cell.offsetTop,
-                bottom: cell.offsetTop + cell.offsetHeight,
-            }));
+            const cells = [...element.children]
+                .filter((cell) => cell.getClientRects().length)
+                .map((cell) => ({
+                    id: (
+                        cell.dataset.flip ||
+                        cell.querySelector("[data-flip]")?.dataset.flip
+                    )?.slice(5),
+                    left: cell.offsetLeft,
+                    right: cell.offsetLeft + cell.offsetWidth,
+                    top: cell.offsetTop,
+                    bottom: cell.offsetTop + cell.offsetHeight,
+                }));
             const rowTops = [...new Set(cells.map((cell) => cell.top))].sort(
                 (a, b) => a - b,
             );
@@ -37,7 +39,9 @@ export function GroupBoxes({ saved, grid, onEditGroup }) {
                   }
                 : {};
             const next = saved
-                .filter((group) => group.children && group.showBox)
+                .filter(
+                    (group) => group.children && group.showBox && !group.hidden,
+                )
                 .flatMap((group) => {
                     const ids = new Set(
                         group.children.map((child) => child.id),

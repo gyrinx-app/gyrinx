@@ -136,7 +136,7 @@ function ModelDetails({ model, pet }) {
         </dl>
     );
 }
-function ModelCard({ node, pet, owner, index }) {
+function ModelCard({ node, pet, owner, index, hidden }) {
     const [tab, setTab] = useState(0),
         id = useId();
     const model = pet
@@ -151,6 +151,7 @@ function ModelCard({ node, pet, owner, index }) {
     const tabs = ["Card", "Lore", "Notes"];
     return (
         <article
+            hidden={hidden}
             id={`model-${model.id}`}
             data-flip={`card-${model.id}`}
             className={`${cotton.card} gang-card gang-standard ${model.status ? "gang-inactive" : ""}`}
@@ -304,10 +305,11 @@ function ModelCard({ node, pet, owner, index }) {
         </article>
     );
 }
-function Panel({ node }) {
+function Panel({ node, hidden }) {
     const model = M.models[node.id];
     return (
         <article
+            hidden={hidden}
             data-flip={`card-${node.id}`}
             className={`${cotton.card} gang-card gang-special gang-${model.icon}`}
         >
@@ -412,35 +414,49 @@ function GangGrid({ saved, page, onEditGroup }) {
                 group.children.map((child) => [child.id, group.id]),
             ),
     );
-    const boxed = saved.some((group) => group.children && group.showBox);
+    const boxed = saved.some(
+        (group) =>
+            group.children &&
+            group.showBox &&
+            !group.hidden &&
+            group.children.some((child) => !child.hidden),
+    );
     const cards = M.flatten(saved),
         rendered = [];
     for (let i = 0; i < cards.length; i++) {
         const n = cards[i],
             model = M.models[n.id],
-            next = cards[i + 1];
+            next = cards[i + 1],
+            hidden = M.isHidden(saved, n.id);
         if (
             ["stash", "actions"].includes(n.id) &&
             next &&
             ["stash", "actions"].includes(next.id) &&
             next.id !== n.id &&
-            groups.get(n.id) === groups.get(next.id)
+            groups.get(n.id) === groups.get(next.id) &&
+            hidden === M.isHidden(saved, next.id)
         ) {
             rendered.push(
-                <div className="gang-panel-stack" key={`${n.id}-${next.id}`}>
-                    <Panel node={n} />
-                    <Panel node={next} />
+                <div
+                    className="gang-panel-stack"
+                    key={`${n.id}-${next.id}`}
+                    hidden={hidden}
+                >
+                    <Panel node={n} hidden={hidden} />
+                    <Panel node={next} hidden={hidden} />
                 </div>,
             );
             i++;
-        } else if (model.special) rendered.push(<Panel key={n.id} node={n} />);
+        } else if (model.special)
+            rendered.push(<Panel key={n.id} node={n} hidden={hidden} />);
         else {
-            rendered.push(<ModelCard key={n.id} node={n} />);
+            rendered.push(<ModelCard key={n.id} node={n} hidden={hidden} />);
             (model.pets || []).forEach((pet, index) =>
                 rendered.push(
                     <ModelCard
                         key={`${n.id}-pet-${index}`}
                         node={n}
+                        hidden={hidden}
                         pet={pet}
                         owner={model.name}
                         index={index}

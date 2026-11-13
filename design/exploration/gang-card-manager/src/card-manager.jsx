@@ -13,6 +13,8 @@ import {
     Group,
     Unlink,
     SquareDashed,
+    Eye,
+    EyeClosed,
     RotateCcw,
     Skull,
     Wrench,
@@ -50,17 +52,19 @@ function useReorderAnimation(ref, dependency) {
         if (!host) return new Map();
         const origin = host.getBoundingClientRect();
         return new Map(
-            [...host.querySelectorAll("[data-flip]")].map((el) => {
-                const rect = el.getBoundingClientRect();
-                return [
-                    el.dataset.flip,
-                    {
-                        el,
-                        x: rect.left - origin.left + host.scrollLeft,
-                        y: rect.top - origin.top + host.scrollTop,
-                    },
-                ];
-            }),
+            [...host.querySelectorAll("[data-flip]")]
+                .filter((el) => el.getClientRects().length)
+                .map((el) => {
+                    const rect = el.getBoundingClientRect();
+                    return [
+                        el.dataset.flip,
+                        {
+                            el,
+                            x: rect.left - origin.left + host.scrollLeft,
+                            y: rect.top - origin.top + host.scrollTop,
+                        },
+                    ];
+                }),
         );
     }
     function capture() {
@@ -522,6 +526,33 @@ function CardManager({ saved, onSave, onClose }) {
             />
         );
     }
+    function visibility(n, parent) {
+        const hidden = M.isHidden(draft, n.id);
+        const inherited = Boolean(parent?.hidden);
+        const name = n.name || M.models[n.id].name;
+        return (
+            <IconButton
+                className="cm-visibility"
+                icon={hidden ? EyeClosed : Eye}
+                label={`${hidden ? "Show" : "Hide"} ${n.children ? "group" : "card"} ${name}`}
+                title={
+                    inherited
+                        ? "Show the group to change this card's visibility."
+                        : `${hidden ? "Show" : "Hide"} ${name}`
+                }
+                aria-pressed={!hidden}
+                disabled={inherited}
+                onClick={() =>
+                    update(
+                        M.setHidden(draft, n.id, !hidden),
+                        hidden
+                            ? "Shown on the roster."
+                            : "Hidden from the roster.",
+                    )
+                }
+            />
+        );
+    }
     function handle(n) {
         return (
             <button
@@ -534,7 +565,7 @@ function CardManager({ saved, onSave, onClose }) {
                 onPointerUp={endDrag}
                 onPointerCancel={clearDrag}
             >
-                <Icon icon={GripVertical} size={n.children ? 12 : 17} />
+                <Icon icon={GripVertical} size={17} />
             </button>
         );
     }
@@ -563,7 +594,7 @@ function CardManager({ saved, onSave, onClose }) {
             >
                 <div
                     data-drop={n.id}
-                    className={`cm-row ${model.status ? "cm-inactive" : ""} ${isChecked(n) ? "cm-selected" : ""} ${drag?.ids.includes(n.id) ? "cm-dragging" : ""} ${kind ? "cm-pending-row" : ""}`}
+                    className={`cm-row ${M.isHidden(draft, n.id) ? "cm-hidden" : ""} ${model.status ? "cm-inactive" : ""} ${isChecked(n) ? "cm-selected" : ""} ${drag?.ids.includes(n.id) ? "cm-dragging" : ""} ${kind ? "cm-pending-row" : ""}`}
                 >
                     {checkbox(n, parent)}
                     <div className="cm-name-block">
@@ -603,6 +634,13 @@ function CardManager({ saved, onSave, onClose }) {
                                     {model.name}
                                 </span>
                             </span>
+                            {M.isHidden(draft, n.id) && (
+                                <span className="cm-visibility-note">
+                                    {parent?.hidden
+                                        ? "Hidden with group"
+                                        : "Hidden"}
+                                </span>
+                            )}
                             {model.status && (
                                 <span className="cm-status">
                                     <Icon
@@ -657,6 +695,7 @@ function CardManager({ saved, onSave, onClose }) {
                             onClick={() => undoPending(n.id)}
                         />
                     )}
+                    {visibility(n, parent)}
                     {handle(n)}
                 </div>
             </div>
@@ -669,7 +708,7 @@ function CardManager({ saved, onSave, onClose }) {
                 data-flip={`header-${n.id}`}
                 role="listitem"
                 data-group-id={n.id}
-                className={`cm-group-header cm-group-start ${isChecked(n) ? "cm-selected" : ""} ${drag?.ids.includes(n.id) ? "cm-dragging" : ""} ${dropClass(n.id)}`}
+                className={`cm-group-header cm-group-start ${n.hidden ? "cm-hidden" : ""} ${isChecked(n) ? "cm-selected" : ""} ${drag?.ids.includes(n.id) ? "cm-dragging" : ""} ${dropClass(n.id)}`}
                 data-drop={n.id}
                 style={{ "--group-colour": M.groupColour(n.colour) }}
             >
@@ -684,6 +723,7 @@ function CardManager({ saved, onSave, onClose }) {
                     {n.name}
                 </Button>
                 <span className="cm-count">{n.children.length}</span>
+                {n.hidden && <span className="cm-visibility-note">Hidden</span>}
                 <button
                     type="button"
                     className="cm-colour-dot"
@@ -705,7 +745,7 @@ function CardManager({ saved, onSave, onClose }) {
                     icon={SquareDashed}
                     label="Show group box"
                     aria-pressed={Boolean(n.showBox)}
-                    iconSize={12}
+                    iconSize={16}
                     className="cm-header-box"
                     onClick={() =>
                         update(
@@ -723,7 +763,7 @@ function CardManager({ saved, onSave, onClose }) {
                 <IconButton
                     icon={Unlink}
                     label={`Ungroup ${n.name}`}
-                    iconSize={12}
+                    iconSize={16}
                     className="cm-header-ungroup"
                     onClick={() => ungroup(M.groupActionIds(draft, ids, n.id))}
                 />
@@ -734,6 +774,7 @@ function CardManager({ saved, onSave, onClose }) {
                         {n.pin === "top" ? "Top" : "Bottom"}
                     </span>
                 )}
+                {visibility(n)}
                 {handle(n)}
             </div>
         );
