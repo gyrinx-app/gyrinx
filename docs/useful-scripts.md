@@ -40,6 +40,10 @@ owner PID, process start time, available session identifier and port. `--stop`
 checks process identity before signalling. `--prune` checks registered worktrees
 for abandoned servers and stale records. Both commands need permission to inspect
 local processes. `.codex/cleanup.sh` stops the server before dropping databases.
+Surviving group-member identities allow recovery if both the supervisor and
+group leader exit. Unverified surviving groups retain their records and make
+cleanup fail. Without a compatible venv, lifecycle commands use the pinned
+Python through `uv run --no-project` without syncing project dependencies.
 
 ### `scripts/setup-local-postgres.sh`
 

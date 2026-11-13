@@ -35,8 +35,19 @@ if [ "${1:-}" = "--managed-child" ]; then
 elif [[ " $* " != *" --setup-only "* ]] \
   || [[ " $* " == *" --background "* || " $* " == *" --status "* \
     || " $* " == *" --stop "* || " $* " == *" --prune "* ]]; then
-  DEV_PYTHON=$(worktree_python)
-  exec "$DEV_PYTHON" "$SCRIPT_DIR/dev_server.py" "$@"
+  DEV_PYTHON=$(worktree_python 2>/dev/null) || DEV_PYTHON=""
+  if [ -n "$DEV_PYTHON" ] \
+    && "$DEV_PYTHON" -c 'import sys; sys.exit(sys.version_info < (3, 14))'; then
+    exec "$DEV_PYTHON" "$SCRIPT_DIR/dev_server.py" "$@"
+  fi
+  # Bootstrap just the pinned interpreter, without syncing Django dependencies.
+  if command -v uv >/dev/null 2>&1; then
+    exec uv run --no-project --python "$(cat "$SCRIPT_DIR/../.python-version")" \
+      "$SCRIPT_DIR/dev_server.py" "$@"
+  fi
+  echo "Python 3.14 or uv is required for dev-server lifecycle commands." >&2
+  echo "Install uv, then rerun ./scripts/dev.sh." >&2
+  exit 1
 fi
 
 # ---------------------------------------------------------------------------

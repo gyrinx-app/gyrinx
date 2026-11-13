@@ -22,6 +22,7 @@ from gyrinx.devserver.processes import (  # noqa: E402
     Owner,
     ProcessInspectionError,
     find_owner,
+    group_processes,
     process_start,
 )
 
@@ -36,7 +37,7 @@ def read_state(root):
         if isinstance(state, dict) and state.get("worktree") == str(root):
             return state
     except OSError, ValueError:
-        pass
+        return None
     return None
 
 
@@ -56,20 +57,44 @@ def supervisor_alive(state):
     )
 
 
-def group_alive(state):
-    return bool(
-        state
-        and state.get("group_started")
-        and process_start(state.get("group_pid")) == state["group_started"]
+def group_state(state):
+    if not state or not (members := group_processes(state.get("group_pid"))):
+        return "gone"
+    identities = [
+        {"pid": state.get("group_pid"), "started": state.get("group_started")},
+        *state.get("group_members", []),
+    ]
+    return (
+        "verified" if any(member in identities for member in members) else "unverified"
     )
+
+
+def group_alive(state):
+    return group_state(state) == "verified"
+
+
+def group_gone(pgid, timeout=2):
+    deadline = time.monotonic() + timeout
+    while group_processes(pgid):
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.1)
+    return True
 
 
 def status(root):
     state = read_state(root)
     running = supervisor_alive(state)
     print(f"Worktree: {root}")
+    group = "gone" if running else group_state(state)
     label = (
-        state["state"] if running else "orphaned" if group_alive(state) else "stopped"
+        state["state"]
+        if running
+        else {
+            "gone": "stopped",
+            "verified": "orphaned",
+            "unverified": "orphaned (unverified)",
+        }[group]
     )
     print(f"State: {label}")
     if state:
@@ -101,8 +126,19 @@ def open_lock(root):
 def stop(root):
     state = read_state(root)
     if not supervisor_alive(state):
-        if group_alive(state):
+        group = group_state(state)
+        if group == "unverified":
+            print(
+                f"Cannot verify surviving dev-server group in {root}; recovery record retained."
+            )
+            return 1
+        if group == "verified":
             stop_group(state["group_pid"])
+            if not group_gone(state["group_pid"]):
+                print(
+                    f"Dev-server processes remain in {root}; recovery record retained."
+                )
+                return 1
             print(f"Stopped orphaned dev-server process group in {root}.")
             return 0
         print(f"No managed dev server is running in {root}.")
@@ -116,6 +152,11 @@ def stop(root):
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline:
         if not supervisor_alive(state):
+            if group_processes(state.get("group_pid")):
+                print(
+                    f"Dev-server processes remain in {root}; recovery record retained."
+                )
+                return 1
             print(f"Stopped dev server in {root}.")
             return 0
         time.sleep(0.1)
@@ -141,6 +182,7 @@ def stop_group(pid, child=None):
     try:
         os.killpg(pid, signal.SIGKILL)
     except ProcessLookupError:
+        # The group exited between the last probe and KILL.
         pass
     if child:
         child.wait()
@@ -182,7 +224,11 @@ def supervise(root, args, lock):
             env={**os.environ, OWNER_ENV: owner.encode() if owner else ""},
             start_new_session=True,
         )
-        state.update(group_pid=child.pid, group_started=process_start(child.pid))
+        state.update(
+            group_pid=child.pid,
+            group_started=process_start(child.pid),
+            group_members=group_processes(child.pid),
+        )
         write_state(root, state)
         next_owner_check = 0
         while child.poll() is None:
@@ -199,6 +245,10 @@ def supervise(root, args, lock):
                             f"owning {owner.name} process exited or its PID was reused"
                         )
                         break
+                    members = group_processes(child.pid)
+                    if members != state["group_members"]:
+                        state["group_members"] = members
+                        write_state(root, state)
                 except ProcessInspectionError as exc:
                     print(str(exc), flush=True)
                 next_owner_check = time.monotonic() + 5
@@ -210,6 +260,7 @@ def supervise(root, args, lock):
                     state.update(state="running", port=port)
                     write_state(root, state)
                 except OSError, ValueError:
+                    # Retry while Django is still starting.
                     pass
             time.sleep(0.2)
         else:
@@ -218,16 +269,24 @@ def supervise(root, args, lock):
             )
         return_code = child.returncode or 0
     finally:
+        cleaned = True
         if child:
             stop_group(child.pid, child)
+            try:
+                cleaned = group_gone(child.pid)
+            except ProcessInspectionError as exc:
+                print(str(exc), flush=True)
+                cleaned = False
+        if not cleaned:
+            reason = "cleanup could not be verified; recovery record retained"
         print(f"Stopping dev server: {reason}.", flush=True)
-        state.update(state="stopped", reason=reason)
+        state.update(state="stopped" if cleaned else "orphaned", reason=reason)
         if state_path(root).parent.exists():
             write_state(root, state)
         lock.close()
         for signum, handler in previous_handlers.items():
             signal.signal(signum, handler)
-    return return_code
+    return return_code if cleaned else 1
 
 
 def start(root, args, background):
@@ -236,7 +295,7 @@ def start(root, args, background):
         print("This worktree already has a dev-server supervisor.")
         status(root)
         return 0
-    if group_alive(read_state(root)):
+    if group_state(read_state(root)) != "gone":
         lock.close()
         print(
             "An orphaned dev-server group is still running. Run ./scripts/dev.sh --stop first."
@@ -303,8 +362,9 @@ def prune(root):
             if owner and not owner.alive():
                 failures += stop(worktree)
         else:
-            if group_alive(state):
-                failures += stop(worktree)
+            if group_state(state) != "gone" and stop(worktree):
+                failures += 1
+                continue
             lock = open_lock(worktree)
             if lock:
                 try:

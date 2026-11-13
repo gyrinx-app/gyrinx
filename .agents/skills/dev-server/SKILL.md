@@ -42,7 +42,8 @@ inside a foreground tool session, and do not stop it just because your turn
 has finished. Returning hours later should work while the owning process lives.
 
 The supervisor records the worktree, owner PID and process start time, available
-session identifier, and selected port in `logs/dev-server.json`. An exclusive
+session identifier, selected port and process-group member identities in
+`logs/dev-server.json`. An exclusive
 worktree lock prevents concurrent starts from creating duplicate servers.
 Foreground `./scripts/dev.sh` uses the same supervisor and stops on Ctrl-C.
 `--setup-only` remains synchronous and leaves no server behind.
@@ -53,6 +54,13 @@ cleans verified orphan process groups, and removes stale records. It checks
 process birth times before signalling, so PID reuse does not target an unrelated
 process. Unmanaged servers started directly with `manage runserver` are outside
 these lifecycle commands.
+
+Surviving member identities allow cleanup after both the supervisor and group
+leader exit. If a surviving group cannot be verified, stop and prune fail and
+retain its record. Inspect that group before taking further action.
+
+Without a compatible worktree interpreter, lifecycle commands use the pinned
+Python through `uv run --no-project`, without syncing project dependencies.
 
 Process inspection and port binding may require the shell tool's normal
 approval flow outside a restricted sandbox. If process inspection is denied,

@@ -13,10 +13,10 @@ class ProcessInspectionError(RuntimeError):
     """Process identity could not be checked; do not assume the process died."""
 
 
-def ps(pid, columns):
+def _ps(args):
     try:
         result = subprocess.run(  # nosec B607 — fixed executable and argv
-            ["ps", "-o", columns, "-p", str(pid)],
+            ["ps", *args],
             capture_output=True,
             text=True,
             timeout=5,
@@ -31,6 +31,25 @@ def ps(pid, columns):
             "Cannot inspect local processes. Rerun with permission to inspect processes."
         )
     return result.stdout.strip()
+
+
+def ps(pid, columns):
+    return _ps(["-o", columns, "-p", str(pid)])
+
+
+def group_processes(pgid):
+    """Read live group members and birth times without inspecting their arguments."""
+    if type(pgid) is not int or pgid <= 1:
+        return []
+    result = []
+    for line in _ps(["-axo", "pid=,pgid=,lstart=,stat="]).splitlines():
+        fields = line.split(None, 2)
+        if len(fields) != 3 or fields[1] != str(pgid):
+            continue
+        started, state = fields[2].rsplit(None, 1)
+        if "Z" not in state:
+            result.append({"pid": int(fields[0]), "started": started})
+    return result
 
 
 def process_start(pid):
@@ -75,7 +94,7 @@ class Owner:
             ):
                 return owner
         except TypeError, ValueError:
-            pass
+            return None
         return None
 
 

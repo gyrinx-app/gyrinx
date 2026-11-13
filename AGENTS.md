@@ -67,6 +67,9 @@ artifacts when the IDE Canvas surface is unavailable.
   require rerunning them with the shell tool's normal approval flow. Do not
   replace ownership checks with broad `pkill` commands. `.codex/cleanup.sh`
   stops the managed server before removing this worktree's databases.
+  Unverified surviving groups retain their recovery records and make cleanup
+  fail. Without a compatible local interpreter, lifecycle commands use the
+  pinned Python through `uv` without syncing project dependencies.
 - Run Django commands with `manage`, never `python manage.py`.
 - For Codex shells, run direct Python and Django commands through
   `.codex/run.sh`, for example `.codex/run.sh manage check` or

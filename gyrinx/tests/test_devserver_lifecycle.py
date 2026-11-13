@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -28,6 +29,17 @@ def wait_for(predicate, timeout=15):
             return result
         time.sleep(0.05)
     raise AssertionError("Timed out waiting for dev-server lifecycle transition")
+
+
+def only_worktree(monkeypatch, root):
+    real_run = subprocess.run
+
+    def run(args, **kwargs):
+        if args == ["git", "worktree", "list", "--porcelain"]:
+            return subprocess.CompletedProcess(args, 0, f"worktree {root}\n")
+        return real_run(args, **kwargs)
+
+    monkeypatch.setattr(dev_server.subprocess, "run", run)
 
 
 def test_a_reused_pid_is_not_the_original_owner(monkeypatch):
@@ -141,12 +153,15 @@ def preview(tmp_path, monkeypatch):
 
 
 def launch_from_short_lived_process(root):
+    launch_code = (
+        "from pathlib import Path; from scripts.dev_server import start; "
+        "import sys; sys.exit(start(Path(sys.argv[1]), [], True))"
+    )
     result = subprocess.run(
         [
             sys.executable,
             "-c",
-            "from pathlib import Path; from scripts.dev_server import start; "
-            "import sys; sys.exit(start(Path(sys.argv[1]), [], True))",
+            launch_code,
             str(root),
         ],
         cwd=Path(__file__).resolve().parents[2],
@@ -247,6 +262,51 @@ def test_stop_recovers_a_process_group_after_its_supervisor_is_killed(preview):
     wait_for(lambda: all(process_start(pid) is None for pid in pids))
 
 
+@pytest.mark.parametrize("action", ["stop", "prune"])
+def test_cleanup_recovers_survivors_after_supervisor_and_group_leader_exit(
+    preview, monkeypatch, action
+):
+    root, _, _ = preview
+    state = launch_from_short_lived_process(root)
+    pids = descendant_pids(root)
+    wait_for(
+        lambda: any(
+            member["pid"] == pids[-1]
+            for member in dev_server.read_state(root).get("group_members", [])
+        )
+    )
+    state = dev_server.read_state(root)
+    os.kill(state["pid"], signal.SIGKILL)
+    os.kill(state["group_pid"], signal.SIGKILL)
+    wait_for(lambda: process_start(state["group_pid"]) is None)
+    assert dev_server.group_alive(state)
+    if action == "prune":
+        only_worktree(monkeypatch, root)
+    assert getattr(dev_server, action)(root) == 0
+    wait_for(lambda: all(process_start(pid) is None for pid in pids))
+
+
+def test_unverified_group_retains_its_record_and_reports_failed_cleanup(
+    preview, monkeypatch
+):
+    root, _, _ = preview
+    launch_from_short_lived_process(root)
+    pids = descendant_pids(root)
+    original = dev_server.read_state(root)
+    os.kill(original["pid"], signal.SIGKILL)
+    wait_for(lambda: not dev_server.supervisor_alive(original))
+    unverified = {**original, "group_started": "different birth", "group_members": []}
+    dev_server.write_state(root, unverified)
+    only_worktree(monkeypatch, root)
+    try:
+        assert dev_server.stop(root) == 1
+        assert dev_server.prune(root) == 1
+        assert dev_server.read_state(root) == unverified
+        assert all(process_start(pid) for pid in pids)
+    finally:
+        dev_server.write_state(root, original)
+
+
 def test_removing_the_worktree_stops_its_process_group(preview):
     root, _, _ = preview
     state = launch_from_short_lived_process(root)
@@ -262,13 +322,66 @@ def test_prune_removes_stale_records_without_stopping_reused_pids(preview, monke
     dev_server.write_state(
         root, {"worktree": str(root), "pid": owner_process.pid, "started": "old"}
     )
-    monkeypatch.setattr(
-        dev_server.subprocess,
-        "run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(
-            args, 0, f"worktree {root}\n"
-        ),
-    )
+    only_worktree(monkeypatch, root)
     assert dev_server.prune(root) == 0
     assert dev_server.read_state(root) is None
     assert owner_process.poll() is None
+
+
+def test_supervisor_exit_does_not_report_success_while_members_remain(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "logs").mkdir()
+    state = {"worktree": str(tmp_path), "pid": 1234, "group_pid": 5678}
+    dev_server.write_state(tmp_path, state)
+    alive = iter([True, False])
+    monkeypatch.setattr(dev_server, "supervisor_alive", lambda state: next(alive))
+    monkeypatch.setattr(
+        dev_server, "group_processes", lambda pgid: [{"pid": 5679, "started": "birth"}]
+    )
+    signals = []
+    monkeypatch.setattr(
+        dev_server.os, "kill", lambda pid, sig: signals.append((pid, sig))
+    )
+    assert dev_server.stop(tmp_path) == 1
+    assert signals == [(1234, signal.SIGTERM)]
+    assert dev_server.read_state(tmp_path) == state
+
+
+@pytest.mark.parametrize("action", ["--background", "--status", "--stop"])
+def test_old_bootstrap_python_uses_uv_without_project_dependencies(tmp_path, action):
+    root = tmp_path / "bootstrap with spaces"
+    (root / "scripts/lib").mkdir(parents=True)
+    (root / "bin").mkdir()
+    shutil.copy2(dev_server.ROOT / "scripts/dev.sh", root / "scripts/dev.sh")
+    (root / ".python-version").write_text("3.14.6\n")
+    (root / "scripts/lib/worktree.sh").write_text(
+        'worktree_python() { printf "%s\\n" "$FAKE_BOOTSTRAP_PYTHON"; }\n'
+    )
+    old_python = root / "bin/old-python"
+    old_python.write_text("#!/bin/sh\nexit 1\n")
+    old_python.chmod(0o755)
+    uv = root / "bin/uv"
+    uv.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$UV_ARGS_FILE"\n')
+    uv.chmod(0o755)
+    args_file = root / "uv-args"
+    result = subprocess.run(
+        ["/bin/bash", str(root / "scripts/dev.sh"), action],
+        env={
+            **os.environ,
+            "PATH": f"{root / 'bin'}:{os.environ['PATH']}",
+            "FAKE_BOOTSTRAP_PYTHON": str(old_python),
+            "UV_ARGS_FILE": str(args_file),
+        },
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert args_file.read_text().splitlines() == [
+        "run",
+        "--no-project",
+        "--python",
+        "3.14.6",
+        str(root / "scripts/dev_server.py"),
+        action,
+    ]
