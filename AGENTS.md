@@ -52,6 +52,24 @@ artifacts when the IDE Canvas surface is unavailable.
 - Start the app with `./scripts/dev.sh`. It provisions the worktree environment,
   database, migrations, frontend dependencies, initial CSS build, Django server,
   and watchers. Confirm the printed `CSS ready:` and `CSS file:` lines.
+- For agent previews, use `./scripts/dev.sh --background`. Check
+  `./scripts/dev.sh --status` until it reports `running`, and confirm the CSS
+  lines in `logs/dev-supervisor.log` before sharing its URL. Leave the server
+  running when a turn finishes so the user can review it hours later. The
+  supervisor retains the agent PID, process start time and available session
+  identifier before detaching; it stops Django and all watchers when that
+  owning process exits. A live owner's server has no idle cutoff. Servers
+  without a verified owner expire after 24 idle hours by default.
+- Use `./scripts/dev.sh --stop` to stop this worktree's managed server and
+  `./scripts/dev.sh --prune` to clean abandoned managed servers across this
+  repository's worktrees. Check ownership before stopping a preview. These
+  commands need permission to inspect processes; a restricted sandbox may
+  require rerunning them with the shell tool's normal approval flow. Do not
+  replace ownership checks with broad `pkill` commands. `.codex/cleanup.sh`
+  stops the managed server before removing this worktree's databases.
+  Unverified surviving groups retain their recovery records and make cleanup
+  fail. Without a compatible local interpreter, lifecycle commands use the
+  pinned Python through `uv` without syncing project dependencies.
 - Run Django commands with `manage`, never `python manage.py`.
 - For Codex shells, run direct Python and Django commands through
   `.codex/run.sh`, for example `.codex/run.sh manage check` or

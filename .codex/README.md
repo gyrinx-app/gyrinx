@@ -77,8 +77,10 @@ It refuses the main checkout, another repository, missing paths and subdirectori
 It connects explicitly to local PostgreSQL on port 5432 as the current OS user,
 using `GYRINX_DB_HOST` (the `/private/tmp` socket configured in `.codex/config.toml`)
 or localhost when unset. Remote hosts are rejected.
-Stop the worktree's dev server and test runs first: cleanup fails if a database is
-still in use. It can be rerun if databases are already gone.
+Cleanup stops this worktree's managed dev server and all watchers first. Stop
+test runs and any unmanaged server yourself: cleanup fails if a database is
+still in use. It can be rerun if databases are already gone. The dry run shows
+server status and database selection without stopping the server.
 
 Preview the selection with `bash .codex/cleanup.sh --dry-run`.
 
@@ -97,7 +99,10 @@ checkout in the integrated terminal.
 
 | Action | Command |
 | --- | --- |
-| Run dev server | `./scripts/dev.sh` |
+| Run agent preview | `./scripts/dev.sh --background` |
+| Check preview readiness and ownership | `./scripts/dev.sh --status` |
+| Stop this worktree's preview and watchers | `./scripts/dev.sh --stop` |
+| Prune abandoned managed servers | `./scripts/dev.sh --prune` |
 | Open dev server | `./.codex/dev-url.sh --open` |
 | Show dev URL | `./.codex/dev-url.sh` |
 | Check Django | `./.codex/run.sh manage check` |

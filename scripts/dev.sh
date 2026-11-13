@@ -12,6 +12,10 @@
 #                                   # per-worktree .venv and node_modules in
 #                                   # child worktrees if missing.
 #   ./scripts/dev.sh --no-watch     # Skip npm watch (CSS already built)
+#   ./scripts/dev.sh --background   # Persist beyond the launching tool call
+#   ./scripts/dev.sh --status       # Show this worktree's server and owner
+#   ./scripts/dev.sh --stop         # Stop this worktree's server and watchers
+#   ./scripts/dev.sh --prune        # Clean abandoned managed servers in this repo
 #   ./scripts/dev.sh --setup-only   # Prepare dependencies, database and CSS,
 #                                   # then exit without starting Django or
 #                                   # npm run watch
@@ -23,6 +27,28 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/worktree.sh"
+
+# Lifecycle commands must work before provisioning and after a venv is removed.
+# Setup-only remains synchronous and leaves no supervisor behind.
+if [ "${1:-}" = "--managed-child" ]; then
+  shift
+elif [[ " $* " != *" --setup-only "* ]] \
+  || [[ " $* " == *" --background "* || " $* " == *" --status "* \
+    || " $* " == *" --stop "* || " $* " == *" --prune "* ]]; then
+  DEV_PYTHON=$(worktree_python 2>/dev/null) || DEV_PYTHON=""
+  if [ -n "$DEV_PYTHON" ] \
+    && "$DEV_PYTHON" -c 'import sys; sys.exit(sys.version_info < (3, 14))'; then
+    exec "$DEV_PYTHON" "$SCRIPT_DIR/dev_server.py" "$@"
+  fi
+  # Bootstrap just the pinned interpreter, without syncing Django dependencies.
+  if command -v uv >/dev/null 2>&1; then
+    exec uv run --no-project --python "$(cat "$SCRIPT_DIR/../.python-version")" \
+      "$SCRIPT_DIR/dev_server.py" "$@"
+  fi
+  echo "Python 3.14 or uv is required for dev-server lifecycle commands." >&2
+  echo "Install uv, then rerun ./scripts/dev.sh." >&2
+  exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # Parse arguments
@@ -304,27 +330,13 @@ fi
 export DJANGO_PORT="$resolved_port"
 
 # ---------------------------------------------------------------------------
-# Background process management
-# ---------------------------------------------------------------------------
-PIDS=()
-cleanup() {
-  echo
-  echo "Shutting down..."
-  for pid in "${PIDS[@]}"; do
-    kill "$pid" 2>/dev/null || true
-  done
-  wait 2>/dev/null || true
-}
-trap cleanup EXIT INT TERM
-
-# ---------------------------------------------------------------------------
 # Start npm watch (background)
 # ---------------------------------------------------------------------------
 if [ "$NO_WATCH" = false ]; then
   echo "Starting npm watch..."
   cd "$WT_ROOT"
   npm run watch > "$LOG_DIR/npm-watch.log" 2>&1 &
-  PIDS+=($!)
+  WATCH_PID=$!
   cd - >/dev/null
 fi
 
@@ -342,7 +354,7 @@ echo "  Logs:      ${LOG_DIR}/"
 echo "  CSS file:  ${CSS_FILE} (${CSS_SIZE} bytes)"
 echo "             ${N26_CSS_FILE} (${N26_CSS_SIZE} bytes)"
 if [ "$NO_WATCH" = false ]; then
-echo "  CSS watch: running (PID ${PIDS[0]:-?}) → ${LOG_DIR}/npm-watch.log"
+echo "  CSS watch: running (PID ${WATCH_PID}) → ${LOG_DIR}/npm-watch.log"
 fi
 echo "=========================================="
 echo
@@ -350,4 +362,5 @@ echo
 # ---------------------------------------------------------------------------
 # Start Django runserver (foreground)
 # ---------------------------------------------------------------------------
+printf '%s\n' "$DJANGO_PORT" > "$LOG_DIR/dev-ready"
 manage runserver "0.0.0.0:${DJANGO_PORT}" 2>&1 | tee "$LOG_DIR/runserver.log"

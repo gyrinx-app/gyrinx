@@ -110,11 +110,11 @@ if "runserver" in sys.argv and not _UNDER_PYTEST:
         }
     }
 
-# Restart after the memory limit; agent-owned servers also stop on owner exit
-# or idle timeout. Zero disables the corresponding numeric limit.
+# Restart after the memory limit. Owned servers live until their agent exits;
+# unowned servers expire after an idle day. Zero disables a numeric limit.
 DEV_SERVER_GUARD = "runserver" in sys.argv and not _UNDER_PYTEST
 DEV_SERVER_MEMORY_LIMIT_MB = int(os.getenv("GYRINX_DEV_MEMORY_LIMIT_MB", "2048"))
-DEV_SERVER_IDLE_MINUTES = int(os.getenv("GYRINX_DEV_IDLE_MINUTES", "120"))
+DEV_SERVER_IDLE_MINUTES = int(os.getenv("GYRINX_DEV_IDLE_MINUTES", "1440"))
 
 # Disable secure cookies for local development
 CSRF_COOKIE_SECURE = False

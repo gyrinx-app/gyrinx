@@ -244,9 +244,10 @@ class CodexLifecycleTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         commands = self.commands().splitlines()
-        self.assertIn(f"^({self.db}|test_{self.db}(_gw[0-9]+)?)$", commands[0])
-        self.assertEqual(len(commands), 5)
-        for line, database in zip(commands[1:], family, strict=True):
+        self.assertEqual(commands[0], f"dev|{self.target}|--stop")
+        self.assertIn(f"^({self.db}|test_{self.db}(_gw[0-9]+)?)$", commands[1])
+        self.assertEqual(len(commands), 6)
+        for line, database in zip(commands[2:], family, strict=True):
             self.assertTrue(line.endswith(f" {database}"), line)
             self.assertIn("--host=/private/tmp --port=5432", line)
             self.assertNotIn("--force", line)
@@ -271,6 +272,8 @@ class CodexLifecycleTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(f"Would drop database: {self.db}", result.stdout)
         self.assertNotIn("dropdb|", self.commands())
+        self.assertIn(f"dev|{self.target}|--status", self.commands())
+        self.assertNotIn("--stop", self.commands())
         result = self.run_script("cleanup.sh")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("No databases to remove", result.stdout)
@@ -283,6 +286,13 @@ class CodexLifecycleTests(unittest.TestCase):
         result = self.run_script("cleanup.sh", DATABASES=self.db, DROP_STATUS="1")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Stop this worktree's dev server", result.stderr)
+
+    def test_cleanup_requires_the_server_to_stop_before_querying_databases(self):
+        result = self.run_script("cleanup.sh", DATABASES=self.db, DEV_STATUS="9")
+        self.assertEqual(result.returncode, 9)
+        self.assertIn("--stop", self.commands())
+        self.assertNotIn("psql|", self.commands())
+        self.assertNotIn("dropdb|", self.commands())
 
     def test_cleanup_refuses_unexpected_names_and_remote_host(self):
         for database in ("gyrinx_main", "gyrinx_wt_deadbeef", f"test_{self.db}_other"):

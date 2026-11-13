@@ -10,6 +10,10 @@ Starts the full development environment with a single command. Handles per-workt
 
 ```bash
 ./scripts/dev.sh              # Normal startup
+./scripts/dev.sh --background # Persistent agent preview
+./scripts/dev.sh --status     # Current worktree's server, owner and ready URL
+./scripts/dev.sh --stop       # Stop this worktree's server and watchers
+./scripts/dev.sh --prune      # Clean abandoned managed servers across repo worktrees
 ./scripts/dev.sh --no-watch   # Skip CSS watcher
 ./scripts/dev.sh --setup-only # Prepare the worktree without starting Django or npm run watch
 ./scripts/dev.sh --reset-db   # Drop and re-fork the worktree database
@@ -17,11 +21,29 @@ Starts the full development environment with a single command. Handles per-workt
 
 The server restarts itself when it grows past 2,048 MB
 (`GYRINX_DEV_MEMORY_LIMIT_MB`); run with `--noreload`, it stops there instead.
-When an agent session started it, it also stops
-when that session ends, and after 120 minutes with no requests
-(`GYRINX_DEV_IDLE_MINUTES`). Set either variable to `0` to turn that check off.
+When an agent session started it, it stops when its owning process exits.
+There is no idle cutoff while that verified owner lives. Servers without a
+verified owner stop after 24 idle hours (`GYRINX_DEV_IDLE_MINUTES`, default
+`1440`). Set either numeric limit to `0` to turn that check off.
 `logs/runserver.log` records each restart and stop with its reason. See
 `gyrinx/devserver/guard.py`.
+
+Use `--background` for previews shared by an agent. It captures ownership before
+detaching and returns while setup continues. Check `--status` until it reports
+`running`, and verify the CSS build in `logs/dev-supervisor.log` before sharing
+the URL. Leave it running after the agent finishes its turn. Closing the owning
+agent process still removes the preview; a saved chat is not a running process.
+
+The supervisor locks each worktree against duplicate starts and stops the whole
+Django and watcher process group on exit. `logs/dev-server.json` records its
+owner PID, process start time, available session identifier and port. `--stop`
+checks process identity before signalling. `--prune` checks registered worktrees
+for abandoned servers and stale records. Both commands need permission to inspect
+local processes. `.codex/cleanup.sh` stops the server before dropping databases.
+Surviving group-member identities allow recovery if both the supervisor and
+group leader exit. Unverified surviving groups retain their records and make
+cleanup fail. Without a compatible venv, lifecycle commands use the pinned
+Python through `uv run --no-project` without syncing project dependencies.
 
 ### `scripts/setup-local-postgres.sh`
 

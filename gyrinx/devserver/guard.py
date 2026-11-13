@@ -1,24 +1,24 @@
 """Stop abandoned development servers and restart servers over their memory limit.
 
 Check memory after the first request. Allow in-flight requests to drain
-for up to DRAIN_SECONDS before restarting. Agent-owned servers also stop
-when their owner exits or their configured idle timeout expires.
+for up to DRAIN_SECONDS before restarting. Agent-owned servers stop when
+their owner exits. Unowned servers have a bounded idle lifetime.
 
 Use runserver's restart exit code only under its autoreloader; otherwise
-stop. scripts/dev.sh cleans up its watchers when the server exits.
+stop. scripts/dev_server.py cleans up the whole process group on exit.
 """
 
 import ctypes
 import functools
 import logging
 import os
-import subprocess  # nosec B404 — runs ps with fixed arguments
 import sys
 import threading
 import time
-from dataclasses import dataclass
 
 from django.core.signals import request_finished, request_started
+
+from gyrinx.devserver.processes import ProcessInspectionError, find_owner
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +27,6 @@ RESTART = 3
 STOP = 0
 #: How long a server over its memory limit waits for requests in flight.
 DRAIN_SECONDS = 60
-AGENT_COMMANDS = {"claude": "Claude Code", "codex": "Codex"}
-
-
-@dataclass(frozen=True)
-class Owner:
-    pid: int
-    name: str
 
 
 class _RusageInfoV0(ctypes.Structure):
@@ -89,57 +82,6 @@ def memory_mb():
     return None
 
 
-def process_alive(pid):
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
-
-
-def agent_name(command):
-    """Identify an agent from its executable path or process title."""
-    for candidate in (command, command.split(" ", 1)[0]):
-        name = AGENT_COMMANDS.get(os.path.basename(candidate))
-        if name:
-            return name
-    return None
-
-
-def find_owner(environ=os.environ, parent_pid=None, alive=process_alive):
-    """Find a live CLAUDE_PID or an agent process among the server's ancestors.
-
-    The explicit environment PID supports detached launches whose ancestry
-    no longer includes the originating agent.
-    """
-    claude_pid = environ.get("CLAUDE_PID", "")
-    if claude_pid.isdigit() and alive(int(claude_pid)):
-        return Owner(int(claude_pid), AGENT_COMMANDS["claude"])
-    pid = os.getppid() if parent_pid is None else parent_pid
-    for _ in range(16):
-        if pid <= 1:
-            return None
-        try:
-            line = subprocess.run(  # nosec B607 — fixed argv; ps resolved from PATH
-                ["ps", "-o", "ppid=,comm=", "-p", str(pid)],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            ).stdout.strip()
-        except OSError, subprocess.SubprocessError:
-            return None
-        if not line:
-            return None
-        ppid, _, command = line.partition(" ")
-        name = agent_name(command.strip())
-        if name:
-            return Owner(pid, name)
-        pid = int(ppid)
-    return None
-
-
 def minutes(count):
     return f"{count} minute" if count == 1 else f"{count} minutes"
 
@@ -153,7 +95,7 @@ class Guard:
         owner,
         clock=time.monotonic,
         memory=memory_mb,
-        alive=process_alive,
+        alive=lambda owner: owner.alive(),
     ):
         self.memory_limit_mb = memory_limit_mb
         self.idle_minutes = idle_minutes
@@ -186,7 +128,7 @@ class Guard:
             requested = self.requested
             idle_for = now - self.last_request
 
-        if self.owner and not self.alive(self.owner.pid):
+        if self.owner and not self.alive(self.owner):
             return STOP, (
                 f"the {self.owner.name} session that started it "
                 f"(pid {self.owner.pid}) has ended"
@@ -207,14 +149,14 @@ class Guard:
             self.over_limit_since = None
 
         if (
-            self.owner
+            not self.owner
             and self.idle_minutes > 0
             and not in_flight
             and idle_for >= self.idle_minutes * 60
         ):
             return STOP, (
                 f"it has had no requests for {minutes(self.idle_minutes)}, and "
-                f"an agent session started it"
+                "it has no verified agent owner"
             )
         return None
 
@@ -227,20 +169,28 @@ class Guard:
             rules.append(f"{action} past {self.memory_limit_mb:,} MB")
         if self.owner:
             rules.append(f"stops when {self.owner.name} (pid {self.owner.pid}) exits")
-            if self.idle_minutes > 0:
-                rules.append(
-                    f"stops after {minutes(self.idle_minutes)} without a request"
-                )
+        elif self.idle_minutes > 0:
+            rules.append(
+                f"stops after {minutes(self.idle_minutes)} without a request "
+                "(no verified agent owner)"
+            )
         return rules
 
     def watch(self, interval=5.0):
         # Find the owner in the background thread so process lookups do not delay autoreload.
-        self.owner = find_owner()
+        try:
+            self.owner = find_owner()
+        except ProcessInspectionError as exc:
+            logger.warning("Dev server guard: %s", exc)
         if rules := self.rules():
             logger.info("Dev server guard: %s.", "; ".join(rules))
         while True:
             time.sleep(interval)
-            decision = self.check()
+            try:
+                decision = self.check()
+            except ProcessInspectionError as exc:
+                logger.warning("Dev server guard: %s", exc)
+                continue
             if decision:
                 exit_server(*decision)
 
