@@ -85,12 +85,12 @@ describe("RatingTooltip", () => {
         expect(screen.queryByRole("dialog")).toBeNull();
     });
 
-    it("opens on hover and stays open after a touch or pointer click", () => {
+    it("ignores hover and stays open after a touch or pointer click", () => {
         vi.useFakeTimers();
         const trigger = setup();
         fireEvent.mouseEnter(trigger.parentElement!);
         act(() => vi.advanceTimersByTime(150));
-        expect(screen.getByRole("dialog")).toBeTruthy();
+        expect(screen.queryByRole("dialog")).toBeNull();
         fireEvent.click(trigger, { detail: 1 });
         fireEvent.mouseLeave(trigger.parentElement!);
         act(() => vi.advanceTimersByTime(250));

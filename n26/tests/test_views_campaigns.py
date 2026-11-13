@@ -601,20 +601,34 @@ class TestCampaignDashboardLayout:
     def test_asset_management_controls_keep_their_section(self, client, campaign):
         from n26.library.authoring import add_asset_type
 
+        before = BeautifulSoup(
+            client.get(f"/n26/campaigns/{campaign.pk}/").content, "html.parser"
+        )
+        first_add = before.select_one("#assets").find(
+            "a", href=reverse("n26-campaign-add-asset-type", args=[campaign.pk])
+        )
         add_asset_type(
             campaign.campaign_type, "Territory", "pooled", label_plural="Territories"
         )
-        drawn = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
-        assets = drawn.split('id="n26-campaign-assets"', 1)[1].split("</section>", 1)[0]
-        assert 'id="assets"' in assets
-        gangs = drawn.split('id="gangs"', 1)[1].split("</section>", 1)[0]
-        asset_heading = re.search(r'<h2 class="([^"]+)">\s*Territories', assets)
-        gang_heading = re.search(r'<h2 class="([^"]+)">\s*Gangs', gangs)
-        assert asset_heading and gang_heading
-        assert asset_heading.group(1) == gang_heading.group(1)
-        assert not re.search(r"<h2[^>]*>\s*Assets", assets)
-        assert "Add asset type" in assets
-        assert "Tables" in assets
+        document = BeautifulSoup(
+            client.get(f"/n26/campaigns/{campaign.pk}/").content, "html.parser"
+        )
+        assets = document.select_one("#n26-campaign-assets #assets")
+        heading = assets.find("h2")
+        assert heading.get_text(strip=True) == "Campaign assets"
+        assert heading.parent.select_one('[data-react-name="help"]') is not None
+        asset_heading = assets.find("h3")
+        assert "Territories" in asset_heading.get_text()
+        assert asset_heading["class"] == document.select_one("#gangs h2")["class"]
+        header = assets.find("div", recursive=False)
+        tables = header.find(
+            "a", href=reverse("n26-campaign-tables", args=[campaign.pk])
+        )
+        assert tables.get_text(" ", strip=True) == "Asset selection tables"
+        add = header.find(
+            "a", href=reverse("n26-campaign-add-asset-type", args=[campaign.pk])
+        )
+        assert tables["class"] == add["class"] == first_add["class"]
 
 
 class TestTheLogOnTheCampaignsPage:

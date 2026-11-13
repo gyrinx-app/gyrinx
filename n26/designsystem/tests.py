@@ -40,6 +40,7 @@ class TestTheReactMarks:
             "pick-list",
             "quick-switcher",
             "filter-menu",
+            "help-popover",
             "share",
             "switch",
         } <= react
@@ -77,6 +78,28 @@ class TestTheReactMarks:
         assert "React" in title
         plain_title = re.search(r"<h1.*?</h1>", plain_page, re.S).group(0)
         assert "React" not in plain_title
+
+
+class TestHelpPopoverGallery:
+    @pytest.mark.parametrize("slug", ["help-popover", "section"])
+    def test_heading_help_mounts_with_its_accessible_label_and_explanation(
+        self, reader, slug
+    ):
+        import json
+
+        response = reader.get(f"/n26/design/c/{slug}/")
+        assert response.status_code == 200
+        page = BeautifulSoup(response.content, "html.parser")
+        host = page.select_one('[data-react-name="help"]')
+        props = json.loads(page.find(id=host["data-react-props"]).string)
+        assert props == {
+            "label": "About campaign assets",
+            "paragraphs": [
+                "Track territories and other assets that gangs can claim and transfer."
+            ],
+        }
+        assert host.select_one('details summary[aria-label="About campaign assets"]')
+        assert "could not be rendered" not in page.get_text().lower()
 
 
 class TestReactDemo:

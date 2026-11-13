@@ -1,5 +1,7 @@
 """Campaign form wording and ownership cards remain readable and consistent."""
 
+import json
+
 import pytest
 from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
@@ -121,18 +123,38 @@ class TestOwnershipCopy:
             assert description in card.get_text(" ", strip=True)
             assert not card.select(".truncate")
 
-    def test_assets_empty_state_uses_transferable(self, client, campaign):
+    @pytest.mark.parametrize("has_inherent_assets", [False, True])
+    def test_assets_empty_state_explains_setup(
+        self, client, campaign, has_inherent_assets
+    ):
+        if has_inherent_assets:
+            add_asset_type(
+                campaign.campaign_type, "Settlement", AssetType.Ownership.POSSESSION
+            )
         document = page(client, "n26-campaign", campaign)
         assets = document.select_one("#assets")
         text = assets.get_text(" ", strip=True)
-        assert "No transferable asset types yet." in text
-        assert "Holding ownership" not in text
-        empty_cell = assets.select_one("table tbody td")
-        assert "No transferable asset types yet." in empty_cell.get_text()
-        add = empty_cell.find(
+        assert assets.find("h2").get_text(strip=True) == "Campaign assets"
+        heading = assets.find("h2")
+        help_host = heading.parent.select_one('[data-react-name="help"]')
+        help_props = json.loads(document.find(id=help_host["data-react-props"]).string)
+        assert help_props == {
+            "label": "About campaign assets",
+            "paragraphs": [
+                "Track territories and other assets that gangs can claim and transfer."
+            ],
+        }
+        assert help_host.find("details") is not None
+        assert "Add an asset type, such as territories." in text
+        assert "use selection tables to generate them." in text
+        add = assets.find(
             "a", href=reverse("n26-campaign-add-asset-type", args=[campaign.pk])
         )
         assert add.get_text(" ", strip=True) == "Add asset type"
+        assert (
+            document.find("a", href=reverse("n26-campaign-tables", args=[campaign.pk]))
+            is None
+        )
 
     def test_tables_empty_state_uses_inherent(self, client, campaign):
         add_asset_type(

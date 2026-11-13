@@ -1,0 +1,22 @@
+{% comment %}
+<c-n26.help-popover> — A question-mark button that opens a plain-text explanation on click.
+
+label names the help button and its panel for assistive technology; text is the explanation.
+The help React island owns activation, viewport placement, and dismissal by Escape or outside interaction.
+Native details keeps the explanation available before React mounts.
+Keep instructions needed to complete the task visible outside the popover.
+{% endcomment %}
+{% load help_popover react %}
+<c-vars label="More information" text="" class="" />
+{% help_popover_props label text as props_ %}
+<div class="inline-flex {{ class }}" {{ attrs }}>
+    {% react_host "help" props_ class="inline-flex" %}
+        <details>
+            <summary class="flex cursor-pointer list-none text-muted focus-ring"
+                     aria-label="{{ label }}">
+                <c-n26.icon name="circle-question-mark" class="size-4" />
+            </summary>
+            <p class="mt-2 max-w-xs text-sm font-normal text-muted">{{ text }}</p>
+        </details>
+    {% endreact_host %}
+</div>
