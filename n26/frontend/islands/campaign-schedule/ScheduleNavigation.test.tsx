@@ -124,7 +124,16 @@ test.each([
     },
 );
 beforeEach(() => {
-    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    vi.stubGlobal("scrollX", 0);
+    vi.stubGlobal("scrollY", 0);
+    vi.spyOn(window, "scrollTo").mockImplementation(
+        (options: number | ScrollToOptions) => {
+            if (typeof options === "object") {
+                vi.stubGlobal("scrollX", options.left ?? window.scrollX);
+                vi.stubGlobal("scrollY", options.top ?? window.scrollY);
+            }
+        },
+    );
     window.history.replaceState(null, "", base);
     HTMLDialogElement.prototype.showModal = vi.fn(function (
         this: HTMLDialogElement,
@@ -570,7 +579,8 @@ test("setup steps have URLs, retain edits through Back/Forward and refresh witho
         );
     });
     expect(screen.getByLabelText("Starting schedule")).toBeTruthy();
-    expect(window.scrollTo).not.toHaveBeenCalled();
+    await waitFor(() => expect(window.scrollTo).toHaveBeenCalledOnce());
+    vi.mocked(window.scrollTo).mockClear();
     await userEvent.click(
         screen.getByRole("button", { name: "Customise schedule" }),
     );
@@ -579,6 +589,7 @@ test("setup steps have URLs, retain edits through Back/Forward and refresh witho
     ).toBe("My phase");
     await waitFor(() => expect(window.scrollTo).toHaveBeenCalledOnce());
     vi.mocked(window.scrollTo).mockClear();
+    vi.stubGlobal("scrollY", 1188);
     await userEvent.click(
         screen.getByRole("button", { name: "Review schedule" }),
     );
@@ -600,17 +611,32 @@ test("setup steps have URLs, retain edits through Back/Forward and refresh witho
         };
         window.history.replaceState(back, "", action + "?step=2");
         window.dispatchEvent(new PopStateEvent("popstate", { state: back }));
+        vi.stubGlobal("scrollY", 575);
     });
     expect(
         (screen.getByLabelText("Phase 1 name") as HTMLInputElement).value,
     ).toBe("My phase");
+    await waitFor(() =>
+        expect(window.scrollTo).toHaveBeenCalledExactlyOnceWith({
+            left: 0,
+            top: 1188,
+            behavior: "instant",
+        }),
+    );
+    vi.mocked(window.scrollTo).mockClear();
     act(() => {
         window.history.replaceState(forward, "", action + "?step=3");
         window.dispatchEvent(new PopStateEvent("popstate", { state: forward }));
     });
     expect(screen.getByText(/1. My phase/)).toBeTruthy();
     expect(fetch).not.toHaveBeenCalled();
-    expect(window.scrollTo).not.toHaveBeenCalled();
+    await waitFor(() =>
+        expect(window.scrollTo).toHaveBeenCalledExactlyOnceWith({
+            left: 0,
+            top: 0,
+            behavior: "instant",
+        }),
+    );
     const draft = sessionStorage.getItem(setup.recoveryKey + ":setup-draft")!;
     expect(draft).not.toContain("csrf");
     expect(draft).not.toContain("request_key");
@@ -673,6 +699,62 @@ test("a failed page read keeps the viewport until the destination is loaded", as
         expect(window.scrollTo).toHaveBeenCalledExactlyOnceWith({
             left: 0,
             top: 0,
+            behavior: "instant",
+        }),
+    );
+});
+
+test("Back restores saved coordinates after an asynchronous destination replaces a shorter page", async () => {
+    const replace = vi.spyOn(window.history, "replaceState");
+    vi.stubGlobal("scrollY", 1188);
+    const plan = {
+        ...editor,
+        kind: "plan",
+        heading: "Schedule settings",
+        action: base + "edit/plan/",
+        values: {
+            request_key: "plan-key",
+            expected_revision: "1",
+            mode: "fixed",
+            steps: "[]",
+        },
+    };
+    let finish!: (value: ReturnType<typeof json>) => void;
+    const slow = new Promise<ReturnType<typeof json>>((resolve) => {
+        finish = resolve;
+    });
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(json(data(plan)))
+        .mockReturnValueOnce(slow);
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...data()} />);
+    await userEvent.click(
+        screen.getByRole("link", { name: "Schedule settings" }),
+    );
+    await screen.findByRole("heading", { level: 1, name: "Schedule settings" });
+    await waitFor(() => expect(window.scrollTo).toHaveBeenCalledOnce());
+    const source = replace.mock.calls.find(
+        ([state]) => state?.n26Schedule?.scroll?.top === 1188,
+    )![0];
+    expect(source.n26Schedule.scroll).toEqual({ left: 0, top: 1188 });
+    vi.mocked(window.scrollTo).mockClear();
+    vi.stubGlobal("scrollY", 0);
+    act(() => {
+        window.history.replaceState(source, "", base);
+        window.dispatchEvent(new PopStateEvent("popstate", { state: source }));
+        vi.stubGlobal("scrollY", 575);
+    });
+    expect(window.scrollTo).not.toHaveBeenCalled();
+    expect(
+        screen.getByRole("heading", { level: 1, name: "Schedule settings" }),
+    ).toBeTruthy();
+    await act(async () => finish(json(data())));
+    await screen.findByRole("heading", { level: 1, name: "Phases & cycles" });
+    await waitFor(() =>
+        expect(window.scrollTo).toHaveBeenCalledExactlyOnceWith({
+            left: 0,
+            top: 1188,
             behavior: "instant",
         }),
     );

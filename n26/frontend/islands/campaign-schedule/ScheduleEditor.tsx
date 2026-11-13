@@ -210,12 +210,21 @@ export function ScheduleEditor({
     const shiftLater =
         values.shift_later === "on" || values.shift_later === "True";
     const routeStage = Number(editor.context.setupStage ?? 1);
-    const [setupStep, setSetupStep] = useState(routeStage);
-    useEffect(() => setSetupStep(routeStage), [routeStage]);
+    const [setupNavigation, setSetupNavigation] = useState({
+        routeStage,
+        step: routeStage,
+    });
+    const setupStep =
+        setupNavigation.routeStage === routeStage
+            ? setupNavigation.step
+            : routeStage;
+    // The destination step must render before history restores its scroll position.
+    if (setupNavigation.routeStage !== routeStage)
+        setSetupNavigation({ routeStage, step: routeStage });
     const setupStage = form.frozen ? 3 : setupStep;
     const stageHref = (stage: number) => setupStageHref(editor.action, stage);
     const goToStage = (stage: number) => {
-        setSetupStep(stage);
+        setSetupNavigation({ routeStage, step: stage });
         (onNavigate ?? ((href: string) => window.location.assign(href)))(
             stageHref(stage),
         );
