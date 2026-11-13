@@ -73,7 +73,7 @@ from n26.core.views.changelog import (
 from n26.core.views.choose import choose, choose_command, dismiss_offer, restore_offer
 from n26.core.views.cloning import clone_fighter, clone_gang
 from n26.core.views.credits import gang_credits, gang_credits_command
-from n26.core.views.crews import crew_sheet, edit_crew
+from n26.core.views.crews import crew_command, crew_display, crew_sheet, edit_crew
 from n26.core.views.edit import base_rating, edit_fighter
 from n26.core.views.equip import equip, equip_gang
 from n26.core.views.equip_react import (
@@ -148,6 +148,8 @@ __all__ = [
     "action_start",
     "battle_report",
     "correct_post_battle",
+    "crew_command",
+    "crew_display",
     "crew_sheet",
     "edit_crew",
     "edit_model_card",

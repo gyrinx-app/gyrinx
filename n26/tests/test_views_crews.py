@@ -219,10 +219,10 @@ class TestCrewForms:
         client.post(address(table), fields(table))
         response = client.get(address(table))
         document = BeautifulSoup(response.content, "html.parser")
-        host = document.select_one("[data-react-module*='/crew-picker-']")
+        host = document.select_one("[data-react-name='crew-workflow']")
         assert host is not None
         props = json.loads(document.find(id=host["data-react-props"]).string)
-        assert props == response.context["crew_picker"]
+        assert props == response.context["crew_workflow"]
         assert props["battleUrl"] == reverse(
             "n26-battle", args=[table.campaign.pk, table.battle.pk]
         )
@@ -240,23 +240,20 @@ class TestCrewForms:
             str(table.models[0].pk): str(table.card.pk),
             str(table.models[1].pk): "full",
         }
-        form = host.find_parent("form")
-        assert not form.select("[x-data], [x-model], [x-show]")
-        assert not form.select('script[src$="battle-actions.js"]')
+        assert host.find_parent("form") is None
+        assert not host.select("[x-data], [x-model], [x-show]")
+        assert not host.select('script[src$="battle-actions.js"]')
 
     def test_the_longer_explanations_sit_behind_help_icons(self, client, table):
         response = client.get(address(table))
         document = BeautifulSoup(response.content, "html.parser")
-        hosts = document.select("[data-react-module*='/help-']")
-        labels = [
-            json.loads(document.find(id=host["data-react-props"]).string)["label"]
-            for host in hosts
-        ]
-        assert labels == ["More about crew selection", "More about the random draw"]
-        assert all("min-h-32" not in host.get("class", []) for host in hosts)
-        page_text = document.get_text(" ", strip=True)
-        assert "Select the starting crew and any reinforcements." in page_text
-        assert "Each drawn model gets a random equipment set" not in page_text
+        props = response.context["crew_workflow"]
+        assert props["crewHelp"]["label"] == "More about crew selection"
+        assert props["drawHelp"]["label"] == "More about the random draw"
+        assert not document.select("[data-react-name='help']")
+        assert "Each drawn model gets a random equipment set" not in document.get_text(
+            " ", strip=True
+        )
 
     def test_invalid_post_preserves_picker_values_and_field_errors(self, client, table):
         model = table.models[0]
@@ -281,7 +278,7 @@ class TestCrewForms:
         model.save(update_fields=["name"])
         response = client.get(address(table))
         document = BeautifulSoup(response.content, "html.parser")
-        host = document.select_one("[data-react-module*='/crew-picker-']")
+        host = document.select_one("[data-react-name='crew-workflow']")
         props = json.loads(document.find(id=host["data-react-props"]).string)
         selected = next(item for item in props["models"] if item["id"] == str(model.pk))
         assert selected["name"] == model.name
@@ -376,7 +373,7 @@ class TestCrewForms:
         ] == ["Added to this crew by a random draw."]
         client.get(address(table))
         response = client.post(address(table), payload)
-        assert response.status_code == 200
+        assert response.status_code == 302
         crew.refresh_from_db()
         assert crew.draw_number == 1
         assert crew.last_draw == snapshot
@@ -741,3 +738,435 @@ class TestCrewPageQueryGrowth:
         with CaptureQueriesContext(connection) as large:
             assert client.get(sheet_url).status_code == 200
         assert len(large) <= len(small)
+
+
+def command_address(table):
+    return reverse(
+        "n26-battle-crew-command",
+        args=[table.campaign.pk, table.battle.pk, table.gang.pk],
+    )
+
+
+class TestCrewWorkflowCommands:
+    @pytest.mark.parametrize("transport", ["native", "json"])
+    @pytest.mark.parametrize("action", ["save", "draft", "draw"])
+    def test_both_adapters_share_selection_draw_snapshots_and_destinations(
+        self, client, table, transport, action
+    ):
+        from uuid import uuid4
+
+        from n26.core.models import CrewCommandReceipt, LedgerEvent
+
+        before = LedgerEvent.objects.filter(gang=table.gang).count()
+        payload = fields(table, action=action, request_key=str(uuid4()))
+        if action == "draw":
+            payload[f"role_{table.models[1].pk}"] = "out"
+        response = client.post(
+            command_address(table) if transport == "json" else address(table), payload
+        )
+        assert response.status_code == (200 if transport == "json" else 302)
+        destination = (
+            response.json()["nextUrl"] if transport == "json" else response.url
+        )
+        assert destination == address(table, sheet=action == "save")
+        crew = BattleCrew.objects.get()
+        assert crew.revision == 1
+        assert crew.confirmed is (action == "save")
+        assert crew.draw_number == (1 if action == "draw" else 0)
+        assert crew.members.count() == 2
+        assert crew.members.get(miniature=table.models[0]).equipment_ids == [
+            str(table.card.assignments.get().pk)
+        ]
+        assert crew.members.get(miniature=table.models[1]).source == (
+            "random" if action == "draw" else "manual"
+        )
+        receipt = CrewCommandReceipt.objects.get()
+        assert receipt.inputs["action"] == [action]
+        assert (
+            receipt.actor == table.owner
+            and receipt.gang == table.gang
+            and receipt.battle == table.battle
+        )
+        assert receipt.result["revision"] == 1 and receipt.result["confirmed"] is (
+            action == "save"
+        )
+        assert len(receipt.result["selections"]) == 2
+        assert LedgerEvent.objects.filter(gang=table.gang).count() == before
+        assert_reconciled(table.gang)
+
+    def test_a_lost_draw_response_replays_its_original_result_after_later_changes(
+        self, client, table
+    ):
+        from uuid import uuid4
+
+        from n26.core.models import CrewCommandReceipt
+
+        original = fields(
+            table,
+            action="draw",
+            request_key=str(uuid4()),
+            **{f"role_{table.models[1].pk}": "out"},
+        )
+        first = client.post(command_address(table), original).json()
+        changed = fields(
+            table,
+            action="draft",
+            revision="1",
+            request_key=str(uuid4()),
+            **{f"role_{table.models[1].pk}": "out"},
+        )
+        assert client.post(command_address(table), changed).status_code == 200
+        table.card.delete()
+        with operation(table.gang, actor=table.owner) as act:
+            act.set_status(table.models[0], Status.DEAD)
+        replay = client.post(command_address(table), original)
+        assert replay.status_code == 200
+        assert replay.json()["acknowledged"] == first["acknowledged"]
+        assert replay.json()["newer"] is True
+        assert CrewCommandReceipt.objects.count() == 2
+        crew = BattleCrew.objects.get()
+        assert crew.revision == 2 and crew.draw_number == 1
+        assert crew.members.count() == 1
+
+    @pytest.mark.parametrize(
+        "change",
+        [{"action": "draw"}, {"random_count": "01"}, {"unexpected": "changed"}],
+    )
+    def test_a_save_key_cannot_describe_different_raw_inputs(
+        self, client, table, change
+    ):
+        from uuid import uuid4
+
+        payload = fields(table, request_key=str(uuid4()))
+        assert client.post(command_address(table), payload).status_code == 200
+        response = client.post(command_address(table), payload | change)
+        assert response.status_code == 409
+        assert response.json()["code"] == "key_conflict"
+        assert BattleCrew.objects.get().revision == 1
+
+    def test_the_same_key_from_another_authorised_actor_is_refused(self, client, table):
+        from uuid import uuid4
+
+        payload = fields(table, request_key=str(uuid4()))
+        assert client.post(command_address(table), payload).status_code == 200
+        client.force_login(table.arbitrator)
+        assert client.post(command_address(table), payload).status_code == 409
+        assert BattleCrew.objects.get().revision == 1
+
+    def test_the_same_key_for_another_battle_is_refused(self, client, table):
+        from uuid import uuid4
+
+        payload = fields(table, request_key=str(uuid4()))
+        assert client.post(command_address(table), payload).status_code == 200
+        with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+            battle = act.record_battle(
+                date(2026, 9, 21), [table.gang], scenario="Second battle"
+            )
+        url = reverse(
+            "n26-battle-crew-command",
+            args=[table.campaign.pk, battle.pk, table.gang.pk],
+        )
+        assert client.post(url, payload).status_code == 409
+        assert BattleCrew.objects.count() == 1
+
+    @pytest.mark.parametrize("resource", ["battle", "campaign", "gang"])
+    def test_archival_allows_an_authorised_prior_receipt_but_no_new_save(
+        self, client, table, resource
+    ):
+        from uuid import uuid4
+
+        payload = fields(table, request_key=str(uuid4()))
+        first = client.post(command_address(table), payload).json()
+        obj = getattr(table, resource)
+        obj.archived = True
+        obj.save(update_fields=["archived"])
+        replay = client.post(command_address(table), payload)
+        assert replay.json()["acknowledged"] == first["acknowledged"]
+        assert "recover=1&saved=" in replay.json()["nextUrl"]
+        assert client.get(replay.json()["nextUrl"]).status_code == 200
+        fresh = payload | {"revision": "1", "request_key": str(uuid4())}
+        assert client.post(command_address(table), fresh).status_code == 409
+        assert BattleCrew.objects.get().revision == 1
+        assert client.get(address(table)).status_code == 404
+        recovery = client.get(address(table) + "?recover=1")
+        assert (
+            recovery.status_code == 200
+            and recovery.context["crew_workflow"]["readOnly"] is True
+        )
+
+    @pytest.mark.parametrize("authority", ["owner", "arbitrator", "participant"])
+    def test_revoked_authority_cannot_recall_a_saved_result(
+        self, client, table, authority
+    ):
+        from uuid import uuid4
+
+        from django.utils import timezone
+
+        if authority == "arbitrator":
+            client.force_login(table.arbitrator)
+        payload = fields(table, request_key=str(uuid4()))
+        assert client.post(command_address(table), payload).status_code == 200
+        if authority == "owner":
+            table.gang.owner = table.arbitrator
+            table.gang.save(update_fields=["owner"])
+        elif authority == "arbitrator":
+            table.gang.campaign_memberships.update(left=timezone.now())
+        else:
+            table.battle.gangs.remove(table.gang)
+        response = client.post(command_address(table), payload)
+        assert response.status_code == 404
+        assert "acknowledged" not in response.content.decode()
+        assert BattleCrew.objects.get().revision == 1
+
+    def test_revision_conflicts_keep_submitted_values_and_current_facts_separate(
+        self, client, table
+    ):
+        from uuid import uuid4
+
+        assert client.post(address(table), fields(table)).status_code == 302
+        payload = fields(
+            table,
+            action="draft",
+            request_key=str(uuid4()),
+            **{f"role_{table.models[0].pk}": "reserve"},
+        )
+        response = client.post(command_address(table), payload)
+        assert (
+            response.status_code == 409
+            and response.json()["code"] == "revision_conflict"
+        )
+        assert response.json()["current"]["revision"] == 1
+        assert response.json()["current"]["selections"][0]["role"] == "Starting crew"
+        native = client.post(address(table), payload)
+        assert (
+            native.context["crew_workflow"]["values"][f"role_{table.models[0].pk}"]
+            == "reserve"
+        )
+        assert native.context["crew_workflow"]["values"]["revision"] == "0"
+        assert native.context["crew_workflow"]["initialConflict"] is True
+
+    def test_json_requires_a_key_and_read_routes_never_save(self, client, table):
+        from n26.core.models import CrewCommandReceipt
+
+        response = client.post(command_address(table), fields(table))
+        assert response.status_code == 422
+        url = reverse(
+            "n26-battle-crew-display",
+            args=[table.campaign.pk, table.battle.pk, table.gang.pk],
+        )
+        assert client.get(url).status_code == 200
+        assert client.get(address(table)).status_code == 200
+        assert (
+            not BattleCrew.objects.exists() and not CrewCommandReceipt.objects.exists()
+        )
+        client.logout()
+        assert client.post(command_address(table), fields(table)).status_code == 401
+        assert client.get(url).status_code == 401
+
+    def test_a_receipt_failure_rolls_back_the_crew_and_draw(
+        self, client, table, monkeypatch
+    ):
+        from uuid import uuid4
+
+        from n26.core import crew_workflow
+        from n26.core.models import CrewCommandReceipt
+
+        def fail(*args, **kwargs):
+            raise RuntimeError("Receipt storage failed")
+
+        monkeypatch.setattr(crew_workflow, "snapshot", fail)
+        with pytest.raises(RuntimeError, match="Receipt storage failed"):
+            client.post(
+                command_address(table),
+                fields(
+                    table,
+                    action="draw",
+                    request_key=str(uuid4()),
+                    **{f"role_{table.models[1].pk}": "out"},
+                ),
+            )
+        assert (
+            not BattleCrew.objects.exists() and not CrewCommandReceipt.objects.exists()
+        )
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("same_key", [True, False])
+def test_concurrent_crew_commands_save_once_under_the_shared_locks(table, same_key):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from uuid import uuid4
+
+    from django.db import close_old_connections
+    from django.http import QueryDict
+
+    from n26.core import crew_workflow
+    from n26.core.models import CrewCommandReceipt
+
+    barrier = Barrier(2)
+    key = str(uuid4())
+
+    def save(index):
+        close_old_connections()
+        try:
+            payload = QueryDict(mutable=True)
+            payload.update(
+                fields(
+                    table,
+                    action="draw",
+                    request_key=key if same_key or index == 0 else str(uuid4()),
+                    **{f"role_{table.models[1].pk}": "out"},
+                )
+            )
+            barrier.wait(timeout=10)
+            result = crew_workflow.perform(
+                battle=table.battle,
+                gang=table.gang,
+                actor=table.owner,
+                data=payload,
+                require_key=True,
+            )
+            return (
+                result.saved,
+                result.replayed,
+                result.conflict,
+                result.receipt.result if result.receipt else None,
+            )
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(save, [0, 1]))
+    crew = BattleCrew.objects.get()
+    assert crew.revision == 1 and crew.draw_number == 1
+    assert CrewCommandReceipt.objects.count() == 1
+    if same_key:
+        assert all(result[0] for result in results)
+        assert sum(result[1] for result in results) == 1
+        assert results[0][3] == results[1][3]
+    else:
+        assert sum(result[0] for result in results) == 1
+        assert sum(result[2] for result in results) == 1
+
+
+@pytest.mark.parametrize("shape", ["added", "removed"])
+def test_native_rejected_roster_changes_preserve_raw_fields_and_require_review(
+    client, table, shape
+):
+    payload = fields(table)
+    if shape == "added":
+        hire(table.gang, table.models[0].membership.profile, "New model")
+    else:
+        from n26.core.models import Miniature
+
+        removed = table.models[0]
+        with operation(table.gang, actor=table.owner) as act:
+            act.remove(removed.membership)
+        assert Miniature.objects.filter(pk=removed.pk).exists()
+    response = client.post(address(table), payload)
+    assert response.status_code == 200
+    props = response.context["crew_workflow"]
+    assert props["rosterChanged"] is True
+    for name, value in payload.items():
+        if name.startswith(("role_", "card_")):
+            assert props["values"][name] == value
+    assert not BattleCrew.objects.exists()
+
+
+@pytest.mark.parametrize(
+    "status", [Status.RECOVERY, Status.CRITICAL, Status.CAPTURED, Status.RANSOMED]
+)
+def test_each_nonactive_status_requires_an_explicit_battle_allowance(
+    client, table, status
+):
+    from uuid import uuid4
+
+    with operation(table.gang, actor=table.owner) as act:
+        act.set_status(table.models[0], status)
+    payload = fields(table, request_key=str(uuid4()))
+    refused = client.post(command_address(table), payload)
+    assert refused.status_code == 422
+    assert f"override_{table.models[0].pk}" in refused.json()["errors"]
+    accepted = client.post(
+        command_address(table), payload | {f"override_{table.models[0].pk}": "on"}
+    )
+    assert accepted.status_code == 200
+    assert (
+        BattleCrew.objects.get()
+        .members.get(miniature=table.models[0])
+        .eligibility_override
+    )
+
+
+def test_vehicle_warnings_use_the_vehicle_status_label(
+    client, table, vehicle_type, make_profile
+):
+    profile = make_profile("Cargo crawler", profile_type=vehicle_type)
+    model = hire(table.gang, profile, "Mule")
+    with operation(table.gang, actor=table.owner) as act:
+        act.set_status(model, Status.CRITICAL)
+    response = client.get(address(table))
+    selected = next(
+        item
+        for item in response.context["crew_workflow"]["models"]
+        if item["id"] == str(model.pk)
+    )
+    assert (
+        selected["warning"] == "Critically Damaged. Usually unavailable for selection."
+    )
+
+
+def test_bound_native_checkbox_values_are_kept_exactly_in_display_props(client, table):
+    payload = fields(
+        table, random_count="invalid", **{f"override_{table.models[0].pk}": "false"}
+    )
+    response = client.post(address(table), payload)
+    assert (
+        response.context["crew_workflow"]["values"][f"override_{table.models[0].pk}"]
+        == "false"
+    )
+    assert response.context["crew_workflow"]["values"]["random_count"] == "invalid"
+
+
+def test_crew_json_commands_enforce_csrf(client, table):
+    from django.test import Client
+
+    guarded = Client(enforce_csrf_checks=True)
+    guarded.force_login(table.owner)
+    response = guarded.post(
+        command_address(table), fields(table), HTTP_ACCEPT="application/json"
+    )
+    assert response.status_code == 403
+    assert not BattleCrew.objects.exists()
+
+
+@pytest.mark.parametrize("change", ["owner", "participant", "archive"])
+def test_crew_authority_and_archive_are_rechecked_under_the_write_locks(
+    client, table, monkeypatch, change
+):
+    from contextlib import contextmanager
+    from uuid import uuid4
+
+    from n26.core import crew_workflow
+    from n26.core.models import Battle, CrewCommandReceipt, Gang
+
+    original = crew_workflow.locked_crew
+
+    @contextmanager
+    def changed_before_lock(**kwargs):
+        if change == "owner":
+            Gang.objects.filter(pk=table.gang.pk).update(owner=table.arbitrator)
+        elif change == "participant":
+            table.battle.gangs.remove(table.gang)
+        else:
+            Battle.objects.filter(pk=table.battle.pk).update(archived=True)
+        with original(**kwargs) as locked:
+            yield locked
+
+    monkeypatch.setattr(crew_workflow, "locked_crew", changed_before_lock)
+    response = client.post(
+        command_address(table), fields(table, request_key=str(uuid4()))
+    )
+    assert response.status_code == 409
+    assert "acknowledged" not in response.json()
+    assert not BattleCrew.objects.exists() and not CrewCommandReceipt.objects.exists()

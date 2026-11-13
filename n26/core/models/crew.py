@@ -76,3 +76,27 @@ class CrewMember(Base):
                 name="crew_member_valid_role",
             ),
         ]
+
+
+class CrewCommandReceipt(Base):
+    """A saved crew command and its original result across later edits."""
+
+    gang = models.ForeignKey(
+        "n26.Gang", on_delete=models.CASCADE, related_name="crew_commands"
+    )
+    battle = models.ForeignKey(
+        "n26.Battle", on_delete=models.CASCADE, related_name="crew_commands"
+    )
+    actor = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, related_name="+"
+    )
+    request_key = models.UUIDField()
+    inputs = models.JSONField()
+    result = models.JSONField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["gang", "request_key"], name="crew_command_once"
+            )
+        ]

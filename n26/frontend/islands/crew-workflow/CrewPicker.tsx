@@ -1,11 +1,9 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import {
-    Button,
-    ButtonLink,
     Callout,
     CheckboxCard,
+    CheckboxCardItem,
     Field,
-    FormActions,
     NativeSelect,
     SearchBar,
 } from "../../ui";
@@ -33,73 +31,78 @@ export type CrewModel = {
     override: { name: string; id: string; value: boolean; errors: string[] };
 };
 
+function allowed(value: string | undefined) {
+    return !!value && value.toLowerCase() !== "false";
+}
+
 export type CrewPickerProps = {
     models: CrewModel[];
-    battleUrl: string;
-    revision: number | null;
+    values: Record<string, string>;
+    errors: Record<string, string[]>;
+    onChange: (name: string, value: string) => void;
 };
 
-export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
+export function CrewPicker({
+    models,
+    values,
+    errors,
+    onChange,
+}: CrewPickerProps) {
     const headingId = useId();
     const [query, setQuery] = useState("");
-    const [selections, setSelections] = useState(() =>
-        Object.fromEntries(
-            models.map((model) => [
-                model.id,
-                {
-                    selected:
-                        !!model.role.value &&
-                        model.role.value !== "out" &&
-                        (!model.mayOverride || model.override.value),
-                    role:
-                        model.role.value === "reserve" ? "reserve" : "starting",
-                    card: model.card.value ?? "",
-                },
-            ]),
-        ),
+    const [lastRoles, setLastRoles] = useState<Record<string, string>>({});
+    const [repairAllow] = useState(
+        () =>
+            new Set(
+                models
+                    .filter(
+                        (model) =>
+                            model.mayOverride &&
+                            values[model.role.name] &&
+                            values[model.role.name] !== "out" &&
+                            !allowed(values[model.override.name]),
+                    )
+                    .map((model) => model.id),
+            ),
     );
-    const actions = useRef<HTMLDivElement>(null);
+    const selections = Object.fromEntries(
+        models.map((model) => [
+            model.id,
+            {
+                selected:
+                    !!values[model.role.name] &&
+                    values[model.role.name] !== "out",
+                role:
+                    values[model.role.name] === "out"
+                        ? (lastRoles[model.id] ?? "starting")
+                        : values[model.role.name],
+                card: values[model.card.name] ?? "",
+            },
+        ]),
+    );
+    function update(
+        id: string,
+        change: { selected?: boolean; role?: string; card?: string },
+    ) {
+        const model = models.find((model) => model.id === id)!;
+        if (change.selected !== undefined) {
+            if (model.mayOverride || !change.selected)
+                onChange(model.override.name, change.selected ? "on" : "");
+            if (!change.selected)
+                setLastRoles((previous) => ({
+                    ...previous,
+                    [id]: selections[id].role,
+                }));
+            onChange(
+                model.role.name,
+                change.selected ? (lastRoles[id] ?? "starting") : "out",
+            );
+        }
+        if (change.role !== undefined) onChange(model.role.name, change.role);
+        if (change.card !== undefined) onChange(model.card.name, change.card);
+    }
     const wanted = query.trim().toLowerCase();
     const shown = models.filter((model) => model.search.includes(wanted));
-    const selected = Object.values(selections).filter(
-        (value) => value.selected,
-    );
-    const starting = selected.filter(
-        (value) => value.role === "starting",
-    ).length;
-    const reserves = selected.length - starting;
-
-    useEffect(() => {
-        const element = actions.current;
-        if (!element) return;
-        const measure = () => {
-            document.documentElement.style.setProperty(
-                "--n26-battle-actions-height",
-                `${element.getBoundingClientRect().height}px`,
-            );
-        };
-        measure();
-        const observer = window.ResizeObserver
-            ? new ResizeObserver(measure)
-            : null;
-        observer?.observe(element);
-        window.addEventListener("resize", measure);
-        return () => {
-            observer?.disconnect();
-            window.removeEventListener("resize", measure);
-            document.documentElement.style.removeProperty(
-                "--n26-battle-actions-height",
-            );
-        };
-    }, []);
-
-    function update(id: string, change: Partial<(typeof selections)[string]>) {
-        setSelections((previous) => ({
-            ...previous,
-            [id]: { ...previous[id], ...change },
-        }));
-    }
-
     return (
         <div className="space-y-4">
             {/* The Django form requires every model's fields, including models hidden by search. */}
@@ -110,18 +113,22 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                         <input
                             type="hidden"
                             name={model.role.name}
-                            value={value.selected ? value.role : "out"}
+                            value={values[model.role.name] ?? ""}
                         />
                         <input
                             type="hidden"
                             name={model.card.name}
                             value={value.card}
                         />
-                        {value.selected && model.mayOverride && (
+                        {(!model.mayOverride ||
+                            !repairAllow.has(model.id) ||
+                            !value.selected ||
+                            !allowed(values[model.override.name]) ||
+                            !shown.some((item) => item.id === model.id)) && (
                             <input
                                 type="hidden"
                                 name={model.override.name}
-                                value="on"
+                                value={values[model.override.name] ?? ""}
                             />
                         )}
                     </div>
@@ -181,7 +188,9 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                                 }
                                 errors={
                                     <>
-                                        {model.override.errors.map((error) => (
+                                        {(
+                                            errors[model.override.name] ?? []
+                                        ).map((error) => (
                                             <p
                                                 key={error}
                                                 role="alert"
@@ -190,22 +199,30 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                                                 {error}
                                             </p>
                                         ))}
-                                        {model.role.errors.length > 0 && (
+                                        {(errors[model.role.name] ?? [])
+                                            .length > 0 && (
                                             <div
                                                 id={roleErrorId}
                                                 role="alert"
                                                 className="mt-2 text-sm text-red-700 dark:text-red-300"
                                             >
-                                                {model.role.errors.join(" ")}
+                                                {(
+                                                    errors[model.role.name] ??
+                                                    []
+                                                ).join(" ")}
                                             </div>
                                         )}
-                                        {model.card.errors.length > 0 && (
+                                        {(errors[model.card.name] ?? [])
+                                            .length > 0 && (
                                             <div
                                                 id={cardErrorId}
                                                 role="alert"
                                                 className="mt-2 text-sm text-red-700 dark:text-red-300"
                                             >
-                                                {model.card.errors.join(" ")}
+                                                {(
+                                                    errors[model.card.name] ??
+                                                    []
+                                                ).join(" ")}
                                             </div>
                                         )}
                                     </>
@@ -220,11 +237,12 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                                             id={model.role.id}
                                             aria-label={`Starting crew or reinforcement for ${model.name}`}
                                             aria-invalid={
-                                                model.role.errors.length > 0 ||
-                                                undefined
+                                                (errors[model.role.name] ?? [])
+                                                    .length > 0 || undefined
                                             }
                                             aria-describedby={
-                                                model.role.errors.length
+                                                (errors[model.role.name] ?? [])
+                                                    .length
                                                     ? roleErrorId
                                                     : undefined
                                             }
@@ -236,6 +254,19 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                                                 })
                                             }
                                         >
+                                            {!model.role.choices.some(
+                                                (choice) =>
+                                                    choice.value ===
+                                                        value.role &&
+                                                    choice.value !== "out",
+                                            ) && (
+                                                <option
+                                                    value={value.role}
+                                                    disabled
+                                                >
+                                                    Select a crew role
+                                                </option>
+                                            )}
                                             {model.role.choices
                                                 .filter(
                                                     (choice) =>
@@ -259,11 +290,12 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                                             id={model.card.id}
                                             aria-label={`Equipment set for ${model.name}`}
                                             aria-invalid={
-                                                model.card.errors.length > 0 ||
-                                                undefined
+                                                (errors[model.card.name] ?? [])
+                                                    .length > 0 || undefined
                                             }
                                             aria-describedby={
-                                                model.card.errors.length
+                                                (errors[model.card.name] ?? [])
+                                                    .length
                                                     ? cardErrorId
                                                     : undefined
                                             }
@@ -298,6 +330,28 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                                             )}
                                         </NativeSelect>
                                     </Field>
+                                    {model.mayOverride &&
+                                        repairAllow.has(model.id) && (
+                                            <CheckboxCardItem
+                                                name={model.override.name}
+                                                value={
+                                                    values[
+                                                        model.override.name
+                                                    ] || "on"
+                                                }
+                                                disabled={!included}
+                                                label="Allow for this battle"
+                                                checked={allowed(
+                                                    values[model.override.name],
+                                                )}
+                                                onCheckedChange={(checked) =>
+                                                    onChange(
+                                                        model.override.name,
+                                                        checked ? "on" : "",
+                                                    )
+                                                }
+                                            />
+                                        )}
                                     {model.savedSource && (
                                         <p className="text-xs text-muted">
                                             {model.savedSource}
@@ -320,45 +374,6 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                 A saved crew keeps its equipment selection. To use an edited
                 equipment set, select it again from the list.
             </p>
-            <div
-                ref={actions}
-                className="n26-battle-actions"
-                data-battle-actions
-                aria-label="Save crew"
-            >
-                <div className="n26-site-container flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-sm" role="status" aria-live="polite">
-                        <p className="font-semibold">
-                            {selected.length}{" "}
-                            {selected.length === 1 ? "model" : "models"}{" "}
-                            selected
-                        </p>
-                        <p className="text-xs text-muted">
-                            {starting} starting · {reserves}{" "}
-                            {reserves === 1
-                                ? "reinforcement"
-                                : "reinforcements"}
-                            {revision !== null && ` · Revision ${revision}`}
-                        </p>
-                    </div>
-                    <FormActions className="w-full sm:w-auto">
-                        <ButtonLink href={battleUrl} variant="ghost">
-                            Back
-                        </ButtonLink>
-                        <Button type="submit" name="action" value="draft">
-                            Save draft
-                        </Button>
-                        <Button
-                            type="submit"
-                            name="action"
-                            value="save"
-                            variant="success"
-                        >
-                            Save crew
-                        </Button>
-                    </FormActions>
-                </div>
-            </div>
         </div>
     );
 }

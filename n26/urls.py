@@ -187,6 +187,16 @@ urlpatterns = [
         name="n26-battle-crew",
     ),
     path(
+        "campaigns/<str:pk>/battles/<str:battle_pk>/gangs/<str:gang_pk>/crew/command/",
+        views.crew_command,
+        name="n26-battle-crew-command",
+    ),
+    path(
+        "campaigns/<str:pk>/battles/<str:battle_pk>/gangs/<str:gang_pk>/crew/display/",
+        views.crew_display,
+        name="n26-battle-crew-display",
+    ),
+    path(
         "campaigns/<str:pk>/battles/<str:battle_pk>/gangs/<str:gang_pk>/crew/cards/",
         views.crew_sheet,
         name="n26-battle-crew-sheet",

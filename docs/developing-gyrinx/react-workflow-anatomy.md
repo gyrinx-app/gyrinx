@@ -247,6 +247,10 @@ editing and offers a retry. Reload uses fresh credentials with the retained
 input; CSRF tokens are never stored with it. A rejected retry cannot establish
 whether an earlier request committed.
 
+A frozen recovery view needs a readable snapshot of the submitted draft. Synchronise it before sending, alongside the command intent; initial props may describe another draft. Keep display labels separate from the exact raw body and request key used for retries.
+
+Test names, roles, equipment and counts immediately after a lost response and again after reload. A newer saved state must not replace that submitted snapshot.
+
 The server's retry contract depends on the action:
 
 | Action | Contract |
