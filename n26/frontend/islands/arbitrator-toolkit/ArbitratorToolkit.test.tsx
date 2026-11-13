@@ -84,7 +84,7 @@ test("recipients and choice limits are included in the submitted payload", () =>
     const view = render(<ArbitratorToolkit {...base} />);
     fireEvent.click(screen.getByRole("radio", { name: /Offer a choice/ }));
     fireEvent.click(screen.getByRole("button", { name: /Add option/ }));
-    fireEvent.change(screen.getByLabelText("Number of rewards to choose *"), {
+    fireEvent.change(screen.getByLabelText("Number of rewards to choose"), {
         target: { value: "2" },
     });
     const payload = JSON.parse(
@@ -306,7 +306,7 @@ test("choice counts reject negative, zero and fractional values", () => {
     const view = render(<ArbitratorToolkit {...base} />);
     fireEvent.click(screen.getByRole("radio", { name: /Offer a choice/ }));
     fireEvent.click(screen.getByRole("button", { name: /Add option/ }));
-    const input = screen.getByLabelText("Number of rewards to choose *");
+    const input = screen.getByLabelText("Number of rewards to choose");
     for (const value of ["-1", "0", "1.5"]) {
         fireEvent.change(input, { target: { value } });
         expect((input as HTMLInputElement).value).toBe("1");
@@ -382,9 +382,9 @@ test("interventions require rewards, application mode and recipients before send
 test("reward picker names follow the selected type", () => {
     render(<ArbitratorToolkit {...base} />);
     for (const [kind, label, button] of [
-        ["resource", "Resource type *", "Select resource type 1"],
-        ["weapon", "Weapon *", "Select weapon 1"],
-        ["equipment", "Equipment *", "Select equipment 1"],
+        ["resource", "Resource type", "Select resource type 1"],
+        ["weapon", "Weapon", "Select weapon 1"],
+        ["equipment", "Equipment", "Select equipment 1"],
     ]) {
         fireEvent.change(screen.getByLabelText("Type"), {
             target: { value: kind },
@@ -423,4 +423,63 @@ test("a conflicting communication edit freezes its draft until review", async ()
         "disabled",
         true,
     );
+});
+
+test("tag tables pool recipients and keep gang and player tags separate", () => {
+    render(
+        <ArbitratorToolkit
+            {...base}
+            screen="home"
+            tab="tags"
+            tags={[
+                {
+                    id: "a",
+                    assignmentKey: "convoy",
+                    name: "Convoy guides",
+                    icon: "snail",
+                    info: "Route advice.",
+                    target: "gangs",
+                    recipient: "Glass Vipers",
+                    editHref: "/edit/",
+                    removeHref: "/remove/a/",
+                },
+                {
+                    id: "b",
+                    assignmentKey: "convoy",
+                    name: "Convoy guides",
+                    icon: "snail",
+                    info: "Route advice.",
+                    target: "gangs",
+                    recipient: "Iron Lanterns",
+                    editHref: "/edit/",
+                    removeHref: "/remove/b/",
+                },
+                {
+                    id: "c",
+                    assignmentKey: "painter",
+                    name: "Painter",
+                    icon: "paintbrush",
+                    info: "Painting advice.",
+                    target: "players",
+                    recipient: "Ada",
+                    editHref: "/edit/painter/",
+                    removeHref: "/remove/c/",
+                },
+            ]}
+        />,
+    );
+    const gangs = screen.getByRole("table", { name: "Gang tags" });
+    const players = screen.getByRole("table", { name: "Player tags" });
+    expect(gangs.querySelectorAll("tbody tr")).toHaveLength(1);
+    expect(gangs.textContent).toContain("Glass Vipers");
+    expect(gangs.textContent).toContain("Iron Lanterns");
+    expect(gangs.textContent).not.toContain("Ada");
+    expect(players.textContent).toContain("Ada");
+    expect(
+        screen
+            .getByRole("link", {
+                name: "Remove Convoy guides from Iron Lanterns",
+            })
+            .getAttribute("href"),
+    ).toBe("/remove/b/");
 });

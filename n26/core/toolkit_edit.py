@@ -81,7 +81,9 @@ def edit_communication(campaign, actor, payload):
             strip_tags(authored_html(body)).strip() or "<img " in authored_html(body)
         )
     ):
-        raise Refusal("Enter a title and message of up to 10000 characters.")
+        raise Refusal(
+            "Enter a title of up to 200 characters and a message of up to 10000 characters."
+        )
     current = communication_values(command)
     unchanged = title.strip() == current["title"] and body == current["body"]
     check_state(

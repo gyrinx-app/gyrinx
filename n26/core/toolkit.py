@@ -197,7 +197,7 @@ def rewards_from(data, campaign):
 
 
 def recipients_from(payload, campaign):
-    if payload.get("recipients_mode") not in {"all", "selected"}:
+    if payload.get("recipients_mode") not in ("all", "selected"):
         raise Refusal("Choose selected gangs or all gangs.")
     found = Gang.objects.filter(
         campaign_memberships__campaign=campaign,
@@ -322,7 +322,7 @@ def summary(rewards):
     return ", ".join(r["label"] for r in rewards)
 
 
-def send_intervention(campaign, actor, payload):
+def send_intervention(campaign, actor, payload, *, purpose="intervention"):
     title = payload.get("title", "")
     narrative = payload.get("narrative", "")
     if (
@@ -332,7 +332,9 @@ def send_intervention(campaign, actor, payload):
         or not isinstance(narrative, str)
         or len(narrative) > 10000
     ):
-        raise Refusal("Enter a title and up to 10000 characters of accompanying text.")
+        raise Refusal(
+            "Enter a title of up to 200 characters. Accompanying text can contain up to 10000 characters."
+        )
     mode = payload.get("mode")
     if not isinstance(mode, str) or mode not in {"bundle", "choice"}:
         raise Refusal("Select all rewards or a choice of rewards.")
@@ -372,7 +374,7 @@ def send_intervention(campaign, actor, payload):
     intervention = Intervention.objects.create(
         campaign=campaign,
         actor=actor,
-        purpose=payload.get("_purpose", "intervention"),
+        purpose=purpose,
         title=title.strip(),
         narrative=narrative,
         mode=mode,
@@ -524,8 +526,8 @@ def run_command(campaign, actor, action, payload):
                 "narrative": "",
                 "mode": "bundle",
                 "inform_all": False,
-                "_purpose": "tags",
             },
+            purpose="tags",
         )
         return toolkit_href(campaign) + "?tab=tags"
     if action == "communication":
@@ -543,7 +545,9 @@ def run_command(campaign, actor, action, payload):
                 or "<img " in authored_html(body)
             )
         ):
-            raise Refusal("Enter a title and message of up to 10000 characters.")
+            raise Refusal(
+                "Enter a title of up to 200 characters and a message of up to 10000 characters."
+            )
         identity = f"communication:{payload['_key']}"
         queue(
             campaign,

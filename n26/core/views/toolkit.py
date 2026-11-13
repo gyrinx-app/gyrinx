@@ -103,7 +103,9 @@ def toolkit_home(request, pk):
                 "name": t.name,
                 "icon": t.icon,
                 "info": t.info,
-                "gang": t.gang.name if t.gang_id else t.player.username,
+                "recipient": t.gang.name if t.gang_id else t.player.username,
+                "target": "gangs" if t.gang_id else "players",
+                "assignmentKey": str(t.assignment_key),
                 "editHref": reverse("n26-toolkit-form", args=[campaign.pk, "edit_tag"])
                 + f"?tag={t.pk}",
                 "removeHref": reverse(

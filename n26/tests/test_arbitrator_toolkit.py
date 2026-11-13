@@ -628,7 +628,8 @@ def test_quiet_reports_arrive_for_every_due_window_and_never_duplicate(
     reports = list(Notification.objects.filter(owner=arb))
     assert len(reports) == 2
     assert all(
-        "No alerted actions took place from " in r.content and " to " in r.content
+        "None of the selected actions took place from " in r.content
+        and " to " in r.content
         for r in reports
     )
     settings.refresh_from_db()
@@ -1121,7 +1122,7 @@ def test_reports_group_actions_by_type_and_skip_empty_sections():
         < message.index("A reward was chosen.")
     )
     assert "fighter" not in message and "A player removes a gang" not in message
-    assert "Alerted actions from" in text
+    assert "Selected actions from" in text
 
 
 def test_existing_tag_groups_survive_the_edit_migration(demo):
@@ -1195,3 +1196,22 @@ def test_edited_message_listing_has_flat_query_growth(
     for index in range(1, 4):
         send_and_edit(index)
     assert measure(4) <= small
+
+
+def test_intervention_purpose_cannot_be_overridden_by_payload(demo):
+    campaign, arb, players, gangs = demo
+    form, url = command(
+        campaign, arb, "intervention", {**offer(gangs), "_purpose": "tags"}
+    )
+    assert url, form.errors
+    assert Intervention.objects.get().purpose == "intervention"
+
+
+def test_malformed_recipient_mode_is_a_refusal(demo):
+    campaign, arb, players, gangs = demo
+    form, url = command(
+        campaign, arb, "intervention", {**offer(gangs), "recipients_mode": []}
+    )
+    assert url is None
+    assert form.errors
+    assert not Intervention.objects.exists()

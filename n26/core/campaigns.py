@@ -1506,7 +1506,7 @@ class CampaignOperation:
             self.campaign,
             "asset_owner_changed",
             identity=f"{campaign_asset.pk}:{campaign_asset.ownership_revision}",
-            text=f"{campaign_asset} became unclaimed from {holder.gang.name}.",
+            text=f"{holder.gang.name} released {campaign_asset}.",
             actor=self.actor,
         )
         return campaign_asset

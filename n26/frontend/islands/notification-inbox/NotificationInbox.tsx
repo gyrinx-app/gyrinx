@@ -77,20 +77,23 @@ function OriginalMessage({
     const [open, setOpen] = useState(false);
     return (
         <div className="space-y-3">
-            <p className="text-xs text-muted">
-                Edited{" "}
-                <time dateTime={edit.at}>
-                    {new Date(edit.at).toLocaleString()}
-                </time>
-            </p>
-            <Button
-                size="sm"
-                variant="text"
-                aria-expanded={open}
-                onClick={() => setOpen(!open)}
-            >
-                {open ? "Hide original" : "View original"}
-            </Button>
+            <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
+                <p>
+                    Edited{" "}
+                    <time dateTime={edit.at}>
+                        {new Date(edit.at).toLocaleString()}
+                    </time>
+                </p>
+                <span aria-hidden="true">·</span>
+                <Button
+                    size="sm"
+                    variant="text"
+                    aria-expanded={open}
+                    onClick={() => setOpen(!open)}
+                >
+                    {open ? "Hide original" : "View original"}
+                </Button>
+            </div>
             {open && (
                 <Card>
                     <h4 className="mb-3 text-sm font-semibold">

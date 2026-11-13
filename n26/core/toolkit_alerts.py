@@ -98,14 +98,14 @@ def period(start, end):
 def report_content(start, end, events):
     events = list(events)
     if not events:
-        return f"No alerted actions took place {period(start, end)}.", ""
+        return f"None of the selected actions took place {period(start, end)}.", ""
     sections = []
     for event, label in ALERT_EVENTS:
         entries = [e for e in events if e.event == event]
         if entries:
             items = format_html_join("", "<li>{}</li>", ((e.text,) for e in entries))
             sections.append(format_html("<h3>{}</h3><ul>{}</ul>", label, items))
-    return f"Alerted actions {period(start, end)}:", str(
+    return f"Selected actions {period(start, end)}:", str(
         format_html_join("", "{}", ((s,) for s in sections))
     )
 

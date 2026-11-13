@@ -17,6 +17,7 @@ import {
     CheckboxCard,
     CheckboxCardItem,
     Card,
+    Table,
     Alert,
     Link,
     Badge,
@@ -84,7 +85,9 @@ type Tag = {
     name: string;
     icon: string;
     info: string;
-    gang: string;
+    recipient: string;
+    target: "gangs" | "players";
+    assignmentKey: string;
     removeHref: string;
 };
 type Receipt = {
@@ -385,11 +388,11 @@ function Home(p: ToolkitProps) {
                             Enabled events send a site notification to you as
                             the arbitrator.
                         </p>
-                        <p className="text-sm">
+                        <p className="text-sm font-semibold">
                             Immediate alerts:{" "}
                             {p.alertTiming?.immediate === false ? "Off" : "On"}
                         </p>
-                        <p className="text-sm">
+                        <p className="text-sm font-semibold">
                             Wrap-up reports:{" "}
                             {p.alertTiming?.report_enabled
                                 ? `Every ${p.alertTiming.report_days} ${p.alertTiming.report_days === 1 ? "day" : "days"}`
@@ -428,64 +431,112 @@ function Home(p: ToolkitProps) {
                 </Card>
             )}
             {tab === "tags" && (
-                <Card
-                    header={
-                        <h2 className="font-semibold">Player and gang tags</h2>
-                    }
-                >
-                    <div className="divide-y divide-box-border">
-                        {!p.tags?.length && (
-                            <p className="text-sm text-muted">
-                                No tags assigned yet. Assign a tag to a player
-                                or gang.
-                            </p>
-                        )}
-                        {p.tags?.map((t) => (
-                            <div
-                                key={t.id}
-                                className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
-                            >
-                                <div>
-                                    <h3 className="flex items-center gap-2 font-semibold">
-                                        {t.name}
-                                        <Glyph
-                                            name={t.icon}
-                                            className="size-[1em]"
-                                        />
-                                    </h3>
-                                    <p className="mt-1 text-sm text-muted">
-                                        {t.gang}
-                                    </p>
-                                    {t.info && (
-                                        <p className="mt-1 whitespace-pre-wrap text-sm">
-                                            {t.info}
-                                        </p>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    {t.editHref && (
-                                        <ButtonLink
-                                            href={t.editHref}
-                                            size="sm"
-                                            variant="ghost"
-                                        >
-                                            Edit
-                                        </ButtonLink>
-                                    )}
-                                    <ButtonLink
-                                        href={t.removeHref}
-                                        size="sm"
-                                        variant="ghost"
-                                    >
-                                        Remove
-                                    </ButtonLink>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </Card>
+                <div className="space-y-8">
+                    <TagTable tags={p.tags ?? []} target="gangs" />
+                    <TagTable tags={p.tags ?? []} target="players" />
+                </div>
             )}
         </WorkflowLayout>
+    );
+}
+function TagTable({ tags, target }: { tags: Tag[]; target: Tag["target"] }) {
+    const groups = new Map<string, Tag[]>();
+    for (const tag of tags.filter((tag) => tag.target === target)) {
+        const recipients = groups.get(tag.assignmentKey) ?? [];
+        recipients.push(tag);
+        groups.set(tag.assignmentKey, recipients);
+    }
+    const title = target === "gangs" ? "Gang tags" : "Player tags";
+    return (
+        <Card header={<h2 className="font-semibold">{title}</h2>}>
+            {groups.size ? (
+                <Table className="max-sm:block [&_td]:align-top">
+                    <caption className="sr-only">{title}</caption>
+                    <thead className="max-sm:sr-only">
+                        <tr>
+                            <th scope="col">Tag</th>
+                            <th scope="col">
+                                {target === "gangs" ? "Gangs" : "Players"}
+                            </th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="max-sm:block">
+                        {[...groups.values()].map((recipients) => {
+                            const tag = recipients[0];
+                            return (
+                                <tr
+                                    key={tag.assignmentKey}
+                                    className="max-sm:grid max-sm:grid-cols-1"
+                                >
+                                    <td className="min-w-40 whitespace-normal max-sm:min-w-0">
+                                        <span className="inline-flex items-center gap-2 font-semibold">
+                                            {tag.name}
+                                            <Glyph
+                                                name={tag.icon}
+                                                className="size-[1em]"
+                                            />
+                                        </span>
+                                        {tag.info && (
+                                            <p className="mt-1 whitespace-pre-wrap text-sm text-muted">
+                                                {tag.info}
+                                            </p>
+                                        )}
+                                    </td>
+                                    <td>
+                                        <span className="mb-2 block text-xs font-semibold text-muted sm:hidden">
+                                            {target === "gangs"
+                                                ? "Gangs"
+                                                : "Players"}
+                                        </span>
+                                        <ul className="space-y-2">
+                                            {recipients.map((recipient) => (
+                                                <li
+                                                    key={recipient.id}
+                                                    className="flex items-center justify-between gap-3"
+                                                >
+                                                    <span>
+                                                        {recipient.recipient}
+                                                    </span>
+                                                    <Link
+                                                        href={
+                                                            recipient.removeHref
+                                                        }
+                                                        tone="danger"
+                                                        className="text-xs"
+                                                        aria-label={`Remove ${tag.name} from ${recipient.recipient}`}
+                                                    >
+                                                        Remove
+                                                    </Link>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </td>
+                                    <td>
+                                        {tag.editHref && (
+                                            <ButtonLink
+                                                href={tag.editHref}
+                                                size="sm"
+                                                variant="ghost"
+                                                aria-label={`Edit ${tag.name}`}
+                                            >
+                                                Edit
+                                            </ButtonLink>
+                                        )}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </Table>
+            ) : (
+                <p className="text-sm text-muted">
+                    No {target === "gangs" ? "gang" : "player"} tags assigned
+                    yet. Assign a tag to{" "}
+                    {target === "gangs" ? "a gang" : "a player"}.
+                </p>
+            )}
+        </Card>
     );
 }
 function Detail(p: ToolkitProps) {
@@ -1005,11 +1056,8 @@ function ToolkitForm(p: ToolkitProps) {
                             </Field>
                         </FormSection>
                         {action === "intervention" && (
-                            <FormSection title="Rewards">
-                                <RadioCards
-                                    legend="Apply rewards *"
-                                    min="12rem"
-                                >
+                            <FormSection title="Rewards *">
+                                <RadioCards legend="Apply rewards" min="12rem">
                                     <RadioCard
                                         name="reward_mode"
                                         value="bundle"
@@ -1029,7 +1077,7 @@ function ToolkitForm(p: ToolkitProps) {
                                 </RadioCards>
                                 {data.mode === "choice" && (
                                     <Field
-                                        label="Number of rewards to choose *"
+                                        label="Number of rewards to choose"
                                         htmlFor="toolkit-limit"
                                     >
                                         <Input
@@ -1120,36 +1168,22 @@ function ToolkitForm(p: ToolkitProps) {
                                                     <option value="">
                                                         Select a type
                                                     </option>
-                                                    {(targetPlayers
-                                                        ? [
-                                                              [
-                                                                  "tag",
-                                                                  "Player tag",
-                                                              ],
-                                                          ]
-                                                        : [
-                                                              [
-                                                                  "credits",
-                                                                  "Credits",
-                                                              ],
-                                                              [
-                                                                  "weapon",
-                                                                  "Weapon",
-                                                              ],
-                                                              [
-                                                                  "equipment",
-                                                                  "Equipment",
-                                                              ],
-                                                              [
-                                                                  "resource",
-                                                                  "Resource",
-                                                              ],
-                                                              [
-                                                                  "profile",
-                                                                  "Fighter or vehicle",
-                                                              ],
-                                                          ]
-                                                    ).map(([value, label]) => (
+                                                    {[
+                                                        ["credits", "Credits"],
+                                                        ["weapon", "Weapon"],
+                                                        [
+                                                            "equipment",
+                                                            "Equipment",
+                                                        ],
+                                                        [
+                                                            "resource",
+                                                            "Resource",
+                                                        ],
+                                                        [
+                                                            "profile",
+                                                            "Fighter or vehicle",
+                                                        ],
+                                                    ].map(([value, label]) => (
                                                         <option
                                                             key={value}
                                                             value={value}
@@ -1159,111 +1193,14 @@ function ToolkitForm(p: ToolkitProps) {
                                                     ))}
                                                 </NativeSelect>
                                             </Field>
-                                            {reward.kind === "tag" ? (
-                                                <>
-                                                    <Field
-                                                        label="Tag name *"
-                                                        htmlFor={`tag-name-${index}`}
-                                                    >
-                                                        <Input
-                                                            required
-                                                            maxLength={80}
-                                                            value={
-                                                                reward.name ??
-                                                                ""
-                                                            }
-                                                            onChange={(e) =>
-                                                                updateReward(
-                                                                    index,
-                                                                    {
-                                                                        name: e
-                                                                            .target
-                                                                            .value,
-                                                                    },
-                                                                )
-                                                            }
-                                                        />
-                                                    </Field>
-                                                    <fieldset className="space-y-2">
-                                                        <legend className="text-sm font-medium">
-                                                            Icon
-                                                        </legend>
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {p.icons?.map(
-                                                                (icon) => (
-                                                                    <Tooltip
-                                                                        key={
-                                                                            icon
-                                                                        }
-                                                                        label={
-                                                                            icon
-                                                                        }
-                                                                        size="sm"
-                                                                    >
-                                                                        <Button
-                                                                            variant={
-                                                                                reward.icon ===
-                                                                                icon
-                                                                                    ? "primary"
-                                                                                    : "default"
-                                                                            }
-                                                                            aria-label={
-                                                                                icon
-                                                                            }
-                                                                            aria-pressed={
-                                                                                reward.icon ===
-                                                                                icon
-                                                                            }
-                                                                            onClick={() =>
-                                                                                updateReward(
-                                                                                    index,
-                                                                                    {
-                                                                                        icon,
-                                                                                    },
-                                                                                )
-                                                                            }
-                                                                        >
-                                                                            <Glyph
-                                                                                name={
-                                                                                    icon
-                                                                                }
-                                                                            />
-                                                                        </Button>
-                                                                    </Tooltip>
-                                                                ),
-                                                            )}
-                                                        </div>
-                                                    </fieldset>
-                                                    <Field
-                                                        label="Information"
-                                                        htmlFor={`tag-info-${index}`}
-                                                    >
-                                                        <Textarea
-                                                            rows={2}
-                                                            maxLength={1000}
-                                                            value={
-                                                                reward.info ??
-                                                                ""
-                                                            }
-                                                            onChange={(e) =>
-                                                                updateReward(
-                                                                    index,
-                                                                    {
-                                                                        info: e
-                                                                            .target
-                                                                            .value,
-                                                                    },
-                                                                )
-                                                            }
-                                                        />
-                                                    </Field>
-                                                </>
-                                            ) : reward.kind ? (
+                                            {reward.kind ? (
                                                 <>
                                                     {reward.kind !==
                                                         "credits" && (
                                                         <Field
-                                                            label={`${rewardKind(reward.kind)} *`}
+                                                            label={rewardKind(
+                                                                reward.kind,
+                                                            )}
                                                             htmlFor={`reward-item-${index}`}
                                                         >
                                                             <QuickSwitcher
@@ -1331,8 +1268,8 @@ function ToolkitForm(p: ToolkitProps) {
                                                         label={
                                                             reward.kind ===
                                                             "credits"
-                                                                ? "Credits *"
-                                                                : "Quantity *"
+                                                                ? "Credits"
+                                                                : "Quantity"
                                                         }
                                                         htmlFor={`reward-amount-${index}`}
                                                     >
@@ -1690,7 +1627,7 @@ function ToolkitForm(p: ToolkitProps) {
                             <CheckboxCard
                                 name="report_display"
                                 label="Send a wrap-up report"
-                                description="Receive a report even when no alerted actions took place."
+                                description="Receive a report even when none of the selected actions took place."
                                 checked={data.report_enabled}
                                 onCheckedChange={(report_enabled) =>
                                     set({ report_enabled })
