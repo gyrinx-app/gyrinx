@@ -190,6 +190,7 @@ export function restorePlanDraft(editor: Editor, phases: Phase[]) {
             for (const field of fields)
                 if (
                     field !== "steps" &&
+                    field !== "mode" &&
                     draft.values[field] === draft.baseline[field]
                 )
                     values[field] = editor.values[field];

@@ -389,3 +389,58 @@ test("an unrelated saved prefix after deletion keeps conflicting across repeated
         restorePlanDraft(fresh, phases.slice(1)).values.expected_revision,
     ).toBe("1");
 });
+
+test.each([false, true])(
+    "deleting the persisted repeating phase preserves the draft mode unless its remaining steps are empty (%s)",
+    (hasUnusedPhaseStep) => {
+        const a = { ...steps[0], count: 1 };
+        const b = { ...steps[1], count: 5 };
+        const baseline = {
+            ...editor,
+            context: { savedStepCounts: { one: 1 } },
+            values: {
+                ...editor.values,
+                mode: "repeating",
+                steps: JSON.stringify([a]),
+                date_mode: "planned",
+                date_start: "2026-11-08",
+            },
+        };
+        const draft = {
+            ...baseline.values,
+            steps: JSON.stringify(hasUnusedPhaseStep ? [a, b] : [a]),
+            date_start: "2030-01-01",
+            cycle_interval: "2",
+        };
+        retainPlanDraft(baseline, draft, { repeating: draft.steps });
+        confirmPhaseDeletion(
+            {
+                ...editor,
+                kind: "delete-phase",
+                context: { planRecoveryKey: editor.recoveryKey },
+            },
+            { expected_revision: "1" },
+            2,
+        );
+        const fresh = {
+            ...baseline,
+            values: {
+                ...baseline.values,
+                expected_revision: "2",
+                mode: "fixed",
+                steps: "[]",
+            },
+        };
+        const restored = restorePlanDraft(fresh, phases.slice(1));
+        expect(restored.values.expected_revision).toBe("2");
+        expect(restored.values.mode).toBe(
+            hasUnusedPhaseStep ? "repeating" : "fixed",
+        );
+        expect(JSON.parse(restored.values.steps)).toEqual(
+            hasUnusedPhaseStep ? [b] : [],
+        );
+        expect(restored.values.date_mode).toBe("planned");
+        expect(restored.values.date_start).toBe("2030-01-01");
+        expect(restored.values.cycle_interval).toBe("2");
+    },
+);
