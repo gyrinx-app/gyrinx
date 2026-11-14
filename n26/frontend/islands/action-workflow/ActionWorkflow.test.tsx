@@ -712,3 +712,120 @@ test.each([17, false, { name: "QA First whisper" }, ["QA First whisper"]])(
         expect(navigate).not.toHaveBeenCalled();
     },
 );
+
+const reviewProps: ActionWorkflowProps = {
+    ...props,
+    facts: {
+        ...props.facts,
+        stage: "review",
+        roll: null,
+        submit_label: "Confirm",
+    },
+    values: {
+        ...props.values,
+        draft_key: "draft:record:review",
+        target_step: "review",
+        review: "review-before-payment-change",
+    },
+    fields: ["review"],
+    hiddenFields: ["review"],
+    action: "/flow/review/",
+    draftKey: "draft:record:review",
+    recoveryHref: "/flow/review/?recover=1&gang_id=gang",
+};
+const refreshedReview: ActionWorkflowProps = {
+    ...reviewProps,
+    values: {
+        ...reviewProps.values,
+        command_key: "command-after-payment-change",
+        review: "review-after-payment-change",
+    },
+    csrfToken: "rotated-review-csrf",
+};
+
+test("a rejected review reload confirms fresh payment facts with a fresh command identity", async () => {
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(
+            json({ errors: { review: ["Review the changed payment."] } }, 422),
+        )
+        .mockResolvedValueOnce(
+            json({ saved: true, facts: saved, nextUrl: "/done/" }),
+        );
+    vi.stubGlobal("fetch", fetch);
+    const navigate = vi.fn();
+    const view = render(
+        <ActionWorkflow {...reviewProps} onNavigate={navigate} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reload" }));
+    expect(navigate).toHaveBeenCalledWith(reviewProps.recoveryHref);
+    const retained = new URLSearchParams(
+        sessionStorage.getItem(props.recoveryKey)!,
+    );
+    expect(retained.get("__workflow_rejected")).toBe("1");
+    view.unmount();
+    render(<ActionWorkflow {...refreshedReview} onNavigate={navigate} />);
+    expect(screen.queryByRole("button", { name: "Retry save" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    const body = fetch.mock.calls[1][1].body as URLSearchParams;
+    expect(body.get("review")).toBe(refreshedReview.values.review);
+    expect(body.get("command_key")).toBe(refreshedReview.values.command_key);
+    expect(body.get("revision")).toBe(reviewProps.values.revision);
+    expect(body.get("csrfmiddlewaretoken")).toBe(refreshedReview.csrfToken);
+    expect(navigate).toHaveBeenLastCalledWith("/done/");
+});
+
+test("a passive same-revision review draft uses the current signed review", async () => {
+    sessionStorage.setItem(
+        reviewProps.draftKey,
+        JSON.stringify({
+            revision: reviewProps.values.revision,
+            values: { review: reviewProps.values.review },
+        }),
+    );
+    const fetch = vi
+        .fn()
+        .mockResolvedValue(
+            json({ saved: true, facts: saved, nextUrl: "/done/" }),
+        );
+    vi.stubGlobal("fetch", fetch);
+    render(<ActionWorkflow {...refreshedReview} onNavigate={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    const body = fetch.mock.calls[0][1].body as URLSearchParams;
+    expect(body.get("review")).toBe(refreshedReview.values.review);
+    expect(body.get("command_key")).toBe(refreshedReview.values.command_key);
+});
+
+test("an unknown review reload preserves the exact original token and command identity", async () => {
+    const fetch = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("lost after send"))
+        .mockResolvedValueOnce(
+            json({
+                saved: true,
+                replayed: true,
+                facts: saved,
+                nextUrl: "/done/",
+            }),
+        );
+    vi.stubGlobal("fetch", fetch);
+    const view = render(
+        <ActionWorkflow {...reviewProps} onNavigate={vi.fn()} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    const original = new URLSearchParams(fetch.mock.calls[0][1].body);
+    original.delete("csrfmiddlewaretoken");
+    const retained = sessionStorage.getItem(props.recoveryKey);
+    view.unmount();
+    render(<ActionWorkflow {...refreshedReview} onNavigate={vi.fn()} />);
+    expect(sessionStorage.getItem(props.recoveryKey)).toBe(retained);
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    const retry = new URLSearchParams(fetch.mock.calls[1][1].body);
+    expect(retry.get("csrfmiddlewaretoken")).toBe(refreshedReview.csrfToken);
+    retry.delete("csrfmiddlewaretoken");
+    expect(retry.toString()).toBe(original.toString());
+    expect(retry.get("review")).toBe(reviewProps.values.review);
+    expect(retry.get("command_key")).toBe(reviewProps.values.command_key);
+    expect(screen.getByText("Earlier action confirmed")).toBeTruthy();
+});

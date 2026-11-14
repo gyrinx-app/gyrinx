@@ -60,7 +60,13 @@ def _native(request, pk, target):
         else None
     )
     if result and result.saved:
-        _notices(request, result.notices)
+        if result.replayed:
+            messages.info(
+                request,
+                "This confirms the earlier action. The current flow may have changed.",
+            )
+        else:
+            _notices(request, result.notices)
         return redirect(result.next_url)
     if result and result.errors and target.step in {"cancel", "reopen"}:
         from django.urls import reverse

@@ -372,3 +372,9 @@ resume. Keep other validation refusals uncertain; do not infer their outcome.
 Carry the authorized gang scope through recovery display links when the model
 can be deleted. Revalidate replay navigation for native redirects as well as JSON
 review links, while keeping the receipt's saved facts unchanged.
+
+A replay confirms an earlier action, so native messages must acknowledge that
+history without asserting its current state. Signed reviews can change with
+payment facts while the action revision stays the same. Restore editable known
+rejections with the current review and command key; preserve an unknown command's
+original review, key and exact body for retry.

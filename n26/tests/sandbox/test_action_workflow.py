@@ -954,3 +954,44 @@ def test_concurrent_recorded_roll_cancel_retries_record_one_durable_refusal(
     assert counts()[-1] == before[-1] + 1
     record.refresh_from_db()
     assert record.state == ActionRecord.State.STARTED
+
+
+@pytest.mark.parametrize("earlier_step", ["by-hand", "reopen"])
+def test_native_receipt_replay_acknowledges_history_without_asserting_the_current_state(
+    client, advancement, earlier_step
+):
+    record = earned_flows._start(client, advancement)
+    by_hand, by_hand_body = issued(
+        client,
+        reverse("n26-action-flow", args=[advancement.fighter.pk, record.pk, "by-hand"]),
+    )
+    applied = client.post(by_hand["action"], by_hand_body, follow=True)
+    assert "Advance marked as applied by hand." in applied.content.decode()
+    reopen, reopen_body = issued(
+        client,
+        reverse("n26-action-flow", args=[advancement.fighter.pk, record.pk, "reopen"]),
+    )
+    waiting = client.post(reopen["action"], reopen_body, follow=True)
+    assert "Advance is waiting again." in waiting.content.decode()
+    if earlier_step == "by-hand":
+        earlier, body = by_hand, by_hand_body
+        stale_notice = "Advance marked as applied by hand."
+        current_state = ActionRecord.State.STARTED
+    else:
+        fresh, fresh_body = issued(client, by_hand["action"])
+        assert client.post(fresh["action"], fresh_body, follow=True).status_code == 200
+        earlier, body = reopen, reopen_body
+        stale_notice = "Advance is waiting again."
+        current_state = ActionRecord.State.APPLIED_BY_HAND
+    before = counts()
+    replay = client.post(earlier["action"], body, follow=True)
+    assert replay.status_code == 200
+    content = replay.content.decode()
+    assert (
+        "This confirms the earlier action. The current flow may have changed."
+        in content
+    )
+    assert stale_notice not in content
+    record.refresh_from_db()
+    assert record.state == current_state
+    assert counts() == before

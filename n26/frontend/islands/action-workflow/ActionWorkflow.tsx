@@ -231,6 +231,13 @@ function draftValues(props: ActionWorkflowProps): {
                     }),
                 );
                 sessionStorage.removeItem(props.recoveryKey);
+            } else if (key === props.draftKey) {
+                // A known rejection has no outstanding command. Reconfirm the
+                // current payment facts with the newly issued review and key.
+                for (const name of ["review", "command_key"])
+                    if (name in props.values)
+                        retained.set(name, props.values[name]);
+                sessionStorage.setItem(props.recoveryKey, retained.toString());
             }
         }
         const draft = JSON.parse(
@@ -248,6 +255,11 @@ function draftValues(props: ActionWorkflowProps): {
                 ),
             };
             const conflict = draft.revision !== props.values.revision;
+            if (!conflict) {
+                values.command_key = props.values.command_key;
+                if ("review" in props.values)
+                    values.review = props.values.review;
+            }
             if (conflict) {
                 values.revision = String(draft.revision ?? "");
                 values.submitted_summary =
