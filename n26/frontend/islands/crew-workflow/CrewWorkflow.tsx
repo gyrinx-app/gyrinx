@@ -26,6 +26,8 @@ type Selection = {
     card: string;
     override?: string;
 };
+type RosterRefusal = { requestKey: string; inputs: Record<string, string[]> };
+
 type Acknowledgement = {
     action: string;
     revision: number;
@@ -58,7 +60,25 @@ export type CrewWorkflowProps = {
     };
     acknowledgement: Acknowledgement | null;
     rosterChanged?: boolean;
+    rosterRefusal?: RosterRefusal | null;
 };
+
+function isRosterRefusal(value: unknown): value is RosterRefusal {
+    if (!value || typeof value !== "object") return false;
+    const refusal = value as Partial<RosterRefusal>;
+    return (
+        typeof refusal.requestKey === "string" &&
+        !!refusal.requestKey &&
+        !!refusal.inputs &&
+        typeof refusal.inputs === "object" &&
+        !Array.isArray(refusal.inputs) &&
+        Object.values(refusal.inputs).every(
+            (values) =>
+                Array.isArray(values) &&
+                values.every((value) => typeof value === "string"),
+        )
+    );
+}
 
 function retainedSelections(value: string): Selection[] {
     try {
@@ -143,6 +163,15 @@ export function CrewWorkflow(
         retainedBody ? null : props.acknowledgement,
     );
     const [current, setCurrent] = useState(props.current);
+    const [rosterRefusal, setRosterRefusal] = useState<
+        (RosterRefusal & { errors: Record<string, string[]> }) | null
+    >(
+        !retainedBody && props.rosterRefusal
+            ? { ...props.rosterRefusal, errors: props.errors }
+            : null,
+    );
+    const [reloadNotice, setReloadNotice] = useState("");
+    const submittedKey = useRef(props.values.request_key);
     const actions = useRef<HTMLDivElement>(null);
     const element = useRef<HTMLFormElement>(null);
     const form = useWorkflowForm({
@@ -160,6 +189,19 @@ export function CrewWorkflow(
                     return { kind: "completed" };
                 }
                 return { kind: "saved", nextUrl: data.nextUrl };
+            }
+            if (
+                status === 422 &&
+                data.code === "roster_changed" &&
+                isRosterRefusal(data.rosterRefusal) &&
+                data.rosterRefusal.requestKey === submittedKey.current &&
+                fieldErrors(data.errors)
+            ) {
+                setRosterRefusal({
+                    ...data.rosterRefusal,
+                    errors: data.errors,
+                });
+                return { kind: "conflict", errors: data.errors };
             }
             if (
                 (status === 422 || status === 409) &&
@@ -183,7 +225,21 @@ export function CrewWorkflow(
         },
         onComplete() {},
     });
-    const { values, errors, setValues, pending, uncertain } = form;
+    const { values, setValues, pending } = form;
+    const uncertain = form.uncertain && !rosterRefusal;
+    const errors = rosterRefusal?.errors ?? form.errors;
+    submittedKey.current = values.request_key;
+    const modelFields = new Set(
+        props.models.flatMap((model) => [
+            model.role.name,
+            model.card.name,
+            model.override.name,
+        ]),
+    );
+    const unknownModelErrors = Object.keys(errors).some(
+        (name) =>
+            /^(role_|card_|override_)/.test(name) && !modelFields.has(name),
+    );
     const modelErrors = props.models.flatMap((model) =>
         [model.role.name, model.card.name, model.override.name].flatMap(
             (name) =>
@@ -198,7 +254,12 @@ export function CrewWorkflow(
     const starting = selected.filter(
         (model) => values[model.role.name] === "starting",
     ).length;
-    const frozen = form.frozen || props.readOnly || rejectedRosterChanged;
+    const frozen =
+        form.frozen ||
+        props.readOnly ||
+        rejectedRosterChanged ||
+        !!rosterRefusal ||
+        unknownModelErrors;
     const submittedSnapshot = JSON.stringify(
         props.models
             .filter((model) => values[model.role.name] !== "out")
@@ -280,6 +341,27 @@ export function CrewWorkflow(
             );
         }
         await form.save(event);
+    }
+    function reloadRoster() {
+        if (!rosterRefusal || pending) return;
+        try {
+            const draft = new URLSearchParams();
+            Object.entries(rosterRefusal.inputs).forEach(([name, values]) =>
+                values.forEach((value) => draft.append(name, value)),
+            );
+            draft.set("request_key", window.crypto.randomUUID());
+            draft.set("submitted_snapshot", values.submitted_snapshot);
+            draft.set("__workflow_rejected", "1");
+            sessionStorage.setItem(props.recoveryKey, draft.toString());
+        } catch {
+            setReloadNotice(
+                "Your browser could not keep this draft. Allow this site to store data, then reload the page.",
+            );
+            return;
+        }
+        (props.onNavigate ?? ((url) => window.location.assign(url)))(
+            `${props.action}?recover=1`,
+        );
     }
     const help = (data: CrewWorkflowProps["crewHelp"]) => (
         <HelpPopover label={data.label}>
@@ -420,7 +502,7 @@ export function CrewWorkflow(
                         <p>Select the starting crew and any reinforcements.</p>
                         {help(props.crewHelp)}
                     </div>
-                    {form.hasErrors && (
+                    {(form.hasErrors || rosterRefusal || reloadNotice) && (
                         <div
                             ref={form.summary}
                             tabIndex={-1}
@@ -432,12 +514,20 @@ export function CrewWorkflow(
                                     ...(errors.__all__ ?? []),
                                     ...(errors.revision ?? []),
                                     ...modelErrors,
+                                    ...(unknownModelErrors && !rosterRefusal
+                                        ? [
+                                              "The roster changed. Reload the page to show the current models. Your selections have been kept.",
+                                          ]
+                                        : []),
+                                    ...(reloadNotice ? [reloadNotice] : []),
                                     ...(form.notice ? [form.notice] : []),
                                 ]}
                             />
                             {!form.notice &&
                                 !errors.__all__?.length &&
-                                !modelErrors.length && (
+                                !modelErrors.length &&
+                                !unknownModelErrors &&
+                                !rosterRefusal && (
                                     <p>
                                         Check the highlighted fields. Your
                                         selections have been kept.
@@ -445,7 +535,7 @@ export function CrewWorkflow(
                                 )}
                         </div>
                     )}
-                    {form.conflicted && (
+                    {form.conflicted && !rosterRefusal && (
                         <Callout>
                             <p>
                                 The saved crew is now revision{" "}
@@ -470,7 +560,7 @@ export function CrewWorkflow(
                             </Button>
                         </Callout>
                     )}
-                    {rejectedRosterChanged && !uncertain && (
+                    {rejectedRosterChanged && !uncertain && !rosterRefusal && (
                         <Callout>
                             <p>
                                 The roster changed while you were editing this
@@ -665,7 +755,15 @@ export function CrewWorkflow(
                                 >
                                     Back
                                 </ButtonLink>
-                                {uncertain ? (
+                                {rosterRefusal ? (
+                                    <Button
+                                        type="button"
+                                        onClick={reloadRoster}
+                                        disabled={pending}
+                                    >
+                                        Reload page
+                                    </Button>
+                                ) : uncertain ? (
                                     <Button
                                         type="submit"
                                         disabled={pending || form.conflicted}
@@ -703,36 +801,38 @@ export function CrewWorkflow(
                                         </Button>
                                     </>
                                 )}
-                                {form.hasErrors && !form.conflicted && (
-                                    <>
-                                        <Button
-                                            type="button"
-                                            disabled={pending}
-                                            onClick={() =>
-                                                element.current &&
-                                                form.recoverAt(
-                                                    `${props.action}?recover=1`,
-                                                    element.current,
-                                                )
-                                            }
-                                        >
-                                            Reload page
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            disabled={pending}
-                                            onClick={() =>
-                                                element.current &&
-                                                form.recoverAt(
-                                                    props.signInHref,
-                                                    element.current,
-                                                )
-                                            }
-                                        >
-                                            Sign in again
-                                        </Button>
-                                    </>
-                                )}
+                                {form.hasErrors &&
+                                    !form.conflicted &&
+                                    !rosterRefusal && (
+                                        <>
+                                            <Button
+                                                type="button"
+                                                disabled={pending}
+                                                onClick={() =>
+                                                    element.current &&
+                                                    form.recoverAt(
+                                                        `${props.action}?recover=1`,
+                                                        element.current,
+                                                    )
+                                                }
+                                            >
+                                                Reload page
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                disabled={pending}
+                                                onClick={() =>
+                                                    element.current &&
+                                                    form.recoverAt(
+                                                        props.signInHref,
+                                                        element.current,
+                                                    )
+                                                }
+                                            >
+                                                Sign in again
+                                            </Button>
+                                        </>
+                                    )}
                             </FormActions>
                         </div>
                     </div>

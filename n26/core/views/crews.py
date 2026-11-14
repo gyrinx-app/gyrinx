@@ -80,7 +80,16 @@ def _allowed(campaign, gang, actor):
 
 
 def _props(
-    request, campaign, battle, gang, crew, form, *, conflict=False, acknowledgement=None
+    request,
+    campaign,
+    battle,
+    gang,
+    crew,
+    form,
+    *,
+    conflict=False,
+    acknowledgement=None,
+    roster_refusal=None,
 ):
     return display.editor(
         campaign=campaign,
@@ -95,7 +104,17 @@ def _props(
         conflict=conflict,
         read_only=battle.archived or campaign.archived or gang.archived,
         acknowledgement=acknowledgement,
+        roster_refusal=roster_refusal,
     )
+
+
+def _roster_refusal(result):
+    if not result.roster_changed:
+        return None
+    return {
+        "requestKey": str(result.receipt.request_key),
+        "inputs": result.receipt.inputs,
+    }
 
 
 def _next(campaign, battle, gang, result):
@@ -137,7 +156,11 @@ def _acknowledgement(request, battle, gang):
         ).first()
     except ValidationError:
         return None
-    return receipt.result if receipt else None
+    return (
+        receipt.result
+        if receipt and receipt.result.get("outcome") != "roster_changed"
+        else None
+    )
 
 
 @login_required
@@ -151,6 +174,7 @@ def edit_crew(request, pk, battle_pk, gang_pk):
     if not _allowed(campaign, gang, request.user) or (not editable and not recovery):
         raise Http404("No such crew")
     conflict = False
+    roster_refusal = None
     if request.method == "POST":
         try:
             result = crew_workflow.perform(
@@ -174,6 +198,7 @@ def edit_crew(request, pk, battle_pk, gang_pk):
             form = result.form
             crew = result.crew
             conflict = result.conflict
+            roster_refusal = _roster_refusal(result)
     else:
         form = CrewForm(roster=crew_roster(gang, crew), crew=crew)
     props = _props(
@@ -185,6 +210,7 @@ def edit_crew(request, pk, battle_pk, gang_pk):
         form,
         conflict=conflict,
         acknowledgement=_acknowledgement(request, battle, gang),
+        roster_refusal=roster_refusal,
     )
     return render(
         request,
@@ -241,7 +267,10 @@ def crew_command(request, pk, battle_pk, gang_pk):
     return JsonResponse(
         {
             "errors": dict(result.form.errors),
-            "code": "revision_conflict"
+            "rosterRefusal": _roster_refusal(result),
+            "code": "roster_changed"
+            if result.roster_changed
+            else "revision_conflict"
             if result.conflict
             else "key_conflict"
             if result.key_conflict

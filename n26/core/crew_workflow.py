@@ -12,6 +12,11 @@ from n26.core.models.crew import CrewCommandReceipt
 from n26.core.operations import Refusal
 from n26.write_pause import guarded_write
 
+ROSTER_CHANGED = (
+    "The roster changed before this save was applied. This save changed nothing. "
+    "Reload the page to review the current models."
+)
+
 MESSAGES = {
     "draw": "Draw saved.",
     "save": "Crew saved.",
@@ -27,13 +32,14 @@ class Submission:
     replayed: bool = False
     conflict: bool = False
     key_conflict: bool = False
+    roster_changed: bool = False
     newer: bool = False
     read_only: bool = False
     status: int = 422
 
     @property
     def saved(self):
-        return self.receipt is not None
+        return self.receipt is not None and not self.roster_changed
 
     @property
     def message(self):
@@ -115,6 +121,14 @@ def perform(*, battle, gang, actor, data, require_key=False):
                 else:
                     submitted.receipt = prior
                     submitted.replayed = True
+                    if prior.result.get("outcome") == "roster_changed":
+                        submitted.roster_changed = True
+                        submitted.form = CrewForm(
+                            data, roster=crew_roster(gang, crew), crew=crew
+                        )
+                        submitted.form.is_valid()
+                        submitted.form.add_error(None, ROSTER_CHANGED)
+                        return submitted
                     submitted.status = 200
                     submitted.newer = (
                         crew is None or crew.revision != prior.result["revision"]
@@ -145,6 +159,28 @@ def perform(*, battle, gang, actor, data, require_key=False):
                 None,
                 "This crew changed while you were editing it. Reload the saved crew before saving again.",
             )
+            return submitted
+        roster_changed = any(
+            name.startswith("role_") and name not in data for name in form.fields
+        ) or any(
+            name.startswith("role_") and name not in form.fields and data[name] != "out"
+            for name in data
+        )
+        if (
+            roster_changed
+            and "revision" in form.cleaned_data
+            and not submitted.read_only
+        ):
+            form.add_error(None, ROSTER_CHANGED)
+            submitted.receipt = CrewCommandReceipt.objects.create(
+                gang=gang,
+                battle=battle,
+                actor=actor,
+                request_key=key,
+                inputs=inputs,
+                result={"version": 1, "outcome": "roster_changed"},
+            )
+            submitted.roster_changed = True
             return submitted
         if form.errors:
             return submitted

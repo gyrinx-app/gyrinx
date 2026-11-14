@@ -253,6 +253,8 @@ Test names, roles, equipment and counts immediately after a lost response and ag
 
 After receipt and key checks, compare a valid submitted revision with the locked revision before returning mutable roster errors. Keep errors for filtered-out models visible in a labelled summary so the reader can resolve them.
 
+A changed roster can make an old command invalid without changing the crew revision. Record that no-write result under the same locks before resolving uncertainty. An explicit reload can then keep the rejected selections under a new key and add current unselected defaults; generic validation errors must retain the original uncertain body.
+
 The server's retry contract depends on the action:
 
 | Action | Contract |

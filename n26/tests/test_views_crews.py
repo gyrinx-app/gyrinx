@@ -1252,3 +1252,144 @@ def test_crew_key_conflict_precedes_a_stale_revision_and_roster_errors(client, t
     assert response.status_code == 409
     assert response.json()["code"] == "key_conflict"
     assert BattleCrew.objects.get().revision == 1
+
+
+@pytest.mark.parametrize("transport", ["native", "json"])
+def test_new_roster_fields_are_required_and_refusal_is_durable(
+    client, table, transport
+):
+    from uuid import uuid4
+
+    from n26.core.models import CrewCommandReceipt
+
+    original = fields(table, request_key=str(uuid4()), action="draft")
+    added = hire(table.gang, table.models[0].membership.profile, "Cal")
+    response = client.post(
+        command_address(table) if transport == "json" else address(table), original
+    )
+    if transport == "json":
+        assert response.status_code == 422
+        assert response.json()["code"] == "roster_changed"
+        refused = response.json()["rosterRefusal"]
+        assert f"role_{added.pk}" in response.json()["errors"]
+        assert f"card_{added.pk}" in response.json()["errors"]
+    else:
+        assert response.status_code == 200
+        refused = response.context["crew_workflow"]["rosterRefusal"]
+    assert refused["requestKey"] == original["request_key"]
+    assert refused["inputs"] == {
+        name: [value] for name, value in original.items() if name != "request_key"
+    }
+    receipt = CrewCommandReceipt.objects.get()
+    assert receipt.result == {"version": 1, "outcome": "roster_changed"}
+    assert (
+        receipt.actor == table.owner
+        and receipt.gang == table.gang
+        and receipt.battle == table.battle
+    )
+    assert not BattleCrew.objects.exists()
+
+    with operation(table.gang, actor=table.owner) as act:
+        act.remove(added.membership)
+    replay = client.post(command_address(table), original)
+    assert replay.status_code == 422
+    assert replay.json()["code"] == "roster_changed"
+    assert replay.json()["rosterRefusal"] == refused
+    assert not BattleCrew.objects.exists() and CrewCommandReceipt.objects.count() == 1
+    page = client.get(address(table) + f"?recover=1&saved={receipt.request_key}")
+    assert page.context["crew_workflow"]["acknowledgement"] is None
+
+
+def test_roster_refusal_keeps_its_actor_and_exact_raw_input_binding(client, table):
+    from uuid import uuid4
+
+    original = fields(table, request_key=str(uuid4()), action="draft")
+    hire(table.gang, table.models[0].membership.profile, "Cal")
+    assert (
+        client.post(command_address(table), original).json()["code"] == "roster_changed"
+    )
+    changed = client.post(command_address(table), original | {"random_count": "01"})
+    assert changed.status_code == 409 and changed.json()["code"] == "key_conflict"
+    client.force_login(table.arbitrator)
+    other_actor = client.post(command_address(table), original)
+    assert (
+        other_actor.status_code == 409 and other_actor.json()["code"] == "key_conflict"
+    )
+    assert not BattleCrew.objects.exists()
+
+
+def test_roster_refusal_transaction_failure_cannot_acknowledge_an_uncertain_save(
+    client, table, monkeypatch
+):
+    from uuid import uuid4
+
+    from n26.core.models import CrewCommandReceipt
+    from n26.core.operations import Refusal
+
+    original = fields(table, request_key=str(uuid4()), action="draft")
+    added = hire(table.gang, table.models[0].membership.profile, "Cal")
+    create = CrewCommandReceipt.objects.create
+
+    def fail(*args, **kwargs):
+        create(*args, **kwargs)
+        raise Refusal("This refusal could not be saved.")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(CrewCommandReceipt.objects, "create", fail)
+        response = client.post(command_address(table), original)
+    assert response.status_code == 409
+    assert response.json().get("code") != "roster_changed"
+    assert "rosterRefusal" not in response.json()
+    assert not CrewCommandReceipt.objects.exists() and not BattleCrew.objects.exists()
+    with operation(table.gang, actor=table.owner) as act:
+        act.remove(added.membership)
+    assert client.post(command_address(table), original).status_code == 200
+    assert BattleCrew.objects.get().revision == 1
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        {"revision": ""},
+        {"revision": "bad"},
+        {"request_key": ""},
+        {"request_key": "bad"},
+    ],
+)
+def test_new_roster_cannot_settle_an_invalid_revision_or_key(client, table, invalid):
+    from uuid import uuid4
+
+    from n26.core.models import CrewCommandReceipt
+
+    original = fields(table, request_key=str(uuid4())) | invalid
+    hire(table.gang, table.models[0].membership.profile, "Cal")
+    response = client.post(command_address(table), original)
+    assert response.status_code == 422 and response.json()["code"] == "invalid"
+    assert response.json()["rosterRefusal"] is None
+    assert not CrewCommandReceipt.objects.exists() and not BattleCrew.objects.exists()
+
+
+def test_explicit_new_command_after_roster_refusal_keeps_the_old_selections(
+    client, table
+):
+    from uuid import uuid4
+
+    original = fields(table, request_key=str(uuid4()), action="draft")
+    added = hire(table.gang, table.models[0].membership.profile, "Cal")
+    assert (
+        client.post(command_address(table), original).json()["code"] == "roster_changed"
+    )
+    revised = original | {
+        "request_key": str(uuid4()),
+        f"role_{added.pk}": "out",
+        f"card_{added.pk}": "full",
+        f"override_{added.pk}": "",
+    }
+    assert client.post(command_address(table), revised).status_code == 200
+    crew = BattleCrew.objects.get()
+    assert (
+        crew.members.count() == 2 and not crew.members.filter(miniature=added).exists()
+    )
+    assert crew.members.get(miniature=table.models[0]).card_name == "Long range"
+    assert crew.members.get(miniature=table.models[1]).role == "reserve"
+    assert crew.revision == 1 and crew.draw_number == 0

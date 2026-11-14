@@ -604,3 +604,308 @@ it.each([
         screen.getByRole("searchbox", { name: "Find a model" }),
     ).toHaveProperty("value", "Nell");
 });
+
+function rosterRefusal(body: URLSearchParams) {
+    const inputs: Record<string, string[]> = {};
+    body.forEach((value, name) => {
+        if (
+            ![
+                "csrfmiddlewaretoken",
+                "request_key",
+                "submitted_snapshot",
+            ].includes(name)
+        )
+            (inputs[name] ??= []).push(value);
+    });
+    return { requestKey: body.get("request_key")!, inputs };
+}
+const rosterMessage =
+    "The roster changed before this save was applied. This save changed nothing. Reload the page to review the current models.";
+
+it("explains new model errors and preserves a known rejected draft through reload", async () => {
+    const fetch = vi.fn().mockResolvedValue(
+        json(
+            {
+                errors: {
+                    role_c: ["This field is required."],
+                    card_c: ["This field is required."],
+                },
+                code: "invalid",
+            },
+            422,
+        ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const initial = props();
+    const navigate = vi.fn();
+    const first = render(<CrewWorkflow {...initial} onNavigate={navigate} />);
+    const user = userEvent.setup();
+    await user.selectOptions(
+        screen.getByRole("combobox", { name: "Equipment set for Mara" }),
+        "short",
+    );
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    const summary = await screen.findByRole("alert", {
+        name: "Crew save errors",
+    });
+    expect(summary.textContent).toContain(
+        "The roster changed. Reload the page to show the current models.",
+    );
+    expect(summary.textContent).not.toContain("Check the highlighted fields.");
+    await user.click(screen.getByRole("button", { name: "Reload page" }));
+    const stored = new URLSearchParams(
+        sessionStorage.getItem(initial.recoveryKey)!,
+    );
+    expect(stored.get("__workflow_rejected")).toBe("1");
+    expect(stored.get("card_a")).toBe("short");
+    expect(stored.has("role_c")).toBe(false);
+    expect(navigate).toHaveBeenCalledWith("/crew/?recover=1");
+    first.unmount();
+    render(
+        <CrewWorkflow
+            {...props([
+                model("a", "Mara"),
+                model("b", "Nell"),
+                model("c", "Cal"),
+            ])}
+        />,
+    );
+    expect(
+        screen.getByRole("checkbox", { name: "Select Mara" }),
+    ).toHaveProperty("checked", true);
+    expect(
+        screen.getByRole("combobox", { name: "Equipment set for Mara" }),
+    ).toHaveProperty("value", "short");
+    expect(screen.getByRole("checkbox", { name: "Select Cal" })).toHaveProperty(
+        "checked",
+        false,
+    );
+    expect(screen.getByRole("button", { name: "Save draft" })).toHaveProperty(
+        "disabled",
+        false,
+    );
+});
+
+it("keeps an uncertain body unchanged after generic new-roster errors and reload", async () => {
+    const fetch = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Response lost"))
+        .mockResolvedValue(
+            json(
+                {
+                    errors: { role_c: ["This field is required."] },
+                    code: "invalid",
+                },
+                422,
+            ),
+        );
+    vi.stubGlobal("fetch", fetch);
+    const initial = props();
+    const first = render(<CrewWorkflow {...initial} onNavigate={vi.fn()} />);
+    const user = userEvent.setup();
+    await user.click(
+        screen.getByRole("button", { name: "Draw and save draft" }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Retry draw" }));
+    await screen.findByText(
+        "The earlier save is still unconfirmed. Retry it before making another change.",
+    );
+    expect(
+        screen.queryByRole("button", { name: "Review current crew" }),
+    ).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Reload page" }));
+    const stored = sessionStorage.getItem(initial.recoveryKey)!;
+    expect(new URLSearchParams(stored).get("request_key")).toBe("key");
+    expect(new URLSearchParams(stored).has("__workflow_rejected")).toBe(false);
+    first.unmount();
+    render(
+        <CrewWorkflow
+            {...props([
+                model("a", "Mara"),
+                model("b", "Nell"),
+                model("c", "Cal"),
+            ])}
+            onNavigate={vi.fn()}
+        />,
+    );
+    await user.click(screen.getByRole("button", { name: "Retry draw" }));
+    expect(fetch.mock.calls[2][1].body.get("request_key")).toBe("key");
+    expect(fetch.mock.calls[2][1].body.has("role_c")).toBe(false);
+    expect(fetch.mock.calls[2][1].body.has("card_c")).toBe(false);
+    expect(sessionStorage.getItem(initial.recoveryKey)).not.toBeNull();
+});
+
+it("reloads a durably refused unknown save only after explicit review with a fresh key", async () => {
+    const fetch = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Response lost"))
+        .mockImplementation(async (_url, options) =>
+            json(
+                {
+                    errors: {
+                        __all__: [rosterMessage],
+                        role_c: ["This field is required."],
+                    },
+                    code: "roster_changed",
+                    rosterRefusal: rosterRefusal(options.body),
+                },
+                422,
+            ),
+        );
+    vi.stubGlobal("fetch", fetch);
+    const initial = props();
+    const navigate = vi.fn();
+    const first = render(<CrewWorkflow {...initial} onNavigate={navigate} />);
+    const user = userEvent.setup();
+    await user.selectOptions(
+        screen.getByRole("combobox", { name: "Equipment set for Mara" }),
+        "short",
+    );
+    await user.click(
+        screen.getByRole("button", { name: "Draw and save draft" }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Retry draw" }));
+    await screen.findByText(rosterMessage);
+    expect(screen.queryByRole("button", { name: "Retry draw" })).toBeNull();
+    expect(
+        new URLSearchParams(sessionStorage.getItem(initial.recoveryKey)!).get(
+            "request_key",
+        ),
+    ).toBe("key");
+    expect(navigate).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Reload page" }));
+    const stored = new URLSearchParams(
+        sessionStorage.getItem(initial.recoveryKey)!,
+    );
+    expect(stored.get("request_key")).not.toBe("key");
+    expect(stored.get("__workflow_rejected")).toBe("1");
+    expect(stored.get("role_a")).toBe("reserve");
+    expect(stored.get("card_a")).toBe("short");
+    expect(stored.has("role_c")).toBe(false);
+    expect(stored.has("csrfmiddlewaretoken")).toBe(false);
+    first.unmount();
+    fetch.mockResolvedValueOnce(json({ nextUrl: "/saved/" }));
+    render(
+        <CrewWorkflow
+            {...props([
+                model("a", "Mara"),
+                model("b", "Nell"),
+                model("c", "Cal"),
+            ])}
+            onNavigate={navigate}
+        />,
+    );
+    expect(
+        screen.getByRole("checkbox", { name: "Select Mara" }),
+    ).toHaveProperty("checked", true);
+    expect(screen.getByRole("checkbox", { name: "Select Cal" })).toHaveProperty(
+        "checked",
+        false,
+    );
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    const revised = fetch.mock.calls[2][1].body;
+    expect(revised.get("request_key")).toBe(stored.get("request_key"));
+    expect(revised.get("role_c")).toBe("out");
+    expect(revised.get("card_c")).toBe("long");
+    expect(revised.get("card_a")).toBe("short");
+});
+
+it("preserves a native roster refusal's submitted field absence on explicit reload", async () => {
+    const original = props();
+    const current = props([
+        model("a", "Mara"),
+        model("b", "Nell"),
+        model("c", "Cal"),
+    ]);
+    const refused = rosterRefusal(new URLSearchParams(original.values));
+    const navigate = vi.fn();
+    render(
+        <CrewWorkflow
+            {...current}
+            values={{
+                ...current.values,
+                ...original.values,
+                role_c: "",
+                card_c: "",
+            }}
+            errors={{ __all__: [rosterMessage] }}
+            rosterRefusal={refused}
+            onNavigate={navigate}
+        />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Reload page" }));
+    const stored = new URLSearchParams(
+        sessionStorage.getItem(original.recoveryKey)!,
+    );
+    expect(stored.has("role_c")).toBe(false);
+    expect(stored.has("card_c")).toBe(false);
+    expect(stored.get("role_a")).toBe("reserve");
+    expect(stored.get("request_key")).not.toBe("key");
+    expect(navigate).toHaveBeenCalledWith("/crew/?recover=1");
+});
+
+it("does not resolve uncertainty using a roster refusal for another key", async () => {
+    const initial = props();
+    sessionStorage.setItem(
+        initial.recoveryKey,
+        new URLSearchParams(initial.values).toString(),
+    );
+    vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+            json(
+                {
+                    errors: { __all__: [rosterMessage] },
+                    code: "roster_changed",
+                    rosterRefusal: {
+                        requestKey: "another-key",
+                        inputs: {},
+                    },
+                },
+                422,
+            ),
+        ),
+    );
+    render(<CrewWorkflow {...initial} />);
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    await screen.findByText(
+        "The earlier save is still unconfirmed. Retry it before making another change.",
+    );
+    expect(sessionStorage.getItem(initial.recoveryKey)).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Retry save" })).not.toBeNull();
+});
+
+it("keeps a proven no-write refusal recoverable through ordinary browser refresh", async () => {
+    const fetch = vi.fn().mockImplementation(async (_url, options) =>
+        json(
+            {
+                errors: { __all__: [rosterMessage] },
+                code: "roster_changed",
+                rosterRefusal: rosterRefusal(options.body),
+            },
+            422,
+        ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const initial = props();
+    const first = render(<CrewWorkflow {...initial} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    await screen.findByText(rosterMessage);
+    expect(sessionStorage.getItem(initial.recoveryKey)).not.toBeNull();
+    first.unmount();
+    render(
+        <CrewWorkflow
+            {...props([
+                model("a", "Mara"),
+                model("b", "Nell"),
+                model("c", "Cal"),
+            ])}
+        />,
+    );
+    await user.click(screen.getByRole("button", { name: "Retry save" }));
+    await screen.findByText(rosterMessage);
+    expect(fetch.mock.calls[1][1].body.get("request_key")).toBe("key");
+    expect(fetch.mock.calls[1][1].body.has("role_c")).toBe(false);
+    expect(screen.getByRole("button", { name: "Reload page" })).not.toBeNull();
+});

@@ -61,6 +61,7 @@ def editor(
     conflict=False,
     read_only=False,
     acknowledgement=None,
+    roster_refusal=None,
 ):
     args = [campaign.pk, battle.pk, gang.pk]
     models = models_for(form)
@@ -126,6 +127,7 @@ def editor(
         "recoveryKey": f"crew:{actor.pk}:{battle.pk}:{gang.pk}",
         "initialConflict": conflict,
         "rosterChanged": roster_changed,
+        "rosterRefusal": roster_refusal,
         "readOnly": read_only,
         "current": {
             "revision": crew.revision if crew else 0,
