@@ -88,6 +88,19 @@ class BrowserReviewTests(unittest.TestCase):
             overlay.locator('rect[fill="rgb(240, 240, 240)"]').count(), 0
         )
 
+    def test_inline_svg_becomes_a_media_placeholder(self):
+        self.page.locator("main").evaluate(
+            """el => el.insertAdjacentHTML('beforeend',
+              '<svg width="24" height="24" viewBox="0 0 24 24"><path d="M2 2L22 22"/></svg>')"""
+        )
+        self.page.evaluate("gyrinxDesignReview.overlay({mode:'blocks'})")
+        self.assertEqual(
+            self.page.locator(
+                '[data-gyrinx-design-review] rect[fill="#aaa"][width="24"][height="24"]'
+            ).count(),
+            1,
+        )
+
     def test_grid_tracks_root_after_scroll_and_resize(self):
         self.page.evaluate("gyrinxDesignReview.overlay({mode:'grid', columns:2})")
         self.page.evaluate("window.scrollTo(0, 100)")

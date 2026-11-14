@@ -217,8 +217,8 @@
                 for (const el of [root, ...root.querySelectorAll("*")].filter(
                     visible,
                 )) {
-                    if (["SCRIPT", "STYLE", "NOSCRIPT"].includes(el.tagName))
-                        continue;
+                    const tag = el.tagName.toUpperCase();
+                    if (["SCRIPT", "STYLE", "NOSCRIPT"].includes(tag)) continue;
                     const b = bounds(el),
                         s = getComputedStyle(el);
                     rect(b, {
@@ -235,7 +235,7 @@
                             "INPUT",
                             "SELECT",
                             "TEXTAREA",
-                        ].includes(el.tagName)
+                        ].includes(tag)
                     ) {
                         rect(b, { fill: "#aaa" });
                         continue;
