@@ -191,3 +191,30 @@ test.each(["Previous cycle", "Next cycle"])(
         expect(fetch).toHaveBeenCalledTimes(1);
     },
 );
+
+test.each([
+    [null, null, [], ["Dates not set"]],
+    ["2026-11-02", null, ["2 Nov 2026"], ["End date not set"]],
+    [null, "2026-11-08", ["8 Nov 2026"], ["Start date not set"]],
+    ["2026-11-02", "2026-11-08", ["2 Nov 2026", "8 Nov 2026"], []],
+] as const)(
+    "cycle navigation shows each known bound and explicit missing dates (%s, %s)",
+    (start, end, known, missing) => {
+        render(
+            <Navigator
+                data={{
+                    ...initial,
+                    choices: [{ ...choice(2), startsOn: start, endsOn: end }],
+                }}
+            />,
+        );
+        for (const date of known) expect(screen.getByText(date)).toBeTruthy();
+        for (const label of missing)
+            expect(screen.getByText(label)).toBeTruthy();
+        expect(screen.queryByText(/^From |^Until /)).toBeNull();
+        expect(
+            screen.getByRole("button", { name: "Previous cycle" }),
+        ).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Next cycle" })).toBeTruthy();
+    },
+);

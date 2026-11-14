@@ -27,7 +27,6 @@ const editor: Editor = {
         ends_on: "2026-11-07",
         description: "",
         effects: "",
-        date_version: "1",
     },
     errors: {},
     initialConflict: false,
@@ -106,8 +105,10 @@ const json = (schedule: ScheduleProps) => ({
 test.each([
     ["2026-11-01", "", "1 Nov 2026", "End date not set"],
     ["", "2026-11-07", "7 Nov 2026", "Start date not set"],
+    ["2026-11-01", "2026-11-07", "1 Nov 2026", "7 Nov 2026"],
+    ["", "", "Dates not set", "Dates not set"],
 ])(
-    "keeps a saved endpoint visible when the other date is missing",
+    "shows saved date bounds and names missing dates",
     (startsOn, endsOn, saved, missing) => {
         const schedule = data();
         schedule.rows[0] = { ...schedule.rows[0], startsOn, endsOn };
@@ -847,7 +848,6 @@ function settingsEditor(revision = "1"): Editor {
             date_start: "",
             cycle_interval: "1",
             cycle_unit: "weeks",
-            date_version: "1",
         },
     };
 }

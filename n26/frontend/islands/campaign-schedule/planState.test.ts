@@ -35,7 +35,6 @@ const editor: Editor = {
         date_start: "",
         cycle_interval: "1",
         cycle_unit: "weeks",
-        date_version: "1",
     },
 };
 afterEach(() => sessionStorage.clear());

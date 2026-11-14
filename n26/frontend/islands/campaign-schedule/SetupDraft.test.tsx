@@ -43,7 +43,6 @@ function setup(): Editor {
             date_start: "2026-11-01",
             cycle_interval: "1",
             cycle_unit: "weeks",
-            date_version: "1",
         },
         errors: {},
         initialConflict: false,
