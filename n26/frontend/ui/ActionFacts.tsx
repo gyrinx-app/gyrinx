@@ -56,9 +56,9 @@ export function ActionRollSummary({
 }
 type Attempt = {
     roll: number;
-    result_name: string;
+    result_name: string | null;
     is_available: boolean;
-    unavailable_reason: string;
+    unavailable_reason: string | null;
 };
 export function ActionAttempts({ attempts }: { attempts: Attempt[] }) {
     return attempts.length ? (

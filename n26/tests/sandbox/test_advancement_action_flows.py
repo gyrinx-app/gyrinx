@@ -601,7 +601,7 @@ class TestChangingTheRoll:
         page = client.get(skill_url)
         assert page.context["stage"] == "skill"
         assert page.context["skill_resolved"] is True
-        assert page.context["submit_label"] == "Review"
+        assert page.context["submit_label"] == "Review result"
         assert post_action(client, skill_url, {"review_skill": "1"}).status_code == 302
         selection = SkillSelection.objects.get(action_record=record)
         assert selection.selected_skill == advancement.skills["primary"]

@@ -287,7 +287,7 @@ def _skill_step(command, fighter, record, configured, chosen, groups, *, correct
         submit_label = "Continue"
     elif random:
         form = EmptyActionForm(command.data or None)
-        submit_label = "Review" if resolved else ""
+        submit_label = "Review result" if resolved else ""
     else:
         previous = (
             record.review.get("terms", record.terms) if correction else record.terms
@@ -298,7 +298,7 @@ def _skill_step(command, fighter, record, configured, chosen, groups, *, correct
             label=f"Select a {chosen.choice_noun}",
             initial={"skill_id": previous.get("skill_id")},
         )
-        submit_label = "Review"
+        submit_label = "Review selection"
     if command.submitted and form.is_valid():
         terms = {"pickable_id": chosen.id}
         try:
@@ -345,9 +345,28 @@ def _skill_step(command, fighter, record, configured, chosen, groups, *, correct
         skill_random=random,
         skill_resolved=resolved,
         skill_selected=str(selected) if resolved else "",
-        skill_title=f"Roll for a {chosen.choice_noun}"
-        if chosen.forced_random
+        skill_title=f"Random {chosen.choice_noun} result"
+        if random and resolved
+        else f"Roll for a {chosen.choice_noun}"
+        if random
         else f"Select a {chosen.choice_noun}",
+        skill_description=(
+            "The recorded D6 rolls determined this result."
+            if random and resolved
+            else f"A D6 roll determines the {chosen.choice_noun} from your selected {chosen.choice_set_noun}."
+            if random
+            else "Select one result across all groups."
+        ),
+        skill_confirmation=(
+            f"Review this selection, then confirm it to replace the earlier result for {fighter.name}."
+            if correction
+            else f"Review this selection, then confirm it to add it to {fighter.name}."
+        ),
+        skill_selected_group=(
+            str(selected.category) if selected.category_id else "Other skills"
+        )
+        if resolved
+        else "",
         skill_empty=f"No {chosen.choice_noun} is available for this result.",
         skill_attempts=attempts,
         skill_roll=_skill_roll_props(

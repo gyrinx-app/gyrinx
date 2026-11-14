@@ -116,8 +116,20 @@ def test_a_power_only_advancement_uses_power_wording(client, monkeypatch, wyrd, 
     _post_roll(client, data, record)
     choice_url = _choose_result(client, data, record, result)
     page = client.get(choice_url)
-    assert page.context["skill_title"] == "Select a power"
-    assert "Select a power" in page.content.decode()
+    expected_title = "Roll for a power" if random else "Select a power"
+    assert page.context["skill_title"] == expected_title
+    facts = page.context["action_props"]["facts"]
+    assert facts["skill_description"] == (
+        "A D6 roll determines the power from your selected power family."
+        if random
+        else "Select one result across all groups."
+    )
+    assert facts["skill_confirmation"] == (
+        f"Review this selection, then confirm it to add it to {data.fighter.name}."
+    )
+    displayed = client.get(page.context["action_props"]["displayHref"]).json()["props"]
+    assert displayed["facts"]["skill_description"] == facts["skill_description"]
+    assert displayed["facts"]["skill_confirmation"] == facts["skill_confirmation"]
     if random:
         assert (
             page.context["form"].fields["skill_set_id"].label == "Select a power family"
@@ -140,6 +152,16 @@ def test_a_power_only_advancement_uses_power_wording(client, monkeypatch, wyrd, 
                 "skill_set_id": str(wyrd.family.pk),
             },
         )
+        resolved = client.get(choice_url).context["action_props"]
+        assert resolved["facts"]["skill_title"] == "Random power result"
+        assert resolved["facts"]["skill_selected"] == str(wyrd.powers["primary"])
+        assert resolved["facts"]["skill_selected_group"] == str(wyrd.family)
+        assert resolved["facts"]["submit_label"] == "Review result"
+        assert len(resolved["facts"]["attempts"]) == 2
+        assert (
+            client.get(resolved["displayHref"]).json()["props"]["facts"]
+            == resolved["facts"]
+        )
         response = post_action(client, choice_url, {"continue": "1"})
     else:
         assert page.context["form"].fields["skill_id"].label == "Select a power"
@@ -149,6 +171,49 @@ def test_a_power_only_advancement_uses_power_wording(client, monkeypatch, wyrd, 
     _confirm(client, response)
     record.refresh_from_db()
     assert record.skill_selection.selected_power == wyrd.powers["primary"]
+
+
+@pytest.mark.parametrize("kind", [Skill, Power])
+def test_a_recorded_random_result_keeps_its_group_after_becoming_known(
+    client, monkeypatch, wyrd, kind
+):
+    data = wyrd.advancement
+    selected = data.skills["primary"] if kind is Skill else wyrd.powers["primary"]
+    create = a.create_skill if kind is Skill else a.create_power
+    create("Another result", category=selected.category, position=3)
+    _load_rolls(monkeypatch, 12, 2)
+    record = _start(client, data)
+    _post_roll(client, data, record)
+    url = _choose_result(client, data, record, data.results["random"])
+    page = client.get(url)
+    assert (
+        post_action(
+            client,
+            url,
+            {
+                "request_key": page.context["form"]["request_key"].value(),
+                "skill_set_id": str(selected.category_id),
+            },
+        ).status_code
+        == 302
+    )
+    record.refresh_from_db()
+    revision = record.revision
+    with operation(data.gang, actor=data.owner) as op:
+        op.assign(selected, miniature=data.fighter)
+    props = client.get(url).context["action_props"]
+    facts = props["facts"]
+    assert facts["skill_resolved"] is True
+    assert facts["skill_selected"] == str(selected)
+    assert facts["skill_selected_group"] == str(selected.category)
+    assert all(
+        skill["key"] != str(selected.pk)
+        for group in facts["skillGroups"]
+        for skill in group["skills"]
+    )
+    assert client.get(props["displayHref"]).json()["props"]["facts"] == facts
+    record.refresh_from_db()
+    assert record.revision == revision
 
 
 def test_a_stale_power_selection_uses_power_aware_wording(client, monkeypatch, wyrd):
@@ -252,6 +317,10 @@ def test_a_placed_power_can_replace_a_skill_and_correct_back_to_a_skill(
     old_payment = record.payment_id
     corrected_url = _choose_result(
         client, data, record, data.results["primary"], stage="correct"
+    )
+    correction = client.get(corrected_url).context["action_props"]["facts"]
+    assert correction["skill_confirmation"] == (
+        f"Review this selection, then confirm it to replace the earlier result for {data.fighter.name}."
     )
     _confirm(
         client,

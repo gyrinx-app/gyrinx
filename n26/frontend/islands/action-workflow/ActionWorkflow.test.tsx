@@ -829,3 +829,179 @@ test("an unknown review reload preserves the exact original token and command id
     expect(retry.get("command_key")).toBe(reviewProps.values.command_key);
     expect(screen.getByText("Earlier action confirmed")).toBeTruthy();
 });
+
+test("a resolved random skill shows one result to review before its collapsed roll history", async () => {
+    render(
+        <ActionWorkflow
+            {...randomSkillProps}
+            facts={{
+                ...randomSkillProps.facts,
+                skill_title: "Random skill result",
+                skill_description:
+                    "The recorded D6 rolls determined this result.",
+                skill_confirmation:
+                    "Review this selection, then confirm it to add it to Mara.",
+                skill_selected_group: "Agility",
+                skill_resolved: true,
+                skill_selected: "Dodge",
+                submit_label: "Review result",
+                skillRoll: null,
+                attempts: [
+                    {
+                        roll: 1,
+                        result_name: "Catfall",
+                        is_available: false,
+                        unavailable_reason: "No available skill was rolled.",
+                    },
+                    {
+                        roll: 2,
+                        result_name: "Dodge",
+                        is_available: true,
+                        unavailable_reason: null,
+                    },
+                ],
+            }}
+        />,
+    );
+    expect(
+        screen.getByRole("heading", { name: "Random skill result" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Dodge" })).toBeTruthy();
+    expect(screen.getByText("Current result")).toBeTruthy();
+    expect(screen.getByText("Agility")).toBeTruthy();
+    expect(screen.getByText(/confirm it to add it to Mara/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Review result" })).toBeTruthy();
+    const summary = screen.getByText("Roll history");
+    const history = summary.closest("details")!;
+    expect(history.open).toBe(false);
+    await userEvent.click(summary);
+    expect(history.open).toBe(true);
+    expect(screen.getByText("Catfall", { exact: false })).toBeTruthy();
+    expect(screen.queryByRole("radio")).toBeNull();
+});
+
+test("a manual power choice explains confirmation and submits only the selected result", async () => {
+    const fetch = vi
+        .fn()
+        .mockResolvedValue(
+            json({ saved: true, facts: saved, nextUrl: "/review/" }),
+        );
+    vi.stubGlobal("fetch", fetch);
+    const navigate = vi.fn();
+    render(
+        <ActionWorkflow
+            {...props}
+            onNavigate={navigate}
+            facts={{
+                ...props.facts,
+                stage: "skill",
+                roll: null,
+                skill_title: "Select a skill or power",
+                skill_description: "Select one result across all groups.",
+                skill_confirmation:
+                    "Review this selection, then confirm it to add it to Mara.",
+                submit_label: "Review selection",
+                skillGroups: [
+                    {
+                        key: "agility",
+                        name: "Skills: Agility",
+                        skills: [{ key: "dodge", name: "Dodge" }],
+                    },
+                    {
+                        key: "whispers",
+                        name: "Powers: Whispers",
+                        skills: [{ key: "whisper", name: "Second whisper" }],
+                    },
+                ],
+            }}
+            values={{ ...props.values, skill_id: "", target_step: "skill" }}
+            fields={["skill_id"]}
+            hiddenFields={[]}
+        />,
+    );
+    expect(
+        screen.getByText("Select one result across all groups."),
+    ).toBeTruthy();
+    expect(screen.getByText(/confirm it to add it to Mara/)).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Skills: Agility" })).toBeTruthy();
+    expect(
+        screen.getByRole("group", { name: "Powers: Whispers" }),
+    ).toBeTruthy();
+    await userEvent.click(
+        screen.getByRole("radio", { name: "Second whisper" }),
+    );
+    await userEvent.click(
+        screen.getByRole("button", { name: "Review selection" }),
+    );
+    expect(fetch.mock.calls[0][1].body.get("skill_id")).toBe("whisper");
+    expect(navigate).toHaveBeenCalledWith("/review/");
+});
+
+test.each([
+    [null, "No power has D6 result 3 in Whispers."],
+    ["Catfall", "No available skill was rolled."],
+])(
+    "an unresolved random result keeps its reroll explanation visible: %s",
+    async (result, reason) => {
+        render(
+            <ActionWorkflow
+                {...randomSkillProps}
+                facts={{
+                    ...randomSkillProps.facts,
+                    attempts: [
+                        {
+                            roll: 3,
+                            result_name: result,
+                            is_available: false,
+                            unavailable_reason: reason,
+                        },
+                    ],
+                }}
+            />,
+        );
+        expect(screen.getByRole("button", { name: "Continue" })).toBeTruthy();
+        expect(screen.queryByText("Current result")).toBeNull();
+        const summary = screen.getByText("Roll history");
+        expect(summary.closest("details")!.open).toBe(true);
+        expect(screen.getByText(reason)).toBeTruthy();
+        await userEvent.click(summary);
+        expect(summary.closest("details")!.open).toBe(false);
+    },
+);
+
+test("roll history retains carried-roll evaluations without counting them as new dice", async () => {
+    const attempts = [
+        {
+            event_id: "same-die",
+            roll: 1,
+            result_name: "Catfall",
+            is_available: false,
+            unavailable_reason: "No available skill was rolled.",
+        },
+        {
+            event_id: "same-die",
+            roll: 1,
+            result_name: "Bull Charge",
+            is_available: true,
+            unavailable_reason: null,
+        },
+    ];
+    render(
+        <ActionWorkflow
+            {...randomSkillProps}
+            facts={{
+                ...randomSkillProps.facts,
+                skill_resolved: true,
+                skill_selected: "Bull Charge",
+                skillRoll: null,
+                attempts,
+            }}
+        />,
+    );
+    const summary = screen.getByText("Roll history");
+    expect(summary.textContent).toBe("Roll history");
+    await userEvent.click(summary);
+    expect(screen.getAllByText("D6: 1")).toHaveLength(2);
+    expect(screen.getByText(/Catfall/)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Bull Charge" })).toBeTruthy();
+});

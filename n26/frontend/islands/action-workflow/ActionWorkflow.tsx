@@ -19,6 +19,7 @@ import {
     BusyControlScope,
     Button,
     ButtonLink,
+    Card,
     Field,
     FieldErrors,
     FlowProgress,
@@ -62,6 +63,9 @@ type Facts = {
     skill_resolved?: boolean;
     skill_selected?: string;
     skill_title?: string;
+    skill_description?: string;
+    skill_confirmation?: string;
+    skill_selected_group?: string;
     skill_empty?: string;
     show_outcome?: boolean;
     outcome_description?: string;
@@ -107,9 +111,9 @@ type Facts = {
     }[];
     attempts: {
         roll: number;
-        result_name: string;
+        result_name: string | null;
         is_available: boolean;
-        unavailable_reason: string;
+        unavailable_reason: string | null;
     }[];
     reviewChoice: {
         label: string;
@@ -989,13 +993,34 @@ export function ActionWorkflow(props: ActionWorkflowProps) {
                                     </FormSection>
                                 )}
                                 {f.stage === "skill" && (
-                                    <FormSection title={f.skill_title}>
-                                        <ActionAttempts attempts={f.attempts} />
+                                    <FormSection
+                                        title={f.skill_title}
+                                        description={f.skill_description}
+                                    >
                                         {f.skill_random ? (
                                             f.skill_resolved ? (
-                                                <ActionText tone="strong">
-                                                    {f.skill_selected}
-                                                </ActionText>
+                                                <Card>
+                                                    <div className="space-y-2">
+                                                        <p className="text-sm text-muted">
+                                                            Current result
+                                                        </p>
+                                                        <h3 className="text-lg font-semibold">
+                                                            {f.skill_selected}
+                                                        </h3>
+                                                        {f.skill_selected_group && (
+                                                            <ActionText>
+                                                                {
+                                                                    f.skill_selected_group
+                                                                }
+                                                            </ActionText>
+                                                        )}
+                                                        <p>
+                                                            {
+                                                                f.skill_confirmation
+                                                            }
+                                                        </p>
+                                                    </div>
+                                                </Card>
                                             ) : f.correction ? (
                                                 <ActionText>
                                                     This result needs a recorded
@@ -1071,7 +1096,30 @@ export function ActionWorkflow(props: ActionWorkflowProps) {
                                                         {f.skill_empty}
                                                     </ActionText>
                                                 )}
+                                                {f.skillGroups.length > 0 && (
+                                                    <ActionText>
+                                                        {f.skill_confirmation}
+                                                    </ActionText>
+                                                )}
                                             </>
+                                        )}
+                                        {f.attempts.length > 0 && (
+                                            <details
+                                                className="text-sm"
+                                                open={
+                                                    f.skill_random &&
+                                                    !f.skill_resolved
+                                                }
+                                            >
+                                                <summary className="cursor-pointer font-semibold text-muted">
+                                                    Roll history
+                                                </summary>
+                                                <div className="mt-3">
+                                                    <ActionAttempts
+                                                        attempts={f.attempts}
+                                                    />
+                                                </div>
+                                            </details>
                                         )}
                                     </FormSection>
                                 )}

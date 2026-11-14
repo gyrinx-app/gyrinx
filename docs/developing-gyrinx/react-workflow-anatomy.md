@@ -388,3 +388,13 @@ Advance an action revision on each by-hand and Undo transition, even when no
 result slot or review changes. An unused form has no receipt to recall: its old
 revision must reject a delayed Undo after another tab undoes and applies again.
 Keep consumed receipt replay separate from that new-intent revision check.
+
+Show a resolved random result before its roll history. Keep rejected attempts
+available in a separate disclosure, and name the selected skill set or power
+family. State which model will receive the result and distinguish Review from
+Confirm. A manual selection and a stored random result need different headings
+and actions even when they share the same underlying form.
+
+Keep roll history open until a random result is available, so the reason for
+another roll stays visible. Label a recorded result from its own category;
+current selectable choices may exclude it after another assignment adds it.
