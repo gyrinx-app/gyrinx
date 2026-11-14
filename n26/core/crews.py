@@ -30,6 +30,10 @@ from n26.core.status import Status
 from n26.write_pause import guarded_write
 
 
+class CrewAvailabilityRefusal(Refusal):
+    """A mutable crew selection or draw pool no longer permits this command."""
+
+
 @dataclass(frozen=True)
 class CrewSelection:
     miniature_id: str
@@ -246,7 +250,7 @@ def _save_locked_crew(
         key = str(selection.miniature_id)
         item = by_id.get(key)
         if item is None or not item.available:
-            raise Refusal(
+            raise CrewAvailabilityRefusal(
                 "A selected model is no longer available. Remove it from the crew before saving."
             )
         if key in selected:
@@ -255,7 +259,7 @@ def _save_locked_crew(
             raise Refusal("Select starting crew or reinforcements for each model.")
         model = item.miniature
         if model.status != Status.ACTIVE and not selection.eligibility_override:
-            raise Refusal(
+            raise CrewAvailabilityRefusal(
                 f"{model.name} is unavailable. Allow this model for this battle or remove it from the crew."
             )
         saved = item.saved
@@ -310,7 +314,7 @@ def _save_locked_crew(
             and str(item.miniature.pk) not in selected
         ]
         if random_count > len(pool):
-            raise Refusal(
+            raise CrewAvailabilityRefusal(
                 f"Only {len(pool)} eligible models remain. Enter a smaller draw."
             )
         rng = random.SystemRandom()

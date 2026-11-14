@@ -183,6 +183,12 @@ roles and counts. Saving a readable snapshot in the request body does not update
 React state by itself. Keep that snapshot synchronized before submission; retain
 the exact raw command separately from its display labels.
 
+A mutable crew refusal includes availability, even when a removed saved member
+still has form fields. Classify status overrides, removed members and a shrunken
+draw pool explicitly. Record a no-write receipt under the same locks before
+letting an uncertain request become an editable draft; retain its role, card,
+override and draw count until the player reviews and changes them.
+
 Inventory older native form payloads before choosing a compatibility key. A
 revision can distinguish a cached crew edit; an unkeyed repeatable pick or roll
 cannot distinguish a retry from a new action. Reject ambiguous commands before

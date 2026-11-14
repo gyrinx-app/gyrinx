@@ -7,7 +7,12 @@ from uuid import NAMESPACE_URL, uuid5
 from django import forms
 
 from n26.core.crew_forms import CrewForm
-from n26.core.crews import crew_roster, locked_crew, save_crew
+from n26.core.crews import (
+    CrewAvailabilityRefusal,
+    crew_roster,
+    locked_crew,
+    save_crew,
+)
 from n26.core.models.crew import CrewCommandReceipt
 from n26.core.operations import Refusal
 from n26.write_pause import guarded_write
@@ -20,6 +25,11 @@ ROSTER_CHANGED = (
 EQUIPMENT_CHANGED = (
     "A selected equipment set is no longer available. This save changed nothing. "
     "Reload the page to choose a current equipment set."
+)
+
+AVAILABILITY_CHANGED = (
+    "A selected model is unavailable. This save changed nothing. "
+    "Reload the page to allow it for this battle or remove it from the crew."
 )
 
 MESSAGES = {
@@ -98,6 +108,24 @@ def _label_unavailable_equipment(form):
                     "Select an available equipment set.", code="invalid_choice"
                 ),
             )
+
+
+def _record_refusal(submitted, *, battle, gang, actor, key, inputs, message):
+    _label_unavailable_equipment(submitted.form)
+    submitted.form.add_error(None, message)
+    refusal = {"version": 1, "outcome": "roster_changed"}
+    if message != ROSTER_CHANGED:
+        refusal["message"] = message
+    submitted.receipt = CrewCommandReceipt.objects.create(
+        gang=gang,
+        battle=battle,
+        actor=actor,
+        request_key=key,
+        inputs=inputs,
+        result=refusal,
+    )
+    submitted.roster_changed = True
+    return submitted
 
 
 @guarded_write
@@ -194,30 +222,44 @@ def perform(*, battle, gang, actor, data, require_key=False):
             and form.has_error(entry.card.name, "invalid_choice")
             for entry in form.models
         )
+        action = data.get("action", "save")
+        availability_changed = (
+            action in MESSAGES
+            and (action != "draw" or bool(form.cleaned_data.get("random_count")))
+            and any(
+                form.has_error(entry.role.name, "unavailable_model")
+                or form.has_error(entry.override.name, "availability_override_required")
+                for entry in form.models
+            )
+            and all(
+                error.code in {"unavailable_model", "availability_override_required"}
+                for errors in form.errors.as_data().values()
+                for error in errors
+            )
+        )
         if (
-            (roster_changed or equipment_changed)
+            (roster_changed or equipment_changed or availability_changed)
             and "revision" in form.cleaned_data
             and not submitted.read_only
         ):
-            message = ROSTER_CHANGED if roster_changed else EQUIPMENT_CHANGED
-            _label_unavailable_equipment(form)
-            form.add_error(None, message)
-            refusal = {"version": 1, "outcome": "roster_changed"}
-            if not roster_changed:
-                refusal["message"] = message
-            submitted.receipt = CrewCommandReceipt.objects.create(
-                gang=gang,
-                battle=battle,
-                actor=actor,
-                request_key=key,
-                inputs=inputs,
-                result=refusal,
+            message = (
+                ROSTER_CHANGED
+                if roster_changed
+                else EQUIPMENT_CHANGED
+                if equipment_changed
+                else AVAILABILITY_CHANGED
             )
-            submitted.roster_changed = True
-            return submitted
+            return _record_refusal(
+                submitted,
+                battle=battle,
+                gang=gang,
+                actor=actor,
+                key=key,
+                inputs=inputs,
+                message=message,
+            )
         if form.errors:
             return submitted
-        action = data.get("action", "save")
         if action not in MESSAGES:
             form.add_error(None, "Select Save crew, Save draft or Draw.")
             return submitted
@@ -236,6 +278,19 @@ def perform(*, battle, gang, actor, data, require_key=False):
                 if action == "draw"
                 else 0,
                 random_role=form.cleaned_data["random_role"],
+            )
+        except CrewAvailabilityRefusal as exc:
+            return _record_refusal(
+                submitted,
+                battle=battle,
+                gang=gang,
+                actor=actor,
+                key=key,
+                inputs=inputs,
+                message=(
+                    f"{exc.public_message} This save changed nothing. "
+                    "Reload the page to review the current models."
+                ),
             )
         except Refusal as exc:
             form.add_error(None, exc.public_message)

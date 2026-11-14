@@ -120,12 +120,18 @@ class CrewForm(forms.Form):
             if not item.available:
                 self.add_error(
                     f"role_{suffix}",
-                    "This model is no longer available. Remove it from the crew.",
+                    forms.ValidationError(
+                        "This model is no longer available. Remove it from the crew.",
+                        code="unavailable_model",
+                    ),
                 )
             elif item.miniature.status != Status.ACTIVE and not override:
                 self.add_error(
                     f"override_{suffix}",
-                    "Allow this model for this battle or remove it from the crew.",
+                    forms.ValidationError(
+                        "Allow this model for this battle or remove it from the crew.",
+                        code="availability_override_required",
+                    ),
                 )
             selections.append(
                 CrewSelection(suffix, role, cleaned.get(f"card_{suffix}", ""), override)

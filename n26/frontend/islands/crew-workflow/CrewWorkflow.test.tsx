@@ -1104,3 +1104,132 @@ it("recovers a lost equipment rejection with exact retries before explicit reloa
     expect(saved.get("action")).toBe("draft");
     expect(navigate).toHaveBeenLastCalledWith("/saved/");
 });
+
+it.each(["status", "removed saved member", "draw pool"])(
+    "recovers a lost %s refusal without changing the original intent before explicit review",
+    async (change) => {
+        const message =
+            "Crew availability changed. This save changed nothing. Reload the page to review the current models.";
+        const fetch = vi
+            .fn()
+            .mockRejectedValueOnce(new Error("Refusal response lost"))
+            .mockImplementation(async (_url, options) =>
+                json(
+                    {
+                        errors: { __all__: [message] },
+                        code: "roster_changed",
+                        rosterRefusal: rosterRefusal(options.body),
+                    },
+                    422,
+                ),
+            );
+        vi.stubGlobal("fetch", fetch);
+        const initial = props();
+        initial.values.random_count = "2";
+        const navigate = vi.fn();
+        const first = render(
+            <CrewWorkflow {...initial} onNavigate={navigate} />,
+        );
+        const user = userEvent.setup();
+        const retryLabel = change === "draw pool" ? "Retry draw" : "Retry save";
+        const button =
+            change === "draw pool" ? "Draw and save draft" : "Save draft";
+        await user.click(screen.getByRole("button", { name: button }));
+        await screen.findByRole("button", { name: retryLabel });
+        const original = fetch.mock.calls[0][1].body as URLSearchParams;
+        first.unmount();
+        const currentModels = [
+            model("a", "Mara", "reserve"),
+            model("b", "Nell"),
+        ];
+        if (change === "status") {
+            currentModels[0].mayOverride = true;
+            currentModels[0].warning =
+                "Recovery. Usually unavailable for selection.";
+        } else if (change === "removed saved member") {
+            currentModels[0].available = false;
+            currentModels[0].warning =
+                "This model is no longer available. Remove it from the crew.";
+        } else {
+            currentModels[1].mayOverride = true;
+            currentModels[1].warning =
+                "Recovery. Usually unavailable for selection.";
+        }
+        const current = props(currentModels);
+        const recovered = render(
+            <CrewWorkflow
+                {...current}
+                csrfToken="fresh-after-sign-in"
+                onNavigate={navigate}
+            />,
+        );
+        expect(
+            screen.getByRole("region", { name: "Unconfirmed crew selections" })
+                .textContent,
+        ).toContain("Mara · Reinforcements · Long range");
+        await user.click(screen.getByRole("button", { name: "Sign in again" }));
+        expect(navigate).toHaveBeenLastCalledWith(initial.signInHref);
+        await user.click(screen.getByRole("button", { name: retryLabel }));
+        await screen.findByText(message);
+        const retry = fetch.mock.calls[1][1].body as URLSearchParams;
+        for (const [name, value] of original.entries()) {
+            if (name !== "csrfmiddlewaretoken")
+                expect(retry.getAll(name)).toEqual(original.getAll(name));
+            else expect(value).toBe("csrf");
+        }
+        expect(retry.get("csrfmiddlewaretoken")).toBe("fresh-after-sign-in");
+        expect(retry.get("request_key")).toBe("key");
+        expect(screen.queryByRole("button", { name: retryLabel })).toBeNull();
+        await user.click(screen.getByRole("button", { name: "Reload page" }));
+        const draft = new URLSearchParams(
+            sessionStorage.getItem(initial.recoveryKey)!,
+        );
+        expect(draft.get("request_key")).not.toBe("key");
+        expect(draft.get("role_a")).toBe("reserve");
+        expect(draft.get("card_a")).toBe("long");
+        expect(draft.get("override_a")).toBe("");
+        expect(draft.get("random_count")).toBe("2");
+        expect(draft.get("action")).toBe(
+            change === "draw pool" ? "draw" : "draft",
+        );
+        recovered.unmount();
+        render(<CrewWorkflow {...current} onNavigate={navigate} />);
+        expect(
+            screen.getByRole("checkbox", { name: "Select Mara" }),
+        ).toHaveProperty("checked", true);
+        expect(
+            new FormData(document.querySelector("form")!).get("override_a"),
+        ).toBe("");
+        if (change === "status") {
+            const allow = screen.getByRole("checkbox", {
+                name: "Allow for this battle",
+            });
+            expect(allow).toHaveProperty("checked", false);
+            await user.click(allow);
+        } else if (change === "removed saved member") {
+            await user.click(
+                screen.getByRole("checkbox", { name: "Select Mara" }),
+            );
+        } else {
+            const count = screen.getByRole("spinbutton", {
+                name: "Number",
+            });
+            await user.clear(count);
+            await user.type(count, "1");
+        }
+        fetch.mockResolvedValueOnce(json({ nextUrl: "/saved/" }));
+        await user.click(screen.getByRole("button", { name: button }));
+        await waitFor(() =>
+            expect(navigate).toHaveBeenLastCalledWith("/saved/"),
+        );
+        const saved = fetch.mock.calls[2][1].body as URLSearchParams;
+        expect(saved.get("request_key")).toBe(draft.get("request_key"));
+        expect(saved.get("role_a")).toBe(
+            change === "removed saved member" ? "out" : "reserve",
+        );
+        expect(saved.get("override_a")).toBe(change === "status" ? "on" : "");
+        expect(saved.get("random_count")).toBe(
+            change === "draw pool" ? "1" : "2",
+        );
+    },
+);

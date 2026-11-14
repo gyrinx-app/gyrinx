@@ -1093,7 +1093,8 @@ def test_each_nonactive_status_requires_an_explicit_battle_allowance(
     assert refused.status_code == 422
     assert f"override_{table.models[0].pk}" in refused.json()["errors"]
     accepted = client.post(
-        command_address(table), payload | {f"override_{table.models[0].pk}": "on"}
+        command_address(table),
+        payload | {"request_key": str(uuid4()), f"override_{table.models[0].pk}": "on"},
     )
     assert accepted.status_code == 200
     assert (
@@ -1568,3 +1569,267 @@ def test_concurrent_deleted_equipment_retries_share_one_no_write_receipt(table):
     assert sum(replayed for _, _, replayed, _ in results) == 1
     assert results[0][3] == results[1][3]
     assert not BattleCrew.objects.exists() and CrewCommandReceipt.objects.count() == 1
+
+
+@pytest.mark.parametrize("transport", ["native", "json"])
+@pytest.mark.parametrize("change", ["status", "removed_saved_member", "draw_pool"])
+def test_mutable_crew_availability_is_durably_refused_before_explicit_review(
+    client, table, transport, change
+):
+    from uuid import uuid4
+
+    from n26.core.models import CrewCommandReceipt, LedgerEvent
+
+    if change == "draw_pool":
+        table.models.append(hire(table.gang, table.models[0].membership.profile, "Cal"))
+    initial = fields(table, action="draft")
+    if change == "draw_pool":
+        initial |= {f"role_{model.pk}": "out" for model in table.models[1:]}
+    assert client.post(address(table), initial).status_code == 302
+    original = initial | {"revision": "1", "request_key": str(uuid4())}
+    target = table.models[1] if change == "draw_pool" else table.models[0]
+    if change == "draw_pool":
+        original |= {"action": "draw", "random_count": "2"}
+
+    def make_unavailable():
+        with operation(table.gang, actor=table.owner) as act:
+            if change == "removed_saved_member":
+                act.remove(target.membership)
+            else:
+                act.set_status(target, Status.RECOVERY)
+
+    def restore_availability():
+        with operation(table.gang, actor=table.owner) as act:
+            if change == "removed_saved_member":
+                target.membership.refresh_from_db()
+                act.restore(target.membership)
+            else:
+                act.set_status(target, Status.ACTIVE)
+
+    make_unavailable()
+    destination = command_address(table) if transport == "json" else address(table)
+    response = client.post(destination, original)
+    assert response.status_code == (422 if transport == "json" else 200)
+    payload = (
+        response.json() if transport == "json" else response.context["crew_workflow"]
+    )
+    refused = payload["rosterRefusal"]
+    assert refused["requestKey"] == original["request_key"]
+    assert refused["inputs"] == {
+        name: [value] for name, value in original.items() if name != "request_key"
+    }
+    assert "This save changed nothing." in " ".join(payload["errors"]["__all__"])
+    if change == "status":
+        assert f"override_{target.pk}" in payload["errors"]
+    elif change == "removed_saved_member":
+        assert f"role_{target.pk}" in payload["errors"]
+        assert any(
+            m["id"] == str(target.pk)
+            for m in client.get(address(table)).context["crew_workflow"]["models"]
+        )
+    else:
+        assert "Only 1 eligible models remain." in " ".join(
+            payload["errors"]["__all__"]
+        )
+    crew = BattleCrew.objects.get()
+    assert crew.revision == 1 and crew.draw_number == 0
+    receipt = CrewCommandReceipt.objects.get(request_key=original["request_key"])
+    assert receipt.result["outcome"] == "roster_changed"
+    ledger_count = LedgerEvent.objects.count()
+
+    # A lost refusal is recalled with the original intent after reload and a new CSRF token.
+    page = client.get(address(table) + "?recover=1")
+    assert (
+        page.status_code == 200
+        and page.context["crew_workflow"]["acknowledgement"] is None
+    )
+    replay = client.post(
+        destination, original | {"csrfmiddlewaretoken": "fresh-after-sign-in"}
+    )
+    replay_payload = (
+        replay.json() if transport == "json" else replay.context["crew_workflow"]
+    )
+    assert replay_payload["rosterRefusal"] == refused
+    assert LedgerEvent.objects.count() == ledger_count
+
+    # Even if the original selection becomes valid again, a delayed request cannot apply it.
+    restore_availability()
+    delayed = client.post(command_address(table), original)
+    assert delayed.status_code == 422 and delayed.json()["rosterRefusal"] == refused
+    crew.refresh_from_db()
+    assert crew.revision == 1 and crew.draw_number == 0
+    make_unavailable()
+    revised = original | {"request_key": str(uuid4())}
+    if change == "status":
+        revised[f"override_{target.pk}"] = "on"
+    elif change == "removed_saved_member":
+        revised[f"role_{target.pk}"] = "out"
+    else:
+        revised["random_count"] = "1"
+    fresh = client.post(destination, revised)
+    assert fresh.status_code == (200 if transport == "json" else 302)
+    crew.refresh_from_db()
+    assert crew.revision == 2 and crew.draw_number == (
+        1 if change == "draw_pool" else 0
+    )
+    if change == "status":
+        assert crew.members.get(miniature=target).eligibility_override
+    elif change == "removed_saved_member":
+        assert not crew.members.filter(miniature=target).exists()
+    else:
+        assert crew.members.filter(miniature=table.models[2]).exists()
+    assert CrewCommandReceipt.objects.count() == 3
+    assert_reconciled(table.gang)
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        {"revision": "bad"},
+        {"request_key": "bad"},
+        {"random_count": "bad"},
+        {"random_count": ""},
+        {"action": "unknown"},
+    ],
+)
+def test_availability_does_not_settle_invalid_identity_or_generic_validation(
+    client, table, invalid
+):
+    from uuid import uuid4
+
+    from n26.core.models import CrewCommandReceipt
+
+    original = (
+        fields(
+            table,
+            action="draw",
+            random_count="1",
+            request_key=str(uuid4()),
+            **{f"role_{table.models[1].pk}": "out"},
+        )
+        | invalid
+    )
+    with operation(table.gang, actor=table.owner) as act:
+        act.set_status(table.models[0], Status.RECOVERY)
+    response = client.post(command_address(table), original)
+    assert response.status_code == 422 and response.json()["code"] == "invalid"
+    assert response.json()["rosterRefusal"] is None
+    assert not CrewCommandReceipt.objects.exists() and not BattleCrew.objects.exists()
+
+
+def test_draw_availability_refusal_rollback_preserves_uncertainty_and_key_binding(
+    client, table, monkeypatch
+):
+    from uuid import uuid4
+
+    from n26.core.models import CrewCommandReceipt
+    from n26.core.operations import Refusal
+
+    original = fields(
+        table,
+        action="draw",
+        random_count="1",
+        request_key=str(uuid4()),
+        **{f"role_{table.models[1].pk}": "out"},
+    )
+    with operation(table.gang, actor=table.owner) as act:
+        act.set_status(table.models[1], Status.RECOVERY)
+    create = CrewCommandReceipt.objects.create
+
+    def fail(*args, **kwargs):
+        create(*args, **kwargs)
+        raise Refusal("This refusal could not be saved.")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(CrewCommandReceipt.objects, "create", fail)
+        failed = client.post(command_address(table), original)
+    assert failed.status_code == 409 and failed.json().get("code") != "roster_changed"
+    assert (
+        "rosterRefusal" not in failed.json() and not CrewCommandReceipt.objects.exists()
+    )
+    refused = client.post(command_address(table), original)
+    assert refused.status_code == 422 and refused.json()["code"] == "roster_changed"
+    changed = client.post(command_address(table), original | {"random_count": "01"})
+    assert changed.status_code == 409 and changed.json()["code"] == "key_conflict"
+    client.force_login(table.arbitrator)
+    changed_actor = client.post(command_address(table), original)
+    assert (
+        changed_actor.status_code == 409
+        and changed_actor.json()["code"] == "key_conflict"
+    )
+    assert not BattleCrew.objects.exists() and CrewCommandReceipt.objects.count() == 1
+
+
+@pytest.mark.parametrize("change", ["status", "draw_pool"])
+def test_cached_native_availability_refusal_without_a_key_replays_safely(
+    client, table, change
+):
+    from n26.core.models import CrewCommandReceipt
+
+    original = fields(table, action="draft")
+    target = table.models[0]
+    if change == "draw_pool":
+        target = table.models[1]
+        original |= {"action": "draw", f"role_{target.pk}": "out"}
+    with operation(table.gang, actor=table.owner) as act:
+        act.set_status(target, Status.RECOVERY)
+    first = client.post(address(table), original)
+    assert first.status_code == 200
+    proof = first.context["crew_workflow"]["rosterRefusal"]
+    assert proof and not BattleCrew.objects.exists()
+    with operation(table.gang, actor=table.owner) as act:
+        act.set_status(target, Status.ACTIVE)
+    replay = client.post(address(table), original)
+    assert replay.status_code == 200
+    assert replay.context["crew_workflow"]["rosterRefusal"] == proof
+    assert CrewCommandReceipt.objects.count() == 1 and not BattleCrew.objects.exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_shrunken_draw_retries_share_one_no_write_receipt(table):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from uuid import uuid4
+
+    from django.db import close_old_connections
+    from django.http import QueryDict
+
+    from n26.core.crew_workflow import perform
+    from n26.core.models import Battle, CrewCommandReceipt, Gang
+
+    original = fields(
+        table,
+        action="draw",
+        request_key=str(uuid4()),
+        **{f"role_{table.models[1].pk}": "out"},
+    )
+    with operation(table.gang, actor=table.owner) as act:
+        act.set_status(table.models[1], Status.RECOVERY)
+    barrier = Barrier(2)
+
+    def submit():
+        close_old_connections()
+        try:
+            data = QueryDict(mutable=True)
+            data.update(original)
+            battle = Battle.objects.get(pk=table.battle.pk)
+            gang = Gang.objects.get(pk=table.gang.pk)
+            barrier.wait()
+            result = perform(
+                battle=battle, gang=gang, actor=table.owner, data=data, require_key=True
+            )
+            return (
+                result.saved,
+                result.roster_changed,
+                result.replayed,
+                result.receipt.pk,
+            )
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: submit(), range(2)))
+    assert all(not saved and refused for saved, refused, _, _ in results)
+    assert sum(replayed for _, _, replayed, _ in results) == 1
+    assert results[0][3] == results[1][3]
+    assert CrewCommandReceipt.objects.count() == 1 and not BattleCrew.objects.exists()
