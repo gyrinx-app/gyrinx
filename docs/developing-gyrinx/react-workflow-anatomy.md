@@ -370,8 +370,9 @@ check ownership and the submitted revision first, and offer the current flow to
 resume. Keep other validation refusals uncertain; do not infer their outcome.
 
 Carry the authorized gang scope through recovery display links when the model
-can be deleted. Revalidate replay navigation for native redirects as well as JSON
-review links, while keeping the receipt's saved facts unchanged.
+can be deleted. Revalidate replay navigation for native redirects, including
+terminal cancellation refusals, as well as JSON review links. Keep the receipt's
+saved facts unchanged.
 
 A replay confirms an earlier action, so native messages must acknowledge that
 history without asserting its current state. Signed reviews can change with

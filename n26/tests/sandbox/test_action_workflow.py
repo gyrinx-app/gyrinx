@@ -818,9 +818,10 @@ def test_recorded_roll_cancel_settles_without_cancelling_and_replays_after_reope
         }
     else:
         assert response.status_code == 302
+        assert response.url == resume
         assert (
             "A recorded advancement roll must be resumed."
-            in client.get(response.url).content.decode()
+            in client.get(response.url, follow=True).content.decode()
         )
     assert counts()[:-1] == before[:-1]
     assert counts()[-1] == before[-1] + 1
@@ -924,6 +925,29 @@ def test_recorded_roll_cancel_revalidates_its_resume_destination_on_replay(
     assert replay.status_code == 409
     assert replay.json()["terminal"] is True
     assert replay.json()["reviewUrl"] == reverse("n26-gang", args=[advancement.gang.pk])
+    assert counts() == before
+
+
+@pytest.mark.parametrize("deleted", ["membership", "model"])
+def test_native_recorded_roll_cancel_replay_uses_the_surviving_page_after_deletion(
+    client, advancement, deleted
+):
+    record, props, body = _recorded_roll_cancel_command(client, advancement)
+    body["gang_id"] = str(advancement.gang.pk)
+    assert client.post(props["commandHref"], body).json()["terminal"] is True
+    target = (
+        advancement.fighter.membership
+        if deleted == "membership"
+        else advancement.fighter
+    )
+    target.delete()
+    before = counts()
+    replay = client.post(props["action"], body)
+    assert replay.status_code == 302
+    assert replay.url == reverse("n26-gang", args=[advancement.gang.pk])
+    reached = client.get(replay.url)
+    assert reached.status_code == 200
+    assert "A recorded advancement roll must be resumed." in reached.content.decode()
     assert counts() == before
 
 

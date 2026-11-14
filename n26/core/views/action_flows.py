@@ -74,6 +74,8 @@ def _native(request, pk, target):
         for texts in result.errors.values():
             for text in texts:
                 messages.error(request, text)
+        if result.terminal and result.review_url:
+            return redirect(result.review_url)
         return redirect(reverse("n26-edit-fighter", args=[pk]))
     page = (
         result.page
