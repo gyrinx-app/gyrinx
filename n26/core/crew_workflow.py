@@ -17,6 +17,11 @@ ROSTER_CHANGED = (
     "Reload the page to review the current models."
 )
 
+EQUIPMENT_CHANGED = (
+    "A selected equipment set is no longer available. This save changed nothing. "
+    "Reload the page to choose a current equipment set."
+)
+
 MESSAGES = {
     "draw": "Draw saved.",
     "save": "Crew saved.",
@@ -127,7 +132,9 @@ def perform(*, battle, gang, actor, data, require_key=False):
                             data, roster=crew_roster(gang, crew), crew=crew
                         )
                         submitted.form.is_valid()
-                        submitted.form.add_error(None, ROSTER_CHANGED)
+                        submitted.form.add_error(
+                            None, prior.result.get("message", ROSTER_CHANGED)
+                        )
                         return submitted
                     submitted.status = 200
                     submitted.newer = (
@@ -166,19 +173,28 @@ def perform(*, battle, gang, actor, data, require_key=False):
             name.startswith("role_") and name not in form.fields and data[name] != "out"
             for name in data
         )
+        equipment_changed = any(
+            form.cleaned_data.get(entry.role.name) not in (None, "out")
+            and form.has_error(entry.card.name, "invalid_choice")
+            for entry in form.models
+        )
         if (
-            roster_changed
+            (roster_changed or equipment_changed)
             and "revision" in form.cleaned_data
             and not submitted.read_only
         ):
-            form.add_error(None, ROSTER_CHANGED)
+            message = ROSTER_CHANGED if roster_changed else EQUIPMENT_CHANGED
+            form.add_error(None, message)
+            refusal = {"version": 1, "outcome": "roster_changed"}
+            if not roster_changed:
+                refusal["message"] = message
             submitted.receipt = CrewCommandReceipt.objects.create(
                 gang=gang,
                 battle=battle,
                 actor=actor,
                 request_key=key,
                 inputs=inputs,
-                result={"version": 1, "outcome": "roster_changed"},
+                result=refusal,
             )
             submitted.roster_changed = True
             return submitted

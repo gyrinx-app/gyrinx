@@ -255,6 +255,17 @@ export function CrewWorkflow(
                 ),
         ),
     );
+    const unavailableEquipment = rejectedBody
+        ? props.models.filter(
+              (model) =>
+                  values[model.role.name] &&
+                  values[model.role.name] !== "out" &&
+                  values[model.card.name] &&
+                  !model.card.choices.some(
+                      (choice) => choice.value === values[model.card.name],
+                  ),
+          )
+        : [];
     const selected = props.models.filter(
         (model) => values[model.role.name] && values[model.role.name] !== "out",
     );
@@ -593,6 +604,32 @@ export function CrewWorkflow(
                             </Button>
                         </Callout>
                     )}
+                    {!!unavailableEquipment.length &&
+                        !uncertain &&
+                        !rosterRefusal && (
+                            <Callout>
+                                <p>
+                                    These equipment sets are no longer
+                                    available. Choose another set before saving.
+                                </p>
+                                <ul>
+                                    {unavailableEquipment.map((model) => {
+                                        const earlier = rejectedSnapshot.find(
+                                            (selection) =>
+                                                selection.id === model.id,
+                                        );
+                                        return (
+                                            <li key={model.id}>
+                                                {model.name}
+                                                {earlier?.card
+                                                    ? `: ${earlier.card}`
+                                                    : ""}
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            </Callout>
+                        )}
                     {props.readOnly && (
                         <Callout>
                             This crew is archived. You can retry an earlier save

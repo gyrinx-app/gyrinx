@@ -1012,3 +1012,95 @@ it("keeps an uncertain older body without a readable snapshot available for exac
         screen.queryByRole("button", { name: "Review current crew" }),
     ).toBeNull();
 });
+
+it("recovers a lost equipment rejection with exact retries before explicit reload and a new selection", async () => {
+    const message =
+        "A selected equipment set is no longer available. This save changed nothing. Reload the page to choose a current equipment set.";
+    const fetch = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Rejection response lost"))
+        .mockImplementation(async (_url, options) =>
+            json(
+                {
+                    errors: {
+                        __all__: [message],
+                        card_a: ["Select a valid choice."],
+                    },
+                    code: "roster_changed",
+                    rosterRefusal: rosterRefusal(options.body),
+                },
+                422,
+            ),
+        );
+    vi.stubGlobal("fetch", fetch);
+    const initial = props();
+    const navigate = vi.fn();
+    const original = render(
+        <CrewWorkflow {...initial} onNavigate={navigate} />,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    await screen.findByRole("button", { name: "Retry save" });
+    const retained = sessionStorage.getItem(initial.recoveryKey)!;
+    expect(new URLSearchParams(retained).get("card_a")).toBe("long");
+    original.unmount();
+    const currentModels = [model("a", "Mara"), model("b", "Nell")];
+    currentModels[0].card.choices = [{ value: "short", label: "Close range" }];
+    currentModels[0].card.value = "short";
+    const current = props(currentModels);
+    const recovery = render(
+        <CrewWorkflow
+            {...current}
+            csrfToken="fresh-after-sign-in"
+            onNavigate={navigate}
+        />,
+    );
+    expect(
+        screen.getByRole("region", { name: "Unconfirmed crew selections" })
+            .textContent,
+    ).toContain("Mara · Reinforcements · Long range");
+    await user.click(screen.getByRole("button", { name: "Sign in again" }));
+    expect(
+        new URLSearchParams(sessionStorage.getItem(initial.recoveryKey)!).get(
+            "card_a",
+        ),
+    ).toBe("long");
+    expect(navigate).toHaveBeenLastCalledWith(initial.signInHref);
+    await user.click(screen.getByRole("button", { name: "Retry save" }));
+    await screen.findByText(message);
+    const retry = fetch.mock.calls[1][1].body;
+    expect(retry.get("request_key")).toBe("key");
+    expect(retry.get("card_a")).toBe("long");
+    expect(retry.get("csrfmiddlewaretoken")).toBe("fresh-after-sign-in");
+    expect(new URLSearchParams(retained).get("card_a")).toBe(
+        retry.get("card_a"),
+    );
+    await user.click(screen.getByRole("button", { name: "Reload page" }));
+    const freshDraft = new URLSearchParams(
+        sessionStorage.getItem(initial.recoveryKey)!,
+    );
+    expect(freshDraft.get("request_key")).not.toBe("key");
+    expect(freshDraft.get("card_a")).toBe("long");
+    recovery.unmount();
+    fetch.mockResolvedValueOnce(json({ nextUrl: "/saved/" }));
+    render(<CrewWorkflow {...current} onNavigate={navigate} />);
+    expect(screen.getByText("Mara: Long range")).not.toBeNull();
+    expect(new FormData(document.querySelector("form")!).get("card_a")).toBe(
+        "long",
+    );
+    expect(
+        screen.getByRole("combobox", { name: "Equipment set for Mara" }),
+    ).toHaveProperty("value", "long");
+    await user.selectOptions(
+        screen.getByRole("combobox", { name: "Equipment set for Mara" }),
+        "short",
+    );
+    expect(screen.queryByText("Mara: Long range")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    const saved = fetch.mock.calls[2][1].body;
+    expect(saved.get("request_key")).toBe(freshDraft.get("request_key"));
+    expect(saved.get("card_a")).toBe("short");
+    expect(saved.get("role_a")).toBe("reserve");
+    expect(saved.get("action")).toBe("draft");
+    expect(navigate).toHaveBeenLastCalledWith("/saved/");
+});
