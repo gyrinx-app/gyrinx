@@ -409,9 +409,17 @@ urlpatterns = [
     # The encoded slot identifies the carrier assignment and offer for both gang and
     # fighter choices; see n26.core.views.choose.
     path("gangs/<str:pk>/choose/<str:slot>/", views.choose, name="n26-choose"),
+    path(
+        "gangs/<str:pk>/choose/<str:slot>/command/",
+        views.choose_command,
+        name="n26-choice-command",
+    ),
     # Interstitial choices and the continuation target stay in the URL; see
     # n26.core.views.arrivals.
     path("gangs/<str:pk>/next/", views.gang_next, name="n26-next"),
+    path(
+        "gangs/<str:pk>/next/command/", views.arrivals_command, name="n26-next-command"
+    ),
     # Dismissal and restoration are POST-only actions using the same encoded slot
     # address.
     path(

@@ -12,6 +12,7 @@ from django.urls import reverse
 
 from n26.core.campaigns import campaign_operation
 from n26.core.models import CampaignParticipant, Gang
+from n26.tests.fixtures import island_props
 from n26.tests.sandbox.actions import found_campaign
 
 pytestmark = pytest.mark.django_db
@@ -167,20 +168,26 @@ def test_the_menu_comes_back_when_a_label_choice_redraws_the_sheet(
     pencil = sheet.find(id="n26-campaign-state").find(
         "a", {"aria-label": "Edit Allegiance"}
     )
-    dialog = BeautifulSoup(
-        client.get(pencil["href"], HTTP_HX_REQUEST="true").content, "html.parser"
+    choice_props = island_props(
+        client.get(pencil["href"], HTTP_HX_REQUEST="true").content,
+        "choice-workflow",
     )
-    choice = dialog.find("input", {"type": "radio"})["value"]
+    assert choice_props["dialog"] is True
+    choice = choice_props["offer"]["groups"][0]["options"][0]["key"]
 
     response = client.post(
-        pencil["href"],
-        {"thing": choice, "return": gang_url("n26-gang", gang)},
-        HTTP_HX_REQUEST="true",
+        choice_props["commandHref"],
+        {**choice_props["values"], "thing": choice},
+        HTTP_ACCEPT="application/json",
     )
-
-    html = response.content.decode()
+    assert response.status_code == 200
+    assert response.json()["nextUrl"] == gang_url("n26-gang", gang)
+    refreshed = client.get(response.json()["nextUrl"])
+    assert refreshed.status_code == 200
+    html = refreshed.content.decode()
     soup = BeautifulSoup(html, "html.parser")
-    assert soup.find(id="n26-gang-sheet")["hx-swap-oob"] == "true"
+    assert soup.find("html")
+    assert soup.find(id="n26-gang-sheet")
     _, props, listed = the_menu(html)
     assert [item["label"] for item in props["items"]] == [
         "History",

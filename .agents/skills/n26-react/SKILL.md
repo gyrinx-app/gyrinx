@@ -177,6 +177,33 @@ unresolved business input and its key before sending, scoped to actor and task;
 restore that input with a fresh CSRF token. Never retain credentials or an old
 CSRF token with the recovery payload. A reload instruction must not discard an
 unresolved command's identity.
+Test a lost response after the server commits, both before and after reload.
+Assert that the frozen screen immediately shows the submitted names, choices,
+roles and counts. Saving a readable snapshot in the request body does not update
+React state by itself. Keep that snapshot synchronized before submission; retain
+the exact raw command separately from its display labels.
+
+Inventory older native form payloads before choosing a compatibility key. A
+revision can distinguish a cached crew edit; an unkeyed repeatable pick or roll
+cannot distinguish a retry from a new action. Reject ambiguous commands before
+writing, retain readable intent and require reload. Never invent a fresh key in
+POST or silently add one in a test fixture.
+
+Round-trip actual GET display values through the command: give JSONField native
+lists or dictionaries as initial values, because BoundField.value already encodes
+them. Keep known unsent or rejected drafts scoped to their original URL task when
+nested choice pages open, while unresolved submitted commands keep their exact
+body and protect the actor's workflow across those URLs. Reconcile passive
+selections against each question's saved starting state when returning from a
+nested choice; keep unaffected siblings and transfer them into an expanded task
+only after its confirmed continuation. Use fresh page metadata and command keys
+for passive drafts, and retain displayed roll identifiers in recovery URLs.
+Keep owning-action and allowance guards on result-writing branches under the
+write locks, including generated and entered rolls, after receipt recall. Replay feedback
+must describe an earlier save rather than assert current state. A same-task
+dialog confirmation should refresh its existing owner with a fresh issued key;
+keep presentation context optional and navigate normally for onward tasks.
+
 Keep an earlier uncertain save frozen after any rejected retry, including a
 structured form refusal. Opt workflow forms out of the shared busy-link handler
 with `data-busy="off"`; the React `WorkflowPage` adapter does this by default.

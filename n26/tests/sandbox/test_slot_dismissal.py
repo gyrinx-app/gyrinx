@@ -1,6 +1,7 @@
 """Authors decide whether a slot's empty choice can be hidden."""
 
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from django.db import connection
@@ -76,7 +77,9 @@ class TestChoicesThatStayAvailable:
         client.force_login(owner)
         revise(choice.slot, allow_dismissal=False)
         response = client.post(
-            dismiss_url(gang, choice), {"back": choice.edit}, follow=True
+            dismiss_url(gang, choice),
+            {"request_key": str(uuid4()), "back": choice.edit},
+            follow=True,
         )
         assert response.status_code == 200
         assert "This choice must stay available." in response.content.decode()
@@ -86,7 +89,7 @@ class TestChoicesThatStayAvailable:
         self, client, owner, gang, choice
     ):
         client.force_login(owner)
-        client.post(dismiss_url(gang, choice))
+        client.post(dismiss_url(gang, choice), {"request_key": str(uuid4())})
         assert DismissedOffer.objects.filter(gang=gang).exists()
         revise(choice.slot, allow_dismissal=False)
 
@@ -109,7 +112,11 @@ class TestChoicesThatStayAvailable:
         client.force_login(owner)
         revise(choice.slot, allow_dismissal=False)
         response = client.post(
-            choice.line.href, {"thing": f"library.pickable:{choice.pick.pk}"}
+            choice.line.href,
+            {
+                "request_key": str(uuid4()),
+                "thing": f"library.pickable:{choice.pick.pk}",
+            },
         )
         assert response.status_code == 302
         assert find_slot(gang, choice.line.key).slot.chosen_name == choice.pick.name
@@ -120,11 +127,11 @@ class TestChoicesThatStayAvailable:
         client.force_login(owner)
         revise(choice.slot, allow_dismissal=False)
         revise(choice.slot, allow_dismissal=True)
-        client.post(dismiss_url(gang, choice))
+        client.post(dismiss_url(gang, choice), {"request_key": str(uuid4())})
         assert DismissedOffer.objects.filter(gang=gang).exists()
         body = client.get(choice.edit).content.decode()
         assert restore_url(gang, choice) in body
-        client.post(restore_url(gang, choice))
+        client.post(restore_url(gang, choice), {"request_key": str(uuid4())})
         assert not DismissedOffer.objects.filter(gang=gang).exists()
 
 
@@ -172,7 +179,9 @@ def test_an_earlier_dismissal_cannot_hide_a_protected_injury_control(
     from bs4 import BeautifulSoup
 
     page = BeautifulSoup(client.get(edit_url).content, "html.parser")
-    dismiss = page.find("form", action=lambda url: url and url.endswith("/dismiss/"))
+    dismiss = page.find(
+        "form", action=lambda url: url and url.split("?", 1)[0].endswith("/dismiss/")
+    )
     assert dismiss is not None
     client.post(dismiss["action"])
     assert DismissedOffer.objects.filter(gang=gang).exists()

@@ -716,6 +716,14 @@ credentials or CSRF tokens. This allows recovery after signing in again, which
 rotates the CSRF secret. Clear recovery input after a confirmed result; if it
 cannot be retained, do not start a write that the page cannot safely recover.
 
+Keep passive unsent drafts separate from unresolved commands. On return from a
+nested choice, compare each question's authoritative starting state before
+restoring its local selection, so a confirmed answer wins over an older draft.
+Preserve unchanged siblings when that confirmed return adds questions, but carry
+them only into the same owned continuation. Passive drafts use fresh page
+metadata and command keys; unknown submitted commands keep their exact bodies.
+Recovery URLs retain any displayed recorded roll, including after rejection.
+
 React workflow forms use `data-busy="off"` to opt out of the shared
 `n26/core/static/n26/busy.js` DOM mutations. React owns pending state, including
 links. If a reader cancels a navigation warning, the shared handler would

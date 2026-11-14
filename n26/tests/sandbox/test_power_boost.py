@@ -6,7 +6,7 @@ The gang type grants the choice by Spyrer subtype. It stays available below
 four Kill Count so reducing the counter does not remove existing boosts.
 """
 
-import re
+from uuid import uuid4
 
 import pytest
 from django.contrib.auth.models import User
@@ -20,6 +20,7 @@ from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_model_card
 from n26.library.models import Picklist, Slot
 from n26.library.standard_content import POWER_BOOST_TABLE, STANDARD_CONTENT
+from n26.tests.fixtures import island_props
 from n26.tests.sandbox.actions import (
     add_built_in,
     changes_stat,
@@ -412,28 +413,47 @@ class TestThePickScreen:
 
     def test_a_one_lifts_both_neuroware_rows(self, client, owner, address):
         client.force_login(owner)
-        client.post(address, {"act": "enter", "rolled": "1"})
+        client.post(
+            address, {"request_key": str(uuid4()), "act": "enter", "rolled": "1"}
+        )
         event = LedgerEvent.objects.get(kind=LedgerEvent.Kind.ROLLED)
 
         page = client.get(f"{address}?roll={event.pk}").content.decode()
 
-        assert "Rolled 1" in page
-        assert re.search(
-            r"Landed on <strong[^>]*>Combat Neuroware \(WS\)</strong>, "
-            r"<strong[^>]*>Combat Neuroware \(BS\)</strong>\.",
-            page,
-        )
-        assert 'aria-label="Add Combat Neuroware (WS)"' in page
-        assert 'aria-label="Add Combat Neuroware (BS)"' in page
+        props = island_props(page, "choice-workflow")
+        assert props["roll"]["total"] == 1
+        assert props["roll"]["landed"] == [
+            "Combat Neuroware (WS)",
+            "Combat Neuroware (BS)",
+        ]
+        assert props["roll"]["add"] is None
+        group = props["offer"]["groups"][0]
+        assert group["name"] == "Landed on"
+        assert group["lifted"] is True
+        assert [option["name"] for option in group["options"]] == [
+            "Combat Neuroware (WS)",
+            "Combat Neuroware (BS)",
+        ]
+        assert all(option["control"] == "choose" for option in group["options"])
 
     def test_a_six_lifts_the_augmentation(self, client, owner, address):
         client.force_login(owner)
-        client.post(address, {"act": "enter", "rolled": "6"})
+        client.post(
+            address, {"request_key": str(uuid4()), "act": "enter", "rolled": "6"}
+        )
         event = LedgerEvent.objects.get(kind=LedgerEvent.Kind.ROLLED)
 
         page = client.get(f"{address}?roll={event.pk}").content.decode()
 
-        assert re.search(
-            r"Landed on <strong[^>]*>Hunting Rig Augmentation</strong>\.", page
+        props = island_props(page, "choice-workflow")
+        assert props["roll"]["total"] == 6
+        assert props["roll"]["landed"] == ["Hunting Rig Augmentation"]
+        assert props["roll"]["add"]["name"] == "Hunting Rig Augmentation"
+        option = next(
+            option
+            for group in props["offer"]["groups"]
+            for option in group["options"]
+            if option["name"] == "Hunting Rig Augmentation"
         )
-        assert 'aria-label="Add Hunting Rig Augmentation"' in page
+        assert props["roll"]["add"]["key"] == option["key"]
+        assert option["control"] == "choose"

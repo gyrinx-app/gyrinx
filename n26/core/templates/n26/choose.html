@@ -1,89 +1,15 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation %}
-{% comment %}
-Render a ChoiceOffer as single-choice radios or per-option actions for multiple picks.
-Roll results are recorded by POST and selected through the roll URL parameter; rendering
-this page never rolls.
-{% endcomment %}
-{% block head_title %}{{ offer.label }} — {{ gang.name }}{% endblock head_title %}
+{% load react navigation %}
+{% block head_title %}{{ choice_props.title }} — {{ gang.name }}{% endblock %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
     <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
-{% endblock nav_switcher %}
+{% endblock %}
 {% block nav_items %}
     {% include "n26/_nav.html" with here="gangs" %}
 {% endblock %}
+{% block messages %}
+{% endblock messages %}
 {% block content %}
-    <c-n26.form-page action="{{ choice_action }}"
-                     title="{{ offer.label }}"
-                     lead="{{ pick_lead }}"
-                     submit_label="{{ submit_label }}"
-                     cancel_url="{{ back }}">
-        {% comment %}
-        For a model-specific choice, switch to other models' Equip pages. Choice URLs
-        identify one model and offer, so they cannot be reused for another model.
-        {% endcomment %}
-        {% if returning %}
-            {# Carry the raw return target; the view validates it for redirects. #}
-            <input type="hidden" name="return" value="{{ returning }}">
-        {% endif %}
-        {% if miniature %}
-            <c-slot name="trailing">
-                {% fighter_switcher gang miniature as fighter_switcher_ %}
-                <c-n26.quick-switcher.of :switcher="fighter_switcher_" hotkey="r" />
-            </c-slot>
-        {% endif %}
-        <c-slot name="breadcrumb">
-            <c-ui.breadcrumbs>
-                <c-ui.breadcrumbs.item>
-                    <c-n26.user-link :user="user" tone="current" />
-                </c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item href="{{ back }}">
-                    {{ gang.name }}
-                </c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item :current="True">
-                    {{ offer.label }}
-                </c-ui.breadcrumbs.item>
-            </c-ui.breadcrumbs>
-        </c-slot>
-        {% csrf_token %}
-        {% if roll %}
-            {% comment %}
-            Include the roll ID with picks until the roll is spent, so history records
-            their source.
-            {% endcomment %}
-            {% if not roll.is_spent %}<input type="hidden" name="roll" value="{{ roll.key }}">{% endif %}
-            <c-n26.roll-result :roll="roll" />
-        {% endif %}
-        {% if roll_table %}
-            <c-n26.form-section title="Roll"
-                                description="The roll goes in the gang's history as soon as it is made, whether or not you pick anything for it.">
-                <c-n26.roll-table :table="roll_table" />
-            </c-n26.form-section>
-        {% endif %}
-        {% if roll or roll_table %}
-            {% comment %}
-            Separate manual selection from the roll action.
-            {% endcomment %}
-            <c-n26.divider label="or add a result by hand" class="py-6" />
-        {% endif %}
-        {% comment %}
-        An empty tier can require a content choice elsewhere, such as the Leader's
-        legacy. Keep the page accessible and explain why nothing is available.
-        {% endcomment %}
-        {% if offer.takes_several %}
-            {% comment %}
-            Multiple-choice offers use an explicit list, so their empty state differs
-            from an unassigned skill tier.
-            {% endcomment %}
-            <c-n26.choice-picks :offer="offer" />
-        {% else %}
-            <c-n26.choice-offer :offer="offer">
-                <c-slot name="empty">
-                    Nothing is available to choose here. It draws on a list of options
-                    that other picks open up, so making those choices first fills it in.
-                </c-slot>
-            </c-n26.choice-offer>
-        {% endif %}
-    </c-n26.form-page>
-{% endblock content %}
+    {% react_island "choice-workflow" choice_props %}
+{% endblock %}

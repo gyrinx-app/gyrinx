@@ -2,7 +2,7 @@
 
 from n26.core.views.action_flows import action_by_hand, action_flow, action_start
 from n26.core.views.api import preview_view
-from n26.core.views.arrivals import gang_next
+from n26.core.views.arrivals import arrivals_command, gang_next
 from n26.core.views.asset_types import edit_asset_type, edit_asset_type_command
 from n26.core.views.assignment_sets import (
     edit_model_card,
@@ -70,7 +70,7 @@ from n26.core.views.changelog import (
     n26_changelog,
     n26_changelog_entry,
 )
-from n26.core.views.choose import choose, dismiss_offer, restore_offer
+from n26.core.views.choose import choose, choose_command, dismiss_offer, restore_offer
 from n26.core.views.cloning import clone_fighter, clone_gang
 from n26.core.views.credits import gang_credits, gang_credits_command
 from n26.core.views.crews import crew_sheet, edit_crew
@@ -176,6 +176,8 @@ __all__ = [
     "n26_changelog",
     "n26_changelog_entry",
     "choose",
+    "choose_command",
+    "arrivals_command",
     "gang_next",
     "dismiss_offer",
     "clone_fighter",

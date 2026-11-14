@@ -327,7 +327,7 @@ def picker_url(gang, name, label="Gang Legacy"):
 def choose(client, gang, name, pickable, label="Gang Legacy"):
     return client.post(
         picker_url(gang, name, label),
-        {"thing": f"library.pickable:{pickable.pk}"},
+        {"request_key": str(uuid4()), "thing": f"library.pickable:{pickable.pk}"},
     )
 
 
@@ -450,6 +450,7 @@ class TestChoosingAHouse:
         response = client.post(
             f"{reverse('n26-equip', args=[kaustos.pk])}?list={house_lists['Cawdor'].pk}",
             {
+                "request_key": str(uuid4()),
                 "thing": f"library.wargear:{Wargear.objects.get(name=item).pk}",
                 # The list asks less than the item's own price, which asks
                 # how to rate it; confirming keeps the full rating.

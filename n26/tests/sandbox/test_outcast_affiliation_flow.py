@@ -3,6 +3,8 @@ Clan House choice and rank-scoped equipment access. This fixture omits Clanless 
 Point grants and Mutant purchase-count rules.
 """
 
+from uuid import uuid4
+
 import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
@@ -192,7 +194,10 @@ def as_pickable(chosen, kind_label="Affiliation"):
 def pick(client, gang, kind_label, affiliation):
     return client.post(
         picker_url(gang, kind_label),
-        {"thing": thing_key(as_pickable(affiliation, kind_label))},
+        {
+            "request_key": str(uuid4()),
+            "thing": thing_key(as_pickable(affiliation, kind_label)),
+        },
     )
 
 
@@ -213,9 +218,7 @@ class TestAnAnswerArrivingTwice:
     def test_two_answers_at_once_still_leave_one(
         self, monkeypatch, owner, gang, affiliations
     ):
-        """Synchronise both initial question reads before allowing either request to
-        continue, forcing competing answers to the same open question.
-        """
+        """Start two deliberate commands together and retain one live selection."""
         import threading
         from importlib import import_module
 
@@ -226,30 +229,22 @@ class TestAnAnswerArrivingTwice:
         url = picker_url(gang, "Affiliation")
         payload = {"thing": thing_key(as_pickable(top["Clanless"]))}
         both_have_read = threading.Barrier(2, timeout=30)
-        guard = threading.Lock()
-        has_read = set()
-        picker = import_module("n26.core.views.choose")
-        read_slot = picker.find_slot
+        picker = import_module("n26.core.choice_workflow")
+        apply_choice = picker.change
         went_wrong = []
         landed = []
 
-        def read_then_wait(gang, key):
-            """Block each request’s first read until both have found the open question."""
-            found = read_slot(gang, key)
-            with guard:
-                first_look = threading.current_thread().ident not in has_read
-                has_read.add(threading.current_thread().ident)
-            if first_look:
-                both_have_read.wait()
-            return found
+        def start_together(*args, **kwargs):
+            both_have_read.wait()
+            return apply_choice(*args, **kwargs)
 
-        monkeypatch.setattr(picker, "find_slot", read_then_wait)
+        monkeypatch.setattr(picker, "change", start_together)
 
         def answer():
             try:
                 each = Client()
                 each.force_login(owner)
-                landed.append(each.post(url, payload))
+                landed.append(each.post(url, {**payload, "request_key": str(uuid4())}))
             except Exception as bad:  # noqa: BLE001 — reported, not raised
                 went_wrong.append(repr(bad))
                 both_have_read.abort()

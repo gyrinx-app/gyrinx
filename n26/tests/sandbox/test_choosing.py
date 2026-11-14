@@ -5,6 +5,7 @@ test_outcast_gang.py, test_venator_skill_trees.py and test_specialist.py.
 """
 
 import json
+from uuid import uuid4
 
 import pytest
 from django.contrib.auth.models import User
@@ -30,7 +31,7 @@ from n26.library.models import (
     Skill,
     Subtype,
 )
-from n26.tests.fixtures import library_setup
+from n26.tests.fixtures import island_props, library_setup
 from n26.tests.sandbox.actions import (
     add_entry,
     adds,
@@ -454,7 +455,7 @@ class TestWhatOneCardMayPick:
         body = client.get(
             sheet_slots(gang)["Sorrow: Primary skill"].href
         ).content.decode()
-        assert "Nothing is available to choose here" in body
+        assert island_props(body, "choice-workflow")["offer"]["empty"]
 
         choose(gang_anchor(gang, "Outcast Leader", crew), archetypes["Brawler"])
         offer = offer_for(sheet_slots(gang)["Sorrow: Primary skill"])
@@ -530,8 +531,10 @@ class TestGettingToTheNextFighter:
         assert reverse("n26-equip", args=[crew["ganger"].pk]) in body
         assert "Rat" in body
 
-        theirs = body.index(reverse("n26-equip", args=[crew["leader"].pk]))
-        assert 'aria-current="page"' in body[theirs : body.index("</a>", theirs)]
+        props = island_props(body, "choice-workflow")
+        assert props["switcher"]["current"] == reverse(
+            "n26-equip", args=[crew["leader"].pk]
+        )
 
     @pytest.mark.parametrize("roster_size", [2], indirect=True)
     def test_the_gangs_own_question_offers_nobody(self, client, owner, gang, crew):
@@ -558,7 +561,13 @@ class TestMakingOneChoice:
     """Picker submissions create assignments that resolve their addressed questions."""
 
     def post(self, client, href, thing):
-        return client.post(href, {"thing": f"{thing._meta.label_lower}:{thing.pk}"})
+        return client.post(
+            href,
+            {
+                "request_key": str(uuid4()),
+                "thing": f"{thing._meta.label_lower}:{thing.pk}",
+            },
+        )
 
     def test_the_gangs_own_question(self, client, owner, gang, crew, affiliations):
         client.force_login(owner)
@@ -678,7 +687,13 @@ class TestAClickTheDomainWillNotTake:
     """Invalid option submissions report a readable refusal and preserve assignments."""
 
     def post(self, client, href, thing):
-        return client.post(href, {"thing": f"{thing._meta.label_lower}:{thing.pk}"})
+        return client.post(
+            href,
+            {
+                "request_key": str(uuid4()),
+                "thing": f"{thing._meta.label_lower}:{thing.pk}",
+            },
+        )
 
     def test_a_power_cannot_be_chosen_for_a_question_about_skills(
         self, client, owner, gang, crew, archetypes, whispers
@@ -1184,7 +1199,15 @@ class TestTheXBesideAnOpenOffer:
         client.force_login(owner)
         page = BeautifulSoup(edit_body(client, crew["leader"]), "html.parser")
         for line in model_choices.values():
-            form = page.find("form", action=dismiss_url(gang, line))
+            form = page.find(
+                "form",
+                action=lambda url, line=line: (
+                    url and url.split("?", 1)[0] == dismiss_url(gang, line)
+                ),
+            )
+            from urllib.parse import parse_qs, urlsplit
+
+            assert parse_qs(urlsplit(form["action"]).query)["request_key"]
             group = form.parent
             link = group.find(
                 "a",
@@ -1219,7 +1242,11 @@ class TestTheXBesideAnOpenOffer:
         client.force_login(owner)
         line = sheet_slots(gang)["Affiliation"]
         client.post(
-            line.href, {"thing": f"library.affiliation:{affiliations['Mutant'].pk}"}
+            line.href,
+            {
+                "request_key": str(uuid4()),
+                "thing": f"library.affiliation:{affiliations['Mutant'].pk}",
+            },
         )
         body = sheet_body(client, gang)
         assert "Mutant" in body
@@ -1234,7 +1261,7 @@ class TestDismissingAnOffer:
     def test_the_offer_leaves_every_screen(self, client, owner, gang, crew):
         client.force_login(owner)
         line = sheet_slots(gang)["Sorrow: Primary skill"]
-        response = client.post(dismiss_url(gang, line))
+        response = client.post(dismiss_url(gang, line), {"request_key": str(uuid4())})
         assert response.status_code == 302
         assert response["Location"] == reverse("n26-gang", args=[gang.pk])
         assert dismissed_keys(gang) == {line.key}
@@ -1263,7 +1290,7 @@ class TestDismissingAnOffer:
     def test_the_gangs_own_offer_goes_from_the_strip(self, client, owner, gang, crew):
         client.force_login(owner)
         line = sheet_slots(gang)["Affiliation"]
-        client.post(dismiss_url(gang, line))
+        client.post(dismiss_url(gang, line), {"request_key": str(uuid4())})
         body = sheet_body(client, gang)
         assert line.href not in body
         assert sheet_slots(gang)["Favoured set"].href in body
@@ -1274,17 +1301,20 @@ class TestDismissingAnOffer:
         client.force_login(owner)
         line = sheet_slots(gang)["Sorrow: Archetype"]
         back = reverse("n26-edit-fighter", args=[crew["leader"].pk])
-        response = client.post(dismiss_url(gang, line), {"back": back})
+        response = client.post(
+            dismiss_url(gang, line), {"request_key": str(uuid4()), "back": back}
+        )
         assert response["Location"] == back
 
-        client.post(dismiss_url(gang, line))
+        client.post(dismiss_url(gang, line), {"request_key": str(uuid4())})
         assert gang.dismissed_offers.count() == 1
 
     def test_an_address_off_this_site_is_not_followed(self, client, owner, gang, crew):
         client.force_login(owner)
         line = sheet_slots(gang)["Sorrow: Archetype"]
         response = client.post(
-            dismiss_url(gang, line), {"back": "https://elsewhere.example/"}
+            dismiss_url(gang, line),
+            {"request_key": str(uuid4()), "back": "https://elsewhere.example/"},
         )
         assert response["Location"] == reverse("n26-gang", args=[gang.pk])
 
@@ -1295,9 +1325,15 @@ class TestDismissingAnOffer:
         client.force_login(owner)
         line = sheet_slots(gang)["Affiliation"]
         client.post(
-            line.href, {"thing": f"library.affiliation:{affiliations['Mutant'].pk}"}
+            line.href,
+            {
+                "request_key": str(uuid4()),
+                "thing": f"library.affiliation:{affiliations['Mutant'].pk}",
+            },
         )
-        response = client.post(dismiss_url(gang, line), follow=True)
+        response = client.post(
+            dismiss_url(gang, line), {"request_key": str(uuid4())}, follow=True
+        )
         assert (
             "You cannot dismiss Affiliation. It has a pick. Take the pick back first."
             in response.content.decode()
@@ -1316,13 +1352,25 @@ class TestDismissalAddressesThatShouldNotResolve:
         client.force_login(owner)
         line = sheet_slots(gang)["Sorrow: Archetype"]
         url = dismiss_url(gang, line).replace(line.key, "nobody:nothing:none")
-        assert client.post(url).status_code == 404
+        response = client.post(url, {"request_key": str(uuid4())})
+        assert response.status_code == 302
+        assert not DismissedOffer.objects.filter(gang=gang).exists()
 
     def test_somebody_elses_gang(self, client, gang, crew, django_user_model):
         client.force_login(django_user_model.objects.create_user("reader"))
         line = sheet_slots(gang)["Sorrow: Archetype"]
-        assert client.post(dismiss_url(gang, line)).status_code == 404
-        assert client.post(restore_url(gang, line)).status_code == 404
+        assert (
+            client.post(
+                dismiss_url(gang, line), {"request_key": str(uuid4())}
+            ).status_code
+            == 404
+        )
+        assert (
+            client.post(
+                restore_url(gang, line), {"request_key": str(uuid4())}
+            ).status_code
+            == 404
+        )
 
 
 class TestShowingDismissedOffers:
@@ -1358,9 +1406,12 @@ class TestShowingDismissedOffers:
 
         client.force_login(owner)
         line = sheet_slots(gang)["Affiliation"]
-        client.post(dismiss_url(gang, line))
+        client.post(dismiss_url(gang, line), {"request_key": str(uuid4())})
         page = BeautifulSoup(client.get(dismissed_tab(gang)).content, "html.parser")
-        form = page.find("form", action=restore_url(gang, line))
+        form = page.find(
+            "form",
+            action=lambda url: url and url.split("?", 1)[0] == restore_url(gang, line),
+        )
         assert form["method"] == "post"
         assert form.find_parent("form") is None
         assert form.find("button")["aria-label"] == "Restore Affiliation"
@@ -1388,7 +1439,11 @@ class TestShowingDismissedOffers:
         client.force_login(owner)
         line = sheet_slots(gang)["Affiliation"]
         client.post(
-            line.href, {"thing": f"library.affiliation:{affiliations['Mutant'].pk}"}
+            line.href,
+            {
+                "request_key": str(uuid4()),
+                "thing": f"library.affiliation:{affiliations['Mutant'].pk}",
+            },
         )
         for key in (line.key, "nobody:nothing:none"):
             DismissedOffer.objects.create(gang=gang, slot_key=key)
@@ -1401,9 +1456,10 @@ class TestShowingDismissedOffers:
     ):
         client.force_login(owner)
         line = sheet_slots(gang)["Affiliation"]
-        client.post(dismiss_url(gang, line))
+        client.post(dismiss_url(gang, line), {"request_key": str(uuid4())})
         response = client.post(
-            restore_url(gang, line), {"back": "https://elsewhere.example/"}
+            restore_url(gang, line),
+            {"request_key": str(uuid4()), "back": "https://elsewhere.example/"},
         )
         assert response["Location"] == dismissed_tab(gang)
 
@@ -1423,10 +1479,15 @@ class TestShowingDismissedOffers:
         assert offer_for(line).is_empty
         client.force_login(owner)
         assert dismiss_url(gang, line) in edit_body(client, crew["leader"])
-        assert client.post(dismiss_url(gang, line)).status_code == 302
+        assert (
+            client.post(
+                dismiss_url(gang, line), {"request_key": str(uuid4())}
+            ).status_code
+            == 302
+        )
         assert line.key in dismissed_keys(gang)
         assert restore_url(gang, line) in edit_body(client, crew["leader"])
-        client.post(restore_url(gang, line))
+        client.post(restore_url(gang, line), {"request_key": str(uuid4())})
         assert line.key not in dismissed_keys(gang)
         assert dismiss_url(gang, line) in edit_body(client, crew["leader"])
 
@@ -1440,7 +1501,7 @@ class TestShowingDismissedOffers:
         client.force_login(owner)
         miniature = crew["leader"]
         line = sheet_slots(gang)["Sorrow: Archetype"]
-        client.post(dismiss_url(gang, line))
+        client.post(dismiss_url(gang, line), {"request_key": str(uuid4())})
         with operation(gang, actor=owner) as op:
             item = op.buy(miniature, thing=create_wargear("Knife"), paid=0)
         here = reverse("n26-fighter-options", args=[miniature.pk])
@@ -1474,7 +1535,7 @@ class TestShowingDismissedOffers:
 
         client.force_login(owner)
         for line in model_choices.values():
-            client.post(dismiss_url(gang, line))
+            client.post(dismiss_url(gang, line), {"request_key": str(uuid4())})
         for query in ({}, {"dismissed": "show"}):
             page = BeautifulSoup(
                 edit_body(client, crew["leader"], **query), "html.parser"
@@ -1486,7 +1547,12 @@ class TestShowingDismissedOffers:
             assert "Dismissed choices" in box.get_text()
             assert len(box.find_all("form")) == len(model_choices)
             for line in model_choices.values():
-                assert box.find("form", action=restore_url(gang, line))
+                assert box.find(
+                    "form",
+                    action=lambda url, line=line: (
+                        url and url.split("?", 1)[0] == restore_url(gang, line)
+                    ),
+                )
                 assert line.kind_label not in card.get_text()
                 assert restore_url(gang, line) not in sheet_body(client, gang, **query)
             for route in ("n26-equip", "n26-fighter-options"):
@@ -1519,9 +1585,13 @@ class TestShowingDismissedOffers:
         here = reverse("n26-edit-fighter", args=[crew["leader"].pk])
         for state in ("empty", "dismissed", "restored"):
             if state == "dismissed":
-                client.post(dismiss_url(gang, line), {"back": here})
+                client.post(
+                    dismiss_url(gang, line), {"request_key": str(uuid4()), "back": here}
+                )
             elif state == "restored":
-                client.post(restore_url(gang, line), {"back": here})
+                client.post(
+                    restore_url(gang, line), {"request_key": str(uuid4()), "back": here}
+                )
             response = client.post(
                 reverse("n26-tally", args=[counter.pk]),
                 {"change": "1", "back": here},
@@ -1548,7 +1618,7 @@ class TestShowingDismissedOffers:
         assert "Dismissed choices" not in sheet_body(client, gang)
         slots = sheet_slots(gang)
         for label in ("Affiliation", "Sorrow: Archetype"):
-            client.post(dismiss_url(gang, slots[label]))
+            client.post(dismiss_url(gang, slots[label]), {"request_key": str(uuid4())})
         for query in ({}, {"dismissed": "show"}):
             body = sheet_body(client, gang, **query)
             page = BeautifulSoup(body, "html.parser")
@@ -1563,8 +1633,12 @@ class TestShowingDismissedOffers:
     def test_the_dismissed_tab_lists_only_gang_choices(self, client, owner, gang, crew):
         client.force_login(owner)
         slots = sheet_slots(gang)
-        client.post(dismiss_url(gang, slots["Affiliation"]))
-        client.post(dismiss_url(gang, slots["Sorrow: Archetype"]))
+        client.post(
+            dismiss_url(gang, slots["Affiliation"]), {"request_key": str(uuid4())}
+        )
+        client.post(
+            dismiss_url(gang, slots["Sorrow: Archetype"]), {"request_key": str(uuid4())}
+        )
         body = client.get(dismissed_tab(gang)).content.decode()
         assert restore_url(gang, slots["Affiliation"]) in body
         assert restore_url(gang, slots["Sorrow: Archetype"]) not in body
@@ -1578,12 +1652,15 @@ class TestShowingDismissedOffers:
 
         client.force_login(owner)
         line = sheet_slots(gang)["Sorrow: Archetype"]
-        client.post(dismiss_url(gang, line))
+        client.post(dismiss_url(gang, line), {"request_key": str(uuid4())})
         page = edit_body(client, crew["leader"])
         assert "Dismissed choices" in page
         assert line.href not in page
         box = BeautifulSoup(page, "html.parser").find(id="n26-dismissed-choices")
-        form = box.find("form", action=restore_url(gang, line))
+        form = box.find(
+            "form",
+            action=lambda url: url and url.split("?", 1)[0] == restore_url(gang, line),
+        )
         assert form["method"] == "post"
         assert form.find("button").get_text(strip=True) == "Restore"
         assert form.find("button")["aria-label"] == "Restore Archetype"
@@ -1602,9 +1679,15 @@ class TestShowingDismissedOffers:
     ):
         client.force_login(owner)
         slots = sheet_slots(gang)
-        client.post(dismiss_url(gang, slots["Affiliation"]))
-        client.post(dismiss_url(gang, slots["Favoured set"]))
-        response = client.post(restore_url(gang, slots["Affiliation"]))
+        client.post(
+            dismiss_url(gang, slots["Affiliation"]), {"request_key": str(uuid4())}
+        )
+        client.post(
+            dismiss_url(gang, slots["Favoured set"]), {"request_key": str(uuid4())}
+        )
+        response = client.post(
+            restore_url(gang, slots["Affiliation"]), {"request_key": str(uuid4())}
+        )
         assert response["Location"] == dismissed_tab(gang)
         body = client.get(response["Location"]).content.decode()
         assert slots["Affiliation"].href not in body
@@ -1618,18 +1701,23 @@ class TestShowingDismissedOffers:
 
         client.force_login(owner)
         slots = sheet_slots(gang)
-        client.post(dismiss_url(gang, slots["Affiliation"]))
+        client.post(
+            dismiss_url(gang, slots["Affiliation"]), {"request_key": str(uuid4())}
+        )
         body = sheet_body(client, gang, dismissed="show")
         sheet = reverse("n26-gang", args=[gang.pk])
         form = BeautifulSoup(body, "html.parser").find(
-            "form", action=dismiss_url(gang, slots["Favoured set"])
+            "form",
+            action=lambda url: (
+                url and url.split("?", 1)[0] == dismiss_url(gang, slots["Favoured set"])
+            ),
         )
         data = {
             field["name"]: field.get("value", "") for field in form.find_all("input")
         }
         assert data["back"] == sheet
         response = client.post(
-            dismiss_url(gang, slots["Favoured set"]),
+            form["action"],
             data,
             follow=True,
         )
@@ -1646,12 +1734,16 @@ class TestShowingDismissedOffers:
         """
         client.force_login(owner)
         line = sheet_slots(gang)["Affiliation"]
-        client.post(dismiss_url(gang, line))
+        client.post(dismiss_url(gang, line), {"request_key": str(uuid4())})
         client.post(
-            line.href, {"thing": f"library.affiliation:{affiliations['Mutant'].pk}"}
+            line.href,
+            {
+                "request_key": str(uuid4()),
+                "thing": f"library.affiliation:{affiliations['Mutant'].pk}",
+            },
         )
         assert dismissed_keys(gang) == set()
-        client.post(line.href, {"thing": NONE_KEY})
+        client.post(line.href, {"request_key": str(uuid4()), "thing": NONE_KEY})
         assert line.href in sheet_body(client, gang)
 
     def test_a_skill_ticked_on_the_models_page_takes_the_dismissal_off(
@@ -1667,10 +1759,13 @@ class TestShowingDismissedOffers:
         # Place Combat in Primary so Berserker can answer the starting-skill offer.
         client.post(
             slots["Sorrow: Archetype"].href,
-            {"thing": f"library.affiliation:{archetypes['Brawler'].pk}"},
+            {
+                "request_key": str(uuid4()),
+                "thing": f"library.affiliation:{archetypes['Brawler'].pk}",
+            },
         )
         line = slots["Sorrow: Primary skill"]
-        client.post(dismiss_url(gang, line))
+        client.post(dismiss_url(gang, line), {"request_key": str(uuid4())})
         assert dismissed_keys(gang) == {line.key}
         response = client.post(
             reverse("n26-edit-fighter", args=[crew["leader"].pk]),
@@ -1691,7 +1786,7 @@ class TestShowingDismissedOffers:
         slots = sheet_slots(gang)
         line = slots["Sorrow: Archetype"]
         still_open = slots["Sorrow: Primary skill"]
-        client.post(dismiss_url(gang, line))
+        client.post(dismiss_url(gang, line), {"request_key": str(uuid4())})
         with operation(gang, actor=owner) as op:
             op.set_status(crew["leader"], Status.DEAD)
         edit_body(client, crew["leader"])
@@ -1712,7 +1807,7 @@ class TestShowingDismissedOffers:
 
         client.force_login(owner)
         line = sheet_slots(gang)["Sorrow: Archetype"]
-        client.post(dismiss_url(gang, line))
+        client.post(dismiss_url(gang, line), {"request_key": str(uuid4())})
         with operation(gang, actor=owner) as op:
             op.set_status(crew["leader"], Status.DEAD)
         # Consume the dismissal toast before checking the roster alone.
@@ -1758,7 +1853,7 @@ class TestShowingDismissedOffers:
         client.force_login(owner)
         miniature = crew["leader"]
         line = sheet_slots(gang)["Sorrow: Archetype"]
-        client.post(dismiss_url(gang, line))
+        client.post(dismiss_url(gang, line), {"request_key": str(uuid4())})
         with operation(gang, actor=owner) as op:
             counter = op.assign(create_counter("Review tally"), miniature=miniature)
         here = reverse(route, args=[miniature.pk])
@@ -1795,7 +1890,7 @@ class TestShowingDismissedOffers:
         client.force_login(owner)
         miniature = crew["leader"]
         line = sheet_slots(gang)["Sorrow: Archetype"]
-        client.post(dismiss_url(gang, line))
+        client.post(dismiss_url(gang, line), {"request_key": str(uuid4())})
         knife = create_wargear("Knife", price=10)
         collection = create_collection("Equipment", entries=[knife])
         weapon = create_weapon("Autogun", price=5, profiles=[("", 0)])
@@ -1812,7 +1907,9 @@ class TestShowingDismissedOffers:
 
         headers = {"HX-Request": "true"} if htmx else {}
         response = client.post(
-            action, {"thing": f"library.wargear:{knife.pk}"}, headers=headers
+            action,
+            {"request_key": str(uuid4()), "thing": f"library.wargear:{knife.pk}"},
+            headers=headers,
         )
         if not htmx:
             assert response.url == shown
@@ -1869,7 +1966,7 @@ class TestShowingDismissedOffers:
         line = sheet_slots(gang)[
             "Sorrow: Archetype" if screen == "edit" else "Affiliation"
         ]
-        client.post(dismiss_url(gang, line))
+        client.post(dismiss_url(gang, line), {"request_key": str(uuid4())})
         knife = create_wargear("Knife", price=10)
         with operation(gang, actor=owner) as op:
             bought = op.buy(
@@ -1938,7 +2035,8 @@ class TestShowingDismissedOffers:
         client.force_login(owner)
         DismissedOffer.objects.create(gang=gang, slot_key="nobody:nothing:none")
         response = client.post(
-            reverse("n26-restore-offer", args=[gang.pk, "nobody:nothing:none"])
+            reverse("n26-restore-offer", args=[gang.pk, "nobody:nothing:none"]),
+            {"request_key": str(uuid4())},
         )
         assert response.status_code == 302
         assert dismissed_keys(gang) == set()

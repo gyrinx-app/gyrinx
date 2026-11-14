@@ -1,5 +1,6 @@
 """A battle XP award earns one durable choice, with reversible unused grants."""
 
+import json
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from types import SimpleNamespace
@@ -28,7 +29,7 @@ from n26.core.post_battle import (
 )
 from n26.core.reconcile import assert_reconciled
 from n26.library import authoring as a
-from n26.tests.fixtures import library_setup
+from n26.tests.fixtures import island_props, library_setup
 from n26.tests.sandbox.actions import found_gang, hire
 
 pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("counter_tracking")]
@@ -606,14 +607,27 @@ def test_an_interstitial_cannot_settle_an_earned_battle_choice(setup, client, he
     client.force_login(s.owner)
     page = client.get(here)
     assert page.status_code == 200
-    assert f'name="thing:{key}"' in page.content.decode()
+    props = island_props(page.content, "choice-workflow")
+    questions = [
+        question for block in props["blocks"] for question in block["questions"]
+    ]
+    assert [question["key"] for question in questions] == [key]
+    picked = f"library.pickable:{s.pick.pk}"
+    assert picked in {
+        option["key"]
+        for group in questions[0]["offer"]["groups"]
+        for option in group["options"]
+    }
     response = client.post(
-        here, {f"thing:{key}": f"library.pickable:{s.pick.pk}"}, follow=True
+        here,
+        {**props["values"], "selection": json.dumps({key: picked})},
+        follow=True,
     )
-    assert (
-        "On hold" in response.content.decode()
-        if held
-        else "earned action flow" in response.content.decode()
+    assert response.status_code == 200
+    refused = island_props(response.content, "choice-workflow")
+    assert any(
+        ("On hold" if held else "earned action flow") in message["text"]
+        for message in refused["messages"]
     )
     assert not Assignment.objects.filter(
         miniature_root=s.fighter, pickable=s.pick, archived=False
@@ -1250,14 +1264,18 @@ def test_held_pick_controls_show_the_recorded_removal_and_new_pick_ratings(
     )
     page = client.get(url)
     assert page.status_code == 200
-    html = page.content.decode()
-    if repeats:
-        assert "Rating per added pick 7¢" in html
-        assert "Rating of next removed pick 5¢" in html
-    else:
-        assert "Rating 5¢" in html
+    props = island_props(page.content, "choice-workflow")
+    shown = next(
+        option
+        for group in props["offer"]["groups"]
+        for option in group["options"]
+        if option["key"] == option_key(s.pick)
+    )
+    assert shown["control"] == ("both" if repeats else "remove")
+    assert shown["rating"] == (7 if repeats else 5)
+    assert shown["removalRating"] == 5
     before = s.fighter.recompute_rating()
-    response = client.post(url, {"remove": option_key(s.pick)})
+    response = client.post(url, {**props["values"], "remove": option_key(s.pick)})
     assert response.status_code == 302
     original.refresh_from_db()
     assert original.archived
@@ -1266,3 +1284,82 @@ def test_held_pick_controls_show_the_recorded_removal_and_new_pick_ratings(
         replacement = op.choose(anchor, s.pick)
     assert replacement.ledger_entry.rating_contribution == 7
     assert_reconciled(s.gang)
+
+
+@pytest.mark.parametrize("transport", ["native", "json"])
+@pytest.mark.parametrize("intent", ["roll", "enter"])
+@pytest.mark.parametrize("held", [False, True])
+def test_a_generic_roll_cannot_bypass_the_earned_battle_flow(
+    setup, client, held, intent, transport
+):
+    from django.contrib.messages import get_messages
+
+    from n26.core.models import ModelChoiceReceipt
+
+    s = setup
+    apply(s, 5)
+    with operation(s.gang, actor=s.owner) as op:
+        record = op.start_action(s.fighter, s.action, uuid4())
+        op.record_action_roll(record, s.outcome.operation, uuid4(), rolled=9)
+    if held:
+        apply(s, 4, correction=True)
+    record.refresh_from_db()
+    original_roll = record.advancement_selection.roll_event_id
+    key = f"{s.fighter.pk}:{record.advancement_selection.slot_assignment_id}:{s.outcome.operation.slot_id}"
+    client.force_login(s.owner)
+    route = "n26-choose" if transport == "native" else "n26-choice-command"
+    url = reverse(route, args=[s.gang.pk, key])
+    request_key = str(uuid4())
+    before = LedgerEvent.objects.count()
+    response = client.post(
+        url, {"request_key": request_key, "act": intent, "rolled": "4"}
+    )
+    expected = "On hold" if held else "earned action flow"
+    if transport == "json":
+        assert response.status_code == 422
+        assert expected in response.json()["errors"]["__all__"][0]
+    else:
+        assert response.status_code == 302
+        assert expected in " ".join(
+            str(message) for message in get_messages(response.wsgi_request)
+        )
+    assert LedgerEvent.objects.count() == before
+    assert not ModelChoiceReceipt.objects.filter(request_key=request_key).exists()
+    record.refresh_from_db()
+    assert record.state == "started"
+    assert record.advancement_selection.roll_event_id == original_roll
+
+
+@pytest.mark.parametrize("held", [False, True])
+def test_a_previously_saved_generic_roll_replays_after_the_earned_action_guard(
+    setup, client, held, monkeypatch
+):
+    from n26.core import action_records
+    from n26.core.models import ModelChoiceReceipt
+
+    s = setup
+    apply(s, 5)
+    with operation(s.gang, actor=s.owner) as op:
+        record = op.start_action(s.fighter, s.action, uuid4())
+        op.record_action_roll(record, s.outcome.operation, uuid4(), rolled=9)
+    record.refresh_from_db()
+    key = f"{s.fighter.pk}:{record.advancement_selection.slot_assignment_id}:{s.outcome.operation.slot_id}"
+    client.force_login(s.owner)
+    url = reverse("n26-choice-command", args=[s.gang.pk, key])
+    payload = {"request_key": str(uuid4()), "act": "enter", "rolled": "4"}
+    # Retain a result produced by the dispatcher without the action guard.
+    with monkeypatch.context() as unguarded:
+        unguarded.setattr(action_records, "battle_action_for_slot", lambda anchor: None)
+        original = client.post(url, payload)
+    assert original.status_code == 200
+    if held:
+        apply(s, 4, correction=True)
+    before = LedgerEvent.objects.count()
+    replay = client.post(url, payload)
+    assert replay.status_code == 200
+    assert replay.json() == original.json()
+    assert LedgerEvent.objects.count() == before
+    assert (
+        ModelChoiceReceipt.objects.filter(request_key=payload["request_key"]).count()
+        == 1
+    )

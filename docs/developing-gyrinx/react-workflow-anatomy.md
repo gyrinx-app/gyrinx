@@ -183,6 +183,16 @@ analytics. The workflow and operation own the action's meaning and effects.
 Calling the same low-level operation from two views is insufficient if they
 still duplicate validation, permissions or selection rules.
 
+An arrival page restored by the back-forward cache must refresh current server
+facts and its updated stored handoff, even if its mounted React instance never
+submitted a command. Freeze the cached controls while refreshing; do not save
+its stale selections over a nested picker's newer answer or an unknown command.
+
+Retain an unknown picker's original command endpoint as well as its exact body
+and key. Validate the same-origin owned path and bounded presentation context
+before retrying with fresh CSRF. Older receipts can bridge ordinary and campaign
+entry only when actor, choice, business input and return destination match.
+
 ## Write feature code as a form
 
 [ManageCredits.tsx](../../n26/frontend/islands/manage-credits/ManageCredits.tsx)

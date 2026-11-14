@@ -12,7 +12,7 @@ from django.urls import reverse
 from n26.core.campaigns import campaign_operation
 from n26.core.models import Assignment, CampaignParticipant, LedgerEvent
 from n26.core.render import render_gang
-from n26.tests.fixtures import island_props
+from n26.tests.fixtures import island_props, library_setup
 from n26.tests.sandbox.actions import (
     assign,
     create_counter,
@@ -356,45 +356,48 @@ def test_campaign_label_dialog_saves_and_redraws_all_affected_gang_facts(
     _, pencil = label_control(client, gang)
     url = pencil["href"]
     response = client.get(url, HTTP_HX_REQUEST="true")
-    dialog = BeautifulSoup(response.content, "html.parser").find(
-        id="n26-campaign-state-dialog"
-    )
-    assert dialog.find("form")["hx-post"] == url
-    choice = dialog.find("input", {"type": "radio"})["value"]
+    props = island_props(response.content, "choice-workflow")
+    assert props["dialog"] is True
+    assert props["action"] == url
+    assert not BeautifulSoup(response.content, "html.parser").find("html")
+    choice = props["offer"]["groups"][0]["options"][0]["key"]
     response = client.post(
-        url,
-        {"thing": "invalid", "return": reverse("n26-gang", args=[gang.pk])},
-        HTTP_HX_REQUEST="true",
+        props["commandHref"],
+        {**props["values"], "thing": "invalid"},
+        HTTP_ACCEPT="application/json",
     )
-    assert response.status_code == 200
-    assert BeautifulSoup(response.content, "html.parser").find(
-        id="n26-campaign-state-dialog"
+    assert response.status_code == 422
+    assert response.json()["errors"]["thing"]
+    props = island_props(
+        client.get(url, HTTP_HX_REQUEST="true").content, "choice-workflow"
     )
-    assert json.loads(response["HX-Trigger"])["n26-toasts"][0]["variant"] == "error"
-    response = client.post(
-        url,
-        {"thing": choice, "return": reverse("n26-gang", args=[gang.pk])},
-        HTTP_HX_REQUEST="true",
-    )
-    assert response.status_code == 200
-    soup = BeautifulSoup(response.content, "html.parser")
-    assert soup.find(id="n26-gang-sheet")["hx-swap-oob"] == "true"
-    assert not soup.find("html")
+    response = client.post(url, {**props["values"], "thing": choice})
+    assert response.status_code == 302
+    assert response.url == reverse("n26-gang", args=[gang.pk])
+    refreshed = client.get(response.url)
+    soup = BeautifulSoup(refreshed.content, "html.parser")
+    assert soup.find("html")
+    assert soup.find(id="n26-gang-sheet")
     assert len(soup.find_all(id="n26-campaign-state-dialog-host")) == 1
     assert not soup.find(id="n26-campaign-state-dialog-host").get_text(strip=True)
-    assert response["HX-Replace-Url"] == reverse("n26-gang", args=[gang.pk])
     _, pencil = label_control(client, gang)
     response = client.get(pencil["href"], HTTP_HX_REQUEST="true")
-    assert (
-        BeautifulSoup(response.content, "html.parser").find("input", {"checked": True})[
-            "value"
-        ]
-        == choice
-    )
+    saved = island_props(response.content, "choice-workflow")
+    assert saved["values"]["thing"] == choice
+    assert next(
+        option
+        for group in saved["offer"]["groups"]
+        for option in group["options"]
+        if option["key"] == choice
+    )["current"]
     client.force_login(User.objects.create_user("stranger"))
     assert client.get(url, HTTP_HX_REQUEST="true").status_code == 404
+    assert client.post(url, {**props["values"], "thing": choice}).status_code == 404
     assert (
-        client.post(url, {"thing": choice}, HTTP_HX_REQUEST="true").status_code == 404
+        client.post(
+            props["commandHref"], {**props["values"], "thing": choice}
+        ).status_code
+        == 404
     )
 
 
@@ -476,3 +479,212 @@ def test_first_adjustment_distinguishes_a_missing_balance_from_legacy_zero(
     assert page.context["counter_preview"]["recorded"] == (1 if missing else 0)
     assert client.post(address(held), {"adjust": 1, "change": 1}).status_code == 302
     assert CounterValue.objects.get(assignment=held).value == (2 if missing else 1)
+
+
+@pytest.fixture
+@library_setup
+def multi_campaign_label(setup):
+    from n26.library import authoring as a
+    from n26.library.models import Slot
+
+    campaign = setup[2]
+    slot = Slot.objects.get(pack=campaign.pack, label="Allegiance")
+    a.revise(slot, min_picks=0, max_picks=3)
+    return slot
+
+
+def test_multi_pick_campaign_commands_refresh_the_dialog_with_new_issued_keys(
+    client, setup, multi_campaign_label
+):
+    from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
+
+    from django.contrib.messages import get_messages
+
+    from n26.core.models import ModelChoiceReceipt
+
+    _, player, _, gang, _ = setup
+    client.force_login(player)
+    _, pencil = label_control(client, gang)
+    props = island_props(
+        client.get(pencil["href"], HTTP_HX_REQUEST="true").content, "choice-workflow"
+    )
+    assert props["dialog"] is True
+    assert parse_qs(urlsplit(props["commandHref"]).query)["display"] == ["dialog"]
+    options = [
+        option["key"]
+        for group in props["offer"]["groups"]
+        for option in group["options"]
+        if option["key"] != "none"
+    ]
+    issued = {props["values"]["request_key"]}
+    for intent, picked, held in [
+        ("choose", options[0], {options[0]}),
+        ("choose", options[1], set(options)),
+        ("remove", options[0], {options[1]}),
+    ]:
+        payload = {
+            **props["values"],
+            "act": intent,
+            "thing": picked if intent == "choose" else "",
+            "remove": picked if intent == "remove" else "",
+        }
+        response = client.post(props["commandHref"], payload)
+        assert response.status_code == 200
+        props = response.json()["page"]
+        assert props["dialog"] is True
+        assert props["values"]["request_key"] not in issued
+        issued.add(props["values"]["request_key"])
+        assert props["values"]["thing"] == props["values"]["remove"] == ""
+        assert {
+            option["key"]
+            for group in props["offer"]["groups"]
+            for option in group["options"]
+            if option["current"]
+        } == held
+        assert len(props["messages"]) == 1
+    assert ModelChoiceReceipt.objects.filter(gang=gang).count() == 3
+    assert not list(
+        get_messages(client.get(reverse("n26-gang", args=[gang.pk])).wsgi_request)
+    )
+    # Presentation context is optional for retained clients and receipt replay.
+    parts = urlsplit(props["commandHref"])
+    query = parse_qs(parts.query)
+    query.pop("display")
+    legacy_endpoint = urlunsplit(parts._replace(query=urlencode(query, doseq=True)))
+    replay = client.post(legacy_endpoint, payload)
+    assert replay.status_code == 200
+    assert "page" not in replay.json()
+    assert ModelChoiceReceipt.objects.filter(gang=gang).count() == 3
+
+
+@library_setup
+def test_a_campaign_dialog_navigates_to_real_onward_questions(
+    client, setup, multi_campaign_label
+):
+    from urllib.parse import urlsplit
+
+    from n26.library import authoring as a
+    from n26.library.models import Pickable
+
+    kind = a.create_slot_type("Follow-up")
+    pick = a.create_pickable("An answer", kind)
+    slot = a.create_slot(
+        "Follow-up",
+        kind,
+        a.create_picklist("Follow-ups", kind, members=[pick]),
+        assigned_to="gang",
+    )
+    a.create_interstitial("Follow-up questions", slots=[slot])
+    source = Pickable.objects.get(
+        slot_type=multi_campaign_label.slot_type, name="Loyal"
+    )
+    a.modifier(
+        "This answer adds a follow-up",
+        a.targets_gang_alone(),
+        a.ef_adds(slot),
+        attach_to=source,
+    )
+    _, player, _, gang, _ = setup
+    client.force_login(player)
+    _, pencil = label_control(client, gang)
+    props = island_props(
+        client.get(pencil["href"], HTTP_HX_REQUEST="true").content, "choice-workflow"
+    )
+    response = client.post(
+        props["commandHref"],
+        {**props["values"], "act": "choose", "thing": f"library.pickable:{source.pk}"},
+    )
+    assert response.status_code == 200
+    assert "page" not in response.json()
+    assert urlsplit(response.json()["nextUrl"]).path == reverse(
+        "n26-next", args=[gang.pk]
+    )
+
+
+@library_setup
+def test_a_campaign_dialog_keeps_its_entered_roll_in_the_refreshed_display(
+    client, setup, multi_campaign_label
+):
+    from n26.library import authoring as a
+
+    table = multi_campaign_label.picklist
+    a.revise(table, dice="d6", roll_selects="band")
+    for index, member in enumerate(table.members.order_by("position")):
+        a.revise(
+            member, roll_low=1 if index == 0 else 4, roll_high=3 if index == 0 else 6
+        )
+    _, player, _, gang, _ = setup
+    client.force_login(player)
+    _, pencil = label_control(client, gang)
+    page = island_props(
+        client.get(pencil["href"], HTTP_HX_REQUEST="true").content, "choice-workflow"
+    )
+    response = client.post(
+        page["commandHref"], {**page["values"], "act": "enter", "rolled": "4"}
+    )
+    assert response.status_code == 200
+    refreshed = response.json()["page"]
+    assert refreshed["dialog"] is True
+    assert refreshed["roll"]["total"] == 4
+    assert refreshed["values"]["roll"] == refreshed["roll"]["key"]
+    assert refreshed["values"]["request_key"] != page["values"]["request_key"]
+    assert (
+        LedgerEvent.objects.filter(gang=gang, kind=LedgerEvent.Kind.ROLLED).count() == 1
+    )
+
+
+@library_setup
+def test_more_campaign_label_options_do_not_add_queries_to_the_dialog_refresh(
+    client, setup, multi_campaign_label
+):
+    from n26.library import authoring as a
+
+    _, player, _, gang, _ = setup
+    client.force_login(player)
+    _, pencil = label_control(client, gang)
+    page = island_props(
+        client.get(pencil["href"], HTTP_HX_REQUEST="true").content, "choice-workflow"
+    )
+    picked = next(
+        option["key"]
+        for group in page["offer"]["groups"]
+        for option in group["options"]
+        if option["key"] != "none"
+    )
+    with CaptureQueriesContext(connection) as first:
+        response = client.post(
+            page["commandHref"], {**page["values"], "act": "choose", "thing": picked}
+        )
+    assert response.status_code == 200
+    page = response.json()["page"]
+    response = client.post(
+        page["commandHref"], {**page["values"], "act": "remove", "remove": picked}
+    )
+    assert response.status_code == 200
+    page = response.json()["page"]
+    for number in range(12):
+        option = a.create_pickable(
+            f"Extra label result {number}",
+            multi_campaign_label.slot_type,
+            pack=multi_campaign_label.pack,
+            staged=False,
+        )
+        a.add_picklist_member(
+            multi_campaign_label.picklist,
+            option,
+            pack=multi_campaign_label.pack,
+            staged=False,
+        )
+    with CaptureQueriesContext(connection) as larger:
+        response = client.post(
+            page["commandHref"], {**page["values"], "act": "choose", "thing": picked}
+        )
+    assert response.status_code == 200
+    assert (
+        sum(
+            len(group["options"])
+            for group in response.json()["page"]["offer"]["groups"]
+        )
+        == 14
+    )
+    assert len(larger) <= len(first)
