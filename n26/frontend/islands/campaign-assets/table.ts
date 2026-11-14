@@ -70,7 +70,8 @@ export function assetGroups(
     const key = view.sort.replace(/^-/, "") as keyof AssetEntry["sortValues"];
     const direction = view.sort.startsWith("-") ? -1 : 1;
     const entries = [...props.entries].sort((a, b) => {
-        if (key === "holder" && a.held !== b.held) return a.held ? 1 : -1;
+        if (key === "holder" && a.held !== b.held)
+            return direction * (a.held ? -1 : 1);
         return (
             direction *
                 compareTableValues(a.sortValues[key], b.sortValues[key]) ||
@@ -92,12 +93,16 @@ export function assetGroups(
     }
     return [...buckets.keys()]
         .sort((a, b) => {
-            if (!a || !b) return a ? 1 : b ? -1 : 0;
+            if (!a || !b) {
+                const order = a ? 1 : b ? -1 : 0;
+                return key === "holder" ? -direction * order : order;
+            }
             return view.group === "holder"
-                ? compareTableValues(
-                      buckets.get(a)![0].sortValues.holder,
-                      buckets.get(b)![0].sortValues.holder,
-                  ) || compareTableValues(a, b)
+                ? (key === "holder" ? direction : 1) *
+                      (compareTableValues(
+                          buckets.get(a)![0].sortValues.holder,
+                          buckets.get(b)![0].sortValues.holder,
+                      ) || compareTableValues(a, b))
                 : 0;
         })
         .map((key) => {
