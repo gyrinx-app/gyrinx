@@ -675,3 +675,87 @@ def test_a_nested_picker_uses_its_owners_arrival_draft_namespace(client, choices
     )
     assert picker["arrivalRecoveryKey"] == arrivals["recoveryKey"]
     assert picker["arrivalRecoveryKey"] != picker["recoveryKey"]
+
+
+def test_cached_native_pick_rejection_keeps_its_submitted_recorded_roll(
+    client, choices
+):
+    from urllib.parse import parse_qs, urlsplit
+
+    from n26.tests.fixtures import island_props
+
+    with operation(choices.gang, actor=choices.owner) as op:
+        event = op.roll(choices.slot, rolled=4)
+    client.force_login(choices.owner)
+    url = reverse("n26-choose", args=[choices.gang.pk, choices.key])
+    shown = island_props(
+        client.get(url + f"?roll={event.pk}").content, "choice-workflow"
+    )
+    assert "roll" not in parse_qs(urlsplit(shown["action"]).query)
+    before = (
+        Assignment.objects.count(),
+        LedgerEvent.objects.count(),
+        ModelChoiceReceipt.objects.count(),
+    )
+    rejected = client.post(
+        shown["action"], {"roll": str(event.pk), "thing": option_key(choices.pick)}
+    )
+    assert rejected.status_code == 422
+    props = island_props(rejected.content, "choice-workflow")
+    assert "request_key" in props["errors"]
+    assert props["values"]["roll"] == props["roll"]["key"] == str(event.pk)
+    assert props["roll"]["total"] == 4 and props["roll"]["entered"] is True
+    assert props["rollTable"] is None
+    assert parse_qs(urlsplit(props["recoveryHref"]).query)["roll"] == [str(event.pk)]
+    sign_in_next = parse_qs(urlsplit(props["signInHref"]).query)["next"][0]
+    assert sign_in_next == props["recoveryHref"]
+    recovered = island_props(client.get(sign_in_next).content, "choice-workflow")
+    assert recovered["values"]["roll"] == recovered["roll"]["key"] == str(event.pk)
+    assert recovered["roll"]["total"] == 4
+    assert (
+        Assignment.objects.count(),
+        LedgerEvent.objects.count(),
+        ModelChoiceReceipt.objects.count(),
+    ) == before
+
+
+@pytest.mark.parametrize("source", ["malformed", "another_gang", "another_choice"])
+def test_cached_native_pick_rejection_never_displays_an_unrelated_roll(
+    client, choices, source
+):
+    if source == "malformed":
+        key = "not-a-roll"
+    elif source == "another_gang":
+        other = found_gang(
+            "Other choice gang", choices.gang.gang_type, owner=choices.owner
+        )
+        with operation(other, actor=choices.owner) as op:
+            op.assign(choices.slot, gang=other)
+            key = str(op.roll(choices.slot, rolled=5).pk)
+    else:
+        other_slot = create_slot(
+            "Other results",
+            choices.slot.slot_type,
+            choices.slot.picklist,
+            max_picks=3,
+            assigned_to="gang",
+        )
+        with operation(choices.gang, actor=choices.owner) as op:
+            op.assign(other_slot, gang=choices.gang)
+            key = str(op.roll(other_slot, rolled=5).pk)
+    client.force_login(choices.owner)
+    before = (
+        Assignment.objects.count(),
+        LedgerEvent.objects.count(),
+        ModelChoiceReceipt.objects.count(),
+    )
+    response = client.post(
+        reverse("n26-choose", args=[choices.gang.pk, choices.key]),
+        {"roll": key, "thing": option_key(choices.pick)},
+    )
+    assert response.status_code == 404
+    assert (
+        Assignment.objects.count(),
+        LedgerEvent.objects.count(),
+        ModelChoiceReceipt.objects.count(),
+    ) == before

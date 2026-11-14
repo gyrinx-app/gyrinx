@@ -67,13 +67,11 @@ def picker(
         else None
     )
     table = _roll_table(found) if found else None
-    event = (
-        _roll_at(
-            request.GET.get("roll", "") if roll_key is None else roll_key, gang, found
+    if roll_key is None:
+        roll_key = request.GET.get("roll") or (
+            form["roll"].value() if form.is_bound else ""
         )
-        if found
-        else None
-    )
+    event = _roll_at(roll_key, gang, found) if found else None
     roll = None
     if event is not None:
         roll, landed = _roll_result(event, found, offer, include_staged=shown)
