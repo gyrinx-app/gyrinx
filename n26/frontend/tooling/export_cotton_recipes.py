@@ -2002,6 +2002,7 @@ def button_link_by_size():
 
 def recipes():
     from n26.core.icons import resolve
+    from n26.frontend.tooling.export_choice_recipes import choice_recipes
 
     button_link_by_size_recipes = button_link_by_size()
 
@@ -2060,6 +2061,7 @@ def recipes():
     return {
         "dialog": dialog_recipe(),
         "flowProgress": flow_progress_recipe(),
+        "choice": choice_recipes(Elements, class_name),
         "button": {
             variant: classes(
                 f'<c-ui.button variant="{variant}">Save</c-ui.button>', "button"
@@ -2243,6 +2245,7 @@ def recipes():
                 "circle-fading-arrow-up",
                 "trash-2",
                 "printer",
+                "dices",
             )
         },
     }

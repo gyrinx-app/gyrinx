@@ -10,12 +10,14 @@ For a code walkthrough of the Django boundary, command endpoints, shared form
 lifecycle and design adapters, read [How React workflows fit into N26](react-workflow-anatomy.md).
 
 Manage credits, Edit holding and Edit asset type establish the form pattern.
-Hire and Equip are implemented. The next batch is the
-[post-battle and model-choice migration plan](react-results-choices-plan.md).
+Hire, Equip, Post-battle, Fighter Options and standalone Skills are implemented.
+The next batch is the [choices, action flows and crew plan](react-choices-actions-crew-plan.md).
+The [post-battle and model-choice plan](react-results-choices-plan.md) records the previous batch.
 The [Hire and Equip plan](react-hire-equip-plan.md) records their delivery contracts.
 
 The migration unit is a complete workflow with explicit display data and
-command endpoints. Continue with post-battle and model choices using the plan above. Keep small
+command endpoints. Continue with generic choices, action and advancement flows, and crew selection
+using the plan above. Keep small
 islands for interactions that already have an independent owner. Build each
 workflow's endpoints with its React consumer; do not start a separate API rewrite.
 

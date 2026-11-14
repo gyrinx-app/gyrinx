@@ -1658,17 +1658,22 @@ export function WorkflowPage({
 
 export function FormSection({
     title,
+    description,
     children,
 }: {
-    title: string;
+    title?: string;
+    description?: ReactNode;
     children: ReactNode;
 }) {
     const s = cotton.workflowPage.section;
     return (
         <section className={s[0]}>
-            <div className={s[1]}>
-                <h2 className={s[2]}>{title}</h2>
-            </div>
+            {(title || description) && (
+                <div className={s[1]}>
+                    {title && <h2 className={s[2]}>{title}</h2>}
+                    {description && <p className={s[3]}>{description}</p>}
+                </div>
+            )}
             <div className={s[4]}>{children}</div>
         </section>
     );
@@ -1756,3 +1761,5 @@ export {
 } from "./EquipmentModel";
 
 export { TabLinks, type TabLink } from "./TabLinks";
+
+export { choiceRecipes, type ChoiceRecipes } from "./ChoiceRecipes";
