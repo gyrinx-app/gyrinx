@@ -1425,6 +1425,23 @@ def test_deleted_selected_equipment_set_is_durably_refused_before_a_new_choice(
         )
     assert refused["requestKey"] == original["request_key"]
     assert refused["inputs"][f"card_{table.models[0].pk}"] == [str(old_pk)]
+    replay_while_missing = client.post(
+        command_address(table) if transport == "json" else address(table), original
+    )
+    for refused_response in (response, replay_while_missing):
+        errors = (
+            refused_response.json()["errors"]
+            if transport == "json"
+            else refused_response.context["crew_workflow"]["errors"]
+        )
+        assert errors[f"card_{table.models[0].pk}"] == [
+            "Select an available equipment set."
+        ]
+        assert str(old_pk) not in json.dumps(errors)
+        if transport == "native":
+            assert refused_response.context["form"].has_error(
+                f"card_{table.models[0].pk}", "invalid_choice"
+            )
     assert not BattleCrew.objects.exists()
     receipt = CrewCommandReceipt.objects.get()
     assert receipt.result == {

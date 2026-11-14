@@ -85,6 +85,21 @@ def snapshot(crew, *, action, drawn):
     }
 
 
+def _label_unavailable_equipment(form):
+    for entry in form.models:
+        if form.cleaned_data.get(entry.role.name) not in (
+            None,
+            "out",
+        ) and form.has_error(entry.card.name, "invalid_choice"):
+            form.errors[entry.card.name].clear()
+            form.add_error(
+                entry.card.name,
+                forms.ValidationError(
+                    "Select an available equipment set.", code="invalid_choice"
+                ),
+            )
+
+
 @guarded_write
 def perform(*, battle, gang, actor, data, require_key=False):
     """Recall a successful command before validating today's roster and cards."""
@@ -132,6 +147,7 @@ def perform(*, battle, gang, actor, data, require_key=False):
                             data, roster=crew_roster(gang, crew), crew=crew
                         )
                         submitted.form.is_valid()
+                        _label_unavailable_equipment(submitted.form)
                         submitted.form.add_error(
                             None, prior.result.get("message", ROSTER_CHANGED)
                         )
@@ -184,6 +200,7 @@ def perform(*, battle, gang, actor, data, require_key=False):
             and not submitted.read_only
         ):
             message = ROSTER_CHANGED if roster_changed else EQUIPMENT_CHANGED
+            _label_unavailable_equipment(form)
             form.add_error(None, message)
             refusal = {"version": 1, "outcome": "roster_changed"}
             if not roster_changed:
