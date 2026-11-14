@@ -30,7 +30,7 @@ test("numbered phase summaries place cycle count and rewards beside the title", 
     const heading = screen.getByRole("heading", {
         name: "Phase 2: Occupation",
     });
-    expect(heading.textContent).toBe("2. Occupation");
+    expect(heading.textContent).toBe("02 Occupation");
     const count = screen.getByText("3 cycles");
     const reward = screen.getByText(
         "Win: 2D3 × 10¢, 1 reputation · Phase entry: 250¢",

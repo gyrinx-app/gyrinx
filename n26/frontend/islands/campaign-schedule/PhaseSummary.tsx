@@ -79,11 +79,11 @@ export function PhaseSummary({
                                         ? undefined
                                         : `Phase ${number}: ${name}`
                                 }
-                                className="text-sm leading-7 font-semibold [overflow-wrap:anywhere]"
+                                className="text-base leading-7 font-semibold [overflow-wrap:anywhere]"
                             >
                                 {number !== undefined && (
-                                    <span className="text-muted">
-                                        {number}.{" "}
+                                    <span className="tabular-nums text-muted">
+                                        {String(number).padStart(2, "0")}{" "}
                                     </span>
                                 )}
                                 {name}

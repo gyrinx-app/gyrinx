@@ -101,10 +101,10 @@ function CycleRow({ cycle }: { cycle: Cycle }) {
             <td className="align-middle [overflow-wrap:anywhere]">
                 <div className="flex items-start gap-2">
                     <span
-                        className="mt-0.5 w-5 shrink-0 text-xs tabular-nums text-muted"
+                        className="w-5 shrink-0 text-sm font-medium tabular-nums text-muted"
                         aria-hidden="true"
                     >
-                        {cycle.order.toString().padStart(2, "0")}
+                        {String(cycle.order).padStart(2, "0")}
                     </span>
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
