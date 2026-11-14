@@ -11,11 +11,11 @@ dependencies = [
     "bandit==1.9.4",
     "beautifulsoup4==4.15.0",
     "bleach[css]==6.4.0",
-    "click==8.5.0",
+    "click==8.5.1",
     "defusedxml==0.7.1",
     "Django==6.0.10",
     "django-allauth==65.21.1",
-    "django-cotton==2.8.0",
+    "django-cotton==2.9.0",
     "django-cotton-ui==0.3.4",
     "django-csp==4.0",
     "django-debug-toolbar==8.0.0",
@@ -29,7 +29,7 @@ dependencies = [
     "djlint==1.47.1",
     "docutils==0.23",
     "fido2==2.2.1",
-    "filelock==4.2.8",
+    "filelock==4.2.10",
     "google-cloud-logging==3.17.0",
     "google-cloud-pubsub==2.43.0",
     "google-cloud-scheduler==2.21.0",
@@ -51,11 +51,11 @@ dependencies = [
     "opentelemetry-sdk==1.45.2",
     "Pillow==13.0.0",
     "pre-commit==4.7.0",
-    "psycopg[binary,pool]==3.3.7",
+    "psycopg[binary,pool]==3.3.8",
     "pygments==2.21.0",
     "python-ulid==4.1.0",
     "pyasn1==0.6.5",
-    "pydantic==2.14.2",
+    "pydantic==2.14.3",
     "pydot==4.0.1",
     "PyNaCl==1.6.2",
     "pyparsing==3.3.3",
@@ -74,9 +74,9 @@ dependencies = [
     "sqlparse==0.6.1",
     # Security: minimum versions for vulnerable transitive dependencies
     "urllib3>=2.8.0",
-    "virtualenv>=21.15.5",
+    "virtualenv>=21.15.6",
     "whitenoise==6.12.0",
-    "markdown-it-py>=4.2.0",
+    "markdown-it-py>=4.3.0",
 ]
 
 [dependency-groups]
@@ -89,7 +89,7 @@ dev = [
     # piped-query workflow in AGENTS.md would quietly stop working.
     "ipython==9.18.1",
     # Only the scripts/ browser tools and the opt-in browser tests use it.
-    "playwright==1.64.1",
+    "playwright==1.65.0",
 ]
 
 [tool.uv]
