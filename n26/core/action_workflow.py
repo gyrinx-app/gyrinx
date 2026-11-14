@@ -273,20 +273,52 @@ def _removed_tier_item(record, target, data):
     from n26.core.models import Assignment
     from n26.library.models import AugmentCarriedItem, Pickable
 
-    if target.step not in {"choose", "correct"} or not record.outcome_id:
+    if target.step not in {"choose", "correct", "review"} or not record.outcome_id:
         return False
     if record.state not in {ActionRecord.State.STARTED, ActionRecord.State.COMPLETED}:
         return False
-    if record.state == ActionRecord.State.COMPLETED and target.step != "correct":
-        return False
     if not isinstance(record.outcome.operation, AugmentCarriedItem):
         return False
-    selection = data.get("selection", "")
-    if not isinstance(selection, str):
-        return False
-    item, separator, pick = selection.partition("|")
-    if not separator or not item or not pick:
-        return False
+    if target.step == "review":
+        from n26.core.action_stages import _submitted_review
+
+        reviewed = _submitted_review(record, data.get("review", ""))
+        review = reviewed.get("review")
+        if (
+            reviewed.get("revision") != record.revision
+            or not isinstance(review, dict)
+            or review != record.review
+        ):
+            return False
+        correction = review.get("correction") is True
+        if record.state == ActionRecord.State.COMPLETED and not correction:
+            return False
+        if record.state == ActionRecord.State.STARTED and (
+            correction or review.get("terms") != record.terms
+        ):
+            return False
+        snapshot = review.get("target")
+        selection = snapshot.get("selection") if isinstance(snapshot, dict) else None
+        if not isinstance(selection, dict):
+            return False
+        item = selection.get("item_assignment_id")
+        pick = selection.get("candidate_pick_id")
+        if (
+            not isinstance(item, str)
+            or not isinstance(pick, str)
+            or not item
+            or not pick
+        ):
+            return False
+    else:
+        if record.state == ActionRecord.State.COMPLETED and target.step != "correct":
+            return False
+        selection = data.get("selection", "")
+        if not isinstance(selection, str):
+            return False
+        item, separator, pick = selection.partition("|")
+        if not separator or not item or not pick:
+            return False
     try:
         item_id = Assignment._meta.pk.to_python(item)
         Pickable._meta.pk.to_python(pick)

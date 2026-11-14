@@ -995,3 +995,205 @@ def test_native_receipt_replay_acknowledges_history_without_asserting_the_curren
     record.refresh_from_db()
     assert record.state == current_state
     assert counts() == before
+
+
+def _tier_confirmation(client, data):
+    record, props, body = _tier_command(client, data)
+    assert client.post(props["commandHref"], body).status_code == 200
+    props, body = issued(
+        client,
+        reverse("n26-action-flow", args=[data.fighter.pk, record.pk, "review"]),
+    )
+    record.refresh_from_db()
+    return record, props, body
+
+
+@pytest.mark.parametrize("transport", ["native", "json"])
+def test_interrupted_tier_confirmation_settles_after_item_removal_and_cannot_apply_after_restore(
+    client, hunt, monkeypatch, transport
+):
+    from n26.core.operations import Operation
+
+    record, props, body = _tier_confirmation(client, hunt)
+    original_revision = record.revision
+    original_body = dict(body)
+
+    def interrupted_confirmation(*args, **kwargs):
+        raise ConnectionAbortedError(
+            "The confirmation response was lost before commit."
+        )
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Operation, "complete_action", interrupted_confirmation)
+        with pytest.raises(ConnectionAbortedError):
+            client.post(props["commandHref"], body)
+    assert not ModelChoiceReceipt.objects.filter(
+        request_key=body["command_key"]
+    ).exists()
+    removed = _remove_tier_item(hunt)
+    record.refresh_from_db()
+    assert record.revision == original_revision
+    before = counts()
+    refused = client.post(
+        props["commandHref"] if transport == "json" else props["action"], body
+    )
+    assert refused.status_code == (409 if transport == "json" else 200)
+    if transport == "json":
+        assert refused.json()["terminal"] is True
+        assert refused.json()["code"] == "unavailable"
+    else:
+        assert refused.context["action_props"]["initialConflict"] is True
+    receipt = ModelChoiceReceipt.objects.get(request_key=body["command_key"])
+    assert receipt.result["outcome"] == "unavailable"
+    assert counts()[:-1] == before[:-1]
+    assert counts()[-1] == before[-1] + 1
+    _restore_tier_item(hunt, removed)
+    before_delayed = counts()
+    delayed = client.post(props["commandHref"], original_body)
+    assert delayed.status_code == 409
+    assert delayed.json()["terminal"] is True
+    assert delayed.json()["errors"] == receipt.result["errors"]
+    native = client.post(props["action"], original_body)
+    assert native.status_code == 200
+    assert native.context["action_props"]["initialConflict"] is True
+    assert body == original_body
+    assert counts() == before_delayed
+    record.refresh_from_db()
+    assert record.state == ActionRecord.State.STARTED
+    assert record.payment_id is None
+    assert not record.ledger_events.filter(
+        kind=LedgerEvent.Kind.ACTION_USE_COMPLETED
+    ).exists()
+
+
+def test_removed_confirmation_acknowledgement_rolls_back_if_settlement_refuses(
+    client, hunt, monkeypatch
+):
+    from n26.core.operations import Operation
+
+    record, props, body = _tier_confirmation(client, hunt)
+    removed = _remove_tier_item(hunt)
+    before = counts()
+
+    def refused_settlement(self):
+        raise Refusal("This acknowledgement cannot settle.")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Operation, "settle", refused_settlement)
+        response = client.post(props["commandHref"], body)
+    assert response.status_code == 422
+    assert response.json()["terminal"] is False
+    assert response.json()["conflict"] is False
+    assert counts() == before
+    assert not ModelChoiceReceipt.objects.filter(
+        request_key=body["command_key"]
+    ).exists()
+    retry = client.post(props["commandHref"], body)
+    assert retry.status_code == 409
+    assert retry.json()["terminal"] is True
+    assert counts()[:-1] == before[:-1]
+    assert counts()[-1] == before[-1] + 1
+    _restore_tier_item(hunt, removed)
+    before_delayed = counts()
+    assert client.post(props["commandHref"], body).json()["terminal"] is True
+    assert counts() == before_delayed
+    record.refresh_from_db()
+    assert record.state == ActionRecord.State.STARTED
+    assert record.payment_id is None
+
+
+@pytest.mark.parametrize("invalid", ["unsigned", "other-record", "older-review"])
+def test_removed_item_confirmation_requires_the_matching_current_signed_review(
+    client, hunt, invalid
+):
+    from n26.core.action_stages import _review_token
+
+    record, props, body = _tier_confirmation(client, hunt)
+    if invalid == "unsigned":
+        body["review"] = "not-a-signed-review"
+    elif invalid == "other-record":
+        from copy import copy
+
+        other = copy(record)
+        other.pk = hunt.fighter.pk
+        body["review"] = _review_token(other)
+    else:
+        from n26.core.operations import operation
+
+        with operation(hunt.gang, actor=hunt.owner) as op:
+            op.review_action(record, outcome=hunt.upgrade, terms=record.terms)
+        record.refresh_from_db()
+        body["revision"] = str(record.revision)
+    _remove_tier_item(hunt)
+    before = counts()
+    response = client.post(props["commandHref"], body)
+    assert response.status_code == 422
+    assert response.json()["terminal"] is False
+    assert counts() == before
+
+
+def test_removed_item_confirmation_keeps_authority_and_exact_receipt_binding(
+    client, hunt
+):
+    record, props, body = _tier_confirmation(client, hunt)
+    _remove_tier_item(hunt)
+    before = counts()
+    stranger = User.objects.create_user("removed-confirmation-stranger")
+    client.force_login(stranger)
+    assert client.post(props["commandHref"], body).status_code == 404
+    assert client.post(props["action"], body).status_code == 404
+    assert counts() == before
+    client.force_login(hunt.owner)
+    assert client.post(props["commandHref"], body).json()["terminal"] is True
+    before_reuse = counts()
+    changed = client.post(props["commandHref"], {**body, "review": "changed"})
+    assert changed.status_code == 409
+    assert changed.json()["code"] == "key_conflict"
+    assert changed.json()["terminal"] is False
+    from n26.core.models import Gang
+
+    Gang.objects.filter(pk=hunt.gang.pk).update(owner=stranger)
+    assert client.post(props["commandHref"], body).status_code == 404
+    assert counts() == before_reuse
+
+
+def test_successful_confirmation_receipt_is_recalled_before_item_removal(client, hunt):
+    record, props, body = _tier_confirmation(client, hunt)
+    saved = client.post(props["commandHref"], body)
+    assert saved.status_code == 200
+    _remove_tier_item(hunt)
+    before = counts()
+    replay = client.post(props["commandHref"], body)
+    assert replay.status_code == 200
+    assert replay.json()["replayed"] is True
+    assert replay.json()["facts"] == saved.json()["facts"]
+    assert client.post(props["action"], body).status_code == 302
+    assert counts() == before
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_removed_item_confirmation_retries_record_one_durable_refusal(
+    client, hunt
+):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from django.db import close_old_connections
+
+    record, props, body = _tier_confirmation(client, hunt)
+    _remove_tier_item(hunt)
+    target = ActionTarget("flow", str(record.pk), "review")
+    before = counts()
+
+    def submit():
+        close_old_connections()
+        try:
+            return change(hunt.owner, hunt.fighter.pk, target, body)
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: submit(), range(2)))
+    assert all(result.terminal for result in results)
+    assert sum(result.replayed for result in results) == 1
+    assert counts()[:-1] == before[:-1]
+    assert counts()[-1] == before[-1] + 1

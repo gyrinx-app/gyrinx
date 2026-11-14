@@ -378,3 +378,7 @@ history without asserting its current state. Signed reviews can change with
 payment facts while the action revision stays the same. Restore editable known
 rejections with the current review and command key; preserve an unknown command's
 original review, key and exact body for retry.
+
+A confirmation's removed-item check must read its validated signed review target,
+not a selection field from an earlier stage. Match the record, revision and current
+review before settling an unavailable target; keep other review refusals unresolved.
