@@ -363,3 +363,8 @@ recalled. Check removal of an addressed selection under the same lock as its
 command and restoration. Consume a definitively unavailable target with a durable
 no-write receipt so restoration cannot revive a delayed request; leave generic
 eligibility and malformed-input refusals unresolved.
+
+A cancellation refused because an action has an immutable recorded roll can also
+settle as a durable no-write result. Share the domain's read-only roll predicate,
+check ownership and the submitted revision first, and offer the current flow to
+resume. Keep other validation refusals uncertain; do not infer their outcome.

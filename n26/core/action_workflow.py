@@ -10,6 +10,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 
+from n26.core.action_records import has_recorded_action_roll
 from n26.core.action_stages import (
     StageInput,
     StageNavigation,
@@ -253,13 +254,13 @@ def _current_review_url(gang, pk, saved):
     current_model = Miniature.objects.filter(
         pk=pk, membership__gang=gang, membership__archived=False
     ).exists()
-    record = saved.get("facts", {}).get("record")
+    record = saved.get("facts", {}).get("record") or saved.get("resume_record")
     if (
         current_model
         and record
         and ActionRecord.objects.filter(pk=record, fighter_id=pk, gang=gang).exists()
     ):
-        return saved["next_url"]
+        return saved.get("next_url") or saved["review_url"]
     return reverse("n26-gang", args=[gang.pk])
 
 
@@ -306,6 +307,7 @@ def _terminal(
     result,
     *,
     message="This action is no longer available. The earlier request changed nothing.",
+    resume_record=None,
 ):
     result.conflict = True
     result.code = "unavailable"
@@ -315,6 +317,11 @@ def _terminal(
         if op.gang.archived
         else reverse("n26-gang", args=[op.gang.pk])
     )
+    if resume_record is not None and not op.gang.archived:
+        result.review_url = reverse(
+            "n26-action-flow",
+            args=[resume_record.fighter_id, resume_record.pk, "resume"],
+        )
     result.errors = {"__all__": [message]}
     op.record_model_choice_receipt(
         key,
@@ -324,6 +331,9 @@ def _terminal(
             "outcome": "unavailable",
             "errors": result.errors,
             "review_url": result.review_url,
+            "resume_record": str(resume_record.pk)
+            if resume_record is not None
+            else None,
         },
     )
 
@@ -396,11 +406,7 @@ def change(actor, pk, target, data):
                     result.conflict = True
                     result.code = "unavailable"
                     result.terminal = True
-                    result.review_url = (
-                        reverse("n26-gangs")
-                        if gang.archived
-                        else reverse("n26-gang", args=[gang.pk])
-                    )
+                    result.review_url = _current_review_url(gang, pk, previous.result)
                     result.errors = previous.result["errors"]
                 else:
                     result.saved = True
@@ -454,6 +460,23 @@ def change(actor, pk, target, data):
                         payload,
                         result,
                         message="The selected item is no longer carried by this model. The earlier request changed nothing.",
+                    )
+                return result
+            if (
+                target.kind == "flow"
+                and target.step == "cancel"
+                and record.state == ActionRecord.State.STARTED
+                and record.payment_id is None
+                and has_recorded_action_roll(record)
+            ):
+                with operation(gang, actor=actor) as op:
+                    _terminal(
+                        op,
+                        request_key,
+                        payload,
+                        result,
+                        message="A recorded advancement roll must be resumed.",
+                        resume_record=record,
                     )
                 return result
             with operation(gang, actor=actor) as op:

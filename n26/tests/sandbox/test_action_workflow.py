@@ -716,3 +716,185 @@ def test_concurrent_removed_tier_retries_record_one_durable_refusal(client, hunt
     delayed = change(hunt.owner, hunt.fighter.pk, target, body)
     assert delayed.replayed and delayed.terminal
     assert counts() == before
+
+
+def _recorded_roll_cancel_command(client, data):
+    record = earned_flows._start(client, data)
+    props, body = issued(
+        client, reverse("n26-action-flow", args=[data.fighter.pk, record.pk, "roll"])
+    )
+    body.update(roll_mode="record", rolled="4")
+    assert client.post(props["commandHref"], body).status_code == 200
+    record.refresh_from_db()
+    props, body = issued(
+        client, reverse("n26-action-flow", args=[data.fighter.pk, record.pk, "cancel"])
+    )
+    return record, props, body
+
+
+@pytest.mark.parametrize("transport", ["native", "json"])
+def test_recorded_roll_cancel_settles_without_cancelling_and_replays_after_reopen(
+    client, advancement, transport
+):
+    from n26.core.action_records import has_recorded_action_roll
+    from n26.core.operations import operation
+
+    data = advancement
+    record, props, body = _recorded_roll_cancel_command(client, data)
+    original_rolls = list(record.ledger_events.filter(kind=LedgerEvent.Kind.ROLLED))
+    original_revision = record.revision
+    assert has_recorded_action_roll(record)
+    with pytest.raises(Refusal, match="A recorded advancement roll must be resumed."):
+        with operation(data.gang, actor=data.owner) as op:
+            op.cancel_action(record)
+    before = counts()
+    response = client.post(
+        props["commandHref"] if transport == "json" else props["action"], body
+    )
+    resume = reverse("n26-action-flow", args=[data.fighter.pk, record.pk, "resume"])
+    if transport == "json":
+        assert response.status_code == 409
+        assert response.json()["terminal"] is True
+        assert response.json()["reviewUrl"] == resume
+        assert response.json()["code"] == "unavailable"
+        assert response.json()["errors"] == {
+            "__all__": ["A recorded advancement roll must be resumed."]
+        }
+    else:
+        assert response.status_code == 302
+        assert (
+            "A recorded advancement roll must be resumed."
+            in client.get(response.url).content.decode()
+        )
+    assert counts()[:-1] == before[:-1]
+    assert counts()[-1] == before[-1] + 1
+    record.refresh_from_db()
+    assert record.state == ActionRecord.State.STARTED
+    assert record.revision == original_revision
+    receipt = ModelChoiceReceipt.objects.get(request_key=body["command_key"])
+    assert receipt.result["outcome"] == "unavailable"
+    assert receipt.result["resume_record"] == str(record.pk)
+    # Ordinary by-hand and Undo keep the roll. Recall the terminal receipt
+    # before resolving either later state as a fresh cancellation intent.
+    with operation(data.gang, actor=data.owner) as op:
+        op.apply_action_by_hand(record)
+    record.refresh_from_db()
+    assert record.state == ActionRecord.State.APPLIED_BY_HAND
+    before_applied_replay = counts()
+    applied_replay = client.post(props["commandHref"], body)
+    assert applied_replay.status_code == 409
+    assert applied_replay.json()["terminal"] is True
+    assert counts() == before_applied_replay
+    with operation(data.gang, actor=data.owner) as op:
+        op.reopen_action(record)
+    record.refresh_from_db()
+    assert has_recorded_action_roll(record)
+    before_delayed = counts()
+    delayed = client.post(props["commandHref"], body)
+    assert delayed.status_code == 409
+    assert delayed.json()["terminal"] is True
+    assert delayed.json()["reviewUrl"] == resume
+    assert delayed.json()["errors"] == receipt.result["errors"]
+    assert client.post(props["action"], body).status_code == 302
+    assert counts() == before_delayed
+    assert (
+        list(record.ledger_events.filter(kind=LedgerEvent.Kind.ROLLED))
+        == original_rolls
+    )
+    assert not record.ledger_events.filter(
+        kind=LedgerEvent.Kind.ACTION_USE_CANCELLED
+    ).exists()
+    record.refresh_from_db()
+    assert record.state == ActionRecord.State.STARTED
+
+
+def test_recorded_roll_cancel_receipt_rolls_back_if_settlement_refuses(
+    client, advancement, monkeypatch
+):
+    from n26.core.operations import Operation
+
+    record, props, body = _recorded_roll_cancel_command(client, advancement)
+    before = counts()
+
+    def refused_settlement(self):
+        raise Refusal("This acknowledgement cannot settle.")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Operation, "settle", refused_settlement)
+        response = client.post(props["commandHref"], body)
+    assert response.status_code == 422
+    assert response.json()["terminal"] is False
+    assert response.json()["conflict"] is False
+    assert response.json()["reviewUrl"] == ""
+    assert counts() == before
+    assert not ModelChoiceReceipt.objects.filter(
+        request_key=body["command_key"]
+    ).exists()
+    retry = client.post(props["commandHref"], body)
+    assert retry.status_code == 409
+    assert retry.json()["terminal"] is True
+    assert counts()[:-1] == before[:-1]
+    assert counts()[-1] == before[-1] + 1
+    record.refresh_from_db()
+    assert record.state == ActionRecord.State.STARTED
+
+
+def test_recorded_roll_cancel_checks_identity_revision_and_authority_before_settling(
+    client, advancement
+):
+    record, props, body = _recorded_roll_cancel_command(client, advancement)
+    before = counts()
+    unkeyed = {name: value for name, value in body.items() if name != "command_key"}
+    assert client.post(props["commandHref"], unkeyed).status_code == 422
+    stale = client.post(props["commandHref"], {**body, "revision": "-1"})
+    assert stale.status_code == 409
+    assert stale.json()["code"] == "revision_conflict"
+    assert stale.json()["terminal"] is False
+    client.force_login(User.objects.create_user("recorded-roll-cancel-stranger"))
+    assert client.post(props["commandHref"], body).status_code == 404
+    assert counts() == before
+
+
+def test_recorded_roll_cancel_revalidates_its_resume_destination_on_replay(
+    client, advancement
+):
+    record, props, body = _recorded_roll_cancel_command(client, advancement)
+    assert client.post(props["commandHref"], body).json()["terminal"] is True
+    Assignment.objects.filter(pk=advancement.fighter.membership_id).update(
+        archived=True
+    )
+    before = counts()
+    replay = client.post(props["commandHref"], body)
+    assert replay.status_code == 409
+    assert replay.json()["terminal"] is True
+    assert replay.json()["reviewUrl"] == reverse("n26-gang", args=[advancement.gang.pk])
+    assert counts() == before
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_recorded_roll_cancel_retries_record_one_durable_refusal(
+    client, advancement
+):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from django.db import close_old_connections
+
+    record, props, body = _recorded_roll_cancel_command(client, advancement)
+    target = ActionTarget("flow", str(record.pk), "cancel")
+    before = counts()
+
+    def submit():
+        close_old_connections()
+        try:
+            return change(advancement.owner, advancement.fighter.pk, target, body)
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: submit(), range(2)))
+    assert all(result.terminal and result.code == "unavailable" for result in results)
+    assert sum(result.replayed for result in results) == 1
+    assert counts()[:-1] == before[:-1]
+    assert counts()[-1] == before[-1] + 1
+    record.refresh_from_db()
+    assert record.state == ActionRecord.State.STARTED

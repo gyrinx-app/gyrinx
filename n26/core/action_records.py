@@ -954,6 +954,18 @@ def complete_action(op, record, *, revision, review, outcome):
     return record
 
 
+def has_recorded_action_roll(record):
+    """Recorded rolls remain part of an action's history after later choices."""
+    return (
+        AdvancementSelection.objects.filter(
+            action_record=record, roll_event__isnull=False
+        ).exists()
+        or LedgerEvent.objects.filter(
+            action_record=record, kind=LedgerEvent.Kind.ROLLED
+        ).exists()
+    )
+
+
 def cancel_action(op, record):
     record = _locked(op, record)
     _refuse_unless_owned(op, record.fighter)
@@ -961,14 +973,7 @@ def cancel_action(op, record):
         return record
     if record.state != ActionRecord.State.STARTED or record.payment_id is not None:
         raise Refusal("That action use can no longer be cancelled.")
-    if (
-        AdvancementSelection.objects.filter(
-            action_record=record, roll_event__isnull=False
-        ).exists()
-        or LedgerEvent.objects.filter(
-            action_record=record, kind=LedgerEvent.Kind.ROLLED
-        ).exists()
-    ):
+    if has_recorded_action_roll(record):
         raise Refusal("A recorded advancement roll must be resumed.")
     from n26.core.promotions import remove_unfinished_promotion
 
