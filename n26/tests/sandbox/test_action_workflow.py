@@ -507,3 +507,212 @@ def test_native_navigation_keeps_the_cancelled_flow_notice(client, hunt):
     )
     assert resumed.status_code == 200
     assert "This flow was cancelled." in resumed.content.decode()
+
+
+@pytest.mark.parametrize("step", ["cancel", "by-hand"])
+def test_explicit_recovery_mounts_after_a_successful_navigation(
+    client, advancement, step
+):
+    data = advancement
+    client.force_login(data.owner)
+    props, body = issued(
+        client, reverse("n26-action-start", args=[data.fighter.pk, data.action.pk])
+    )
+    assert client.post(props["commandHref"], body).status_code == 200
+    record = ActionRecord.objects.get(fighter=data.fighter)
+    url = reverse("n26-action-flow", args=[data.fighter.pk, record.pk, step])
+    props, body = issued(client, url)
+    original = client.post(props["commandHref"], body)
+    assert original.status_code == 200
+    before = counts()
+    # The completed response can be lost before the browser learns its result.
+    recovered = client.get(props["recoveryHref"])
+    assert recovered.status_code == 200
+    recovered_props = recovered.context["action_props"]
+    assert recovered_props["facts"]["recovery_only"] is True
+    assert recovered_props["facts"]["back_href"] == reverse(
+        "n26-edit-fighter", args=[data.fighter.pk]
+    )
+    assert recovered_props["facts"]["back_label"] == "Continue"
+    assert recovered_props["fields"] == []
+    display = client.get(recovered_props["displayHref"])
+    assert display.status_code == 200
+    assert display.json()["props"]["facts"]["recovery_only"] is True
+    ordinary = client.get(url)
+    assert ordinary.status_code == 302
+    assert ordinary.url == reverse("n26-edit-fighter", args=[data.fighter.pk])
+    replay = client.post(props["commandHref"], body)
+    assert replay.status_code == 200
+    assert replay.json()["replayed"] is True
+    assert replay.json()["facts"] == original.json()["facts"]
+    assert client.post(url, body).status_code == 302
+    assert counts() == before
+    client.force_login(User.objects.create_user(f"recovery-stranger-{step}"))
+    assert client.get(props["recoveryHref"]).status_code == 404
+
+
+def _tier_command(client, data):
+    record, _, _, _ = start(client, data)
+    props, body = issued(
+        client, reverse("n26-action-flow", args=[data.fighter.pk, record.pk, "choose"])
+    )
+    body["selection"] = props["facts"]["items"][0]["key"]
+    return record, props, body
+
+
+def _remove_tier_item(data):
+    from n26.core.operations import operation, subtree
+
+    removed = [data.item, *subtree(data.item)]
+    with operation(data.gang, actor=data.owner) as op:
+        op.remove(data.item)
+    return removed
+
+
+def _restore_tier_item(data, removed):
+    from n26.core.operations import operation
+
+    with operation(data.gang, actor=data.owner) as op:
+        for assignment in removed:
+            op.restore(assignment)
+
+
+@pytest.mark.parametrize("transport", ["native", "json"])
+def test_removed_tier_selection_consumes_the_original_key_before_delayed_retry(
+    client, hunt, monkeypatch, transport
+):
+    from n26.core.operations import Operation
+
+    record, props, body = _tier_command(client, hunt)
+    original_revision = record.revision
+
+    def refused_review(*args, **kwargs):
+        raise Refusal("This review did not complete.")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Operation, "review_action", refused_review)
+        rejected = client.post(props["commandHref"], body)
+    assert rejected.status_code == 422
+    assert not ModelChoiceReceipt.objects.filter(
+        request_key=body["command_key"]
+    ).exists()
+    removed = _remove_tier_item(hunt)
+    record.refresh_from_db()
+    assert record.revision == original_revision
+    before = counts()
+    first = client.post(
+        props["commandHref"] if transport == "json" else props["action"], body
+    )
+    assert first.status_code == (409 if transport == "json" else 200)
+    if transport == "json":
+        assert first.json()["code"] == "unavailable"
+    else:
+        assert first.context["action_props"]["initialConflict"] is True
+    receipt = ModelChoiceReceipt.objects.get(request_key=body["command_key"])
+    assert receipt.result["outcome"] == "unavailable"
+    assert counts()[:-1] == before[:-1]
+    assert counts()[-1] == before[-1] + 1
+    _restore_tier_item(hunt, removed)
+    current = client.get(props["action"]).context["action_props"]
+    assert body["selection"] in {item["key"] for item in current["facts"]["items"]}
+    before_delayed = counts()
+    replay = client.post(props["commandHref"], body)
+    assert replay.status_code == 409
+    assert replay.json()["code"] == "unavailable"
+    assert replay.json()["errors"] == receipt.result["errors"]
+    native = client.post(props["action"], body)
+    assert native.status_code == 200
+    assert native.context["action_props"]["initialConflict"] is True
+    assert counts() == before_delayed
+    record.refresh_from_db()
+    assert record.revision == original_revision
+    assert not record.review
+
+
+def test_removed_tier_terminal_receipt_rolls_back_if_settlement_fails(
+    client, hunt, monkeypatch
+):
+    from n26.core.operations import Operation
+
+    record, props, body = _tier_command(client, hunt)
+    removed = _remove_tier_item(hunt)
+
+    def refused_settlement(self):
+        raise Refusal("This acknowledgement cannot settle.")
+
+    before = counts()
+    with monkeypatch.context() as patch:
+        patch.setattr(Operation, "settle", refused_settlement)
+        result = client.post(props["commandHref"], body)
+    assert result.status_code == 422
+    assert result.json()["terminal"] is False
+    assert result.json()["conflict"] is False
+    assert counts() == before
+    _restore_tier_item(hunt, removed)
+    retry = client.post(props["commandHref"], body)
+    assert retry.status_code == 200
+    assert retry.json()["saved"] is True
+    record.refresh_from_db()
+    assert record.review
+
+
+def test_successful_tier_receipt_is_recalled_before_the_item_is_rechecked(client, hunt):
+    record, props, body = _tier_command(client, hunt)
+    original = client.post(props["commandHref"], body)
+    assert original.status_code == 200
+    _remove_tier_item(hunt)
+    before = counts()
+    replay = client.post(props["commandHref"], body)
+    assert replay.status_code == 200
+    assert replay.json()["replayed"] is True
+    assert replay.json()["facts"] == original.json()["facts"]
+    assert counts() == before
+
+
+@pytest.mark.parametrize(
+    "selection",
+    ["not-an-item|not-a-tier", "{removed}|", "{removed}|bad-tier", "{live}|{missing}"],
+)
+def test_other_tier_validation_failures_do_not_publish_a_terminal_receipt(
+    client, hunt, selection
+):
+    record, props, body = _tier_command(client, hunt)
+    item = str(hunt.item.pk)
+    _remove_tier_item(hunt) if "{removed}" in selection else None
+    body["selection"] = selection.format(removed=item, live=item, missing=str(uuid4()))
+    before = counts()
+    result = client.post(props["commandHref"], body)
+    assert result.status_code == 422
+    assert result.json()["terminal"] is False
+    assert counts() == before
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_removed_tier_retries_record_one_durable_refusal(client, hunt):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from django.db import close_old_connections
+
+    record, props, body = _tier_command(client, hunt)
+    removed = _remove_tier_item(hunt)
+    target = ActionTarget("flow", str(record.pk), "choose")
+
+    def submit():
+        close_old_connections()
+        try:
+            return change(hunt.owner, hunt.fighter.pk, target, body)
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: submit(), range(2)))
+    assert all(result.terminal and result.code == "unavailable" for result in results)
+    assert sum(result.replayed for result in results) == 1
+    assert (
+        ModelChoiceReceipt.objects.filter(request_key=body["command_key"]).count() == 1
+    )
+    _restore_tier_item(hunt, removed)
+    before = counts()
+    delayed = change(hunt.owner, hunt.fighter.pk, target, body)
+    assert delayed.replayed and delayed.terminal
+    assert counts() == before

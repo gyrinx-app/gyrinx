@@ -355,3 +355,11 @@ Validate acknowledgements against actual serialized command results. Optional
 result names can be null when a dice table has a gap; that is a valid recorded
 attempt. Test both ordinary success and retained replay with those values so a
 confirmed roll does not remain frozen behind a response-shape error.
+
+An explicit recovery read must keep the task mounted even when its current state
+normally redirects to another page. Show a read-only recovery shell with onward
+navigation so a lost cancellation or applied-by-hand response can still be
+recalled. Check removal of an addressed selection under the same lock as its
+command and restoration. Consume a definitively unavailable target with a durable
+no-write receipt so restoration cannot revive a delayed request; leave generic
+eligibility and malformed-input refusals unresolved.

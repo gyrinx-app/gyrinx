@@ -152,6 +152,21 @@ def read(actor, pk, target, *, recover=False, gang_id=""):
         command = StageInput({}, target.query, actor)
         response = stage(command, fighter, target)
         if isinstance(response, StageNavigation):
+            if recover:
+                from n26.core.action_forms import EmptyActionForm
+
+                return StagePage(
+                    {
+                        "miniature": fighter,
+                        "gang": fighter.gang,
+                        "action": "Recover action",
+                        "stage": "unavailable",
+                        "form": EmptyActionForm(),
+                        "recovery_only": True,
+                        "back_href": response.href,
+                        "back_label": "Continue",
+                    }
+                )
             response.notices = command.notices
         return response
     except Http404:
@@ -248,7 +263,50 @@ def _current_review_url(gang, pk, saved):
     return reverse("n26-gang", args=[gang.pk])
 
 
-def _terminal(op, key, payload, result):
+def _removed_tier_item(record, target, data):
+    """Only an absent carried-item target can settle this selection as unavailable.
+
+    Other offer and form validation failures do not prove a no-write outcome.
+    The caller holds the gang lock shared by item removal and restoration.
+    """
+    from n26.core.models import Assignment
+    from n26.library.models import AugmentCarriedItem, Pickable
+
+    if target.step not in {"choose", "correct"} or not record.outcome_id:
+        return False
+    if record.state not in {ActionRecord.State.STARTED, ActionRecord.State.COMPLETED}:
+        return False
+    if record.state == ActionRecord.State.COMPLETED and target.step != "correct":
+        return False
+    if not isinstance(record.outcome.operation, AugmentCarriedItem):
+        return False
+    selection = data.get("selection", "")
+    if not isinstance(selection, str):
+        return False
+    item, separator, pick = selection.partition("|")
+    if not separator or not item or not pick:
+        return False
+    try:
+        item_id = Assignment._meta.pk.to_python(item)
+        Pickable._meta.pk.to_python(pick)
+    except ValidationError:
+        return False
+    return not Assignment.objects.filter(
+        pk=item_id,
+        gang_root_id=record.gang_id,
+        miniature_root_id=record.fighter_id,
+        archived=False,
+    ).exists()
+
+
+def _terminal(
+    op,
+    key,
+    payload,
+    result,
+    *,
+    message="This action is no longer available. The earlier request changed nothing.",
+):
     result.conflict = True
     result.code = "unavailable"
     result.terminal = True
@@ -257,11 +315,7 @@ def _terminal(op, key, payload, result):
         if op.gang.archived
         else reverse("n26-gang", args=[op.gang.pk])
     )
-    result.errors = {
-        "__all__": [
-            "This action is no longer available. The earlier request changed nothing."
-        ]
-    }
+    result.errors = {"__all__": [message]}
     op.record_model_choice_receipt(
         key,
         payload,
@@ -391,6 +445,16 @@ def change(actor, pk, target, data):
                         "This flow changed in another tab. Review the current flow before continuing."
                     ]
                 }
+                return result
+            if target.kind == "flow" and _removed_tier_item(record, target, data):
+                with operation(gang, actor=actor) as op:
+                    _terminal(
+                        op,
+                        request_key,
+                        payload,
+                        result,
+                        message="The selected item is no longer carried by this model. The earlier request changed nothing.",
+                    )
                 return result
             with operation(gang, actor=actor) as op:
                 command = StageInput(data, target.query, actor, submitted=True, op=op)
