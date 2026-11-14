@@ -2215,6 +2215,8 @@ def recipes():
                 "plus",
                 "search",
                 "share-2",
+                "copy",
+                "download",
                 "x",
                 "chevron-down",
                 "chevron-right",
