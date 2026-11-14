@@ -541,3 +541,91 @@ test("a restored sparse-reward draft remains readable and editable", async () =>
     );
     expect(screen.getByText("Win: 25¢, 2 reputation")).toBeTruthy();
 });
+
+test("a retained sparse setup draft previews and edits dice without losing them in the payload", async () => {
+    const editor = setup();
+    editor.context.setupStage = 2;
+    const draft = definition();
+    draft.phases[0].details.rewards = {
+        win: { credits: { dice: { sides: 3 } } },
+        entry_credits: { dice: { count: 2, multiplier: 10 } },
+    } as unknown as SetupDefinition["phases"][number]["details"]["rewards"];
+    const original = JSON.stringify(draft);
+    sessionStorage.setItem(
+        `${editor.recoveryKey}:setup-draft`,
+        JSON.stringify({ setup_definition: original }),
+    );
+    const fetch = vi.fn().mockResolvedValue({
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ nextUrl: "/cycles/" }),
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<ScheduleEditor editor={editor} phases={[]} onNavigate={vi.fn()} />);
+    expect(screen.getByText("Win: 1D3¢ · Phase entry: 2D6 × 10¢")).toBeTruthy();
+    expect(
+        JSON.parse(sessionStorage.getItem(`${editor.recoveryKey}:setup-draft`)!)
+            .setup_definition,
+    ).toBe(original);
+    await userEvent.click(
+        screen.getByRole("button", { name: "Edit phase 1 details" }),
+    );
+    expect(screen.getByLabelText("Win dice count")).toHaveProperty(
+        "value",
+        "1",
+    );
+    expect(screen.getByLabelText("Win multiplier")).toHaveProperty(
+        "value",
+        "1",
+    );
+    expect(screen.getByLabelText("Phase entry die type")).toHaveProperty(
+        "value",
+        "6",
+    );
+    await userEvent.clear(screen.getByLabelText("Win fixed credits"));
+    await userEvent.type(screen.getByLabelText("Win fixed credits"), "25");
+    expect(
+        screen.getByText("Win: 1D3 + 25¢ · Phase entry: 2D6 × 10¢"),
+    ).toBeTruthy();
+    await userEvent.click(
+        screen.getByRole("button", { name: "Review schedule" }),
+    );
+    await userEvent.click(
+        screen.getByRole("button", { name: "Set up phases & cycles" }),
+    );
+    const saved = JSON.parse(
+        fetch.mock.calls[0][1].body.get("setup_definition"),
+    ).phases[0].details.rewards;
+    expect(saved.win).toEqual({
+        credits: { fixed: 25, dice: { count: 1, sides: 3, multiplier: 1 } },
+        reputation: 0,
+    });
+    expect(saved.entry_credits).toEqual({
+        fixed: 0,
+        dice: { count: 2, sides: 6, multiplier: 10 },
+    });
+});
+
+test("an uncertain sparse setup retries its exact original definition", async () => {
+    const editor = setup();
+    const draft = definition();
+    draft.phases[0].details.rewards = {
+        win: { credits: { dice: {} } },
+    } as unknown as SetupDefinition["phases"][number]["details"]["rewards"];
+    const original = new URLSearchParams({
+        ...editor.values,
+        setup_definition: JSON.stringify(draft),
+    });
+    sessionStorage.setItem(editor.recoveryKey, original.toString());
+    const fetch = vi.fn().mockResolvedValue({
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ nextUrl: "/cycles/" }),
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<ScheduleEditor editor={editor} phases={[]} onNavigate={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    const body = fetch.mock.calls[0][1].body as URLSearchParams;
+    body.delete("csrfmiddlewaretoken");
+    expect(body.toString()).toBe(original.toString());
+});

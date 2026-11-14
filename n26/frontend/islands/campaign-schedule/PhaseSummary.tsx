@@ -1,23 +1,23 @@
 import type { ReactNode } from "react";
 import { HelpPopover } from "../../ui";
 import type { Credits, Rewards } from "./types";
+import { normalizeCredits, normalizeRewards } from "./rewardData";
 
 export function creditsText(amount: Credits | undefined) {
-    if (!amount) return "0¢";
-    const dice = amount.dice;
+    const normalized = normalizeCredits(amount);
+    const dice = normalized.dice;
     const expression = dice
         ? `${dice.count}D${dice.sides}${dice.multiplier !== 1 ? ` × ${dice.multiplier}` : ""}`
         : "";
-    return `${expression}${expression && amount.fixed ? " + " : ""}${amount.fixed || !expression ? amount.fixed : ""}¢`;
+    return `${expression}${expression && normalized.fixed ? " + " : ""}${normalized.fixed || !expression ? normalized.fixed : ""}¢`;
 }
 
 function rewardsText(rewards: Rewards) {
     const summary: string[] = [];
     for (const outcome of ["win", "draw", "loss"] as const) {
         const reward = rewards[outcome];
-        if (!reward) continue;
         const amounts: string[] = [];
-        if (reward.credits?.fixed || reward.credits?.dice)
+        if (reward.credits.fixed || reward.credits.dice)
             amounts.push(creditsText(reward.credits));
         if (reward.reputation) amounts.push(`${reward.reputation} reputation`);
         if (amounts.length)
@@ -26,7 +26,7 @@ function rewardsText(rewards: Rewards) {
             );
     }
     const entry = rewards.entry_credits;
-    if (entry?.fixed || entry?.dice)
+    if (entry.fixed || entry.dice)
         summary.push(`Phase entry: ${creditsText(entry)}`);
     return summary.join(" · ");
 }
@@ -56,7 +56,7 @@ export function PhaseSummary({
     headingId?: string;
     status?: ReactNode;
 }) {
-    const rewardSummary = rewards ? rewardsText(rewards) : "";
+    const rewardSummary = rewardsText(normalizeRewards(rewards));
     const hasHeader = Boolean(
         showName ||
         count !== undefined ||

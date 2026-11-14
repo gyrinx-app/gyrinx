@@ -24,8 +24,8 @@ function settings(): Rewards {
     };
 }
 
-function Editor() {
-    const [value, setValue] = useState(JSON.stringify(settings()));
+function Editor({ initial = settings() }: { initial?: unknown }) {
+    const [value, setValue] = useState(JSON.stringify(initial));
     return (
         <>
             <RewardSettings value={value} onChange={setValue} />
@@ -92,4 +92,38 @@ test("removing dice retains the fixed phase entry credits", async () => {
     await user.selectOptions(screen.getByLabelText("Phase entry die type"), "");
     expect(screen.queryByLabelText("Phase entry multiplier")).toBeNull();
     expect(saved().entry_credits).toEqual({ fixed: 250, dice: null });
+});
+
+test("editing another amount preserves sparse win and entry dice with their defaults", async () => {
+    render(
+        <Editor
+            initial={{
+                win: { credits: { dice: { sides: 3 } } },
+                entry_credits: { dice: { count: 2, multiplier: 10 } },
+            }}
+        />,
+    );
+    expect(screen.getByLabelText("Win die type")).toHaveProperty("value", "3");
+    expect(screen.getByLabelText("Win dice count")).toHaveProperty(
+        "value",
+        "1",
+    );
+    expect(screen.getByLabelText("Win multiplier")).toHaveProperty(
+        "value",
+        "1",
+    );
+    expect(screen.getByLabelText("Phase entry die type")).toHaveProperty(
+        "value",
+        "6",
+    );
+    await userEvent.clear(screen.getByLabelText("Draw reputation"));
+    await userEvent.type(screen.getByLabelText("Draw reputation"), "2");
+    expect(saved().win.credits).toEqual({
+        fixed: 0,
+        dice: { count: 1, sides: 3, multiplier: 1 },
+    });
+    expect(saved().entry_credits).toEqual({
+        fixed: 0,
+        dice: { count: 2, sides: 6, multiplier: 10 },
+    });
 });

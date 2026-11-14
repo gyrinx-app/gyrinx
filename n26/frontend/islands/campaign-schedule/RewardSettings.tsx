@@ -1,58 +1,7 @@
 import { Field, Input, NativeSelect } from "../../ui";
-import type { Credits, Reward, Rewards } from "./types";
+import type { Credits, Rewards } from "./types";
+import { normalizeRewards, parseRewards } from "./rewardData";
 
-const emptyCredits = (): Credits => ({ fixed: 0, dice: null });
-const emptyReward = (): Reward => ({ credits: emptyCredits(), reputation: 0 });
-function parse(value: string): Rewards {
-    const blank = {
-        win: emptyReward(),
-        draw: emptyReward(),
-        loss: emptyReward(),
-        entry_credits: emptyCredits(),
-    };
-    const object = (item: unknown): item is Record<string, unknown> =>
-        typeof item === "object" && item !== null;
-    function credits(item: unknown): Credits {
-        if (!object(item) || typeof item.fixed !== "number")
-            return emptyCredits();
-        const dice = item.dice;
-        return {
-            fixed: item.fixed,
-            dice:
-                object(dice) &&
-                typeof dice.count === "number" &&
-                typeof dice.sides === "number" &&
-                typeof dice.multiplier === "number"
-                    ? {
-                          count: dice.count,
-                          sides: dice.sides,
-                          multiplier: dice.multiplier,
-                      }
-                    : null,
-        };
-    }
-    function reward(item: unknown): Reward {
-        return object(item)
-            ? {
-                  credits: credits(item.credits),
-                  reputation:
-                      typeof item.reputation === "number" ? item.reputation : 0,
-              }
-            : emptyReward();
-    }
-    try {
-        const parsed: unknown = JSON.parse(value);
-        if (!object(parsed)) return blank;
-        return {
-            win: reward(parsed.win),
-            draw: reward(parsed.draw),
-            loss: reward(parsed.loss),
-            entry_credits: credits(parsed.entry_credits),
-        };
-    } catch {
-        return blank;
-    }
-}
 function CreditFields({
     label,
     value,
@@ -159,10 +108,13 @@ export function RewardSettings({
     value,
     onChange,
 }: {
-    value: string;
+    value: string | Rewards;
     onChange: (value: string) => void;
 }) {
-    const settings = parse(value);
+    const settings =
+        typeof value === "string"
+            ? parseRewards(value)
+            : normalizeRewards(value);
     const save = (next: Rewards) => onChange(JSON.stringify(next));
     return (
         <div className="space-y-5">

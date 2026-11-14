@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Button, Card, Field, Icon, Input, Table, Textarea } from "../../ui";
 import { PhaseSummary } from "./PhaseSummary";
 import { RewardSettings } from "./RewardSettings";
+import { normalizeRewards } from "./rewardData";
 import { PlanSteps } from "./PlanSteps";
 import type { Phase, SetupDefinition } from "./types";
 
@@ -25,7 +26,18 @@ export function setupDraft(value: string): SetupDefinition | null {
                     typeof step.phase_id === "string" &&
                     typeof step.count === "number",
             )
-            ? data
+            ? {
+                  ...data,
+                  phases: data.phases.map(
+                      (phase: SetupDefinition["phases"][number]) => ({
+                          ...phase,
+                          details: {
+                              ...phase.details,
+                              rewards: normalizeRewards(phase.details.rewards),
+                          },
+                      }),
+                  ),
+              }
             : null;
     } catch {
         return null;
@@ -215,9 +227,7 @@ export function SetupDraft({
                                                 />
                                             </Field>
                                             <RewardSettings
-                                                value={JSON.stringify(
-                                                    phase.details.rewards,
-                                                )}
+                                                value={phase.details.rewards}
                                                 onChange={(rewards) =>
                                                     update(phase.id, {
                                                         rewards:

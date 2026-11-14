@@ -127,3 +127,25 @@ test("long effects stay scrollable within a short phone viewport", () => {
     expect(panel.textContent).toContain("Final phase effect.");
     expect(panel.className).toContain("overflow-y-auto");
 });
+
+test("sparse reward previews show backend dice defaults without undefined amounts", () => {
+    render(
+        <PhaseSummary
+            name="Occupation"
+            rewards={
+                {
+                    win: { credits: { dice: { sides: 3 } } },
+                    draw: { reputation: 2 },
+                    loss: { credits: { dice: {} } },
+                    entry_credits: { dice: { count: 2, multiplier: 10 } },
+                } as unknown as Rewards
+            }
+        />,
+    );
+    expect(
+        screen.getByText(
+            "Win: 1D3¢ · Draw: 2 reputation · Loss: 1D6¢ · Phase entry: 2D6 × 10¢",
+        ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/undefined/)).toBeNull();
+});
