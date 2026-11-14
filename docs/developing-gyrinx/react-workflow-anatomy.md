@@ -247,6 +247,14 @@ editing and offers a retry. Reload uses fresh credentials with the retained
 input; CSRF tokens are never stored with it. A rejected retry cannot establish
 whether an earlier request committed.
 
+A frozen recovery view needs a readable snapshot of the submitted draft. Synchronise it before sending, alongside the command intent; initial props may describe another draft. Keep display labels separate from the exact raw body and request key used for retries.
+
+Test names, roles, equipment and counts immediately after a lost response and again after reload. A newer saved state must not replace that submitted snapshot.
+
+After receipt and key checks, compare a valid submitted revision with the locked revision before returning mutable roster errors. Keep errors for filtered-out models visible in a labelled summary so the reader can resolve them.
+
+A changed roster or removed equipment set can make an old command invalid without changing the crew revision. Record that no-write result under the same locks before resolving uncertainty. An explicit reload can then keep the rejected selections under a new key and add current unselected defaults; generic validation errors must retain the original uncertain body. Keep a removed set’s original value and readable name until the reader explicitly chooses a current set.
+
 The server's retry contract depends on the action:
 
 | Action | Contract |

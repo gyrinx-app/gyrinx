@@ -6,6 +6,7 @@ Reading or resubmitting that revision cannot roll the draw again.
 """
 
 import random
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 from django.db.models import Q
@@ -27,6 +28,10 @@ from n26.core.progression import progression_summaries
 from n26.core.render import ModelCard, brought_in_by, build_model_card
 from n26.core.status import Status
 from n26.write_pause import guarded_write
+
+
+class CrewAvailabilityRefusal(Refusal):
+    """A mutable crew selection or draw pool no longer permits this command."""
 
 
 @dataclass(frozen=True)
@@ -66,8 +71,10 @@ class CrewSaveResult:
     drawn: tuple[str, ...] = ()
 
 
-def may_edit_crew(*, campaign, gang, actor):
-    return may_record_gang(campaign=campaign, gang=gang, actor=actor)
+def may_edit_crew(*, campaign, gang, actor, include_archived=False):
+    return may_record_gang(
+        campaign=campaign, gang=gang, actor=actor, include_archived=include_archived
+    )
 
 
 def crew_roster(gang, crew=None):
@@ -88,7 +95,9 @@ def crew_roster(gang, crew=None):
             | Q(pk__in=saved_by_model)
         )
         .exclude(membership__caused_by__miniature_root__isnull=False)
-        .select_related("membership__profile", "membership__caused_by__miniature_root")
+        .select_related(
+            "membership__profile__profile_type", "membership__caused_by__miniature_root"
+        )
         .order_by("name", "pk")
     )
     equipment = list(
@@ -149,6 +158,36 @@ def same_card(member, option):
     ) == set(option.equipment_ids)
 
 
+@contextmanager
+def locked_crew(*, battle, gang, actor):
+    """Keep authority and crew changes under the campaign's lock order."""
+    campaign = (
+        Campaign.objects.select_for_update(no_key=True)
+        .filter(pk=battle.campaign_id)
+        .first()
+    )
+    if campaign is None:
+        raise Refusal("This campaign has been removed. Return to your campaigns.")
+    gang = Gang.objects.select_for_update().filter(pk=gang.pk).first()
+    if gang is None:
+        raise Refusal("This gang has been removed. Return to the campaign.")
+    battle = Battle.objects.select_for_update().filter(pk=battle.pk).first()
+    if battle is None:
+        raise Refusal("This battle has been removed. Return to the campaign.")
+    if not may_edit_crew(
+        campaign=campaign, gang=gang, actor=actor, include_archived=True
+    ):
+        raise Refusal(
+            "You cannot edit this crew. Only its owner or the gang’s current campaign arbitrator can."
+        )
+    if not battle.gangs.filter(pk=gang.pk).exists():
+        raise Refusal("This gang is not a participant in this battle.")
+    crew = (
+        BattleCrew.objects.select_for_update().filter(battle=battle, gang=gang).first()
+    )
+    yield campaign, battle, gang, crew
+
+
 @guarded_write
 def save_crew(
     *,
@@ -161,24 +200,45 @@ def save_crew(
     random_count=0,
     random_role=CrewMember.Role.STARTING,
 ):
-    campaign = Campaign.objects.select_for_update(no_key=True).get(
-        pk=battle.campaign_id
-    )
-    gang = Gang.objects.select_for_update().get(pk=gang.pk)
-    battle = Battle.objects.select_for_update().filter(pk=battle.pk).first()
-    if battle is None:
-        raise Refusal("This battle has been removed. Return to the campaign.")
-    if battle.archived:
-        raise Refusal("This battle is archived. Restore it before changing its crew.")
-    if not may_edit_crew(campaign=campaign, gang=gang, actor=actor):
-        raise Refusal(
-            "You cannot edit this crew. Only its owner or the gang’s current campaign arbitrator can."
+    with locked_crew(battle=battle, gang=gang, actor=actor) as (
+        campaign,
+        battle,
+        gang,
+        crew,
+    ):
+        if battle.archived:
+            raise Refusal(
+                "This battle is archived. Restore it before changing its crew."
+            )
+        if not may_edit_crew(campaign=campaign, gang=gang, actor=actor):
+            raise Refusal(
+                "This gang or campaign is archived. Restore it before changing its crew."
+            )
+        return _save_locked_crew(
+            battle=battle,
+            gang=gang,
+            actor=actor,
+            crew=crew,
+            revision=revision,
+            selections=selections,
+            confirm=confirm,
+            random_count=random_count,
+            random_role=random_role,
         )
-    if not battle.gangs.filter(pk=gang.pk).exists():
-        raise Refusal("This gang is not a participant in this battle.")
-    crew = (
-        BattleCrew.objects.select_for_update().filter(battle=battle, gang=gang).first()
-    )
+
+
+def _save_locked_crew(
+    *,
+    battle,
+    gang,
+    actor,
+    crew,
+    revision,
+    selections,
+    confirm,
+    random_count,
+    random_role,
+):
     if revision != (crew.revision if crew else 0):
         raise Refusal(
             "This crew changed while you were editing it. Reload the saved crew before saving again."
@@ -190,7 +250,7 @@ def save_crew(
         key = str(selection.miniature_id)
         item = by_id.get(key)
         if item is None or not item.available:
-            raise Refusal(
+            raise CrewAvailabilityRefusal(
                 "A selected model is no longer available. Remove it from the crew before saving."
             )
         if key in selected:
@@ -199,7 +259,7 @@ def save_crew(
             raise Refusal("Select starting crew or reinforcements for each model.")
         model = item.miniature
         if model.status != Status.ACTIVE and not selection.eligibility_override:
-            raise Refusal(
+            raise CrewAvailabilityRefusal(
                 f"{model.name} is unavailable. Allow this model for this battle or remove it from the crew."
             )
         saved = item.saved
@@ -254,7 +314,7 @@ def save_crew(
             and str(item.miniature.pk) not in selected
         ]
         if random_count > len(pool):
-            raise Refusal(
+            raise CrewAvailabilityRefusal(
                 f"Only {len(pool)} eligible models remain. Enter a smaller draw."
             )
         rng = random.SystemRandom()
@@ -373,7 +433,9 @@ def build_crew_sheet(crew):
             membership__caused_by__miniature_root__in=owners,
         )
         .exclude(status=Status.DEAD)
-        .select_related("membership__profile", "membership__caused_by__miniature_root")
+        .select_related(
+            "membership__profile__profile_type", "membership__caused_by__miniature_root"
+        )
         .order_by("name", "pk")
     )
     gang_card = build_gang_card(crew.gang)

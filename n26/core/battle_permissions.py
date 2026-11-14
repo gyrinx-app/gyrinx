@@ -1,11 +1,17 @@
 """Who may record one gang's crew or results, independent of page layout."""
 
 
-def may_record_gang(*, gang, actor, campaign=None, active_gang_ids=None):
+def may_record_gang(
+    *, gang, actor, campaign=None, active_gang_ids=None, include_archived=False
+):
     """Owners keep authority; an arbitrator's authority ends when the gang leaves."""
-    if not actor or not actor.is_authenticated or gang.archived:
+    if (
+        not actor
+        or not actor.is_authenticated
+        or (gang.archived and not include_archived)
+    ):
         return False
-    if campaign is not None and campaign.archived:
+    if campaign is not None and campaign.archived and not include_archived:
         return False
     if gang.owner_id == actor.pk:
         return True

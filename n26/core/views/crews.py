@@ -3,14 +3,19 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.http import Http404
+from django.http import Http404, JsonResponse
+from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_http_methods, require_POST
 
+from n26.core import crew_display as display
+from n26.core import crew_workflow
 from n26.core.crew_forms import CrewForm
-from n26.core.crews import build_crew_sheet, crew_roster, may_edit_crew, save_crew
-from n26.core.models.crew import BattleCrew
+from n26.core.crews import build_crew_sheet, crew_roster, may_edit_crew
+from n26.core.models import Campaign
+from n26.core.models.crew import BattleCrew, CrewCommandReceipt
 from n26.core.operations import Refusal
 from n26.core.printing import detail_columns
 from n26.core.views.battles import battle_or_404
@@ -48,8 +53,14 @@ DRAW_HELP = {
 }
 
 
-def _context(request, pk, battle_pk, gang_pk):
-    campaign = _any_campaign_or_404(request, pk, with_owner_badge=False)
+def _context(request, pk, battle_pk, gang_pk, *, recovery=False):
+    if recovery:
+        try:
+            campaign = get_object_or_404(Campaign, pk=pk)
+        except ValidationError:
+            raise Http404("No such campaign") from None
+    else:
+        campaign = _any_campaign_or_404(request, pk, with_owner_badge=False)
     battle = battle_or_404(campaign, battle_pk)
     try:
         gang = get_object_or_404(battle.gangs.select_related("gang_type"), pk=gang_pk)
@@ -62,97 +73,145 @@ def _context(request, pk, battle_pk, gang_pk):
     return campaign, battle, gang, editable, crew
 
 
-def _picker_field(field):
+def _allowed(campaign, gang, actor):
+    return may_edit_crew(
+        campaign=campaign, gang=gang, actor=actor, include_archived=True
+    )
+
+
+def _props(
+    request,
+    campaign,
+    battle,
+    gang,
+    crew,
+    form,
+    *,
+    conflict=False,
+    acknowledgement=None,
+    roster_refusal=None,
+):
+    return display.editor(
+        campaign=campaign,
+        battle=battle,
+        gang=gang,
+        actor=request.user,
+        form=form,
+        crew=crew,
+        csrf_token=get_token(request),
+        crew_help=CREW_HELP,
+        draw_help=DRAW_HELP,
+        conflict=conflict,
+        read_only=battle.archived or campaign.archived or gang.archived,
+        acknowledgement=acknowledgement,
+        roster_refusal=roster_refusal,
+    )
+
+
+def _roster_refusal(result):
+    if not result.roster_changed:
+        return None
     return {
-        "name": field.html_name,
-        "id": field.id_for_label,
-        "value": field.value(),
-        "errors": list(field.errors),
-        "choices": [
-            {"value": str(value), "label": str(label)}
-            for value, label in field.field.choices
-        ],
+        "requestKey": str(result.receipt.request_key),
+        "inputs": result.receipt.inputs,
     }
 
 
-def _crew_picker(form, *, crew, battle_url):
-    return {
-        "battleUrl": battle_url,
-        "revision": crew.revision if crew else None,
-        "models": [
-            {
-                "id": str(entry.miniature.pk),
-                "name": entry.miniature.name,
-                "profile": str(entry.miniature.membership.profile)
-                if entry.miniature.membership
-                else "",
-                "fullRating": entry.miniature.rating,
-                "savedSource": entry.saved_source,
-                "search": entry.search,
-                "warning": entry.warning,
-                "mayOverride": entry.may_override,
-                "available": entry.available,
-                "role": _picker_field(entry.role),
-                "card": _picker_field(entry.card),
-                "override": {
-                    "name": entry.override.html_name,
-                    "id": entry.override.id_for_label,
-                    "value": bool(entry.override.value()),
-                    "errors": list(entry.override.errors),
-                },
-            }
-            for entry in form.models
-        ],
-    }
+def _next(campaign, battle, gang, result):
+    if result.read_only:
+        return (
+            reverse("n26-battle-crew", args=[campaign.pk, battle.pk, gang.pk])
+            + f"?recover=1&saved={result.receipt.request_key}"
+        )
+    return reverse(
+        "n26-battle-crew-sheet"
+        if result.receipt.result["action"] == "save"
+        else "n26-battle-crew",
+        args=[campaign.pk, battle.pk, gang.pk],
+    )
+
+
+def _feedback(request, result):
+    tag = f"crew-{result.receipt.request_key}"
+    storage = messages.get_messages(request)
+    queued = any(tag in (message.extra_tags or "").split() for message in storage)
+    storage.used = False
+    if not queued:
+        messages.success(
+            request,
+            result.message
+            if not result.replayed
+            else "This crew change was already saved.",
+            extra_tags=tag,
+        )
+
+
+def _acknowledgement(request, battle, gang):
+    key = request.GET.get("saved")
+    if not key:
+        return None
+    try:
+        receipt = CrewCommandReceipt.objects.filter(
+            gang=gang, battle=battle, actor=request.user, request_key=key
+        ).first()
+    except ValidationError:
+        return None
+    return (
+        receipt.result
+        if receipt and receipt.result.get("outcome") != "roster_changed"
+        else None
+    )
 
 
 @login_required
+@never_cache
 @require_http_methods(["GET", "POST"])
 def edit_crew(request, pk, battle_pk, gang_pk):
-    campaign, battle, gang, editable, crew = _context(request, pk, battle_pk, gang_pk)
-    if not editable:
-        raise Http404("No such crew")
-    roster = crew_roster(gang, crew)
-    form = CrewForm(
-        request.POST if request.method == "POST" else None, roster=roster, crew=crew
+    recovery = request.method == "POST" or request.GET.get("recover") == "1"
+    campaign, battle, gang, editable, crew = _context(
+        request, pk, battle_pk, gang_pk, recovery=recovery
     )
-    if request.method == "POST" and form.is_valid():
-        action = request.POST.get("action", "save")
-        if action not in {"save", "draft", "draw"}:
-            form.add_error(None, "Select Save crew, Save draft or Draw.")
-        elif action == "draw" and not form.cleaned_data["random_count"]:
-            form.add_error("random_count", "Enter the number of models to draw.")
+    if not _allowed(campaign, gang, request.user) or (not editable and not recovery):
+        raise Http404("No such crew")
+    conflict = False
+    roster_refusal = None
+    if request.method == "POST":
+        try:
+            result = crew_workflow.perform(
+                battle=battle, gang=gang, actor=request.user, data=request.POST
+            )
+        except Refusal:
+            raise Http404("No such crew") from None
         else:
-            try:
-                save_crew(
-                    battle=battle,
-                    gang=gang,
-                    actor=request.user,
-                    revision=form.cleaned_data["revision"],
-                    selections=form.cleaned_data["selections"],
-                    confirm=action == "save",
-                    random_count=form.cleaned_data["random_count"]
-                    if action == "draw"
-                    else 0,
-                    random_role=form.cleaned_data["random_role"],
-                )
-            except Refusal as exc:
-                form.add_error(None, str(exc))
-            else:
-                messages.success(
-                    request,
-                    "Draw saved."
-                    if action == "draw"
-                    else "Crew saved."
-                    if action == "save"
-                    else "Crew draft saved.",
-                )
-                return redirect(
-                    "n26-battle-crew-sheet" if action == "save" else "n26-battle-crew",
-                    pk=campaign.pk,
-                    battle_pk=battle.pk,
-                    gang_pk=gang.pk,
-                )
+            if result.saved:
+                _feedback(request, result)
+                if result.newer:
+                    return redirect(
+                        reverse(
+                            "n26-battle-crew", args=[campaign.pk, battle.pk, gang.pk]
+                        )
+                        + f"?recover=1&saved={result.receipt.request_key}"
+                    )
+                return redirect(_next(campaign, battle, gang, result))
+            if result.read_only:
+                raise Http404("No such crew")
+            form = result.form
+            crew = result.crew
+            conflict = result.conflict
+            roster_refusal = _roster_refusal(result)
+    else:
+        form = CrewForm(roster=crew_roster(gang, crew), crew=crew)
+    props = _props(
+        request,
+        campaign,
+        battle,
+        gang,
+        crew,
+        form,
+        conflict=conflict,
+        acknowledgement=_acknowledgement(request, battle, gang),
+        roster_refusal=roster_refusal,
+    )
     return render(
         request,
         "n26/crew.html",
@@ -162,15 +221,82 @@ def edit_crew(request, pk, battle_pk, gang_pk):
             "gang": gang,
             "crew": crew,
             "form": form,
-            "crew_help": CREW_HELP,
-            "draw_help": DRAW_HELP,
-            "crew_picker": _crew_picker(
-                form,
-                crew=crew,
-                battle_url=reverse("n26-battle", args=[campaign.pk, battle.pk]),
-            ),
+            "crew_workflow": props,
+            "crew_picker": {
+                "models": props["models"],
+                "battleUrl": props["battleUrl"],
+                "revision": props["revision"],
+            },
         },
     )
+
+
+@require_POST
+@never_cache
+def crew_command(request, pk, battle_pk, gang_pk):
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Sign in again to save this crew."}, status=401)
+    campaign, battle, gang, editable, crew = _context(
+        request, pk, battle_pk, gang_pk, recovery=True
+    )
+    if not _allowed(campaign, gang, request.user):
+        raise Http404("No such crew")
+    try:
+        result = crew_workflow.perform(
+            battle=battle,
+            gang=gang,
+            actor=request.user,
+            data=request.POST,
+            require_key=True,
+        )
+    except Refusal as exc:
+        return JsonResponse({"errors": {"__all__": [exc.public_message]}}, status=409)
+    if result.saved:
+        _feedback(request, result)
+        return JsonResponse(
+            {
+                "nextUrl": _next(campaign, battle, gang, result),
+                "acknowledged": result.receipt.result,
+                "newer": result.newer,
+                "currentUrl": reverse(
+                    "n26-battle-crew", args=[campaign.pk, battle.pk, gang.pk]
+                )
+                + "?recover=1",
+            }
+        )
+    return JsonResponse(
+        {
+            "errors": dict(result.form.errors),
+            "rosterRefusal": _roster_refusal(result),
+            "code": "roster_changed"
+            if result.roster_changed
+            else "revision_conflict"
+            if result.conflict
+            else "key_conflict"
+            if result.key_conflict
+            else "invalid",
+            "current": _props(
+                request, campaign, battle, gang, result.crew, result.form
+            )["current"],
+        },
+        status=result.status,
+    )
+
+
+@never_cache
+@require_http_methods(["GET"])
+def crew_display(request, pk, battle_pk, gang_pk):
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Sign in again to view this crew."}, status=401)
+    campaign, battle, gang, editable, crew = _context(
+        request, pk, battle_pk, gang_pk, recovery=request.GET.get("recover") == "1"
+    )
+    if not _allowed(campaign, gang, request.user) or (
+        not editable and request.GET.get("recover") != "1"
+    ):
+        raise Http404("No such crew")
+    form = CrewForm(roster=crew_roster(gang, crew), crew=crew)
+    return JsonResponse(_props(request, campaign, battle, gang, crew, form))
 
 
 @login_required

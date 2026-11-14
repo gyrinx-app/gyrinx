@@ -6,7 +6,7 @@ from django import forms
 
 from n26.core.crews import CrewSelection, same_card, saved_card_key
 from n26.core.models.crew import CrewMember
-from n26.core.status import Status
+from n26.core.status import Status, label_for
 
 
 @dataclass(frozen=True)
@@ -75,7 +75,7 @@ class CrewForm(forms.Form):
             warning = (
                 "This model is no longer available. Remove it from the crew."
                 if not item.available
-                else f"{model.get_status_display()}. Usually unavailable for selection."
+                else f"{label_for(model.status, vehicle=bool(model.membership and model.membership.profile.profile_type.name == 'Vehicle'))}. Usually unavailable for selection."
                 if model.status != Status.ACTIVE
                 else ""
             )
@@ -120,12 +120,18 @@ class CrewForm(forms.Form):
             if not item.available:
                 self.add_error(
                     f"role_{suffix}",
-                    "This model is no longer available. Remove it from the crew.",
+                    forms.ValidationError(
+                        "This model is no longer available. Remove it from the crew.",
+                        code="unavailable_model",
+                    ),
                 )
             elif item.miniature.status != Status.ACTIVE and not override:
                 self.add_error(
                     f"override_{suffix}",
-                    "Allow this model for this battle or remove it from the crew.",
+                    forms.ValidationError(
+                        "Allow this model for this battle or remove it from the crew.",
+                        code="availability_override_required",
+                    ),
                 )
             selections.append(
                 CrewSelection(suffix, role, cleaned.get(f"card_{suffix}", ""), override)
