@@ -17,7 +17,7 @@ function rewardsText(rewards: Rewards) {
         const reward = rewards[outcome];
         if (!reward) continue;
         const amounts: string[] = [];
-        if (reward.credits.fixed || reward.credits.dice)
+        if (reward.credits?.fixed || reward.credits?.dice)
             amounts.push(creditsText(reward.credits));
         if (reward.reputation) amounts.push(`${reward.reputation} reputation`);
         if (amounts.length)

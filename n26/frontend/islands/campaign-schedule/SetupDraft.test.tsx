@@ -494,3 +494,50 @@ test("setup starts with the selected cycle active and retains its number while s
     expect(fetch.mock.calls[0][1].body.get("no_current")).toBe("on");
     expect(fetch.mock.calls[0][1].body.get("current_number")).toBe("3");
 });
+
+test("a restored sparse-reward draft remains readable and editable", async () => {
+    const editor = setup();
+    editor.context.setupStage = 2;
+    const original = definition();
+    const sparse = {
+        ...original,
+        phases: original.phases.map((phase) => ({
+            ...phase,
+            details: {
+                ...phase.details,
+                name: "Retained phase",
+                rewards: { win: { reputation: 2 } },
+            },
+        })),
+    };
+    sessionStorage.setItem(
+        `${editor.recoveryKey}:setup-draft`,
+        JSON.stringify({
+            setup_definition: JSON.stringify(sparse),
+            date_mode: "manual",
+        }),
+    );
+    render(<ScheduleEditor editor={editor} phases={[]} onNavigate={vi.fn()} />);
+    expect(screen.getByLabelText("Phase 1 name")).toHaveProperty(
+        "value",
+        "Retained phase",
+    );
+    expect(screen.getByText("Win: 2 reputation")).toBeTruthy();
+    await userEvent.click(
+        screen.getByRole("button", { name: "Edit phase 1 details" }),
+    );
+    expect(screen.getByLabelText("Win fixed credits")).toHaveProperty(
+        "value",
+        "0",
+    );
+    expect(screen.getByLabelText("Win reputation")).toHaveProperty(
+        "value",
+        "2",
+    );
+    await userEvent.clear(screen.getByLabelText("Win fixed credits"));
+    await userEvent.type(screen.getByLabelText("Win fixed credits"), "25");
+    await userEvent.click(
+        screen.getByRole("button", { name: "Hide phase 1 details" }),
+    );
+    expect(screen.getByText("Win: 25¢, 2 reputation")).toBeTruthy();
+});
