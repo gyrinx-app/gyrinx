@@ -1,0 +1,9 @@
+{% comment %}
+The campaign's gang and battle counts, in the host a page update replaces.
+Expects `sheet`; `redrawn` marks the copy an update delivers, which
+replaces the one on the page by id — see campaign_update.html.
+{% endcomment %}
+<div id="n26-campaign-figures"
+     {% if redrawn %}hx-swap-oob="true"{% endif %}>
+    <c-n26.campaign-figures :sheet="sheet" />
+</div>
