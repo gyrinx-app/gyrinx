@@ -1104,7 +1104,13 @@ export function ActionWorkflow(props: ActionWorkflowProps) {
                                             </>
                                         )}
                                         {f.attempts.length > 0 && (
-                                            <details className="text-sm">
+                                            <details
+                                                className="text-sm"
+                                                open={
+                                                    f.skill_random &&
+                                                    !f.skill_resolved
+                                                }
+                                            >
                                                 <summary className="cursor-pointer font-semibold text-muted">
                                                     Roll history
                                                 </summary>

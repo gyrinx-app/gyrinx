@@ -173,6 +173,49 @@ def test_a_power_only_advancement_uses_power_wording(client, monkeypatch, wyrd, 
     assert record.skill_selection.selected_power == wyrd.powers["primary"]
 
 
+@pytest.mark.parametrize("kind", [Skill, Power])
+def test_a_recorded_random_result_keeps_its_group_after_becoming_known(
+    client, monkeypatch, wyrd, kind
+):
+    data = wyrd.advancement
+    selected = data.skills["primary"] if kind is Skill else wyrd.powers["primary"]
+    create = a.create_skill if kind is Skill else a.create_power
+    create("Another result", category=selected.category, position=3)
+    _load_rolls(monkeypatch, 12, 2)
+    record = _start(client, data)
+    _post_roll(client, data, record)
+    url = _choose_result(client, data, record, data.results["random"])
+    page = client.get(url)
+    assert (
+        post_action(
+            client,
+            url,
+            {
+                "request_key": page.context["form"]["request_key"].value(),
+                "skill_set_id": str(selected.category_id),
+            },
+        ).status_code
+        == 302
+    )
+    record.refresh_from_db()
+    revision = record.revision
+    with operation(data.gang, actor=data.owner) as op:
+        op.assign(selected, miniature=data.fighter)
+    props = client.get(url).context["action_props"]
+    facts = props["facts"]
+    assert facts["skill_resolved"] is True
+    assert facts["skill_selected"] == str(selected)
+    assert facts["skill_selected_group"] == str(selected.category)
+    assert all(
+        skill["key"] != str(selected.pk)
+        for group in facts["skillGroups"]
+        for skill in group["skills"]
+    )
+    assert client.get(props["displayHref"]).json()["props"]["facts"] == facts
+    record.refresh_from_db()
+    assert record.revision == revision
+
+
 def test_a_stale_power_selection_uses_power_aware_wording(client, monkeypatch, wyrd):
     data = wyrd.advancement
     _load_rolls(monkeypatch, 12)

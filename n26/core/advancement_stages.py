@@ -362,14 +362,11 @@ def _skill_step(command, fighter, record, configured, chosen, groups, *, correct
             if correction
             else f"Review this selection, then confirm it to add it to {fighter.name}."
         ),
-        skill_selected_group=next(
-            (
-                str(group) if group is not None else "Other skills"
-                for group, skills in groups.items()
-                if resolved and any(skill == selected for skill in skills)
-            ),
-            "",
-        ),
+        skill_selected_group=(
+            str(selected.category) if selected.category_id else "Other skills"
+        )
+        if resolved
+        else "",
         skill_empty=f"No {chosen.choice_noun} is available for this result.",
         skill_attempts=attempts,
         skill_roll=_skill_roll_props(

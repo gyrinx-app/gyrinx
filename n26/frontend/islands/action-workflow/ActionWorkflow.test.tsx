@@ -937,35 +937,37 @@ test("a manual power choice explains confirmation and submits only the selected 
     expect(navigate).toHaveBeenCalledWith("/review/");
 });
 
-test("unavailable empty power faces remain in history while the next roll stays available", async () => {
-    render(
-        <ActionWorkflow
-            {...randomSkillProps}
-            facts={{
-                ...randomSkillProps.facts,
-                skill_title: "Roll for a power",
-                skill_description:
-                    "A D6 roll determines the power from your selected power family.",
-                attempts: [
-                    {
-                        roll: 3,
-                        result_name: null,
-                        is_available: false,
-                        unavailable_reason:
-                            "No power has D6 result 3 in Whispers.",
-                    },
-                ],
-            }}
-        />,
-    );
-    expect(screen.getByRole("button", { name: "Continue" })).toBeTruthy();
-    expect(screen.queryByText("Current result")).toBeNull();
-    const summary = screen.getByText("Roll history");
-    await userEvent.click(summary);
-    expect(
-        screen.getByText("No power has D6 result 3 in Whispers."),
-    ).toBeTruthy();
-});
+test.each([
+    [null, "No power has D6 result 3 in Whispers."],
+    ["Catfall", "No available skill was rolled."],
+])(
+    "an unresolved random result keeps its reroll explanation visible: %s",
+    async (result, reason) => {
+        render(
+            <ActionWorkflow
+                {...randomSkillProps}
+                facts={{
+                    ...randomSkillProps.facts,
+                    attempts: [
+                        {
+                            roll: 3,
+                            result_name: result,
+                            is_available: false,
+                            unavailable_reason: reason,
+                        },
+                    ],
+                }}
+            />,
+        );
+        expect(screen.getByRole("button", { name: "Continue" })).toBeTruthy();
+        expect(screen.queryByText("Current result")).toBeNull();
+        const summary = screen.getByText("Roll history");
+        expect(summary.closest("details")!.open).toBe(true);
+        expect(screen.getByText(reason)).toBeTruthy();
+        await userEvent.click(summary);
+        expect(summary.closest("details")!.open).toBe(false);
+    },
+);
 
 test("roll history retains carried-roll evaluations without counting them as new dice", async () => {
     const attempts = [
