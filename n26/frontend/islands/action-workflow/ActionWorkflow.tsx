@@ -1002,7 +1002,7 @@ export function ActionWorkflow(props: ActionWorkflowProps) {
                                                 <Card>
                                                     <div className="space-y-2">
                                                         <p className="text-sm text-muted">
-                                                            Ready to review
+                                                            Current result
                                                         </p>
                                                         <h3 className="text-lg font-semibold">
                                                             {f.skill_selected}
@@ -1106,8 +1106,7 @@ export function ActionWorkflow(props: ActionWorkflowProps) {
                                         {f.attempts.length > 0 && (
                                             <details className="text-sm">
                                                 <summary className="cursor-pointer font-semibold text-muted">
-                                                    Recorded rolls (
-                                                    {f.attempts.length})
+                                                    Roll history
                                                 </summary>
                                                 <div className="mt-3">
                                                     <ActionAttempts
