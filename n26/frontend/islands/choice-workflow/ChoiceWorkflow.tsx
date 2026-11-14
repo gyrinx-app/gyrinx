@@ -3,6 +3,8 @@ import {
     type ComponentProps,
     type FormEvent,
     useId,
+    useEffect,
+    useCallback,
     useLayoutEffect,
     useRef,
     useState,
@@ -502,6 +504,45 @@ function prepareArrivalRecovery(props: ChoiceWorkflowProps): ArrivalRecovery {
     }
 }
 
+function recoveryCommand(props: ChoiceWorkflowProps): {
+    href: string;
+    blocked: boolean;
+} {
+    if (props.blocks !== undefined)
+        return { href: props.commandHref, blocked: false };
+    try {
+        const retained = new URLSearchParams(
+            sessionStorage.getItem(props.recoveryKey) ?? "",
+        );
+        const stored = retained.get("__choice_command");
+        if (!stored || retained.get("__workflow_rejected") === "1")
+            return { href: props.commandHref, blocked: false };
+        const original = new URL(stored, window.location.href);
+        const current = new URL(props.commandHref, window.location.href);
+        const query = original.searchParams;
+        const valid =
+            stored.length <= 2048 &&
+            original.origin === window.location.origin &&
+            current.origin === window.location.origin &&
+            original.pathname === current.pathname &&
+            !original.hash &&
+            !original.username &&
+            !original.password &&
+            Array.from(query.keys()).every((key) =>
+                ["dialog", "display"].includes(key),
+            ) &&
+            query.getAll("dialog").length <= 1 &&
+            query.getAll("display").length <= 1 &&
+            (!query.has("dialog") || query.get("dialog") === "campaign") &&
+            (!query.has("display") ||
+                (query.get("dialog") === "campaign" &&
+                    query.get("display") === "dialog"));
+        return { href: valid ? stored : props.commandHref, blocked: !valid };
+    } catch {
+        return { href: props.commandHref, blocked: true };
+    }
+}
+
 function isDialogPage(
     value: unknown,
     current: ChoiceWorkflowProps,
@@ -624,11 +665,36 @@ export function ChoiceWorkflow(
     const ownRollId = useId();
     const [busyControl, setBusyControl] = useState<string | null>(null);
     const [arrivalRecovery] = useState(() => prepareArrivalRecovery(props));
+    const [command] = useState(() => recoveryCommand(props));
+    const [restoring, setRestoring] = useState(false);
+    const restoreRequested = useRef(false);
+    const reload = useCallback(() => {
+        if (restoreRequested.current) return;
+        restoreRequested.current = true;
+        setRestoring(true);
+        (initial.onReload ?? (() => window.location.reload()))();
+    }, [initial.onReload]);
+    useEffect(() => {
+        if (props.blocks === undefined) return;
+        const restore = (event: PageTransitionEvent) => {
+            if (event.persisted) reload();
+        };
+        window.addEventListener("pageshow", restore);
+        return () => window.removeEventListener("pageshow", restore);
+    }, [props.blocks, reload]);
     const submittedIntent = useRef("");
     const workflow = useWorkflowForm({
         ...props,
-        values: arrivalRecovery.values,
-        optionalRecoveryFields: ["summary"],
+        commandHref: command.href,
+        onReload: reload,
+        values:
+            props.blocks === undefined
+                ? {
+                      ...arrivalRecovery.values,
+                      __choice_command: props.commandHref,
+                  }
+                : arrivalRecovery.values,
+        optionalRecoveryFields: ["summary", "__choice_command"],
         initialConflict: props.terminal,
         interpret(status, data) {
             if (status === 200 && props.dialog && data.page !== undefined) {
@@ -685,12 +751,20 @@ export function ChoiceWorkflow(
     } catch {
         /* The server validates a retained selection before writing. */
     }
-    const frozen = workflow.frozen || arrivalRecovery.blocked;
+    const frozen =
+        workflow.frozen ||
+        arrivalRecovery.blocked ||
+        command.blocked ||
+        restoring;
     function update(name: string, value: string) {
         workflow.setValues((current) => ({ ...current, [name]: value }));
     }
     function save(event: FormEvent<HTMLFormElement>) {
-        if (arrivalRecovery.blocked) {
+        if (
+            arrivalRecovery.blocked ||
+            command.blocked ||
+            restoreRequested.current
+        ) {
             event.preventDefault();
             return;
         }
@@ -731,6 +805,7 @@ export function ChoiceWorkflow(
                 act: intent ?? (isArrivals ? "continue" : "choose"),
                 summary: summary || values.summary || "Save selected choices.",
             };
+            if (!isArrivals) next.__choice_command = props.commandHref;
             submittedIntent.current = next.act;
             if (intent === "choose" && thing) next.thing = thing;
             next.remove = intent === "remove" ? thing : "";
@@ -838,7 +913,7 @@ export function ChoiceWorkflow(
                 <Button
                     type="submit"
                     variant="success"
-                    disabled={workflow.pending}
+                    disabled={workflow.pending || restoring || command.blocked}
                 >
                     Retry save
                 </Button>
@@ -847,6 +922,7 @@ export function ChoiceWorkflow(
                 <Button
                     type="button"
                     variant="primary"
+                    disabled={restoring || command.blocked}
                     onClick={() => workflow.review(props.back)}
                 >
                     Return to gang
@@ -856,6 +932,7 @@ export function ChoiceWorkflow(
                 <Button
                     type="button"
                     variant="ghost"
+                    disabled={restoring || command.blocked}
                     onClick={() => {
                         if (formRef.current)
                             workflow.recoverAt(
@@ -938,6 +1015,12 @@ export function ChoiceWorkflow(
                     {message.text}
                 </Alert>
             ))}
+            {command.blocked && (
+                <Alert tone="error">
+                    The earlier save could not be restored here. Reopen the
+                    original choice to retry it.
+                </Alert>
+            )}
             {arrivalRecovery.blocked && (
                 <Alert tone="error">
                     Your browser could not restore these choices. Check this

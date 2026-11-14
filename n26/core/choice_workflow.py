@@ -162,6 +162,45 @@ def destination(gang, actor, op, slot_key, found, offer, *, here, back):
     return toward(gang, keys, back) if keys else back
 
 
+def _legacy_picker_replay(previous, payload, gang, slot_key, data):
+    """Recall old bodies across the two entry contexts of the same owned picker."""
+    from urllib.parse import parse_qsl, urlsplit
+
+    if "__choice_command" in data or not isinstance(previous, dict):
+        return False
+    context_fields = {"here", "campaign_dialog"}
+    if {key: value for key, value in previous.items() if key not in context_fields} != {
+        key: value for key, value in payload.items() if key not in context_fields
+    }:
+        return False
+    contexts = []
+    for candidate in (previous, payload):
+        here = candidate.get("here")
+        campaign = candidate.get("campaign_dialog")
+        if (
+            not isinstance(here, str)
+            or len(here) > 4096
+            or not isinstance(campaign, bool)
+        ):
+            return False
+        parts = urlsplit(here)
+        query_pairs = parse_qsl(parts.query, keep_blank_values=True)
+        query = dict(query_pairs)
+        if (
+            parts.scheme
+            or parts.netloc
+            or parts.fragment
+            or parts.path != reverse("n26-choose", args=[gang.pk, slot_key])
+            or len(query) != len(query_pairs)
+            or set(query) - {"return", "dialog"}
+            or query.pop("dialog", None) != ("campaign" if campaign else None)
+            or query.get("return") not in {None, candidate["back"]}
+        ):
+            return False
+        contexts.append(query)
+    return contexts[0] == contexts[1]
+
+
 def change(gang, actor, slot_key, data, *, here, back, campaign_dialog=False):
     """Apply one actor-bound command, retaining its canonical result atomically.
 
@@ -198,7 +237,12 @@ def change(gang, actor, slot_key, data, *, here, back, campaign_dialog=False):
                 gang=gang, request_key=values["request_key"]
             ).first()
             if previous is not None:
-                if previous.actor_id != actor.pk or previous.payload != payload:
+                if previous.actor_id != actor.pk or (
+                    previous.payload != payload
+                    and not _legacy_picker_replay(
+                        previous.payload, payload, gang, slot_key, data
+                    )
+                ):
                     raise Refusal(
                         "This form was already used for another choice. Reload the page."
                     )
@@ -358,7 +402,7 @@ def change(gang, actor, slot_key, data, *, here, back, campaign_dialog=False):
             result.message = stored["message"]
             result.next_url = stored["next_url"]
             result.facts = stored["facts"]
-            if result.replayed and result.next_url.startswith(here):
+            if result.replayed and result.next_url.startswith(previous.payload["here"]):
                 try:
                     find_slot(gang, slot_key)
                 except Http404:

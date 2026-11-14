@@ -126,6 +126,16 @@ def picker(
     recovery_href = with_query(
         here, recover="1", **({"roll": event.pk} if event else {})
     )
+    command_href = (
+        with_query(
+            reverse("n26-choice-command", args=[gang.pk, slot_key]),
+            dialog="campaign",
+            **({"display": "dialog"} if dialog else {}),
+        )
+        if request.GET.get("dialog") == "campaign"
+        else reverse("n26-choice-command", args=[gang.pk, slot_key])
+    )
+    values["__choice_command"] = command_href
     props = {
         "title": offer.label if offer else "Recover choice",
         "lead": found.slot.slot.introduction if found and found.slot.slot else "",
@@ -160,13 +170,7 @@ def picker(
         "values": values,
         "errors": dict(form.errors) if form.is_bound else {},
         "action": here,
-        "commandHref": with_query(
-            reverse("n26-choice-command", args=[gang.pk, slot_key]),
-            dialog="campaign",
-            **({"display": "dialog"} if dialog else {}),
-        )
-        if request.GET.get("dialog") == "campaign"
-        else reverse("n26-choice-command", args=[gang.pk, slot_key]),
+        "commandHref": command_href,
         "csrfToken": get_token(request),
         "recoveryKey": f"n26-choice:{request.user.pk}:{gang.pk}:{slot_key}",
         "arrivalRecoveryKey": f"n26-arrivals:{request.user.pk}:{gang.pk}",

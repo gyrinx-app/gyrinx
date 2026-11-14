@@ -1192,3 +1192,195 @@ test("a lost dialog save retries its exact command before issuing the next key",
     expect(screen.getByRole("dialog")).toBe(dialog);
     expect(sessionStorage.getItem(props.recoveryKey)).toBeNull();
 });
+
+test("a persisted arrival instance reloads updated nested drafts without saving its cached selections", async () => {
+    const original = arrivalFixture(["A", "B"]);
+    const reload = vi.fn();
+    const arrival = render(
+        <ChoiceWorkflow {...original} onNavigate={vi.fn()} onReload={reload} />,
+    );
+    const arrivalForm = arrival.container.querySelector("form")!;
+    for (const name of ["A for Vex", "B for Vex"])
+        await userEvent.click(
+            within(screen.getByRole("group", { name })).getByRole("radio"),
+        );
+    await userEvent.click(
+        screen.getByRole("link", { name: "Roll on its own page" }),
+    );
+    const fetch = vi.fn().mockResolvedValue(json({ nextUrl: original.action }));
+    vi.stubGlobal("fetch", fetch);
+    const nested = render(
+        <ChoiceWorkflow
+            {...props}
+            action="/roll-B/"
+            values={{ ...props.values, thing: "helmet" }}
+            offer={{
+                ...props.offer!,
+                takesSeveral: false,
+                groups: [
+                    {
+                        ...props.offer!.groups[0],
+                        options: [
+                            {
+                                ...props.offer!.groups[0].options[0],
+                                key: "helmet",
+                                name: "Helmet",
+                                current: false,
+                                control: "choose",
+                            },
+                        ],
+                    },
+                ],
+            }}
+            arrivalRecoveryKey={original.recoveryKey}
+            onNavigate={vi.fn()}
+        />,
+    );
+    await userEvent.click(
+        within(nested.container).getByRole("button", {
+            name: "Save",
+        }),
+    );
+    expect((fetch.mock.calls[0][1].body as URLSearchParams).get("thing")).toBe(
+        "helmet",
+    );
+    nested.unmount();
+    const draftKey = Array.from({ length: sessionStorage.length }, (_, i) =>
+        sessionStorage.key(i)!,
+    ).find((key) => key.startsWith(`${original.recoveryKey}:draft:`))!;
+    const updated = sessionStorage.getItem(draftKey)!;
+    expect(JSON.parse(new URLSearchParams(updated).get("selection")!)).toEqual({
+        A: "armour",
+    });
+    fireEvent(
+        window,
+        new PageTransitionEvent("pageshow", { persisted: false }),
+    );
+    expect(reload).not.toHaveBeenCalled();
+    fireEvent(window, new PageTransitionEvent("pageshow", { persisted: true }));
+    expect(reload).toHaveBeenCalledOnce();
+    expect(arrival.container.querySelector("form")).toBe(arrivalForm);
+    expect(
+        (screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement)
+            .disabled,
+    ).toBe(true);
+    fireEvent.submit(arrivalForm);
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(sessionStorage.getItem(draftKey)).toBe(updated);
+    expect(sessionStorage.getItem(original.recoveryKey)).toBeNull();
+});
+
+test("persisted arrival refresh preserves the exact unknown command and requests one reload", async () => {
+    const original = arrivalFixture(["A", "B"]);
+    const fetch = vi.fn().mockRejectedValue(new Error("lost"));
+    vi.stubGlobal("fetch", fetch);
+    const reload = vi.fn();
+    render(
+        <ChoiceWorkflow {...original} onNavigate={vi.fn()} onReload={reload} />,
+    );
+    for (const name of ["A for Vex", "B for Vex"])
+        await userEvent.click(
+            within(screen.getByRole("group", { name })).getByRole("radio"),
+        );
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    const retained = sessionStorage.getItem(original.recoveryKey);
+    expect(retained).toBeTruthy();
+    fireEvent(window, new PageTransitionEvent("pageshow", { persisted: true }));
+    expect(reload).toHaveBeenCalledOnce();
+    expect(sessionStorage.getItem(original.recoveryKey)).toBe(retained);
+    expect(
+        (
+            screen.getByRole("button", {
+                name: "Retry save",
+            }) as HTMLButtonElement
+        ).disabled,
+    ).toBe(true);
+    expect(
+        (
+            screen.getByRole("button", {
+                name: "Sign in again",
+            }) as HTMLButtonElement
+        ).disabled,
+    ).toBe(true);
+    expect(fetch).toHaveBeenCalledOnce();
+});
+
+test.each([false, true])(
+    "unknown picker retry retains its original campaign endpoint: campaign=%s",
+    async (campaign) => {
+        const plain = props.commandHref;
+        const dialog = `${plain}?dialog=campaign&display=dialog`;
+        const original = campaign ? dialog : plain;
+        const current = campaign ? plain : dialog;
+        const fetch = vi
+            .fn()
+            .mockRejectedValueOnce(new Error("lost response"))
+            .mockResolvedValueOnce(json({ nextUrl: "/confirmed/" }));
+        vi.stubGlobal("fetch", fetch);
+        const first = render(
+            <ChoiceWorkflow
+                {...props}
+                commandHref={original}
+                dialog={campaign}
+                onNavigate={vi.fn()}
+            />,
+        );
+        await userEvent.click(
+            screen.getByRole("button", { name: "Add Extra armour again" }),
+        );
+        const stored = sessionStorage.getItem(props.recoveryKey);
+        const originalBody = new URLSearchParams(fetch.mock.calls[0][1].body);
+        originalBody.delete("csrfmiddlewaretoken");
+        expect(originalBody.get("__choice_command")).toBe(original);
+        first.unmount();
+        const navigate = vi.fn();
+        render(
+            <ChoiceWorkflow
+                {...props}
+                commandHref={current}
+                dialog={!campaign}
+                csrfToken="rotated-context-token"
+                onNavigate={navigate}
+            />,
+        );
+        expect(sessionStorage.getItem(props.recoveryKey)).toBe(stored);
+        await userEvent.click(
+            screen.getByRole("button", { name: "Retry save" }),
+        );
+        expect(fetch.mock.calls[1][0]).toBe(original);
+        const retry = new URLSearchParams(fetch.mock.calls[1][1].body);
+        expect(retry.get("csrfmiddlewaretoken")).toBe("rotated-context-token");
+        retry.delete("csrfmiddlewaretoken");
+        expect(retry.toString()).toBe(originalBody.toString());
+        expect(navigate).toHaveBeenCalledWith("/confirmed/");
+        expect(sessionStorage.getItem(props.recoveryKey)).toBeNull();
+    },
+);
+
+test.each([
+    "https://outside.invalid/choices/command/",
+    "/another-gang/command/",
+    "/choices/command/?dialog=other",
+    "/choices/command/?display=dialog",
+    "/choices/command/?dialog=campaign&dialog=campaign",
+])(
+    "an unknown picker never sends retained input to an invalid command context %s",
+    async (endpoint) => {
+        const retained = new URLSearchParams({
+            ...props.values,
+            __choice_command: endpoint,
+        }).toString();
+        sessionStorage.setItem(props.recoveryKey, retained);
+        const fetch = vi.fn();
+        vi.stubGlobal("fetch", fetch);
+        render(<ChoiceWorkflow {...props} onNavigate={vi.fn()} />);
+        expect(
+            screen.getByText(/Reopen the original choice to retry it/),
+        ).toBeTruthy();
+        await userEvent.click(
+            screen.getByRole("button", { name: "Retry save" }),
+        );
+        expect(fetch).not.toHaveBeenCalled();
+        expect(sessionStorage.getItem(props.recoveryKey)).toBe(retained);
+    },
+);

@@ -759,3 +759,196 @@ def test_cached_native_pick_rejection_never_displays_an_unrelated_roll(
         LedgerEvent.objects.count(),
         ModelChoiceReceipt.objects.count(),
     ) == before
+
+
+@pytest.fixture
+def campaign_choice(choices, campaign_type):
+    from n26.tests.sandbox.actions import (
+        add_campaign_label,
+        found_campaign,
+        join_campaign,
+    )
+
+    campaign = found_campaign("Recovery campaign", campaign_type, owner=choices.owner)
+    label = add_campaign_label(campaign, "Recovery faction", ["Nomads", "Guild"])
+    join_campaign(choices.gang, campaign)
+    anchor = choices.gang.assignments.get(slot=label, archived=False)
+    key = f"gang:{anchor.pk}:{label.pk}"
+    return SimpleNamespace(gang=choices.gang, owner=choices.owner, key=key)
+
+
+@pytest.mark.parametrize("origin", ["plain", "campaign"])
+@pytest.mark.parametrize("transport", ["native", "json"])
+def test_legacy_unknown_picker_receipt_replays_from_the_other_entry_context(
+    client, campaign_choice, origin, transport
+):
+    data = campaign_choice
+    client.force_login(data.owner)
+    path = reverse("n26-choose", args=[data.gang.pk, data.key])
+    original = path + ("?dialog=campaign" if origin == "campaign" else "")
+    current = path + ("?dialog=campaign" if origin == "plain" else "")
+    page = client.get(original, HTTP_HX_REQUEST="true").context["choice_props"]
+    body = {
+        **page["values"],
+        "act": "choose",
+        "thing": page["offer"]["groups"][0]["options"][0]["key"],
+    }
+    body.pop("__choice_command")
+    committed = client.post(page["commandHref"], body)
+    assert committed.status_code == 200
+    original_next = committed.json()["nextUrl"]
+    receipt = ModelChoiceReceipt.objects.get(request_key=body["request_key"])
+    original_result = receipt.result
+    current_page = client.get(current, HTTP_HX_REQUEST="true").context["choice_props"]
+    before = (
+        Assignment.objects.count(),
+        LedgerEvent.objects.count(),
+        ModelChoiceReceipt.objects.count(),
+    )
+    recalled = client.post(
+        current if transport == "native" else current_page["commandHref"], body
+    )
+    assert recalled.status_code == (302 if transport == "native" else 200)
+    assert (
+        recalled.url if transport == "native" else recalled.json()["nextUrl"]
+    ) == original_next
+    assert (
+        Assignment.objects.count(),
+        LedgerEvent.objects.count(),
+        ModelChoiceReceipt.objects.count(),
+    ) == before
+    receipt.refresh_from_db()
+    assert receipt.result == original_result
+    assert len(find_slot(data.gang, data.key).slot.picks) == 1
+
+
+@pytest.mark.parametrize("changed", ["thing", "returning", "explicit-context", "owner"])
+def test_cross_context_legacy_replay_keeps_exact_business_scope_and_current_authority(
+    client, campaign_choice, changed
+):
+    data = campaign_choice
+    client.force_login(data.owner)
+    path = reverse("n26-choose", args=[data.gang.pk, data.key])
+    page = client.get(path + "?dialog=campaign", HTTP_HX_REQUEST="true").context[
+        "choice_props"
+    ]
+    options = page["offer"]["groups"][0]["options"]
+    body = {**page["values"], "act": "choose", "thing": options[0]["key"]}
+    body.pop("__choice_command")
+    assert client.post(page["commandHref"], body).status_code == 200
+    if changed == "thing":
+        body["thing"] = options[1]["key"]
+    elif changed == "returning":
+        body["returning"] = reverse("n26-edit-gang", args=[data.gang.pk])
+    elif changed == "explicit-context":
+        body["__choice_command"] = page["commandHref"]
+    else:
+        data.gang.owner = User.objects.create_user("transferred-campaign-choice-owner")
+        data.gang.save(update_fields=["owner"])
+    before = (
+        Assignment.objects.count(),
+        LedgerEvent.objects.count(),
+        ModelChoiceReceipt.objects.count(),
+    )
+    refused = client.post(
+        reverse("n26-choice-command", args=[data.gang.pk, data.key]), body
+    )
+    assert refused.status_code == (404 if changed == "owner" else 422)
+    assert (
+        Assignment.objects.count(),
+        LedgerEvent.objects.count(),
+        ModelChoiceReceipt.objects.count(),
+    ) == before
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        "//outside.invalid/choice/",
+        "/other-picker/",
+        "{path}?dialog=other",
+        "{path}?dialog=campaign&dialog=campaign",
+        "{path}?extra=value",
+    ],
+)
+def test_legacy_receipt_context_bridge_accepts_only_the_owned_picker_variants(
+    choices, invalid
+):
+    path = reverse("n26-choose", args=[choices.gang.pk, choices.key])
+    payload = {"here": path, "back": "/gang/", "campaign_dialog": False}
+    previous = {**payload, "here": invalid.format(path=path), "campaign_dialog": True}
+    assert not choice_workflow._legacy_picker_replay(
+        previous, payload, choices.gang, choices.key, {}
+    )
+
+
+def test_legacy_cross_context_replay_keeps_the_removed_choice_navigation_check(
+    client, choices
+):
+    client.force_login(choices.owner)
+    original = client.get(
+        reverse("n26-choose", args=[choices.gang.pk, choices.key])
+    ).context["choice_props"]
+    body = {**original["values"], "act": "enter", "rolled": "4"}
+    body.pop("__choice_command")
+    saved = client.post(original["commandHref"], body)
+    assert saved.status_code == 200
+    assert "roll=" in saved.json()["nextUrl"]
+    with operation(choices.gang, actor=choices.owner) as op:
+        op.remove(choices.anchor)
+    before = (
+        Assignment.objects.count(),
+        LedgerEvent.objects.count(),
+        ModelChoiceReceipt.objects.count(),
+    )
+    replay = client.post(
+        original["commandHref"] + "?dialog=campaign&display=dialog", body
+    )
+    assert replay.status_code == 200
+    assert replay.json()["nextUrl"] == reverse("n26-gang", args=[choices.gang.pk])
+    assert (
+        Assignment.objects.count(),
+        LedgerEvent.objects.count(),
+        ModelChoiceReceipt.objects.count(),
+    ) == before
+
+
+@pytest.mark.parametrize("origin", ["plain", "campaign"])
+def test_current_picker_display_values_replay_at_their_original_command_endpoint(
+    client, campaign_choice, origin
+):
+    from django.test import Client
+
+    data = campaign_choice
+    client = Client(enforce_csrf_checks=True)
+    client.force_login(data.owner)
+    path = reverse("n26-choose", args=[data.gang.pk, data.key])
+    original = path + ("?dialog=campaign" if origin == "campaign" else "")
+    page = client.get(original, HTTP_HX_REQUEST="true").context["choice_props"]
+    body = {
+        **page["values"],
+        "act": "choose",
+        "thing": page["offer"]["groups"][0]["options"][0]["key"],
+    }
+    assert body["__choice_command"] == page["commandHref"]
+    saved = client.post(
+        body["__choice_command"], body, HTTP_X_CSRFTOKEN=page["csrfToken"]
+    )
+    assert saved.status_code == 200
+    current = path + ("?dialog=campaign" if origin == "plain" else "")
+    fresh = client.get(current, HTTP_HX_REQUEST="true").context["choice_props"]
+    before = (
+        Assignment.objects.count(),
+        LedgerEvent.objects.count(),
+        ModelChoiceReceipt.objects.count(),
+    )
+    replay = client.post(
+        body["__choice_command"], body, HTTP_X_CSRFTOKEN=fresh["csrfToken"]
+    )
+    assert replay.status_code == 200
+    assert replay.json()["nextUrl"] == saved.json()["nextUrl"]
+    assert (
+        Assignment.objects.count(),
+        LedgerEvent.objects.count(),
+        ModelChoiceReceipt.objects.count(),
+    ) == before
