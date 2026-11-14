@@ -76,6 +76,34 @@ def test_setup_step_is_a_shareable_server_read(
     assert page["editor"]["context"]["setupStage"] == expected
 
 
+@pytest.mark.parametrize("json_read", [False, True])
+def test_setup_normalises_sparse_template_rewards_without_changing_the_template(
+    client, campaign, opened, template, json_read
+):
+    sparse = {"name": "Sparse opening", "rewards": {"win": {"reputation": 2}}}
+    template.definition["phases"][0]["details"] = sparse
+    template.clean()
+    template.save(update_fields=["definition"])
+
+    response = client.get(
+        editor_url(campaign, "setup"),
+        headers={"Accept": "application/json"} if json_read else {},
+    )
+    page = response.json()["schedule"] if json_read else props(response)
+    offered = next(
+        item for item in page["editor"]["templates"] if item["id"] == str(template.pk)
+    )
+    expected = s.PhaseDetails(
+        "Sparse opening", rewards=s.RewardSettings(win=s.Reward(reputation=2))
+    )
+    assert offered["definition"]["phases"][0]["details"] == asdict(expected)
+    assert offered["definition"]["steps"] == template.definition["steps"]
+    assert offered["name"] == template.name
+    template.refresh_from_db()
+    assert template.definition["phases"][0]["details"] == sparse
+    assert not CampaignSchedule.objects.filter(campaign=campaign).exists()
+
+
 def test_dashboard_groups_cycle_information_and_management_menu(
     client, campaign, configured
 ):

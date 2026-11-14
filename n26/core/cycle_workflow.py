@@ -20,6 +20,7 @@ from n26.core.cycle_data import (
     ref_from_data,
     steps_from_data,
     template_data,
+    template_from_data,
 )
 from n26.core.cycle_display import editor_url, schedule_url
 from n26.core.fields import to_ulid
@@ -700,7 +701,11 @@ def editor_props(
         "initialConflict": conflict,
         "current": current,
         "templates": [
-            {"id": str(t.pk), "name": t.name, "definition": t.definition}
+            {
+                "id": str(t.pk),
+                "name": t.name,
+                "definition": template_data(template_from_data(t.name, t.definition)),
+            }
             for t in cycles.templates_for(actor)
         ]
         if prepared.action == "setup"

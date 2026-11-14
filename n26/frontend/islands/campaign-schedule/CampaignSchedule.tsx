@@ -265,6 +265,7 @@ function PhaseGroup({
                                 label={`More actions for ${phase.name}`}
                                 items={availableActions}
                                 variant="ghost"
+                                trigger="inline-chevron"
                                 align="end"
                             />
                         ) : undefined

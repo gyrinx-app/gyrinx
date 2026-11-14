@@ -57,58 +57,74 @@ export function PhaseSummary({
     status?: ReactNode;
 }) {
     const rewardSummary = rewards ? rewardsText(rewards) : "";
+    const hasHeader = Boolean(
+        showName ||
+        count !== undefined ||
+        rewardSummary ||
+        effects ||
+        actions ||
+        status,
+    );
+    if (!hasHeader && !description) return null;
     return (
         <div className="min-w-0 w-full">
-            <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
-                    {showName && (
-                        <h3
-                            id={headingId}
-                            aria-label={
-                                number === undefined
-                                    ? undefined
-                                    : `Phase ${number}: ${name}`
-                            }
-                            className="font-medium [overflow-wrap:anywhere]"
-                        >
-                            {number !== undefined && (
-                                <span className="text-muted">{number}. </span>
+            {hasHeader && (
+                <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-h-7 min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                        {showName && (
+                            <h3
+                                id={headingId}
+                                aria-label={
+                                    number === undefined
+                                        ? undefined
+                                        : `Phase ${number}: ${name}`
+                                }
+                                className="text-sm leading-7 font-semibold [overflow-wrap:anywhere]"
+                            >
+                                {number !== undefined && (
+                                    <span className="text-muted">
+                                        {number}.{" "}
+                                    </span>
+                                )}
+                                {name}
+                            </h3>
+                        )}
+                        {status}
+                        {count !== undefined && (
+                            <span className="text-xs text-muted">
+                                {count}{" "}
+                                {countLabel ??
+                                    (count === 1 ? "cycle" : "cycles")}
+                            </span>
+                        )}
+                        {rewardSummary && (
+                            <span className="text-xs text-muted">
+                                {rewardSummary}
+                            </span>
+                        )}
+                    </div>
+                    {(effects || actions) && (
+                        <div className="flex min-h-7 shrink-0 items-center gap-2 text-xs text-muted">
+                            {effects && (
+                                <HelpPopover
+                                    label={`Effects for ${name}`}
+                                    triggerContent="Effects"
+                                    clampHeight
+                                >
+                                    <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
+                                        {effects}
+                                    </p>
+                                </HelpPopover>
                             )}
-                            {name}
-                        </h3>
-                    )}
-                    {status}
-                    {count !== undefined && (
-                        <span className="text-xs text-muted">
-                            {count}{" "}
-                            {countLabel ?? (count === 1 ? "cycle" : "cycles")}
-                        </span>
-                    )}
-                    {rewardSummary && (
-                        <span className="text-xs text-muted">
-                            {rewardSummary}
-                        </span>
+                            {actions}
+                        </div>
                     )}
                 </div>
-                {(effects || actions) && (
-                    <div className="flex shrink-0 items-center gap-2">
-                        {effects && (
-                            <HelpPopover
-                                label={`Effects for ${name}`}
-                                triggerContent="Effects"
-                                clampHeight
-                            >
-                                <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
-                                    {effects}
-                                </p>
-                            </HelpPopover>
-                        )}
-                        {actions}
-                    </div>
-                )}
-            </div>
+            )}
             {description && (
-                <p className="mt-1 whitespace-pre-wrap text-sm text-muted [overflow-wrap:anywhere]">
+                <p
+                    className={`${hasHeader ? "mt-1 " : ""}whitespace-pre-wrap text-sm text-muted [overflow-wrap:anywhere]`}
+                >
                     {description}
                 </p>
             )}

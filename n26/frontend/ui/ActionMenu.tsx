@@ -262,6 +262,7 @@ export function ActionMenu({
                                 role="menuitem"
                                 tabIndex={-1}
                                 href={item.href}
+                                data-busy-id={busyProps["data-busy-id"]}
                                 className={
                                     item.tone === "danger"
                                         ? cotton.actionMenu.itemDanger

@@ -102,7 +102,7 @@ const json = (schedule: ScheduleProps) => ({
     json: async () => ({ schedule, notices: [] }),
 });
 
-test("the phase menu opens the phase editor through React navigation", async () => {
+test("the phase menu keeps its trigger busy while React navigation loads the editor", async () => {
     const initial = data();
     const phase = initial.phases[0];
     const phaseEditor: Editor = {
@@ -123,14 +123,33 @@ test("the phase menu opens the phase editor through React navigation", async () 
             rewards: JSON.stringify(phase.rewards),
         },
     };
-    const fetch = vi.fn().mockResolvedValueOnce(json(data(phaseEditor)));
+    let finish!: (value: ReturnType<typeof json>) => void;
+    const slow = new Promise<ReturnType<typeof json>>((resolve) => {
+        finish = resolve;
+    });
+    const fetch = vi.fn().mockReturnValueOnce(slow);
     vi.stubGlobal("fetch", fetch);
     render(<CampaignSchedule {...initial} />);
-    await userEvent.click(
-        screen.getByRole("button", { name: "More actions for Occupation" }),
-    );
+    const trigger = screen.getByRole("button", {
+        name: "More actions for Occupation",
+    });
+    await userEvent.click(trigger);
     await userEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(trigger.getAttribute("aria-busy")).toBe("true");
+    expect(trigger.getAttribute("data-busy")).toBe("on");
+    expect(trigger).toHaveProperty("disabled", true);
+    expect(
+        screen.queryByRole("heading", { name: "Edit phase", level: 1 }),
+    ).toBeNull();
+    expect(
+        screen
+            .getByRole("link", { name: "Settings" })
+            .hasAttribute("aria-busy"),
+    ).toBe(false);
+    await act(async () => finish(json(data(phaseEditor))));
     await screen.findByRole("heading", { name: "Edit phase", level: 1 });
+    expect(trigger.isConnected).toBe(false);
     expect(window.location.pathname + window.location.search).toBe(
         phase.editHref,
     );
