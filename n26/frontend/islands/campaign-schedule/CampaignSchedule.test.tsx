@@ -113,7 +113,7 @@ test("consecutive phase groups preserve repeated occurrences and the saved cycle
         "cycle-saved-4",
     ]);
     const occupation = screen.getAllByRole("region", {
-        name: "Occupation",
+        name: "Phase 1: Occupation",
     });
     expect(occupation).toHaveLength(2);
     expect(within(occupation[0]).queryByText("Current phase")).toBeNull();
@@ -163,7 +163,7 @@ test("phase rules and configured rewards sit above their cycle rows", () => {
     };
     render(<CampaignSchedule {...value} />);
     const group = screen.getAllByRole("region", {
-        name: "Occupation",
+        name: "Phase 1: Occupation",
     })[0];
     expect(within(group).getByText("Occupation rules.")).not.toBeNull();
     expect(
@@ -176,7 +176,7 @@ test("phase rules and configured rewards sit above their cycle rows", () => {
     ).not.toBeNull();
 });
 
-test("timeline phase headings are read-only and cycle details expand in place", async () => {
+test("cycle details expand in place beside phase action menus", async () => {
     const value = props();
     value.focusId = "saved-3";
     value.rows[2].effects = "Recover equipment after this cycle.";
@@ -193,9 +193,79 @@ test("timeline phase headings are read-only and cycle details expand in place", 
             .closest("details")?.open,
     ).toBe(true);
     expect(
-        screen.queryByRole("button", { name: "More actions for Downtime" }),
-    ).toBeNull();
+        screen.getByRole("button", { name: "More actions for Downtime" }),
+    ).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Edit Downtime" })).toBeNull();
+});
+
+test("phase menus offer direct edit links and only the supplied management actions", async () => {
+    const value = props();
+    value.phases[0].deleteHref = "/phase/occupation/delete/";
+    render(<CampaignSchedule {...value} />);
+    const group = screen.getAllByRole("region", {
+        name: "Phase 1: Occupation",
+    })[0];
+    await userEvent.click(
+        within(group).getByRole("button", {
+            name: "More actions for Occupation",
+        }),
+    );
+    const menu = within(group).getByRole("menu");
+    expect(
+        within(menu)
+            .getByRole("menuitem", { name: "Edit" })
+            .getAttribute("href"),
+    ).toBe("/phase/occupation/edit/");
+    expect(
+        within(menu)
+            .getByRole("menuitem", { name: "Duplicate" })
+            .getAttribute("href"),
+    ).toBe("/phase/occupation/duplicate/");
+    expect(
+        within(menu)
+            .getByRole("menuitem", { name: "Delete" })
+            .getAttribute("href"),
+    ).toBe("/phase/occupation/delete/");
+    expect(within(menu).getByRole("separator")).toBeTruthy();
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(
+        screen.getByRole("button", { name: "More actions for Downtime" }),
+    );
+    expect(screen.queryByRole("menuitem", { name: "Delete" })).toBeNull();
+});
+
+test("phase numbers remain stable across repeated groups and use the full phase list", () => {
+    const value = props();
+    value.phases[0].number = 4;
+    value.phases[1].number = 7;
+    render(<CampaignSchedule {...value} />);
+    expect(
+        screen.getAllByRole("heading", { name: "Phase 4: Occupation" }),
+    ).toHaveLength(2);
+    expect(
+        screen.getByRole("heading", { name: "Phase 7: Downtime" }),
+    ).toBeTruthy();
+    expect(
+        screen.getByRole("link", { name: "Settings" }).getAttribute("href"),
+    ).toBe("/plan/");
+});
+
+test("readers can open phase effects without receiving phase management actions", async () => {
+    const value = props();
+    value.canManage = false;
+    value.rows = value.rows.map((row) => ({ ...row, editHref: "" }));
+    value.phases[1].effects = "Recover equipment at the end of the phase.";
+    render(<CampaignSchedule {...value} />);
+    expect(
+        screen.queryByRole("button", { name: /More actions for/ }),
+    ).toBeNull();
+    await userEvent.click(
+        screen.getByRole("button", { name: "Effects for Downtime" }),
+    );
+    expect(
+        screen.getByRole("dialog", { name: "Effects for Downtime" })
+            .textContent,
+    ).toContain(value.phases[1].effects);
 });
 
 test("readers retain the grouped rules without management controls", () => {

@@ -72,7 +72,7 @@ HEADINGS = {
     "duplicate-phase": "Duplicate phase",
     "delete-phase": "Delete phase",
     "delete-cycle": "Delete cycle",
-    "plan": "Phase and schedule settings",
+    "plan": "Settings",
     "start": "Start campaign",
     "advance": "Advance cycle",
     "finish": "Finish campaign",
@@ -217,7 +217,7 @@ def prepare(campaign, action, query):
             cycle_unit="weeks",
             date_mode="manual",
         )
-        lead = "Choose the current cycle and add planning dates if you need them. You advance each cycle when the campaign is ready."
+        lead = "Choose phases and plan their cycles."
         context["activates"] = campaign.status == "in_progress"
     elif action in ("cycle", "delete-cycle"):
         if query.get("fields") not in (None, "dates"):

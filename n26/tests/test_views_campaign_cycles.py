@@ -1105,6 +1105,9 @@ class TestDisplayReads:
         assert len(large.rows) == 50
         assert large.nextHref and not large.moreHref
         second = build(campaign, reader, page=2)
+        assert [(phase["id"], phase["number"]) for phase in second.phases] == [
+            (phase["id"], phase["number"]) for phase in large.phases
+        ]
         assert len([row for row in second.rows if row.state == "Saved future"]) == 11
         assert second.moreHref
 
@@ -1618,7 +1621,7 @@ def test_phase_management_returns_to_settings(
     assert saved.status_code == (302 if native else 200)
     assert (saved.url if native else saved.json()["nextUrl"]) == settings
     returned = props(client.get(settings))
-    assert returned["editor"]["heading"] == "Phase and schedule settings"
+    assert returned["editor"]["heading"] == "Settings"
     assert (
         int(returned["editor"]["values"]["expected_revision"])
         == configured.revision + 1
@@ -1631,6 +1634,7 @@ def test_settings_exposes_all_active_phases_with_actions(client, campaign, confi
     assert {phase["id"] for phase in page["phases"]} == {
         phase.id for phase in configured.phases
     }
+    assert [phase["number"] for phase in page["phases"]] == [1, 2, 3]
     assert page["actions"]["addPhase"] == editor_url(campaign, "add-phase")
     assert all(
         phase["editHref"] and phase["duplicateHref"] and phase["deleteHref"]

@@ -13,7 +13,7 @@ const steps = [
 ];
 const phases = [{ id: "opening" }, { id: "downtime" }] as Phase[];
 const editor: Editor = {
-    heading: "Phase and schedule settings",
+    heading: "Settings",
     lead: "",
     context: { savedStepCounts: {} },
     initialConflict: false,

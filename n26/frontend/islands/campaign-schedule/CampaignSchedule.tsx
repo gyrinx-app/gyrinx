@@ -1,5 +1,6 @@
 import {
-    ActionBar,
+    ActionMenu,
+    type ActionMenuItem,
     Alert,
     Badge,
     BusyControlScope,
@@ -13,23 +14,16 @@ import {
 } from "../../ui";
 import { ScheduleEditor } from "./ScheduleEditor";
 import { useScheduleNavigation } from "./useScheduleNavigation";
+import { PhaseSummary } from "./PhaseSummary";
 import {
     isPageEditor,
     isPhaseEditor,
-    type Credits,
     type Cycle,
     type Phase,
     type ScheduleProps,
 } from "./types";
 
-export function creditsText(amount: Credits | undefined) {
-    if (!amount) return "0¢";
-    const dice = amount.dice;
-    const expression = dice
-        ? `${dice.count}D${dice.sides}${dice.multiplier !== 1 ? ` × ${dice.multiplier}` : ""}`
-        : "";
-    return `${expression}${expression && amount.fixed ? " + " : ""}${amount.fixed || !expression ? amount.fixed : ""}¢`;
-}
+export { creditsText } from "./PhaseSummary";
 
 function dateText(value: string) {
     return new Date(
@@ -213,70 +207,70 @@ function CycleRow({ cycle }: { cycle: Cycle }) {
     );
 }
 
-function phaseRewards(phase: Phase) {
-    const rewards: string[] = [];
-    for (const outcome of ["win", "draw", "loss"] as const) {
-        const reward = phase.rewards[outcome];
-        if (!reward) continue;
-        const amounts: string[] = [];
-        if (reward.credits.fixed || reward.credits.dice)
-            amounts.push(creditsText(reward.credits));
-        if (reward.reputation) amounts.push(`${reward.reputation} reputation`);
-        if (amounts.length)
-            rewards.push(
-                `${{ win: "Win", draw: "Draw", loss: "Loss" }[outcome]}: ${amounts.join(", ")}`,
-            );
-    }
-    const entry = phase.rewards.entry_credits;
-    if (entry?.fixed || entry?.dice)
-        rewards.push(`Phase entry: ${creditsText(entry)}`);
-    return rewards.join(" · ");
-}
-
 function PhaseGroup({
     phase,
+    number,
     cycles,
     anchor,
+    canManage,
 }: {
     phase: Phase;
+    number: number;
     cycles: Cycle[];
     anchor: boolean;
+    canManage: boolean;
 }) {
     const heading = `phase-heading-${cycles[0]?.key ?? phase.id}`;
-    const rewards = phaseRewards(phase);
+    const actions: ActionMenuItem[] = [
+        {
+            label: "Edit",
+            href: phase.editHref,
+            tone: "default",
+            separatorBefore: false,
+        },
+        {
+            label: "Duplicate",
+            href: phase.duplicateHref,
+            tone: "default",
+            separatorBefore: false,
+        },
+        {
+            label: "Delete",
+            href: phase.deleteHref,
+            tone: "danger",
+            separatorBefore: !!(phase.editHref || phase.duplicateHref),
+        },
+    ];
+    const availableActions = actions.filter((action) => action.href);
     return (
         <section
             id={anchor ? `phase-${phase.id}` : undefined}
             aria-labelledby={heading}
             className="space-y-2"
         >
-            <ActionBar surface={false} spaced={false} className="px-1">
-                <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <h3 id={heading} className="font-semibold">
-                            {phase.name}
-                        </h3>
-                        {cycles.some((cycle) => cycle.state === "Current") && (
+            <div className="px-1">
+                <PhaseSummary
+                    {...phase}
+                    number={number}
+                    count={cycles.length}
+                    headingId={heading}
+                    status={
+                        cycles.some((cycle) => cycle.state === "Current") ? (
                             <Badge color="amber">Current phase</Badge>
-                        )}
-                        <span className="text-xs text-muted">
-                            {cycles.length}{" "}
-                            {cycles.length === 1 ? "cycle" : "cycles"}
-                        </span>
-                    </div>
-                    {phase.description && (
-                        <p className="mt-1 whitespace-pre-wrap text-sm text-muted">
-                            {phase.description}
-                        </p>
-                    )}
-                    {rewards && <p className="mt-1 text-xs">{rewards}</p>}
-                    {phase.effects && (
-                        <p className="mt-1 whitespace-pre-wrap text-sm">
-                            {phase.effects}
-                        </p>
-                    )}
-                </div>
-            </ActionBar>
+                        ) : undefined
+                    }
+                    actions={
+                        canManage && availableActions.length > 0 ? (
+                            <ActionMenu
+                                label={`More actions for ${phase.name}`}
+                                items={availableActions}
+                                variant="ghost"
+                                align="end"
+                            />
+                        ) : undefined
+                    }
+                />
+            </div>
             {cycles.length ? (
                 <Card>
                     <div className="-m-4 overflow-hidden rounded-box">
@@ -345,7 +339,7 @@ function ScheduleContent(
                             ...(isPhaseEditor(props.editor)
                                 ? [
                                       {
-                                          label: "Phase and schedule settings",
+                                          label: "Settings",
                                           href: props.editor.back,
                                       },
                                   ]
@@ -410,7 +404,7 @@ function ScheduleContent(
                 <div className="flex flex-wrap gap-2">
                     {props.actions.plan && (
                         <ButtonLink href={props.actions.plan} size="sm">
-                            Phase and schedule settings
+                            Settings
                         </ButtonLink>
                     )}
                     {props.actions.transition && (
@@ -451,7 +445,7 @@ function ScheduleContent(
                     {!props.phases.length && (
                         <p className="text-sm text-muted">
                             No phases in this schedule. Add a phase, then choose
-                            its cycles in Schedule settings.
+                            its cycles in Settings.
                         </p>
                     )}
                     <div className="space-y-4">
@@ -459,6 +453,13 @@ function ScheduleContent(
                             <PhaseGroup
                                 key={group.cycles[0]?.key ?? group.phase.id}
                                 {...group}
+                                number={
+                                    group.phase.number ??
+                                    props.phases.findIndex(
+                                        (phase) => phase.id === group.phase.id,
+                                    ) + 1
+                                }
+                                canManage={props.canManage}
                             />
                         ))}
                     </div>

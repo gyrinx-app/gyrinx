@@ -102,6 +102,48 @@ const json = (schedule: ScheduleProps) => ({
     json: async () => ({ schedule, notices: [] }),
 });
 
+test("the phase menu opens the phase editor through React navigation", async () => {
+    const initial = data();
+    const phase = initial.phases[0];
+    const phaseEditor: Editor = {
+        ...editor,
+        kind: "phase",
+        heading: "Edit phase",
+        action: phase.editHref,
+        commandHref: base + "commands/phase/?phase=phase",
+        recoveryKey: "phase:user:campaign:phase",
+        back: base + "edit/plan/",
+        values: {
+            request_key: "phase-key",
+            expected_revision: "1",
+            phase_id: phase.id,
+            name: phase.name,
+            description: "",
+            effects: "",
+            rewards: JSON.stringify(phase.rewards),
+        },
+    };
+    const fetch = vi.fn().mockResolvedValueOnce(json(data(phaseEditor)));
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...initial} />);
+    await userEvent.click(
+        screen.getByRole("button", { name: "More actions for Occupation" }),
+    );
+    await userEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+    await screen.findByRole("heading", { name: "Edit phase", level: 1 });
+    expect(window.location.pathname + window.location.search).toBe(
+        phase.editHref,
+    );
+    expect(screen.getByLabelText("Phase name")).toHaveProperty(
+        "value",
+        "Occupation",
+    );
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch.mock.calls[0][1].headers).toEqual({
+        Accept: "application/json",
+    });
+});
+
 test.each([
     ["2026-11-01", "", "1 Nov 2026", "End date not set"],
     ["", "2026-11-07", "7 Nov 2026", "Start date not set"],
@@ -464,7 +506,7 @@ test("a later editor request supersedes an earlier slow response", async () => {
     const plan = {
         ...editor,
         kind: "plan",
-        heading: "Phase and schedule settings",
+        heading: "Settings",
         values: {
             request_key: "plan-key",
             expected_revision: "1",
@@ -479,12 +521,10 @@ test("a later editor request supersedes an earlier slow response", async () => {
     vi.stubGlobal("fetch", fetch);
     render(<CampaignSchedule {...data()} />);
     fireEvent.click(screen.getByRole("link", { name: "Edit Cycle 1" }));
-    await userEvent.click(
-        screen.getByRole("link", { name: "Phase and schedule settings" }),
-    );
+    await userEvent.click(screen.getByRole("link", { name: "Settings" }));
     await screen.findByRole("heading", {
         level: 1,
-        name: "Phase and schedule settings",
+        name: "Settings",
     });
     expect(screen.queryByRole("dialog")).toBeNull();
     await act(async () => finish(json(data(editor))));
@@ -492,7 +532,7 @@ test("a later editor request supersedes an earlier slow response", async () => {
     expect(fetch.mock.calls[0][1].signal.aborted).toBe(true);
 });
 
-test("Phase and schedule settings uses a full page and keeps loading inside its trigger", async () => {
+test("Settings uses a full page and keeps loading inside its trigger", async () => {
     let finish!: (value: ReturnType<typeof json>) => void;
     const slow = new Promise<ReturnType<typeof json>>((resolve) => {
         finish = resolve;
@@ -500,7 +540,7 @@ test("Phase and schedule settings uses a full page and keeps loading inside its 
     const plan = {
         ...editor,
         kind: "plan",
-        heading: "Phase and schedule settings",
+        heading: "Settings",
         action: base + "edit/plan/",
         values: {
             request_key: "plan-key",
@@ -517,7 +557,7 @@ test("Phase and schedule settings uses a full page and keeps loading inside its 
     render(<CampaignSchedule {...data()} />);
     const row = document.getElementById("cycle-one")!;
     const trigger = screen.getByRole("link", {
-        name: "Phase and schedule settings",
+        name: "Settings",
     });
     await userEvent.click(trigger);
     expect(trigger.getAttribute("aria-busy")).toBe("true");
@@ -528,7 +568,7 @@ test("Phase and schedule settings uses a full page and keeps loading inside its 
     await act(async () => finish(json(data(plan))));
     const heading = await screen.findByRole("heading", {
         level: 1,
-        name: "Phase and schedule settings",
+        name: "Settings",
     });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(row.isConnected).toBe(false);
@@ -733,7 +773,7 @@ test("a failed page read keeps the viewport until the destination is loaded", as
     const plan = {
         ...editor,
         kind: "plan",
-        heading: "Phase and schedule settings",
+        heading: "Settings",
         action: base + "edit/plan/",
         values: {
             request_key: "plan-key",
@@ -748,15 +788,13 @@ test("a failed page read keeps the viewport until the destination is loaded", as
         .mockResolvedValueOnce(json(data(plan)));
     vi.stubGlobal("fetch", fetch);
     render(<CampaignSchedule {...data()} />);
-    await userEvent.click(
-        screen.getByRole("link", { name: "Phase and schedule settings" }),
-    );
+    await userEvent.click(screen.getByRole("link", { name: "Settings" }));
     await screen.findByRole("alert");
     expect(window.scrollTo).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
     await screen.findByRole("heading", {
         level: 1,
-        name: "Phase and schedule settings",
+        name: "Settings",
     });
     await waitFor(() =>
         expect(window.scrollTo).toHaveBeenCalledExactlyOnceWith({
@@ -773,7 +811,7 @@ test("Back restores saved coordinates after an asynchronous destination replaces
     const plan = {
         ...editor,
         kind: "plan",
-        heading: "Phase and schedule settings",
+        heading: "Settings",
         action: base + "edit/plan/",
         values: {
             request_key: "plan-key",
@@ -792,12 +830,10 @@ test("Back restores saved coordinates after an asynchronous destination replaces
         .mockReturnValueOnce(slow);
     vi.stubGlobal("fetch", fetch);
     render(<CampaignSchedule {...data()} />);
-    await userEvent.click(
-        screen.getByRole("link", { name: "Phase and schedule settings" }),
-    );
+    await userEvent.click(screen.getByRole("link", { name: "Settings" }));
     await screen.findByRole("heading", {
         level: 1,
-        name: "Phase and schedule settings",
+        name: "Settings",
     });
     await waitFor(() => expect(window.scrollTo).toHaveBeenCalledOnce());
     const source = replace.mock.calls.find(
@@ -815,7 +851,7 @@ test("Back restores saved coordinates after an asynchronous destination replaces
     expect(
         screen.getByRole("heading", {
             level: 1,
-            name: "Phase and schedule settings",
+            name: "Settings",
         }),
     ).toBeTruthy();
     await act(async () => finish(json(data())));
@@ -833,7 +869,7 @@ function settingsEditor(revision = "1"): Editor {
     return {
         ...editor,
         kind: "plan",
-        heading: "Phase and schedule settings",
+        heading: "Settings",
         action: base + "edit/plan/",
         commandHref: base + "commands/plan/",
         recoveryKey: "plan:user:campaign",
@@ -902,9 +938,8 @@ test("phase edits return to settings with its draft and fresh revision, key and 
     ).toBe(initial.actions.addPhase);
     await userEvent.clear(screen.getByLabelText("Step 1 cycles"));
     await userEvent.type(screen.getByLabelText("Step 1 cycles"), "7");
-    await userEvent.selectOptions(
-        screen.getByLabelText("Planning mode"),
-        "repeating",
+    await userEvent.click(
+        screen.getByRole("radio", { name: /^Repeating pattern/ }),
     );
     await userEvent.click(
         screen.getByRole("link", { name: "Edit Occupation" }),
@@ -920,10 +955,9 @@ test("phase edits return to settings with its draft and fresh revision, key and 
     await screen.findByRole("heading", { level: 1, name: settings.heading });
     expect(window.location.pathname).toBe(settings.action);
     expect(screen.getByLabelText("Step 1 cycles")).toHaveProperty("value", "7");
-    expect(screen.getByLabelText("Planning mode")).toHaveProperty(
-        "value",
-        "repeating",
-    );
+    expect(
+        screen.getByRole("radio", { name: /^Repeating pattern/ }),
+    ).toHaveProperty("checked", true);
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByRole("heading", { level: 1, name: "Phases & cycles" });
     const payload = fetch.mock.calls[3][1].body as URLSearchParams;
@@ -1097,9 +1131,8 @@ test.each(["fixed", "repeating"])(
         window.history.replaceState(null, "", settings.action);
         render(<CampaignSchedule {...initial} />);
         if (repeating)
-            await userEvent.selectOptions(
-                screen.getByLabelText("Planning mode"),
-                "fixed",
+            await userEvent.click(
+                screen.getByRole("radio", { name: /^Fixed plan/ }),
             );
         const count = screen.getByLabelText(
             repeating ? "Step 1 cycles" : "Step 2 cycles",
