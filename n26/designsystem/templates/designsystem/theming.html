@@ -1,19 +1,9 @@
-{% extends "designsystem/base.html" %}
+{% extends "designsystem/page.html" %}
 {% load static %}
-{% block title %}Theming{% endblock %}
-{% block mobile_title %}Theming{% endblock %}
-{% block content %}
-    <div class="mx-auto max-w-4xl" x-data="themePresets({{ presets_json }})">
-        <header class="mb-10">
-            <h1 class="text-3xl font-semibold sm:text-4xl">Theming</h1>
-            <p class="mt-3 max-w-2xl text-lg text-muted">
-                Cotton UI is themed entirely by CSS custom properties, so a theme is a short block
-                of variable overrides rather than a rebuild. Pick a preset below and the whole
-                gallery changes — this page included.
-            </p>
-        </header>
-        <section class="mb-14">
-            <h2 class="text-xl font-semibold">Presets</h2>
+{% block page_content %}
+    <div class="space-y-8" x-data="themePresets({{ presets_json }})">
+        <section class="space-y-3">
+            <h2 class="text-lg font-semibold">Presets</h2>
             <p class="mb-5 mt-1 text-sm text-muted">
                 These drive the kit's own theme builder — the paintbrush in the bottom-right corner —
                 rather than being a second, competing set of controls. So a preset is a starting
@@ -50,8 +40,8 @@
                       class="text-sm text-muted">Theme builder not found on this page.</span>
             </div>
         </section>
-        <section class="mb-14">
-            <h2 class="text-xl font-semibold">Specimen</h2>
+        <section class="space-y-3">
+            <h2 class="text-lg font-semibold">Specimen</h2>
             <p class="mb-5 mt-1 text-sm text-muted">
                 A palette is hard to judge on a row of swatches. This is a small, dense screen using
                 most of the kit at once — the thing to look at when deciding whether a theme works.
@@ -201,8 +191,8 @@
                 </div>
             </div>
         </section>
-        <section class="mb-14">
-            <h2 class="text-xl font-semibold">The four buckets</h2>
+        <section class="space-y-3">
+            <h2 class="text-lg font-semibold">The four buckets</h2>
             <p class="mb-6 mt-1 text-sm text-muted">
                 Everything themeable falls into one of four groups. Values below are read live from
                 this page, so they reflect the theme you have applied and the mode you are in.

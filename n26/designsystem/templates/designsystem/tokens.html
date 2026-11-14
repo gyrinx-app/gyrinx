@@ -1,25 +1,14 @@
-{% extends "designsystem/base.html" %}
+{% extends "designsystem/page.html" %}
 {% load designsystem %}
-{% block title %}Tokens{% endblock %}
-{% block mobile_title %}Tokens{% endblock %}
-{% block content %}
-    <div class="mx-auto max-w-4xl" x-data="tokenTable()">
-        <header class="mb-8">
-            <h1 class="text-3xl font-semibold sm:text-4xl">Tokens</h1>
-            <p class="mt-3 max-w-2xl text-lg text-muted">
-                Every custom property the kit reads, with the value it currently resolves to and the
-                Tailwind utility it generates. Values are read from this page as you look at them, so
-                switching mode or applying a theme updates the whole table.
-            </p>
-            <p class="mt-3 text-sm text-muted">
-                Currently showing <span class="font-medium text-accent"
-       x-text="isDark ? 'dark' : 'light'">light</span> mode.
-            </p>
-        </header>
+{% block page_content %}
+    <div class="space-y-8" x-data="tokenTable()">
+        <p class="mb-6 text-sm text-muted">
+            Currently showing <span class="font-medium" x-text="isDark ? 'dark' : 'light'">light</span> mode.
+        </p>
         <div class="space-y-10">
             {% for bucket in buckets %}
                 <section>
-                    <h2 class="text-xl font-semibold">{{ bucket.name }}</h2>
+                    <h2 class="text-lg font-semibold">{{ bucket.name }}</h2>
                     <p class="mb-4 mt-1 max-w-3xl text-sm text-muted">{{ bucket.blurb }}</p>
                     <div class="overflow-x-auto rounded-box border border-box-border">
                         <table class="w-full text-left text-sm">
@@ -62,7 +51,7 @@
             {% endfor %}
         </div>
         <section class="mt-14">
-            <h2 class="text-xl font-semibold">Type specimen</h2>
+            <h2 class="text-lg font-semibold">Type specimen</h2>
             <p class="mb-4 mt-1 max-w-3xl text-sm text-muted">
                 Mynor is a single variable face covering 300 to 900, so every weight below is
                 the same file — asking for

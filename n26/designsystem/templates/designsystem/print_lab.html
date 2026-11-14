@@ -1,19 +1,5 @@
-{% extends "designsystem/base.html" %}
-{% block title %}Print lab{% endblock %}
-{% block mobile_title %}Print lab{% endblock %}
-{% block content %}
-    {# Every control is a GET parameter, so the address bar always holds the current state and a configuration that shows a bug can be sent to somebody. #}
-    <div class="mb-8">
-        <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100">Print lab</h1>
-        <p class="mt-2 max-w-2xl text-muted">
-            The <code class="text-sm">&lt;c-n26.print.*&gt;</code> components against real paper geometry.
-            Printing is the one part of the system you cannot check by looking at it, and
-            its worst failures — a card sliced across the fold, a two-column block
-            collapsed to one — happen on engines other than the one you are in. So:
-            change something, look at the preview, then print it to PDF and look at
-            that too.
-        </p>
-    </div>
+{% extends "designsystem/page.html" %}
+{% block page_content %}
     <div class="grid gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
         <div class="space-y-4">
             <form method="get"

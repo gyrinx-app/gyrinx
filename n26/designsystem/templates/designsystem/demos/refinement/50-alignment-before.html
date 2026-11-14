@@ -1,0 +1,12 @@
+{# title: Before #}
+{# note: Changing insets and value positions interrupt the scan down the list. #}
+<section class="p-4" aria-label="Fighter ratings">
+    <h2 class="mb-4 text-lg font-semibold">Fighter ratings</h2>
+    {% for fighter in fighters %}
+        <div class="mb-3 {% cycle 'pl-3' 'pl-0' 'pl-6' %}">
+            <h3 class="font-medium">{{ fighter.name }}</h3>
+            <p class="mt-2 text-sm text-muted">{{ fighter.rating }} rating</p>
+            <div class="mt-3 {% cycle 'text-right' 'text-left' 'text-center' %}"><c-ui.button type="button" size="sm">View fighter</c-ui.button></div>
+        </div>
+    {% endfor %}
+</section>

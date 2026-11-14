@@ -1057,3 +1057,135 @@ class TestCatalogueAPIs:
             prop.name for prop in get("quick-switcher").api.props if not prop.choices
         }
         assert "c-n26.quick-switcher.item" in page.select_one("#parts").get_text()
+
+
+class TestRefinementLab:
+    @pytest.mark.parametrize(
+        "case", ["density", "hierarchy", "alignment", "disclosure"]
+    )
+    def test_pairs_render_and_show_the_source_they_use(self, reader, case):
+        from n26.designsystem.refinement import case_for
+
+        response = reader.get("/n26/design/refinement/", {"case": case})
+        assert response.status_code == 200
+        page = BeautifulSoup(response.content, "html.parser")
+        examples = case_for(case).examples()
+        assert len(examples) == 2
+        assert [
+            node["data-refinement"] for node in page.select("[data-refinement]")
+        ] == [
+            f"{case}-before",
+            f"{case}-after",
+        ]
+        assert [
+            source.get_text()
+            for source in page.select("[data-refinement-source] pre code")
+        ] == [demo.source + "\n" for demo in examples]
+
+    @pytest.mark.parametrize(
+        "case", ["density", "hierarchy", "alignment", "disclosure"]
+    )
+    @pytest.mark.parametrize("stage", ["before", "after"])
+    def test_standalone_previews_render_one_composition(self, reader, case, stage):
+        response = reader.get(
+            "/n26/design/refinement/preview/", {"case": case, "stage": stage}
+        )
+        assert response.status_code == 200
+        page = BeautifulSoup(response.content, "html.parser")
+        assert [
+            node["data-refinement"] for node in page.select("[data-refinement]")
+        ] == [f"{case}-{stage}"]
+        assert not page.select("aside")
+        assert not page.select("pre")
+
+    @pytest.mark.parametrize(
+        "url",
+        ["/n26/design/refinement/", "/n26/design/refinement/preview/"],
+    )
+    def test_requires_staff(self, client, django_user_model, db, url):
+        assert client.get(url).status_code == 302
+        user = django_user_model.objects.create_user(
+            "refinement-player", "refinement-player@example.com", "password"
+        )
+        client.force_login(user)
+        assert client.get(url).status_code == 302
+
+    @pytest.mark.parametrize(
+        "url, options",
+        [
+            ("/n26/design/refinement/", {"case": "missing"}),
+            ("/n26/design/refinement/preview/", {"case": "missing"}),
+            ("/n26/design/refinement/preview/", {"stage": "missing"}),
+        ],
+    )
+    def test_unknown_options_do_not_select_arbitrary_templates(
+        self, reader, url, options
+    ):
+        assert reader.get(url, options).status_code == 404
+
+    def test_gallery_navigation_links_to_the_lab(self, reader):
+        page = BeautifulSoup(reader.get("/n26/design/").content, "html.parser")
+        assert page.select_one('a[href="/n26/design/refinement/"]') is not None
+
+    @pytest.mark.parametrize(
+        "case", ["density", "hierarchy", "alignment", "disclosure"]
+    )
+    def test_compositions_render_without_player_data(self, rf, case):
+        from types import SimpleNamespace
+
+        from n26.designsystem.views import refinement_lab
+
+        request = rf.get("/n26/design/refinement/", {"case": case})
+        request.user = SimpleNamespace(is_active=True, is_staff=True)
+        response = refinement_lab(request)
+        assert response.status_code == 200
+
+
+class TestGalleryPageShell:
+    @pytest.mark.parametrize(
+        "name", ["index", "theming", "tokens", "react", "print_lab", "refinement_lab"]
+    )
+    def test_gallery_destinations_share_the_page_header_and_current_navigation(
+        self, reader, name
+    ):
+        from django.urls import reverse
+
+        from n26.designsystem.pages import PAGES
+
+        response = reader.get(reverse(f"designsystem:{name}"))
+        assert response.status_code == 200
+        page = BeautifulSoup(response.content, "html.parser")
+        assert len(page.select("[data-gallery-page]")) == 1
+        header = page.select_one("[data-gallery-page-header]")
+        assert header.h1.get_text(strip=True) == PAGES[name].title
+        assert PAGES[name].intro in header.get_text()
+        assert page.select_one("[data-gallery-page-body]") is not None
+        assert not page.select("[data-gallery-page-body] h1")
+        gallery_nav = page.select_one('[data-react-name="gallery-nav"]')
+        current = gallery_nav.select('a[aria-current="page"]')
+        assert len(current) == 1
+        assert current[0]["href"] == reverse(f"designsystem:{name}")
+
+
+class TestRefinementNavigation:
+    @pytest.mark.parametrize(
+        "case", ["density", "hierarchy", "alignment", "disclosure"]
+    )
+    def test_examples_are_linked_directly_with_the_current_case_marked(
+        self, reader, case
+    ):
+        response = reader.get("/n26/design/refinement/", {"case": case})
+        page = BeautifulSoup(response.content, "html.parser")
+        nav = page.select_one('nav[aria-label="Design examples"]')
+        assert {link["href"] for link in nav.select("a")} == {
+            f"/n26/design/refinement/?case={slug}"
+            for slug in ("density", "hierarchy", "alignment", "disclosure")
+        }
+        assert all(
+            link["href"].endswith(f"case={case}")
+            for link in nav.select('a[aria-current="page"]')
+        )
+        assert len(nav.select('a[aria-current="page"]')) == 2
+        assert page.select_one('[name="case"]') is None
+        notes = page.find("summary", string="Review notes").parent
+        assert not notes.has_attr("open")

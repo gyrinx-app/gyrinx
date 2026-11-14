@@ -63,6 +63,21 @@ action that immediately leads to a dead end. Put optional background in an
 existing help pattern when useful. Keep instructions needed to proceed and
 the next action visible.
 
+## Revisit the feature at design checkpoints
+
+For implementation work, use this review before choosing the layout, after
+structural changes, and on the final rendered result. Keep each revisit
+focused on what changed: task and prerequisites first; reading order and
+disclosure next; a cold read of entry point, action and feedback last. Reuse
+the established domain facts rather than repeating the full investigation.
+
+For layout, whitespace, alignment and typography, run
+[design-refinement](../design-refinement/SKILL.md). It adds browser inspection,
+grid overlays, blockframing and a normal-resolution detail pass. A clearer
+layout must still preserve information needed to decide and act. Recheck any
+content moved behind disclosure from both the player and read-only roles
+where relevant.
+
 ## Match the requested stage
 
 If the user asks for an explanation, deliver that before UI ideas. If they
