@@ -881,7 +881,11 @@ class TestStoredCycleDates:
             campaign,
             actor=owner,
             target=selected.ref,
-            details=s.CycleDetails(selected.phase_id),
+            details=s.CycleDetails(
+                selected.phase_id,
+                starts_on=selected.starts_on,
+                ends_on=selected.ends_on,
+            ),
             expected_revision=state.revision,
             request_key=uuid4(),
         )
@@ -939,6 +943,115 @@ class TestStoredCycleDates:
         assert cycles.load(campaign) == before
 
 
+class TestIndependentlyOptionalCycleDates:
+    @pytest.mark.parametrize(
+        "start,end",
+        [
+            (None, None),
+            (date(2026, 11, 1), None),
+            (None, date(2026, 11, 7)),
+            (date(2026, 11, 1), date(2026, 11, 7)),
+        ],
+    )
+    def test_each_date_state_persists_and_exact_retries_keep_identity(
+        self, campaign, owner, configured, start, end
+    ):
+        selected = configured.current
+        args = dict(
+            actor=owner,
+            target=s.SavedCycleRef(selected.id),
+            details=replace(selected.details, starts_on=start, ends_on=end),
+            expected_revision=configured.revision,
+            request_key=uuid4(),
+        )
+        result = cycles.edit_cycle(campaign, **args)
+        after = cycles.load(campaign)
+        assert (after.current.details.starts_on, after.current.details.ends_on) == (
+            start,
+            end,
+        )
+        assert after.current.id == selected.id
+        assert after.current.source == selected.source
+        assert cycles.edit_cycle(campaign, **args).replayed
+        assert cycles.load(campaign) == after
+        assert result.transition_id is None
+        assert campaign.cycle_transitions.count() == 0
+        with pytest.raises(cycles.CycleKeyConflict):
+            cycles.edit_cycle(
+                campaign,
+                **{**args, "details": replace(args["details"], custom_name="Changed")},
+            )
+
+    def test_manual_end_date_alignment_shifts_only_known_later_bounds_atomically(
+        self, campaign, owner, configured
+    ):
+        cycles.replace_plan(
+            campaign,
+            actor=owner,
+            steps=configured.plan.steps,
+            mode="repeating",
+            clear_calendar=True,
+            expected_revision=configured.revision,
+            request_key=uuid4(),
+        )
+        state = cycles.load(campaign)
+        target = s.project(state)[1]
+        cycles.edit_cycle(
+            campaign,
+            actor=owner,
+            target=target.ref,
+            details=s.CycleDetails(target.phase_id, ends_on=date(2026, 11, 20)),
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        state = cycles.load(campaign)
+        second = state.cycles[1]
+        cycles.edit_cycle(
+            campaign,
+            actor=owner,
+            target=s.SavedCycleRef(second.id),
+            details=replace(second.details, starts_on=date(2026, 11, 10)),
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        state = cycles.load(campaign)
+        first = state.current
+        cycles.edit_cycle(
+            campaign,
+            actor=owner,
+            target=s.SavedCycleRef(first.id),
+            details=replace(first.details, ends_on=None),
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        state = cycles.load(campaign)
+        args = dict(
+            actor=owner,
+            target=s.SavedCycleRef(first.id),
+            details=replace(state.current.details, ends_on=date(2026, 11, 12)),
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        count = campaign.cycle_commands.count()
+        with pytest.raises(Refusal, match="overlap"):
+            cycles.edit_cycle(campaign, **args)
+        assert cycles.load(campaign) == state
+        assert campaign.cycle_commands.count() == count
+        cycles.edit_cycle(campaign, **args, shift_later=True)
+        after = cycles.load(campaign)
+        assert after.cycles[1].details.starts_on == date(2026, 11, 13)
+        assert after.cycles[1].details.ends_on is None
+        assert after.cycles[2].details.starts_on is None
+        assert after.cycles[2].details.ends_on == date(2026, 11, 23)
+        assert [(c.id, c.source) for c in after.cycles] == [
+            (c.id, c.source) for c in state.cycles
+        ]
+        assert after.current.id == state.current.id
+        assert after.calendar is None
+        assert cycles.edit_cycle(campaign, **args, shift_later=True).replayed
+        assert cycles.load(campaign) == after
+
+
 @pytest.mark.django_db(transaction=True)
 def test_concurrent_date_edits_cannot_commit_overlapping_ranges(
     campaign, owner, configured
@@ -948,7 +1061,9 @@ def test_concurrent_date_edits_cannot_commit_overlapping_ranges(
         campaign,
         actor=owner,
         target=target.ref,
-        details=s.CycleDetails(target.phase_id),
+        details=s.CycleDetails(
+            target.phase_id, starts_on=target.starts_on, ends_on=target.ends_on
+        ),
         expected_revision=configured.revision,
         request_key=uuid4(),
     )

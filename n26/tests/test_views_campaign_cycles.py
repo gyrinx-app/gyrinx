@@ -118,10 +118,10 @@ def setup_data(template):
         "template_id": str(template.pk),
         "current_number": "1",
         "mode": "fixed",
+        "date_mode": "planned",
         "date_start": "2026-11-01",
         "cycle_interval": "1",
         "cycle_unit": "weeks",
-        "date_version": "1",
     }
 
 
@@ -336,7 +336,9 @@ class TestSharedCommands:
             campaign,
             actor=campaign.owner,
             target=future.ref,
-            details=s.CycleDetails(future.phase_id),
+            details=s.CycleDetails(
+                future.phase_id, starts_on=future.starts_on, ends_on=future.ends_on
+            ),
             expected_revision=configured.revision,
             request_key=uuid4(),
         )
@@ -581,7 +583,6 @@ class TestSharedCommands:
         assert editor["commandHref"] == html["commandHref"]
         assert editor["values"]["starts_on"] == cycle.details.starts_on.isoformat()
         assert editor["values"]["ends_on"] == cycle.details.ends_on.isoformat()
-        assert editor["values"]["date_version"] == "2"
         assert CampaignCycle.objects.filter(campaign=campaign).count() == 1
         client.force_login(User.objects.create_user("json-schedule-reader"))
         assert client.get(url, HTTP_ACCEPT="application/json").status_code == 404
@@ -592,19 +593,23 @@ class TestSharedCommands:
         assert read["rows"][1]["startsOn"]
 
     @pytest.mark.parametrize("native", [False, True])
-    def test_current_editors_require_both_cycle_dates(
-        self, client, campaign, configured, native
+    @pytest.mark.parametrize("bound", ["starts_on", "ends_on"])
+    def test_current_editors_accept_either_date_independently(
+        self, client, campaign, configured, native, bound
     ):
         query = {"cycle": configured.current_cycle_id}
         editor = props(client.get(editor_url(campaign, "cycle", **query)))["editor"]
-        data = {**editor["values"], "ends_on": ""}
+        data = {**editor["values"], bound: ""}
         response = post(client, campaign, "cycle", data, native=native, **query)
-        assert response.status_code == (200 if native else 422)
-        errors = (
-            props(response)["editor"]["errors"] if native else response.json()["errors"]
-        )
-        assert errors["ends_on"]
-        assert cycles.load(campaign) == configured
+        assert response.status_code == (302 if native else 200)
+        changed = cycles.load(campaign)
+        assert getattr(changed.current.details, bound) is None
+        assert changed.current.id == configured.current.id
+        assert changed.current.source == configured.current.source
+        assert post(
+            client, campaign, "cycle", data, native=native, **query
+        ).status_code == (302 if native else 200)
+        assert cycles.load(campaign) == changed
 
     @pytest.mark.parametrize("native", [False, True])
     def test_setup_retry_succeeds_after_the_schedule_already_exists(
@@ -1327,30 +1332,6 @@ class TestManualCycleDates:
         assert state.cycles == before.cycles
         assert s.project(state)[0].starts_on == date(2026, 12, 1)
 
-    def test_legacy_initial_calendar_still_dates_cycle_one(
-        self, client, campaign, opened, template
-    ):
-        assert (
-            post(
-                client,
-                campaign,
-                "setup",
-                {**setup_data(template), "date_mode": "manual"},
-            ).status_code
-            == 200
-        )
-        editor = props(client.get(editor_url(campaign, "plan")))["editor"]
-        old = {
-            name: value
-            for name, value in editor["values"].items()
-            if name != "date_mode"
-        }
-        old["date_start"] = "2026-12-01"
-        assert post(client, campaign, "plan", old).status_code == 200
-        state = cycles.load(campaign)
-        assert state.current.details.starts_on == date(2026, 12, 1)
-        assert s.project(state)[0].starts_on == date(2026, 12, 8)
-
     @pytest.mark.parametrize("native", [False, True])
     def test_manual_setup_materialises_and_advances_without_dates(
         self, client, campaign, opened, template, native
@@ -1410,83 +1391,22 @@ class TestManualCycleDates:
         assert s.project(state)[0].starts_on == date(2026, 12, 1)
 
     @pytest.mark.parametrize("native", [False, True])
-    def test_optional_cycle_dates_accept_blank_pairs_and_reject_partial_pairs(
+    def test_cycle_dates_can_be_cleared_after_a_partial_edit(
         self, client, campaign, configured, native
     ):
         query = {"cycle": configured.current.id, "fields": "dates"}
         editor = props(client.get(editor_url(campaign, "cycle", **query)))["editor"]
         partial = {**editor["values"], "ends_on": ""}
-        response = post(client, campaign, "cycle", partial, native=native, **query)
-        assert response.status_code == (200 if native else 422)
-        assert cycles.load(campaign) == configured
+        assert post(
+            client, campaign, "cycle", partial, native=native, **query
+        ).status_code == (302 if native else 200)
+        editor = props(client.get(editor_url(campaign, "cycle", **query)))["editor"]
         clear = {**editor["values"], "starts_on": "", "ends_on": ""}
         assert post(
             client, campaign, "cycle", clear, native=native, **query
         ).status_code == (302 if native else 200)
-        assert cycles.load(campaign).current.details.starts_on is None
-
-    def test_legacy_plan_payload_without_date_mode_replays_its_original_calendar(
-        self, client, campaign, configured
-    ):
-        editor = props(client.get(editor_url(campaign, "plan")))["editor"]
-        old = {
-            name: value
-            for name, value in editor["values"].items()
-            if name != "date_mode"
-        }
-        assert post(client, campaign, "plan", old).status_code == 200
-        assert cycles.load(campaign) == configured
-        assert post(client, campaign, "plan", old).status_code == 200
-        assert cycles.load(campaign) == configured
-
-
-@pytest.mark.parametrize("native", [False, True])
-def test_unversioned_partial_date_receipt_can_be_confirmed(
-    client, campaign, configured, native
-):
-    from n26.core.cycle_data import cycle_details_data
-    from n26.core.models import CampaignCycleCommand
-
-    # A command receipt must confirm the original edit, even with incomplete dates.
-    CampaignSchedule.objects.filter(campaign=campaign).update(
-        date_settings={}, revision=2
-    )
-    CampaignCycle.objects.filter(pk=configured.current_cycle_id).update(
-        ends_on=None, custom_name="Legacy rename"
-    )
-    state = cycles.load(campaign)
-    query = {"cycle": state.current.id}
-    editor = props(client.get(editor_url(campaign, "cycle", **query)))["editor"]
-    data = {
-        name: value
-        for name, value in editor["values"].items()
-        if name != "date_version"
-    }
-    data["expected_revision"] = "1"
-    CampaignCycleCommand.objects.create(
-        campaign=campaign,
-        actor=campaign.owner,
-        request_key=data["request_key"],
-        kind="edit_cycle",
-        inputs={
-            "target": ref_data(s.SavedCycleRef(state.current.id)),
-            "details": cycle_details_data(state.current.details),
-            "expected_revision": 1,
-        },
-        result={"revision": 2, "cycle_id": state.current.id, "transition_id": None},
-    )
-    count = campaign.cycle_commands.count()
-    response = post(client, campaign, "cycle", data, native=native, **query)
-    assert response.status_code == (302 if native else 200), (
-        props(response)["editor"]["errors"] if native else response.json()
-    )
-    assert campaign.cycle_commands.count() == count
-    assert cycles.load(campaign) == state
-    data["date_version"] = "1"
-    data["request_key"] = str(uuid4())
-    response = post(client, campaign, "cycle", data, **query)
-    assert response.status_code == 422
-    assert campaign.cycle_commands.count() == count
+        state = cycles.load(campaign)
+        assert state.current.details.starts_on is state.current.details.ends_on is None
 
 
 class TestDeletionWorkflow:

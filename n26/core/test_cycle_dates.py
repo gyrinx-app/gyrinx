@@ -112,11 +112,11 @@ def test_initial_calendar_checks_retained_dates_against_the_first_projection():
             ),
         ),
     )
-    with pytest.raises(s.ScheduleError, match="after all saved"):
+    with pytest.raises(s.ScheduleError, match="future cycle"):
         s.set_calendar(legacy, s.CycleCalendar(date(2026, 11, 1)))
 
 
-def test_initial_calendar_fills_each_missing_endpoint_and_preserves_recorded_dates():
+def test_initial_calendar_preserves_saved_missing_endpoints():
     legacy = s.configure(
         s.DEFAULT_TEMPLATE, campaign_id="legacy", current_position=1
     ).schedule
@@ -137,8 +137,8 @@ def test_initial_calendar_fills_each_missing_endpoint_and_preserves_recorded_dat
     assert [
         (cycle.details.starts_on, cycle.details.ends_on) for cycle in updated.cycles
     ] == [
-        (date(2026, 11, 2), date(2026, 11, 7)),
-        (date(2026, 11, 8), date(2026, 11, 13)),
+        (date(2026, 11, 2), None),
+        (None, date(2026, 11, 13)),
     ]
 
 
@@ -219,14 +219,15 @@ def test_overlapping_or_shared_end_dates_are_refused_across_saved_cycles(start, 
         )
 
 
-def test_adjacent_inclusive_ranges_are_valid_but_missing_an_end_date_is_not():
+def test_adjacent_inclusive_ranges_allow_clearing_an_end_date():
     state = configured(current=2)
-    assert state.cycles[0].details.ends_on < state.cycles[1].details.starts_on
     selected = state.cycles[1]
-    with pytest.raises(s.ScheduleError, match="both dates"):
-        s.edit_cycle(
-            state, s.SavedCycleRef(selected.id), replace(selected.details, ends_on=None)
-        )
+    changed = s.edit_cycle(
+        state, s.SavedCycleRef(selected.id), replace(selected.details, ends_on=None)
+    ).schedule
+    assert changed.cycles[1].details.starts_on == selected.details.starts_on
+    assert changed.cycles[1].details.ends_on is None
+    assert changed.cycles[0] == state.cycles[0]
 
 
 def test_future_calendar_changes_preserve_saved_dates_ids_and_plan_sources():
@@ -248,11 +249,11 @@ def test_future_calendar_changes_preserve_saved_dates_ids_and_plan_sources():
 
 def test_new_timing_cannot_project_over_saved_history():
     state = configured(current=3)
-    with pytest.raises(s.ScheduleError, match="after all saved"):
+    with pytest.raises(s.ScheduleError, match="future cycle"):
         s.set_calendar(state, s.CycleCalendar(date(2026, 11, 2), starts_after_order=4))
 
 
-def test_explicit_date_settings_fill_an_undated_saved_prefix_without_inventing_transitions():
+def test_date_settings_leave_saved_undated_cycles_unchanged():
     state = s.configure(
         s.DEFAULT_TEMPLATE, campaign_id="legacy", current_position=2
     ).schedule
@@ -260,8 +261,9 @@ def test_explicit_date_settings_fill_an_undated_saved_prefix_without_inventing_t
     assert [cycle.id for cycle in change.schedule.cycles] == [
         cycle.id for cycle in state.cycles
     ]
-    assert len(change.updated) == 3
-    assert change.schedule.cycles[-1].details.ends_on == date(2026, 10, 21)
+    assert change.updated == ()
+    assert change.schedule.cycles == state.cycles
+    assert s.project(change.schedule)[0].starts_on == date(2026, 10, 22)
     assert change.transition is None
 
 
