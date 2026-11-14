@@ -1008,13 +1008,14 @@ def apply_action_by_hand(op, record):
     _validate_draft_definition(record)
     _retire_unfinished_slot(op, record)
     record.state = ActionRecord.State.APPLIED_BY_HAND
+    record.revision += 1
     op.event(
         record.fighter,
         LedgerEvent.Kind.ACTION_USE_APPLIED_BY_HAND,
         action_record=record,
         note=str(record.action),
     )
-    record.save(update_fields=["state", "modified"])
+    record.save(update_fields=["state", "revision", "modified"])
     return record
 
 
@@ -1086,7 +1087,6 @@ def _rebind_retired_slot(op, record):
     selection.save(update_fields=["slot_assignment", "modified"])
     if record.review:
         record.review = {}
-        record.revision += 1
 
 
 def reopen_action(op, record):
@@ -1142,6 +1142,7 @@ def reopen_action(op, record):
         _rebind_retired_slot(op, record)
     else:
         record.state = ActionRecord.State.CANCELLED
+    record.revision += 1
     op.event(
         record.fighter,
         LedgerEvent.Kind.ACTION_USE_REOPENED,

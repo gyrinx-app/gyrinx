@@ -382,3 +382,8 @@ original review, key and exact body for retry.
 A confirmation's removed-item check must read its validated signed review target,
 not a selection field from an earlier stage. Match the record, revision and current
 review before settling an unavailable target; keep other review refusals unresolved.
+
+Advance an action revision on each by-hand and Undo transition, even when no
+result slot or review changes. An unused form has no receipt to recall: its old
+revision must reject a delayed Undo after another tab undoes and applies again.
+Keep consumed receipt replay separate from that new-intent revision check.

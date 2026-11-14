@@ -1197,3 +1197,171 @@ def test_concurrent_removed_item_confirmation_retries_record_one_durable_refusal
     assert sum(result.replayed for result in results) == 1
     assert counts()[:-1] == before[:-1]
     assert counts()[-1] == before[-1] + 1
+
+
+def _history_undo(client, data):
+    from bs4 import BeautifulSoup
+
+    edit = client.get(reverse("n26-edit-fighter", args=[data.fighter.pk]))
+    form = BeautifulSoup(edit.content, "html.parser").select_one(
+        "#n26-action-history form"
+    )
+    assert form is not None
+    body = {
+        field["name"]: field.get("value", "") for field in form.select("input[name]")
+    }
+    return form["action"], body
+
+
+@pytest.mark.parametrize("transport", ["native", "json"])
+def test_an_unused_history_undo_cannot_undo_a_newer_application_of_the_same_action(
+    client, advancement, transport
+):
+    data = advancement
+    record = earned_flows._start(client, data)
+    assert not hasattr(record, "advancement_selection")
+    by_hand = reverse("n26-action-flow", args=[data.fighter.pk, record.pk, "by-hand"])
+    first, first_body = issued(client, by_hand)
+    assert client.post(first["commandHref"], first_body).status_code == 200
+    old_action, old_body = _history_undo(client, data)
+    original_revision = int(old_body["revision"])
+    assert not ModelChoiceReceipt.objects.filter(
+        request_key=old_body["command_key"]
+    ).exists()
+    # Another tab deliberately undoes and applies the same use again. This
+    # original history form has never been sent and has no receipt to replay.
+    undo, undo_body = issued(client, old_action)
+    undone = client.post(undo["commandHref"], undo_body)
+    assert undone.status_code == 200
+    fresh, fresh_body = issued(client, by_hand)
+    assert client.post(fresh["commandHref"], fresh_body).status_code == 200
+    record.refresh_from_db()
+    assert record.state == ActionRecord.State.APPLIED_BY_HAND
+    assert record.revision == original_revision + 2
+    before = counts()
+    consumed = client.post(undo["commandHref"], undo_body)
+    assert consumed.status_code == 200
+    assert consumed.json()["replayed"] is True
+    assert consumed.json()["facts"] == undone.json()["facts"]
+    record.refresh_from_db()
+    assert record.state == ActionRecord.State.APPLIED_BY_HAND
+    assert record.revision == original_revision + 2
+    assert counts() == before
+    if transport == "native":
+        refused = client.post(old_action, old_body, follow=True)
+        assert refused.status_code == 200
+        assert "This flow changed in another tab." in refused.content.decode()
+    else:
+        refused = client.post(
+            first["commandHref"],
+            {
+                **old_body,
+                "target_kind": "flow",
+                "target_id": str(record.pk),
+                "target_step": "reopen",
+            },
+        )
+        assert refused.status_code == 409
+        assert refused.json()["code"] == "revision_conflict"
+        assert refused.json()["terminal"] is False
+    assert counts() == before
+    assert not ModelChoiceReceipt.objects.filter(
+        request_key=old_body["command_key"]
+    ).exists()
+    record.refresh_from_db()
+    assert record.state == ActionRecord.State.APPLIED_BY_HAND
+    assert record.revision == original_revision + 2
+    # A newly issued history Undo has the same intent and the current revision.
+    current_action, current_body = _history_undo(client, data)
+    assert int(current_body["revision"]) == record.revision
+    assert client.post(current_action, current_body).status_code == 302
+    record.refresh_from_db()
+    assert record.state == ActionRecord.State.STARTED
+    assert record.revision == original_revision + 3
+
+
+@pytest.mark.parametrize("stage", ["unrolled", "reviewed"])
+def test_by_hand_and_reopen_each_advance_revision_once_even_when_rebinding_a_reviewed_slot(
+    client, advancement, monkeypatch, stage
+):
+    from n26.core.operations import operation
+
+    data = advancement
+    record = earned_flows._start(client, data)
+    if stage == "reviewed":
+        earned_flows._load_rolls(monkeypatch, 12)
+        earned_flows._post_roll(client, data, record)
+        skill = earned_flows._choose_result(
+            client, data, record, data.results["primary"]
+        )
+        assert (
+            earned_flows.post_action(
+                client, skill, {"skill_id": str(data.skills["primary"].pk)}
+            ).status_code
+            == 302
+        )
+    record.refresh_from_db()
+    revision = record.revision
+    with operation(data.gang, actor=data.owner) as op:
+        op.apply_action_by_hand(record)
+    record.refresh_from_db()
+    assert record.state == ActionRecord.State.APPLIED_BY_HAND
+    assert record.revision == revision + 1
+    before = counts()
+    with operation(data.gang, actor=data.owner) as op:
+        op.apply_action_by_hand(record)
+    record.refresh_from_db()
+    assert record.revision == revision + 1
+    assert counts() == before
+    with operation(data.gang, actor=data.owner) as op:
+        op.reopen_action(record)
+    record.refresh_from_db()
+    assert record.state == ActionRecord.State.STARTED
+    assert record.revision == revision + 2
+    assert not record.review
+
+
+def test_allowance_by_hand_creation_and_idempotent_replays_keep_their_original_revision(
+    advancement,
+):
+    from n26.core.operations import operation
+
+    data = advancement
+    key = uuid4()
+    with operation(data.gang, actor=data.owner) as op:
+        record = op.apply_allowance_by_hand(
+            data.fighter, data.action, key, allowance=data.allowance
+        )
+    assert record.state == ActionRecord.State.APPLIED_BY_HAND
+    assert record.revision == 0
+    before = counts()
+    with operation(data.gang, actor=data.owner) as op:
+        replay = op.apply_allowance_by_hand(
+            data.fighter, data.action, key, allowance=data.allowance
+        )
+        op.apply_action_by_hand(record)
+    assert replay.pk == record.pk
+    record.refresh_from_db()
+    assert record.revision == 0
+    assert counts() == before
+    with operation(data.gang, actor=data.owner) as op:
+        op.reopen_action(record)
+    record.refresh_from_db()
+    assert record.state == ActionRecord.State.CANCELLED
+    assert record.revision == 1
+    with operation(data.gang, actor=data.owner) as op:
+        newer = op.apply_allowance_by_hand(
+            data.fighter, data.action, uuid4(), allowance=data.allowance
+        )
+    assert newer.pk != record.pk
+    assert newer.state == ActionRecord.State.APPLIED_BY_HAND
+    assert newer.revision == 0
+    before_replay = counts()
+    with operation(data.gang, actor=data.owner) as op:
+        old = op.apply_allowance_by_hand(
+            data.fighter, data.action, key, allowance=data.allowance
+        )
+    assert old.pk == record.pk
+    assert old.state == ActionRecord.State.CANCELLED
+    assert old.revision == 1
+    assert counts() == before_replay
