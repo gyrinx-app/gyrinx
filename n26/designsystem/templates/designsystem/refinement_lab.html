@@ -1,0 +1,43 @@
+{% extends "designsystem/page.html" %}
+{% load designsystem %}
+{% block page_content %}
+    <div class="space-y-5">
+        <c-n26.tab-links label="Design examples" :tabs="case_tabs" :narrow_tabs="4" />
+        <c-n26.section title="{{ case.title }}" description="{{ case.principle }}">
+            <div class="grid items-start gap-6 xl:grid-cols-2">
+                {% for demo in examples %}
+                    <section class="min-w-0 space-y-3" aria-labelledby="{{ demo.dom_id }}">
+                        <div class="flex items-center justify-between gap-3 text-sm">
+                            <h3 id="{{ demo.dom_id }}" class="font-semibold">{{ demo.title }}</h3>
+                            <c-n26.link href="{% url 'designsystem:refinement_preview' %}?case={{ case.slug }}&amp;stage={% if forloop.first %}before{% else %}after{% endif %}">Full width</c-n26.link>
+                        </div>
+                        <div class="overflow-hidden rounded-box border border-box-border bg-surface"
+                             data-refinement="{{ demo.slug }}">{% include demo.template_name %}</div>
+                        <p class="text-sm text-muted">{{ demo.note }}</p>
+                        <details class="rounded-box border border-box-border" data-refinement-source>
+                            <summary class="cursor-pointer px-3 py-2 text-sm focus-ring">Rendered source</summary>
+                            <pre class="overflow-x-auto border-t border-box-border p-4 text-xs"><code>{{ demo.source|highlight }}</code></pre>
+                        </details>
+                    </section>
+                {% endfor %}
+            </div>
+        </c-n26.section>
+        <details class="border-t border-box-border pt-3 text-sm">
+            <summary class="cursor-pointer font-medium focus-ring">Review notes</summary>
+            <div class="mt-3 max-w-3xl space-y-3 text-muted">
+                <p>{{ case.problem }}</p>
+                <p>{{ case.tradeoff }}</p>
+                <ol class="list-decimal space-y-2 pl-5">
+                    <li>Compare at the same viewport width and zoom, with fonts loaded.</li>
+                    <li>Inspect computed padding, gaps, line heights and font weights.</li>
+                    <li>Use grid guides to check shared edges and repeated spacing.</li>
+                    <li>Check the blockframe, then restore the text and try a phone width.</li>
+                </ol>
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <span>Components:</span>
+                    {% for component in case.components %}<c-n26.link href="{% url 'designsystem:component' component %}">{{ component }}</c-n26.link>{% endfor %}
+                </div>
+            </div>
+        </details>
+    </div>
+{% endblock %}
