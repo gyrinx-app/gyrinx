@@ -96,6 +96,7 @@ export function PhaseSummary({
                             <HelpPopover
                                 label={`Effects for ${name}`}
                                 triggerContent="Effects"
+                                clampHeight
                             >
                                 <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
                                     {effects}

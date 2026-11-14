@@ -37,6 +37,7 @@ export function HelpPopover({
     cta,
     triggerContent,
     inline = false,
+    clampHeight = false,
     children,
 }: {
     label: string;
@@ -48,6 +49,8 @@ export function HelpPopover({
     triggerContent?: ReactNode;
     /** Preserve the text baseline when help sits within a sentence or card fact. */
     inline?: boolean;
+    /** Keep long content scrollable within the available viewport space. */
+    clampHeight?: boolean;
     children: ReactNode;
 }) {
     const look = TONES[tone];
@@ -89,6 +92,7 @@ export function HelpPopover({
         panel,
         width: 288,
         gap: 8,
+        clampHeight,
     });
 
     function onClick(event: MouseEvent<HTMLButtonElement>) {

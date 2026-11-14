@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { PhaseSummary } from "./PhaseSummary";
 import type { Rewards } from "./types";
 
@@ -87,4 +87,43 @@ test("empty summaries do not invent rewards, effects or cycle counts", () => {
     expect(screen.getByText("0 cycles")).toBeTruthy();
     expect(screen.queryByRole("button")).toBeNull();
     expect(screen.queryByText(/¢/)).toBeNull();
+});
+
+afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+});
+
+test("long effects stay scrollable within a short phone viewport", () => {
+    vi.stubGlobal("innerWidth", 390);
+    vi.stubGlobal("innerHeight", 400);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+        x: 240,
+        y: 300,
+        left: 240,
+        top: 300,
+        right: 300,
+        bottom: 330,
+        width: 60,
+        height: 30,
+        toJSON: () => ({}),
+    });
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+        1200,
+    );
+    const effects = `${"Apply the phase effect after every battle.\n".repeat(30)}Final phase effect.`;
+    render(<PhaseSummary name="Occupation" effects={effects} />);
+    fireEvent.click(
+        screen.getByRole("button", { name: "Effects for Occupation" }),
+    );
+    const panel = screen.getByRole("dialog", {
+        name: "Effects for Occupation",
+    });
+    const top = Number.parseFloat(panel.style.top);
+    const maxHeight = Number.parseFloat(panel.style.maxHeight);
+    expect(top).toBeGreaterThanOrEqual(16);
+    expect(maxHeight).toBeGreaterThan(0);
+    expect(top + maxHeight).toBeLessThanOrEqual(window.innerHeight - 16);
+    expect(panel.textContent).toContain("Final phase effect.");
+    expect(panel.className).toContain("overflow-y-auto");
 });
