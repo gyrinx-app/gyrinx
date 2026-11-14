@@ -379,6 +379,7 @@ def _build_locked(campaign, user, *, page, preview, focus):
     phase_display = tuple(
         {
             "id": str(phase.pk),
+            "number": number,
             "name": phase.name,
             "description": phase.description,
             "effects": phase.effects,
@@ -396,7 +397,7 @@ def _build_locked(campaign, user, *, page, preview, focus):
             if manage
             else "",
         }
-        for phase in phases
+        for number, phase in enumerate(phases, start=1)
     )
     actions = {
         "plan": editor_url(campaign, "plan"),

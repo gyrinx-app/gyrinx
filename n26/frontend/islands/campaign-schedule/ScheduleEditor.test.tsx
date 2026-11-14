@@ -201,7 +201,7 @@ test.each([false, true])(
         ).toBeTruthy();
         if (noCurrent) {
             await userEvent.click(
-                screen.getByRole("switch", { name: "No current cycle" }),
+                screen.getByRole("switch", { name: "Start with cycle active" }),
             );
             expect(screen.queryByLabelText("Current cycle number")).toBeNull();
         } else {
@@ -426,11 +426,20 @@ test("fixed conversion shows its finite endpoint and updates it after edits", as
             onNavigate={vi.fn()}
         />,
     );
+    expect(
+        screen.getByRole("heading", { level: 2, name: "Cycles" }),
+    ).toBeTruthy();
+    expect(
+        screen.getByRole("region", { name: "Repeating pattern options" }),
+    ).toBeTruthy();
     expect(screen.queryByText(/Ends after Cycle/)).toBeNull();
-    await userEvent.selectOptions(
-        screen.getByRole("combobox", { name: "Planning mode" }),
-        "fixed",
-    );
+    await userEvent.click(screen.getByRole("radio", { name: /^Fixed plan/ }));
+    expect(
+        screen.queryByRole("region", { name: "Repeating pattern options" }),
+    ).toBeNull();
+    expect(
+        screen.getByRole("region", { name: "Fixed plan options" }),
+    ).toBeTruthy();
     expect(screen.getByText("Ends after Cycle 4.")).toBeTruthy();
     const count = screen.getByRole("spinbutton", { name: "Step 1 cycles" });
     await userEvent.clear(count);
@@ -470,8 +479,9 @@ test("switching to repeating proposes the full pattern and preserves edits to ea
             onNavigate={vi.fn()}
         />,
     );
-    const mode = screen.getByRole("combobox", { name: "Planning mode" });
-    await userEvent.selectOptions(mode, "repeating");
+    await userEvent.click(
+        screen.getByRole("radio", { name: /^Repeating pattern/ }),
+    );
     expect(
         (
             screen.getByRole("spinbutton", {
@@ -486,7 +496,7 @@ test("switching to repeating proposes the full pattern and preserves edits to ea
         screen.getByRole("spinbutton", { name: "Step 1 cycles" }),
         "2",
     );
-    await userEvent.selectOptions(mode, "fixed");
+    await userEvent.click(screen.getByRole("radio", { name: /^Fixed plan/ }));
     expect(
         (
             screen.getByRole("spinbutton", {
@@ -494,7 +504,9 @@ test("switching to repeating proposes the full pattern and preserves edits to ea
             }) as HTMLInputElement
         ).value,
     ).toBe("1");
-    await userEvent.selectOptions(mode, "repeating");
+    await userEvent.click(
+        screen.getByRole("radio", { name: /^Repeating pattern/ }),
+    );
     expect(
         (
             screen.getByRole("spinbutton", {

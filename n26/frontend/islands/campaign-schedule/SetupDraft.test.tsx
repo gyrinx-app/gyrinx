@@ -101,11 +101,11 @@ test("Custom is immediately usable and phase details survive review, Back and re
         screen.getByRole("button", { name: "Edit phase 1 details" }),
     );
     await userEvent.type(
-        screen.getByLabelText("Phase narrative"),
+        screen.getByLabelText("Phase 1 description"),
         "The gates open.",
     );
     await userEvent.type(
-        screen.getByLabelText("Phase effects"),
+        screen.getByLabelText("Phase 1 effects"),
         "Use the opening missions.",
     );
     await userEvent.clear(screen.getByLabelText("Win fixed credits"));
@@ -124,7 +124,8 @@ test("Custom is immediately usable and phase details survive review, Back and re
     expect(fetch).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(
-        (screen.getByLabelText("Phase narrative") as HTMLTextAreaElement).value,
+        (screen.getByLabelText("Phase 1 description") as HTMLTextAreaElement)
+            .value,
     ).toBe("The gates open.");
     mounted.unmount();
     render(
@@ -144,7 +145,7 @@ test("Custom is immediately usable and phase details survive review, Back and re
         (screen.getByLabelText("Win fixed credits") as HTMLInputElement).value,
     ).toBe("25");
     expect(
-        (screen.getByLabelText("Phase effects") as HTMLTextAreaElement).value,
+        (screen.getByLabelText("Phase 1 effects") as HTMLTextAreaElement).value,
     ).toBe("Use the opening missions.");
     await userEvent.click(
         screen.getByRole("button", { name: "Review schedule" }),
@@ -196,16 +197,17 @@ test("adding phases opens one details editor and retains each phase's own reward
         screen.getByRole("button", { name: "Edit phase 1 details" }),
     );
     await userEvent.type(
-        screen.getByLabelText("Phase narrative"),
+        screen.getByLabelText("Phase 1 description"),
         "First phase story.",
     );
     await userEvent.click(screen.getByRole("button", { name: "Add phase" }));
     expect(screen.getAllByLabelText("Win fixed credits")).toHaveLength(1);
     expect(
-        (screen.getByLabelText("Phase narrative") as HTMLTextAreaElement).value,
+        (screen.getByLabelText("Phase 2 description") as HTMLTextAreaElement)
+            .value,
     ).toBe("");
     await userEvent.type(
-        screen.getByLabelText("Phase narrative"),
+        screen.getByLabelText("Phase 2 description"),
         "Second phase story.",
     );
     await userEvent.click(
@@ -213,7 +215,8 @@ test("adding phases opens one details editor and retains each phase's own reward
     );
     expect(screen.getAllByLabelText("Win fixed credits")).toHaveLength(1);
     expect(
-        (screen.getByLabelText("Phase narrative") as HTMLTextAreaElement).value,
+        (screen.getByLabelText("Phase 1 description") as HTMLTextAreaElement)
+            .value,
     ).toBe("First phase story.");
 });
 
@@ -253,25 +256,21 @@ test("new manual setup hides dates, retains optional dates when toggled, and sav
     render(<ScheduleEditor editor={editor} phases={[]} onNavigate={vi.fn()} />);
     expect(
         (
-            screen.getByRole("combobox", {
-                name: "Cycle dates",
-            }) as HTMLSelectElement
-        ).value,
-    ).toBe("manual");
+            screen.getByRole("radio", {
+                name: /^No planned dates/,
+            }) as HTMLInputElement
+        ).checked,
+    ).toBe(true);
     expect(screen.queryByLabelText("Cycle 1 starts")).toBeNull();
-    expect(
-        screen.getByText(/You advance each cycle when the campaign is ready/),
-    ).toBeTruthy();
-    await userEvent.selectOptions(
-        screen.getByRole("combobox", { name: "Cycle dates" }),
-        "planned",
+    expect(screen.getByText(/You advance cycles yourself/)).toBeTruthy();
+    await userEvent.click(
+        screen.getByRole("radio", { name: /^Plan cycle dates/ }),
     );
     expect(
         (screen.getByLabelText("Cycle 1 starts") as HTMLInputElement).value,
     ).toBe("2026-11-01");
-    await userEvent.selectOptions(
-        screen.getByRole("combobox", { name: "Cycle dates" }),
-        "manual",
+    await userEvent.click(
+        screen.getByRole("radio", { name: /^No planned dates/ }),
     );
     await userEvent.click(
         screen.getByRole("button", { name: "Review schedule" }),
@@ -297,11 +296,11 @@ test("old passive setup drafts retain their planned date selection", async () =>
     render(<ScheduleEditor editor={editor} phases={[]} onNavigate={vi.fn()} />);
     expect(
         (
-            screen.getByRole("combobox", {
-                name: "Cycle dates",
-            }) as HTMLSelectElement
-        ).value,
-    ).toBe("planned");
+            screen.getByRole("radio", {
+                name: /^Plan cycle dates/,
+            }) as HTMLInputElement
+        ).checked,
+    ).toBe(true);
     expect(
         (screen.getByLabelText("Cycle 1 starts") as HTMLInputElement).value,
     ).toBe("2026-12-01");
@@ -371,5 +370,262 @@ test("a history destination renders its setup step before layout effects restore
     }
     const view = render(<Page step={3} />);
     view.rerender(<Page step={2} />);
-    expect(observed).toEqual(["Review schedule", "Customise your campaign"]);
+    expect(observed).toEqual(["Review schedule", "Customise schedule"]);
+});
+
+test("customisation separates numbered phases from mode-specific cycle options", async () => {
+    const editor = setup();
+    editor.context.setupStage = 2;
+    render(<ScheduleEditor editor={editor} phases={[]} />);
+    expect(
+        screen.getByRole("heading", { level: 2, name: "Phases" }),
+    ).toBeTruthy();
+    expect(
+        screen.getByRole("heading", { level: 2, name: "Cycles" }),
+    ).toBeTruthy();
+    expect(screen.queryByText("Customise your campaign")).toBeNull();
+    const phase = screen.getByRole("region", { name: "Phase 1" });
+    expect(within(phase).getByText("Name", { exact: true })).toBeTruthy();
+    expect(
+        within(phase).getByRole("textbox", { name: "Phase 1 name" }),
+    ).toBeTruthy();
+    const choices = screen.getByRole("group", { name: "Planning mode" });
+    const options = screen.getByRole("region", { name: "Fixed plan options" });
+    expect(
+        choices.compareDocumentPosition(options) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+        screen.getByText("Choose whether the cycle steps run once or repeat."),
+    ).toBeTruthy();
+    await userEvent.click(
+        within(choices).getByRole("radio", { name: /^Repeating pattern/ }),
+    );
+    expect(
+        screen.queryByRole("region", { name: "Fixed plan options" }),
+    ).toBeNull();
+    expect(
+        within(
+            screen.getByRole("region", { name: "Repeating pattern options" }),
+        ).getByText("Choose the cycle steps to repeat."),
+    ).toBeTruthy();
+});
+
+test("phase overview remains available while its details expand and collapse", async () => {
+    const editor = setup();
+    editor.context.setupStage = 2;
+    const draft = definition();
+    draft.phases[0].details.description = "The opening phase story.";
+    draft.phases[0].details.effects = "Choose opening missions.";
+    draft.phases[0].details.rewards.win = {
+        credits: { fixed: 25, dice: null },
+        reputation: 2,
+    };
+    editor.values.setup_definition = JSON.stringify(draft);
+    render(<ScheduleEditor editor={editor} phases={[]} />);
+    expect(screen.getByText("The opening phase story.")).toBeTruthy();
+    expect(screen.getByText("Win: 25¢, 2 reputation")).toBeTruthy();
+    const edit = screen.getByRole("button", { name: "Edit phase 1 details" });
+    expect(edit.getAttribute("aria-expanded")).toBe("false");
+    expect(edit.querySelectorAll("svg")).toHaveLength(2);
+    expect(screen.queryByLabelText("Phase 1 description")).toBeNull();
+    await userEvent.click(
+        screen.getByRole("button", { name: "Effects for Phase 1" }),
+    );
+    expect(screen.getByRole("dialog").textContent).toContain(
+        "Choose opening missions.",
+    );
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(edit);
+    const collapse = screen.getByRole("button", {
+        name: "Hide phase 1 details",
+    });
+    expect(collapse.getAttribute("aria-expanded")).toBe("true");
+    expect(
+        document.getElementById(collapse.getAttribute("aria-controls")!),
+    ).toBeTruthy();
+    await userEvent.clear(screen.getByLabelText("Phase 1 description"));
+    await userEvent.type(
+        screen.getByLabelText("Phase 1 description"),
+        "A revised phase story.",
+    );
+    await userEvent.click(collapse);
+    expect(screen.queryByLabelText("Phase 1 description")).toBeNull();
+    expect(screen.getByText("A revised phase story.")).toBeTruthy();
+});
+
+test("setup starts with the selected cycle active and retains its number while switched off", async () => {
+    const editor = setup();
+    editor.context.setupStage = 2;
+    editor.values.no_current = "";
+    const fetch = vi.fn().mockResolvedValue({
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ nextUrl: "/cycles/" }),
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<ScheduleEditor editor={editor} phases={[]} onNavigate={vi.fn()} />);
+    const active = screen.getByRole("switch", {
+        name: "Start with cycle active",
+    });
+    expect(active.getAttribute("aria-checked")).toBe("true");
+    expect(
+        screen.getByText(
+            "Make the selected cycle current when you save. Leave this off to activate a cycle later.",
+        ),
+    ).toBeTruthy();
+    await userEvent.clear(screen.getByLabelText("Current cycle number"));
+    await userEvent.type(screen.getByLabelText("Current cycle number"), "3");
+    await userEvent.click(active);
+    expect(active.getAttribute("aria-checked")).toBe("false");
+    expect(screen.queryByLabelText("Current cycle number")).toBeNull();
+    await userEvent.click(active);
+    expect(
+        (screen.getByLabelText("Current cycle number") as HTMLInputElement)
+            .value,
+    ).toBe("3");
+    await userEvent.click(active);
+    await userEvent.click(
+        screen.getByRole("button", { name: "Review schedule" }),
+    );
+    await userEvent.click(
+        screen.getByRole("button", { name: "Set up phases & cycles" }),
+    );
+    expect(fetch.mock.calls[0][1].body.get("no_current")).toBe("on");
+    expect(fetch.mock.calls[0][1].body.get("current_number")).toBe("3");
+});
+
+test("a restored sparse-reward draft remains readable and editable", async () => {
+    const editor = setup();
+    editor.context.setupStage = 2;
+    const original = definition();
+    const sparse = {
+        ...original,
+        phases: original.phases.map((phase) => ({
+            ...phase,
+            details: {
+                ...phase.details,
+                name: "Retained phase",
+                rewards: { win: { reputation: 2 } },
+            },
+        })),
+    };
+    sessionStorage.setItem(
+        `${editor.recoveryKey}:setup-draft`,
+        JSON.stringify({
+            setup_definition: JSON.stringify(sparse),
+            date_mode: "manual",
+        }),
+    );
+    render(<ScheduleEditor editor={editor} phases={[]} onNavigate={vi.fn()} />);
+    expect(screen.getByLabelText("Phase 1 name")).toHaveProperty(
+        "value",
+        "Retained phase",
+    );
+    expect(screen.getByText("Win: 2 reputation")).toBeTruthy();
+    await userEvent.click(
+        screen.getByRole("button", { name: "Edit phase 1 details" }),
+    );
+    expect(screen.getByLabelText("Win fixed credits")).toHaveProperty(
+        "value",
+        "0",
+    );
+    expect(screen.getByLabelText("Win reputation")).toHaveProperty(
+        "value",
+        "2",
+    );
+    await userEvent.clear(screen.getByLabelText("Win fixed credits"));
+    await userEvent.type(screen.getByLabelText("Win fixed credits"), "25");
+    await userEvent.click(
+        screen.getByRole("button", { name: "Hide phase 1 details" }),
+    );
+    expect(screen.getByText("Win: 25¢, 2 reputation")).toBeTruthy();
+});
+
+test("a retained sparse setup draft previews and edits dice without losing them in the payload", async () => {
+    const editor = setup();
+    editor.context.setupStage = 2;
+    const draft = definition();
+    draft.phases[0].details.rewards = {
+        win: { credits: { dice: { sides: 3 } } },
+        entry_credits: { dice: { count: 2, multiplier: 10 } },
+    } as unknown as SetupDefinition["phases"][number]["details"]["rewards"];
+    const original = JSON.stringify(draft);
+    sessionStorage.setItem(
+        `${editor.recoveryKey}:setup-draft`,
+        JSON.stringify({ setup_definition: original }),
+    );
+    const fetch = vi.fn().mockResolvedValue({
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ nextUrl: "/cycles/" }),
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<ScheduleEditor editor={editor} phases={[]} onNavigate={vi.fn()} />);
+    expect(screen.getByText("Win: 1D3¢ · Phase entry: 2D6 × 10¢")).toBeTruthy();
+    expect(
+        JSON.parse(sessionStorage.getItem(`${editor.recoveryKey}:setup-draft`)!)
+            .setup_definition,
+    ).toBe(original);
+    await userEvent.click(
+        screen.getByRole("button", { name: "Edit phase 1 details" }),
+    );
+    expect(screen.getByLabelText("Win dice count")).toHaveProperty(
+        "value",
+        "1",
+    );
+    expect(screen.getByLabelText("Win multiplier")).toHaveProperty(
+        "value",
+        "1",
+    );
+    expect(screen.getByLabelText("Phase entry die type")).toHaveProperty(
+        "value",
+        "6",
+    );
+    await userEvent.clear(screen.getByLabelText("Win fixed credits"));
+    await userEvent.type(screen.getByLabelText("Win fixed credits"), "25");
+    expect(
+        screen.getByText("Win: 1D3 + 25¢ · Phase entry: 2D6 × 10¢"),
+    ).toBeTruthy();
+    await userEvent.click(
+        screen.getByRole("button", { name: "Review schedule" }),
+    );
+    await userEvent.click(
+        screen.getByRole("button", { name: "Set up phases & cycles" }),
+    );
+    const saved = JSON.parse(
+        fetch.mock.calls[0][1].body.get("setup_definition"),
+    ).phases[0].details.rewards;
+    expect(saved.win).toEqual({
+        credits: { fixed: 25, dice: { count: 1, sides: 3, multiplier: 1 } },
+        reputation: 0,
+    });
+    expect(saved.entry_credits).toEqual({
+        fixed: 0,
+        dice: { count: 2, sides: 6, multiplier: 10 },
+    });
+});
+
+test("an uncertain sparse setup retries its exact original definition", async () => {
+    const editor = setup();
+    const draft = definition();
+    draft.phases[0].details.rewards = {
+        win: { credits: { dice: {} } },
+    } as unknown as SetupDefinition["phases"][number]["details"]["rewards"];
+    const original = new URLSearchParams({
+        ...editor.values,
+        setup_definition: JSON.stringify(draft),
+    });
+    sessionStorage.setItem(editor.recoveryKey, original.toString());
+    const fetch = vi.fn().mockResolvedValue({
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ nextUrl: "/cycles/" }),
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<ScheduleEditor editor={editor} phases={[]} onNavigate={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    const body = fetch.mock.calls[0][1].body as URLSearchParams;
+    body.delete("csrfmiddlewaretoken");
+    expect(body.toString()).toBe(original.toString());
 });

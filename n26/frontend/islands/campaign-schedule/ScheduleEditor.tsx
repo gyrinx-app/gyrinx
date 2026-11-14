@@ -9,6 +9,7 @@ import { fieldErrors } from "../../http/command";
 import {
     Alert,
     Breadcrumbs,
+    Card,
     Button,
     Dialog,
     DateInput,
@@ -19,6 +20,8 @@ import {
     FlowProgress,
     Input,
     NativeSelect,
+    RadioCard,
+    RadioCards,
     Table,
     Textarea,
     Toggle,
@@ -363,100 +366,118 @@ export function ScheduleEditor({
             )}
         </Field>
     );
+    const chooseMode = (mode: string) => {
+        if (editor.kind !== "plan") return change("mode", mode);
+        modeDrafts.current[values.mode] = values.steps;
+        const proposed =
+            mode === "repeating"
+                ? editor.context.patternSteps
+                : editor.context.fixedSteps;
+        const steps =
+            modeDrafts.current[mode] ??
+            (Array.isArray(proposed) ? JSON.stringify(proposed) : values.steps);
+        form.setValues({ ...values, mode, steps });
+    };
     const mode = (
-        <Field label="Planning mode" htmlFor="cycle-mode" errors={errors.mode}>
-            <NativeSelect
+        <RadioCards
+            legend="Planning mode"
+            description="Choose whether the cycle steps run once or repeat."
+            errors={errors.mode}
+        >
+            <RadioCard
                 name="mode"
-                value={values.mode}
-                onChange={(event) => {
-                    const mode = event.target.value;
-                    if (editor.kind !== "plan") return change("mode", mode);
-                    modeDrafts.current[values.mode] = values.steps;
-                    const proposed =
-                        mode === "repeating"
-                            ? editor.context.patternSteps
-                            : editor.context.fixedSteps;
-                    const steps =
-                        modeDrafts.current[mode] ??
-                        (Array.isArray(proposed)
-                            ? JSON.stringify(proposed)
-                            : values.steps);
-                    form.setValues({ ...values, mode, steps });
-                }}
-            >
-                <option value="fixed">Fixed plan</option>
-                <option value="repeating">Repeating pattern</option>
-            </NativeSelect>
-        </Field>
+                value="fixed"
+                label="Fixed plan"
+                description="Run the listed cycles once, then finish the campaign."
+                checked={values.mode === "fixed"}
+                onChange={() => chooseMode("fixed")}
+            />
+            <RadioCard
+                name="mode"
+                value="repeating"
+                label="Repeating pattern"
+                description="Repeat these cycle steps until you finish the campaign."
+                checked={values.mode === "repeating"}
+                onChange={() => chooseMode("repeating")}
+            />
+        </RadioCards>
     );
     const plannedDates = values.date_mode !== "manual";
     const dates = "date_start" in editor.values && (
         <section className="space-y-3" aria-label="Cycle dates">
-            <Field
-                label="Cycle dates"
-                htmlFor="cycle-date_mode"
+            <RadioCards
+                legend="Cycle dates"
                 errors={errors.date_mode}
+                description={
+                    plannedDates
+                        ? "Use dates to plan future cycles. You advance each cycle when the campaign is ready."
+                        : "You can set each cycle’s start or end date separately. You advance cycles yourself."
+                }
             >
-                <NativeSelect
+                <RadioCard
                     name="date_mode"
-                    value={values.date_mode ?? "planned"}
-                    onChange={(event) =>
-                        change("date_mode", event.target.value)
-                    }
-                >
-                    <option value="manual">No planned dates</option>
-                    <option value="planned">Plan cycle dates</option>
-                </NativeSelect>
-            </Field>
-            <p className="text-base">
-                You advance each cycle when the campaign is ready. Dates are for
-                planning.
-            </p>
-            {plannedDates ? (
-                <>
-                    {text(
-                        "date_start",
-                        editor.kind === "setup" ||
-                            (!values.date_mode && editor.context.needsDates)
-                            ? "Cycle 1 starts"
-                            : values.date_mode
-                              ? `Cycle ${editor.context.nextCycleNumber ?? 1} starts`
-                              : "First projected cycle starts",
-                        { type: "date", required: true },
-                    )}
-                    <div className="grid grid-cols-2 gap-3">
-                        {text("cycle_interval", "Cycle length", {
-                            type: "number",
-                            min: "1",
-                            max: "520",
-                            required: true,
-                        })}
-                        <Field
-                            label="Unit"
-                            htmlFor="cycle-cycle_unit"
-                            errors={errors.cycle_unit}
-                        >
-                            <NativeSelect
-                                name="cycle_unit"
-                                value={values.cycle_unit}
-                                onChange={(event) =>
-                                    change("cycle_unit", event.target.value)
-                                }
+                    value="manual"
+                    label="No planned dates"
+                    description="Set dates separately on each cycle when you need them."
+                    checked={!plannedDates}
+                    onChange={() => change("date_mode", "manual")}
+                />
+                <RadioCard
+                    name="date_mode"
+                    value="planned"
+                    label="Plan cycle dates"
+                    description="Use a start date and cycle length for future cycles."
+                    checked={plannedDates}
+                    onChange={() => change("date_mode", "planned")}
+                />
+            </RadioCards>
+            {plannedDates && (
+                <Card>
+                    <section
+                        aria-label="Planned date options"
+                        className="space-y-3"
+                    >
+                        {text(
+                            "date_start",
+                            editor.kind === "setup" ||
+                                (!values.date_mode && editor.context.needsDates)
+                                ? "Cycle 1 starts"
+                                : values.date_mode
+                                  ? `Cycle ${editor.context.nextCycleNumber ?? 1} starts`
+                                  : "First projected cycle starts",
+                            { type: "date", required: true },
+                        )}
+                        <div className="grid grid-cols-2 gap-3">
+                            {text("cycle_interval", "Cycle length", {
+                                type: "number",
+                                min: "1",
+                                max: "520",
+                                required: true,
+                            })}
+                            <Field
+                                label="Unit"
+                                htmlFor="cycle-cycle_unit"
+                                errors={errors.cycle_unit}
                             >
-                                <option value="weeks">Weeks</option>
-                                <option value="months">Calendar months</option>
-                            </NativeSelect>
-                        </Field>
-                    </div>
-                    <p className="text-sm text-muted">
-                        Each range includes its start and end dates.
-                    </p>
-                </>
-            ) : (
-                <p className="text-sm text-muted">
-                    Future cycles have no planned dates. You can add dates to
-                    individual cycles. Existing dates are kept.
-                </p>
+                                <NativeSelect
+                                    name="cycle_unit"
+                                    value={values.cycle_unit}
+                                    onChange={(event) =>
+                                        change("cycle_unit", event.target.value)
+                                    }
+                                >
+                                    <option value="weeks">Weeks</option>
+                                    <option value="months">
+                                        Calendar months
+                                    </option>
+                                </NativeSelect>
+                            </Field>
+                        </div>
+                        <p className="text-sm text-muted">
+                            Each range includes its start and end dates.
+                        </p>
+                    </section>
+                </Card>
             )}
         </section>
     );
@@ -778,15 +799,15 @@ export function ScheduleEditor({
                                 id="cycle-setup-step"
                                 tabIndex={-1}
                                 className={
-                                    setupStage === 3
-                                        ? "sr-only"
-                                        : "text-sm font-medium"
+                                    setupStage === 1
+                                        ? "text-sm font-medium"
+                                        : "sr-only"
                                 }
                             >
                                 {setupStage === 1
                                     ? "Choose a starting schedule"
                                     : setupStage === 2
-                                      ? "Customise your campaign"
+                                      ? "Customise schedule"
                                       : "Review schedule"}
                             </h2>
                             {setupStage === 1 && (
@@ -836,34 +857,48 @@ export function ScheduleEditor({
                             <SetupDraft
                                 value={values.setup_definition ?? ""}
                                 review={setupStage !== 2}
+                                cyclesOptions={mode}
+                                mode={values.mode}
                                 onChange={(value) =>
                                     change("setup_definition", value)
                                 }
                             />
                             {setupStage === 2 && (
                                 <>
-                                    {mode}
-                                    <Toggle
-                                        label="No current cycle"
-                                        checked={noCurrent}
-                                        onCheckedChange={(checked) =>
-                                            change(
-                                                "no_current",
-                                                checked ? "on" : "",
-                                            )
-                                        }
-                                    />
-                                    {!noCurrent &&
-                                        text(
-                                            "current_number",
-                                            "Current cycle number",
-                                            {
-                                                type: "number",
-                                                help: "Starts at Cycle 1 if left blank.",
-                                                min: "1",
-                                                max: "1000",
-                                            },
-                                        )}
+                                    <fieldset
+                                        className="space-y-2"
+                                        aria-describedby="starting-cycle-help"
+                                    >
+                                        <legend className="sr-only">
+                                            Starting cycle
+                                        </legend>
+                                        <Toggle
+                                            label="Start with cycle active"
+                                            checked={!noCurrent}
+                                            onCheckedChange={(checked) =>
+                                                change(
+                                                    "no_current",
+                                                    checked ? "" : "on",
+                                                )
+                                            }
+                                        />
+                                        <FieldDescription id="starting-cycle-help">
+                                            Make the selected cycle current when
+                                            you save. Leave this off to activate
+                                            a cycle later.
+                                        </FieldDescription>
+                                        {!noCurrent &&
+                                            text(
+                                                "current_number",
+                                                "Current cycle number",
+                                                {
+                                                    type: "number",
+                                                    help: "Starts at Cycle 1 if left blank.",
+                                                    min: "1",
+                                                    max: "1000",
+                                                },
+                                            )}
+                                    </fieldset>
                                     {dates}
                                 </>
                             )}
@@ -1129,22 +1164,40 @@ export function ScheduleEditor({
                                     !!navigation?.pending
                                 }
                             />
-                            <h2 className="text-lg font-semibold">Schedule</h2>
+                            <h2 className="text-lg font-semibold">Cycles</h2>
                             {dates}
                             {mode}
-                            <PlanSteps
-                                value={values.steps}
-                                phases={phases}
-                                disabled={form.frozen}
-                                onChange={(value) => change("steps", value)}
-                                startsAfterOrder={
-                                    values.mode === "fixed" &&
-                                    typeof editor.context.startsAfterOrder ===
-                                        "number"
-                                        ? editor.context.startsAfterOrder
-                                        : undefined
-                                }
-                            />
+                            <Card>
+                                <section
+                                    aria-label={
+                                        values.mode === "fixed"
+                                            ? "Fixed plan options"
+                                            : "Repeating pattern options"
+                                    }
+                                >
+                                    <p className="mb-3 text-sm text-muted">
+                                        {values.mode === "fixed"
+                                            ? "Choose the remaining cycle steps for this campaign."
+                                            : "Choose the cycle steps to repeat."}
+                                    </p>
+                                    <PlanSteps
+                                        value={values.steps}
+                                        phases={phases}
+                                        disabled={form.frozen}
+                                        onChange={(value) =>
+                                            change("steps", value)
+                                        }
+                                        startsAfterOrder={
+                                            values.mode === "fixed" &&
+                                            typeof editor.context
+                                                .startsAfterOrder === "number"
+                                                ? editor.context
+                                                      .startsAfterOrder
+                                                : undefined
+                                        }
+                                    />
+                                </section>
+                            </Card>
                         </>
                     )}
                 </fieldset>

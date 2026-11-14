@@ -22,6 +22,7 @@ export type SetupDefinition = {
 };
 export type Phase = {
     id: string;
+    number?: number;
     name: string;
     description: string;
     effects: string;

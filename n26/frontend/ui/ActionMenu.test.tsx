@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import cotton from "../generated/cotton.json";
 import { ActionMenu, isVirtualClick, type ActionMenuItem } from "./ActionMenu";
+import { BusyControlScope } from "./Busy";
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -520,4 +521,30 @@ describe("ActionMenu placement", () => {
         await user.click(trigger);
         expect(screen.getByRole("menu").style.top).toBe(`${700 - 4 - 120}px`);
     });
+});
+
+it("menu links identify their trigger for scoped busy feedback", async () => {
+    const menu = (busy: string | null) => (
+        <BusyControlScope value={busy}>
+            <ActionMenu label="Phase actions" items={links} />
+        </BusyControlScope>
+    );
+    const view = render(menu(null));
+    const trigger = screen.getByRole("button", { name: "Phase actions" });
+    const id = trigger.getAttribute("data-busy-id");
+    expect(id).toBeTruthy();
+    await userEvent.click(trigger);
+    for (const link of screen.getAllByRole("menuitem")) {
+        expect(link.getAttribute("data-busy-id")).toBe(id);
+        expect(link.hasAttribute("aria-busy")).toBe(false);
+    }
+    view.rerender(menu(id));
+    expect(trigger.getAttribute("aria-busy")).toBe("true");
+    expect(trigger.getAttribute("data-busy")).toBe("on");
+    expect(trigger).toHaveProperty("disabled", true);
+    for (const link of screen.getAllByRole("menuitem"))
+        expect(link.hasAttribute("aria-busy")).toBe(false);
+    view.rerender(menu(null));
+    expect(trigger.hasAttribute("aria-busy")).toBe(false);
+    expect(trigger).toHaveProperty("disabled", false);
 });
