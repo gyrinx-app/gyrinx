@@ -2000,6 +2000,120 @@ def button_link_by_size():
     }
 
 
+def action_facts_recipe():
+    context = {
+        "changes": [{"kind": "counter", "name": "XP", "before": 4, "after": 0}],
+        "receipt": [{"label": "XP", "value": "4 → 0"}],
+        "attempts": [
+            {
+                "roll": 2,
+                "result_name": "Dodge",
+                "is_available": False,
+                "unavailable_reason": "Already selected",
+            }
+        ],
+    }
+    source = '<c-n26.action-facts stage="{stage}" model_name="Mara" outcome="Advance" summary="Dodge" :show_outcome="True" description="Description" selection_label="Selection" selection_title="Dodge" selection_description="Effect" selection_meta="Rating +5¢" change_href="/" :changes="changes" :correction="True" :retained_payment="True" :retained_roll="True" :receipt="receipt" hold_reason="On hold" :threshold="True" :keeps_stashed_weapons="True" roll_value="12" roll_explanation="Choose a result" :attempts="attempts">Rating</c-n26.action-facts>'
+    result = {}
+    for stage in (
+        "review",
+        "done",
+        "on-hold",
+        "undo",
+        "by-hand",
+        "cancel",
+        "roll",
+        "attempts",
+        "detail",
+        "back",
+        "danger",
+    ):
+        rendered = Template(
+            CottonCompiler().process(source.format(stage=stage))
+        ).render(Context(context))
+        for _, attrs in Elements(rendered).elements:
+            if key := attrs.get("data-action-part"):
+                value = class_name(attrs)
+                if key in result and result[key] != value:
+                    raise ValueError(f"Cotton action facts variant changed: {key}")
+                result[key] = value
+    ghost = class_name(
+        attributes('<c-ui.button href="/" variant="ghost">Back</c-ui.button>', "a")[0]
+    )
+    for key in ("back", "danger"):
+        result[key] = _without(result[key], *ghost.split())
+    expected = {
+        "review",
+        "outcome",
+        "caption",
+        "outcomeTitle",
+        "muted",
+        "selection",
+        "selectionRow",
+        "selectionContent",
+        "title",
+        "description",
+        "changes",
+        "retainedPayment",
+        "note",
+        "completed",
+        "completedRow",
+        "completedIcon",
+        "result",
+        "resultTitle",
+        "undoSummary",
+        "cancel",
+        "rollValue",
+        "explanation",
+        "attempts",
+        "attemptValue",
+        "detail",
+        "back",
+        "danger",
+    }
+    if result.keys() != expected:
+        raise ValueError(
+            f"Cotton action fact parts changed: {result.keys() ^ expected}"
+        )
+    return result
+
+
+def payment_figures_recipe():
+    from n26.core.flow import PaymentFigures
+
+    figures = PaymentFigures(label="XP", available="0", price="2", remaining="0")
+    rendered = Template(
+        CottonCompiler().process('<c-n26.payment-figures :figures="figures" />')
+    ).render(Context({"figures": figures}))
+    elements = Elements(rendered).elements
+    expected = (
+        "div",
+        "dl",
+        "div",
+        "dt",
+        "dd",
+        "span",
+        "span",
+        "div",
+        "dt",
+        "dd",
+        "span",
+        "span",
+    )
+    if tuple(tag for tag, _ in elements) != expected:
+        raise ValueError("Cotton payment figures structure changed")
+    parts = [class_name(attrs) for _, attrs in elements]
+    if parts[2:7] != parts[7:12]:
+        raise ValueError("Cotton payment figures columns no longer share a recipe")
+    return dict(
+        zip(
+            ("root", "list", "figure", "label", "value", "number", "unit"),
+            parts[:7],
+            strict=True,
+        )
+    )
+
+
 def recipes():
     from n26.core.icons import resolve
     from n26.frontend.tooling.export_choice_recipes import choice_recipes
@@ -2061,6 +2175,8 @@ def recipes():
     return {
         "dialog": dialog_recipe(),
         "flowProgress": flow_progress_recipe(),
+        "paymentFigures": payment_figures_recipe(),
+        "actionFacts": action_facts_recipe(),
         "choice": choice_recipes(Elements, class_name),
         "button": {
             variant: classes(

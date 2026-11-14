@@ -864,7 +864,7 @@ export function RadioCards({
                 [descriptionId, errorId].filter(Boolean).join(" ") || undefined
             }
         >
-            <legend className={recipe.legend}>{legend}</legend>
+            {legend && <legend className={recipe.legend}>{legend}</legend>}
             {descriptionId && (
                 <p id={descriptionId} className={recipe.description}>
                     {description}
@@ -1763,3 +1763,14 @@ export {
 export { TabLinks, type TabLink } from "./TabLinks";
 
 export { choiceRecipes, type ChoiceRecipes } from "./ChoiceRecipes";
+
+export { PaymentFigures, type PaymentFiguresData } from "./PaymentFigures";
+
+export {
+    ActionFacts,
+    ActionText,
+    ActionDetail,
+    ActionFooterLink,
+    ActionAttempts,
+    ActionRollSummary,
+} from "./ActionFacts";

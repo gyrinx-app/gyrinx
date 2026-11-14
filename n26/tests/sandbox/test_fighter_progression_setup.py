@@ -47,6 +47,7 @@ from n26.library.models import (
 )
 from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import found_gang, give_weapon, hire
+from n26.tests.sandbox.test_action_client import post_action
 
 pytestmark = pytest.mark.django_db
 
@@ -129,7 +130,8 @@ def _earned(progression, threshold):
 
 def _start(client, progression, allowance):
     client.force_login(progression.owner)
-    response = client.post(
+    response = post_action(
+        client,
         reverse(
             "n26-action-start", args=[progression.fighter.pk, progression.action.pk]
         ),
@@ -202,7 +204,8 @@ class TestFoundationSetup:
         )
         url = reverse("authoring-foundations")
         page = client.get(url + "?progression=live")
-        response = client.post(
+        response = post_action(
+            client,
             url,
             {"progression": mode, "plan": page.context["progression_token"]},
             follow=True,
@@ -303,11 +306,11 @@ class TestFoundationSetup:
     ):
         record, url = _start(client, progression, _earned(progression, 13))
         pick = Pickable.objects.get(name="Ganger specialist: Scout")
-        response = client.post(url, {"pickable_id": str(pick.pk)})
+        response = post_action(client, url, {"pickable_id": str(pick.pk)})
         page = client.get(response.url)
         token = page.context["form"]["review"].value()
         prepare_fighter_progression()
-        response = client.post(response.url, {"review": token})
+        response = post_action(client, response.url, {"review": token})
         assert response.status_code == 302, _errors(response)
         record.refresh_from_db()
         assert record.state == ActionRecord.State.COMPLETED
@@ -320,19 +323,22 @@ class TestFoundationSetup:
         client.force_login(progression_content.owner)
         live = make_profile("Live recruit")
         address = reverse("authoring-foundations")
-        assert client.post(address, {"progression": "live"}).status_code == 302
+        assert post_action(client, address, {"progression": "live"}).status_code == 302
         assert not live.modifiers.exists()
         page = client.get(address + "?progression=live")
         token = page.context["progression_token"]
         new = make_profile("Imported after review")
         assert (
-            client.post(address, {"progression": "live", "plan": token}).status_code
+            post_action(
+                client, address, {"progression": "live", "plan": token}
+            ).status_code
             == 302
         )
         assert not live.modifiers.exists()
         page = client.get(address + "?progression=live")
         assert (
-            client.post(
+            post_action(
+                client,
                 address,
                 {"progression": "live", "plan": page.context["progression_token"]},
             ).status_code
@@ -364,23 +370,25 @@ class TestFoundationSetup:
         assert "Track XP" in client.get(address).content.decode()
         xp = Counter.objects.get(name="XP")
         assert (
-            client.post(
-                address, {"act": "track-progression", "counter": str(xp.pk)}
+            post_action(
+                client, address, {"act": "track-progression", "counter": str(xp.pk)}
             ).status_code
             == 302
         )
         counter = Assignment.objects.get(miniature_root=leader, counter=xp)
         assert counter.counter_value.value == 0
         assert (
-            client.post(
-                address, {"act": "track-progression", "counter": str(xp.pk)}
+            post_action(
+                client, address, {"act": "track-progression", "counter": str(xp.pk)}
             ).status_code
             == 302
         )
         assert Assignment.objects.filter(miniature_root=leader, counter=xp).count() == 1
         guest_address = reverse("n26-edit-fighter", args=[guest.pk])
         assert "Track XP" not in client.get(guest_address).content.decode()
-        client.post(guest_address, {"act": "track-progression", "counter": str(xp.pk)})
+        post_action(
+            client, guest_address, {"act": "track-progression", "counter": str(xp.pk)}
+        )
         assert not Assignment.objects.filter(miniature_root=guest, counter=xp).exists()
         with operation(gang, actor=progression.owner) as op:
             op.tally(counter, 4)
@@ -391,7 +399,8 @@ class TestFoundationSetup:
         record, url = _start(client, test, allowance)
         monkeypatch.setattr(Dice, "roll", classmethod(lambda cls, dice, rng=None: 10))
         page = client.get(url)
-        response = client.post(
+        response = post_action(
+            client,
             url,
             {
                 "request_key": page.context["form"]["request_key"].value(),
@@ -405,10 +414,10 @@ class TestFoundationSetup:
             for row in page.context["advancement_options"]
             if not row["option"].needs_skill
         )
-        response = client.post(url, {"pickable_id": pick.id})
+        response = post_action(client, url, {"pickable_id": pick.id})
         page = client.get(response.url)
-        response = client.post(
-            response.url, {"review": page.context["form"]["review"].value()}
+        response = post_action(
+            client, response.url, {"review": page.context["form"]["review"].value()}
         )
         assert response.status_code == 302, _errors(response)
         record.refresh_from_db()
@@ -675,7 +684,7 @@ class TestPromotionAuthoring:
             "stash_weapons_for": [str(progression_content.profile.pk)],
             "keep_weapon_trait": str(original.keep_weapon_trait_id),
         }
-        added = client.post(address, payload)
+        added = post_action(client, address, payload)
         assert added.status_code == 302, added.context["part_sections"][0][
             "form"
         ].errors
@@ -683,7 +692,8 @@ class TestPromotionAuthoring:
         assert list(promotion.optional_profiles.all()) == [progression_content.profile]
         payload["threshold"] = "85"
         payload["optional_profiles"] = []
-        edited = client.post(
+        edited = post_action(
+            client,
             address,
             {
                 "act": "edit-part",
@@ -703,7 +713,8 @@ class TestPromotionAuthoring:
         ).exists()
 
         payload["keep_weapon_trait"] = ""
-        refused = client.post(
+        refused = post_action(
+            client,
             address,
             {
                 "act": "edit-part",
@@ -784,7 +795,7 @@ class TestPromotions:
         record, url = _start(client, progression, _earned(progression, 13))
         for response in (
             client.get(url),
-            client.post(url, {"pickable_id": str(members[0].pickable_id)}),
+            post_action(client, url, {"pickable_id": str(members[0].pickable_id)}),
         ):
             assert response.status_code == 200
             assert "must make a result available" in response.content.decode()
@@ -798,11 +809,13 @@ class TestPromotions:
 
         a.revise(members[0], **{field: False})
         assert len(client.get(url).context["advancement_options"]) == 1
-        response = client.post(url, {"pickable_id": str(members[0].pickable_id)})
+        response = post_action(
+            client, url, {"pickable_id": str(members[0].pickable_id)}
+        )
         assert response.status_code == 302, _errors(response)
         review = client.get(response.url)
-        response = client.post(
-            response.url, {"review": review.context["form"]["review"].value()}
+        response = post_action(
+            client, response.url, {"review": review.context["form"]["review"].value()}
         )
         assert response.status_code == 302, _errors(response)
         record.refresh_from_db()
@@ -827,7 +840,9 @@ class TestPromotions:
 
         record, url = _start(client, progression, _earned(progression, 13))
         pick = Pickable.objects.get(name="Ganger specialist: Scout")
-        assert client.post(url, {"pickable_id": str(pick.pk)}).status_code == 302
+        assert (
+            post_action(client, url, {"pickable_id": str(pick.pk)}).status_code == 302
+        )
         promotion = AdvancementPromotion.objects.get(threshold=13)
         setattr(promotion, field, True)
         promotion.save()
@@ -900,7 +915,9 @@ class TestPromotions:
         allowance = _earned(progression, 13)
         record, url = _start(client, progression, allowance)
         pick = Pickable.objects.get(name="Ganger specialist: Scout")
-        assert client.post(url, {"pickable_id": str(pick.pk)}).status_code == 302
+        assert (
+            post_action(client, url, {"pickable_id": str(pick.pk)}).status_code == 302
+        )
         record.refresh_from_db()
         anchor = record.advancement_selection.slot_assignment
         with operation(progression.gang, actor=progression.owner) as op:
@@ -932,13 +949,13 @@ class TestPromotions:
         assert "Choose a promotion" in page.content.decode()
         assert len(page.context["advancement_options"]) == 8
         pick = Pickable.objects.get(name="Ganger specialist: Scout")
-        response = client.post(choose_url, {"pickable_id": str(pick.pk)})
+        response = post_action(client, choose_url, {"pickable_id": str(pick.pk)})
         assert response.status_code == 302, _errors(response)
         review = client.get(response.url)
         assert review.status_code == 200
         record.refresh_from_db()
-        response = client.post(
-            response.url, {"review": review.context["form"]["review"].value()}
+        response = post_action(
+            client, response.url, {"review": review.context["form"]["review"].value()}
         )
         assert response.status_code == 302, _errors(response)
         record.refresh_from_db()
@@ -957,11 +974,13 @@ class TestPromotions:
             "n26-action-flow", args=[progression.fighter.pk, record.pk, "correct"]
         )
         replacement = Pickable.objects.get(name="Ganger specialist: Medic")
-        changed = client.post(correction_url, {"pickable_id": str(replacement.pk)})
+        changed = post_action(
+            client, correction_url, {"pickable_id": str(replacement.pk)}
+        )
         assert changed.status_code == 302, _errors(changed)
         review = client.get(changed.url)
-        changed = client.post(
-            changed.url, {"review": review.context["form"]["review"].value()}
+        changed = post_action(
+            client, changed.url, {"review": review.context["form"]["review"].value()}
         )
         assert changed.status_code == 302, _errors(changed)
         skills = {str(row.thing) for row in _computed(progression.fighter).skills}
@@ -975,11 +994,11 @@ class TestPromotions:
 
         record, url = _start(client, progression, _earned(progression, 13))
         pick = Pickable.objects.get(name="Ganger specialist: Scout")
-        response = client.post(url, {"pickable_id": str(pick.pk)})
+        response = post_action(client, url, {"pickable_id": str(pick.pk)})
         page = client.get(response.url)
         assert (
-            client.post(
-                response.url, {"review": page.context["form"]["review"].value()}
+            post_action(
+                client, response.url, {"review": page.context["form"]["review"].value()}
             ).status_code
             == 302
         )
@@ -995,11 +1014,11 @@ class TestPromotions:
         }
         record.refresh_from_db()
         assert record.state == ActionRecord.State.STARTED
-        response = client.post(url, {"pickable_id": str(pick.pk)})
+        response = post_action(client, url, {"pickable_id": str(pick.pk)})
         page = client.get(response.url)
         assert (
-            client.post(
-                response.url, {"review": page.context["form"]["review"].value()}
+            post_action(
+                client, response.url, {"review": page.context["form"]["review"].value()}
             ).status_code
             == 302
         )
@@ -1022,8 +1041,8 @@ class TestPromotions:
     ):
         def confirm(url):
             page = client.get(url)
-            response = client.post(
-                url, {"review": page.context["form"]["review"].value()}
+            response = post_action(
+                client, url, {"review": page.context["form"]["review"].value()}
             )
             assert response.status_code == 302, _errors(response)
 
@@ -1057,12 +1076,12 @@ class TestPromotions:
         characteristic = next(
             option for option in choices if option.name.startswith("Toughness")
         )
-        response = client.post(earlier_url, {"pickable_id": characteristic.id})
+        response = post_action(client, earlier_url, {"pickable_id": characteristic.id})
         assert response.status_code == 302, _errors(response)
         confirm(response.url)
         promoted, promotion_url = _start(client, progression, promotion_allowance)
         scout = Pickable.objects.get(name="Ganger specialist: Scout")
-        response = client.post(promotion_url, {"pickable_id": str(scout.pk)})
+        response = post_action(client, promotion_url, {"pickable_id": str(scout.pk)})
         assert response.status_code == 302, _errors(response)
         confirm(response.url)
         promoted.refresh_from_db()
@@ -1085,11 +1104,11 @@ class TestPromotions:
             for row in page.context["advancement_options"]
             if row["option"].name.startswith("Select Primary skill")
         )
-        response = client.post(earlier_url, {"pickable_id": selected.id})
+        response = post_action(client, earlier_url, {"pickable_id": selected.id})
         assert response.status_code == 302, _errors(response)
         skill = Skill.objects.filter(category=agility).exclude(name="Clamber").first()
         assert skill is not None
-        response = client.post(response.url, {"skill_id": str(skill.pk)})
+        response = post_action(client, response.url, {"skill_id": str(skill.pk)})
         assert response.status_code == 302, _errors(response)
         confirm(response.url)
         earlier.refresh_from_db()
@@ -1104,7 +1123,7 @@ class TestPromotions:
             ],
             created__gt=promoted.completed_event.created,
         ).exists()
-        blocked = client.post(undo_promotion, {"review": token})
+        blocked = post_action(client, undo_promotion, {"review": token})
         assert "later advancement depends on this promotion" in blocked.content.decode()
         promoted.refresh_from_db()
         assert promoted.state == ActionRecord.State.COMPLETED
@@ -1147,10 +1166,10 @@ class TestPromotions:
         prepare_fighter_progression()
         record, url = _start(client, progression, _earned(progression, 13))
         pick = Pickable.objects.get(name="Ganger specialist: Scout")
-        response = client.post(url, {"pickable_id": str(pick.pk)})
+        response = post_action(client, url, {"pickable_id": str(pick.pk)})
         page = client.get(response.url)
-        response = client.post(
-            response.url, {"review": page.context["form"]["review"].value()}
+        response = post_action(
+            client, response.url, {"review": page.context["form"]["review"].value()}
         )
         assert response.status_code == 302, _errors(response)
         computed = _computed(progression.fighter)
@@ -1172,7 +1191,8 @@ class TestPromotions:
         monkeypatch.setattr(Dice, "roll", classmethod(lambda cls, dice, rng=None: 12))
         page = client.get(url)
         assert page.context["decline_promotion"]
-        response = client.post(
+        response = post_action(
+            client,
             url,
             {
                 "decline_promotion": "1",
@@ -1187,10 +1207,10 @@ class TestPromotions:
             for item in page.context["advancement_options"]
             if not item["option"].needs_skill
         )
-        response = client.post(url, {"pickable_id": pick.id})
+        response = post_action(client, url, {"pickable_id": pick.id})
         review = client.get(response.url)
-        response = client.post(
-            response.url, {"review": review.context["form"]["review"].value()}
+        response = post_action(
+            client, response.url, {"review": review.context["form"]["review"].value()}
         )
         assert response.status_code == 302, _errors(response)
         assert {str(row.thing) for row in _computed(progression.fighter).subtypes} == {
@@ -1239,7 +1259,8 @@ class TestPromotions:
         monkeypatch.setattr(Dice, "roll", classmethod(lambda cls, dice, rng=None: 12))
         page = client.get(url)
         assert page.context["stage"] == "roll"
-        response = client.post(
+        response = post_action(
+            client,
             url,
             {
                 "request_key": page.context["form"]["request_key"].value(),
@@ -1255,11 +1276,14 @@ class TestPromotions:
         )
         main_rating = Pickable.objects.get(pk=pick.id).rating_contribution
         assert pick.rating == main_rating + 5
-        response = client.post(url, {"pickable_id": pick.id})
+        response = post_action(client, url, {"pickable_id": pick.id})
         review = client.get(response.url)
-        assert f"Rating +{main_rating + 5}¢" in review.content.decode()
-        response = client.post(
-            response.url, {"review": review.context["form"]["review"].value()}
+        assert (
+            review.context["action_props"]["facts"]["reviewChoice"]["meta"]
+            == f"Rating +{main_rating + 5}¢"
+        )
+        response = post_action(
+            client, response.url, {"review": review.context["form"]["review"].value()}
         )
         assert response.status_code == 302, _errors(response)
         assert {str(row.thing) for row in _computed(progression.fighter).subtypes} == {
@@ -1296,12 +1320,15 @@ class TestPromotions:
         url = reverse(
             "n26-action-flow", args=[progression.fighter.pk, record.pk, "correct"]
         )
-        response = client.post(url, {"pickable_id": pick.id})
+        response = post_action(client, url, {"pickable_id": pick.id})
         assert response.status_code == 302, _errors(response)
         page = client.get(response.url)
-        assert f"Rating +{main_rating + 5}¢" in page.content.decode()
-        response = client.post(
-            response.url, {"review": page.context["form"]["review"].value()}
+        assert (
+            page.context["action_props"]["facts"]["reviewChoice"]["meta"]
+            == f"Rating +{main_rating + 5}¢"
+        )
+        response = post_action(
+            client, response.url, {"review": page.context["form"]["review"].value()}
         )
         assert response.status_code == 302, _errors(response)
         record.refresh_from_db()
@@ -1324,12 +1351,15 @@ class TestPromotions:
         choose_url = reverse(
             "n26-action-flow", args=[progression.fighter.pk, record.pk, "choose"]
         )
-        response = client.post(choose_url, {"pickable_id": pick.id})
+        response = post_action(client, choose_url, {"pickable_id": pick.id})
         assert response.status_code == 302, _errors(response)
         page = client.get(response.url)
-        assert f"Rating +{main_rating + 5}¢" in page.content.decode()
-        response = client.post(
-            response.url, {"review": page.context["form"]["review"].value()}
+        assert (
+            page.context["action_props"]["facts"]["reviewChoice"]["meta"]
+            == f"Rating +{main_rating + 5}¢"
+        )
+        response = post_action(
+            client, response.url, {"review": page.context["form"]["review"].value()}
         )
         assert response.status_code == 302, _errors(response)
         record.refresh_from_db()
@@ -1351,11 +1381,11 @@ class TestPromotions:
         )
         record, url = _start(client, progression, _earned(progression, 13))
         pick = Pickable.objects.get(name="Ganger specialist: Scout")
-        response = client.post(url, {"pickable_id": str(pick.pk)})
+        response = post_action(client, url, {"pickable_id": str(pick.pk)})
         page = client.get(response.url)
         assert "Move to stash: Autopistol" in page.content.decode()
-        response = client.post(
-            response.url, {"review": page.context["form"]["review"].value()}
+        response = post_action(
+            client, response.url, {"review": page.context["form"]["review"].value()}
         )
         assert response.status_code == 302, _errors(response)
         gun.refresh_from_db()
@@ -1412,8 +1442,8 @@ class TestPromotions:
         self, client, progression
     ):
         record, url = _start(client, progression, _earned(progression, 13))
-        response = client.post(
-            url, {"decline_promotion": "1", "request_key": str(uuid4())}
+        response = post_action(
+            client, url, {"decline_promotion": "1", "request_key": str(uuid4())}
         )
         assert response.status_code == 200
         assert "Choose a promotion instead" in response.content.decode()
@@ -1426,7 +1456,9 @@ class TestPromotions:
     ):
         record, url = _start(client, progression, _earned(progression, 13))
         pick = Pickable.objects.get(name="Ganger specialist: Scout")
-        assert client.post(url, {"pickable_id": str(pick.pk)}).status_code == 302
+        assert (
+            post_action(client, url, {"pickable_id": str(pick.pk)}).status_code == 302
+        )
         other = a.create_outcome(
             "Another advancement",
             a.resolve_advancement(progression.outcome.operation.slot),
@@ -1439,12 +1471,12 @@ class TestPromotions:
     def test_changed_promotion_content_requires_a_new_review(self, client, progression):
         record, url = _start(client, progression, _earned(progression, 13))
         pick = Pickable.objects.get(name="Ganger specialist: Scout")
-        selected = client.post(url, {"pickable_id": str(pick.pk)})
+        selected = post_action(client, url, {"pickable_id": str(pick.pk)})
         page = client.get(selected.url)
         token = page.context["form"]["review"].value()
         pick.rating_contribution = 20
         pick.save()
-        response = client.post(selected.url, {"review": token})
+        response = post_action(client, selected.url, {"review": token})
         assert response.status_code == 200
         record.refresh_from_db()
         assert record.state == ActionRecord.State.STARTED
@@ -1468,7 +1500,7 @@ class TestPromotions:
         )
         a.add_picklist_member(promotion.slot.picklist, pick)
         record, url = _start(client, progression, _earned(progression, 13))
-        response = client.post(url, {"pickable_id": str(pick.pk)})
+        response = post_action(client, url, {"pickable_id": str(pick.pk)})
         assert response.status_code == 302, _errors(response)
         assert response.url.endswith("/skill/")
         page = client.get(response.url)
@@ -1476,7 +1508,8 @@ class TestPromotions:
             monkeypatch.setattr(
                 Dice, "roll", classmethod(lambda cls, dice, rng=None: 1)
             )
-            rolled = client.post(
+            rolled = post_action(
+                client,
                 response.url,
                 {
                     "request_key": page.context["form"]["request_key"].value(),
@@ -1487,13 +1520,13 @@ class TestPromotions:
             with pytest.raises(Refusal, match="must be resumed"):
                 with operation(progression.gang, actor=progression.owner) as op:
                     op.cancel_action(record)
-            response = client.post(response.url, {"review_skill": "1"})
+            response = post_action(client, response.url, {"review_skill": "1"})
         else:
-            response = client.post(response.url, {"skill_id": str(skill.pk)})
+            response = post_action(client, response.url, {"skill_id": str(skill.pk)})
         assert response.status_code == 302, _errors(response)
         page = client.get(response.url)
-        completed = client.post(
-            response.url, {"review": page.context["form"]["review"].value()}
+        completed = post_action(
+            client, response.url, {"review": page.context["form"]["review"].value()}
         )
         assert completed.status_code == 302, _errors(completed)
         assert Assignment.objects.filter(

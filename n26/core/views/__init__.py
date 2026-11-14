@@ -1,6 +1,12 @@
 """Player-facing views, split by workflow and re-exported for URL configuration."""
 
-from n26.core.views.action_flows import action_by_hand, action_flow, action_start
+from n26.core.views.action_flows import (
+    action_by_hand,
+    action_command,
+    action_display,
+    action_flow,
+    action_start,
+)
 from n26.core.views.api import preview_view
 from n26.core.views.arrivals import arrivals_command, gang_next
 from n26.core.views.asset_types import edit_asset_type, edit_asset_type_command
@@ -143,6 +149,8 @@ from n26.core.views.trade_points import fighter_hire_time_action
 
 __all__ = [
     "fighter_hire_time_action",
+    "action_command",
+    "action_display",
     "action_by_hand",
     "action_flow",
     "action_start",

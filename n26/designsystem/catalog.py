@@ -1603,6 +1603,12 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="action-facts",
+                tag="c-n26.action-facts",
+                template="n26/action_facts.html",
+                summary="Prepared reviews, stored results and consequences in an action flow.",
+            ),
+            Component(
                 slug="payment-figures",
                 tag="c-n26.payment-figures",
                 template="n26/payment_figures.html",

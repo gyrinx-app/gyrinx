@@ -949,7 +949,10 @@ def test_battle_rating_previews_receipts_and_retries_agree(rating_routes, client
     response = client.get(
         reverse("n26-action-flow", args=[s.fighter.pk, record.pk, "choose"])
     )
-    assert "Rating +5¢" in response.content.decode()
+    assert response.status_code == 200
+    options = island_props(response.content, "action-workflow")["facts"]["advancements"]
+    assert {option["rating"] for option in options} == {5}
+    assert any(option["key"] == str(s.pick.pk) for option in options)
     with operation(s.gang, actor=s.owner) as op:
         reviewed = op.review_action(
             record, outcome=s.outcome, terms={"pickable_id": str(s.pick.pk)}

@@ -7,6 +7,7 @@ No allowance is granted and no draft is opened while rendering a page.
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
+from uuid import uuid4
 
 from django.db.models import Case, F, Q, When, Window
 from django.db.models.functions import RowNumber
@@ -33,6 +34,8 @@ class ActionUseLink:
     #: Settled outside Gyrinx: there is no receipt, only an undo.
     applied_by_hand: bool = False
     reopen_href: str = ""
+    command_key: str = ""
+    revision: int = 0
     undo_href: str = ""
     undoable: bool = False
     problem: str = ""
@@ -416,6 +419,8 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
                         "Applied by hand",
                         when=record.modified,
                         applied_by_hand=True,
+                        command_key=str(uuid4()),
+                        revision=record.revision,
                         earned_threshold=earned_threshold(record.allowance),
                         report_href=(
                             reverse(

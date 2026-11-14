@@ -23,6 +23,7 @@ from n26.library import authoring as a
 from n26.library.models import Dice, Skill
 from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import found_gang, hire
+from n26.tests.sandbox.test_action_client import post_action
 
 pytestmark = pytest.mark.django_db
 
@@ -145,7 +146,8 @@ def _start(client, advancement):
     url = reverse(
         "n26-action-start", args=[advancement.fighter.pk, advancement.action.pk]
     )
-    response = client.post(
+    response = post_action(
+        client,
         url,
         {
             "request_key": str(uuid4()),
@@ -163,7 +165,8 @@ def _post_roll(client, advancement, record):
     url = reverse("n26-action-flow", args=[advancement.fighter.pk, record.pk, "choose"])
     page = client.get(url)
     assert page.context["stage"] == "roll"
-    response = client.post(
+    response = post_action(
+        client,
         url,
         {
             "request_key": page.context["form"]["request_key"].value(),
@@ -176,7 +179,7 @@ def _post_roll(client, advancement, record):
 
 def _choose_result(client, advancement, record, result, *, stage="choose"):
     url = reverse("n26-action-flow", args=[advancement.fighter.pk, record.pk, stage])
-    response = client.post(url, {"pickable_id": str(result.pk)})
+    response = post_action(client, url, {"pickable_id": str(result.pk)})
     assert response.status_code == 302
     return response.url
 
@@ -189,7 +192,8 @@ class TestAnEarnedAdvancementStartsAndResumes:
     ):
         _load_rolls(monkeypatch, 12)
         record = _start(client, advancement)
-        response = client.post(
+        response = post_action(
+            client,
             reverse(
                 "n26-action-start", args=[advancement.fighter.pk, advancement.action.pk]
             ),
@@ -234,7 +238,7 @@ class TestAnEarnedAdvancementStartsAndResumes:
         cancel = reverse(
             "n26-action-flow", args=[advancement.fighter.pk, record.pk, "cancel"]
         )
-        response = client.post(cancel)
+        response = post_action(client, cancel)
         record.refresh_from_db()
         assert response.status_code == 302
         assert record.state == ActionRecord.State.STARTED
@@ -253,7 +257,7 @@ class TestAnEarnedAdvancementStartsAndResumes:
             "roll_mode": "record",
             "rolled": "4",
         }
-        response = client.post(url, payload)
+        response = post_action(client, url, payload)
         assert response.status_code == 302
         page = client.get(response.url)
         assert page.context["roll_value"] == 4
@@ -263,10 +267,13 @@ class TestAnEarnedAdvancementStartsAndResumes:
         html = page.content.decode()
         assert "Choose any result at or below your roll." in html
         assert "It asks" not in html
-        assert "Roll 4+" in html
+        assert any(
+            option["minimum"] == 4
+            for option in page.context["action_props"]["facts"]["advancements"]
+        )
         back = client.get(page.context["back_href"])
         assert back.context["advancement_roll"]["previousRoll"] == 4
-        client.post(page.context["back_href"], {**payload, "rolled": "12"})
+        post_action(client, page.context["back_href"], {**payload, "rolled": "12"})
         record.refresh_from_db()
         assert record.advancement_selection.roll_event.roll == 4
         assert (
@@ -286,7 +293,8 @@ class TestAnEarnedAdvancementStartsAndResumes:
             "n26-action-flow", args=[advancement.fighter.pk, record.pk, "choose"]
         )
         page = client.get(url)
-        response = client.post(
+        response = post_action(
+            client,
             url,
             {
                 "request_key": page.context["form"]["request_key"].value(),
@@ -301,8 +309,8 @@ class TestAnEarnedAdvancementStartsAndResumes:
             action_record=record, kind=LedgerEvent.Kind.ROLLED
         ).exists()
 
-        response = client.post(
-            url, {"request_key": page.context["form"]["request_key"].value()}
+        response = post_action(
+            client, url, {"request_key": page.context["form"]["request_key"].value()}
         )
         assert response.status_code == 200
         assert response.context["form"].errors["roll_mode"] == ["Choose how to roll."]
@@ -320,7 +328,8 @@ class TestAnEarnedAdvancementStartsAndResumes:
             "n26-action-flow", args=[advancement.fighter.pk, record.pk, "choose"]
         )
         page = client.get(url)
-        response = client.post(
+        response = post_action(
+            client,
             url,
             {
                 "request_key": page.context["form"]["request_key"].value(),
@@ -452,7 +461,7 @@ class TestEarnedThresholdLabels:
         for params, expected in (({}, "4 XP"), ({"allowance": str(later.pk)}, "8 XP")):
             page = client.get(url, params)
             assert page.context["earned_threshold"] == expected
-            assert f"Earned at {expected}." in page.content.decode()
+            assert page.context["action_props"]["facts"]["earned_threshold"] == expected
         assert not ActionRecord.objects.filter(fighter=advancement.fighter).exists()
 
     def test_the_original_threshold_remains_through_completion_and_undo(
@@ -477,16 +486,16 @@ class TestEarnedThresholdLabels:
             client, advancement, record, advancement.results["primary"]
         )
         assert client.get(skill_url).context["earned_threshold"] == "4 XP"
-        review = client.post(
-            skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        review = post_action(
+            client, skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
         )
         reviewed = client.get(review.url)
         assert reviewed.context["earned_threshold"] == "4 XP"
-        done = client.post(
-            review.url, {"review": reviewed.context["form"]["review"].value()}
+        done = post_action(
+            client, review.url, {"review": reviewed.context["form"]["review"].value()}
         )
         receipt = client.get(done.url, follow=True)
-        assert "Earned at 4 XP." in receipt.content.decode()
+        assert receipt.context["action_props"]["facts"]["earned_threshold"] == "4 XP"
         edit = client.get(reverse("n26-edit-fighter", args=[advancement.fighter.pk]))
         history = BeautifulSoup(edit.content, "html.parser").find(
             id="n26-action-history"
@@ -546,7 +555,8 @@ class TestChangingTheRoll:
         page = client.get(skill_url)
         category = page.context["skill_groups"][0]["key"]
         assert (
-            client.post(
+            post_action(
+                client,
                 skill_url,
                 {
                     "request_key": page.context["form"]["request_key"].value(),
@@ -568,11 +578,19 @@ class TestChangingTheRoll:
             "roll_mode": "record",
             "rolled": "12",
         }
-        assert client.post(roll_url, payload).status_code == 302
+        assert post_action(client, roll_url, payload).status_code == 302
         assert SkillSelection.objects.filter(pk=old_selection.pk).exists()
 
-        payload["rolled"] = "11"
-        assert client.post(roll_url, payload).status_code == 302
+        fresh = client.get(roll_url).context["action_props"]["values"]
+        payload = {
+            **payload,
+            **{
+                name: fresh[name]
+                for name in ("command_key", "revision", "request_key", "previous_roll")
+            },
+            "rolled": "11",
+        }
+        assert post_action(client, roll_url, payload).status_code == 302
         record.refresh_from_db()
         assert "pickable_id" not in record.terms
         assert record.review == {}
@@ -584,11 +602,11 @@ class TestChangingTheRoll:
         assert page.context["stage"] == "skill"
         assert page.context["skill_resolved"] is True
         assert page.context["submit_label"] == "Review"
-        assert client.post(skill_url, {"review_skill": "1"}).status_code == 302
+        assert post_action(client, skill_url, {"review_skill": "1"}).status_code == 302
         selection = SkillSelection.objects.get(action_record=record)
         assert selection.selected_skill == advancement.skills["primary"]
         assert selection.random_attempts == old_selection.random_attempts
-        assert client.post(roll_url, payload).status_code == 302
+        assert post_action(client, roll_url, payload).status_code == 302
         assert SkillSelection.objects.filter(pk=selection.pk).exists()
         assert sorted(
             LedgerEvent.objects.filter(
@@ -607,8 +625,8 @@ class TestChangingTheRoll:
         skill_url = _choose_result(
             client, advancement, record, advancement.results["primary"]
         )
-        reviewed = client.post(
-            skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        reviewed = post_action(
+            client, skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
         )
         review_page = client.get(reviewed.url)
         token = review_page.context["form"]["review"].value()
@@ -622,7 +640,10 @@ class TestChangingTheRoll:
             "roll_mode": "record",
             "rolled": "3",
         }
-        response = client.post(roll_url, payload)
+        second_form_key = client.get(roll_url).context["action_props"]["values"][
+            "command_key"
+        ]
+        response = post_action(client, roll_url, payload)
         assert response.status_code == 302, response.context["form"].errors
         record.refresh_from_db()
         assert record.advancement_selection.roll_event.roll == 3
@@ -634,13 +655,20 @@ class TestChangingTheRoll:
         assert [
             item["option"].name for item in choices.context["advancement_options"]
         ] == ["Select Secondary skill", "Select Primary skill"]
-        assert client.post(roll_url, payload).status_code == 302
-        stale = client.post(
-            roll_url, {**payload, "request_key": str(uuid4()), "rolled": "5"}
+        assert post_action(client, roll_url, payload).status_code == 302
+        stale = post_action(
+            client,
+            roll_url,
+            {
+                **payload,
+                "command_key": second_form_key,
+                "request_key": str(uuid4()),
+                "rolled": "5",
+            },
         )
         assert stale.status_code == 200
-        assert "This roll has changed" in stale.content.decode()
-        client.post(reviewed.url, {"review": token})
+        assert stale.context["action_props"]["initialConflict"] is True
+        post_action(client, reviewed.url, {"review": token})
         record.refresh_from_db()
         assert record.state == ActionRecord.State.STARTED
         assert sorted(
@@ -694,7 +722,7 @@ class TestSelectingSkills:
                 "n26-action-flow", args=[advancement.fighter.pk, record.pk, "choose"]
             )
             assert client.get(page.context["back_href"]).context["roll_value"] == 12
-            response = client.post(skill_url, {"skill_id": str(skill.pk)})
+            response = post_action(client, skill_url, {"skill_id": str(skill.pk)})
             assert response.status_code == 302
             assert ActionRecord.objects.get(pk=record.pk).terms["skill_id"] == str(
                 skill.pk
@@ -724,7 +752,8 @@ class TestSelectingSkills:
         )
         page = client.get(skill_url)
         category = next(iter(page.context["skill_groups"]))
-        first = client.post(
+        first = post_action(
+            client,
             skill_url,
             {
                 "request_key": page.context["form"]["request_key"].value(),
@@ -733,7 +762,8 @@ class TestSelectingSkills:
         )
         assert first.status_code == 302
         assert (
-            client.post(
+            post_action(
+                client,
                 skill_url,
                 {
                     "request_key": page.context["form"]["request_key"].value(),
@@ -748,7 +778,8 @@ class TestSelectingSkills:
         retry = client.get(resume, follow=True)
         assert retry.context["stage"] == "skill"
         assert "No available skill was rolled." in retry.content.decode()
-        second = client.post(
+        second = post_action(
+            client,
             first.url,
             {
                 "request_key": retry.context["form"]["request_key"].value(),
@@ -798,7 +829,8 @@ class TestRecordingASkillRoll:
             for option in page.context["skill_roll"]["choices"]["options"]
         }
         assert (
-            client.post(
+            post_action(
+                client,
                 skill_url,
                 {
                     "request_key": page.context["form"]["request_key"].value(),
@@ -814,7 +846,8 @@ class TestRecordingASkillRoll:
         attempts, selected_set = list(selection.random_attempts), selection.skill_set_id
         events = record.ledger_events.count()
         cycle_tracking_switch(False)
-        refused = client.post(
+        refused = post_action(
+            client,
             skill_url,
             {
                 "request_key": str(uuid4()),
@@ -865,11 +898,12 @@ class TestRecordingASkillRoll:
         ]
         assert all(not option["carried"] for option in props["choices"]["options"])
         assert page.context["submit_label"] == "Continue"
-        assert 'data-react-name="advancement-roll"' in page.content.decode()
+        assert 'data-react-name="action-workflow"' in page.content.decode()
 
         rolled = "0"
         agility = page.context["skill_roll"]["choices"]["options"][0]["value"]
-        response = client.post(
+        response = post_action(
+            client,
             skill_url,
             {
                 "request_key": page.context["form"]["request_key"].value(),
@@ -890,7 +924,8 @@ class TestRecordingASkillRoll:
         )
 
         agility = page.context["skill_roll"]["choices"]["options"][0]["value"]
-        response = client.post(
+        response = post_action(
+            client,
             skill_url,
             {
                 "request_key": page.context["form"]["request_key"].value(),
@@ -912,7 +947,8 @@ class TestRecordingASkillRoll:
     def test_gyrinx_still_rolls_when_asked(self, client, monkeypatch, advancement):
         record, skill_url, page = self._skill_page(client, monkeypatch, advancement, 2)
         agility = page.context["skill_roll"]["choices"]["options"][0]["value"]
-        client.post(
+        post_action(
+            client,
             skill_url,
             {
                 "request_key": page.context["form"]["request_key"].value(),
@@ -941,7 +977,8 @@ class TestRecordingASkillRoll:
             for option in page.context["skill_roll"]["choices"]["options"]
         }
         # Catfall sits at 1 in Agility and the model already has it.
-        client.post(
+        post_action(
+            client,
             skill_url,
             {
                 "request_key": page.context["form"]["request_key"].value(),
@@ -960,7 +997,8 @@ class TestRecordingASkillRoll:
             "Skills: Ferocity": "Your D6 roll of 1 carries over to this skill set.",
         }
 
-        refused = client.post(
+        refused = post_action(
+            client,
             skill_url,
             {
                 "request_key": page.context["form"]["request_key"].value(),
@@ -977,7 +1015,8 @@ class TestRecordingASkillRoll:
         record.refresh_from_db()
         assert len(record.skill_selection.random_attempts) == 1
 
-        carried_over = client.post(
+        carried_over = post_action(
+            client,
             skill_url,
             {
                 "request_key": page.context["form"]["request_key"].value(),
@@ -1005,14 +1044,14 @@ class TestCompletingAndCorrecting:
         skill_url = _choose_result(
             client, advancement, record, advancement.results["primary"]
         )
-        review = client.post(
-            skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        review = post_action(
+            client, skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
         )
         review_page = client.get(review.url)
         token = review_page.context["form"]["review"].value()
-        completed = client.post(review.url, {"review": token})
+        completed = post_action(client, review.url, {"review": token})
         assert completed.status_code == 302
-        assert client.post(review.url, {"review": token}).status_code == 302
+        assert post_action(client, review.url, {"review": token}).status_code == 302
         record.refresh_from_db()
         payment = record.payment_id
         assert record.state == ActionRecord.State.COMPLETED
@@ -1059,7 +1098,8 @@ class TestCompletingAndCorrecting:
         )
         record.refresh_from_db()
         assert record.terms["pickable_id"] == str(advancement.results["primary"].pk)
-        reviewed = client.post(
+        reviewed = post_action(
+            client,
             corrected_skill,
             {"skill_id": str(advancement.skills["secondary"].pk)},
         )
@@ -1075,7 +1115,8 @@ class TestCompletingAndCorrecting:
         )
         record.refresh_from_db()
         assert record.terms["skill_id"] == str(advancement.skills["primary"].pk)
-        corrected = client.post(
+        corrected = post_action(
+            client,
             reviewed.url,
             {"review": correction_page.context["form"]["review"].value()},
         )
@@ -1120,7 +1161,7 @@ class TestCompletingAndCorrecting:
                 "n26-action-flow", args=[advancement.fighter.pk, record.pk, stage]
             )
             assert client.get(url).status_code == 404
-            assert client.post(url, {}).status_code == 404
+            assert post_action(client, url, {}).status_code == 404
 
 
 def _waiting(advancement):
@@ -1145,14 +1186,15 @@ def _mark_unused_by_hand(client, advancement, request_key=None):
         )
         + f"?allowance={advancement.allowance.pk}"
     )
-    response = client.post(url, {"request_key": str(request_key or uuid4())})
+    response = post_action(client, url, {"request_key": str(request_key or uuid4())})
     assert response.status_code == 302
     return response
 
 
 def _flow(client, advancement, record, step):
-    return client.post(
-        reverse("n26-action-flow", args=[advancement.fighter.pk, record.pk, step])
+    return post_action(
+        client,
+        reverse("n26-action-flow", args=[advancement.fighter.pk, record.pk, step]),
     )
 
 
@@ -1236,7 +1278,8 @@ class TestApplyingByHand:
             == 1
         )
 
-        client.post(
+        post_action(
+            client,
             reverse(
                 "n26-action-start",
                 args=[advancement.fighter.pk, advancement.action.pk],
@@ -1268,7 +1311,9 @@ class TestApplyingByHand:
         url = reverse(
             "n26-action-by-hand", args=[advancement.fighter.pk, advancement.action.pk]
         )
-        assert client.post(url, {"request_key": str(uuid4())}).status_code == 404
+        assert (
+            post_action(client, url, {"request_key": str(uuid4())}).status_code == 404
+        )
         assert not ActionRecord.objects.filter(fighter=advancement.fighter).exists()
 
     def test_the_menu_link_opens_a_confirmation_first(self, client, advancement):
@@ -1279,7 +1324,7 @@ class TestApplyingByHand:
         page = client.get(url)
         assert page.status_code == 200
         assert page.context["stage"] == "by-hand"
-        assert "outside Gyrinx" in page.content.decode()
+        assert page.context["action_props"]["facts"]["stage"] == "by-hand"
         assert not ActionRecord.objects.filter(fighter=advancement.fighter).exists()
 
     def test_a_result_picked_by_hand_into_the_rolled_slot_stays(
@@ -1310,7 +1355,9 @@ class TestApplyingByHand:
         skill_url = _choose_result(
             client, advancement, record, advancement.results["primary"]
         )
-        client.post(skill_url, {"skill_id": str(advancement.skills["primary"].pk)})
+        post_action(
+            client, skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        )
         record.refresh_from_db()
         assert record.review
 
@@ -1319,11 +1366,11 @@ class TestApplyingByHand:
 
         record.refresh_from_db()
         assert record.review == {}
-        review = client.post(
-            skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        review = post_action(
+            client, skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
         )
         token = client.get(review.url).context["form"]["review"].value()
-        assert client.post(review.url, {"review": token}).status_code == 302
+        assert post_action(client, review.url, {"review": token}).status_code == 302
         record.refresh_from_db()
         assert record.state == ActionRecord.State.COMPLETED
 
@@ -1376,11 +1423,11 @@ class TestApplyingByHand:
         skill_url = _choose_result(
             client, advancement, record, advancement.results["primary"]
         )
-        review = client.post(
-            skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        review = post_action(
+            client, skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
         )
         token = client.get(review.url).context["form"]["review"].value()
-        assert client.post(review.url, {"review": token}).status_code == 302
+        assert post_action(client, review.url, {"review": token}).status_code == 302
         record.refresh_from_db()
         assert record.state == ActionRecord.State.COMPLETED
         advancement.gang.refresh_from_db()
@@ -1423,7 +1470,8 @@ class TestApplyingByHand:
         later = self._later_allowance(advancement)
         _mark_unused_by_hand(client, advancement)
         marked = ActionRecord.objects.get(fighter=advancement.fighter)
-        client.post(
+        post_action(
+            client,
             reverse(
                 "n26-action-start",
                 args=[advancement.fighter.pk, advancement.action.pk],
@@ -1469,7 +1517,7 @@ class TestApplyingByHand:
             )
             + "?allowance=not-a-ulid"
         )
-        response = client.post(url, {"request_key": str(uuid4())})
+        response = post_action(client, url, {"request_key": str(uuid4())})
         assert response.status_code == 302
         assert ActionRecord.objects.get(fighter=advancement.fighter).allowance == (
             advancement.allowance
@@ -1492,13 +1540,15 @@ class TestAdvancementHoldsAndUndo:
             advancement.results["secondary"],
             stage="correct",
         )
-        reviewed = client.post(
-            corrected_skill, {"skill_id": str(advancement.skills["secondary"].pk)}
+        reviewed = post_action(
+            client,
+            corrected_skill,
+            {"skill_id": str(advancement.skills["secondary"].pk)},
         )
         page = client.get(reviewed.url)
         assert (
-            client.post(
-                reviewed.url, {"review": page.context["form"]["review"].value()}
+            post_action(
+                client, reviewed.url, {"review": page.context["form"]["review"].value()}
             ).status_code
             == 302
         )
@@ -1543,8 +1593,8 @@ class TestAdvancementHoldsAndUndo:
             skill_url = _choose_result(
                 client, advancement, record, advancement.results["primary"]
             )
-            reviewed = client.post(
-                skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+            reviewed = post_action(
+                client, skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
             )
             page = client.get(reviewed.url)
             token = page.context["form"]["review"].value()
@@ -1594,7 +1644,7 @@ class TestAdvancementHoldsAndUndo:
             assert not resumed.context["outcome_href"]
             assert client.get(resumed.context["back_href"]).status_code == 200
         if reviewed:
-            blocked = client.post(reviewed.url, {"review": token})
+            blocked = post_action(client, reviewed.url, {"review": token})
             assert "On hold" in blocked.content.decode()
             record.refresh_from_db()
             assert record.state == ActionRecord.State.STARTED
@@ -1647,13 +1697,13 @@ class TestAdvancementHoldsAndUndo:
         skill_url = _choose_result(
             client, advancement, record, advancement.results["primary"]
         )
-        reviewed = client.post(
-            skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        reviewed = post_action(
+            client, skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
         )
         page = client.get(reviewed.url)
         assert (
-            client.post(
-                reviewed.url, {"review": page.context["form"]["review"].value()}
+            post_action(
+                client, reviewed.url, {"review": page.context["form"]["review"].value()}
             ).status_code
             == 302
         )
@@ -1679,7 +1729,7 @@ class TestAdvancementHoldsAndUndo:
         assert record.state == ActionRecord.State.COMPLETED
         token = page.context["form"]["review"].value()
         for _ in range(2):
-            assert client.post(undo, {"review": token}).status_code == 302
+            assert post_action(client, undo, {"review": token}).status_code == 302
         record.refresh_from_db()
         assert record.state == ActionRecord.State.STARTED
         assert record.allowance_id == advancement.allowance.pk
@@ -1724,7 +1774,8 @@ class TestAdvancementHoldsAndUndo:
         )
         assert resume.status_code == 200
         # Reviewing the retained choice applies it once, with no new roll or use.
-        reviewed = client.post(
+        reviewed = post_action(
+            client,
             reverse(
                 "n26-action-flow", args=[advancement.fighter.pk, record.pk, "skill"]
             ),
@@ -1732,14 +1783,14 @@ class TestAdvancementHoldsAndUndo:
         )
         page = client.get(reviewed.url)
         assert (
-            client.post(
-                reviewed.url, {"review": page.context["form"]["review"].value()}
+            post_action(
+                client, reviewed.url, {"review": page.context["form"]["review"].value()}
             ).status_code
             == 302
         )
         assert advancement.fighter.recompute_rating() == before + 5
         assert action_changes(record).rating_delta == 5
-        stale = client.post(undo, {"review": token})
+        stale = post_action(client, undo, {"review": token})
         assert "The advancement changed." in stale.content.decode()
         record.refresh_from_db()
         assert record.state == ActionRecord.State.COMPLETED
@@ -1765,7 +1816,8 @@ class TestAdvancementHoldsAndUndo:
         )
         page = client.get(skill_url)
         skill_set = page.context["skill_roll"]["choices"]["options"][0]["value"]
-        reviewed = client.post(
+        reviewed = post_action(
+            client,
             skill_url,
             {
                 "request_key": page.context["form"]["request_key"].value(),
@@ -1775,16 +1827,16 @@ class TestAdvancementHoldsAndUndo:
             },
         )
         assert client.get(reviewed.url).context["skill_resolved"]
-        reviewed = client.post(skill_url, {"review_skill": "1"})
+        reviewed = post_action(client, skill_url, {"review_skill": "1"})
         token = client.get(reviewed.url).context["form"]["review"].value()
-        assert client.post(reviewed.url, {"review": token}).status_code == 302
+        assert post_action(client, reviewed.url, {"review": token}).status_code == 302
         record.refresh_from_db()
         attempts = record.skill_selection.random_attempts
         undo = reverse(
             "n26-action-flow", args=[advancement.fighter.pk, record.pk, "undo"]
         )
         token = client.get(undo).context["form"]["review"].value()
-        assert client.post(undo, {"review": token}).status_code == 302
+        assert post_action(client, undo, {"review": token}).status_code == 302
         resumed = client.get(skill_url)
         assert resumed.context["skill_resolved"]
         assert resumed.context["skill_roll"] is None
@@ -1811,7 +1863,8 @@ class TestAdvancementHoldsAndUndo:
         def roll_random_skill(url):
             page = client.get(url)
             skill_set = page.context["skill_roll"]["choices"]["options"][0]["value"]
-            response = client.post(
+            response = post_action(
+                client,
                 url,
                 {
                     "request_key": page.context["form"]["request_key"].value(),
@@ -1834,11 +1887,11 @@ class TestAdvancementHoldsAndUndo:
         selected_url = _choose_result(
             client, advancement, record, advancement.results["primary"]
         )
-        reviewed = client.post(
-            selected_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        reviewed = post_action(
+            client, selected_url, {"skill_id": str(advancement.skills["primary"].pk)}
         )
         token = client.get(reviewed.url).context["form"]["review"].value()
-        assert client.post(reviewed.url, {"review": token}).status_code == 302
+        assert post_action(client, reviewed.url, {"review": token}).status_code == 302
         record.refresh_from_db()
         assert record.skill_selection.mode == SkillSelection.Mode.SELECT
         original_roll = record.advancement_selection.roll_event_id
@@ -1846,14 +1899,14 @@ class TestAdvancementHoldsAndUndo:
             "n26-action-flow", args=[advancement.fighter.pk, record.pk, "undo"]
         )
         token = client.get(undo).context["form"]["review"].value()
-        assert client.post(undo, {"review": token}).status_code == 302
+        assert post_action(client, undo, {"review": token}).status_code == 302
         random_url = _choose_result(
             client, advancement, record, advancement.results["random"]
         )
         roll_random_skill(random_url)
-        reviewed = client.post(random_url, {"review_skill": "1"})
+        reviewed = post_action(client, random_url, {"review_skill": "1"})
         token = client.get(reviewed.url).context["form"]["review"].value()
-        assert client.post(reviewed.url, {"review": token}).status_code == 302
+        assert post_action(client, reviewed.url, {"review": token}).status_code == 302
         record.refresh_from_db()
         assert record.state == ActionRecord.State.COMPLETED
         assert record.skill_selection.mode == SkillSelection.Mode.RANDOM
@@ -1876,20 +1929,21 @@ class TestAdvancementHoldsAndUndo:
             "n26-action-flow", args=[advancement.fighter.pk, record.pk, "undo"]
         )
         token = client.get(url).context["form"]["review"].value()
-        assert client.post(url, {"review": token}).status_code == 302
+        assert post_action(client, url, {"review": token}).status_code == 302
         record.refresh_from_db()
         assert record.state == ActionRecord.State.STARTED
         event = record.ledger_events.get(kind=LedgerEvent.Kind.ACTION_USE_UNDONE)
         assert event.note == f"{pick}: {skill}"[:255]
         assert len(event.note) == 255
-        reviewed = client.post(
+        reviewed = post_action(
+            client,
             reverse(
                 "n26-action-flow", args=[advancement.fighter.pk, record.pk, "skill"]
             ),
             {"skill_id": str(skill.pk)},
         )
         token = client.get(reviewed.url).context["form"]["review"].value()
-        assert client.post(reviewed.url, {"review": token}).status_code == 302
+        assert post_action(client, reviewed.url, {"review": token}).status_code == 302
         record.refresh_from_db()
         assert record.state == ActionRecord.State.COMPLETED
         assert record.advancement_selection.roll_event_id == original_roll
@@ -1906,7 +1960,7 @@ class TestAdvancementHoldsAndUndo:
         pick = advancement.results["primary"]
         pick.name = "Renamed skill result"
         pick.save(update_fields=["name", "modified"])
-        for response in (client.get(url), client.post(url, {"review": token})):
+        for response in (client.get(url), post_action(client, url, {"review": token})):
             assert "table changed after the roll" in response.content.decode()
         record.refresh_from_db()
         assert record.state == ActionRecord.State.COMPLETED
@@ -1928,8 +1982,8 @@ class TestAdvancementHoldsAndUndo:
         )
         page = client.get(undo)
         assert (
-            client.post(
-                undo, {"review": page.context["form"]["review"].value()}
+            post_action(
+                client, undo, {"review": page.context["form"]["review"].value()}
             ).status_code
             == 302
         )
@@ -1956,7 +2010,7 @@ class TestAdvancementHoldsAndUndo:
                 miniature=advancement.fighter,
                 caused_by=record.advancement_selection.pick_assignment,
             )
-        response = client.post(undo, {"review": token})
+        response = post_action(client, undo, {"review": token})
         assert "Later changes depend on this advancement." in response.content.decode()
         record.refresh_from_db()
         assert record.state == ActionRecord.State.COMPLETED
@@ -1991,7 +2045,7 @@ class TestAdvancementHoldsAndUndo:
             op.start_action(
                 advancement.fighter, advancement.action, uuid4(), allowance=later
             )
-        response = client.post(url, {"review": token})
+        response = post_action(client, url, {"review": token})
         assert "another flow for this action is started" in response.content.decode()
         record.refresh_from_db()
         assert record.state == ActionRecord.State.COMPLETED
@@ -2010,7 +2064,7 @@ class TestAdvancementHoldsAndUndo:
         token = client.get(url).context["form"]["review"].value()
         with operation(advancement.gang, actor=advancement.owner) as op:
             op.review_action_correction(record, terms=dict(record.terms))
-        response = client.post(url, {"review": token})
+        response = post_action(client, url, {"review": token})
         assert "The advancement changed." in response.content.decode()
         record.refresh_from_db()
         assert record.state == ActionRecord.State.COMPLETED
@@ -2062,7 +2116,8 @@ def _record_chancer_skill(client, advancement, skill_url, rolled):
     assert page.context["skill_random"] is True
     assert page.context["skill_title"] == "Roll for a skill"
     assert "skill_id" not in page.context["form"].fields
-    response = client.post(
+    response = post_action(
+        client,
         skill_url,
         {
             "request_key": str(uuid4()),
@@ -2091,7 +2146,7 @@ class TestChancerSkillAdvancements:
             client, advancement, record, advancement.results[tier]
         )
         skill = advancement.skills[tier]
-        forged = client.post(skill_url, {"skill_id": str(skill.pk)})
+        forged = post_action(client, skill_url, {"skill_id": str(skill.pk)})
         assert forged.status_code == 200
         record.refresh_from_db()
         with pytest.raises(Refusal, match="Roll D6 again"):
@@ -2105,13 +2160,13 @@ class TestChancerSkillAdvancements:
                     },
                 )
         skill_url = _record_chancer_skill(client, advancement, skill_url, rolled)
-        reviewed = client.post(skill_url, {"review_skill": "1"})
+        reviewed = post_action(client, skill_url, {"review_skill": "1"})
         assert reviewed.status_code == 302
         page = client.get(reviewed.url)
         record.refresh_from_db()
         assert record.review["target"]["skill_mode"] == "random"
-        completed = client.post(
-            reviewed.url, {"review": page.context["form"]["review"].value()}
+        completed = post_action(
+            client, reviewed.url, {"review": page.context["form"]["review"].value()}
         )
         assert completed.status_code == 302
         record.refresh_from_db()
@@ -2196,11 +2251,11 @@ class TestChancerSkillAdvancements:
             client, advancement, record, advancement.results["primary"]
         )
         url = _record_chancer_skill(client, advancement, url, 2)
-        reviewed = client.post(url, {"review_skill": "1"})
+        reviewed = post_action(client, url, {"review_skill": "1"})
         page = client.get(reviewed.url)
         assert (
-            client.post(
-                reviewed.url, {"review": page.context["form"]["review"].value()}
+            post_action(
+                client, reviewed.url, {"review": page.context["form"]["review"].value()}
             ).status_code
             == 302
         )
@@ -2255,7 +2310,7 @@ class TestChancerAuthoring:
             in page.content.decode()
         )
         data["what-from_section"] = str(advancement.secondary.pk)
-        response = client.post(url, data)
+        response = post_action(client, url, data)
         assert response.status_code == 302
         modifier.refresh_from_db()
         assert modifier.effect.from_section == advancement.secondary
@@ -2295,11 +2350,11 @@ class TestChancerChangesBetweenAdvancements:
             client, advancement, record, advancement.results["primary"]
         )
         url = _record_chancer_skill(client, advancement, url, 2)
-        reviewed = client.post(url, {"review_skill": "1"})
+        reviewed = post_action(client, url, {"review_skill": "1"})
         page = client.get(reviewed.url)
         assert (
-            client.post(
-                reviewed.url, {"review": page.context["form"]["review"].value()}
+            post_action(
+                client, reviewed.url, {"review": page.context["form"]["review"].value()}
             ).status_code
             == 302
         )
@@ -2320,8 +2375,8 @@ class TestChancerChangesBetweenAdvancements:
         )
         page = client.get(url)
         assert page.context["skill_random"] is False
-        reviewed = client.post(
-            url, {"skill_id": str(advancement.skills["secondary"].pk)}
+        reviewed = post_action(
+            client, url, {"skill_id": str(advancement.skills["secondary"].pk)}
         )
         assert reviewed.status_code == 302
         later.refresh_from_db()
@@ -2343,12 +2398,12 @@ class TestChancerChangesBetweenAdvancements:
             client, advancement, record, advancement.results["primary"]
         )
         url = _record_chancer_skill(client, advancement, url, 2)
-        reviewed = client.post(url, {"review_skill": "1"})
+        reviewed = post_action(client, url, {"review_skill": "1"})
         page = client.get(reviewed.url)
         token = page.context["form"]["review"].value()
         with operation(advancement.gang, actor=advancement.owner) as op:
             op.remove(chancer)
-        client.post(reviewed.url, {"review": token})
+        post_action(client, reviewed.url, {"review": token})
         record.refresh_from_db()
         assert record.state == ActionRecord.State.STARTED
         assert record.skill_selection.skill_assignment_id is None

@@ -19,6 +19,7 @@ from n26.library.models import Power, Skill
 from n26.library.specs import specs
 from n26.tests.fixtures import library_setup
 from n26.tests.sandbox import test_advancement_action_flows as skill_flows
+from n26.tests.sandbox.test_action_client import post_action
 from n26.tests.sandbox.test_advancement_action_flows import (
     _choose_result,
     _load_rolls,
@@ -27,6 +28,7 @@ from n26.tests.sandbox.test_advancement_action_flows import (
 )
 
 pytestmark = pytest.mark.django_db
+
 advancement = skill_flows.advancement
 
 
@@ -95,7 +97,7 @@ def _confirm(client, response):
     assert response.status_code == 302, response.content.decode()
     page = client.get(response.url)
     token = page.context["form"]["review"].value()
-    completed = client.post(response.url, {"review": token})
+    completed = post_action(client, response.url, {"review": token})
     assert completed.status_code == 302
     return response.url, token
 
@@ -120,7 +122,8 @@ def test_a_power_only_advancement_uses_power_wording(client, monkeypatch, wyrd, 
         assert (
             page.context["form"].fields["skill_set_id"].label == "Select a power family"
         )
-        client.post(
+        post_action(
+            client,
             choice_url,
             {
                 "request_key": page.context["form"]["request_key"].value(),
@@ -129,17 +132,20 @@ def test_a_power_only_advancement_uses_power_wording(client, monkeypatch, wyrd, 
         )
         page = client.get(choice_url)
         assert "No available power was rolled." in page.content.decode()
-        client.post(
+        post_action(
+            client,
             choice_url,
             {
                 "request_key": page.context["form"]["request_key"].value(),
                 "skill_set_id": str(wyrd.family.pk),
             },
         )
-        response = client.post(choice_url, {"continue": "1"})
+        response = post_action(client, choice_url, {"continue": "1"})
     else:
         assert page.context["form"].fields["skill_id"].label == "Select a power"
-        response = client.post(choice_url, {"skill_id": str(wyrd.powers["primary"].pk)})
+        response = post_action(
+            client, choice_url, {"skill_id": str(wyrd.powers["primary"].pk)}
+        )
     _confirm(client, response)
     record.refresh_from_db()
     assert record.skill_selection.selected_power == wyrd.powers["primary"]
@@ -184,7 +190,8 @@ def test_a_saved_roll_from_before_power_support_can_offer_powers(
     choice_url = _choose_result(client, data, record, data.results["primary"])
     assert str(wyrd.powers["primary"].pk) in client.get(choice_url).content.decode()
     _confirm(
-        client, client.post(choice_url, {"skill_id": str(wyrd.powers["primary"].pk)})
+        client,
+        post_action(client, choice_url, {"skill_id": str(wyrd.powers["primary"].pk)}),
     )
     record.refresh_from_db()
     assert record.skill_selection.selected_power == wyrd.powers["primary"]
@@ -216,9 +223,11 @@ def test_a_placed_power_can_replace_a_skill_and_correct_back_to_a_skill(
     assert str(wyrd.powers["owned"].pk) not in offered_ids
     assert str(wyrd.powers["unrelated"].pk) not in offered_ids
     assert "Select a skill or power" in page.content.decode()
-    review = client.post(choice_url, {"skill_id": str(wyrd.powers[power_key].pk)})
+    review = post_action(
+        client, choice_url, {"skill_id": str(wyrd.powers[power_key].pk)}
+    )
     review_url, token = _confirm(client, review)
-    assert client.post(review_url, {"review": token}).status_code == 302
+    assert post_action(client, review_url, {"review": token}).status_code == 302
     record.refresh_from_db()
     selection = record.skill_selection
     assert selection.selected_power == wyrd.powers[power_key]
@@ -245,7 +254,10 @@ def test_a_placed_power_can_replace_a_skill_and_correct_back_to_a_skill(
         client, data, record, data.results["primary"], stage="correct"
     )
     _confirm(
-        client, client.post(corrected_url, {"skill_id": str(data.skills["primary"].pk)})
+        client,
+        post_action(
+            client, corrected_url, {"skill_id": str(data.skills["primary"].pk)}
+        ),
     )
     record.refresh_from_db()
     old_assignment.refresh_from_db()
@@ -289,15 +301,16 @@ def test_random_powers_keep_their_roll_when_resumed_or_submitted_twice(
         "request_key": page.context["form"]["request_key"].value(),
         "skill_set_id": str(category.pk),
     }
-    client.post(choice_url, payload)
-    client.post(choice_url, payload)
+    post_action(client, choice_url, payload)
+    post_action(client, choice_url, payload)
     resumed = client.get(
         reverse("n26-action-flow", args=[data.fighter.pk, record.pk, "resume"]),
         follow=True,
     )
     if not secondary:
         assert "No available skill or power was rolled." in resumed.content.decode()
-        client.post(
+        post_action(
+            client,
             choice_url,
             {
                 "request_key": resumed.context["form"]["request_key"].value(),
@@ -307,11 +320,11 @@ def test_random_powers_keep_their_roll_when_resumed_or_submitted_twice(
     record.refresh_from_db()
     assert record.skill_selection.selected_power == power
     assert record.skill_selection.random_attempts[-1]["skill_kind"] == "power"
-    _confirm(client, client.post(choice_url, {"continue": "1"}))
+    _confirm(client, post_action(client, choice_url, {"continue": "1"}))
     record.refresh_from_db()
     assert record.skill_selection.skill_assignment.power == power
     corrected_url = _choose_result(client, data, record, result, stage="correct")
-    _confirm(client, client.post(corrected_url, {"continue": "1"}))
+    _confirm(client, post_action(client, corrected_url, {"continue": "1"}))
     assert Assignment.objects.filter(power=power, archived=False).count() == 1
     assert LedgerEvent.objects.filter(
         action_record=record, kind=LedgerEvent.Kind.ROLLED
@@ -336,7 +349,9 @@ def test_an_ordinary_model_cannot_gain_a_power_through_select_any(
         for group in page.context["skill_groups"]
         for skill in group["skills"]
     )
-    forged = client.post(choice_url, {"skill_id": str(wyrd.powers["primary"].pk)})
+    forged = post_action(
+        client, choice_url, {"skill_id": str(wyrd.powers["primary"].pk)}
+    )
     assert forged.status_code == 200
     assert "skill_id" in forged.context["form"].errors
 
@@ -441,7 +456,8 @@ def test_an_authored_family_resolves_both_d6_endpoints_and_records_the_power(
     _post_roll(client, data, record)
     url = _choose_result(client, data, record, data.results["random"])
     page = client.get(url)
-    response = client.post(
+    response = post_action(
+        client,
         url,
         {
             "request_key": page.context["form"]["request_key"].value(),
@@ -452,7 +468,7 @@ def test_an_authored_family_resolves_both_d6_endpoints_and_records_the_power(
     record.refresh_from_db()
     assert record.skill_selection.selected_power == powers[rolled]
     assert record.skill_selection.random_attempts[-1]["roll"] == rolled
-    _confirm(client, client.post(url, {"continue": "1"}))
+    _confirm(client, post_action(client, url, {"continue": "1"}))
     record.refresh_from_db()
     assert record.skill_selection.skill_assignment.power == powers[rolled]
     history = client.get(reverse("n26-edit-fighter", args=[data.fighter.pk]))
@@ -478,7 +494,8 @@ def test_an_unnumbered_family_reports_the_missing_d6_result_without_granting_a_p
     _post_roll(client, data, record)
     url = _choose_result(client, data, record, data.results["random"])
     page = client.get(url)
-    response = client.post(
+    response = post_action(
+        client,
         url,
         {
             "request_key": page.context["form"]["request_key"].value(),
@@ -534,7 +551,7 @@ class TestShortPowerFamilies:
             "request_key": page.context["form"]["request_key"].value(),
             "skill_set_id": str(wyrd.family.pk),
         }
-        assert client.post(url, payload).status_code == 302
+        assert post_action(client, url, payload).status_code == 302
         record.refresh_from_db()
         attempts = record.skill_selection.random_attempts
         assert [attempt["roll"] for attempt in attempts] == [6, 4, landed]
@@ -554,14 +571,14 @@ class TestShortPowerFamilies:
                 skill_set_id=wyrd.family.pk,
             )
         assert replayed == attempts[-1]
-        assert client.post(url, payload).status_code == 302
+        assert post_action(client, url, payload).status_code == 302
         resumed = client.get(
             reverse("n26-action-flow", args=[data.fighter.pk, record.pk, "resume"]),
             follow=True,
         )
         assert short_family[landed].name in resumed.content.decode()
         assert "No skill or power has D6 result 6" in resumed.content.decode()
-        _confirm(client, client.post(url, {"continue": "1"}))
+        _confirm(client, post_action(client, url, {"continue": "1"}))
         record.refresh_from_db()
         assert record.skill_selection.skill_assignment.power == short_family[landed]
         assert len(record.skill_selection.random_attempts) == 3
@@ -584,14 +601,16 @@ class TestShortPowerFamilies:
             "rolled": "6",
             "roll_mode": "record",
         }
-        assert client.post(url, payload).status_code == 302
+        assert post_action(client, url, payload).status_code == 302
         record.refresh_from_db()
         assert record.skill_selection.selected_power is None
         assert [row["roll"] for row in record.skill_selection.random_attempts] == [6]
         assert "No skill or power has D6 result 6" in client.get(url).content.decode()
         payload.pop("rolled")
         payload.update(request_key=str(uuid4()), roll_mode="roll")
-        assert client.post(url, payload).status_code == 302
+        payload.pop("command_key", None)
+        payload.pop("revision", None)
+        assert post_action(client, url, payload).status_code == 302
         record.refresh_from_db()
         assert record.skill_selection.selected_power == short_family[2]
         assert [row["roll"] for row in record.skill_selection.random_attempts] == [
@@ -611,21 +630,23 @@ class TestShortPowerFamilies:
             "rolled": "6",
             "roll_mode": "record",
         }
-        assert client.post(url, payload).status_code == 302
+        assert post_action(client, url, payload).status_code == 302
         record.refresh_from_db()
         first = record.skill_selection.random_attempts[-1]
         payload = {
             "request_key": str(uuid4()),
             "skill_set_id": str(wyrd.family.pk),
         }
-        assert client.post(url, payload).status_code == 302
+        assert post_action(client, url, payload).status_code == 302
         record.refresh_from_db()
         carried = record.skill_selection.random_attempts[-1]
         assert carried["roll"] == 6
         assert carried["event_id"] == first["event_id"]
         assert record.skill_selection.selected_power is None
         payload["request_key"] = str(uuid4())
-        assert client.post(url, payload).status_code == 302
+        payload.pop("command_key", None)
+        payload.pop("revision", None)
+        assert post_action(client, url, payload).status_code == 302
         record.refresh_from_db()
         assert record.skill_selection.selected_power == short_family[3]
         assert [row["roll"] for row in record.skill_selection.random_attempts] == [
@@ -641,7 +662,8 @@ class TestShortPowerFamilies:
         a.revise(short_family[2], position=0)
         record, url = _random_power_flow(client, monkeypatch, wyrd, 2)
         assert (
-            client.post(
+            post_action(
+                client,
                 url,
                 {"request_key": str(uuid4()), "skill_set_id": str(wyrd.family.pk)},
             ).status_code
@@ -663,12 +685,14 @@ class TestShortPowerFamilies:
             op.assign(short_family[1], miniature=data.fighter)
         record, url = _random_power_flow(client, monkeypatch, wyrd, 6, 1, 3)
         payload = {"request_key": str(uuid4()), "skill_set_id": str(wyrd.family.pk)}
-        assert client.post(url, payload).status_code == 302
+        assert post_action(client, url, payload).status_code == 302
         record.refresh_from_db()
         assert record.skill_selection.selected_power is None
         assert [row["roll"] for row in record.skill_selection.random_attempts] == [6, 1]
         payload["request_key"] = str(uuid4())
-        assert client.post(url, payload).status_code == 302
+        payload.pop("command_key", None)
+        payload.pop("revision", None)
+        assert post_action(client, url, payload).status_code == 302
         record.refresh_from_db()
         assert record.skill_selection.selected_power == short_family[3]
 
@@ -677,15 +701,17 @@ class TestShortPowerFamilies:
     ):
         record, url = _random_power_flow(client, monkeypatch, wyrd, *([6] * 100), 2)
         payload = {"request_key": str(uuid4()), "skill_set_id": str(wyrd.family.pk)}
-        assert client.post(url, payload).status_code == 302
+        assert post_action(client, url, payload).status_code == 302
         record.refresh_from_db()
         assert record.skill_selection.selected_power is None
         assert len(record.skill_selection.random_attempts) == 100
-        assert client.post(url, payload).status_code == 302
+        assert post_action(client, url, payload).status_code == 302
         record.refresh_from_db()
         assert len(record.skill_selection.random_attempts) == 100
         payload["request_key"] = str(uuid4())
-        assert client.post(url, payload).status_code == 302
+        payload.pop("command_key", None)
+        payload.pop("revision", None)
+        assert post_action(client, url, payload).status_code == 302
         record.refresh_from_db()
         assert record.skill_selection.selected_power == short_family[2]
 
@@ -702,7 +728,8 @@ class TestShortPowerFamilies:
             )
         record, url = _random_power_flow(client, monkeypatch, wyrd, 6, size)
         assert (
-            client.post(
+            post_action(
+                client,
                 url,
                 {"request_key": str(uuid4()), "skill_set_id": str(wyrd.family.pk)},
             ).status_code
@@ -724,7 +751,8 @@ class TestShortPowerFamilies:
         a.create_power("Staged result", category=wyrd.family, position=6, staged=True)
         record, url = _random_power_flow(client, monkeypatch, wyrd, 6, 2)
         assert (
-            client.post(
+            post_action(
+                client,
                 url,
                 {"request_key": str(uuid4()), "skill_set_id": str(wyrd.family.pk)},
             ).status_code
@@ -740,7 +768,8 @@ class TestShortPowerFamilies:
         a.create_skill("Mixed result", category=wyrd.family, position=4)
         record, url = _random_power_flow(client, monkeypatch, wyrd, 6)
         assert (
-            client.post(
+            post_action(
+                client,
                 url,
                 {"request_key": str(uuid4()), "skill_set_id": str(wyrd.family.pk)},
             ).status_code
@@ -759,7 +788,8 @@ class TestShortPowerFamilies:
         record, url = _random_power_flow(client, monkeypatch, wyrd, 6, 1, 6, 1, 6, 1)
 
         def post_roll():
-            return client.post(
+            return post_action(
+                client,
                 url,
                 {"request_key": str(uuid4()), "skill_set_id": str(wyrd.family.pk)},
             )

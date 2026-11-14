@@ -17,6 +17,7 @@ from n26.library import authoring as a
 from n26.library.models import Slot
 from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import buy, found_gang, hire
+from n26.tests.sandbox.test_action_client import post_action
 
 pytestmark = pytest.mark.django_db
 
@@ -112,7 +113,7 @@ def start(client, hunt, outcome):
     client.force_login(hunt.owner)
     url = reverse("n26-action-start", args=[hunt.fighter.pk, hunt.action.pk])
     payload = {"request_key": str(uuid4()), "outcome": str(outcome.pk), "allowance": ""}
-    response = client.post(url, payload)
+    response = post_action(client, url, payload)
     assert response.status_code == 302
     return ActionRecord.objects.get(fighter=hunt.fighter), url, payload
 
@@ -148,7 +149,8 @@ class TestSuitEvolutionForms:
         self, client, hunt
     ):
         client.force_login(hunt.owner)
-        response = client.post(
+        response = post_action(
+            client,
             reverse("n26-action-start", args=[hunt.fighter.pk, hunt.action.pk]),
             {"request_key": "not-a-request", "outcome": str(hunt.clear.pk)},
         )
@@ -353,7 +355,8 @@ class TestSuitEvolutionForms:
 
         client.force_login(hunt.owner)
         back = reverse(screen, args=[hunt.fighter.pk])
-        response = client.post(
+        response = post_action(
+            client,
             reverse("n26-tally", args=[hunt.kills.pk]),
             {"change": "-3", "back": back},
             HTTP_HX_REQUEST="true",
@@ -420,7 +423,8 @@ class TestSuitEvolutionForms:
         assert not ActionAllowance.objects.filter(fighter=hunt.fighter).exists()
 
         if screen == "n26-equip":
-            update = client.post(
+            update = post_action(
+                client,
                 reverse("n26-equip-fighter-command", args=[hunt.fighter.pk]),
                 {
                     "action": "tally",
@@ -436,7 +440,8 @@ class TestSuitEvolutionForms:
             assert panels[0]["availableUses"] == 1
             assert panels[0]["startHref"]
         else:
-            update = client.post(
+            update = post_action(
+                client,
                 reverse("n26-tally", args=[counted.pk]),
                 {"change": "1", "back": back},
                 HTTP_HX_REQUEST="true",
@@ -680,7 +685,8 @@ class TestSuitEvolutionForms:
         start_page = client.get(url)
         assert start_page.status_code == 200
         assert "This flow is temporarily unavailable." in start_page.content.decode()
-        posted = client.post(
+        posted = post_action(
+            client,
             url,
             {
                 "request_key": str(uuid4()),
@@ -706,8 +712,8 @@ class TestSuitEvolutionForms:
         )
         cancel_page = client.get(cancel_url).content.decode()
         assert "Save and return later" in cancel_page
-        assert "Your saved choices will be discarded." in cancel_page
-        cancelled = client.post(cancel_url)
+        assert 'data-react-name="action-workflow"' in cancel_page
+        cancelled = post_action(client, cancel_url)
         assert cancelled.status_code == 302
         record.refresh_from_db()
         assert record.state == ActionRecord.State.CANCELLED
@@ -729,7 +735,6 @@ class TestSuitEvolutionForms:
         assert "Hidden maintenance" not in response.content.decode()
 
     def test_a_carried_item_is_reviewed_before_any_kills_are_spent(self, client, hunt):
-        from bs4 import BeautifulSoup
 
         from n26.core.render import option_key
         from n26.tests.fixtures import island_props
@@ -750,8 +755,8 @@ class TestSuitEvolutionForms:
         )
         assert response.context["submit_label"] == "Review"
         assert hunt.kills.counter_value.value == 6
-        response = client.post(
-            choose, {"selection": f"{hunt.item.pk}|{hunt.tiers[0].pk}"}
+        response = post_action(
+            client, choose, {"selection": f"{hunt.item.pk}|{hunt.tiers[0].pk}"}
         )
         assert response.status_code == 302
         review = client.get(response.url)
@@ -767,7 +772,7 @@ class TestSuitEvolutionForms:
             ("Remaining", "2 Kill Count"),
         ]
         token = review.context["form"]["review"].value()
-        confirmed = client.post(response.url, {"review": token})
+        confirmed = post_action(client, response.url, {"review": token})
         assert confirmed.status_code == 302
         receipt = client.get(confirmed.url)
         assert receipt.status_code == 200
@@ -783,19 +788,9 @@ class TestSuitEvolutionForms:
             "n26-edit-fighter", args=[hunt.fighter.pk]
         )
         assert receipt.context["stage"] == "done"
-        completed = BeautifulSoup(receipt.content, "html.parser")
-        assert (
-            completed.find(
-                "a", string=lambda value: value and value.strip() == "Change result"
-            )["href"]
-            == receipt.context["back_href"]
-        )
-        assert (
-            completed.find("a", string=lambda value: value and value.strip() == "Done")[
-                "href"
-            ]
-            == receipt.context["done_href"]
-        )
+        rendered = receipt.context["action_props"]["facts"]
+        assert rendered["back_href"] == receipt.context["back_href"]
+        assert rendered["done_href"] == receipt.context["done_href"]
         assert (
             ActionRecord.objects.get(pk=record.pk).state == ActionRecord.State.COMPLETED
         )
@@ -829,9 +824,9 @@ class TestSuitEvolutionForms:
         )
         review = client.get(review_url)
         token = review.context["form"]["review"].value()
-        assert client.post(review_url, {"review": token}).status_code == 302
-        assert client.post(review_url, {"review": token}).status_code == 302
-        assert client.post(start_url, payload).status_code == 302
+        assert post_action(client, review_url, {"review": token}).status_code == 302
+        assert post_action(client, review_url, {"review": token}).status_code == 302
+        assert post_action(client, start_url, payload).status_code == 302
         hunt.kills.counter_value.refresh_from_db()
         hunt.glitches.counter_value.refresh_from_db()
         assert hunt.kills.counter_value.value == 2
@@ -901,8 +896,8 @@ class TestSuitEvolutionForms:
             payload = {"to": "stash"}
         else:
             payload = {"to": "weapon", "weapon": str(weapon.pk)}
-        refused = client.post(
-            reverse("n26-reassign", args=[moved_item.pk]), payload, follow=True
+        refused = post_action(
+            client, reverse("n26-reassign", args=[moved_item.pk]), payload, follow=True
         )
         assert (
             "It has earned augmentations that cannot be transferred."
@@ -948,7 +943,7 @@ class TestSuitEvolutionForms:
         else:
             url = reverse("n26-mark-fighter", args=[hunt.fighter.pk])
             payload = {"status": "dead", "kit": "stash"}
-        response = client.post(url, payload, follow=True)
+        response = post_action(client, url, payload, follow=True)
         assert response.status_code == 200
         hunt.fighter.refresh_from_db()
         item.refresh_from_db()
@@ -960,7 +955,8 @@ class TestSuitEvolutionForms:
             reverse("n26-reassign", args=[item.pk])
             not in client.get(f"{sheet}?reassign={item.pk}").content.decode()
         )
-        refused = client.post(
+        refused = post_action(
+            client,
             reverse("n26-reassign", args=[item.pk]),
             {"miniature": str(other.pk)},
             follow=True,
@@ -981,22 +977,24 @@ class TestSuitEvolutionForms:
         token = client.get(url).context["form"]["review"].value()
         with operation(hunt.gang, actor=hunt.owner) as op:
             op.tally(hunt.kills, 1)
-        response = client.post(url, {"review": token})
+        response = post_action(client, url, {"review": token})
         assert response.status_code == 200
         assert response.context["form"].non_field_errors()
         record.refresh_from_db()
         assert record.state == ActionRecord.State.STARTED
         assert not record.payment_id
-        revisit = client.post(
+        revisit = post_action(
+            client,
             response.context["change_href"],
             {"outcome": str(hunt.clear.pk)},
             follow=True,
         )
         assert revisit.status_code == 200
-        assert "Glitch Count: 2 → 0" in revisit.content.decode()
+        assert revisit.context["action_props"]["facts"]["changes"][0]["before"] == 2
+        assert revisit.context["action_props"]["facts"]["changes"][0]["after"] == 0
         assert revisit.context["payment_tallies"][0].facts[0].value == "7 Kill Count"
         fresh_token = revisit.context["form"]["review"].value()
-        assert client.post(url, {"review": fresh_token}).status_code == 302
+        assert post_action(client, url, {"review": fresh_token}).status_code == 302
         hunt.kills.counter_value.refresh_from_db()
         assert hunt.kills.counter_value.value == 3
         hunt.gang.refresh_from_db()
@@ -1019,18 +1017,19 @@ class TestSuitEvolutionForms:
             reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "resume"]),
             follow=True,
         )
-        assert "Glitch Count: 1 → 0" in resumed.content.decode()
+        assert resumed.context["action_props"]["facts"]["changes"][0]["before"] == 1
+        assert resumed.context["action_props"]["facts"]["changes"][0]["after"] == 0
         assert resumed.context["payment_tallies"][0].facts[0].value == "7 Kill Count"
         record.refresh_from_db()
         assert record.review == original_review
         fresh_token = resumed.context["form"]["review"].value()
 
-        refused = client.post(url, {"review": old_token})
+        refused = post_action(client, url, {"review": old_token})
         assert refused.context["form"].non_field_errors()
         record.refresh_from_db()
         assert not record.payment_id
-        assert client.post(url, {"review": fresh_token}).status_code == 302
-        assert client.post(url, {"review": fresh_token}).status_code == 302
+        assert post_action(client, url, {"review": fresh_token}).status_code == 302
+        assert post_action(client, url, {"review": fresh_token}).status_code == 302
         hunt.glitches.counter_value.refresh_from_db()
         hunt.kills.counter_value.refresh_from_db()
         assert hunt.glitches.counter_value.value == 0
@@ -1052,7 +1051,7 @@ class TestSuitEvolutionForms:
         record, _, _ = start(client, hunt, hunt.clear)
         url = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "review"])
         token = client.get(url).context["form"]["review"].value()
-        refused = client.post(url, {"review": token})
+        refused = post_action(client, url, {"review": token})
         assert "This model has no glitches to clear." in refused.content.decode()
         record.refresh_from_db()
         hunt.kills.counter_value.refresh_from_db()
@@ -1065,8 +1064,9 @@ class TestSuitEvolutionForms:
     def test_changing_the_outcome_keeps_one_unpaid_record(self, client, hunt):
         record, _, _ = start(client, hunt, hunt.upgrade)
         choose = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"])
-        client.post(choose, {"selection": f"{hunt.item.pk}|{hunt.tiers[0].pk}"})
-        changed = client.post(
+        post_action(client, choose, {"selection": f"{hunt.item.pk}|{hunt.tiers[0].pk}"})
+        changed = post_action(
+            client,
             reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "outcome"]),
             {"outcome": str(hunt.clear.pk)},
             follow=True,
@@ -1096,12 +1096,12 @@ class TestSuitEvolutionForms:
     ):
         record, _, _ = start(client, hunt, hunt.upgrade)
         choose = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"])
-        review_url = client.post(
-            choose, {"selection": f"{hunt.item.pk}|{hunt.tiers[0].pk}"}
+        review_url = post_action(
+            client, choose, {"selection": f"{hunt.item.pk}|{hunt.tiers[0].pk}"}
         ).url
         review = client.get(review_url)
-        confirmed = client.post(
-            review_url, {"review": review.context["form"]["review"].value()}
+        confirmed = post_action(
+            client, review_url, {"review": review.context["form"]["review"].value()}
         )
         assert confirmed.status_code == 302
         hunt.item.archived = True
@@ -1125,13 +1125,15 @@ class TestSuitEvolutionForms:
         spare_item = buy(hunt.fighter, thing=spare, paid=0)
         record, _, _ = start(client, hunt, hunt.upgrade)
         choose = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"])
-        review_url = client.post(
-            choose, {"selection": f"{hunt.item.pk}|{hunt.tiers[0].pk}"}
+        review_url = post_action(
+            client, choose, {"selection": f"{hunt.item.pk}|{hunt.tiers[0].pk}"}
         ).url
         reviewed = client.get(review_url)
         assert (
-            client.post(
-                review_url, {"review": reviewed.context["form"]["review"].value()}
+            post_action(
+                client,
+                review_url,
+                {"review": reviewed.context["form"]["review"].value()},
             ).status_code
             == 302
         )
@@ -1146,7 +1148,8 @@ class TestSuitEvolutionForms:
             return panel.completed[0].detail
 
         assert history_detail().startswith("Hunting rig: Tier 1. ")
-        correction_url = client.post(
+        correction_url = post_action(
+            client,
             reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "correct"]),
             {"selection": f"{spare_item.pk}|{hunt.tiers[0].pk}"},
         ).url
@@ -1154,7 +1157,8 @@ class TestSuitEvolutionForms:
         assert history_detail() == "Hunting rig: Tier 1"
 
         assert (
-            client.post(
+            post_action(
+                client,
                 correction_url,
                 {"review": correction.context["form"]["review"].value()},
             ).status_code
@@ -1170,7 +1174,7 @@ class TestSuitEvolutionForms:
         client.force_login(stranger)
         url = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "review"])
         assert client.get(url).status_code == 404
-        assert client.post(url, {"review": "anything"}).status_code == 404
+        assert post_action(client, url, {"review": "anything"}).status_code == 404
         record.refresh_from_db()
         assert record.state == ActionRecord.State.STARTED
 
@@ -1178,7 +1182,7 @@ class TestSuitEvolutionForms:
         self, client, hunt
     ):
         record, start_url, payload = start(client, hunt, hunt.upgrade)
-        assert client.post(start_url, payload).status_code == 302
+        assert post_action(client, start_url, payload).status_code == 302
         resume = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "resume"])
         response = client.get(resume, follow=True)
         assert response.status_code == 200
@@ -1215,14 +1219,15 @@ class TestSuitEvolutionForms:
             assert not record.ledger_events.filter(
                 kind=LedgerEvent.Kind.ROLLED
             ).exists()
-        replay = client.post(
+        replay = post_action(
+            client,
             reverse("n26-action-start", args=[hunt.fighter.pk, hunt.action.pk]),
             {"request_key": str(record.request_key)},
             follow=True,
         )
         assert replay.status_code == 200
         assert replay.context["stage"] == "start"
-        chosen = client.post(outcome_url, {"outcome": str(hunt.upgrade.pk)})
+        chosen = post_action(client, outcome_url, {"outcome": str(hunt.upgrade.pk)})
         assert chosen.status_code == 302
         record.refresh_from_db()
         assert record.outcome_id == hunt.upgrade.pk

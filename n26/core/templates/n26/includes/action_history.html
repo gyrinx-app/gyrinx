@@ -38,6 +38,9 @@
                                     {% if result.applied_by_hand %}
                                         <form method="post" action="{{ result.reopen_href }}" class="mt-0.5">
                                             {% csrf_token %}
+                                            <input type="hidden" name="command_key" value="{{ result.command_key }}">
+                                            <input type="hidden" name="gang_id" value="{{ gang.pk }}">
+                                            <input type="hidden" name="revision" value="{{ result.revision }}">
                                             <c-ui.button type="submit"
                                                          variant="ghost"
                                                          size="xs"

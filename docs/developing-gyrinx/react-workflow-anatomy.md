@@ -314,3 +314,77 @@ Feature-specific work should concentrate on fields, layout, display data and
 domain response handling. Mounting, styling, transport and recovery already
 have established homes. See the [migration plan](react.md) for required checks
 and the prerequisites for more complex tasks such as Hire and Equip.
+
+Action stages keep their URL, submitted record revision and exact stage intent in
+the command. A generated roll, entered total, promotion decline and signed review
+are separate commands even when the domain has an older roll key. Recall the
+outer receipt before resolving the current stage, then display its recorded facts
+separately from the current flow. Publish success only after operation settlement
+exits. A settlement refusal must roll back both the domain writes and receipt.
+
+Keep unknown commands recoverable across the whole action workflow. Scope known
+unsent or rejected drafts by action use, stage, allowance and correction pick. A
+draft from another stage must not replace the current controls; an older record
+revision requires explicit review. Preserve native forms outside the root, such
+as one-click history Undo, by rendering their command key and record revision
+into the existing POST. Never invent those values while handling an old POST.
+
+Preserve absent and explicitly blank URL selectors separately. An absent
+correction pick can select the stored result, while an explicit blank leaves it
+unselected. Keep that distinction in JSON display links and native form targets.
+Put the write-pause barrier before workflow row locks. Publish terminal
+acknowledgements only after settlement too: a rolled-back refusal receipt cannot
+release an uncertain command. Only a validated revision conflict or durable
+terminal refusal permits review; a key refusal leaves an earlier save uncertain.
+
+Stamp the owned recovery URL before sending a command so ordinary browser
+refresh can mount recovery after removal or archive. Clear the passive draft
+identified by the submitted command, which can differ from the current page's
+draft after navigation to another stage. Test those cross-stage acknowledgements
+and reviews without losing the current page's unrelated draft.
+
+Put read-only radio-card facts in `details`. `RadioCard` children are separate
+controls outside the choice label; `details` keeps the divider, indentation and
+muted text inside the clickable choice. Compare each native footer variant,
+including left-aligned Back, red ghost Cancel and Undo, and the small Change
+selection control. Check review captions, completed Choice and Result summaries,
+and empty error markup as well as the inputs: an empty child can change section
+spacing through collapsed margins.
+
+Validate acknowledgements against actual serialized command results. Optional
+result names can be null when a dice table has a gap; that is a valid recorded
+attempt. Test both ordinary success and retained replay with those values so a
+confirmed roll does not remain frozen behind a response-shape error.
+
+An explicit recovery read must keep the task mounted even when its current state
+normally redirects to another page. Show a read-only recovery shell with onward
+navigation so a lost cancellation or applied-by-hand response can still be
+recalled. Check removal of an addressed selection under the same lock as its
+command and restoration. Consume a definitively unavailable target with a durable
+no-write receipt so restoration cannot revive a delayed request; leave generic
+eligibility and malformed-input refusals unresolved.
+
+A cancellation refused because an action has an immutable recorded roll can also
+settle as a durable no-write result. Share the domain's read-only roll predicate,
+check ownership and the submitted revision first, and offer the current flow to
+resume. Keep other validation refusals uncertain; do not infer their outcome.
+
+Carry the authorized gang scope through recovery display links when the model
+can be deleted. Revalidate replay navigation for native redirects, including
+terminal cancellation refusals, as well as JSON review links. Keep the receipt's
+saved facts unchanged.
+
+A replay confirms an earlier action, so native messages must acknowledge that
+history without asserting its current state. Signed reviews can change with
+payment facts while the action revision stays the same. Restore editable known
+rejections with the current review and command key; preserve an unknown command's
+original review, key and exact body for retry.
+
+A confirmation's removed-item check must read its validated signed review target,
+not a selection field from an earlier stage. Match the record, revision and current
+review before settling an unavailable target; keep other review refusals unresolved.
+
+Advance an action revision on each by-hand and Undo transition, even when no
+result slot or review changes. An unused form has no receipt to recall: its old
+revision must reject a delayed Undo after another tab undoes and applies again.
+Keep consumed receipt replay separate from that new-intent revision check.

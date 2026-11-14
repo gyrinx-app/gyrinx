@@ -954,6 +954,18 @@ def complete_action(op, record, *, revision, review, outcome):
     return record
 
 
+def has_recorded_action_roll(record):
+    """Recorded rolls remain part of an action's history after later choices."""
+    return (
+        AdvancementSelection.objects.filter(
+            action_record=record, roll_event__isnull=False
+        ).exists()
+        or LedgerEvent.objects.filter(
+            action_record=record, kind=LedgerEvent.Kind.ROLLED
+        ).exists()
+    )
+
+
 def cancel_action(op, record):
     record = _locked(op, record)
     _refuse_unless_owned(op, record.fighter)
@@ -961,14 +973,7 @@ def cancel_action(op, record):
         return record
     if record.state != ActionRecord.State.STARTED or record.payment_id is not None:
         raise Refusal("That action use can no longer be cancelled.")
-    if (
-        AdvancementSelection.objects.filter(
-            action_record=record, roll_event__isnull=False
-        ).exists()
-        or LedgerEvent.objects.filter(
-            action_record=record, kind=LedgerEvent.Kind.ROLLED
-        ).exists()
-    ):
+    if has_recorded_action_roll(record):
         raise Refusal("A recorded advancement roll must be resumed.")
     from n26.core.promotions import remove_unfinished_promotion
 
@@ -1003,13 +1008,14 @@ def apply_action_by_hand(op, record):
     _validate_draft_definition(record)
     _retire_unfinished_slot(op, record)
     record.state = ActionRecord.State.APPLIED_BY_HAND
+    record.revision += 1
     op.event(
         record.fighter,
         LedgerEvent.Kind.ACTION_USE_APPLIED_BY_HAND,
         action_record=record,
         note=str(record.action),
     )
-    record.save(update_fields=["state", "modified"])
+    record.save(update_fields=["state", "revision", "modified"])
     return record
 
 
@@ -1081,7 +1087,6 @@ def _rebind_retired_slot(op, record):
     selection.save(update_fields=["slot_assignment", "modified"])
     if record.review:
         record.review = {}
-        record.revision += 1
 
 
 def reopen_action(op, record):
@@ -1137,6 +1142,7 @@ def reopen_action(op, record):
         _rebind_retired_slot(op, record)
     else:
         record.state = ActionRecord.State.CANCELLED
+    record.revision += 1
     op.event(
         record.fighter,
         LedgerEvent.Kind.ACTION_USE_REOPENED,
