@@ -3,6 +3,7 @@ import {
     type ComponentProps,
     type FormEvent,
     useId,
+    useLayoutEffect,
     useRef,
     useState,
 } from "react";
@@ -501,13 +502,125 @@ function prepareArrivalRecovery(props: ChoiceWorkflowProps): ArrivalRecovery {
     }
 }
 
+function isDialogPage(
+    value: unknown,
+    current: ChoiceWorkflowProps,
+    requestKey: string,
+): value is ChoiceWorkflowProps {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+        return false;
+    const page = value as ChoiceWorkflowProps;
+    const strings = (row: unknown): row is Record<string, string> =>
+        !!row &&
+        typeof row === "object" &&
+        !Array.isArray(row) &&
+        Object.values(row).every((item) => typeof item === "string");
+    const roll = page.roll;
+    const validRoll =
+        roll === null ||
+        (!!roll &&
+            typeof roll.key === "string" &&
+            typeof roll.total === "number" &&
+            typeof roll.dice === "string" &&
+            Array.isArray(roll.faces) &&
+            roll.faces.every((face) => typeof face === "number") &&
+            Array.isArray(roll.landed) &&
+            roll.landed.every((name) => typeof name === "string") &&
+            typeof roll.entered === "boolean" &&
+            typeof roll.applied === "string" &&
+            typeof roll.threshold === "boolean" &&
+            (roll.add === null ||
+                (!!roll.add &&
+                    typeof roll.add.key === "string" &&
+                    typeof roll.add.name === "string")));
+    const table = page.rollTable;
+    const validTable =
+        table === null ||
+        (!!table &&
+            typeof table.dice === "string" &&
+            typeof table.lowest === "number" &&
+            typeof table.highest === "number");
+    return (
+        validRoll &&
+        validTable &&
+        page.blocks === undefined &&
+        page.terminal === false &&
+        page.recoveryOnly === false &&
+        page.dialog === true &&
+        page.action === current.action &&
+        page.commandHref === current.commandHref &&
+        page.recoveryKey === current.recoveryKey &&
+        [page.title, page.lead, page.gangName, page.gangHref, page.back].every(
+            (item) => typeof item === "string",
+        ) &&
+        strings(page.values) &&
+        !!page.values.request_key &&
+        page.values.request_key !== requestKey &&
+        Object.keys(current.values).every((key) => key in page.values) &&
+        typeof page.csrfToken === "string" &&
+        !!page.csrfToken &&
+        typeof page.recoveryHref === "string" &&
+        typeof page.signInHref === "string" &&
+        !!page.offer &&
+        typeof page.offer.label === "string" &&
+        typeof page.offer.takesSeveral === "boolean" &&
+        typeof page.offer.empty === "boolean" &&
+        Array.isArray(page.offer.groups) &&
+        page.offer.groups.every(
+            (group) =>
+                typeof group.name === "string" &&
+                typeof group.caption === "string" &&
+                Array.isArray(group.options) &&
+                group.options.every(
+                    (option) =>
+                        [
+                            option.key,
+                            option.name,
+                            option.band,
+                            option.remark,
+                            option.summary,
+                            option.control,
+                        ].every((item) => typeof item === "string") &&
+                        typeof option.current === "boolean" &&
+                        typeof option.rating === "number" &&
+                        (option.removalRating === null ||
+                            typeof option.removalRating === "number"),
+                ),
+        ) &&
+        fieldErrors(page.errors) &&
+        Array.isArray(page.messages) &&
+        page.messages.every(
+            (message) =>
+                typeof message.text === "string" &&
+                ["success", "error", "warning", "info"].includes(message.tone),
+        )
+    );
+}
+
 export function ChoiceWorkflow(
-    props: ChoiceWorkflowProps & {
+    initial: ChoiceWorkflowProps & {
         onNavigate?: (url: string) => void;
         onReload?: () => void;
     },
 ) {
+    const [refreshed, setRefreshed] = useState<ChoiceWorkflowProps | null>(
+        null,
+    );
+    const props = {
+        ...(refreshed ?? initial),
+        onNavigate: initial.onNavigate,
+        onReload: initial.onReload,
+    };
+    const [showFieldErrors, setShowFieldErrors] = useState(true);
+    const completedPage = useRef<ChoiceWorkflowProps | null>(null);
     const formRef = useRef<HTMLFormElement>(null);
+    useLayoutEffect(() => {
+        const form = formRef.current;
+        if (refreshed && form && !form.contains(document.activeElement))
+            form.querySelector<HTMLElement>(
+                "button:not([disabled]), input:not([type=hidden]):not([disabled])",
+            )?.focus();
+    }, [refreshed]);
     const ownRollId = useId();
     const [busyControl, setBusyControl] = useState<string | null>(null);
     const [arrivalRecovery] = useState(() => prepareArrivalRecovery(props));
@@ -518,6 +631,14 @@ export function ChoiceWorkflow(
         optionalRecoveryFields: ["summary"],
         initialConflict: props.terminal,
         interpret(status, data) {
+            if (status === 200 && props.dialog && data.page !== undefined) {
+                if (
+                    !isDialogPage(data.page, props, workflow.values.request_key)
+                )
+                    return null;
+                completedPage.current = data.page;
+                return { kind: "completed" };
+            }
             if (status === 200 && typeof data.nextUrl === "string") {
                 retainArrivalReturn(
                     props,
@@ -530,11 +651,28 @@ export function ChoiceWorkflow(
                 status === 409 &&
                 data.code === "choice_unavailable" &&
                 fieldErrors(data.errors)
-            )
+            ) {
+                setShowFieldErrors(true);
                 return { kind: "conflict", errors: data.errors };
-            if (status === 422 && fieldErrors(data.errors))
+            }
+            if (status === 422 && fieldErrors(data.errors)) {
+                setShowFieldErrors(true);
                 return { kind: "invalid", errors: data.errors };
+            }
             return null;
+        },
+        onComplete() {
+            const page = completedPage.current;
+            if (!page) return;
+            // Keep the mounted dialog while adopting fresh issued form values.
+            setRefreshed(page);
+            workflow.setValues(page.values);
+            setShowFieldErrors(false);
+            window.history.replaceState(
+                window.history.state,
+                "",
+                page.recoveryHref,
+            );
         },
     });
     const isArrivals = props.blocks !== undefined;
@@ -680,10 +818,14 @@ export function ChoiceWorkflow(
         }
         leave(url);
     }
-    const errors = workflow.hasErrors ? (
+    const visibleErrors = showFieldErrors ? workflow.errors : {};
+    const hasErrors =
+        !!workflow.notice ||
+        Object.values(visibleErrors).some((messages) => messages.length > 0);
+    const errors = hasErrors ? (
         <div ref={workflow.summary} tabIndex={-1} role="alert">
             {workflow.notice && <Alert tone="error">{workflow.notice}</Alert>}
-            {Object.entries(workflow.errors).map(([name, messages]) => (
+            {Object.entries(visibleErrors).map(([name, messages]) => (
                 <FieldErrors key={name} errors={messages} />
             ))}
             {workflow.uncertain && !workflow.conflicted && (

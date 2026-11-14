@@ -1041,3 +1041,39 @@ def test_a_correction_retains_a_settled_status_result_without_offering_it_again(
     assert effect["label"] == f"{slot.slot_type.name} 1"
     assert effect["name"] == result.name
     assert_reconciled(report.gang)
+
+
+@pytest.mark.parametrize("transport", ["native", "json"])
+@pytest.mark.parametrize("consume_toast", [False, True])
+def test_a_replayed_status_pick_confirms_history_without_claiming_the_old_status(
+    client, owner, model, follow_up, transport, consume_toast
+):
+    from django.contrib.messages import get_messages
+
+    from n26.tests.fixtures import island_props
+
+    _, slot, released, _ = follow_up
+    mark(model, Status.CAPTURED)
+    question = next(q for q in computed(model).choices if q.slot.pk == slot.pk)
+    key = slot_key(question, str(model.pk))
+    client.force_login(owner)
+    picker = reverse("n26-choose", args=[model.gang.pk, key])
+    page = island_props(client.get(picker).content, "choice-workflow")
+    url = picker if transport == "native" else page["commandHref"]
+    payload = {**page["values"], "thing": f"library.pickable:{released.pk}"}
+    first = client.post(url, payload)
+    assert first.status_code == (302 if transport == "native" else 200)
+    if consume_toast:
+        consumed = client.get(reverse("n26-gang", args=[model.gang.pk]))
+        assert any(
+            "is now" in str(message) for message in get_messages(consumed.wsgi_request)
+        )
+    mark(model, Status.ACTIVE)
+    before = LedgerEvent.objects.count()
+    replay = client.post(url, payload)
+    assert replay.status_code == first.status_code
+    confirmations = [str(message) for message in get_messages(replay.wsgi_request)]
+    assert confirmations == ["This choice was already saved. No new change was made."]
+    model.refresh_from_db()
+    assert model.status == Status.ACTIVE
+    assert LedgerEvent.objects.count() == before

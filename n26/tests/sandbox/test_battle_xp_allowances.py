@@ -1284,3 +1284,82 @@ def test_held_pick_controls_show_the_recorded_removal_and_new_pick_ratings(
         replacement = op.choose(anchor, s.pick)
     assert replacement.ledger_entry.rating_contribution == 7
     assert_reconciled(s.gang)
+
+
+@pytest.mark.parametrize("transport", ["native", "json"])
+@pytest.mark.parametrize("intent", ["roll", "enter"])
+@pytest.mark.parametrize("held", [False, True])
+def test_a_generic_roll_cannot_bypass_the_earned_battle_flow(
+    setup, client, held, intent, transport
+):
+    from django.contrib.messages import get_messages
+
+    from n26.core.models import ModelChoiceReceipt
+
+    s = setup
+    apply(s, 5)
+    with operation(s.gang, actor=s.owner) as op:
+        record = op.start_action(s.fighter, s.action, uuid4())
+        op.record_action_roll(record, s.outcome.operation, uuid4(), rolled=9)
+    if held:
+        apply(s, 4, correction=True)
+    record.refresh_from_db()
+    original_roll = record.advancement_selection.roll_event_id
+    key = f"{s.fighter.pk}:{record.advancement_selection.slot_assignment_id}:{s.outcome.operation.slot_id}"
+    client.force_login(s.owner)
+    route = "n26-choose" if transport == "native" else "n26-choice-command"
+    url = reverse(route, args=[s.gang.pk, key])
+    request_key = str(uuid4())
+    before = LedgerEvent.objects.count()
+    response = client.post(
+        url, {"request_key": request_key, "act": intent, "rolled": "4"}
+    )
+    expected = "On hold" if held else "earned action flow"
+    if transport == "json":
+        assert response.status_code == 422
+        assert expected in response.json()["errors"]["__all__"][0]
+    else:
+        assert response.status_code == 302
+        assert expected in " ".join(
+            str(message) for message in get_messages(response.wsgi_request)
+        )
+    assert LedgerEvent.objects.count() == before
+    assert not ModelChoiceReceipt.objects.filter(request_key=request_key).exists()
+    record.refresh_from_db()
+    assert record.state == "started"
+    assert record.advancement_selection.roll_event_id == original_roll
+
+
+@pytest.mark.parametrize("held", [False, True])
+def test_a_previously_saved_generic_roll_replays_after_the_earned_action_guard(
+    setup, client, held, monkeypatch
+):
+    from n26.core import action_records
+    from n26.core.models import ModelChoiceReceipt
+
+    s = setup
+    apply(s, 5)
+    with operation(s.gang, actor=s.owner) as op:
+        record = op.start_action(s.fighter, s.action, uuid4())
+        op.record_action_roll(record, s.outcome.operation, uuid4(), rolled=9)
+    record.refresh_from_db()
+    key = f"{s.fighter.pk}:{record.advancement_selection.slot_assignment_id}:{s.outcome.operation.slot_id}"
+    client.force_login(s.owner)
+    url = reverse("n26-choice-command", args=[s.gang.pk, key])
+    payload = {"request_key": str(uuid4()), "act": "enter", "rolled": "4"}
+    # Retain a result produced by the dispatcher without the action guard.
+    with monkeypatch.context() as unguarded:
+        unguarded.setattr(action_records, "battle_action_for_slot", lambda anchor: None)
+        original = client.post(url, payload)
+    assert original.status_code == 200
+    if held:
+        apply(s, 4, correction=True)
+    before = LedgerEvent.objects.count()
+    replay = client.post(url, payload)
+    assert replay.status_code == 200
+    assert replay.json() == original.json()
+    assert LedgerEvent.objects.count() == before
+    assert (
+        ModelChoiceReceipt.objects.filter(request_key=payload["request_key"]).count()
+        == 1
+    )

@@ -264,6 +264,15 @@ def change(gang, actor, slot_key, data, *, here, back, campaign_dialog=False):
                         facts["offer"] = label
                         next_url = back
                     elif intent in {"roll", "enter"}:
+                        from n26.core.action_records import battle_action_for_slot
+                        from n26.core.allowances import require_allowance_available
+
+                        battle_action = battle_action_for_slot(found.anchor)
+                        if battle_action is not None:
+                            require_allowance_available(battle_action.allowance)
+                            raise Refusal(
+                                "Choose this result through its earned action flow."
+                            )
                         if found.slot.slot is None or not found.slot.slot.picklist.dice:
                             raise Refusal("This choice has no roll table.")
                         if found.slot.is_full:

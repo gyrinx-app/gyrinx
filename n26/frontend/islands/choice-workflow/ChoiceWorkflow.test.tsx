@@ -1015,3 +1015,180 @@ test("a confirmed nested answer wins even when its saved state is unchanged", as
         ),
     ).toEqual({ A: "armour" });
 });
+
+function refreshedDialog(key: string, chosen: boolean): ChoiceWorkflowProps {
+    return {
+        ...props,
+        dialog: true,
+        values: { ...props.values, request_key: key },
+        offer: {
+            ...props.offer!,
+            groups: props.offer!.groups.map((group) => ({
+                ...group,
+                options: group.options.map((option) => ({
+                    ...option,
+                    current: chosen,
+                    control: chosen ? "both" : "choose",
+                })),
+            })),
+        },
+        messages: [
+            {
+                text: chosen ? "Added Extra armour." : "Removed Extra armour.",
+                tone: "success",
+            },
+        ],
+    };
+}
+
+test("successive campaign commands keep one dialog and use fresh issued keys", async () => {
+    const show = vi
+        .spyOn(HTMLDialogElement.prototype, "showModal")
+        .mockImplementation(function (this: HTMLDialogElement) {
+            this.open = true;
+        });
+    const close = vi
+        .spyOn(HTMLDialogElement.prototype, "close")
+        .mockImplementation(function (this: HTMLDialogElement) {
+            this.open = false;
+        });
+    const trigger = document.createElement("button");
+    document.body.append(trigger);
+    trigger.focus();
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(
+            json({ errors: { thing: ["Review this choice."] } }, 422),
+        )
+        .mockResolvedValueOnce(
+            json({
+                nextUrl: props.action,
+                page: refreshedDialog("fresh-key-2", true),
+            }),
+        )
+        .mockResolvedValueOnce(
+            json({
+                nextUrl: props.action,
+                page: refreshedDialog("fresh-key-3", false),
+            }),
+        );
+    vi.stubGlobal("fetch", fetch);
+    const navigate = vi.fn();
+    const view = render(
+        <div data-gang-backdrop>
+            <ChoiceWorkflow {...props} dialog onNavigate={navigate} />
+        </div>,
+    );
+    const dialog = screen.getByRole("dialog");
+    await userEvent.click(
+        screen.getByRole("button", { name: "Add Extra armour again" }),
+    );
+    expect(screen.getByText("Review this choice.")).toBeTruthy();
+    await userEvent.click(
+        screen.getByRole("button", { name: "Add Extra armour again" }),
+    );
+    expect(screen.queryByText("Review this choice.")).toBeNull();
+    expect(screen.getByText("Added Extra armour.")).toBeTruthy();
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    await userEvent.click(
+        screen.getByRole("button", { name: "Remove Extra armour" }),
+    );
+    expect(screen.getByText("Removed Extra armour.")).toBeTruthy();
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(show).toHaveBeenCalledOnce();
+    expect(close).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(view.container.querySelector("[data-gang-backdrop]")).toBeTruthy();
+    expect(
+        fetch.mock.calls.map((call) =>
+            (call[1].body as URLSearchParams).get("request_key"),
+        ),
+    ).toEqual(["original-key", "original-key", "fresh-key-2"]);
+    expect(
+        (
+            document.querySelector(
+                'input[name="request_key"]',
+            ) as HTMLInputElement
+        ).value,
+    ).toBe("fresh-key-3");
+    expect(sessionStorage.getItem(props.recoveryKey)).toBeNull();
+    view.unmount();
+    expect(document.activeElement).toBe(trigger);
+    trigger.remove();
+});
+
+test("a campaign dialog still navigates to actual onward questions", async () => {
+    const navigate = vi.fn();
+    vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(json({ nextUrl: "/next/?ask=new" })),
+    );
+    render(<ChoiceWorkflow {...props} dialog onNavigate={navigate} />);
+    await userEvent.click(
+        screen.getByRole("button", { name: "Add Extra armour again" }),
+    );
+    expect(navigate).toHaveBeenCalledWith("/next/?ask=new");
+});
+
+test("a malformed dialog refresh cannot release an uncertain command", async () => {
+    const page = refreshedDialog("original-key", true);
+    const fetch = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("lost"))
+        .mockResolvedValueOnce(json({ nextUrl: props.action, page }));
+    vi.stubGlobal("fetch", fetch);
+    const navigate = vi.fn();
+    render(<ChoiceWorkflow {...props} dialog onNavigate={navigate} />);
+    await userEvent.click(
+        screen.getByRole("button", { name: "Add Extra armour again" }),
+    );
+    const retained = sessionStorage.getItem(props.recoveryKey);
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    expect(sessionStorage.getItem(props.recoveryKey)).toBe(retained);
+    expect(screen.getByRole("button", { name: "Retry save" })).toBeTruthy();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(
+        (
+            screen.getByRole("button", {
+                name: "Remove Extra armour",
+            }) as HTMLButtonElement
+        ).disabled,
+    ).toBe(true);
+});
+
+test("a lost dialog save retries its exact command before issuing the next key", async () => {
+    const fetch = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("lost"))
+        .mockResolvedValueOnce(
+            json({
+                nextUrl: props.action,
+                page: refreshedDialog("retry-confirmed-key", true),
+            }),
+        )
+        .mockResolvedValueOnce(
+            json({
+                nextUrl: props.action,
+                page: refreshedDialog("next-choice-key", false),
+            }),
+        );
+    vi.stubGlobal("fetch", fetch);
+    render(<ChoiceWorkflow {...props} dialog onNavigate={vi.fn()} />);
+    const dialog = screen.getByRole("dialog");
+    await userEvent.click(
+        screen.getByRole("button", { name: "Add Extra armour again" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    expect((fetch.mock.calls[0][1].body as URLSearchParams).toString()).toBe(
+        (fetch.mock.calls[1][1].body as URLSearchParams).toString(),
+    );
+    await userEvent.click(
+        screen.getByRole("button", { name: "Remove Extra armour" }),
+    );
+    expect(
+        (fetch.mock.calls[2][1].body as URLSearchParams).get("request_key"),
+    ).toBe("retry-confirmed-key");
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    expect(sessionStorage.getItem(props.recoveryKey)).toBeNull();
+});

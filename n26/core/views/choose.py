@@ -208,11 +208,24 @@ def _choice_feedback(request, gang, result):
                 "dismissal" if result.facts["action"] == "dismiss" else "restoration"
             )
             message = f"This {action} was already saved. Review the current choice on the Edit page."
+        elif result.replayed:
+            message = (
+                "These choices were already saved. No new change was made."
+                if "choices" in result.facts
+                else "This choice was already saved. No new change was made."
+            )
         tag = f"computed-choice-{result.form.cleaned_data['request_key']}"
         storage = messages.get_messages(request)
-        queued = any(tag in (message.extra_tags or "").split() for message in storage)
+        retained = list(storage)
+        queued = any(tag in (item.extra_tags or "").split() for item in retained)
         storage.used = False
-        if not queued:
+        if result.replayed and queued:
+            for item in retained:
+                if tag in (item.extra_tags or "").split():
+                    item.message = message
+            # Persist the historical replacement without adding a second tagged message.
+            storage.added_new = True
+        elif not queued:
             messages.success(request, message, extra_tags=tag)
 
 
@@ -299,12 +312,14 @@ def choose(request, pk, slot):
 @require_POST
 def choose_command(request, pk, slot):
     """Resolve native and React commands through the same locked workflow."""
-    from n26.core import choice_workflow
+    from urllib.parse import parse_qs, urlsplit
+
+    from n26.core import choice_display, choice_workflow
 
     if not request.user.is_authenticated:
         return JsonResponse({"error": "Sign in again to save this choice."}, status=401)
     gang = _own_gang_or_404(request, pk)
-    here, back, _ = _choice_addresses(request, gang, slot)
+    here, back, returning = _choice_addresses(request, gang, slot)
     result = choice_workflow.change(
         gang,
         request.user,
@@ -316,6 +331,31 @@ def choose_command(request, pk, slot):
     )
     if result.saved:
         _choice_feedback(request, gang, result)
+        if (
+            request.GET.get("dialog") == "campaign"
+            and request.GET.get("display") == "dialog"
+            and urlsplit(result.next_url).path == urlsplit(here).path
+        ):
+            try:
+                found = find_slot(gang, slot)
+                _campaign_label_or_404(gang, found)
+                page = choice_display.picker(
+                    request,
+                    gang,
+                    slot,
+                    found,
+                    form=choice_workflow.initial(found),
+                    here=here,
+                    back=back,
+                    returning=returning,
+                    dialog=True,
+                    roll_key=parse_qs(urlsplit(result.next_url).query).get(
+                        "roll", [""]
+                    )[0],
+                )
+            except Http404:
+                return JsonResponse({"nextUrl": back})
+            return JsonResponse({"nextUrl": result.next_url, "page": page})
         return JsonResponse({"nextUrl": result.next_url})
     if result.terminal:
         return JsonResponse(

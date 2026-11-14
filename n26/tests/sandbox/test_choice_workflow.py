@@ -397,7 +397,7 @@ def test_receipt_replay_keeps_one_queued_confirmation_and_one_analytics_event(
     replay = client.post(endpoint, data)
     assert replay.status_code == 200
     assert [str(message) for message in get_messages(replay.wsgi_request)] == [
-        "Added Extra armour — Results."
+        "This choice was already saved. No new change was made."
     ]
     assert len(events) == 1
 

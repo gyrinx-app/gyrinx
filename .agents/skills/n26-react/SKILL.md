@@ -198,6 +198,11 @@ selections against each question's saved starting state when returning from a
 nested choice; keep unaffected siblings and transfer them into an expanded task
 only after its confirmed continuation. Use fresh page metadata and command keys
 for passive drafts, and retain displayed roll identifiers in recovery URLs.
+Keep owning-action and allowance guards on result-writing branches under the
+write locks, including generated and entered rolls, after receipt recall. Replay feedback
+must describe an earlier save rather than assert current state. A same-task
+dialog confirmation should refresh its existing owner with a fresh issued key;
+keep presentation context optional and navigate normally for onward tasks.
 
 Keep an earlier uncertain save frozen after any rejected retry, including a
 structured form refusal. Opt workflow forms out of the shared busy-link handler

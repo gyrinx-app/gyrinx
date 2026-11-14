@@ -52,6 +52,8 @@ def picker(
     returning="",
     terminal=False,
     context=None,
+    dialog=None,
+    roll_key=None,
 ):
     from n26.core.choice_workflow import _roll_at, _roll_result, _roll_table
     from n26.core.navigation import fighter_switcher, switcher_props
@@ -65,7 +67,13 @@ def picker(
         else None
     )
     table = _roll_table(found) if found else None
-    event = _roll_at(request.GET.get("roll", ""), gang, found) if found else None
+    event = (
+        _roll_at(
+            request.GET.get("roll", "") if roll_key is None else roll_key, gang, found
+        )
+        if found
+        else None
+    )
     roll = None
     if event is not None:
         roll, landed = _roll_result(event, found, offer, include_staged=shown)
@@ -106,7 +114,17 @@ def picker(
                 ),
                 "",
             )
-    values["summary"] = str(request.POST.get("summary", ""))[:2000]
+    if not form.is_bound and offer is not None and offer.takes_several:
+        values["thing"] = ""
+    values["summary"] = (
+        str(request.POST.get("summary", ""))[:2000] if form.is_bound else ""
+    )
+    dialog = (
+        request.GET.get("dialog") == "campaign"
+        and request.headers.get("HX-Request") == "true"
+        if dialog is None
+        else dialog
+    )
     recovery_href = with_query(
         here, recover="1", **({"roll": event.pk} if event else {})
     )
@@ -145,7 +163,9 @@ def picker(
         "errors": dict(form.errors) if form.is_bound else {},
         "action": here,
         "commandHref": with_query(
-            reverse("n26-choice-command", args=[gang.pk, slot_key]), dialog="campaign"
+            reverse("n26-choice-command", args=[gang.pk, slot_key]),
+            dialog="campaign",
+            **({"display": "dialog"} if dialog else {}),
         )
         if request.GET.get("dialog") == "campaign"
         else reverse("n26-choice-command", args=[gang.pk, slot_key]),
@@ -158,8 +178,7 @@ def picker(
         + urlencode({"next": recovery_href}),
         "recoveryOnly": found is None,
         "terminal": terminal,
-        "dialog": request.GET.get("dialog") == "campaign"
-        and request.headers.get("HX-Request") == "true",
+        "dialog": dialog,
         "messages": queued_messages(request),
     }
     return props
