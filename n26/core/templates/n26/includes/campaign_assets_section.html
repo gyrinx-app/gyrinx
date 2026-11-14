@@ -5,39 +5,39 @@ rolls, including headings and counts. Possessions remain on their gang.
 <div id="n26-campaign-assets"
      class="min-w-0 flex flex-col gap-4 xl:col-span-2"
      {% if redrawn %}hx-swap-oob="true"{% endif %}>
-    {% if assets_actions.strip or sheet.add_asset_type_href or sheet.tables_href %}
-        <div class="flex flex-wrap justify-end gap-2">
-            {% if sheet.tables_href %}<c-ui.button size="sm"
-             variant="default"
-             href="{{ sheet.tables_href }}">Tables</c-ui.button>{% endif %}
-            {% if sheet.assets and sheet.add_asset_type_href %}<c-ui.button size="sm"
-             variant="default"
-             href="{{ sheet.add_asset_type_href }}">Add asset type</c-ui.button>{% endif %}
+    <c-n26.section id="assets"
+                   title="Campaign assets"
+                   heading_class="text-sm font-semibold text-ink-900 dark:text-ink-100"
+                   help_text="Track territories and other assets that gangs can claim and transfer."
+                   help_label="About campaign assets"
+                   class="scroll-mt-20">
+        <c-slot name="actions">
+            {% if sheet.assets and sheet.tables_href %}
+                <c-ui.button size="sm" variant="default" href="{{ sheet.tables_href }}">
+                    Asset selection tables
+                </c-ui.button>
+            {% endif %}
+            {% if sheet.add_asset_type_href %}
+                <c-ui.button size="sm" variant="default" href="{{ sheet.add_asset_type_href }}">
+                    Add asset type
+                </c-ui.button>
+            {% endif %}
             {{ assets_actions }}
-        </div>
-    {% endif %}
-    <div id="assets" class="scroll-mt-20 flex flex-col gap-4">
+        </c-slot>
         {% for table in sheet.assets %}
-            <c-n26.campaign-assets :table="table" />
+            <c-n26.campaign-assets :table="table" :subsection="True" />
         {% empty %}
-            <c-n26.section :boxed="True" :flush="True" title="Assets">
-                <c-ui.table :hover="False" aria-label="Campaign assets">
-                    <tbody>
-                        <tr>
-                            <td>
-                                <div class="flex flex-col items-center gap-3 py-6 text-center">
-                                    <p class="text-sm text-muted">No transferable asset types yet.</p>
-                                    {% if sheet.add_asset_type_href %}
-                                        <c-ui.button size="sm" variant="primary" href="{{ sheet.add_asset_type_href }}">
-                                            Add asset type
-                                        </c-ui.button>
-                                    {% endif %}
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </c-ui.table>
-            </c-n26.section>
+            <c-ui.card padding="none">
+                <div class="p-4">
+                    {% if sheet.add_asset_type_href %}
+                        <p class="max-w-prose text-sm text-muted">
+                            Add an asset type, such as territories. You can add assets individually or use selection tables to generate them.
+                        </p>
+                    {% else %}
+                        <p class="text-sm text-muted">No transferable asset types yet.</p>
+                    {% endif %}
+                </div>
+            </c-ui.card>
         {% endfor %}
-    </div>
+    </c-n26.section>
 </div>

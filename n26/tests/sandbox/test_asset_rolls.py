@@ -703,7 +703,9 @@ class TestThePages:
         page = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
         assert "Roll territories" in page
         assert page.count("Roll starting territory") == 2
-        assert "Tables" in page
+        tables_href = reverse("n26-campaign-tables", args=[campaign.pk])
+        tables = BeautifulSoup(page, "html.parser").find("a", href=tables_href)
+        assert tables.get_text(" ", strip=True) == "Asset selection tables"
         assert "Add territories" in page
 
         client.force_login(owner)
@@ -711,6 +713,7 @@ class TestThePages:
         assert "Roll territories" not in page
         assert "Roll starting territory" not in page
         assert "?roll=" not in page
+        assert BeautifulSoup(page, "html.parser").find("a", href=tables_href) is None
 
     def test_the_pool_dialog_counts_three_per_gang(
         self,

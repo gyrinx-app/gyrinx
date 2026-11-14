@@ -10,13 +10,6 @@ import {
 import cotton from "../generated/cotton.json";
 import { useAnchoredPlacement, useDismiss } from "./anchoredPanel";
 
-const OPEN_DELAY = 120;
-const CLOSE_DELAY = 200;
-
-/**
- * Show help on hover or activation. Clicking pins it open until dismissal,
- * including for keyboard and touch users.
- */
 const TONES = {
     help: {
         icon: "circle-question-mark",
@@ -55,32 +48,18 @@ export function HelpPopover({
     const root = useRef<HTMLSpanElement>(null);
     const trigger = useRef<HTMLButtonElement>(null);
     const panel = useRef<HTMLDivElement>(null);
-    const timer = useRef<number | undefined>(undefined);
     const focusPanel = useRef(false);
     const [open, setOpen] = useState(false);
-    const [pinned, setPinned] = useState(false);
 
     function close() {
-        window.clearTimeout(timer.current);
         setOpen(false);
-        setPinned(false);
     }
-
-    function later(next: boolean, delay: number) {
-        window.clearTimeout(timer.current);
-        timer.current = window.setTimeout(
-            () => (next ? setOpen(true) : close()),
-            delay,
-        );
-    }
-
-    useEffect(() => () => window.clearTimeout(timer.current), []);
 
     useEffect(() => {
         if (!open || !focusPanel.current) return;
         focusPanel.current = false;
         panel.current?.focus();
-    }, [open, pinned]);
+    }, [open]);
 
     useDismiss(root, trigger, open, close);
     const panelStyle = useAnchoredPlacement({
@@ -92,8 +71,7 @@ export function HelpPopover({
     });
 
     function onClick(event: MouseEvent<HTMLButtonElement>) {
-        window.clearTimeout(timer.current);
-        if (open && pinned) {
+        if (open) {
             close();
             return;
         }
@@ -101,19 +79,12 @@ export function HelpPopover({
         // content to screen readers.
         focusPanel.current = event.detail === 0;
         setOpen(true);
-        setPinned(true);
     }
 
     return (
         <span
             ref={root}
             className={inline ? "inline-block" : "inline-flex align-middle"}
-            onMouseEnter={() => {
-                if (!pinned) later(true, OPEN_DELAY);
-            }}
-            onMouseLeave={() => {
-                if (!pinned) later(false, CLOSE_DELAY);
-            }}
         >
             <button
                 ref={trigger}

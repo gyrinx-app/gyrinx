@@ -6,13 +6,14 @@ Without JS it is a plain link.
 Draw a control only when table carries its URL. A viewer with no URLs sees no controls, not disabled ones.
 React owns the inventory, including sort controls, group headings, Income and action menus.
 Dialog hosts remain outside the island.
+subsection uses an h3 when the asset type sits within the campaign assets section.
 Roll is primary because it begins a form. The other controls do not.
 {% endcomment %}
 {% load react campaign_table %}
 
-<c-vars :table="None" class="" />
+<c-vars :table="None" :subsection="False" class="" />
 
-<c-n26.section :boxed="True" :flush="True" title="{{ table.plural }}" count="{{ table.held }} held, {{ table.unclaimed }} unclaimed" description="{{ table.header_description }}" class="{{ class }}">
+<c-n26.section :boxed="True" :flush="True" :subsection="subsection" title="{{ table.plural }}" count="{{ table.held }} held, {{ table.unclaimed }} unclaimed" description="{{ table.header_description }}" class="{{ class }}">
     {% if table.add_href or table.roll_href %}
         <c-slot name="actions">
             {% if table.roll_href %}

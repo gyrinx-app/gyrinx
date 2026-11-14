@@ -18,15 +18,12 @@ describe("HelpPopover", () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());
 
-    it("opens on hover after a short delay and closes on leaving", () => {
+    it("stays closed on hover, including after a delay", () => {
         const trigger = setup();
         fireEvent.mouseEnter(trigger.parentElement!);
+        act(() => vi.advanceTimersByTime(1000));
         expect(screen.queryByRole("dialog")).toBeNull();
-        act(() => vi.advanceTimersByTime(150));
-        expect(
-            screen.getByRole("dialog", { name: "More about the draw" }),
-        ).toBeTruthy();
-        expect(trigger.getAttribute("aria-expanded")).toBe("true");
+        expect(trigger.getAttribute("aria-expanded")).toBe("false");
         fireEvent.mouseLeave(trigger.parentElement!);
         act(() => vi.advanceTimersByTime(250));
         expect(screen.queryByRole("dialog")).toBeNull();
@@ -43,16 +40,6 @@ describe("HelpPopover", () => {
         expect(screen.getByRole("dialog")).toBeTruthy();
         fireEvent.click(trigger);
         expect(screen.queryByRole("dialog")).toBeNull();
-    });
-
-    it("keeps a hovered panel open when it is clicked", () => {
-        const trigger = setup();
-        fireEvent.mouseEnter(trigger.parentElement!);
-        act(() => vi.advanceTimersByTime(150));
-        fireEvent.click(trigger);
-        fireEvent.mouseLeave(trigger.parentElement!);
-        act(() => vi.advanceTimersByTime(250));
-        expect(screen.getByRole("dialog")).toBeTruthy();
     });
 
     it("closes on Escape and returns focus to the icon", () => {

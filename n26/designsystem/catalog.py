@@ -903,6 +903,20 @@ GROUPS: list[Group] = [
         ),
         [
             Component(
+                slug="help-popover",
+                tag="c-n26.help-popover",
+                template="n26/help_popover.html",
+                summary="A question-mark button that opens an explanation on click.",
+                notes=(
+                    "Use for optional context beside a heading or label. "
+                    "Keep the next action and required instructions visible on the page. "
+                    "The help React island opens on click, keyboard activation or touch; "
+                    "a second click, Escape or outside interaction closes it. "
+                    "Use c-n26.section's help_text and help_label for section headings. "
+                    "In React-owned content, use the HelpPopover adapter."
+                ),
+            ),
+            Component(
                 slug="dialog",
                 tag="c-ui.dialog",
                 template="dialog/index.html",
@@ -1522,6 +1536,8 @@ GROUPS: list[Group] = [
                 notes=(
                     "Pass :boxed to give the section a card and a compact header; "
                     "pass :flush for tables that provide their own cell padding. "
+                    "Use help_text for optional context behind a question-mark button, "
+                    "and give it a specific help_label. "
                     "The title renders as an h2, the same rank c-n26.form-section "
                     "gives a form's groups, so a detail section and a form group "
                     "read at the same rank. The count sits inside the heading, so "
