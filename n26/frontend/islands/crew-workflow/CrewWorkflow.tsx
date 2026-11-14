@@ -158,7 +158,14 @@ export function CrewWorkflow(
         rejectedSnapshot.some(
             (selection) =>
                 !props.models.some((model) => model.id === selection.id),
-        );
+        ) ||
+        (!!rejectedBody &&
+            Array.from(rejectedBody).some(
+                ([name, value]) =>
+                    name.startsWith("role_") &&
+                    value !== "out" &&
+                    !props.models.some((model) => model.role.name === name),
+            ));
     const [acknowledged, setAcknowledged] = useState(
         retainedBody ? null : props.acknowledgement,
     );

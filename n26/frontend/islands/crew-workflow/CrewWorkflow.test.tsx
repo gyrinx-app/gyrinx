@@ -909,3 +909,106 @@ it("keeps a proven no-write refusal recoverable through ordinary browser refresh
     expect(fetch.mock.calls[1][1].body.has("role_c")).toBe(false);
     expect(screen.getByRole("button", { name: "Reload page" })).not.toBeNull();
 });
+
+it("requires explicit review of removed raw selections after reloading an older native refusal", async () => {
+    const original = props();
+    const olderBody = new URLSearchParams(original.values);
+    olderBody.delete("submitted_snapshot");
+    olderBody.delete("request_key");
+    const current = props([model("b", "Nell")]);
+    const fallbackSnapshot = JSON.stringify([
+        { id: "b", name: "Nell", cards: current.models[0].card.choices },
+    ]);
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const navigate = vi.fn();
+    const native = render(
+        <CrewWorkflow
+            {...current}
+            values={{
+                ...current.values,
+                ...Object.fromEntries(olderBody),
+                submitted_snapshot: fallbackSnapshot,
+            }}
+            rosterChanged
+            rosterRefusal={{
+                ...rosterRefusal(olderBody),
+                requestKey: "00000000-0000-4000-8000-000000000001",
+            }}
+            errors={{ __all__: [rosterMessage] }}
+            onNavigate={navigate}
+        />,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Reload page" }));
+    const stored = new URLSearchParams(
+        sessionStorage.getItem(original.recoveryKey)!,
+    );
+    expect(stored.get("role_a")).toBe("reserve");
+    expect(stored.get("card_a")).toBe("long");
+    expect(stored.get("__workflow_rejected")).toBe("1");
+    expect(stored.get("request_key")).not.toBe("key");
+    native.unmount();
+    const rejected = render(
+        <CrewWorkflow {...current} onNavigate={navigate} />,
+    );
+    expect(screen.getByRole("button", { name: "Save crew" })).toHaveProperty(
+        "disabled",
+        true,
+    );
+    expect(new FormData(document.querySelector("form")!).get("role_a")).toBe(
+        "reserve",
+    );
+    fireEvent.submit(document.querySelector("form")!);
+    expect(fetch).not.toHaveBeenCalled();
+    await user.click(
+        screen.getByRole("button", { name: "Review current crew" }),
+    );
+    expect(navigate).toHaveBeenLastCalledWith("/crew/?recover=1");
+    rejected.unmount();
+    render(<CrewWorkflow {...current} />);
+    expect(new FormData(document.querySelector("form")!).has("role_a")).toBe(
+        false,
+    );
+    expect(screen.getByRole("button", { name: "Save crew" })).toHaveProperty(
+        "disabled",
+        false,
+    );
+    expect(fetch).not.toHaveBeenCalled();
+});
+
+it("keeps an uncertain older body without a readable snapshot available for exact retry", async () => {
+    const original = props();
+    const olderBody = new URLSearchParams(original.values);
+    olderBody.delete("submitted_snapshot");
+    sessionStorage.setItem(original.recoveryKey, olderBody.toString());
+    const fetch = vi
+        .fn()
+        .mockResolvedValue(
+            json(
+                { errors: { __all__: ["This save is still unconfirmed."] } },
+                422,
+            ),
+        );
+    vi.stubGlobal("fetch", fetch);
+    render(<CrewWorkflow {...props([model("b", "Nell")])} />);
+    expect(
+        screen.queryByRole("button", { name: "Review current crew" }),
+    ).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    await screen.findByText(
+        "The earlier save is still unconfirmed. Retry it before making another change.",
+    );
+    expect(fetch.mock.calls[0][1].body.get("role_a")).toBe("reserve");
+    expect(fetch.mock.calls[0][1].body.get("request_key")).toBe("key");
+    expect(fetch.mock.calls[0][1].body.has("submitted_snapshot")).toBe(false);
+    const stored = new URLSearchParams(
+        sessionStorage.getItem(original.recoveryKey)!,
+    );
+    expect(stored.get("role_a")).toBe("reserve");
+    expect(stored.get("request_key")).toBe("key");
+    expect(stored.has("__workflow_rejected")).toBe(false);
+    expect(
+        screen.queryByRole("button", { name: "Review current crew" }),
+    ).toBeNull();
+});
