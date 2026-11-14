@@ -53,6 +53,7 @@ def test_get_json_roundtrip_and_native_share_one_receipt(client, hunt):
     replay = client.post(props["commandHref"], body).json()
     assert replay["replayed"] is True
     assert replay["facts"] == saved["facts"]
+    assert replay["nextUrl"] == saved["nextUrl"]
     assert counts() == before
     # The same issued body is also a valid native form submission.
     native = client.post(
@@ -378,18 +379,33 @@ def test_action_display_query_count_does_not_grow_with_the_roster(client, hunt):
     assert measure() == one
 
 
+@pytest.mark.parametrize("deleted", ["membership", "model"])
 def test_successful_receipt_recalls_after_model_deletion_without_new_authority(
-    client, hunt
+    client, hunt, deleted
 ):
     _, props, body, saved = start(client, hunt)
     body["gang_id"] = str(hunt.gang.pk)
-    hunt.fighter.membership.delete()
+    (hunt.fighter.membership if deleted == "membership" else hunt.fighter).delete()
     before = counts()
     response = client.post(props["commandHref"], body)
     assert response.status_code == 200
     assert response.json()["facts"] == saved["facts"]
-    assert response.json()["reviewUrl"] == reverse("n26-gang", args=[hunt.gang.pk])
-    assert client.get(props["recoveryHref"]).status_code == 200
+    surviving = reverse("n26-gang", args=[hunt.gang.pk])
+    assert response.json()["reviewUrl"] == surviving
+    assert response.json()["nextUrl"] == surviving
+    recovered = client.get(props["recoveryHref"])
+    assert recovered.status_code == 200
+    display_href = recovered.context["action_props"]["displayHref"]
+    displayed = client.get(display_href)
+    assert displayed.status_code == 200
+    displayed_props = displayed.json()["props"]
+    assert displayed_props["facts"]["recovery_only"] is True
+    assert displayed_props["values"]["gang_id"] == str(hunt.gang.pk)
+    assert client.get(displayed_props["displayHref"]).status_code == 200
+    native = client.post(props["action"], body)
+    assert native.status_code == 302
+    assert native.url == surviving
+    assert client.get(native.url).status_code == 200
     assert (
         client.post(
             props["commandHref"], {**body, "command_key": str(uuid4())}
@@ -397,6 +413,46 @@ def test_successful_receipt_recalls_after_model_deletion_without_new_authority(
         == 404
     )
     assert counts() == before
+    client.force_login(User.objects.create_user(f"deleted-{deleted}-recovery-stranger"))
+    assert client.get(display_href).status_code == 404
+    assert client.post(props["action"], body).status_code == 404
+
+
+@pytest.mark.parametrize("removed", ["record", "membership", "gang"])
+def test_successful_native_replay_follows_a_surviving_destination(
+    client, hunt, removed
+):
+    from n26.core.operations import operation
+
+    record, props, body, saved = start(client, hunt)
+    if removed == "record":
+        record.delete()
+    else:
+        with operation(hunt.gang, actor=hunt.owner) as op:
+            if removed == "gang":
+                op.archive_gang()
+            else:
+                op.remove(hunt.fighter.membership)
+    surviving = (
+        reverse("n26-gangs")
+        if removed == "gang"
+        else reverse("n26-gang", args=[hunt.gang.pk])
+    )
+    before = counts()
+    replay = client.post(props["commandHref"], body)
+    assert replay.status_code == 200
+    assert replay.json()["replayed"] is True
+    assert replay.json()["facts"] == saved["facts"]
+    assert replay.json()["nextUrl"] == surviving
+    assert replay.json()["reviewUrl"] == surviving
+    native = client.post(props["action"], body)
+    assert native.status_code == 302
+    assert native.url == surviving
+    assert client.get(native.url).status_code == 200
+    assert counts() == before
+    stored = ModelChoiceReceipt.objects.get(request_key=body["command_key"])
+    assert stored.result["facts"] == saved["facts"]
+    assert stored.result["next_url"] == saved["nextUrl"]
 
 
 def test_write_pause_refuses_before_locking_or_changing_the_action(client, hunt):

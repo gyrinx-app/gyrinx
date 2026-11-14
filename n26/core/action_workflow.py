@@ -410,9 +410,9 @@ def change(actor, pk, target, data):
                     result.errors = previous.result["errors"]
                 else:
                     result.saved = True
-                    result.next_url = previous.result["next_url"]
                     result.facts = previous.result["facts"]
                     result.review_url = _current_review_url(gang, pk, previous.result)
+                    result.next_url = result.review_url
                     result.notices = previous.result.get("notices", [])
                 return result
             if fighter is None:

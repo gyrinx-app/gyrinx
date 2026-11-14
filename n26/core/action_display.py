@@ -169,7 +169,11 @@ def page_data(request, page, target, *, errors=None, conflict=False):
                 if target.allowance is not None
                 else "0",
                 "target_pick_present": "1" if target.pick is not None else "0",
-                **({"recover": "1"} if request.GET.get("recover") == "1" else {}),
+                **(
+                    {"recover": "1", "gang_id": str(fighter.gang.pk)}
+                    if request.GET.get("recover") == "1"
+                    else {}
+                ),
             }
         ),
         "csrfToken": get_token(request),

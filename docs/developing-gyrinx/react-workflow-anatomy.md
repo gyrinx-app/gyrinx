@@ -368,3 +368,7 @@ A cancellation refused because an action has an immutable recorded roll can also
 settle as a durable no-write result. Share the domain's read-only roll predicate,
 check ownership and the submitted revision first, and offer the current flow to
 resume. Keep other validation refusals uncertain; do not infer their outcome.
+
+Carry the authorized gang scope through recovery display links when the model
+can be deleted. Revalidate replay navigation for native redirects as well as JSON
+review links, while keeping the receipt's saved facts unchanged.
