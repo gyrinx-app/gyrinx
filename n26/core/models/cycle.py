@@ -62,6 +62,37 @@ class CampaignPhase(Base, Archived):
         return self.name
 
 
+class CampaignPhaseOccurrence(Base, Archived):
+    """One ordered phase block in a campaign's concrete timeline."""
+
+    campaign = models.ForeignKey(
+        "n26.Campaign", on_delete=models.CASCADE, related_name="cycle_phase_occurrences"
+    )
+    phase = models.ForeignKey(
+        CampaignPhase, on_delete=models.RESTRICT, related_name="occurrences"
+    )
+    position = models.PositiveIntegerField()
+
+    class Meta:
+        ordering = ["position", "created", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["campaign", "position"],
+                condition=models.Q(archived=False),
+                name="phase_occurrence_position_once",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(position__gt=0),
+                name="phase_occurrence_positive",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.phase_id and self.phase.campaign_id != self.campaign_id:
+            raise ValidationError({"phase": "Select a phase from this campaign."})
+
+
 class CampaignPlan(Base):
     class Mode(models.TextChoices):
         FIXED = "fixed", "Fixed"
@@ -97,17 +128,29 @@ class CampaignCycle(Base, Archived):
     phase = models.ForeignKey(
         CampaignPhase, on_delete=models.RESTRICT, related_name="cycles"
     )
+    phase_occurrence = models.ForeignKey(
+        CampaignPhaseOccurrence,
+        on_delete=models.RESTRICT,
+        related_name="cycles",
+        null=True,
+        blank=True,
+    )
     order = models.PositiveIntegerField()
     custom_name = models.CharField(max_length=200, blank=True, default="")
     starts_on = models.DateField(null=True, blank=True)
     ends_on = models.DateField(null=True, blank=True)
     description = models.TextField(blank=True, default="")
     effects = models.TextField(blank=True, default="")
+    customized_fields = models.JSONField(default=list)
     source_plan = models.ForeignKey(
-        CampaignPlan, on_delete=models.RESTRICT, related_name="saved_cycles"
+        CampaignPlan,
+        on_delete=models.RESTRICT,
+        related_name="saved_cycles",
+        null=True,
+        blank=True,
     )
-    source_position = models.PositiveIntegerField()
-    source_step = models.CharField(max_length=26)
+    source_position = models.PositiveIntegerField(null=True, blank=True)
+    source_step = models.CharField(max_length=26, blank=True, default="")
     repetition = models.PositiveIntegerField(default=0)
     step_position = models.PositiveIntegerField(default=0)
 
@@ -115,13 +158,22 @@ class CampaignCycle(Base, Archived):
         ordering = ["order"]
         constraints = [
             models.UniqueConstraint(
-                fields=["campaign", "order"], name="cycle_campaign_order_once"
+                fields=["campaign", "order"],
+                condition=models.Q(archived=False),
+                name="cycle_campaign_order_once",
             ),
             models.UniqueConstraint(
                 fields=["source_plan", "source_position"], name="cycle_source_once"
             ),
             models.CheckConstraint(
                 condition=models.Q(order__gt=0), name="cycle_order_positive"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    source_plan__isnull=True, source_position__isnull=True
+                )
+                | models.Q(source_plan__isnull=False, source_position__isnull=False),
+                name="cycle_source_complete",
             ),
             models.CheckConstraint(
                 condition=models.Q(starts_on__isnull=True)
@@ -148,6 +200,14 @@ class CampaignCycle(Base, Archived):
             errors["phase"] = "Select a phase from this campaign."
         if self.source_plan_id and self.source_plan.campaign_id != self.campaign_id:
             errors["source_plan"] = "Select a plan from this campaign."
+        if (self.source_plan_id is None) != (self.source_position is None):
+            errors["source_plan"] = "Select both a source plan and source position."
+        if self.phase_occurrence_id:
+            occurrence = self.phase_occurrence
+            if occurrence.campaign_id != self.campaign_id:
+                errors["phase_occurrence"] = "Select a phase block from this campaign."
+            elif occurrence.phase_id != self.phase_id:
+                errors["phase_occurrence"] = "Select a block for this cycle's phase."
         if errors:
             raise ValidationError(errors)
 
