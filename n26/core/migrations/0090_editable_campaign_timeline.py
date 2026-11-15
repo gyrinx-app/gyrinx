@@ -161,7 +161,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="campaigncycle",
             name="customized_fields",
-            field=models.JSONField(default=list),
+            field=models.JSONField(default=list, blank=True),
         ),
         migrations.AlterField(
             model_name="campaigncycle",

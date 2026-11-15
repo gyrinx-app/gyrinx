@@ -253,6 +253,7 @@ def test_authored_cycles_and_archives_do_not_reserve_active_positions(legacy):
     assert authored.source_plan_id is authored.source_position is None
     assert authored.source_step == ""
     assert authored.customized_fields == []
+    authored.full_clean()
     CampaignCycle.objects.create(
         campaign=legacy.campaign, phase_id=phase.pk, order=9, archived=True
     )
@@ -293,3 +294,88 @@ def test_cycle_validation_rejects_an_occurrence_for_another_phase(legacy):
     with pytest.raises(ValidationError) as error:
         cycle.clean()
     assert "phase_occurrence" in error.value.message_dict
+
+
+@pytest.fixture
+def metadata_schedule(campaign_type, owner):
+    from gyrinx.site.models import Availability, FeatureFlag
+    from n26.core import cycles
+    from n26.core import schedule as s
+    from n26.core.cycle_data import template_data
+    from n26.flags import CYCLE_TRACKING
+
+    FeatureFlag.objects.create(
+        slug=CYCLE_TRACKING, name="Campaign cycles", availability=Availability.EVERYONE
+    )
+    campaign = found_campaign("Metadata writer", campaign_type, owner=owner)
+    cycles.configure(
+        campaign,
+        actor=owner,
+        template_id="",
+        definition=template_data(s.DEFAULT_TEMPLATE),
+        current_position=0,
+        mode="repeating",
+        request_key=uuid4(),
+        calendar=s.CycleCalendar(date(2026, 11, 1)),
+    )
+    return campaign, owner, cycles.load(campaign)
+
+
+def test_existing_phase_edit_clears_a_block_link_for_the_previous_phase(
+    metadata_schedule,
+):
+    from dataclasses import replace
+
+    from n26.core import cycles
+    from n26.core import schedule as s
+
+    campaign, actor, state = metadata_schedule
+    selected = state.cycles[0]
+    block = CampaignPhaseOccurrence.objects.create(
+        campaign=campaign, phase_id=selected.details.phase_id, position=1
+    )
+    CampaignCycle.objects.filter(pk=selected.id).update(phase_occurrence=block)
+    source = (selected.source.position, selected.source.step_id)
+    cycles.edit_cycle(
+        campaign,
+        actor=actor,
+        target=s.SavedCycleRef(selected.id),
+        details=replace(selected.details, phase_id=state.phases[1].id),
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    stored = CampaignCycle.objects.get(pk=selected.id)
+    assert stored.phase_occurrence_id is None
+    assert stored.customized_fields == ["phase_id"]
+    assert (str(stored.source_plan_id), stored.source_position) == (
+        source[0].plan_id,
+        source[0].index,
+    )
+    stored.full_clean()
+    block.refresh_from_db()
+    assert str(block.phase_id) == selected.details.phase_id
+
+
+def test_projected_edits_record_cleared_dates_without_marking_untouched_prefix(
+    metadata_schedule,
+):
+    from n26.core import cycles
+    from n26.core import schedule as s
+
+    campaign, actor, state = metadata_schedule
+    target = s.project(state, limit=2)[-1]
+    cycles.edit_cycle(
+        campaign,
+        actor=actor,
+        target=target.ref,
+        details=s.CycleDetails(target.phase_id, custom_name="Market week"),
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    stored = list(CampaignCycle.objects.filter(campaign=campaign).order_by("order"))
+    assert stored[1].customized_fields == []
+    assert set(stored[2].customized_fields) == {"custom_name", "starts_on", "ends_on"}
+    assert stored[2].starts_on is stored[2].ends_on is None
+    assert stored[2].custom_name == "Market week"
+    for cycle in stored:
+        cycle.full_clean()

@@ -141,7 +141,7 @@ class CampaignCycle(Base, Archived):
     ends_on = models.DateField(null=True, blank=True)
     description = models.TextField(blank=True, default="")
     effects = models.TextField(blank=True, default="")
-    customized_fields = models.JSONField(default=list)
+    customized_fields = models.JSONField(default=list, blank=True)
     source_plan = models.ForeignKey(
         CampaignPlan,
         on_delete=models.RESTRICT,

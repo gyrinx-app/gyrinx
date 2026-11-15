@@ -200,6 +200,68 @@ def _cycle_record(campaign, cycle):
     )
 
 
+def _persist_cycle_metadata(campaign, before, change):
+    """Keep optional timeline metadata consistent with concrete field edits."""
+    changed = {c.id: c for c in (*change.created, *change.updated)}
+    if not changed:
+        return
+    records = list(
+        CampaignCycle.objects.filter(campaign=campaign, pk__in=changed).select_related(
+            "phase_occurrence"
+        )
+    )
+    previous = {c.id: c for c in before.cycles} if before else {}
+    source_ids = {
+        row.source_plan_id
+        for row in records
+        if str(row.pk) not in previous and row.source_plan_id
+    }
+    plans = {
+        str(plan.pk): s.Plan(
+            str(plan.pk),
+            plan.mode,
+            steps_from_data(plan.steps),
+            plan.starts_after_order,
+            plan.start_position,
+        )
+        for plan in CampaignPlan.objects.filter(pk__in=source_ids)
+    }
+    amended = []
+    for row in records:
+        cycle = changed[str(row.pk)]
+        original = previous.get(cycle.id)
+        if original is not None:
+            baseline = original.details
+        elif row.source_plan_id is not None:
+            projected = s._dated(
+                s._at(plans[str(row.source_plan_id)], row.source_position),
+                before.calendar if before else change.schedule.calendar,
+            )
+            baseline = s.CycleDetails(
+                projected.phase_id,
+                starts_on=projected.starts_on,
+                ends_on=projected.ends_on,
+            )
+        else:
+            baseline = s.CycleDetails(cycle.details.phase_id)
+        fields = set(row.customized_fields) | {
+            field
+            for field in s.CycleDetails.__dataclass_fields__
+            if getattr(baseline, field) != getattr(cycle.details, field)
+        }
+        occurrence = row.phase_occurrence
+        inconsistent = occurrence is not None and occurrence.phase_id != row.phase_id
+        if inconsistent or fields != set(row.customized_fields):
+            if inconsistent:
+                row.phase_occurrence_id = None
+            row.customized_fields = sorted(fields)
+            amended.append(row)
+    if amended:
+        CampaignCycle.objects.bulk_update(
+            amended, ["phase_occurrence", "customized_fields"]
+        )
+
+
 def _persist(act, before, change, *, command=None, transition_id=None):
     after = change.schedule
     campaign = act.campaign
@@ -263,6 +325,7 @@ def _persist(act, before, change, *, command=None, transition_id=None):
         Battle.objects.filter(campaign=campaign, cycle_id__in=removed).update(
             cycle=None, revision=F("revision") + 1, modified=timezone.now()
         )
+    _persist_cycle_metadata(campaign, before, change)
     header_values = {
         "current_cycle_id": after.current_cycle_id,
         "active_plan_id": after.plan.id,
