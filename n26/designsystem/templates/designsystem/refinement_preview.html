@@ -1,0 +1,22 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en-gb">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>{{ case.title }} — {{ stage }} — n26</title>
+        <c-ui.mode-toggle.head storage_key="n26-theme" default="system" />
+        <link rel="preconnect" href="https://use.typekit.net" crossorigin>
+        <link rel="stylesheet" href="https://use.typekit.net/rso6ezl.css">
+        <link rel="stylesheet" href="{% static 'designsystem/app.css' %}">
+    </head>
+    <body class="min-h-screen">
+        <main class="mx-auto max-w-4xl p-4"
+              aria-label="{{ case.title }}: {{ stage }}">
+            <div class="rounded-box border border-box-border bg-surface"
+                 data-refinement="{{ demo.slug }}">{% include demo.template_name %}</div>
+        </main>
+        {% include "n26/includes/react_error.html" %}
+        <script defer src="{% static 'n26/menu-position.js' %}"></script>
+    </body>
+</html>

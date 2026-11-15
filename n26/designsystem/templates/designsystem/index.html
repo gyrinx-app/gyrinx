@@ -1,20 +1,6 @@
-{% extends "designsystem/base.html" %}
-{% block title %}Overview{% endblock %}
-{% block content %}
-    <div class="mx-auto max-w-5xl">
-        <header class="mb-10">
-            <h1 class="text-3xl font-semibold sm:text-4xl">Design system</h1>
-            <p class="mt-3 max-w-2xl text-lg text-muted">
-                Every component django-cotton-ui ships, rendered live and documented from the
-                installed package. Change the theme from any page with the paintbrush in the
-                bottom-right corner — the gallery is themed by the same tokens as the demos,
-                so what you see is what you would get.
-            </p>
-            <div class="mt-6 flex flex-wrap gap-3">
-                <c-ui.button href="{% url 'designsystem:theming' %}" variant="primary">Play with theming</c-ui.button>
-                <c-ui.button href="{% url 'designsystem:tokens' %}">Token reference</c-ui.button>
-            </div>
-        </header>
+{% extends "designsystem/page.html" %}
+{% block page_content %}
+    <div class="space-y-8">
         <dl class="mb-12 grid grid-cols-2 gap-4 sm:grid-cols-4">
             {% for value, label in stats %}
                 <div class="rounded-box border border-box-border bg-surface p-4">
@@ -26,8 +12,8 @@
             {% endfor %}
         </dl>
         {# The compositions at work, before the catalogue of names. Every control here is live. #}
-        <section class="mb-14">
-            <h2 class="text-xl font-semibold">In context</h2>
+        <section class="space-y-3">
+            <h2 class="text-lg font-semibold">In context</h2>
             <p class="mb-5 mt-1 max-w-3xl text-sm text-muted">
                 One screen, built only from the components below — a gang list with its
                 actions, filters, rows and per-row links. Everything works: open a filter,
@@ -161,7 +147,7 @@
         <div class="space-y-12">
             {% for group in groups %}
                 <section id="{{ group.anchor }}" class="scroll-mt-6">
-                    <h2 class="text-xl font-semibold">{{ group.name }}</h2>
+                    <h2 class="text-lg font-semibold">{{ group.name }}</h2>
                     <p class="mb-5 mt-1 max-w-3xl text-sm text-muted">{{ group.blurb }}</p>
                     <div class="grid gap-3 sm:grid-cols-2">
                         {% for c in group.components %}

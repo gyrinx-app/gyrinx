@@ -28,7 +28,8 @@ additional instructions:
 Reusable specialist guidance lives in [`.agents/skills/`](.agents/skills/).
 Load the relevant skill before working in its area. Use `gyrinx-conventions`
 for Django and domain changes, `microcopy` for user-facing text,
-`design-system` for UI, `n26-react` for N26 interactions, `sql-performance` for
+`design-system` for UI, `design-refinement` for the final rendered design pass,
+`n26-react` for N26 interactions, `sql-performance` for
 database-backed pages, `worktree-db` for database lifecycle work,
 `dev-server` for local browser testing, `ci-job-logs` when a GitHub Actions job
 fails while the run is still going, and `canvas-viewer` for `.canvas.tsx`

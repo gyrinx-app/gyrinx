@@ -1,0 +1,17 @@
+{% extends "designsystem/base.html" %}
+{% block title %}{{ gallery_page.label }}{% endblock %}
+{% block mobile_title %}{{ gallery_page.label }}{% endblock %}
+{% block content %}
+    <div class="mx-auto max-w-6xl space-y-6" data-gallery-page>
+        <header data-gallery-page-header>
+            <c-n26.page-header title="{{ gallery_page.title }}">
+                <c-slot name="lead">
+                    <span class="text-sm">{{ gallery_page.intro }}</span>
+                </c-slot>
+            </c-n26.page-header>
+        </header>
+        <div data-gallery-page-body>
+            {% block page_content %}{% endblock %}
+        </div>
+    </div>
+{% endblock %}

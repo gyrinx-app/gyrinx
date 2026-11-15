@@ -4,6 +4,8 @@ from pygments import highlight as pygments_highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers import get_lexer_by_name
 
+from n26.designsystem.pages import PAGES
+
 register = template.Library()
 
 # The Django lexer over HTML, so both the Cotton tags and any {% %} in a demo
@@ -36,16 +38,6 @@ def prop_row_class(prop):
     return "opacity-55" if prop.dynamic and prop.default.startswith("{") else ""
 
 
-# The gallery's own pages, in sidebar order, by URL name.
-_PAGES = (
-    ("index", "Overview"),
-    ("theming", "Theming"),
-    ("tokens", "Tokens"),
-    ("react", "React islands"),
-    ("print_lab", "Print lab"),
-)
-
-
 @register.simple_tag(takes_context=True)
 def gallery_nav(context):
     """The sidebar's links and filter terms, as the gallery-nav island's props.
@@ -64,11 +56,11 @@ def gallery_nav(context):
     return {
         "pages": [
             {
-                "label": label,
+                "label": page.label,
                 "href": reverse(f"designsystem:{name}"),
                 "current": here == name,
             }
-            for name, label in _PAGES
+            for name, page in PAGES.items()
         ],
         # The only link that leaves the gallery, so it is never the current page.
         "shell": {"label": "App shell", "href": reverse("designsystem:shell_home")},

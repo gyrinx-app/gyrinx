@@ -21,6 +21,15 @@ work also load `.agents/skills/n26-react/SKILL.md`. React adapters in
 `n26/frontend/ui/` take their classes from rendered Cotton at build time;
 extend those adapters instead of copying class recipes into features.
 
+## Final rendered review
+
+After a substantial UI change, use
+[design-refinement](../design-refinement/SKILL.md) before handoff. Inspect the
+real page with browser geometry, alignment guides and computed typography;
+review composition, useful density, disclosure and fine detail, then rerender
+after corrections. Component compliance alone does not establish hierarchy.
+The N26 paired examples live at `/n26/design/refinement/`.
+
 ## N23
 
 Load both the design system spec and the living HTML reference into context.

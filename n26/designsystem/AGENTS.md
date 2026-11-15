@@ -14,6 +14,15 @@ The gallery follows two principles:
 
 Read `demos.py` (a hundred lines) first, then `introspect.py`.
 
+## Gallery page structure
+
+Top-level gallery destinations extend `designsystem/page.html`. Pass the page
+key to `_base_context`; `pages.py` supplies the sidebar label, title and short
+introduction from the same entry. The shared template owns the page header,
+content width and header-to-workspace spacing. Keep the body suited to its
+task, such as a token table or print controls, without adding a second title
+or another introductory block. Review the shell as well as its examples.
+
 ## Adding or changing a component
 
 1. Write the cotton template in `n26/core/templates/cotton/n26/` (or a

@@ -1,0 +1,14 @@
+{# title: Before #}
+{# note: Large repeated gaps consume space without separating different tasks. #}
+<section class="space-y-8 p-8" aria-label="Fighters">
+    <h2 class="text-lg font-semibold">Fighters</h2>
+    {% for fighter in fighters %}
+        <div class="space-y-6 rounded-box border border-box-border p-6">
+            <h3 class="font-semibold">{{ fighter.name }}</h3>
+            <p class="text-sm text-muted">{{ fighter.role }} · {{ fighter.rating }} rating · {{ fighter.state }}</p>
+            <c-ui.button type="button" size="sm">
+                View fighter
+            </c-ui.button>
+        </div>
+    {% endfor %}
+</section>

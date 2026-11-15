@@ -6,6 +6,8 @@ app_name = "designsystem"
 
 urlpatterns = [
     path("", views.index, name="index"),
+    path("refinement/", views.refinement_lab, name="refinement_lab"),
+    path("refinement/preview/", views.refinement_preview, name="refinement_preview"),
     path("theming/", views.theming, name="theming"),
     path("react/", views.react_demo, name="react"),
     path("react/model-preview/", views.react_model_preview, name="react_model_preview"),

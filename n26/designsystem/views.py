@@ -14,7 +14,7 @@ from django.views.decorators.clickjacking import xframe_options_sameorigin
 from n26.core import icons
 from n26.core.brand_icons import BRAND_ICONS
 
-from . import catalog, introspect, printlab, sampledata, tokens
+from . import catalog, introspect, pages, printlab, refinement, sampledata, tokens
 from .forms import (
     UNSAFE_HTML,
     RichTextForm,
@@ -25,8 +25,9 @@ from .forms import (
 ICON_PAGE_SIZE = 120
 
 
-def _base_context():
+def _base_context(page=None):
     return {
+        "gallery_page": pages.PAGES[page] if page else None,
         "groups": catalog.GROUPS,
         "component_count": len(catalog.COMPONENTS),
         "kit_version": introspect.kit_version(),
@@ -38,7 +39,7 @@ def index(request):
     return render(
         request,
         "designsystem/index.html",
-        _base_context()
+        _base_context("index")
         | {
             **sampledata.context(),
             "showcase_body": (
@@ -133,7 +134,7 @@ def theming(request):
     return render(
         request,
         "designsystem/theming.html",
-        _base_context()
+        _base_context("theming")
         | {
             "buckets": tokens.BUCKETS,
             "presets": tokens.PRESETS,
@@ -186,7 +187,7 @@ def react_demo(request):
     return render(
         request,
         "designsystem/react.html",
-        _base_context()
+        _base_context("react")
         | {
             "demo": {
                 "rows": rows,
@@ -252,7 +253,7 @@ def print_lab(request):
     return render(
         request,
         "designsystem/print_lab.html",
-        _base_context()
+        _base_context("print_lab")
         | {
             "options": options,
             "pages": printlab.PAGES,
@@ -475,10 +476,51 @@ def token_reference(request):
     return render(
         request,
         "designsystem/tokens.html",
-        _base_context()
+        _base_context("tokens")
         | {
             "buckets": tokens.BUCKETS,
             "weights": tokens.WEIGHTS,
             "sizes": tokens.SIZES,
         },
+    )
+
+
+@staff_member_required
+def refinement_lab(request):
+    """Compare paired sample layouts without reading player data."""
+    case = refinement.case_for(request.GET.get("case", "density"))
+    if case is None:
+        raise Http404("No refinement example matches that case.")
+    return render(
+        request,
+        "designsystem/refinement_lab.html",
+        _base_context("refinement_lab")
+        | {
+            "case_tabs": [
+                {
+                    "label": item.label,
+                    "href": f"{reverse('designsystem:refinement_lab')}?case={item.slug}",
+                    "current": item == case,
+                }
+                for item in refinement.CASES
+            ],
+            "case": case,
+            "examples": case.examples(),
+            "fighters": refinement.FIGHTERS,
+        },
+    )
+
+
+@staff_member_required
+def refinement_preview(request):
+    """Show one paired composition at the browser's actual width."""
+    case = refinement.case_for(request.GET.get("case", "density"))
+    stage = request.GET.get("stage", "after")
+    if case is None or stage not in {"before", "after"}:
+        raise Http404("No refinement example matches those options.")
+    demo = next(demo for demo in case.examples() if demo.slug == f"{case.slug}-{stage}")
+    return render(
+        request,
+        "designsystem/refinement_preview.html",
+        {"case": case, "stage": stage, "demo": demo, "fighters": refinement.FIGHTERS},
     )
