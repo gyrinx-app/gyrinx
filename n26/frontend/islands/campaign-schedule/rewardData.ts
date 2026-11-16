@@ -47,3 +47,10 @@ export function parseRewards(value: string): Rewards {
         return normalizeRewards(null);
     }
 }
+
+export function creditExpression(amount: Credits): string {
+    const { fixed, dice } = normalizeCredits(amount);
+    return dice
+        ? `${fixed} + (${dice.count}D${dice.sides} × ${dice.multiplier})¢`
+        : `${fixed}¢`;
+}

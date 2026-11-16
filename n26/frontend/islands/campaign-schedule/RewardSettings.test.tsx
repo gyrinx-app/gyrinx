@@ -50,11 +50,13 @@ test("distinguishes die type, count and multiplier", () => {
     ).toBe("2");
     const multiplier = screen.getByLabelText("Win multiplier");
     expect((multiplier as HTMLInputElement).value).toBe("10");
-    const description = document.getElementById(
-        multiplier.getAttribute("aria-describedby")!,
-    );
-    expect(description?.textContent).toBe(
-        "Multiply the total rolled, then add the fixed credits.",
+    expect(
+        screen.getByText(
+            "Multiply the dice total, then add the fixed credits.",
+        ),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("Win credit expression").textContent).toBe(
+        "100 + (2D6 × 10)¢",
     );
 });
 
@@ -126,4 +128,55 @@ test("editing another amount preserves sparse win and entry dice with their defa
         fixed: 0,
         dice: { count: 2, sides: 6, multiplier: 10 },
     });
+});
+
+test("credit expression updates fixed, dice and multiplier together without an extra save", async () => {
+    render(<Editor />);
+    await userEvent.clear(screen.getByLabelText("Win fixed credits"));
+    await userEvent.type(screen.getByLabelText("Win fixed credits"), "25");
+    await userEvent.selectOptions(screen.getByLabelText("Win die type"), "3");
+    await userEvent.clear(screen.getByLabelText("Win dice count"));
+    await userEvent.type(screen.getByLabelText("Win dice count"), "4");
+    await userEvent.clear(screen.getByLabelText("Win multiplier"));
+    await userEvent.type(screen.getByLabelText("Win multiplier"), "5");
+    expect(screen.getByLabelText("Win credit expression").textContent).toBe(
+        "25 + (4D3 × 5)¢",
+    );
+    expect(saved().win.credits).toEqual({
+        fixed: 25,
+        dice: { count: 4, sides: 3, multiplier: 5 },
+    });
+    expect(saved().draw).toEqual(settings().draw);
+    expect(saved().loss).toEqual(settings().loss);
+    expect(saved().entry_credits).toEqual(settings().entry_credits);
+});
+
+test("credit controls follow expression order and associate each visible label with its input", async () => {
+    render(<Editor />);
+    const controls = [
+        "Win fixed credits",
+        "Win dice count",
+        "Win die type",
+        "Win multiplier",
+    ].map((label) => screen.getByLabelText(label));
+    for (const [index, control] of controls.entries()) {
+        expect(
+            document.querySelector(`label[for="${control.id}"]`),
+        ).toBeTruthy();
+        if (index > 0)
+            expect(
+                controls[index - 1].compareDocumentPosition(control) &
+                    Node.DOCUMENT_POSITION_FOLLOWING,
+            ).toBeTruthy();
+    }
+    await userEvent.selectOptions(screen.getByLabelText("Win die type"), "");
+    expect(screen.queryByLabelText("Win dice count")).toBeNull();
+    expect(screen.queryByLabelText("Win multiplier")).toBeNull();
+    expect(screen.getByLabelText("Win credit expression").textContent).toBe(
+        "100¢",
+    );
+    await userEvent.selectOptions(screen.getByLabelText("Win die type"), "6");
+    expect(screen.getByLabelText("Win credit expression").textContent).toBe(
+        "100 + (1D6 × 1)¢",
+    );
 });

@@ -55,9 +55,8 @@ candidate, persists it and records one durable result for retry.
    with their React authoring surface. Keep the display and command contracts
    in the same PR. Include simple Settings, separate repeating-pattern editing,
    fixed endpoint feedback, permissions, attribution and exact retry recovery.
-3. **Reward and interaction refinement:** connect fixed credits, dice and
-   multipliers into one expression, and preserve menu-trigger focus while
-   asynchronous dialogs open or close.
+3. **Reward expression refinement:** connect fixed credits, dice and
+   multipliers into one expression using the existing form primitives.
 
 Every PR receives a task-focused feature review, the repository's rendered
 three-pass design refinement where applicable, focused local checks, visual

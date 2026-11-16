@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { normalizeRewards, parseRewards } from "./rewardData";
+import { creditExpression, normalizeRewards, parseRewards } from "./rewardData";
 
 const blankCredits = { fixed: 0, dice: null };
 const blankReward = { credits: blankCredits, reputation: 0 };
@@ -66,4 +66,19 @@ test("the string adapter handles empty or malformed stored settings", () => {
     expect(parseRewards("")).toEqual(blank);
     expect(parseRewards("null")).toEqual(blank);
     expect(parseRewards("{")).toEqual(blank);
+});
+
+test("credit expressions retain fixed amounts, count, sides and multiplier including defaulted sparse dice", () => {
+    expect(creditExpression({ fixed: 25, dice: null })).toBe("25¢");
+    expect(
+        creditExpression({
+            fixed: 25,
+            dice: { count: 2, sides: 6, multiplier: 10 },
+        }),
+    ).toBe("25 + (2D6 × 10)¢");
+    expect(
+        creditExpression(
+            normalizeRewards({ win: { credits: { dice: {} } } }).win.credits,
+        ),
+    ).toBe("0 + (1D6 × 1)¢");
 });
