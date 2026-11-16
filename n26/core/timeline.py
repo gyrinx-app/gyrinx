@@ -375,6 +375,10 @@ def edit_occurrence(schedule, occurrence_id, details, *, new_id=s._id):
             "Add unused future cycles to edit this phase."
         )
     phase = s.Phase(new_id(), details)
+    archived_original = ()
+    has_archived_children = any(
+        c.archived and c.occurrence_id == original.id for c in schedule.cycles
+    )
     if used:
         occurrence = replace(original, id=new_id(), phase_id=phase.id, position=1)
         ordered = _insert(
@@ -382,9 +386,15 @@ def edit_occurrence(schedule, occurrence_id, details, *, new_id=s._id):
         )
         replacements = {original.id: used}
     else:
-        occurrence = replace(original, phase_id=phase.id)
+        occurrence = replace(
+            original,
+            id=new_id() if has_archived_children else original.id,
+            phase_id=phase.id,
+        )
         ordered = [occurrence if o.id == original.id else o for o in _blocks(schedule)]
         replacements = {}
+        if has_archived_children:
+            archived_original = (replace(original, archived=True),)
     replacements[occurrence.id] = [
         replace(
             c,
@@ -396,7 +406,8 @@ def edit_occurrence(schedule, occurrence_id, details, *, new_id=s._id):
     referenced = (
         any(o.phase_id == original.phase_id for o in ordered)
         or any(
-            o.archived and o.phase_id == original.phase_id for o in schedule.occurrences
+            o.archived and o.phase_id == original.phase_id
+            for o in (*schedule.occurrences, *archived_original)
         )
         or any(step.phase_id == original.phase_id for step in schedule.plan.steps)
     )
@@ -409,7 +420,9 @@ def edit_occurrence(schedule, occurrence_id, details, *, new_id=s._id):
         blocks=ordered,
         children=replacements,
         phases=phases,
+        archived_blocks=archived_original,
         continuation_occurrence_id=occurrence.id
-        if used and schedule.continuation_occurrence_id == original.id
+        if occurrence.id != original.id
+        and schedule.continuation_occurrence_id == original.id
         else _UNSET,
     )

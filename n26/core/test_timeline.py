@@ -633,7 +633,7 @@ def test_editing_an_empty_block_keeps_definitions_referenced_by_history_or_the_p
     assert not next(p for p in change.schedule.phases if p.id == "takeover").archived
 
 
-def test_archiving_unused_rules_preserves_archived_cycles_with_that_definition(ids):
+def test_cow_keeps_archived_cycle_rules_on_the_original_archived_occurrence(ids):
     original = t.insert_occurrence(
         state(), "takeover", after_occurrence_id="block-3", new_id=ids
     ).schedule
@@ -650,7 +650,10 @@ def test_archiving_unused_rules_preserves_archived_cycles_with_that_definition(i
     change = t.edit_occurrence(
         original, selected.id, s.PhaseDetails("New takeover"), new_id=ids
     )
-    assert next(p for p in change.schedule.phases if p.id == "takeover").archived
+    assert not next(p for p in change.schedule.phases if p.id == "takeover").archived
+    original_block = next(o for o in change.schedule.occurrences if o.id == selected.id)
+    assert original_block.archived and original_block.phase_id == "takeover"
+    assert blocks(change.schedule)[-1].id != selected.id
     assert (
         next(c for c in change.schedule.cycles if c.id == historical.id) == historical
     )
@@ -856,3 +859,87 @@ def test_unused_cycles_before_the_last_recorded_child_do_not_form_an_editable_su
         t.edit_occurrence(
             original, "block-1", s.PhaseDetails("No future suffix"), new_id=ids
         )
+
+
+def test_editing_a_future_block_after_removal_keeps_archived_cycles_and_rules_exact(
+    ids,
+):
+    original = s.configure(
+        s.DEFAULT_TEMPLATE,
+        campaign_id="archived-child-cow",
+        current_position=0,
+        mode="fixed",
+        new_id=ids,
+    ).schedule
+    selected = blocks(original)[-1]
+    removed = t.remove_cycle(original, original.cycles[-1].id).schedule
+    historical = next(c for c in removed.cycles if c.archived)
+    assert removed.continuation_occurrence_id == selected.id
+    change = t.edit_occurrence(
+        removed, selected.id, s.PhaseDetails("Future takeover"), new_id=ids
+    )
+    active = blocks(change.schedule)
+    old_block = next(o for o in change.schedule.occurrences if o.id == selected.id)
+    assert old_block == replace(selected, archived=True)
+    assert active[-1].id != selected.id
+    assert active[-1].position == selected.position
+    assert change.schedule.continuation_occurrence_id == active[-1].id
+    assert (
+        next(c for c in change.schedule.cycles if c.id == historical.id) == historical
+    )
+    assert live(change.schedule)[:4] == live(removed)[:4]
+    for current, before in zip(
+        live(change.schedule)[4:], live(removed)[4:], strict=True
+    ):
+        assert current.id == before.id and current.order == before.order
+        assert (
+            current.source == before.source
+            and current.customized_fields == before.customized_fields
+        )
+        assert current.occurrence_id == active[-1].id
+        assert current.details == replace(before.details, phase_id=active[-1].phase_id)
+    occurrence_phases = {o.id: o.phase_id for o in change.schedule.occurrences}
+    assert all(
+        c.details.phase_id == occurrence_phases[c.occurrence_id]
+        for c in change.schedule.cycles
+    )
+    assert next(p for p in change.schedule.phases if p.id == selected.phase_id) == next(
+        p for p in removed.phases if p.id == selected.phase_id
+    )
+    assert change.schedule.current_cycle_id == original.current_cycle_id
+    assert change.schedule.next_position == original.next_position
+    assert change.transition is None
+
+
+def test_cow_replaces_a_block_with_archived_children_and_continues_its_generated_suffix(
+    ids,
+):
+    original = s.configure(
+        s.DEFAULT_TEMPLATE,
+        campaign_id="archived-repeating-child",
+        current_position=0,
+        mode="repeating",
+        new_id=ids,
+    ).schedule
+    saved, selected = s._ensure_saved(
+        original,
+        s.ProjectedCycleRef(s.PlannedPosition(original.plan.id, 5)),
+        new_id=ids,
+    )
+    removed = t.remove_cycle(saved.schedule, selected.id).schedule
+    old_block = blocks(removed)[-1]
+    historical = next(c for c in removed.cycles if c.id == selected.id)
+    change = t.edit_occurrence(
+        removed, old_block.id, s.PhaseDetails("Future repeating takeover"), new_id=ids
+    )
+    active = blocks(change.schedule)[-1]
+    assert active.id != old_block.id
+    assert change.schedule.continuation_occurrence_id == active.id
+    projected = s.project(change.schedule, limit=1)[0]
+    assert projected.phase_id == active.phase_id
+    planned, following = s._ensure_saved(change.schedule, projected.ref, new_id=ids)
+    assert following.occurrence_id == active.id
+    assert (
+        next(c for c in planned.schedule.cycles if c.id == historical.id) == historical
+    )
+    assert len(blocks(planned.schedule)) == len(blocks(removed))

@@ -169,3 +169,69 @@ def test_projected_editor_preserves_the_edited_phase_rules(
     )
     assert after.current_cycle_id == before.current_cycle_id
     assert [c.id for c in after.cycles[:2]] == [c.id for c in before.cycles]
+
+
+def test_delete_then_edit_preserves_archived_rules_through_reload_and_later_writes(
+    table,
+):
+    campaign, actor, state = table
+    target = s.project(state, limit=6)[-1]
+    cycles.edit_cycle(
+        campaign,
+        actor=actor,
+        target=target.ref,
+        details=s.CycleDetails(
+            target.phase_id,
+            custom_name="Removed market",
+            description="Pinned story",
+            effects="Pinned effect",
+        ),
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    state = cycles.load(campaign)
+    victim = state.cycles[-1]
+    cycles.author_timeline(
+        campaign,
+        actor=actor,
+        action="remove_cycle",
+        cycle_id=victim.id,
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    before = cycles.load(campaign)
+    archived = next(c for c in before.cycles if c.id == victim.id)
+    stored = CampaignCycle.objects.filter(pk=victim.id).values().get()
+    block = next(o for o in before.occurrences if o.id == victim.occurrence_id)
+    phase = next(p for p in before.phases if p.id == block.phase_id)
+    key = uuid4()
+    arguments = dict(
+        actor=actor,
+        action="edit_occurrence",
+        occurrence_id=block.id,
+        details=replace(phase.details, name="Revised takeover"),
+        expected_revision=before.revision,
+        request_key=key,
+    )
+    result = cycles.author_timeline(campaign, **arguments)
+    CampaignCycle.objects.get(pk=victim.id).full_clean()
+    reloaded = cycles.load(campaign)
+    assert next(c for c in reloaded.cycles if c.id == victim.id) == archived
+    active = [o for o in reloaded.occurrences if not o.archived]
+    assert len(active) == 3
+    assert active[-1].id != block.id
+    assert next(o for o in reloaded.occurrences if o.id == block.id).archived
+    assert reloaded.continuation_occurrence_id == active[-1].id
+    replay = cycles.author_timeline(campaign, **arguments)
+    assert replay.replayed and replay.revision == result.revision
+    cycles.author_timeline(
+        campaign,
+        actor=actor,
+        action="insert_occurrence",
+        details=s.PhaseDetails("Later"),
+        expected_revision=reloaded.revision,
+        request_key=uuid4(),
+    )
+    assert CampaignCycle.objects.filter(pk=victim.id).values().get() == stored
+    final = cycles.load(campaign)
+    assert next(c for c in final.cycles if c.id == victim.id) == archived
