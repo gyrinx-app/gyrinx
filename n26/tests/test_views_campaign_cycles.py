@@ -1918,3 +1918,38 @@ def test_dashboard_continues_the_edited_phase_block_until_the_next_recipe_step(
     assert summary.phase == "Revised occupation"
     assert (summary.phase_position, summary.phase_count) == (1, 2)
     assert (summary.next_phase, summary.cycles_until_phase) == ("Downtime", 2)
+
+
+@pytest.mark.parametrize("json_read", [False, True])
+def test_long_repeating_pattern_summary_names_definitions_beyond_the_preview(
+    client, campaign, opened, template, json_read
+):
+    definition = replace(
+        s.DEFAULT_TEMPLATE,
+        steps=tuple(
+            replace(step, count=count)
+            for step, count in zip(s.DEFAULT_TEMPLATE.steps, (40, 1, 3), strict=True)
+        ),
+    )
+    template.definition = template_data(definition)
+    template.save(update_fields=["definition"])
+    cycles.configure(
+        campaign,
+        actor=campaign.owner,
+        template_id=template.pk,
+        current_position=0,
+        mode="repeating",
+        request_key=uuid4(),
+    )
+    response = client.get(
+        schedule_url(campaign),
+        headers={"Accept": "application/json"} if json_read else {},
+    )
+    page = response.json()["schedule"] if json_read else props(response)
+    assert {phase["name"] for phase in page["phases"]} == {"Occupation"}
+    assert {row["phaseName"] for row in page["rows"]} == {"Occupation"}
+    pattern = page["plan"]
+    assert [
+        (pattern["phaseNames"][step["phase_id"]], step["count"])
+        for step in pattern["steps"]
+    ] == [("Occupation", 40), ("Downtime", 1), ("Takeover", 3)]

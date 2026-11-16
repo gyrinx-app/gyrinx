@@ -686,10 +686,11 @@ function ScheduleContent(
                                                 />
                                             )}
                                             <span>
-                                                {
+                                                {props.plan?.phaseNames?.[
+                                                    step.phase_id
+                                                ] ??
                                                     phases.get(step.phase_id)
-                                                        ?.name
-                                                }{" "}
+                                                        ?.name}{" "}
                                                 × {step.count}
                                             </span>
                                         </li>

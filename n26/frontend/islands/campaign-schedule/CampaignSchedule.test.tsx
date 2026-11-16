@@ -509,3 +509,34 @@ test("paged timelines omit off-page blocks while preserving real empty blocks an
     ).toBeNull();
     expect(screen.getAllByText("No cycles in this phase.")).toHaveLength(1);
 });
+
+test("long repeating patterns name every step even when the preview only reaches the first definition", () => {
+    const value = timeline();
+    value.phases = [value.phases[0]];
+    value.rows = [
+        value.rows[0],
+        { ...cycle(2, "occupation", "Projected"), occurrenceId: "a" },
+    ];
+    value.plan = {
+        mode: "repeating",
+        steps: [
+            { id: "opening", phase_id: "occupation", count: 40 },
+            { id: "rest", phase_id: "downtime", count: 1 },
+            { id: "closing", phase_id: "takeover", count: 3 },
+        ],
+        phaseNames: {
+            occupation: "Occupation",
+            downtime: "Downtime",
+            takeover: "Takeover",
+        },
+        startsAfter: "Cycle 13",
+        nextPosition: 1,
+    };
+    render(<CampaignSchedule {...value} />);
+    expect(screen.getByText("Occupation × 40")).toBeTruthy();
+    expect(screen.getByText("Downtime × 1")).toBeTruthy();
+    expect(screen.getByText("Takeover × 3")).toBeTruthy();
+    expect(
+        screen.queryByRole("region", { name: "Phase 2: Downtime" }),
+    ).toBeNull();
+});

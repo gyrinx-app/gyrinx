@@ -96,6 +96,7 @@ export interface ScheduleProps {
     plan: {
         mode: string;
         steps: Step[];
+        phaseNames?: Record<string, string>;
         startsAfter: string;
         nextPosition: number;
     } | null;

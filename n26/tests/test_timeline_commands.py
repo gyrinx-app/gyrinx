@@ -715,3 +715,67 @@ def test_cycle_selector_uses_the_edited_continuing_phase_block(table):
     )
     assert choice["phase"] == "Edited opening"
     assert choice["order"] == projected.order
+
+
+class TestInterleavedRecordedPhase:
+    """Unused children before recorded activity stay with that phase's history."""
+
+    def test_only_the_suffix_after_the_last_recorded_cycle_receives_new_phase_rules(
+        self, table, campaign_type
+    ):
+        template = replace(
+            s.DEFAULT_TEMPLATE,
+            steps=(replace(s.DEFAULT_TEMPLATE.steps[0], count=4),)
+            + s.DEFAULT_TEMPLATE.steps[1:],
+        )
+        campaign = found_campaign(
+            "Interleaved phase history", campaign_type, owner=table.owner
+        )
+        cycles.configure(
+            campaign,
+            actor=table.owner,
+            template_id="",
+            definition=template_data(template),
+            current_position=0,
+            mode="fixed",
+            request_key=uuid4(),
+        )
+        before = cycles.load(campaign)
+        with campaign_operation(campaign, actor=table.owner) as act:
+            battle = act.record_battle(
+                date=date(2026, 11, 16),
+                scenario="Recorded third cycle",
+                cycle=s.SavedCycleRef(before.cycles[2].id),
+            )
+        prefix_ids = [c.id for c in before.cycles[:3]]
+        prefix = rows(CampaignCycle, pk__in=prefix_ids)
+        recorded = rows(Battle, pk=battle.pk)
+        case = SimpleNamespace(campaign=campaign, owner=table.owner)
+        details = s.PhaseDetails(
+            "Future fourth cycle", "Future story", "Future effects"
+        )
+        command(
+            case,
+            "edit_occurrence",
+            occurrence_id=before.occurrences[0].id,
+            details=details,
+        )
+        after = cycles.load(campaign)
+        assert after.cycles[:3] == before.cycles[:3]
+        assert rows(CampaignCycle, pk__in=prefix_ids) == prefix
+        fourth = after.cycles[3]
+        assert (
+            fourth.id == before.cycles[3].id
+            and fourth.source == before.cycles[3].source
+        )
+        assert fourth.occurrence_id != before.occurrences[0].id
+        assert (
+            next(p for p in after.phases if p.id == fourth.details.phase_id).details
+            == details
+        )
+        assert after.cycles[4:] == before.cycles[4:]
+        assert [c.order for c in after.cycles] == list(range(1, 9))
+        assert after.current_cycle_id == before.current_cycle_id
+        assert rows(Battle, pk=battle.pk) == recorded
+        assert not CampaignCycleTransition.objects.filter(campaign=campaign).exists()
+        assert after.cycles[1].details.phase_id == before.phases[0].id

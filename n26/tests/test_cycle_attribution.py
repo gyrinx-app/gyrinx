@@ -806,3 +806,60 @@ def test_projected_cycle_neighbours_stay_in_the_projection_after_saved_gaps(
         for c in state.cycles
         if c.archived
     )
+
+
+def test_legacy_saved_gaps_use_consecutive_selector_positions_without_writes(table):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    from n26.core.cycle_display import build, dashboard_summary
+    from n26.core.cycle_selection import options
+    from n26.core.models import CampaignSchedule
+
+    cycles.plan_cycles(
+        table.campaign,
+        actor=table.owner,
+        count=2,
+        expected_revision=table.state.revision,
+        request_key=uuid4(),
+    )
+    state = cycles.load(table.campaign)
+    CampaignCycle.objects.filter(pk=state.cycles[1].id).update(archived=True)
+    legacy_dates = dict(
+        CampaignSchedule.objects.get(campaign=table.campaign).date_settings
+    )
+    legacy_dates.pop("position_offset")
+    CampaignSchedule.objects.filter(campaign=table.campaign).update(
+        current_cycle_id=state.cycles[2].id, date_settings=legacy_dates
+    )
+    before = list(
+        CampaignCycle.objects.filter(campaign=table.campaign).order_by("pk").values()
+    )
+    with CaptureQueriesContext(connection) as queries:
+        shown = options(table.campaign)
+    assert not any(
+        q["sql"].lstrip().startswith(("INSERT", "UPDATE", "DELETE")) for q in queries
+    )
+    saved = [c for c in shown["choices"] if "cycle_id" in c["value"]]
+    assert [(c["order"], c["name"], c["isCurrent"]) for c in saved] == [
+        (1, "Cycle 1", False),
+        (2, "Cycle 2", True),
+    ]
+    assert shown["current"] == "Cycle 2"
+    assert build(table.campaign, table.owner).currentName == "Cycle 2"
+    assert dashboard_summary(table.campaign, table.owner).name == "Cycle 2"
+    assert shown["adjacent"] == {"anchor": 2, "previous": 1, "next": 3}
+    first = next(c for c in shown["choices"] if c["order"] == 3)
+    assert first["value"] == {"plan_id": state.plan.id, "index": 3}
+    assert first["startsOn"] == "2026-11-22"
+    later = options(table.campaign, selected=first["value"])
+    assert later["adjacent"] == {"anchor": 3, "previous": 2, "next": 4}
+    assert len({c["order"] for c in shown["choices"]}) == len(shown["choices"])
+    assert (
+        list(
+            CampaignCycle.objects.filter(campaign=table.campaign)
+            .order_by("pk")
+            .values()
+        )
+        == before
+    )

@@ -728,6 +728,16 @@ def author_timeline(
 
     def apply(act, before):
         block_id = occurrence_id
+        if block_id is not None and not any(
+            o.id == block_id and not o.archived for o in before.occurrences
+        ):
+            matches = [
+                o.id
+                for o in before.occurrences
+                if not o.archived and o.phase_id == block_id
+            ]
+            if len(matches) == 1:
+                block_id = matches[0]
         cycle_placement = (
             {}
             if after_cycle_id is _AUTHOR_UNSET

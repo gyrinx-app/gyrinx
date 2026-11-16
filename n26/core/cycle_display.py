@@ -229,6 +229,7 @@ def dashboard_summary(campaign, user):
             else boundary
         )
         summary.update(
+            name=current.custom_name or f"Cycle {counts['current']}",
             order=counts["current"],
             phase_position=counts["current"] - counts["previous"],
             phase_count=visible_boundary - counts["previous"] - 1
@@ -692,6 +693,7 @@ def _build_locked(campaign, user, *, page, preview, focus):
         phases=phase_display,
         plan={
             "mode": plan.mode,
+            "phaseNames": phase_names,
             "steps": [
                 asdict(step)
                 for step in s.editable_steps(

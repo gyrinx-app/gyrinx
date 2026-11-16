@@ -810,3 +810,49 @@ def test_same_rules_cycle_move_cannot_supply_another_blocks_pattern_continuation
     )
     assert following.occurrence_id != destination.id
     assert planned.schedule.next_position == moved.next_position + 1
+
+
+def interleaved_history():
+    original = state(protected={"cycle-3"})
+    return replace(
+        original,
+        cycles=tuple(
+            replace(
+                c,
+                occurrence_id="block-1",
+                details=replace(c.details, phase_id="occupation"),
+            )
+            if c.order <= 4
+            else c
+            for c in original.cycles
+        ),
+    )
+
+
+def test_phase_edit_keeps_the_entire_prefix_through_recorded_activity(ids):
+    original = interleaved_history()
+    change = t.edit_occurrence(
+        original, "block-1", s.PhaseDetails("Future occupation"), new_id=ids
+    )
+    assert live(change.schedule)[:3] == original.cycles[:3]
+    suffix = live(change.schedule)[3]
+    assert suffix.id == original.cycles[3].id
+    assert suffix.order == original.cycles[3].order
+    assert suffix.source == original.cycles[3].source
+    assert suffix.occurrence_id != "block-1"
+    assert suffix.details.phase_id != "occupation"
+    assert live(change.schedule)[4] == original.cycles[4]
+    assert change.schedule.current_cycle_id == original.current_cycle_id
+    assert change.transition is None
+
+
+def test_unused_cycles_before_the_last_recorded_child_do_not_form_an_editable_suffix(
+    ids,
+):
+    original = replace(
+        interleaved_history(), protected_cycle_ids=frozenset({"cycle-4"})
+    )
+    with pytest.raises(s.ScheduleError, match="unused future cycles"):
+        t.edit_occurrence(
+            original, "block-1", s.PhaseDetails("No future suffix"), new_id=ids
+        )

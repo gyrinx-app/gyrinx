@@ -468,8 +468,11 @@ def prepare(campaign, action, query):
             if not c.archived and c.occurrence_id == occurrence.id
         ]
         if action == "phase":
-            used = [c for c in children if _used_cycle(state, c)]
-            future = [c for c in children if not _used_cycle(state, c)]
+            frontier = max(
+                (c.order for c in children if _used_cycle(state, c)), default=0
+            )
+            used = [c for c in children if c.order <= frontier]
+            future = [c for c in children if c.order > frontier]
             current_block = next(
                 (
                     o

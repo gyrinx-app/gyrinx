@@ -498,3 +498,34 @@ def test_add_phase_recovery_retains_a_removed_boundary_query(table):
     selected = table.blocks[0].id
     recovered = w.recovery_editor(table.campaign, "add-phase", {"after": selected})
     assert recovered.query == {"after": selected}
+
+
+def test_phase_editor_requires_a_suffix_after_the_last_recorded_child(
+    table, monkeypatch
+):
+    state = replace(
+        table.state,
+        current_cycle_id=None,
+        protected_cycle_ids=frozenset({table.entries[1].id}),
+    )
+    monkeypatch.setattr(cycles, "load", lambda campaign: state)
+    with pytest.raises(Http404, match="no unused future cycles"):
+        w.prepare(table.campaign, "phase", {"phase": table.blocks[0].id})
+
+
+def test_phase_editor_explains_a_split_when_only_a_later_suffix_is_editable(
+    table, monkeypatch
+):
+    last = replace(table.entries[1], id=str(ULID()), order=3)
+    following = replace(table.entries[2], order=4)
+    state = replace(
+        table.state,
+        current_cycle_id=None,
+        cycles=(*table.entries[:2], last, following),
+        protected_cycle_ids=frozenset({table.entries[1].id}),
+    )
+    monkeypatch.setattr(cycles, "load", lambda campaign: state)
+    prepared = w.prepare(table.campaign, "phase", {"phase": table.blocks[0].id})
+    assert prepared.context["splitOccurrence"] is True
+    assert "Recorded cycles keep their rules." in prepared.lead
+    assert prepared.initial["phase_id"] == table.blocks[0].id

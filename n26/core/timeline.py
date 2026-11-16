@@ -366,11 +366,13 @@ def edit_occurrence(schedule, occurrence_id, details, *, new_id=s._id):
             for c in schedule.cycles
             if not c.archived and c.order <= schedule.current.order
         )
-    used = [c for c in children if c.id in protected]
-    future = [c for c in children if c.id not in protected]
+    frontier = max((c.order for c in children if c.id in protected), default=0)
+    used = [c for c in children if c.order <= frontier]
+    future = [c for c in children if c.order > frontier]
     if used and not future:
         raise s.ScheduleError(
-            "Current or recorded phase rules cannot be edited without unused future cycles."
+            "Current cycles and cycles with recorded activity keep their phase rules. "
+            "Add unused future cycles to edit this phase."
         )
     phase = s.Phase(new_id(), details)
     if used:

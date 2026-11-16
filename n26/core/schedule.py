@@ -1455,7 +1455,6 @@ def timeline_settings(
     new_id: NewId = _id,
 ) -> ScheduleChange:
     """Set defaults, materialising a finite endpoint without rewriting authored entries."""
-    change = ScheduleChange(schedule)
     state = schedule
     if mode == "fixed":
         remaining = (
