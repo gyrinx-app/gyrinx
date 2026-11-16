@@ -653,7 +653,7 @@ def _selected(schedule, target):
         )
     if target.position.index < schedule.next_position:
         raise ScheduleError("That cycle has been deleted. Select another cycle.")
-    return project(
+    selected = project(
         PlanContinuation(
             schedule.plan,
             target.position.index,
@@ -664,6 +664,7 @@ def _selected(schedule, target):
         ),
         limit=1,
     )[0]
+    return _projected_details(schedule, selected, selected.order)
 
 
 def _prefix(schedule, selected):

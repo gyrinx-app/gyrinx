@@ -237,3 +237,23 @@ def test_removing_a_dated_future_cycle_preserves_later_saved_and_projected_dates
     assert {
         c.id: (c.details.starts_on, c.details.ends_on) for c in changed.cycles
     } == saved_dates
+
+
+def test_projected_selection_uses_the_edited_continuing_block():
+    from n26.core import timeline as t
+
+    state = s.configure(
+        s.DEFAULT_TEMPLATE,
+        campaign_id="edited-projection",
+        current_position=0,
+        mode="repeating",
+    ).schedule
+    state = s._ensure_saved(state, s.project(state, limit=1)[0].ref)[0].schedule
+    original = state.occurrences[0]
+    phase = next(p for p in state.phases if p.id == original.phase_id)
+    state = t.edit_occurrence(
+        state, original.id, replace(phase.details, name="Revised occupation")
+    ).schedule
+    projected = s.project(state, limit=1)[0]
+    selected = s._selected(state, projected.ref)
+    assert selected == projected

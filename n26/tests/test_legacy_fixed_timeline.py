@@ -1,5 +1,6 @@
 """Legacy fixed plans keep their endpoint and remain editable without GET writes."""
 
+from dataclasses import replace
 from uuid import uuid4
 
 import pytest
@@ -102,3 +103,69 @@ def test_fixed_planned_cycle_edit_is_offered_and_saves_only_on_submit(
         )
         == state.cycles[0].id
     )
+
+
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("field", ["name", "dates"])
+def test_projected_editor_preserves_the_edited_phase_rules(
+    client, table, native, field
+):
+    campaign, actor, state = table
+    target = s.project(state, limit=1)[0]
+    cycles.edit_cycle(
+        campaign,
+        actor=actor,
+        target=target.ref,
+        details=s.CycleDetails(target.phase_id),
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    state = cycles.load(campaign)
+    original = state.occurrences[0]
+    phase = next(p for p in state.phases if p.id == original.phase_id)
+    cycles.author_timeline(
+        campaign,
+        actor=actor,
+        action="edit_occurrence",
+        occurrence_id=original.id,
+        details=replace(
+            phase.details, name="Revised occupation", effects="Edited rules"
+        ),
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    before = cycles.load(campaign)
+    projected = s.project(before, limit=1)[0]
+    copied = next(p for p in before.phases if p.id == projected.phase_id)
+    assert copied.details.name == "Revised occupation"
+    query = {"plan": before.plan.id, "position": before.next_position}
+    if field == "dates":
+        query["fields"] = "dates"
+    response = client.get(
+        editor_url(campaign, "cycle", **query), headers={"Accept": "application/json"}
+    )
+    editor = response.json()["schedule"]["editor"]
+    assert editor["values"]["phase_id"] == copied.id
+    data = {
+        **editor["values"],
+        **(
+            {"custom_name": "Market day"}
+            if field == "name"
+            else {"starts_on": "2026-11-15", "ends_on": ""}
+        ),
+    }
+    result = client.post(editor["action"] if native else editor["commandHref"], data)
+    assert result.status_code == (302 if native else 200)
+    after = cycles.load(campaign)
+    selected = next(c for c in after.cycles if not c.archived and c.order == 3)
+    assert selected.details.phase_id == copied.id
+    assert selected.occurrence_id == before.cycles[1].occurrence_id
+    assert "phase_id" not in selected.customized_fields
+    assert (
+        next(
+            p for p in after.phases if p.id == selected.details.phase_id
+        ).details.effects
+        == "Edited rules"
+    )
+    assert after.current_cycle_id == before.current_cycle_id
+    assert [c.id for c in after.cycles[:2]] == [c.id for c in before.cycles]
