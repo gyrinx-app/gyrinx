@@ -367,6 +367,71 @@ test("whole block drops use the phase destination, retaining the selected occurr
     });
 });
 
+test("a moved phase without destinations is revealed and focused at its heading", async () => {
+    const after = overview();
+    after.currentName = "No current cycle";
+    after.currentPhaseId = "";
+    after.phases = after.phases.filter((phase) => phase.id === "second");
+    after.rows = after.rows.filter((row) => row.key === "two");
+    after.reorder = { revision: 5, sources: [], targets: [] };
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(prepared(editor("move-phase")))
+        .mockResolvedValueOnce(
+            json({ nextUrl: base + "?page=3#phase-second", revision: 5 }),
+        )
+        .mockResolvedValueOnce(json({ schedule: after }));
+    vi.stubGlobal("fetch", fetch);
+    const { container } = render(<CampaignSchedule {...overview()} />);
+    drop("End", "Move Phase 2: Downtime");
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    const heading = screen.getByRole("heading", { name: "Phase 2: Downtime" });
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+    expect(heading.getAttribute("tabindex")).toBe("-1");
+    expect(vi.mocked(Element.prototype.scrollIntoView).mock.contexts).toContain(
+        heading,
+    );
+    expect(container.querySelector("#phase-second")).not.toBeNull();
+    expect(
+        screen.queryByRole("button", { name: "Move Phase 2: Downtime" }),
+    ).toBeNull();
+    expect(window.location.search).toBe("?page=3");
+    expect(window.location.hash).toBe("#phase-second");
+});
+
+test("a moved cycle without visible destinations is revealed and focused at its row", async () => {
+    const after = overview();
+    after.currentName = "No current cycle";
+    after.currentPhaseId = "";
+    after.phases = after.phases
+        .filter((phase) => phase.id === "empty")
+        .map((phase) => ({ ...phase, count: 1 }));
+    after.rows = after.rows
+        .filter((row) => row.key === "two")
+        .map((row) => ({ ...row, occurrenceId: "empty" }));
+    after.reorder = { revision: 5, sources: [], targets: [] };
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(prepared())
+        .mockResolvedValueOnce(
+            json({ nextUrl: base + "?page=3#cycle-two", revision: 5 }),
+        )
+        .mockResolvedValueOnce(json({ schedule: after }));
+    vi.stubGlobal("fetch", fetch);
+    const { container } = render(<CampaignSchedule {...overview()} />);
+    drop();
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    const row = container.querySelector("#cycle-two")!;
+    await waitFor(() => expect(document.activeElement).toBe(row));
+    expect(row.getAttribute("tabindex")).toBe("-1");
+    expect(vi.mocked(Element.prototype.scrollIntoView).mock.contexts).toContain(
+        row,
+    );
+    expect(screen.queryByRole("button", { name: "Move Cycle 2" })).toBeNull();
+    expect(window.location.search).toBe("?page=3");
+    expect(window.location.hash).toBe("#cycle-two");
+});
+
 test("dropping at the unchanged origin performs no read or write", () => {
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);

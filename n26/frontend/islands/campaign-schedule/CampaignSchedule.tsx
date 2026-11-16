@@ -171,12 +171,13 @@ function CycleRow({
                         projected ? undefined : `cycle:${cycle.key}`
                     }
                     id={`cycle-${cycle.key}`}
+                    tabIndex={projected ? undefined : -1}
                     className={
                         projected
                             ? "bg-ink-500/[0.025] [&_td]:text-muted!"
                             : cycle.state === "Current"
-                              ? "bg-accent/5"
-                              : ""
+                              ? "scroll-mt-20 bg-accent/5"
+                              : "scroll-mt-20"
                     }
                 >
                     <td className="align-middle [overflow-wrap:anywhere]">
@@ -193,7 +194,7 @@ function CycleRow({
                                 </span>
                             )}
                             <span
-                                className="w-5 shrink-0 text-sm font-medium tabular-nums text-muted"
+                                className="min-w-5 shrink-0 text-sm font-medium whitespace-nowrap tabular-nums text-muted"
                                 aria-hidden="true"
                             >
                                 {String(cycle.order).padStart(2, "0")}

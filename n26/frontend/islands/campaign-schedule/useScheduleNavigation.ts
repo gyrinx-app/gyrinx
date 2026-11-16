@@ -46,15 +46,28 @@ function scheduleData(value: unknown): value is ScheduleProps {
     );
 }
 
-function moveHandle(source: string) {
-    const row = Array.from(
+function moveSource(source: string) {
+    return Array.from(
         document.querySelectorAll<HTMLElement>("[data-reorder-source]"),
     ).find((node) => node.dataset.reorderSource === source);
+}
+
+function moveHandle(source: string) {
+    const row = moveSource(source);
     return Array.from(
         row?.querySelectorAll<HTMLButtonElement>(
             "button[aria-label^='Move ']",
         ) ?? [],
     ).find((button) => button.closest("[data-reorder-source]") === row);
+}
+
+function revealMovedSource(source: string) {
+    const row = moveSource(source);
+    const label = row?.getAttribute("aria-labelledby");
+    const heading = label ? document.getElementById(label) : null;
+    const target = moveHandle(source) ?? heading ?? row;
+    (heading ?? row)?.scrollIntoView({ block: "nearest" });
+    target?.focus({ preventScroll: true });
 }
 
 type ScrollPosition = { left: number; top: number };
@@ -364,7 +377,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
             const source = focusSource.current;
             focusSource.current = null;
             const frame = window.requestAnimationFrame(() => {
-                moveHandle(source)?.focus();
+                revealMovedSource(source);
             });
             return () => window.cancelAnimationFrame(frame);
         }

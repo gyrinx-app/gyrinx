@@ -74,12 +74,13 @@ export function PhaseSummary({
                         {showName && (
                             <h3
                                 id={headingId}
+                                tabIndex={headingId ? -1 : undefined}
                                 aria-label={
                                     number === undefined
                                         ? undefined
                                         : `Phase ${number}: ${name}`
                                 }
-                                className="text-base leading-7 font-semibold [overflow-wrap:anywhere]"
+                                className="scroll-mt-20 text-base leading-7 font-semibold [overflow-wrap:anywhere]"
                             >
                                 {number !== undefined && (
                                     <span className="tabular-nums text-muted">
