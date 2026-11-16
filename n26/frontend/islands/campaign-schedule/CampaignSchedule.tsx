@@ -1,3 +1,5 @@
+import { createContext, useContext, type ReactNode } from "react";
+import { ReorderScope, ReorderItem, ReorderDropLine } from "../../ui/reorder";
 import {
     ActionMenu,
     type ActionMenuItem,
@@ -20,9 +22,45 @@ import {
     type Cycle,
     type Phase,
     type ScheduleProps,
+    type ScheduleReorder,
 } from "./types";
 
 export { creditsText } from "./PhaseSummary";
+
+const TimelineReorder = createContext<ScheduleReorder | undefined>(undefined);
+
+function SavedItem({
+    id,
+    children,
+}: {
+    id: string;
+    children: (props: {
+        ref?: (element: Element | null) => void;
+        handle: ReactNode;
+    }) => ReactNode;
+}) {
+    const reorder = useContext(TimelineReorder);
+    return reorder?.sources.some(
+        (source) => source.id === id && source.targets.length,
+    ) ? (
+        <ReorderItem id={id}>{children}</ReorderItem>
+    ) : (
+        children({ handle: null })
+    );
+}
+
+function DropGap({
+    id,
+    align,
+}: {
+    id: string;
+    align?: "start" | "end" | "center";
+}) {
+    const reorder = useContext(TimelineReorder);
+    return reorder?.targets.some((target) => target.id === id) ? (
+        <ReorderDropLine id={id} align={align} />
+    ) : null;
+}
 
 function dateText(value: string) {
     return new Date(
@@ -87,7 +125,9 @@ function CycleDates({ cycle }: { cycle: Cycle }) {
 function CycleRow({
     cycle: original,
     canManage,
+    first,
 }: {
+    first: boolean;
     cycle: Cycle;
     canManage: boolean;
 }) {
@@ -123,121 +163,148 @@ function CycleRow({
         },
     ].filter((item) => item.href) as ActionMenuItem[];
     return (
-        <tr
-            id={`cycle-${cycle.key}`}
-            className={
-                projected
-                    ? "bg-ink-500/[0.025] [&_td]:text-muted!"
-                    : cycle.state === "Current"
-                      ? "bg-accent/5"
-                      : ""
-            }
-        >
-            <td className="align-middle [overflow-wrap:anywhere]">
-                <div className="flex items-start gap-2">
-                    <span
-                        className="w-5 shrink-0 text-sm font-medium tabular-nums text-muted"
-                        aria-hidden="true"
-                    >
-                        {String(cycle.order).padStart(2, "0")}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <span className="font-medium">{cycle.name}</span>
-                            {projected && (
-                                <span className="sr-only">
-                                    Generated preview, not saved yet.
+        <SavedItem id={projected ? "" : `cycle:${cycle.key}`}>
+            {({ ref, handle }) => (
+                <tr
+                    ref={ref}
+                    data-reorder-source={
+                        projected ? undefined : `cycle:${cycle.key}`
+                    }
+                    id={`cycle-${cycle.key}`}
+                    className={
+                        projected
+                            ? "bg-ink-500/[0.025] [&_td]:text-muted!"
+                            : cycle.state === "Current"
+                              ? "bg-accent/5"
+                              : ""
+                    }
+                >
+                    <td className="align-middle [overflow-wrap:anywhere]">
+                        {!projected && first && (
+                            <DropGap
+                                id={`cycle-start:${cycle.occurrenceId}`}
+                                align="start"
+                            />
+                        )}
+                        <div className="flex items-start gap-2">
+                            {canManage && (
+                                <span className="inline-flex w-8 shrink-0 justify-center">
+                                    {handle}
                                 </span>
                             )}
-                            {(cycle.state === "Current" ||
-                                cycle.state === "Past") && (
-                                <Badge
-                                    color={
-                                        cycle.state === "Current"
-                                            ? "amber"
-                                            : "ink"
-                                    }
-                                >
-                                    {cycle.state}
-                                </Badge>
-                            )}
-                        </div>
-                        {cycle.description && (
-                            <p className="mt-0.5 whitespace-pre-wrap text-sm text-muted">
-                                {cycle.description}
-                            </p>
-                        )}
-                        <div className="mt-1 sm:hidden">
-                            <CycleDates cycle={cycle} />
-                        </div>
-                        {(cycle.effects ||
-                            cycle.startedAt ||
-                            cycle.endedAt) && (
-                            <details className="mt-1 text-xs">
-                                <summary className="cursor-pointer text-muted">
-                                    More details
-                                </summary>
-                                <div className="mt-1 space-y-1">
-                                    {cycle.effects && (
-                                        <p className="whitespace-pre-wrap">
-                                            {cycle.effects}
-                                        </p>
+                            <span
+                                className="w-5 shrink-0 text-sm font-medium tabular-nums text-muted"
+                                aria-hidden="true"
+                            >
+                                {String(cycle.order).padStart(2, "0")}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                    <span className="font-medium">
+                                        {cycle.name}
+                                    </span>
+                                    {projected && (
+                                        <span className="sr-only">
+                                            Generated preview, not saved yet.
+                                        </span>
                                     )}
-                                    {cycle.startedAt && (
-                                        <p>
-                                            Started:{" "}
-                                            {new Date(
-                                                cycle.startedAt,
-                                            ).toLocaleString("en-GB")}
-                                        </p>
-                                    )}
-                                    {cycle.endedAt && (
-                                        <p>
-                                            Ended:{" "}
-                                            {new Date(
-                                                cycle.endedAt,
-                                            ).toLocaleString("en-GB")}
-                                        </p>
+                                    {(cycle.state === "Current" ||
+                                        cycle.state === "Past") && (
+                                        <Badge
+                                            color={
+                                                cycle.state === "Current"
+                                                    ? "amber"
+                                                    : "ink"
+                                            }
+                                        >
+                                            {cycle.state}
+                                        </Badge>
                                     )}
                                 </div>
-                            </details>
+                                {cycle.description && (
+                                    <p className="mt-0.5 whitespace-pre-wrap text-sm text-muted">
+                                        {cycle.description}
+                                    </p>
+                                )}
+                                <div className="mt-1 sm:hidden">
+                                    <CycleDates cycle={cycle} />
+                                </div>
+                                {(cycle.effects ||
+                                    cycle.startedAt ||
+                                    cycle.endedAt) && (
+                                    <details className="mt-1 text-xs">
+                                        <summary className="cursor-pointer text-muted">
+                                            More details
+                                        </summary>
+                                        <div className="mt-1 space-y-1">
+                                            {cycle.effects && (
+                                                <p className="whitespace-pre-wrap">
+                                                    {cycle.effects}
+                                                </p>
+                                            )}
+                                            {cycle.startedAt && (
+                                                <p>
+                                                    Started:{" "}
+                                                    {new Date(
+                                                        cycle.startedAt,
+                                                    ).toLocaleString("en-GB")}
+                                                </p>
+                                            )}
+                                            {cycle.endedAt && (
+                                                <p>
+                                                    Ended:{" "}
+                                                    {new Date(
+                                                        cycle.endedAt,
+                                                    ).toLocaleString("en-GB")}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </details>
+                                )}
+                            </div>
+                        </div>
+                        {!projected && (
+                            <DropGap
+                                id={`cycle-after:${cycle.key}`}
+                                align="end"
+                            />
                         )}
-                    </div>
-                </div>
-            </td>
-            <td className="hidden w-56 align-middle sm:table-cell">
-                <CycleDates cycle={cycle} />
-            </td>
-            <td className="w-16 align-middle text-right">
-                <div className="flex justify-end gap-1">
-                    {cycle.editHref && (
-                        <ButtonLink
-                            href={cycle.editHref}
-                            variant="ghost"
-                            size="xs"
-                            className="inline-flex! size-6! items-center justify-center p-0! leading-none"
-                            aria-label={`Edit ${cycle.name}`}
-                            title={`Edit ${cycle.name}`}
-                        >
-                            <Icon name="pencil" className="size-3.5" />
-                        </ButtonLink>
-                    )}
-                    {actions.length > 0 && (
-                        <ActionMenu
-                            label={
-                                cycle.occurrenceId
-                                    ? `More actions for cycle ${String(cycle.order).padStart(2, "0")}: ${cycle.name}`
-                                    : `More actions for ${cycle.name}`
-                            }
-                            items={actions}
-                            variant="ghost"
-                            trigger="inline-chevron"
-                            align="end"
-                        />
-                    )}
-                </div>
-            </td>
-        </tr>
+                    </td>
+                    <td className="hidden w-56 align-middle sm:table-cell">
+                        <CycleDates cycle={cycle} />
+                    </td>
+                    <td className="w-16 align-middle text-right">
+                        <div className="flex justify-end gap-1">
+                            {cycle.editHref && (
+                                <ButtonLink
+                                    href={cycle.editHref}
+                                    variant="ghost"
+                                    size="xs"
+                                    className="inline-flex! size-6! items-center justify-center p-0! leading-none"
+                                    aria-label={`Edit ${cycle.name}`}
+                                    title={`Edit ${cycle.name}`}
+                                >
+                                    <Icon name="pencil" className="size-3.5" />
+                                </ButtonLink>
+                            )}
+                            {actions.length > 0 && (
+                                <ActionMenu
+                                    label={
+                                        cycle.occurrenceId
+                                            ? `More actions for cycle ${String(cycle.order).padStart(2, "0")}: ${cycle.name}`
+                                            : `More actions for ${cycle.name}`
+                                    }
+                                    items={actions}
+                                    variant="ghost"
+                                    trigger="inline-chevron"
+                                    align="end"
+                                />
+                            )}
+                        </div>
+                    </td>
+                </tr>
+            )}
+        </SavedItem>
     );
 }
 
@@ -265,9 +332,10 @@ function CycleTable({
                         </tr>
                     </thead>
                     <tbody>
-                        {cycles.map((cycle) => (
+                        {cycles.map((cycle, index) => (
                             <CycleRow
                                 key={cycle.key}
+                                first={index === 0}
                                 cycle={cycle}
                                 canManage={canManage}
                             />
@@ -288,7 +356,11 @@ function PhaseGroup({
     firstGenerated,
     patternHref,
     planCyclesHref,
+    beforeGap,
+    afterGap,
 }: {
+    beforeGap?: string;
+    afterGap?: string;
     phase: Phase;
     number: number;
     cycles: Cycle[];
@@ -366,90 +438,115 @@ function PhaseGroup({
         </div>
     );
     return (
-        <section
-            id={anchor ? `phase-${phase.id}` : undefined}
-            aria-labelledby={heading}
-            className={phase.generated ? "space-y-2 text-muted" : "space-y-2"}
-        >
-            {phase.generated && firstGenerated && continuation}
-            <div className="px-1">
-                <PhaseSummary
-                    {...phase}
-                    number={number}
-                    count={
-                        phase.generated
-                            ? projected.length
-                            : Math.max(phase.count, concrete.length) +
-                              projected.length
+        <SavedItem id={phase.generated ? "" : `phase:${phase.id}`}>
+            {({ ref, handle }) => (
+                <section
+                    ref={ref}
+                    data-reorder-source={
+                        phase.generated ? undefined : `phase:${phase.id}`
                     }
-                    headingId={heading}
-                    status={
-                        cycles.some((cycle) => cycle.state === "Current") ? (
-                            <Badge color="amber">Current phase</Badge>
-                        ) : undefined
+                    id={anchor ? `phase-${phase.id}` : undefined}
+                    aria-labelledby={heading}
+                    className={
+                        phase.generated ? "space-y-2 text-muted" : "space-y-2"
                     }
-                    actions={
-                        editable && available.length > 0 ? (
-                            <ActionMenu
-                                label={
-                                    phase.phaseId
-                                        ? `More actions for phase ${String(number).padStart(2, "0")}: ${phase.name}`
-                                        : `More actions for ${phase.name}`
-                                }
-                                items={available}
-                                variant="ghost"
-                                trigger="inline-chevron"
-                                align="end"
-                            />
-                        ) : undefined
-                    }
-                />
-            </div>
-            {concrete.length > 0 && (
-                <CycleTable
-                    cycles={concrete}
-                    name={phase.name}
-                    canManage={editable}
-                />
-            )}
-            {!concrete.length && !phase.generated && !projected.length && (
-                <p className="px-1 py-2 text-sm text-muted">
-                    No cycles in this phase.
-                </p>
-            )}
-            {editable && (phase.addCycleHref || phase.addPhaseHref) && (
-                <div className="flex flex-wrap gap-2">
-                    {phase.addCycleHref && (
-                        <ButtonLink
-                            href={phase.addCycleHref}
-                            size="xs"
-                            variant="ghost"
-                            aria-label={`Add cycle to phase ${String(number).padStart(2, "0")}: ${phase.name}`}
-                        >
-                            <Icon name="plus" /> Add cycle
-                        </ButtonLink>
+                >
+                    {beforeGap && <DropGap id={beforeGap} />}
+                    {phase.generated && firstGenerated && continuation}
+                    <div className="flex items-start gap-2 px-1">
+                        {canManage && (
+                            <span className="inline-flex w-8 shrink-0 justify-center">
+                                {handle}
+                            </span>
+                        )}
+                        <PhaseSummary
+                            {...phase}
+                            number={number}
+                            count={
+                                phase.generated
+                                    ? projected.length
+                                    : Math.max(phase.count, concrete.length) +
+                                      projected.length
+                            }
+                            headingId={heading}
+                            status={
+                                cycles.some(
+                                    (cycle) => cycle.state === "Current",
+                                ) ? (
+                                    <Badge color="amber">Current phase</Badge>
+                                ) : undefined
+                            }
+                            actions={
+                                editable && available.length > 0 ? (
+                                    <ActionMenu
+                                        label={
+                                            phase.phaseId
+                                                ? `More actions for phase ${String(number).padStart(2, "0")}: ${phase.name}`
+                                                : `More actions for ${phase.name}`
+                                        }
+                                        items={available}
+                                        variant="ghost"
+                                        trigger="inline-chevron"
+                                        align="end"
+                                    />
+                                ) : undefined
+                            }
+                        />
+                    </div>
+                    {concrete.length > 0 && (
+                        <CycleTable
+                            cycles={concrete}
+                            name={phase.name}
+                            canManage={editable}
+                        />
                     )}
-                    {phase.addPhaseHref && (
-                        <ButtonLink
-                            href={phase.addPhaseHref}
-                            size="xs"
-                            variant="ghost"
-                            aria-label={`Add phase after ${String(number).padStart(2, "0")}: ${phase.name}`}
-                        >
-                            <Icon name="plus" /> Add phase
-                        </ButtonLink>
+                    {!concrete.length &&
+                        !phase.generated &&
+                        !projected.length && (
+                            <div className="px-1 py-2 text-sm text-muted">
+                                <DropGap
+                                    id={`cycle-start:${phase.id}`}
+                                    align="start"
+                                />
+                                <p>No cycles in this phase.</p>
+                            </div>
+                        )}
+                    {editable && (phase.addCycleHref || phase.addPhaseHref) && (
+                        <div className="flex flex-wrap gap-2">
+                            {phase.addCycleHref && (
+                                <ButtonLink
+                                    href={phase.addCycleHref}
+                                    size="xs"
+                                    variant="ghost"
+                                    aria-label={`Add cycle to phase ${String(number).padStart(2, "0")}: ${phase.name}`}
+                                >
+                                    <Icon name="plus" /> Add cycle
+                                </ButtonLink>
+                            )}
+                            {phase.addPhaseHref && (
+                                <ButtonLink
+                                    href={phase.addPhaseHref}
+                                    size="xs"
+                                    variant="ghost"
+                                    aria-label={`Add phase after ${String(number).padStart(2, "0")}: ${phase.name}`}
+                                >
+                                    <Icon name="plus" /> Add phase
+                                </ButtonLink>
+                            )}
+                        </div>
                     )}
-                </div>
+                    {afterGap && <DropGap id={afterGap} />}
+                    {!phase.generated && firstGenerated && continuation}
+                    {projected.length > 0 && (
+                        <CycleTable
+                            cycles={projected}
+                            name={`${phase.name} generated`}
+                            canManage={canManage}
+                        />
+                    )}
+                </section>
             )}
-            {!phase.generated && firstGenerated && continuation}
-            {projected.length > 0 && (
-                <CycleTable
-                    cycles={projected}
-                    name={`${phase.name} generated`}
-                    canManage={canManage}
-                />
-            )}
-        </section>
+        </SavedItem>
     );
 }
 
@@ -523,6 +620,23 @@ function ScheduleContent(
             }
         }
     }
+    const activePhases = props.phases.filter((phase) => !phase.generated);
+    const renderedGaps = new Set<string>();
+    const groupGaps = groups.map(({ phase }) => {
+        if (phase.generated) return {};
+        const index = activePhases.findIndex(
+            (candidate) => candidate.id === phase.id,
+        );
+        const before =
+            index > 0
+                ? `phase-after:${activePhases[index - 1].id}`
+                : "phase-start";
+        const after = `phase-after:${phase.id}`;
+        const beforeGap = renderedGaps.has(before) ? undefined : before;
+        renderedGaps.add(before);
+        renderedGaps.add(after);
+        return { beforeGap, afterGap: after };
+    });
     const firstGenerated = groups.findIndex((group) =>
         group.cycles.some((cycle) => cycle.state === "Projected"),
     );
@@ -622,6 +736,7 @@ function ScheduleContent(
                                     (group.cycles[0]?.key ?? "empty")
                                 }
                                 {...group}
+                                {...groupGaps[index]}
                                 number={
                                     group.phase.number ??
                                     props.phases.findIndex(
@@ -763,12 +878,37 @@ export function CampaignSchedule(props: ScheduleProps) {
                         {notice.message}
                     </Alert>
                 ))}
-                <ScheduleContent
-                    {...navigation.data}
-                    onNavigate={navigation.navigate}
-                    onReload={navigation.reload}
-                    navigation={navigation}
-                />
+                <TimelineReorder.Provider
+                    value={
+                        navigation.data.canManage
+                            ? navigation.data.reorder
+                            : undefined
+                    }
+                >
+                    <ReorderScope
+                        sources={
+                            navigation.data.canManage
+                                ? (navigation.data.reorder?.sources ?? [])
+                                : []
+                        }
+                        targets={navigation.data.reorder?.targets ?? []}
+                        disabled={
+                            navigation.pending ||
+                            !!navigation.data.editor ||
+                            !navigation.data.canManage
+                        }
+                        onMove={({ itemId, targetId }) =>
+                            navigation.prepareMove(itemId, targetId)
+                        }
+                    >
+                        <ScheduleContent
+                            {...navigation.data}
+                            onNavigate={navigation.navigate}
+                            onReload={navigation.reload}
+                            navigation={navigation}
+                        />
+                    </ReorderScope>
+                </TimelineReorder.Provider>
             </div>
         </BusyControlScope>
     );

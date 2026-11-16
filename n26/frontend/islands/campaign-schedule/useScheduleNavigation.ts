@@ -5,7 +5,7 @@ import {
     useState,
     type MouseEvent,
 } from "react";
-import { isPageEditor, type ScheduleProps } from "./types";
+import { isPageEditor, type ScheduleProps, type DropIntent } from "./types";
 import type { AlertTone } from "../../ui";
 
 function readNotices(value: unknown) {
@@ -46,6 +46,17 @@ function scheduleData(value: unknown): value is ScheduleProps {
     );
 }
 
+function moveHandle(source: string) {
+    const row = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-reorder-source]"),
+    ).find((node) => node.dataset.reorderSource === source);
+    return Array.from(
+        row?.querySelectorAll<HTMLButtonElement>(
+            "button[aria-label^='Move ']",
+        ) ?? [],
+    ).find((button) => button.closest("[data-reorder-source]") === row);
+}
+
 type ScrollPosition = { left: number; top: number };
 
 function viewport(): ScrollPosition {
@@ -83,6 +94,8 @@ export function useScheduleNavigation(initial: ScheduleProps) {
     const retryTarget = useRef(window.location.href);
     const retryHistory = useRef<"push" | "none">("push");
     const retryScroll = useRef<ScrollPosition | undefined>(undefined);
+    const retryDrop = useRef<DropIntent | undefined>(undefined);
+    const focusSource = useRef<string | null>(null);
     const scrollPositions = useRef(new Map<number, ScrollPosition>());
 
     const inSchedule = useCallback(
@@ -96,7 +109,9 @@ export function useScheduleNavigation(initial: ScheduleProps) {
             href: string,
             history: "push" | "none" = "push",
             restoreScroll?: ScrollPosition,
+            drop?: DropIntent,
         ) => {
+            retryDrop.current = drop;
             const url = new URL(href, window.location.href);
             if (!inSchedule(url)) {
                 (
@@ -222,7 +237,30 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                         (page.current && result.schedule.editor === null));
                 remember();
                 page.current = pageEditor(result.schedule);
-                setData(result.schedule);
+                let prepared = result.schedule;
+                const editor = prepared.editor;
+                if (
+                    drop &&
+                    editor?.kind ===
+                        (drop.sourceId.startsWith("phase:")
+                            ? "move-phase"
+                            : "move-cycle")
+                ) {
+                    prepared = {
+                        ...prepared,
+                        editor: {
+                            ...editor,
+                            dropIntent: {
+                                ...drop,
+                                stale:
+                                    Number(editor.values.expected_revision) !==
+                                    drop.revision,
+                            },
+                        },
+                    };
+                }
+                retryDrop.current = undefined;
+                setData(prepared);
                 if (restoreScroll) setScrollTarget({ ...restoreScroll });
                 else if (movesPage) setScrollTarget({ left: 0, top: 0 });
                 setNotices(
@@ -278,6 +316,8 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                     );
                 return;
             }
+            retryDrop.current = undefined;
+            focusSource.current = null;
             const previous = new URL(current.current);
             const next = new URL(window.location.href);
             const ownEntry = target?.scope === scope.current;
@@ -320,6 +360,14 @@ export function useScheduleNavigation(initial: ScheduleProps) {
         const target =
             window.location.hash.slice(1) ||
             (data.focusId ? `cycle-${data.focusId}` : "");
+        if (!data.editor && focusSource.current) {
+            const source = focusSource.current;
+            focusSource.current = null;
+            const frame = window.requestAnimationFrame(() => {
+                moveHandle(source)?.focus();
+            });
+            return () => window.cancelAnimationFrame(frame);
+        }
         if (!data.editor && target) {
             try {
                 document
@@ -355,7 +403,10 @@ export function useScheduleNavigation(initial: ScheduleProps) {
         const url = new URL(link.href);
         if (!inSchedule(url)) return;
         event.preventDefault();
-        if (!guarded.current) void load(url.href);
+        if (!guarded.current) {
+            focusSource.current = null;
+            void load(url.href);
+        }
     }
     const setGuard = useCallback((value: boolean) => {
         guarded.current = value;
@@ -368,6 +419,31 @@ export function useScheduleNavigation(initial: ScheduleProps) {
         notices,
         onClick,
         setGuard,
+        prepareMove: (itemId: string, targetId: string) => {
+            if (pending || data.editor || guarded.current || !data.canManage)
+                return;
+            const source = data.reorder?.sources.find(
+                (item) => item.id === itemId,
+            );
+            const target = data.reorder?.targets.find(
+                (item) => item.id === targetId,
+            );
+            if (!source || !target || !source.targets.includes(targetId))
+                return;
+            focusSource.current = source.id;
+            interaction.current = moveHandle(source.id)?.dataset.busyId ?? null;
+            void load(source.moveHref, "push", undefined, {
+                sourceId: source.id,
+                revision: data.reorder!.revision,
+                destination:
+                    target.kind === "phase"
+                        ? { after_occurrence_id: target.afterId ?? "" }
+                        : {
+                              occurrence_id: target.occurrenceId!,
+                              after_cycle_id: target.afterId ?? "",
+                          },
+            });
+        },
         navigate: useCallback(
             (url: string) => {
                 void load(url);
@@ -375,6 +451,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
             [load],
         ),
         reload: useCallback(() => {
+            focusSource.current = null;
             void load(window.location.href, "none");
         }, [load]),
         retry: useCallback(() => {
@@ -382,6 +459,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 retryTarget.current,
                 retryHistory.current,
                 retryScroll.current,
+                retryDrop.current,
             );
         }, [load]),
     };
