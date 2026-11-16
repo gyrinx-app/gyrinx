@@ -325,6 +325,21 @@ def with_cycle_activity(queryset):
     )
 
 
+def continuation_sources(campaign, occurrence_id):
+    """Load genuine generated groups belonging to one phase block, including history."""
+    return {
+        (str(plan_id), repetition, step)
+        for plan_id, repetition, step in CampaignCycle.objects.filter(
+            campaign=campaign,
+            phase_occurrence_id=occurrence_id,
+            source_plan__isnull=False,
+        )
+        .exclude(customized_fields__contains=["occurrence_id"])
+        .values_list("source_plan_id", "repetition", "source_step")
+        .distinct()
+    }
+
+
 def calendar_for_timeline(campaign, data, *, saved_count):
     legacy = isinstance(data, dict) and data and "position_offset" not in data
     recorded_count = (

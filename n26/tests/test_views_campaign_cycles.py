@@ -1953,3 +1953,74 @@ def test_long_repeating_pattern_summary_names_definitions_beyond_the_preview(
         (pattern["phaseNames"][step["phase_id"]], step["count"])
         for step in pattern["steps"]
     ] == [("Occupation", 40), ("Downtime", 1), ("Takeover", 3)]
+
+
+@pytest.mark.parametrize("configured", ["repeating"], indirect=True)
+@pytest.mark.parametrize("adjacent_same_phase", [False, True])
+@pytest.mark.parametrize("legacy_pointer", [False, True])
+def test_dashboard_counts_occurrence_boundaries_when_pattern_rules_repeat(
+    campaign, configured, adjacent_same_phase, legacy_pointer
+):
+    opening = configured.plan.steps[0]
+    steps = (replace(opening, count=3),)
+    if adjacent_same_phase:
+        steps += (s.PlanStep("second-block", opening.phase_id, 2),)
+    cycles.replace_plan(
+        campaign,
+        actor=campaign.owner,
+        steps=steps,
+        mode="repeating",
+        expected_revision=configured.revision,
+        request_key=uuid4(),
+    )
+    state = cycles.load(campaign)
+    cycles.plan_cycles(
+        campaign,
+        actor=campaign.owner,
+        count=2,
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    state = cycles.load(campaign)
+    cycles.start(
+        campaign,
+        actor=campaign.owner,
+        expected_current=state.current_cycle_id,
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    for _ in range(2):
+        state = cycles.load(campaign)
+        cycles.advance(
+            campaign,
+            actor=campaign.owner,
+            expected_current=state.current_cycle_id,
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+    if legacy_pointer:
+        CampaignSchedule.objects.filter(campaign=campaign).update(
+            continuation_occurrence=None
+        )
+    summary = dashboard_summary(campaign, campaign.owner)
+    assert (summary.order, summary.phase_position, summary.phase_count) == (3, 3, 3)
+    assert (summary.next_phase, summary.cycles_until_phase) == ("Occupation", 1)
+    rows = build(campaign, campaign.owner).rows
+    assert rows[3].occurrenceId != rows[2].occurrenceId
+    assert rows[3].phaseId == rows[2].phaseId
+
+
+@pytest.mark.parametrize("configured", ["repeating"], indirect=True)
+def test_dashboard_legacy_continuation_pointer_still_counts_the_current_remainder(
+    campaign, configured
+):
+    CampaignSchedule.objects.filter(campaign=campaign).update(
+        continuation_occurrence=None
+    )
+    summary = dashboard_summary(campaign, campaign.owner)
+    assert (
+        summary.phase_position,
+        summary.phase_count,
+        summary.cycles_until_phase,
+    ) == (1, 3, 3)
+    assert summary.next_phase == "Downtime"

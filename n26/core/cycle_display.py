@@ -11,7 +11,11 @@ from django.urls import reverse
 
 from n26.core import schedule as s
 from n26.core.cycle_data import steps_from_data
-from n26.core.cycles import calendar_for_timeline, with_cycle_activity
+from n26.core.cycles import (
+    calendar_for_timeline,
+    continuation_sources,
+    with_cycle_activity,
+)
 from n26.core.models import (
     Campaign,
     CampaignCycle,
@@ -168,33 +172,40 @@ def dashboard_summary(campaign, user):
         boundary = header.following_phase_order
         next_phase = header.following_phase_name or ""
         if boundary is None:
-            phase_id = str(current.phase_id)
             occurrence = current.phase_occurrence
+            continues = False
             if (
                 projected
                 and occurrence is not None
-                and header.continuation_occurrence_id == occurrence.pk
+                and occurrence.continues_pattern
                 and not CampaignPhaseOccurrence.objects.filter(
                     campaign=campaign, archived=False, position__gt=occurrence.position
                 ).exists()
-                and s._can_continue_occurrence(
+            ):
+                continues = s._can_continue_occurrence(
                     plan=plan,
                     next_position=header.next_position,
                     occurrence=s.PhaseOccurrence(
                         str(occurrence.pk),
-                        phase_id,
+                        str(occurrence.phase_id),
                         occurrence.position,
                         continues_pattern=occurrence.continues_pattern,
                     ),
-                    continuation_occurrence_id=str(header.continuation_occurrence_id),
-                    source_blocks=(),
+                    continuation_occurrence_id=str(header.continuation_occurrence_id)
+                    if header.continuation_occurrence_id
+                    else None,
+                    source_blocks=continuation_sources(campaign, occurrence.pk),
                     source=projected[0].source,
                 )
-            ):
-                phase_id = projected[0].phase_id
-            boundary, next_id = _phase_end(
-                plan, header.next_position, phase_id, saved_count=saved_count
-            )
+            if projected and not continues:
+                boundary, next_id = projected[0].order, projected[0].phase_id
+            else:
+                boundary, next_id = _phase_end(
+                    plan,
+                    header.next_position,
+                    projected[0].phase_id if projected else str(current.phase_id),
+                    saved_count=saved_count,
+                )
             if next_id:
                 next_phase = (
                     CampaignPhase.objects.filter(campaign=campaign, pk=next_id)
@@ -512,17 +523,7 @@ def _build_locked(campaign, user, *, page, preview, focus):
     last_occurrence = occurrences[-1] if occurrences else None
     source_blocks = set()
     if last_occurrence is not None and last_occurrence.continues_pattern:
-        source_blocks = {
-            (str(plan_id), repetition, step)
-            for plan_id, repetition, step in CampaignCycle.objects.filter(
-                campaign=campaign,
-                phase_occurrence_id=last_occurrence.pk,
-                source_plan__isnull=False,
-            )
-            .exclude(customized_fields__contains=["occurrence_id"])
-            .values_list("source_plan_id", "repetition", "source_step")
-            .distinct()
-        }
+        source_blocks = continuation_sources(campaign, last_occurrence.pk)
 
     if metadata is not None and last_occurrence is not None:
         source_blocks = {

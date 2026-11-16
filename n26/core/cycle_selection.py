@@ -55,7 +55,11 @@ def options(campaign, *, page=None, selected=None):
                 "previous": None,
                 "next": None,
             }
-        from n26.core.cycles import MAX_PREFIX, calendar_for_timeline
+        from n26.core.cycles import (
+            MAX_PREFIX,
+            calendar_for_timeline,
+            continuation_sources,
+        )
 
         current = header.current_cycle
         current_raw_order = current.order if current else 0
@@ -201,17 +205,7 @@ def options(campaign, *, page=None, selected=None):
         )
         source_blocks = set()
         if tail is not None and tail.continues_pattern:
-            source_blocks = {
-                (str(plan_id), repetition, step)
-                for plan_id, repetition, step in CampaignCycle.objects.filter(
-                    campaign=campaign,
-                    phase_occurrence=tail,
-                    source_plan__isnull=False,
-                )
-                .exclude(customized_fields__contains=["occurrence_id"])
-                .values_list("source_plan_id", "repetition", "source_step")
-                .distinct()
-            }
+            source_blocks = continuation_sources(campaign, tail.pk)
         start = header.next_position + max(0, anchor - saved_count - 2)
         limit = min(12, last_position - start)
         if limit > 0:
