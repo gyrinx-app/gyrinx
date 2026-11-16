@@ -46,25 +46,31 @@ export function PlanSteps({
     } catch {
         /* Keep the original hidden payload for server validation and exact retries. */
     }
+    const identitiesValid =
+        steps.every((step) => !!step.id.trim()) &&
+        new Set(steps.map((step) => step.id)).size === steps.length;
     const targets = [
         ...steps.map((step, index) => ({
-            id: "before-" + step.id,
+            id: "before-" + (identitiesValid ? step.id : index),
             label: "Before step " + (index + 1),
         })),
         { id: "steps-end", label: "After the last step" },
     ];
-    const sources = steps.map((step, index) => ({
-        id: step.id,
-        label: "step " + (index + 1),
-        origin: targets[index].id,
-        targets: targets
-            .filter(
-                (_, boundary) => boundary !== index && boundary !== index + 1,
-            )
-            .map((target) => target.id),
-    }));
+    const sources = identitiesValid
+        ? steps.map((step, index) => ({
+              id: step.id,
+              label: "step " + (index + 1),
+              origin: targets[index].id,
+              targets: targets
+                  .filter(
+                      (_, boundary) =>
+                          boundary !== index && boundary !== index + 1,
+                  )
+                  .map((target) => target.id),
+          }))
+        : [];
     function moveToBoundary(itemId: string, targetId: string) {
-        if (disabled) return;
+        if (disabled || !identitiesValid) return;
         const source = sources.find((item) => item.id === itemId);
         if (!source?.targets.includes(targetId)) return;
         const boundary = targets.findIndex((target) => target.id === targetId);
@@ -113,7 +119,14 @@ export function PlanSteps({
                     </thead>
                     <tbody className="max-sm:block">
                         {steps.map((step, index) => (
-                            <ReorderItem key={step.id} id={step.id}>
+                            <ReorderItem
+                                key={identitiesValid ? step.id : index}
+                                id={
+                                    identitiesValid
+                                        ? step.id
+                                        : "invalid-step-" + index
+                                }
+                            >
                                 {({ ref, handle, active }) => (
                                     <tr
                                         ref={ref}

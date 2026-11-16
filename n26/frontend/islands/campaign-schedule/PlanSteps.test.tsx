@@ -140,6 +140,31 @@ describe("Pattern step reordering", () => {
             expect(input.hasAttribute("disabled")).toBe(true);
     });
 
+    it.each([
+        ["duplicate", "duplicate", "third"],
+        ["", "second", "third"],
+        ["   ", "second", "third"],
+    ])(
+        "preserves malformed identities %j without offering ID-based moves",
+        (...ids) => {
+            const initial = steps.map((step, index) => ({
+                ...step,
+                id: ids[index],
+            }));
+            const { changed } = setup(initial);
+            expect(
+                screen.queryByRole("button", { name: /^Move step [0-9]+$/ }),
+            ).toBeNull();
+            expect(saved()).toEqual(initial);
+            expect(changed).not.toHaveBeenCalled();
+            fireEvent.click(
+                screen.getByRole("button", { name: "Move step 2 earlier" }),
+            );
+            expect(saved()).toEqual([initial[1], initial[0], initial[2]]);
+            expect(saved()).toHaveLength(initial.length);
+        },
+    );
+
     it("keeps table rows valid and leaves native row dragging disabled", () => {
         const { container } = setup();
         const body = container.querySelector("tbody")!;
