@@ -93,7 +93,7 @@ function CycleRow({
 }) {
     const projected = original.state === "Projected";
     const cycle =
-        canManage && !projected
+        canManage && (!projected || original.editablePreview)
             ? original
             : {
                   ...original,
@@ -333,7 +333,9 @@ function PhaseGroup({
         },
     ];
     const available = actions.filter((action) => action.href);
-    const continuation = (
+    const continuation = projected.some(
+        (cycle) => cycle.editablePreview,
+    ) ? null : (
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted">
             <p>
                 Generated repeat continuation. Added cycles move this preview
@@ -444,7 +446,7 @@ function PhaseGroup({
                 <CycleTable
                     cycles={projected}
                     name={`${phase.name} generated`}
-                    canManage={false}
+                    canManage={canManage}
                 />
             )}
         </section>

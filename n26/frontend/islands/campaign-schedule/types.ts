@@ -43,6 +43,7 @@ export type Cycle = {
     order: number;
     phaseId: string;
     occurrenceId?: string;
+    editablePreview?: boolean;
     duplicateHref?: string;
     moveHref?: string;
     phaseName: string;

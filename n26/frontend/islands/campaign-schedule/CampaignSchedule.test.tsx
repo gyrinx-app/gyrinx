@@ -540,3 +540,62 @@ test("long repeating patterns name every step even when the preview only reaches
         screen.queryByRole("region", { name: "Phase 2: Downtime" }),
     ).toBeNull();
 });
+
+test.each([true, false])(
+    "fixed planned previews expose only supplied edit links to managers (canManage=%s)",
+    (canManage) => {
+        const value = timeline();
+        value.canManage = canManage;
+        value.plan!.mode = "fixed";
+        value.phases = [value.phases[0], value.phases[3]];
+        value.rows = [
+            value.rows[0],
+            {
+                ...value.rows[3],
+                editablePreview: true,
+                editHref: "/cycles/edit/cycle/?plan=active&position=3",
+            },
+        ];
+        render(<CampaignSchedule {...value} />);
+        const preview = within(
+            screen.getByRole("region", { name: "Phase 4: Takeover" }),
+        );
+        const edit = preview.queryByRole("link", { name: "Edit Cycle 4" });
+        const dates = preview.queryAllByRole("link", {
+            name: /^Edit dates for Cycle 4:/,
+        });
+        if (canManage) {
+            expect(edit?.getAttribute("href")).toBe(
+                "/cycles/edit/cycle/?plan=active&position=3",
+            );
+            expect(dates.length).toBeGreaterThan(0);
+            for (const link of dates)
+                expect(link.getAttribute("href")).toBe(
+                    "/cycles/edit/cycle/?plan=active&position=3&fields=dates",
+                );
+        } else {
+            expect(edit).toBeNull();
+            expect(dates).toHaveLength(0);
+        }
+        expect(
+            preview.queryByRole("button", { name: /More actions/ }),
+        ).toBeNull();
+        expect(screen.queryByText(/Generated repeat continuation/)).toBeNull();
+    },
+);
+
+test("repeating previews remain read-only even with supplied authoring URLs", () => {
+    const value = timeline();
+    value.rows[3] = {
+        ...value.rows[3],
+        moveHref: "/move-preview/",
+        duplicateHref: "/duplicate-preview/",
+        deleteHref: "/delete-preview/",
+    };
+    render(<CampaignSchedule {...value} />);
+    const preview = within(
+        screen.getByRole("region", { name: "Phase 4: Takeover" }),
+    );
+    expect(preview.queryByRole("link")).toBeNull();
+    expect(preview.queryByRole("button")).toBeNull();
+});

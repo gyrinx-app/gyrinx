@@ -273,6 +273,7 @@ class CycleLine:
     occurrenceId: str = ""
     moveHref: str = ""
     duplicateHref: str = ""
+    editablePreview: bool = False
 
 
 @dataclass(frozen=True)
@@ -579,9 +580,17 @@ def _build_locked(campaign, user, *, page, preview, focus):
                     cycle.ends_on.isoformat() if cycle.ends_on else "",
                     "",
                     "",
-                    "",
+                    editor_url(
+                        campaign,
+                        "cycle",
+                        plan=plan.id,
+                        position=cycle.source.position.index,
+                    )
+                    if manage and plan.mode == "fixed"
+                    else "",
                     "",
                     occurrenceId=block_id,
+                    editablePreview=plan.mode == "fixed",
                 )
             )
     phase_display = []
@@ -671,9 +680,7 @@ def _build_locked(campaign, user, *, page, preview, focus):
             "Start cycle" if saved.count > 0 else "Start first cycle"
         )
     elif campaign.status == "in_progress" and current is not None:
-        has_following = CampaignCycle.objects.filter(
-            campaign=campaign, archived=False, order__gt=current.order
-        ).exists() or bool(projected)
+        has_following = saved.count > current_order or bool(projected)
         action = "advance" if has_following else "finish"
         actions["transition"] = editor_url(campaign, action)
         actions["transitionLabel"] = (
