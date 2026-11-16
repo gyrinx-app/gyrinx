@@ -272,6 +272,32 @@ test("only eligible saved rows and blocks have handles; boundaries are unique an
     expect(screen.getByRole("link", { name: "Edit Cycle 2" })).toBeTruthy();
 });
 
+test("an empty saved phase keeps its visible start gap when it contains generated previews", () => {
+    const data = overview();
+    data.rows = data.rows.map((row) =>
+        row.state === "Projected" ? { ...row, occurrenceId: "empty" } : row,
+    );
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const { container } = render(<CampaignSchedule {...data} />);
+    const boundary = container.querySelector(
+        '[data-reorder-target="cycle-start:empty"]',
+    );
+    expect(boundary).not.toBeNull();
+    expect(
+        boundary!.compareDocumentPosition(
+            container.querySelector("#cycle-ghost")!,
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.queryByText("No cycles in this phase.")).toBeNull();
+    const handle = lift();
+    fireEvent.keyDown(handle, { key: "End" });
+    expect(boundary!.getAttribute("data-reorder-active")).toBe("true");
+    expect(screen.queryByRole("button", { name: "Move Cycle 3" })).toBeNull();
+    fireEvent.keyDown(handle, { key: "Escape" });
+    expect(fetch).not.toHaveBeenCalled();
+});
+
 test("read-only pages never expose drag handles", () => {
     render(<CampaignSchedule {...overview()} canManage={false} />);
     expect(screen.queryByRole("button", { name: /^Move / })).toBeNull();

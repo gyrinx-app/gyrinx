@@ -500,17 +500,23 @@ function PhaseGroup({
                             canManage={editable}
                         />
                     )}
-                    {!concrete.length &&
-                        !phase.generated &&
-                        !projected.length && (
-                            <div className="px-1 py-2 text-sm text-muted">
-                                <DropGap
-                                    id={`cycle-start:${phase.id}`}
-                                    align="start"
-                                />
+                    {!concrete.length && !phase.generated && (
+                        <div
+                            className={
+                                projected.length
+                                    ? "px-1"
+                                    : "px-1 py-2 text-sm text-muted"
+                            }
+                        >
+                            <DropGap
+                                id={`cycle-start:${phase.id}`}
+                                align="start"
+                            />
+                            {!projected.length && (
                                 <p>No cycles in this phase.</p>
-                            </div>
-                        )}
+                            )}
+                        </div>
+                    )}
                     {editable && (phase.addCycleHref || phase.addPhaseHref) && (
                         <div className="flex flex-wrap gap-2">
                             {phase.addCycleHref && (
