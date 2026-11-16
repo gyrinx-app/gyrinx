@@ -1,0 +1,20 @@
+{% extends "designsystem/page.html" %}
+{% block page_content %}
+    <div class="space-y-6">
+        {% include "designsystem/reorder_example.html" %}
+        <details class="rounded-box border border-box-border bg-surface p-4">
+            <summary class="cursor-pointer text-sm font-medium">Source</summary>
+            <div class="mt-4 space-y-3">
+                <p class="text-sm text-muted">These files render the example above. Keep entry IDs stable, provide only allowed insertion boundaries, and update your data in onMove.</p>
+                <h2 class="text-sm font-medium">Example component</h2>
+                <pre class="overflow-x-auto rounded-box border border-box-border p-3 text-xs"><code>{{ component_source }}</code></pre>
+                <h2 class="text-sm font-medium">Shared reorder adapter</h2>
+                <pre class="overflow-x-auto rounded-box border border-box-border p-3 text-xs"><code>{{ adapter_source }}</code></pre>
+                <h2 class="text-sm font-medium">React entry</h2>
+                <pre class="overflow-x-auto rounded-box border border-box-border p-3 text-xs"><code>{{ entry_source }}</code></pre>
+                <h2 class="text-sm font-medium">Django template</h2>
+                <pre class="overflow-x-auto rounded-box border border-box-border p-3 text-xs"><code>{{ template_source }}</code></pre>
+            </div>
+        </details>
+    </div>
+{% endblock %}

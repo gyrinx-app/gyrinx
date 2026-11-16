@@ -1,7 +1,10 @@
 {% extends "designsystem/page.html" %}
 {% block page_content %}
     <div class="space-y-8">
-        <p class="text-sm"><c-n26.link href="{% url 'designsystem:react_model_preview' %}">Compare model previews</c-n26.link></p>
+        <div class="flex flex-wrap gap-4 text-sm">
+            <c-n26.link href="{% url 'designsystem:react_model_preview' %}">Compare model previews</c-n26.link>
+            <c-n26.link href="{% url 'designsystem:reorder' %}">Reorder groups and rows</c-n26.link>
+        </div>
         <section class="space-y-3" aria-labelledby="cotton-heading">
             <h2 id="cotton-heading" class="text-lg font-semibold">Cotton reference</h2>
             <p class="text-sm text-muted">A static table of sample content. Its links open the weapons authoring page.</p>

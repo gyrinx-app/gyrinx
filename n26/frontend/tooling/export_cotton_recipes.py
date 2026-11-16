@@ -2338,6 +2338,7 @@ def recipes():
                 "chevron-right",
                 "users",
                 "ellipsis-vertical",
+                "grip-vertical",
                 "info",
                 "check",
                 "check-check",

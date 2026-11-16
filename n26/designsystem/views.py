@@ -205,6 +205,29 @@ def react_demo(request):
 
 
 @staff_member_required
+def reorder_demo(request):
+    """Render local-state reorder examples and their actual source for staff."""
+    directory = Path(__file__).resolve().parent
+    frontend = directory.parent / "frontend"
+    return render(
+        request,
+        "designsystem/reorder.html",
+        _base_context("reorder")
+        | {
+            "demo": {},
+            "component_source": (
+                frontend / "islands/reorder-demo/ReorderDemo.tsx"
+            ).read_text(),
+            "adapter_source": (frontend / "ui/reorder/Reorder.tsx").read_text(),
+            "entry_source": (frontend / "islands/reorder-demo/entry.tsx").read_text(),
+            "template_source": (
+                directory / "templates/designsystem/reorder_example.html"
+            ).read_text(),
+        },
+    )
+
+
+@staff_member_required
 def react_model_preview(request):
     """Compare the two preview renderers using the same database-free cards."""
     from dataclasses import replace

@@ -44,8 +44,10 @@ at the root instead of copying them.
 - `http` is for session credentials, CSRF and response/error handling. It must
   not depend on feature props, Django routes or domain calculations. Use
   `command.ts` for the shared request and field-error envelope.
-- `ui` is the public design-system adapter boundary. Islands import from
-  `../../ui`, not from `generated` or an adapter's internal file.
+- `ui` is the public design-system adapter boundary. Islands import core
+  primitives from `../../ui`, not from `generated` or an adapter's internal file.
+  Reordering uses the optional public entry `../../ui/reorder`; keep its drag
+  dependencies out of the core barrel so ordinary islands do not download them.
 - `runtime` mounts React islands. It must not depend on feature props,
   Django routes, or design-system components.
 - `tooling` may read Django and Cotton at build time. Browser code must never

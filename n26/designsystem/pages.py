@@ -31,6 +31,11 @@ PAGES = {
         "React islands",
         "Compare the same content rendered with Cotton and React.",
     ),
+    "reorder": GalleryPage(
+        "Reordering",
+        "Drag and drop",
+        "Move groups and table rows with handles or the keyboard.",
+    ),
     "print_lab": GalleryPage(
         "Print lab",
         "Print lab",
