@@ -64,7 +64,6 @@ test.each(["pattern", "setup"] as const)(
         );
         const handle = screen.getByRole("button", {
             name: "Move step 1",
-            exact: true,
         });
         handle.focus();
         fireEvent.keyDown(handle, { key: " " });
