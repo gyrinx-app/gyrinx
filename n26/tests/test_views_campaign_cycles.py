@@ -1873,3 +1873,48 @@ def test_dashboard_fixed_endpoint_uses_arranged_count_after_future_removal(
     )
     summary = dashboard_summary(campaign, campaign.owner)
     assert (summary.cycle_limit, summary.phase_count) == (6, 3)
+
+
+@pytest.mark.parametrize("configured", ["repeating"], indirect=True)
+def test_dashboard_continues_the_edited_phase_block_until_the_next_recipe_step(
+    campaign, configured
+):
+    cycles.plan_cycles(
+        campaign,
+        actor=campaign.owner,
+        count=1,
+        expected_revision=configured.revision,
+        request_key=uuid4(),
+    )
+    state = cycles.load(campaign)
+    original = state.occurrences[0]
+    phase = next(p for p in state.phases if p.id == original.phase_id)
+    cycles.author_timeline(
+        campaign,
+        actor=campaign.owner,
+        action="edit_occurrence",
+        occurrence_id=original.id,
+        details=replace(phase.details, name="Revised occupation"),
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    state = cycles.load(campaign)
+    cycles.start(
+        campaign,
+        actor=campaign.owner,
+        expected_current=state.current_cycle_id,
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    state = cycles.load(campaign)
+    cycles.advance(
+        campaign,
+        actor=campaign.owner,
+        expected_current=state.current_cycle_id,
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    summary = dashboard_summary(campaign, campaign.owner)
+    assert summary.phase == "Revised occupation"
+    assert (summary.phase_position, summary.phase_count) == (1, 2)
+    assert (summary.next_phase, summary.cycles_until_phase) == ("Downtime", 2)

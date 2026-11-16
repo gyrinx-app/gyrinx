@@ -98,7 +98,9 @@ def dashboard_summary(campaign, user):
     )
     header = (
         CampaignSchedule.objects.filter(campaign=campaign)
-        .select_related("active_plan", "current_cycle__phase")
+        .select_related(
+            "active_plan", "current_cycle__phase", "current_cycle__phase_occurrence"
+        )
         .annotate(
             previous_phase_order=Subquery(before.values("order")[:1]),
             following_phase_order=Subquery(after.values("order")[:1]),
@@ -166,11 +168,32 @@ def dashboard_summary(campaign, user):
         boundary = header.following_phase_order
         next_phase = header.following_phase_name or ""
         if boundary is None:
+            phase_id = str(current.phase_id)
+            occurrence = current.phase_occurrence
+            if (
+                projected
+                and occurrence is not None
+                and header.continuation_occurrence_id == occurrence.pk
+                and not CampaignPhaseOccurrence.objects.filter(
+                    campaign=campaign, archived=False, position__gt=occurrence.position
+                ).exists()
+                and s._can_continue_occurrence(
+                    plan=plan,
+                    next_position=header.next_position,
+                    occurrence=s.PhaseOccurrence(
+                        str(occurrence.pk),
+                        phase_id,
+                        occurrence.position,
+                        continues_pattern=occurrence.continues_pattern,
+                    ),
+                    continuation_occurrence_id=str(header.continuation_occurrence_id),
+                    source_blocks=(),
+                    source=projected[0].source,
+                )
+            ):
+                phase_id = projected[0].phase_id
             boundary, next_id = _phase_end(
-                plan,
-                header.next_position,
-                str(current.phase_id),
-                saved_count=saved_count,
+                plan, header.next_position, phase_id, saved_count=saved_count
             )
             if next_id:
                 next_phase = (
