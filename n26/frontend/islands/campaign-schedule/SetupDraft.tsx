@@ -49,17 +49,21 @@ export function SetupDraft({
     review,
     cyclesOptions,
     mode,
+    disabled = false,
 }: {
     value: string;
     onChange: (value: string) => void;
     review: boolean;
     cyclesOptions?: ReactNode;
     mode?: string;
+    disabled?: boolean;
 }) {
     const draft = setupDraft(value);
     const [editing, setEditing] = useState<string | null>(null);
     if (!draft) return <p>Add phases and steps to your schedule.</p>;
-    const save = (next: SetupDefinition) => onChange(JSON.stringify(next));
+    const save = (next: SetupDefinition) => {
+        if (!disabled) onChange(JSON.stringify(next));
+    };
     const update = (
         id: string,
         details: Partial<SetupDefinition["phases"][number]["details"]>,
@@ -310,7 +314,7 @@ export function SetupDraft({
                         <PlanSteps
                             value={JSON.stringify(draft.steps)}
                             phases={phases}
-                            disabled={false}
+                            disabled={disabled}
                             onChange={(steps) =>
                                 save({ ...draft, steps: JSON.parse(steps) })
                             }
