@@ -2,8 +2,7 @@
 
 import json
 from collections import Counter
-from dataclasses import asdict, dataclass
-from datetime import timedelta
+from dataclasses import asdict, dataclass, replace
 from urllib.parse import urlencode
 from uuid import uuid4
 
@@ -53,12 +52,26 @@ FIELDS = {
         "effects",
         "shift_later",
     ),
+    "add-cycle": (
+        "occurrence_id",
+        "after_cycle_id",
+        "custom_name",
+        "starts_on",
+        "ends_on",
+        "description",
+        "effects",
+    ),
+    "move-cycle": ("cycle_id", "occurrence_id", "after_cycle_id"),
+    "duplicate-cycle": ("cycle_id", "occurrence_id", "after_cycle_id", "clear_dates"),
+    "move-phase": ("occurrence_id", "after_occurrence_id"),
     "phase": ("phase_id", "name", "description", "effects", "rewards"),
-    "add-phase": ("name", "description", "effects", "rewards"),
-    "duplicate-phase": ("phase_id", "name"),
+    "add-phase": ("name", "description", "effects", "rewards", "after_occurrence_id"),
+    "duplicate-phase": ("phase_id", "name", "after_occurrence_id", "clear_dates"),
     "delete-phase": ("phase_id", "current_choice"),
     "delete-cycle": ("target", "current_choice"),
     "plan": ("mode", "steps", *DATE_FIELDS),
+    "pattern": ("steps",),
+    "plan-cycles": ("pattern_count",),
     "start": ("expected_current", "start_target"),
     "advance": ("expected_current",),
     "finish": ("expected_current",),
@@ -68,12 +81,18 @@ HEADINGS = {
     "save-template": "Confirm earlier template save",
     "setup": "Set up campaign phases & cycles",
     "cycle": "Edit cycle",
+    "add-cycle": "Add cycle",
+    "move-cycle": "Move cycle",
+    "duplicate-cycle": "Duplicate cycle",
+    "move-phase": "Move phase",
     "phase": "Edit phase",
     "add-phase": "Add phase",
     "duplicate-phase": "Duplicate phase",
     "delete-phase": "Delete phase",
     "delete-cycle": "Delete cycle",
     "plan": "Settings",
+    "pattern": "Edit repeating pattern",
+    "plan-cycles": "Add cycles from pattern",
     "start": "Start campaign",
     "advance": "Advance cycle",
     "finish": "Finish campaign",
@@ -90,6 +109,12 @@ class CycleEditorForm(forms.Form):
     no_current = forms.BooleanField(required=False)
     target = StructuredJSONField()
     phase_id = forms.CharField(max_length=26)
+    occurrence_id = forms.CharField(max_length=26)
+    cycle_id = forms.CharField(max_length=26)
+    after_cycle_id = forms.CharField(max_length=26, required=False)
+    after_occurrence_id = forms.CharField(max_length=26, required=False)
+    clear_dates = forms.BooleanField(required=False)
+    pattern_count = forms.IntegerField(min_value=1, max_value=1000)
     name = forms.CharField(max_length=200)
     custom_name = forms.CharField(max_length=200, required=False)
     starts_on = forms.DateField(required=False)
@@ -158,6 +183,17 @@ class CycleEditorForm(forms.Form):
             self.add_error(
                 "setup_definition", "Add a phase and a step to your custom schedule."
             )
+        for name in (
+            "occurrence_id",
+            "cycle_id",
+            "after_cycle_id",
+            "after_occurrence_id",
+        ):
+            if values.get(name):
+                try:
+                    to_ulid(values[name])
+                except ValueError:
+                    self.add_error(name, "Choose an entry from this campaign timeline.")
         required = ()
         if self.action in ("setup", "plan"):
             if values.get("date_mode") == "manual":
@@ -182,6 +218,50 @@ class PreparedEditor:
     target: s.CycleRef | None = None
 
 
+def _occurrence(state, identity):
+    active = [o for o in state.occurrences if not o.archived]
+    selected = next((o for o in active if o.id == identity), None)
+    if selected is None:
+        # Earlier links used the definition identity rather than a block identity.
+        matches = [o for o in active if o.phase_id == identity]
+        selected = matches[0] if len(matches) == 1 else None
+    if selected is None:
+        raise Http404("No such phase block")
+    return selected
+
+
+def _timeline_context(state):
+    return [
+        {
+            "id": occurrence.id,
+            "number": occurrence.position,
+            "name": s._phase(state, occurrence.phase_id).details.name,
+            "cycles": [
+                {"id": c.id, "name": c.name, "order": c.order}
+                for c in state.cycles
+                if not c.archived and c.occurrence_id == occurrence.id
+            ],
+        }
+        for occurrence in state.occurrences
+        if not occurrence.archived
+    ]
+
+
+def _used_cycle(state, cycle):
+    return cycle.id in state.protected_cycle_ids or bool(
+        state.current and cycle.order <= state.current.order
+    )
+
+
+def _selected_cycle_context(cycle):
+    return {
+        "id": cycle.id,
+        "name": cycle.name,
+        "order": cycle.order,
+        "occurrenceId": cycle.occurrence_id,
+    }
+
+
 def prepare(campaign, action, query):
     if action not in FIELDS:
         raise Http404("No such schedule action")
@@ -194,6 +274,23 @@ def prepare(campaign, action, query):
     lead = ""
     if state is not None:
         initial["expected_revision"] = state.revision
+        context["timelineOccurrences"] = _timeline_context(state)
+        context["definitionPhases"] = [
+            {
+                "id": phase.id,
+                "phaseId": phase.id,
+                "name": phase.details.name,
+                "description": phase.details.description,
+                "effects": phase.details.effects,
+                "rewards": asdict(phase.details.rewards),
+                "count": 0,
+                "editHref": "",
+                "duplicateHref": "",
+                "deleteHref": "",
+            }
+            for phase in state.phases
+            if not phase.archived
+        ]
         context["currentName"] = (
             state.current.name if state.current else "No current cycle"
         )
@@ -220,6 +317,79 @@ def prepare(campaign, action, query):
         )
         lead = "Choose phases and plan their cycles."
         context["activates"] = campaign.status == "in_progress"
+    elif action == "plan-cycles":
+        if state.plan.mode != "repeating":
+            raise Http404("This schedule has no repeating pattern")
+        upcoming = s.project(replace(state, calendar=None), limit=1)[0]
+        step = next(
+            step for step in state.plan.steps if step.id == upcoming.source.step_id
+        )
+        initial["pattern_count"] = min(
+            cycles.MAX_PREFIX, step.count - upcoming.source.offset
+        )
+        context["firstUpcoming"] = {
+            "name": f"Cycle {sum(not c.archived for c in state.cycles) + 1}",
+            "phase": s._phase(state, upcoming.phase_id).details.name,
+        }
+        lead = "Add upcoming cycles from the repeating pattern to your timeline."
+    elif action == "add-cycle":
+        occurrence = _occurrence(state, query.get("phase"))
+        canonical = {"phase": occurrence.id}
+        children = [
+            c
+            for c in state.cycles
+            if not c.archived and c.occurrence_id == occurrence.id
+        ]
+        initial.update(
+            occurrence_id=occurrence.id,
+            after_cycle_id=children[-1].id if children else "",
+            custom_name="",
+            starts_on="",
+            ends_on="",
+            description="",
+            effects="",
+        )
+        context["definitionPhaseId"] = occurrence.phase_id
+        lead = "Add a cycle to this phase block. Saving does not start it."
+    elif action in ("move-cycle", "duplicate-cycle"):
+        selected = next(
+            (c for c in state.cycles if not c.archived and c.id == query.get("cycle")),
+            None,
+        )
+        if selected is None:
+            raise Http404("No such cycle")
+        canonical = {"cycle": selected.id}
+        context["selectedCycle"] = _selected_cycle_context(selected)
+        siblings = [
+            c
+            for c in state.cycles
+            if not c.archived and c.occurrence_id == selected.occurrence_id
+        ]
+        index = siblings.index(selected)
+        initial.update(
+            cycle_id=selected.id,
+            occurrence_id=selected.occurrence_id,
+            after_cycle_id=selected.id
+            if action == "duplicate-cycle"
+            else siblings[index - 1].id
+            if index
+            else "",
+        )
+        if action == "duplicate-cycle":
+            initial["clear_dates"] = True
+            lead = f"Copy {selected.name}. You can change the copy separately."
+        else:
+            lead = f"Move {selected.name}. Its dates and other settings are kept."
+    elif action == "move-phase":
+        occurrence = _occurrence(state, query.get("phase"))
+        canonical = {"phase": occurrence.id}
+        ordered = [o for o in state.occurrences if not o.archived]
+        index = ordered.index(occurrence)
+        initial.update(
+            occurrence_id=occurrence.id,
+            after_occurrence_id=ordered[index - 1].id if index else "",
+        )
+        lead = "Move this phase block together with its cycles. Existing dates must fit the new position."
     elif action in ("cycle", "delete-cycle"):
         if query.get("fields") not in (None, "dates"):
             raise Http404("No such cycle editor")
@@ -253,6 +423,8 @@ def prepare(campaign, action, query):
                 ends_on=selected.ends_on,
             )
         )
+        if isinstance(selected, s.Cycle):
+            context["selectedCycle"] = _selected_cycle_context(selected)
         initial["shift_later"] = False
         initial.update(asdict(details), target=ref_data(target))
         initial["custom_name"] = details.custom_name or ""
@@ -264,15 +436,7 @@ def prepare(campaign, action, query):
                 "endsOn": details.ends_on.isoformat() if details.ends_on else "",
                 "followingOn": preview.following_on.isoformat(),
             }
-        if preview.creates:
-            first, last = preview.creates[0].order, preview.creates[-1].order
-            lead = f"This edit saves Cycle {first} through Cycle {last}. " + (
-                f"The current cycle remains {state.current.name}."
-                if state.current
-                else "No cycle will be started."
-            )
-        else:
-            lead = f"Editing {selected.name}. Changing dates does not reorder saved cycles."
+        lead = f"Edit the dates and details for {selected.name}."
         if action == "delete-cycle":
             victims = [selected.id] if isinstance(selected, s.Cycle) else []
             _prepare_deletion(campaign, state, initial, context, victims)
@@ -281,64 +445,78 @@ def prepare(campaign, action, query):
             lead = f"Delete {selected.name}."
     elif action == "add-phase":
         initial.update(asdict(s.PhaseDetails("New phase")))
-        lead = "Add a phase, then add its cycles to the schedule."
+        ordered = [o for o in state.occurrences if not o.archived]
+        if "after" in query:
+            after = query["after"]
+            if not any(o.id == after for o in ordered):
+                raise Http404("No such insertion point")
+            canonical = {"after": after}
+            initial["after_occurrence_id"] = after
+        else:
+            initial["after_occurrence_id"] = ordered[-1].id if ordered else ""
+        lead = "Add a phase block, then add its cycles to the timeline."
     elif action in ("phase", "duplicate-phase", "delete-phase"):
-        phase_id = query.get("phase")
-        phase = next(
-            (p for p in state.phases if p.id == phase_id and not p.archived), None
-        )
-        if phase is None:
-            raise Http404("No such phase")
-        canonical = {"phase": phase.id}
-        initial["phase_id"] = phase.id
+        raw_identity = query.get("phase")
+        occurrence = _occurrence(state, raw_identity)
+        phase = s._phase(state, occurrence.phase_id)
+        canonical = {"phase": raw_identity}
+        initial["phase_id"] = raw_identity
+        context["definitionPhaseId"] = phase.id
+        children = [
+            c
+            for c in state.cycles
+            if not c.archived and c.occurrence_id == occurrence.id
+        ]
         if action == "phase":
+            used = [c for c in children if _used_cycle(state, c)]
+            future = [c for c in children if not _used_cycle(state, c)]
+            current_block = next(
+                (
+                    o
+                    for o in state.occurrences
+                    if state.current and o.id == state.current.occurrence_id
+                ),
+                None,
+            )
+            if (used and not future) or (
+                not children
+                and current_block
+                and occurrence.position <= current_block.position
+            ):
+                raise Http404("This phase has no unused future cycles to edit")
             initial.update(asdict(phase.details))
-            lead = "Rewards are stored as settings. Saving them does not give credits or reputation."
+            context["splitOccurrence"] = bool(used)
+            lead = (
+                "Changes apply to the unused future cycles in this phase. Recorded cycles keep their rules."
+                if used
+                else "Rewards are stored as settings. Saving them does not give credits or reputation."
+            )
         elif action == "duplicate-phase":
             initial["name"] = f"{phase.details.name} copy"[:200]
-            lead = "The copy keeps these settings. Existing cycles remain assigned to their phases."
+            ordered = [o for o in state.occurrences if not o.archived]
+            initial["after_occurrence_id"] = ordered[-1].id if ordered else ""
+            initial["clear_dates"] = True
+            lead = "The copy is added after the last phase block, with its own rules and cycles."
         else:
-            victims = [
-                c.id
-                for c in state.cycles
-                if not c.archived and c.details.phase_id == phase.id
-            ]
             _prepare_deletion(
-                campaign, state, initial, context, victims, phase_id=phase.id
+                campaign, state, initial, context, [c.id for c in children]
             )
-            context["futureCount"] = sum(
-                step.count
-                for step in s.editable_steps(state)
-                if step.phase_id == phase.id
-            )
-            context["repeating"] = state.plan.mode == "repeating"
-            lead = f"Delete {phase.details.name} and all its cycles from the campaign schedule, including every future occurrence."
+            context.update(futureCount=0, repeating=False, occurrenceOnly=True)
+            lead = f"Delete this {phase.details.name} phase block and its unused cycles from the campaign schedule."
+    elif action == "pattern":
+        if state.plan.mode != "repeating":
+            raise Http404("This campaign has a fixed plan")
+        initial["steps"] = [asdict(step) for step in state.plan.steps]
+        lead = "Choose the cycle steps to repeat after the cycles on your timeline."
     elif action == "plan":
+        frontier = s.calendar_boundary(state)
         initial.update(
             mode=state.plan.mode,
             steps=[asdict(step) for step in s.editable_steps(state)],
         )
         calendar = state.calendar
-        first_date = ""
-        if calendar:
-            try:
-                first = calendar.dates_for(len(state.cycles) + 1)[0]
-                latest = max(
-                    (
-                        bound
-                        for cycle in state.cycles
-                        if not cycle.archived
-                        for bound in (cycle.details.starts_on, cycle.details.ends_on)
-                        if bound is not None
-                    ),
-                    default=None,
-                )
-                first_date = max(
-                    first, latest + timedelta(days=1) if latest else first
-                ).isoformat()
-            except s.ScheduleError, OverflowError:
-                # Keep the settings editable when the current calendar has no later date.
-                first_date = ""
+        first_default = s.calendar_defaults_start(state)
+        first_date = first_default.isoformat() if first_default else ""
         initial.update(
             date_mode="planned" if calendar else "manual",
             cycle_interval=calendar.interval if calendar else 1,
@@ -346,14 +524,26 @@ def prepare(campaign, action, query):
             date_start=first_date,
         )
         context["needsDates"] = calendar is None
-        context["nextCycleNumber"] = len(state.cycles) + 1
+        context["nextCycleNumber"] = frontier + 1
         context["patternSteps"] = [asdict(step) for step in state.plan.steps]
         context["fixedSteps"] = [asdict(step) for step in s.fixed_steps(state)]
-        context["startsAfterOrder"] = len(state.cycles)
+        context["startsAfterOrder"] = frontier
         context["savedStepCounts"] = dict(
             Counter(cycle.source.step_id for cycle in state.cycles)
         )
-        lead = "The steps below set future cycles. Existing cycles keep their dates and phases."
+        context["originalMode"] = state.plan.mode
+        remaining = (
+            (state.plan.length - state.next_position % state.plan.length)
+            % state.plan.length
+            if state.next_position
+            else state.plan.length
+        )
+        context["fixedEndpoint"] = sum(not c.archived for c in state.cycles) + (
+            remaining
+            if state.plan.mode == "repeating"
+            else state.plan.length - state.next_position
+        )
+        lead = "Set the campaign length and default cycle dates. Edit phases and cycles on the timeline."
     else:
         initial["expected_current"] = state.current_cycle_id
         if action == "advance":
@@ -408,7 +598,11 @@ def _prepare_deletion(campaign, state, initial, context, victims, *, phase_id=No
 
 def _available_cycle_choices(state, victims=(), *, phase_id=None):
     choices = []
-    continuation = s.PlanContinuation(state.plan, state.next_position)
+    continuation = s.PlanContinuation(
+        state.plan,
+        state.next_position,
+        saved_count=sum(not c.archived for c in state.cycles),
+    )
     for cycle in (*state.cycles, *s.project(continuation, limit=cycles.MAX_PREFIX)):
         saved = isinstance(cycle, s.Cycle)
         cycle_phase = cycle.details.phase_id if saved else cycle.phase_id
@@ -447,7 +641,7 @@ def recovery_editor(campaign, action, query):
         },
         {
             key: query[key]
-            for key in ("cycle", "plan", "position", "phase", "fields")
+            for key in ("cycle", "plan", "position", "phase", "fields", "after")
             if key in query
         },
     )
@@ -537,14 +731,74 @@ def perform(campaign, actor, action, data, query):
                 ),
                 shift_later=values["shift_later"],
             )
+        elif action in ("add-cycle", "move-cycle", "duplicate-cycle", "move-phase"):
+            operation = {
+                "add-cycle": "insert_cycle",
+                "move-cycle": "move_cycle",
+                "duplicate-cycle": "duplicate_cycle",
+                "move-phase": "move_occurrence",
+            }[action]
+            arguments = {}
+            if action == "move-phase":
+                if values["occurrence_id"] != query.get("phase"):
+                    raise Refusal("The selected phase changed. Reload the editor.")
+                arguments.update(
+                    occurrence_id=values["occurrence_id"],
+                    after_occurrence_id=values["after_occurrence_id"] or None,
+                )
+            else:
+                arguments["occurrence_id"] = values["occurrence_id"]
+                if action == "add-cycle":
+                    if values["occurrence_id"] != query.get("phase"):
+                        raise Refusal("The selected phase changed. Reload the editor.")
+                    arguments["details"] = s.CycleDetails(
+                        values["occurrence_id"],
+                        values["custom_name"] or None,
+                        values["starts_on"],
+                        values["ends_on"],
+                        values["description"],
+                        values["effects"],
+                    )
+                else:
+                    if values["cycle_id"] != query.get("cycle"):
+                        raise Refusal("The selected cycle changed. Reload the editor.")
+                    arguments["cycle_id"] = values["cycle_id"]
+                if action != "duplicate-cycle" or "after_cycle_id" in data:
+                    arguments["after_cycle_id"] = values["after_cycle_id"] or None
+                if action == "duplicate-cycle" and "clear_dates" in data:
+                    arguments["clear_dates"] = values["clear_dates"]
+            result = cycles.author_timeline(
+                campaign, **common, action=operation, **arguments
+            )
         elif action == "add-phase":
+            if "after" in query and values["after_occurrence_id"] != query["after"]:
+                raise Refusal("The insertion point changed. Reload the editor.")
             details = phase_details_from_data(
                 {
-                    name: values[name] or {} if name == "rewards" else values[name]
+                    name: (values[name] or {}) if name == "rewards" else values[name]
                     for name in ("name", "description", "effects", "rewards")
                 }
             )
-            result = cycles.add_phase(campaign, **common, details=details)
+            placement = (
+                {"after_occurrence_id": values["after_occurrence_id"] or None}
+                if "after_occurrence_id" in data
+                else {}
+            )
+            result = cycles.author_timeline(
+                campaign,
+                **common,
+                action="insert_occurrence",
+                details=details,
+                receipt_inputs={
+                    "details": asdict(details),
+                    **(
+                        {"after_occurrence": placement["after_occurrence_id"]}
+                        if placement
+                        else {}
+                    ),
+                },
+                **placement,
+            )
         elif action == "delete-cycle":
             target = ref_from_data(values["target"])
             if target != _query_target(query):
@@ -555,8 +809,10 @@ def perform(campaign, actor, action, data, query):
         elif action in ("phase", "duplicate-phase", "delete-phase"):
             if values["phase_id"] != query.get("phase"):
                 raise Refusal("The selected phase changed. Reload the editor.")
+            arguments = {"occurrence_id": values["phase_id"]}
             if action == "phase":
-                details = phase_details_from_data(
+                operation = "edit_occurrence"
+                arguments["details"] = phase_details_from_data(
                     {
                         name: (values[name] or {})
                         if name == "rewards"
@@ -564,20 +820,47 @@ def perform(campaign, actor, action, data, query):
                         for name in ("name", "description", "effects", "rewards")
                     }
                 )
-                result = cycles.edit_phase(
-                    campaign, **common, phase_id=values["phase_id"], details=details
-                )
             elif action == "duplicate-phase":
-                result = cycles.duplicate_phase(
-                    campaign, **common, phase_id=values["phase_id"], name=values["name"]
-                )
+                operation = "duplicate_occurrence"
+                arguments["name"] = values["name"]
+                if "after_occurrence_id" in data:
+                    arguments["after_occurrence_id"] = (
+                        values["after_occurrence_id"] or None
+                    )
+                if "clear_dates" in data:
+                    arguments["clear_dates"] = values["clear_dates"]
             else:
-                result = cycles.delete_phase(
-                    campaign,
-                    **common,
-                    phase_id=values["phase_id"],
-                    **_deletion_choice(values),
-                )
+                operation = "remove_occurrence"
+                choice = _deletion_choice(values)
+                arguments["receipt_inputs"] = {
+                    "phase": values["phase_id"],
+                    **cycles._deletion_inputs(
+                        choice.get("replacement"), choice.get("no_current", False)
+                    ),
+                }
+            if action == "phase":
+                arguments["receipt_inputs"] = {
+                    "phase": values["phase_id"],
+                    "details": asdict(arguments["details"]),
+                }
+            elif action == "duplicate-phase":
+                arguments["receipt_inputs"] = {
+                    "phase": values["phase_id"],
+                    "name": values["name"],
+                    **(
+                        {"after_occurrence": arguments["after_occurrence_id"]}
+                        if "after_occurrence_id" in arguments
+                        else {}
+                    ),
+                    **(
+                        {"clear_dates": arguments["clear_dates"]}
+                        if "clear_dates" in arguments
+                        else {}
+                    ),
+                }
+            result = cycles.author_timeline(
+                campaign, **common, action=operation, **arguments
+            )
         elif action in RETIRED_FIELDS:
             inputs = (
                 {"name": values["name"]}
@@ -591,6 +874,17 @@ def perform(campaign, actor, action, data, query):
                 inputs=inputs,
                 expected_revision=values["expected_revision"],
                 request_key=values["request_key"],
+            )
+        elif action == "pattern":
+            result = cycles.replace_plan(
+                campaign,
+                **common,
+                steps=steps_from_data(values["steps"]),
+                mode="repeating",
+            )
+        elif action == "plan-cycles":
+            result = cycles.plan_cycles(
+                campaign, **common, count=values["pattern_count"]
             )
         elif action == "plan":
             result = cycles.replace_plan(
@@ -643,15 +937,11 @@ def perform(campaign, actor, action, data, query):
     return submitted
 
 
-PHASE_ACTIONS = {"phase", "add-phase", "duplicate-phase", "delete-phase"}
+PHASE_ACTIONS = {"phase", "add-phase", "duplicate-phase", "delete-phase", "move-phase"}
 
 
 def editor_back(campaign, action):
-    return (
-        editor_url(campaign, "plan")
-        if action in PHASE_ACTIONS
-        else schedule_url(campaign)
-    )
+    return schedule_url(campaign)
 
 
 def next_url(campaign, action, submitted):

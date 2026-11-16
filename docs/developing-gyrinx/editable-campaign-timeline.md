@@ -11,7 +11,8 @@ retain battle and action references while visible positions change.
   match another occurrence. Duplicate a block together with its cycles.
 - Number active phase occurrences and cycles consecutively using 01, 02, 03.
 - Protect current and recorded activity through actual references, rather than
-  treating every database record as protected history.
+  treating every database record as protected history. Ordinary field corrections
+  remain arbitrator actions; structural moves and removals protect used positions.
 - Record explicit customisations, including cleared dates and empty text.
   Structural edits preserve customisations and validate the complete date order.
 - Show an explicitly arranged timeline followed by a muted generated repeat
@@ -50,12 +51,13 @@ candidate, persists it and records one durable result for retry.
 
 1. **Timeline data foundation:** occurrence identity, field provenance and
    additive migration preserving all existing values.
-2. **Atomic timeline authoring:** pure editing operations, persistence,
-   permissions, attribution, replay/stale protection and prepared contracts.
-3. **Timeline authoring:** local add/move/duplicate/remove controls, phase
-   editing, generated-tail boundaries and accessible sequence editing.
-4. **Settings and final workflow:** simple settings, fixed endpoint feedback,
-   setup integration, reward expression and final rendered refinements.
+2. **Editable timeline:** pure editing operations and atomic persistence together
+   with their React authoring surface. Keep the display and command contracts
+   in the same PR. Include simple Settings, separate repeating-pattern editing,
+   fixed endpoint feedback, permissions, attribution and exact retry recovery.
+3. **Reward and interaction refinement:** connect fixed credits, dice and
+   multipliers into one expression, and preserve menu-trigger focus while
+   asynchronous dialogs open or close.
 
 Every PR receives a task-focused feature review, the repository's rendered
 three-pass design refinement where applicable, focused local checks, visual

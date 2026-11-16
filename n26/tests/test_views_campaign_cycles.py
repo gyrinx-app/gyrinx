@@ -48,13 +48,13 @@ def template():
 
 
 @pytest.fixture
-def configured(campaign, opened, template):
+def configured(campaign, opened, template, request):
     cycles.configure(
         campaign,
         actor=campaign.owner,
         template_id=template.pk,
         current_position=0,
-        mode="fixed",
+        mode=getattr(request, "param", "fixed"),
         request_key=uuid4(),
         calendar=s.CycleCalendar(date(2026, 11, 1)),
     )
@@ -232,7 +232,12 @@ class TestSharedCommands:
             client,
             campaign,
             "setup",
-            {**setup_data(template), "no_current": "on", "current_number": ""},
+            {
+                **setup_data(template),
+                "mode": "repeating",
+                "no_current": "on",
+                "current_number": "",
+            },
             native=native,
         )
         assert response.status_code == (302 if native else 200), (
@@ -354,6 +359,7 @@ class TestSharedCommands:
         assert notices == [{"message": "Campaign schedule saved.", "tone": "success"}]
 
     @pytest.mark.parametrize("native", [False, True])
+    @pytest.mark.parametrize("configured", ["repeating"], indirect=True)
     def test_date_shift_moves_later_saved_cycles_and_projections_and_replays_once(
         self, client, campaign, configured, native
     ):
@@ -399,6 +405,7 @@ class TestSharedCommands:
         assert changed.status_code == 409
         assert cycles.load(campaign) == after
 
+    @pytest.mark.parametrize("configured", ["repeating"], indirect=True)
     def test_replacement_pattern_credits_the_saved_phase_and_preserves_navigator_order(
         self, client, campaign, configured
     ):
@@ -414,11 +421,11 @@ class TestSharedCommands:
             request_key=uuid4(),
         )
         before = cycles.load(campaign)
-        editor = props(client.get(editor_url(campaign, "plan")))["editor"]
+        editor = props(client.get(editor_url(campaign, "pattern")))["editor"]
         response = post(
             client,
             campaign,
-            "plan",
+            "pattern",
             {
                 **editor["values"],
                 "mode": "repeating",
@@ -441,14 +448,16 @@ class TestSharedCommands:
         assert choice["name"] == "Cycle 3"
         assert choice["phase"] == after.phases[0].details.name
 
-    def test_future_plan_summary_only_describes_cycles_beyond_the_visible_projection(
+    @pytest.mark.parametrize("configured", ["repeating"], indirect=True)
+    def test_repeating_tail_summary_tracks_the_visible_boundary_and_pattern(
         self, campaign, configured
     ):
         display = build(campaign, campaign.owner)
-        assert display.plan is None
+        assert display.plan["mode"] == "repeating"
+        assert display.plan["startsAfter"] == "Cycle 13"
         bounded = build(campaign, campaign.owner, preview=2)
         assert bounded.plan["startsAfter"] == "Cycle 3"
-        assert bounded.plan["steps"][0]["phase_id"] == configured.plan.steps[1].phase_id
+        assert bounded.plan["steps"] == [asdict(step) for step in configured.plan.steps]
 
     @pytest.mark.parametrize("action", ["template", "save-template"])
     def test_retired_template_actions_only_confirm_previously_committed_commands(
@@ -599,6 +608,7 @@ class TestSharedCommands:
         assert changed.current.details.phase_id == configured.current.details.phase_id
         assert changed.current.source == configured.current.source
 
+    @pytest.mark.parametrize("configured", ["repeating"], indirect=True)
     def test_json_editor_reads_share_dates_permissions_and_the_html_contract(
         self, client, campaign, configured
     ):
@@ -647,18 +657,19 @@ class TestSharedCommands:
         first = post(client, campaign, "setup", data, native=native)
         second = post(client, campaign, "setup", data, native=native)
         assert first.status_code == second.status_code == (302 if native else 200)
-        assert CampaignCycle.objects.filter(campaign=campaign).count() == 1
+        assert CampaignCycle.objects.filter(campaign=campaign).count() == 7
         assert campaign.cycle_commands.count() == 1
         assert len(props(client.get(schedule_url(campaign)))["rows"]) == 7
 
     @pytest.mark.parametrize("native", [False, True])
+    @pytest.mark.parametrize("configured", ["repeating"], indirect=True)
     def test_editing_a_projection_saves_the_prefix_without_advancing(
         self, client, campaign, configured, native
     ):
         selected = s.project(configured)[2]
         query = {"plan": configured.plan.id, "position": selected.source.position.index}
         prepared = props(client.get(editor_url(campaign, "cycle", **query)))["editor"]
-        assert "Cycle 2 through Cycle 4" in prepared["lead"]
+        assert selected.name in prepared["lead"]
         assert json.loads(prepared["values"]["target"]) == ref_data(selected.ref)
         data = {**prepared["values"], "custom_name": "Market week"}
         response = post(client, campaign, "cycle", data, native=native, **query)
@@ -790,7 +801,8 @@ class TestSharedCommands:
         assert first.status_code == (302 if native else 200)
         state = cycles.load(campaign)
         assert state.current is None
-        assert not state.cycles
+        assert len(state.cycles) == 1
+        assert state.cycles[0].details.phase_id == state.phases[0].id
         assert not campaign.cycle_transitions.exists()
         assert asdict(state.phases[0].details) == details
         assert (
@@ -838,16 +850,17 @@ class TestSharedCommands:
         assert response.status_code == 422
         assert not CampaignSchedule.objects.filter(campaign=campaign).exists()
 
+    @pytest.mark.parametrize("configured", ["repeating"], indirect=True)
     def test_unchanged_future_plan_does_not_replay_consumed_cycles(
         self, client, campaign, configured
     ):
-        values = props(client.get(editor_url(campaign, "plan")))["editor"]["values"]
-        assert [step["count"] for step in json.loads(values["steps"])] == [2, 1, 3]
-        assert post(client, campaign, "plan", values).status_code == 200
+        values = props(client.get(editor_url(campaign, "pattern")))["editor"]["values"]
+        assert [step["count"] for step in json.loads(values["steps"])] == [3, 1, 3]
+        assert post(client, campaign, "pattern", values).status_code == 200
         after = cycles.load(campaign)
         assert after.plan.id == configured.plan.id
         assert after.next_position == configured.next_position
-        assert len(s.project(after)) == 6
+        assert len(s.project(after)) == 12
 
 
 class TestFixedPlanConversion:
@@ -860,7 +873,7 @@ class TestFixedPlanConversion:
             actor=campaign.owner,
             template_id=template.pk,
             current_position=6 if completed else 4,
-            mode="fixed",
+            mode="fixed" if completed else "repeating",
             request_key=uuid4(),
         )
         state = cycles.load(campaign)
@@ -895,8 +908,13 @@ class TestFixedPlanConversion:
         data = {**editor["values"], "mode": "fixed", "steps": json.dumps(proposed)}
         assert post(client, campaign, "plan", data).status_code == 200
         after = cycles.load(campaign)
-        assert after.cycles == before.cycles
-        assert after.plan.order_for(after.plan.length) - 1 == 7
+        assert after.cycles[: len(before.cycles)] == before.cycles
+        assert len([c for c in after.cycles if not c.archived]) == 7
+        assert s.project(after) == ()
+        endpoint = props(client.get(editor_url(campaign, "plan")))["editor"]["context"][
+            "fixedEndpoint"
+        ]
+        assert endpoint == 7
 
     @pytest.mark.parametrize("native", [False, True])
     def test_a_replacement_pattern_keeps_one_pass_when_switched_to_fixed(
@@ -928,9 +946,11 @@ class TestFixedPlanConversion:
             302 if native else 200
         )
         after = cycles.load(campaign)
-        assert after.cycles == before.cycles
+        assert after.cycles[: len(before.cycles)] == before.cycles
+        assert len(after.cycles) == 7
         assert after.current_cycle_id == before.current_cycle_id
-        assert [cycle.order for cycle in s.project(after)] == [6, 7]
+        assert [cycle.order for cycle in after.cycles[5:]] == [6, 7]
+        assert s.project(after) == ()
 
     @pytest.mark.parametrize("saved,last", [(2, 7), (6, 7), (7, 7), (9, 14)])
     def test_preview_reads_do_not_write_or_change_the_fixed_endpoint(
@@ -986,10 +1006,15 @@ class TestFixedPlanConversion:
         )
         assert response.status_code == 200
         after = cycles.load(campaign)
-        assert after.cycles == before.cycles
+        assert after.cycles[:saved] == before.cycles
+        assert len(after.cycles) == last
+        assert s.project(after) == ()
         assert after.current.order == 2
         assert after.plan.mode == "fixed"
-        assert after.plan.order_for(after.plan.length) - 1 == last
+        endpoint = props(client.get(editor_url(campaign, "plan")))["editor"]["context"][
+            "fixedEndpoint"
+        ]
+        assert endpoint == last
 
 
 class TestDisplayReads:
@@ -1020,6 +1045,7 @@ class TestDisplayReads:
         assert "Cycle 1 of 3 in this phase" in card.get_text(" ", strip=True)
         assert not card.select_one('[aria-label="Edit campaign schedule"]')
 
+    @pytest.mark.parametrize("configured", ["repeating"], indirect=True)
     def test_dashboard_uses_saved_phase_changes_instead_of_the_cycles_original_plan(
         self, campaign, configured
     ):
@@ -1054,6 +1080,7 @@ class TestDisplayReads:
         ) == (1, 1, 1)
         assert summary.next_phase == "Occupation"
 
+    @pytest.mark.parametrize("configured", ["repeating"], indirect=True)
     def test_dashboard_read_cost_does_not_grow_with_saved_repeating_history(
         self, campaign, configured
     ):
@@ -1102,6 +1129,7 @@ class TestDisplayReads:
         )
         assert "Last phase" in card.get_text() and "Last cycle" in card.get_text()
 
+    @pytest.mark.parametrize("configured", ["repeating"], indirect=True)
     def test_saved_history_is_paginated_with_constant_query_growth(
         self, campaign, configured
     ):
@@ -1129,7 +1157,7 @@ class TestDisplayReads:
         with CaptureQueriesContext(connection) as after_queries:
             large = build(campaign, reader)
         assert len(before_queries) == len(after_queries)
-        assert len(small.rows) == 7
+        assert len(small.rows) == 13
         assert len(large.rows) == 50
         assert large.nextHref and not large.moreHref
         second = build(campaign, reader, page=2)
@@ -1178,6 +1206,7 @@ class TestDisplayReads:
             item.label == "Phases & cycles" for item in page.context["more_actions"]
         )
 
+    @pytest.mark.parametrize("configured", ["repeating"], indirect=True)
     def test_projection_growth_does_not_add_queries(self, campaign, configured):
         reader = campaign.owner
 
@@ -1189,7 +1218,7 @@ class TestDisplayReads:
         small, count = read(1)
         large, larger_count = read(12)
         assert count == larger_count
-        assert len(small.rows) == 2 and len(large.rows) == 7
+        assert len(small.rows) == 2 and len(large.rows) == 13
 
 
 class TestRecoveryAfterTheCommandChangesItsOwnPage:
@@ -1246,8 +1275,8 @@ class TestRecoveryAfterTheCommandChangesItsOwnPage:
             expected_revision=configured.revision,
             request_key=uuid4(),
         )
-        phase = cycles.load(campaign).phases[-1]
-        query = {"phase": phase.id}
+        occurrence = cycles.load(campaign).occurrences[-1]
+        query = {"phase": occurrence.id}
         before = props(client.get(editor_url(campaign, "delete-phase", **query)))[
             "editor"
         ]
@@ -1332,7 +1361,7 @@ class TestManualCycleDates:
         assert response.status_code == 200
         assert cycles.load(campaign).calendar is None
 
-    def test_new_planned_dates_start_after_undated_saved_cycles(
+    def test_new_planned_dates_fill_generated_future_cycles_after_current(
         self, client, campaign, opened, template
     ):
         assert (
@@ -1360,8 +1389,13 @@ class TestManualCycleDates:
             == 200
         )
         state = cycles.load(campaign)
-        assert state.cycles == before.cycles
-        assert s.project(state)[0].starts_on == date(2026, 12, 1)
+        assert state.current == before.current
+        assert [(c.id, c.source) for c in state.cycles] == [
+            (c.id, c.source) for c in before.cycles
+        ]
+        assert state.cycles[1].details.starts_on == date(2026, 12, 1)
+        assert all(c.details.starts_on and c.details.ends_on for c in state.cycles[1:])
+        assert s.project(state) == ()
 
     @pytest.mark.parametrize("native", [False, True])
     def test_manual_setup_materialises_and_advances_without_dates(
@@ -1371,7 +1405,12 @@ class TestManualCycleDates:
             client,
             campaign,
             "setup",
-            {**setup_data(template), "date_mode": "manual", "no_current": "on"},
+            {
+                **setup_data(template),
+                "mode": "repeating",
+                "date_mode": "manual",
+                "no_current": "on",
+            },
             native=native,
         )
         assert response.status_code == (302 if native else 200)
@@ -1395,6 +1434,7 @@ class TestManualCycleDates:
         assert len(cycles.load(campaign).cycles) == target.order
 
     @pytest.mark.parametrize("native", [False, True])
+    @pytest.mark.parametrize("configured", ["repeating"], indirect=True)
     def test_switching_date_modes_preserves_saved_ranges_and_replays(
         self, client, campaign, configured, native
     ):
@@ -1443,35 +1483,30 @@ class TestManualCycleDates:
 class TestDeletionWorkflow:
     @pytest.mark.parametrize("native", [False, True])
     @pytest.mark.parametrize("action", ["delete-cycle", "delete-phase"])
-    def test_confirmations_share_current_choice_scope_and_retry(
+    def test_unused_deletion_confirmations_preserve_current_and_retry(
         self, client, campaign, configured, native, action
     ):
+        selected = configured.cycles[4]
         query = (
-            {"cycle": configured.current.id}
+            {"cycle": selected.id}
             if action == "delete-cycle"
-            else {"phase": configured.current_phase.id}
+            else {"phase": selected.occurrence_id}
         )
         editor = props(client.get(editor_url(campaign, action, **query)))["editor"]
-        assert editor["context"]["replacesCurrent"]
-        choices = [
-            json.loads(choice["value"])
-            for choice in editor["context"]["currentChoices"]
-        ]
-        assert {"cycle_id": configured.current.id} not in choices
-        if action == "delete-phase":
-            assert all(choice.get("index") not in (1, 2) for choice in choices)
-        data = {**editor["values"], "current_choice": "none"}
-        response = post(client, campaign, action, data, native=native, **query)
-        assert response.status_code == (302 if native else 200)
-        assert post(
-            client, campaign, action, data, native=native, **query
-        ).status_code == (302 if native else 200)
-        assert cycles.load(campaign).current is None
+        assert not editor["context"]["replacesCurrent"]
+        data = editor["values"]
+        for _ in range(2):
+            assert post(
+                client, campaign, action, data, native=native, **query
+            ).status_code == (302 if native else 200)
+        state = cycles.load(campaign)
+        assert state.current == configured.current
+        assert next(c for c in state.cycles if c.id == selected.id).archived
         assert props(client.get(editor_url(campaign, action, **query)))["editor"][
             "context"
         ]["unavailable"]
 
-    def test_deleted_cycles_are_hidden_without_renumbering_and_counts_stay_bounded(
+    def test_deleted_cycles_are_hidden_with_consecutive_order_and_bounded_queries(
         self, campaign, configured
     ):
         cycles.replace_plan(
@@ -1506,7 +1541,15 @@ class TestDeletionWorkflow:
         with CaptureQueriesContext(connection) as last_queries:
             last = build(campaign, reader, page=2)
         assert len(first_queries) == len(last_queries)
-        assert first.rows[3].order == 5
+        assert [
+            row.order for row in (*first.rows, *last.rows) if row.state != "Projected"
+        ] == list(
+            range(
+                1,
+                CampaignCycle.objects.filter(campaign=campaign, archived=False).count()
+                + 1,
+            )
+        )
         assert all(
             row.phaseId != state.phases[1].id for row in (*first.rows, *last.rows)
         )
@@ -1517,15 +1560,25 @@ class TestDeletionWorkflow:
         assert len([row for row in first.rows if row.state != "Projected"]) == 50
         assert first.nextHref
 
-    def test_last_phase_can_be_removed_and_rebuilt(self, client, campaign, configured):
-        for phase in configured.phases:
+    def test_last_phase_can_be_removed_and_rebuilt(
+        self, client, campaign, opened, template
+    ):
+        cycles.configure(
+            campaign,
+            actor=campaign.owner,
+            template_id=template.pk,
+            current_position=None,
+            mode="fixed",
+            request_key=uuid4(),
+        )
+        original = cycles.load(campaign)
+        for occurrence in original.occurrences:
             state = cycles.load(campaign)
-            cycles.delete_phase(
+            cycles.author_timeline(
                 campaign,
                 actor=campaign.owner,
-                phase_id=phase.id,
-                no_current=state.current_phase is not None
-                and state.current_phase.id == phase.id,
+                action="remove_occurrence",
+                occurrence_id=occurrence.id,
                 expected_revision=state.revision,
                 request_key=uuid4(),
             )
@@ -1539,12 +1592,13 @@ class TestDeletionWorkflow:
         )
         assert response.status_code == 200
         state = cycles.load(campaign)
-        phase = next(p for p in state.phases if not p.archived)
-        cycles.replace_plan(
+        occurrence = next(o for o in state.occurrences if not o.archived)
+        cycles.author_timeline(
             campaign,
             actor=campaign.owner,
-            steps=(s.PlanStep("fresh", phase.id, 1),),
-            mode="fixed",
+            action="insert_cycle",
+            occurrence_id=occurrence.id,
+            details=s.CycleDetails(occurrence.phase_id),
             expected_revision=state.revision,
             request_key=uuid4(),
         )
@@ -1552,25 +1606,10 @@ class TestDeletionWorkflow:
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_start_after_deleting_current_requires_explicit_resume_choice_and_replays(
+def test_start_after_clearing_an_unused_current_choice_requires_selection_and_replays(
     client, campaign, configured, native
 ):
-    cycles.start(
-        campaign,
-        actor=campaign.owner,
-        expected_current=configured.current_cycle_id,
-        expected_revision=configured.revision,
-        request_key=uuid4(),
-    )
-    state = cycles.load(campaign)
-    cycles.advance(
-        campaign,
-        actor=campaign.owner,
-        expected_current=state.current_cycle_id,
-        expected_revision=state.revision,
-        request_key=uuid4(),
-    )
-    state = cycles.load(campaign)
+    state = configured
     cycles.delete_cycle(
         campaign,
         actor=campaign.owner,
@@ -1596,11 +1635,11 @@ def test_start_after_deleting_current_requires_explicit_resume_choice_and_replay
     assert post(client, campaign, "start", data, native=native).status_code == (
         302 if native else 200
     )
-    assert cycles.load(campaign).current.order == 3
+    assert cycles.load(campaign).current.order == 2
 
 
 @pytest.mark.parametrize("delete_phase", [False, True])
-def test_dashboard_final_cycle_number_stays_consistent_after_deletion(
+def test_dashboard_history_keeps_earlier_cycle_and_phase_positions(
     campaign, opened, template, delete_phase
 ):
     cycles.configure(
@@ -1617,11 +1656,18 @@ def test_dashboard_final_cycle_number_stays_consistent_after_deletion(
         "expected_revision": state.revision,
         "request_key": uuid4(),
     }
-    if delete_phase:
-        cycles.delete_phase(campaign, phase_id=state.phases[1].id, **common)
-    else:
-        cycles.delete_cycle(
-            campaign, target=s.SavedCycleRef(state.cycles[1].id), **common
+    from n26.core.operations import Refusal
+
+    with pytest.raises(Refusal):
+        cycles.author_timeline(
+            campaign,
+            action="remove_occurrence" if delete_phase else "remove_cycle",
+            **(
+                {"occurrence_id": state.occurrences[1].id}
+                if delete_phase
+                else {"cycle_id": state.cycles[1].id}
+            ),
+            **common,
         )
     summary = dashboard_summary(campaign, campaign.owner)
     assert summary.name == "Cycle 7"
@@ -1632,54 +1678,56 @@ def test_dashboard_final_cycle_number_stays_consistent_after_deletion(
 @pytest.mark.parametrize(
     "action", ["phase", "add-phase", "duplicate-phase", "delete-phase"]
 )
-def test_phase_management_returns_to_settings(
+def test_phase_management_returns_to_the_timeline(
     client, campaign, configured, native, action
 ):
-    query = {} if action == "add-phase" else {"phase": configured.phases[0].id}
-    response = client.get(editor_url(campaign, action, **query))
-    editor = props(response)["editor"]
-    settings = editor_url(campaign, "plan")
-    assert editor["back"] == settings
+    query = {} if action == "add-phase" else {"phase": configured.occurrences[1].id}
+    editor = props(client.get(editor_url(campaign, action, **query)))["editor"]
+    overview = schedule_url(campaign)
+    assert editor["back"] == overview
     values = editor["values"]
-    if action == "delete-phase":
-        values["current_choice"] = "none"
     if action == "phase":
         values["name"] = "Updated phase"
     saved = post(client, campaign, action, values, native=native, **query)
     assert saved.status_code == (302 if native else 200)
-    assert (saved.url if native else saved.json()["nextUrl"]) == settings
-    returned = props(client.get(settings))
-    assert returned["editor"]["heading"] == "Settings"
-    assert (
-        int(returned["editor"]["values"]["expected_revision"])
-        == configured.revision + 1
-    )
-    assert returned["editor"]["values"]["request_key"] != values["request_key"]
+    assert (saved.url if native else saved.json()["nextUrl"]) == overview
+    returned = props(client.get(overview))
+    assert returned["editor"] is None
+    assert cycles.load(campaign).revision == configured.revision + 1
+    assert cycles.load(campaign).current_cycle_id == configured.current_cycle_id
+    if action != "delete-phase":
+        fresh = props(client.get(editor_url(campaign, action, **query)))["editor"]
+        assert fresh["values"]["request_key"] != values["request_key"]
 
 
-def test_settings_exposes_all_active_phases_with_actions(client, campaign, configured):
-    page = props(client.get(editor_url(campaign, "plan")))
+def test_timeline_exposes_active_occurrences_with_future_actions(
+    client, campaign, configured
+):
+    page = props(client.get(schedule_url(campaign)))
     assert {phase["id"] for phase in page["phases"]} == {
-        phase.id for phase in configured.phases
+        occurrence.id for occurrence in configured.occurrences
     }
     assert [phase["number"] for phase in page["phases"]] == [1, 2, 3]
     assert page["actions"]["addPhase"] == editor_url(campaign, "add-phase")
     assert all(
         phase["editHref"] and phase["duplicateHref"] and phase["deleteHref"]
-        for phase in page["phases"]
+        for phase in page["phases"][1:]
     )
 
 
-def test_settings_queries_stay_flat_as_phase_list_grows(client, campaign, configured):
-    url = editor_url(campaign, "plan")
+def test_timeline_queries_stay_flat_as_occurrence_list_grows(
+    client, campaign, configured
+):
+    url = schedule_url(campaign)
     client.get(url, HTTP_ACCEPT="application/json")
     with CaptureQueriesContext(connection) as small:
         initial = client.get(url, HTTP_ACCEPT="application/json").json()["schedule"]
     state = configured
     for index in range(4):
-        cycles.add_phase(
+        cycles.author_timeline(
             campaign,
             actor=campaign.owner,
+            action="insert_occurrence",
             details=s.PhaseDetails(f"Extra phase {index}"),
             expected_revision=state.revision,
             request_key=uuid4(),
@@ -1688,34 +1736,31 @@ def test_settings_queries_stay_flat_as_phase_list_grows(client, campaign, config
     with CaptureQueriesContext(connection) as large:
         expanded = client.get(url, HTTP_ACCEPT="application/json").json()["schedule"]
     assert len(expanded["phases"]) == len(initial["phases"]) + 4
-    assert len(large) == len(small)
+    assert len(large) <= len(small)
 
 
-def test_phase_deletion_confirms_revision_after_projected_replacement(
+def test_phase_deletion_confirms_revision_without_materialising_a_replacement(
     client, campaign, configured
 ):
     old = props(client.get(editor_url(campaign, "plan")))["editor"]
-    target = next(
-        cycle
-        for cycle in s.project(configured)
-        if cycle.phase_id == configured.phases[-1].id
-    )
-    phase = configured.current_phase.id
+    phase = configured.occurrences[-1].id
     editor = props(client.get(editor_url(campaign, "delete-phase", phase=phase)))[
         "editor"
     ]
-    assert editor["context"]["planRecoveryKey"] == old["recoveryKey"]
-    values = {**editor["values"], "current_choice": json.dumps(ref_data(target.ref))}
+    values = editor["values"]
     response = post(client, campaign, "delete-phase", values, phase=phase)
     assert response.status_code == 200
-    replay = post(client, campaign, "delete-phase", values, phase=phase)
-    assert replay.json() == response.json()
-    fresh = props(client.get(response.json()["nextUrl"]))["editor"]
+    assert (
+        post(client, campaign, "delete-phase", values, phase=phase).json()
+        == response.json()
+    )
+    assert response.json()["nextUrl"] == schedule_url(campaign)
+    fresh = props(client.get(editor_url(campaign, "plan")))["editor"]
     assert str(response.json()["revision"]) == fresh["values"]["expected_revision"]
-    assert fresh["values"]["date_start"] > old["values"]["date_start"]
-    before = {step["id"]: step["count"] for step in json.loads(old["values"]["steps"])}
-    after = json.loads(fresh["values"]["steps"])
-    assert any(step["count"] < before[step["id"]] for step in after)
+    assert fresh["values"]["date_start"] == old["values"]["date_start"]
+    state = cycles.load(campaign)
+    assert len(state.cycles) == len(configured.cycles)
+    assert state.current_cycle_id == configured.current_cycle_id
 
 
 def test_phase_deletion_reports_saved_source_counts_across_repetitions(
@@ -1740,20 +1785,91 @@ def test_phase_deletion_reports_saved_source_counts_across_repetitions(
     a, b = state.plan.steps
     assert before["context"]["savedStepCounts"] == {a.id: 1}
     target = next(cycle for cycle in s.project(state) if cycle.order == 5)
-    phase = state.current_phase.id
+    cycles.edit_cycle(
+        campaign,
+        actor=campaign.owner,
+        target=target.ref,
+        details=s.CycleDetails(target.phase_id),
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    state = cycles.load(campaign)
+    removed = state.cycles[3]
+    phase = removed.occurrence_id
     editor = props(client.get(editor_url(campaign, "delete-phase", phase=phase)))[
         "editor"
     ]
-    response = post(
-        client,
-        campaign,
-        "delete-phase",
-        {**editor["values"], "current_choice": json.dumps(ref_data(target.ref))},
-        phase=phase,
-    )
+    response = post(client, campaign, "delete-phase", editor["values"], phase=phase)
     assert response.status_code == 200
-    after = props(client.get(response.json()["nextUrl"]))["editor"]
+    after = props(client.get(editor_url(campaign, "plan")))["editor"]
     assert after["context"]["savedStepCounts"] == {a.id: 2, b.id: 3}
     assert after["context"]["fixedSteps"] == [
         {"id": b.id, "phase_id": b.phase_id, "count": 1}
     ]
+    changed = cycles.load(campaign)
+    assert next(c for c in changed.cycles if c.id == removed.id).archived
+    assert not changed.current.archived
+    assert changed.plan == state.plan
+    assert {c.id: c.source for c in changed.cycles} == {
+        c.id: c.source for c in state.cycles
+    }
+
+
+def test_overview_adopts_missing_occurrences_without_writing_on_get(
+    campaign, configured
+):
+    from n26.core.models import CampaignPhase
+
+    first = CampaignCycle.objects.get(pk=configured.cycles[0].id)
+    CampaignCycle.objects.filter(pk=first.pk).update(phase_occurrence=None)
+    empty = CampaignPhase.objects.create(campaign=campaign, name="Unlinked empty phase")
+    before = list(CampaignCycle.objects.filter(campaign=campaign).values())
+    with CaptureQueriesContext(connection) as queries:
+        display = build(campaign, campaign.owner)
+    assert not any(
+        q["sql"].lstrip().startswith(("INSERT", "UPDATE", "DELETE")) for q in queries
+    )
+    assert any(p["name"] == empty.name and p["count"] == 0 for p in display.phases)
+    assert all(row.occurrenceId for row in display.rows)
+    assert list(CampaignCycle.objects.filter(campaign=campaign).values()) == before
+
+
+def test_dashboard_counts_separate_occurrences_with_the_same_rules(
+    campaign, configured
+):
+    state = cycles.load(campaign)
+    first = state.occurrences[0]
+    cycles.author_timeline(
+        campaign,
+        actor=campaign.owner,
+        action="duplicate_occurrence",
+        occurrence_id=first.id,
+        after_occurrence_id=first.id,
+        clear_dates=True,
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    summary = dashboard_summary(campaign, campaign.owner)
+    assert (summary.phase_count, summary.next_phase, summary.cycles_until_phase) == (
+        3,
+        "Occupation",
+        3,
+    )
+    assert summary.cycle_limit == 10
+
+
+def test_dashboard_fixed_endpoint_uses_arranged_count_after_future_removal(
+    campaign, configured
+):
+    state = cycles.load(campaign)
+    last = state.cycles[-1]
+    cycles.author_timeline(
+        campaign,
+        actor=campaign.owner,
+        action="remove_cycle",
+        cycle_id=last.id,
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    summary = dashboard_summary(campaign, campaign.owner)
+    assert (summary.cycle_limit, summary.phase_count) == (6, 3)

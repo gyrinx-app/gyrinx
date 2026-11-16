@@ -5,13 +5,17 @@ from django.db import transaction
 
 from n26.core import schedule as s
 from n26.core.cycle_data import (
-    calendar_from_data,
     ref_data,
     ref_from_data,
     steps_from_data,
 )
 from n26.core.fields import to_ulid
-from n26.core.models import Campaign, CampaignCycle, CampaignSchedule
+from n26.core.models import (
+    Campaign,
+    CampaignCycle,
+    CampaignPhaseOccurrence,
+    CampaignSchedule,
+)
 
 
 def _choice(
@@ -50,7 +54,7 @@ def options(campaign, *, page=None, selected=None):
                 "previous": None,
                 "next": None,
             }
-        from n26.core.cycles import MAX_PREFIX
+        from n26.core.cycles import MAX_PREFIX, calendar_for_timeline
 
         current = header.current_cycle
         current_order = current.order if current else 0
@@ -61,10 +65,13 @@ def options(campaign, *, page=None, selected=None):
             header.active_plan.starts_after_order,
             header.active_plan.start_position,
         )
+        saved_count = CampaignCycle.objects.filter(
+            campaign=campaign, archived=False
+        ).count()
         last_position = header.next_position + MAX_PREFIX
         if plan.mode == "fixed":
             last_position = min(last_position, plan.length)
-        last_order = plan.order_for(last_position) - 1
+        last_order = saved_count + last_position - header.next_position
         anchor = current_order
         retained = selected_saved = None
         try:
@@ -86,7 +93,9 @@ def options(campaign, *, page=None, selected=None):
                     target.position.plan_id == plan.id
                     and header.next_position <= target.position.index < last_position
                 ):
-                    anchor = plan.order_for(target.position.index)
+                    anchor = (
+                        saved_count + target.position.index - header.next_position + 1
+                    )
             elif isinstance(target, s.SavedCycleRef):
                 selected_saved = (
                     header.current_cycle
@@ -158,27 +167,67 @@ def options(campaign, *, page=None, selected=None):
                 "id", "name"
             )
         }
-        start = max(header.next_position, plan.position_for(anchor) - 1)
+        tail = (
+            CampaignPhaseOccurrence.objects.filter(campaign=campaign, archived=False)
+            .order_by("-position")
+            .first()
+        )
+        source_blocks = set()
+        if tail is not None and tail.continues_pattern:
+            source_blocks = {
+                (str(plan_id), repetition, step)
+                for plan_id, repetition, step in CampaignCycle.objects.filter(
+                    campaign=campaign,
+                    phase_occurrence=tail,
+                    source_plan__isnull=False,
+                )
+                .exclude(customized_fields__contains=["occurrence_id"])
+                .values_list("source_plan_id", "repetition", "source_step")
+                .distinct()
+            }
+        start = header.next_position + max(0, anchor - saved_count - 2)
         limit = min(12, last_position - start)
         if limit > 0:
             for cycle in s.project(
                 s.PlanContinuation(
-                    plan, start, calendar_from_data(header.date_settings)
+                    plan,
+                    start,
+                    calendar_for_timeline(
+                        campaign, header.date_settings, saved_count=saved_count
+                    ),
+                    saved_count + start - header.next_position,
                 ),
                 limit=limit,
             ):
+                phase_id = cycle.phase_id
+                if tail is not None and s._can_continue_occurrence(
+                    plan=plan,
+                    next_position=header.next_position,
+                    occurrence=s.PhaseOccurrence(
+                        str(tail.pk),
+                        str(tail.phase_id),
+                        tail.position,
+                        continues_pattern=tail.continues_pattern,
+                    ),
+                    continuation_occurrence_id=str(header.continuation_occurrence_id)
+                    if header.continuation_occurrence_id
+                    else None,
+                    source_blocks=source_blocks,
+                    source=cycle.source,
+                ):
+                    phase_id = str(tail.phase_id)
                 choices.append(
                     _choice(
                         ref_data(cycle.ref),
                         cycle.order,
                         cycle.name,
-                        phase_names[cycle.phase_id],
+                        phase_names[phase_id],
                         current_order,
                         starts_on=cycle.starts_on,
                         ends_on=cycle.ends_on,
                     )
                 )
-        first_projected_order = plan.order_for(header.next_position)
+        first_projected_order = saved_count + 1
         previous_order = (
             anchor - 1
             if anchor > first_projected_order

@@ -378,8 +378,8 @@ test("keyboard reordering submits phase identities and counts in the chosen orde
         <ScheduleEditor
             editor={{
                 ...editor,
-                kind: "plan",
-                heading: "Edit future plan",
+                kind: "pattern",
+                heading: "Edit repeating pattern",
                 values: {
                     request_key: "plan-command",
                     expected_revision: "1",
@@ -400,66 +400,49 @@ test("keyboard reordering submits phase identities and counts in the chosen orde
     ]);
 });
 
-test("fixed conversion shows its finite endpoint and updates it after edits", async () => {
-    const full = [
+test("minimal Settings explains the converted endpoint and keeps construction on the timeline", async () => {
+    const steps = JSON.stringify([
         { id: "one", phase_id: "opening", count: 3 },
-        { id: "two", phase_id: "downtime", count: 1 },
-    ];
+    ]);
     render(
         <ScheduleEditor
             editor={{
                 ...editor,
                 kind: "plan",
-                context: {
-                    patternSteps: full,
-                    fixedSteps: [{ ...full[0], count: 1 }, full[1]],
-                    startsAfterOrder: 2,
-                },
+                heading: "Settings",
+                context: { originalMode: "repeating", fixedEndpoint: 21 },
                 values: {
-                    request_key: "convert-key",
+                    request_key: "conversion-key",
                     expected_revision: "1",
                     mode: "repeating",
-                    steps: JSON.stringify(full),
+                    steps,
+                    date_mode: "manual",
+                    date_start: "",
+                    cycle_interval: "1",
+                    cycle_unit: "weeks",
                 },
             }}
             phases={phases}
-            onNavigate={vi.fn()}
         />,
     );
     expect(
-        screen.getByRole("heading", { level: 2, name: "Cycles" }),
-    ).toBeTruthy();
-    expect(
-        screen.getByRole("region", { name: "Repeating pattern options" }),
-    ).toBeTruthy();
-    expect(screen.queryByText(/Ends after Cycle/)).toBeNull();
-    await userEvent.click(screen.getByRole("radio", { name: /^Fixed plan/ }));
-    expect(
-        screen.queryByRole("region", { name: "Repeating pattern options" }),
+        screen.queryByRole("table", { name: "Future phase steps" }),
     ).toBeNull();
-    expect(
-        screen.getByRole("region", { name: "Fixed plan options" }),
-    ).toBeTruthy();
-    expect(screen.getByText("Ends after Cycle 4.")).toBeTruthy();
-    const count = screen.getByRole("spinbutton", { name: "Step 1 cycles" });
-    await userEvent.clear(count);
-    await userEvent.type(count, "2");
-    expect(screen.getByText("Ends after Cycle 5.")).toBeTruthy();
-    await userEvent.click(
-        screen.getByRole("button", { name: "Remove step 2" }),
+    expect(screen.queryByRole("button", { name: "Add step" })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^Edit Opening/ })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Phases" })).toBeNull();
+    await userEvent.click(screen.getByRole("radio", { name: /^Fixed plan/ }));
+    expect(screen.getByRole("alert").textContent).toBe(
+        "This plan ends at Cycle 21. The remaining cycles complete the current repeat. You can edit or remove unused future cycles on the timeline.",
     );
-    await userEvent.click(
-        screen.getByRole("button", { name: "Remove step 1" }),
-    );
-    expect(screen.getByText("No additional cycles.")).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Cycle dates" })).toBeTruthy();
 });
 
-test("switching to repeating proposes the full pattern and preserves edits to each mode", async () => {
+test("Settings proposes the existing repeating pattern without changing concrete cycles", async () => {
     const full = [
         { id: "one", phase_id: "opening", count: 3 },
         { id: "two", phase_id: "downtime", count: 1 },
     ];
-    const remaining = [{ ...full[1] }];
     const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
     vi.stubGlobal("fetch", fetch);
     render(
@@ -467,12 +450,16 @@ test("switching to repeating proposes the full pattern and preserves edits to ea
             editor={{
                 ...editor,
                 kind: "plan",
-                context: { patternSteps: full, fixedSteps: remaining },
+                context: {
+                    originalMode: "fixed",
+                    patternSteps: full,
+                    fixedSteps: [],
+                },
                 values: {
                     request_key: "mode-key",
                     expected_revision: "1",
                     mode: "fixed",
-                    steps: JSON.stringify(remaining),
+                    steps: "[]",
                 },
             }}
             phases={phases}
@@ -483,41 +470,61 @@ test("switching to repeating proposes the full pattern and preserves edits to ea
         screen.getByRole("radio", { name: /^Repeating pattern/ }),
     );
     expect(
-        (
-            screen.getByRole("spinbutton", {
-                name: "Step 1 cycles",
-            }) as HTMLInputElement
-        ).value,
-    ).toBe("3");
-    await userEvent.clear(
-        screen.getByRole("spinbutton", { name: "Step 1 cycles" }),
-    );
-    await userEvent.type(
-        screen.getByRole("spinbutton", { name: "Step 1 cycles" }),
-        "2",
-    );
-    await userEvent.click(screen.getByRole("radio", { name: /^Fixed plan/ }));
-    expect(
-        (
-            screen.getByRole("spinbutton", {
-                name: "Step 1 cycles",
-            }) as HTMLInputElement
-        ).value,
-    ).toBe("1");
-    await userEvent.click(
-        screen.getByRole("radio", { name: /^Repeating pattern/ }),
-    );
-    expect(
-        (
-            screen.getByRole("spinbutton", {
-                name: "Step 1 cycles",
-            }) as HTMLInputElement
-        ).value,
-    ).toBe("2");
+        screen.getByText(
+            "Existing cycles stay in place. The repeating pattern follows the saved timeline.",
+        ),
+    ).toBeTruthy();
+    expect(screen.queryByLabelText("Step 1 cycles")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(JSON.parse(fetch.mock.calls[0][1].body.get("steps"))[0].count).toBe(
-        2,
+    expect(JSON.parse(fetch.mock.calls[0][1].body.get("steps"))).toEqual(full);
+});
+
+test("the repeating pattern page edits definition identities without Settings or phase management controls", async () => {
+    const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
+    vi.stubGlobal("fetch", fetch);
+    const repeated = [
+        { ...phases[0], id: "occurrence-a", phaseId: "opening" },
+        { ...phases[0], id: "occurrence-b", phaseId: "opening" },
+        { ...phases[1], id: "occurrence-c", phaseId: "downtime" },
+    ];
+    render(
+        <ScheduleEditor
+            editor={{
+                ...editor,
+                kind: "pattern",
+                heading: "Edit repeating pattern",
+                values: {
+                    request_key: "pattern-key",
+                    expected_revision: "1",
+                    steps: JSON.stringify([
+                        { id: "step", phase_id: "opening", count: 2 },
+                    ]),
+                },
+            }}
+            phases={repeated}
+            onNavigate={vi.fn()}
+        />,
     );
+    expect(
+        screen.getByRole("heading", {
+            level: 1,
+            name: "Edit repeating pattern",
+        }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("group", { name: "Planning mode" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Cycle dates" })).toBeNull();
+    expect(screen.getAllByRole("option", { name: "Opening" })).toHaveLength(1);
+    expect(screen.getByLabelText("Step 1 phase")).toHaveProperty(
+        "value",
+        "opening",
+    );
+    await userEvent.clear(screen.getByLabelText("Step 1 cycles"));
+    await userEvent.type(screen.getByLabelText("Step 1 cycles"), "5");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(JSON.parse(fetch.mock.calls[0][1].body.get("steps"))).toEqual([
+        { id: "step", phase_id: "opening", count: 5 },
+    ]);
 });
 
 test("retained plan commands survive the addition of date controls without changing their payload", async () => {
@@ -960,3 +967,87 @@ test.each([
         expect(fetch.mock.calls[0][1].body.get("ends_on")).toBe(end);
     },
 );
+
+test("an uncertain pattern uses the original steps and command key with fresh credentials", async () => {
+    const original = new URLSearchParams({
+        request_key: "original-pattern",
+        expected_revision: "1",
+        steps: JSON.stringify([{ id: "step", phase_id: "opening", count: 7 }]),
+    });
+    const value = {
+        ...editor,
+        kind: "pattern",
+        heading: "Edit repeating pattern",
+        recoveryKey: "pattern:campaign",
+        values: {
+            request_key: "fresh-pattern",
+            expected_revision: "2",
+            steps: "[]",
+        },
+    };
+    sessionStorage.setItem(value.recoveryKey, original.toString());
+    const fetch = vi.fn().mockResolvedValue(json({ nextUrl: "/cycles/" }));
+    vi.stubGlobal("fetch", fetch);
+    render(
+        <ScheduleEditor editor={value} phases={phases} onNavigate={vi.fn()} />,
+    );
+    expect(screen.getByLabelText("Step 1 cycles")).toHaveProperty("value", "7");
+    expect(screen.getByLabelText("Step 1 cycles")).toHaveProperty(
+        "disabled",
+        true,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    const body = fetch.mock.calls[0][1].body as URLSearchParams;
+    expect(body.get("csrfmiddlewaretoken")).toBe("fresh-csrf");
+    body.delete("csrfmiddlewaretoken");
+    expect(body.toString()).toBe(original.toString());
+});
+
+test("pattern choices include valid definitions beyond the timeline preview", () => {
+    render(
+        <ScheduleEditor
+            editor={{
+                ...editor,
+                kind: "pattern",
+                heading: "Edit repeating pattern",
+                context: {
+                    definitionPhases: [
+                        { id: "unseen", name: "Unpreviewed phase" },
+                    ],
+                },
+                values: {
+                    request_key: "unseen-pattern",
+                    expected_revision: "1",
+                    steps: JSON.stringify([
+                        { id: "step", phase_id: "unseen", count: 40 },
+                    ]),
+                },
+            }}
+            phases={phases}
+        />,
+    );
+    expect(screen.getByLabelText("Step 1 phase")).toHaveProperty(
+        "value",
+        "unseen",
+    );
+    expect(
+        screen.getByRole("option", { name: "Unpreviewed phase" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "Opening" })).toBeNull();
+});
+
+test("malformed definition metadata falls back to the known phase choices", () => {
+    render(
+        <ScheduleEditor
+            editor={{
+                ...editor,
+                context: {
+                    definitionPhases: [null, { id: 12, name: "Invalid" }],
+                },
+            }}
+            phases={phases}
+        />,
+    );
+    expect(screen.getByRole("option", { name: "Opening" })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "Invalid" })).toBeNull();
+});
