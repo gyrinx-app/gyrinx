@@ -58,7 +58,32 @@ export type Cycle = {
     endedAt: string;
     deleteHref?: string;
 };
+export type ReorderTarget = {
+    id: string;
+    label: string;
+    kind: "cycle" | "phase";
+    occurrenceId: string | null;
+    afterId: string | null;
+};
+export type ScheduleReorder = {
+    revision: number;
+    sources: Array<{
+        id: string;
+        label: string;
+        origin: string;
+        targets: string[];
+        moveHref: string;
+    }>;
+    targets: ReorderTarget[];
+};
+export type DropIntent = {
+    sourceId: string;
+    revision: number;
+    destination: Record<string, string>;
+    stale?: boolean;
+};
 export type Editor = {
+    dropIntent?: DropIntent;
     kind: string;
     heading: string;
     lead: string;
@@ -79,6 +104,7 @@ export type Editor = {
     back: string;
 };
 export interface ScheduleProps {
+    reorder?: ScheduleReorder;
     notices?: Array<{
         message: string;
         tone: "success" | "info" | "warning" | "error";

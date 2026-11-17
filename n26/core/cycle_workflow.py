@@ -948,6 +948,21 @@ def editor_back(campaign, action):
 
 
 def next_url(campaign, action, submitted):
+    if action == "move-phase":
+        from n26.core.cycle_display import SAVED_PAGE_SIZE
+        from n26.core.models import CampaignCycle
+
+        occurrence_id = submitted.form.cleaned_data["occurrence_id"]
+        saved = CampaignCycle.objects.filter(campaign=campaign, archived=False)
+        first_order = (
+            saved.filter(phase_occurrence_id=occurrence_id)
+            .order_by("order")
+            .values_list("order", flat=True)
+            .first()
+        )
+        ordinal = saved.filter(order__lte=first_order).count() if first_order else 1
+        page = (ordinal - 1) // SAVED_PAGE_SIZE + 1
+        return schedule_url(campaign) + f"?page={page}#phase-{occurrence_id}"
     if action in PHASE_ACTIONS:
         return editor_back(campaign, action)
     if submitted.result.cycle_id:

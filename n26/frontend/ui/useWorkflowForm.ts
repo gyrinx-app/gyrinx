@@ -258,6 +258,7 @@ export function useWorkflowForm<
         (options.onNavigate ?? ((href) => window.location.assign(href)))(url);
     }
     return {
+        recovered: !!recovery,
         values,
         setValues,
         errors,

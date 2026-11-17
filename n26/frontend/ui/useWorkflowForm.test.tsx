@@ -216,3 +216,32 @@ test("recovery navigation cannot leave while a write is still in flight", async 
     window.dispatchEvent(leaving);
     expect(leaving.defaultPrevented).toBe(true);
 });
+
+test.each([null, "", "1"])(
+    "reports whether a draft was recovered, including a rejected draft (%s)",
+    (rejected) => {
+        if (rejected !== null)
+            sessionStorage.setItem(
+                "example",
+                new URLSearchParams({
+                    name: "Retained draft",
+                    ...(rejected ? { __workflow_rejected: rejected } : {}),
+                }).toString(),
+            );
+        function Example() {
+            const form = useWorkflowForm({
+                values: { name: "Fresh draft" },
+                errors: {},
+                commandHref: "/save/",
+                csrfToken: "csrf",
+                recoveryKey: "example",
+                interpret: () => null,
+            });
+            return <output>{`${form.recovered}:${form.uncertain}`}</output>;
+        }
+        render(<Example />);
+        expect(screen.getByRole("status").textContent).toBe(
+            `${rejected !== null}:${rejected === ""}`,
+        );
+    },
+);

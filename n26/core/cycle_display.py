@@ -6,7 +6,8 @@ from urllib.parse import urlencode
 
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, F, Max, OuterRef, Q, Subquery
+from django.db.models import Count, F, Max, OuterRef, Q, Subquery, Window
+from django.db.models.functions import Lag
 from django.urls import reverse
 
 from n26.core import schedule as s
@@ -295,6 +296,145 @@ class ScheduleDisplay:
     nextHref: str
     moreHref: str
     focusId: str
+    reorder: dict | None = None
+
+
+def _reorder_display(
+    rows, phases, block_counts, predecessors, *, frontier, frontier_block, revision
+):
+    """Describe stable saved boundaries without treating page edges as block starts."""
+    sources, targets, rendered = [], {}, set()
+    positions = {}
+    saved = [row for row in rows if row.state != "Projected"]
+    by_block = {}
+    for row in saved:
+        by_block.setdefault(row.occurrenceId, []).append(row)
+    active = [phase for phase in phases if not phase.get("generated")]
+    visible = {
+        phase["id"] for phase in active if phase["id"] in by_block or not phase["count"]
+    }
+
+    def target(identity, label, kind, occurrence, after, position, *, shown=False):
+        if identity not in targets:
+            targets[identity] = {
+                "id": identity,
+                "label": label,
+                "kind": kind,
+                "occurrenceId": occurrence,
+                "afterId": after,
+            }
+            positions[identity] = position
+        if shown:
+            rendered.add(identity)
+        return identity
+
+    def phase_boundary(index, *, shown=False):
+        if index < 0:
+            return target(
+                "phase-start",
+                "Start of timeline",
+                "phase",
+                None,
+                None,
+                (0, 0, 0),
+                shown=shown,
+            )
+        phase = active[index]
+        return target(
+            f"phase-after:{phase['id']}",
+            f"After phase {phase['number']}: {phase['name']}",
+            "phase",
+            phase["id"],
+            phase["id"],
+            (phase["number"], 2, 0),
+            shown=shown,
+        )
+
+    for index, phase in enumerate(active):
+        key, number = phase["id"], phase["number"]
+        label = f"Phase {number}: {phase['name']}"
+        if key in visible:
+            if (active[index - 1]["number"] if index else 0) >= frontier_block:
+                phase_boundary(index - 1, shown=True)
+            if number >= frontier_block:
+                phase_boundary(index, shown=True)
+            children = by_block.get(key, [])
+            counts = block_counts.get(key, {})
+            first_order = counts.get("last", 0) - counts.get("count", 0) + 1
+            if (
+                children
+                and children[0].order == first_order
+                and first_order > frontier
+                or not phase["count"]
+                and number > frontier_block
+            ):
+                target(
+                    f"cycle-start:{key}",
+                    f"Start of {label}",
+                    "cycle",
+                    key,
+                    None,
+                    (number, 1, 0),
+                    shown=True,
+                )
+            for row in children:
+                if row.order >= frontier:
+                    target(
+                        f"cycle-after:{row.key}",
+                        f"After {row.name}",
+                        "cycle",
+                        key,
+                        row.key,
+                        (number, 1, row.order),
+                        shown=True,
+                    )
+        if key in visible and phase.get("moveHref"):
+            sources.append(
+                {
+                    "id": f"phase:{key}",
+                    "label": label,
+                    "origin": phase_boundary(index - 1),
+                    "targets": [],
+                    "moveHref": phase["moveHref"],
+                }
+            )
+        for row in by_block.get(key, []):
+            if not row.moveHref:
+                continue
+            previous = predecessors.get(row.key)
+            origin = target(
+                f"cycle-after:{previous}" if previous else f"cycle-start:{key}",
+                f"Before {row.name}" if previous else f"Start of {label}",
+                "cycle",
+                key,
+                previous,
+                (number, 1, row.order - 1 if previous else 0),
+            )
+            sources.append(
+                {
+                    "id": f"cycle:{row.key}",
+                    "label": row.name,
+                    "origin": origin,
+                    "targets": [],
+                    "moveHref": row.moveHref,
+                }
+            )
+    ordered = sorted(targets, key=positions.__getitem__)
+    for source in sources:
+        kind, identity = source["id"].split(":", 1)
+        source["targets"] = [
+            key
+            for key in ordered
+            if key in rendered
+            and targets[key]["kind"] == kind
+            and key != source["origin"]
+            and targets[key]["afterId"] != identity
+        ]
+    return {
+        "revision": revision,
+        "sources": sources,
+        "targets": [targets[key] for key in ordered],
+    }
 
 
 def build(campaign, user, *, page=None, preview=12, focus=None):
@@ -443,6 +583,11 @@ def _build_locked(campaign, user, *, page, preview, focus):
     saved = Paginator(
         CampaignCycle.objects.filter(campaign=campaign, archived=False)
         .annotate(
+            previous_cycle=Window(
+                Lag("id"),
+                partition_by=[F("phase_occurrence_id")],
+                order_by=F("order").asc(),
+            ),
             actual_start=Max(
                 "starting_transitions__occurred_at",
                 filter=Q(starting_transitions__kind__in=("started", "advanced")),
@@ -467,9 +612,20 @@ def _build_locked(campaign, user, *, page, preview, focus):
     number = page or (max(ordinal, 1) - 1) // SAVED_PAGE_SIZE + 1
     selected = saved.get_page(number)
     rows = []
+    predecessors = {}
+    if metadata is not None:
+        previous_by_block = {}
+        for cycle in metadata.cycles:
+            if not cycle.archived:
+                predecessors[cycle.id] = previous_by_block.get(cycle.occurrence_id)
+                previous_by_block[cycle.occurrence_id] = cycle.id
     for index, cycle in enumerate(selected, start=1):
         adopt_cycle(cycle)
         key = str(cycle.pk)
+        if metadata is None:
+            predecessors[key] = (
+                str(cycle.previous_cycle) if cycle.previous_cycle else None
+            )
         visible_order = (selected.number - 1) * SAVED_PAGE_SIZE + index
         state = (
             "Current"
@@ -729,4 +885,15 @@ def _build_locked(campaign, user, *, page, preview, focus):
         + urlencode({"page": selected.number, "preview": min(preview + 12, 100)})
         if not selected.has_next() and preview < 100 and len(projected) == preview
         else "",
+        reorder=_reorder_display(
+            rows,
+            phase_display,
+            block_counts,
+            predecessors,
+            frontier=frontier,
+            frontier_block=frontier_block,
+            revision=header.revision,
+        )
+        if manage
+        else None,
     )
