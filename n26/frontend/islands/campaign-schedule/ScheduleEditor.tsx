@@ -334,6 +334,8 @@ export function ScheduleEditor({
         return () => setGuard?.(false);
     }, [form.pending, form.uncertain, confirmed, setGuard]);
     const unavailable = editor.context.unavailable === true;
+    const controlsDisabled =
+        form.frozen || unavailable || confirmed || !!navigation?.pending;
     const deletion =
         editor.kind === "delete-phase" || editor.kind === "delete-cycle";
     const currentChoices = (editor.context.currentChoices ?? []) as Array<{
@@ -824,15 +826,7 @@ export function ScheduleEditor({
                         : "max-h-[60vh] overflow-y-auto px-1"
                 }
             >
-                <fieldset
-                    disabled={
-                        form.frozen ||
-                        unavailable ||
-                        confirmed ||
-                        navigation?.pending
-                    }
-                    className="space-y-4"
-                >
+                <fieldset disabled={controlsDisabled} className="space-y-4">
                     {editor.kind === "setup" && (
                         <section className="space-y-4">
                             <FlowProgress
@@ -912,6 +906,7 @@ export function ScheduleEditor({
                             <SetupDraft
                                 value={values.setup_definition ?? ""}
                                 review={setupStage !== 2}
+                                disabled={controlsDisabled}
                                 cyclesOptions={mode}
                                 mode={values.mode}
                                 onChange={(value) =>
@@ -1267,7 +1262,7 @@ export function ScheduleEditor({
                                 <PlanSteps
                                     value={values.steps ?? "[]"}
                                     phases={definitionPhases}
-                                    disabled={form.frozen}
+                                    disabled={controlsDisabled}
                                     onChange={(value) => change("steps", value)}
                                 />
                             </Card>

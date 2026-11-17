@@ -6,6 +6,9 @@ including its reads, commands, confirmations and failure paths. Cotton continues
 to render the surrounding shell. React regions are client-rendered, not hydrated
 or server-rendered.
 
+For shared drag handles, insertion boundaries and local or saved moves, read
+[Reordering in React](react-reordering.md).
+
 For a code walkthrough of the Django boundary, command endpoints, shared form
 lifecycle and design adapters, read [How React workflows fit into N26](react-workflow-anatomy.md).
 

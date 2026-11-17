@@ -10,6 +10,7 @@ urlpatterns = [
     path("refinement/preview/", views.refinement_preview, name="refinement_preview"),
     path("theming/", views.theming, name="theming"),
     path("react/", views.react_demo, name="react"),
+    path("react/reorder/", views.reorder_demo, name="reorder"),
     path("react/model-preview/", views.react_model_preview, name="react_model_preview"),
     path("tokens/", views.token_reference, name="tokens"),
     # The lab is the harness; the sheet is the thing under test, and has to be a
