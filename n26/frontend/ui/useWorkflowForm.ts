@@ -122,18 +122,14 @@ export function useWorkflowForm<
         return () => window.removeEventListener("beforeunload", warn);
     }, [uncertain, pending]);
 
-    async function save(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
+    async function submit(body: URLSearchParams) {
         if (inFlight.current || conflicted) return;
         inFlight.current = true;
         unknownOutcome.current = true;
         setPending(true);
         setNotice("");
         if (!uncertain) {
-            submitted.current = new URLSearchParams();
-            new FormData(event.currentTarget).forEach((value, name) =>
-                submitted.current!.append(name, String(value)),
-            );
+            submitted.current = new URLSearchParams(body);
             submitted.current.delete("csrfmiddlewaretoken");
         }
         try {
@@ -212,6 +208,17 @@ export function useWorkflowForm<
             setFailure((n) => n + 1);
         }
     }
+    function save(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        return submit(
+            new URLSearchParams(
+                Array.from(
+                    new FormData(event.currentTarget),
+                    ([name, value]) => [name, String(value)],
+                ),
+            ),
+        );
+    }
     function review(url: string) {
         if (!conflicted || inFlight.current) return;
         try {
@@ -267,6 +274,7 @@ export function useWorkflowForm<
         uncertain,
         notice,
         save,
+        submit,
         review,
         recoverAt,
         summary,

@@ -293,7 +293,7 @@ export function ReorderScope({
                 </span>
                 {children}
                 <DragOverlay dropAnimation={null}>
-                    <div className="max-w-72 wrap-anywhere rounded-box border border-box-border bg-surface p-2 text-sm shadow-lg">
+                    <div className="w-max max-w-72 wrap-anywhere rounded-box border border-box-border bg-surface p-2 text-sm shadow-lg">
                         {
                             sources.find(
                                 (source) => source.id === session?.itemId,
@@ -340,7 +340,7 @@ export function ReorderItem({
                     ref={setHandle}
                     size="xs"
                     variant="ghost"
-                    className="inline-flex shrink-0 cursor-grab items-center justify-center touch-none active:cursor-grabbing"
+                    className="inline-flex shrink-0 cursor-grab items-center justify-center touch-none size-4! p-0! active:cursor-grabbing"
                     disabled={context.disabled}
                     aria-label={`Move ${source.label}`}
                     aria-describedby={context.instructions}
@@ -352,7 +352,7 @@ export function ReorderItem({
                             context.finish(true, false);
                     }}
                 >
-                    <Icon name="grip-vertical" />
+                    <Icon name="grip-vertical" className="size-3!" />
                 </Button>
             ) : null,
     });
@@ -385,7 +385,12 @@ export function ReorderDropLine({
                 data-reorder-active={active || undefined}
                 className={`absolute inset-x-0 z-10 flex h-6 ${align === "start" ? "top-0 items-start" : align === "end" ? "-top-6 items-end" : "-top-3 items-center"} ${allowed ? "" : "pointer-events-none"}`}
             >
-                {active && <span className="w-full border-t-2 border-accent" />}
+                {active && (
+                    <span
+                        data-reorder-indicator
+                        className="w-full border-t-2 border-accent"
+                    />
+                )}
             </div>
         </div>
     );

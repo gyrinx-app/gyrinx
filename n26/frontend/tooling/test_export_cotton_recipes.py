@@ -58,6 +58,7 @@ def test_action_menu_recipe_reads_the_kit_dropdown():
     assert menu["separator"] == "h-px my-1 bg-ink-200 dark:bg-ink-700"
     assert "z-50" in menu["panel"]
     assert "overscroll-contain" in menu["panel"]
+    assert "text-left" in menu["panel"]
     assert "focus-visible:bg-ink-100" in menu["item"]
     assert "text-red-600" in menu["itemDanger"]
     assert "text-red-600" not in menu["item"]

@@ -220,7 +220,7 @@ export function ReorderDemo() {
                                     aria-labelledby={"heading-" + group.id}
                                     data-group-id={group.id}
                                     data-moving={active || undefined}
-                                    className="relative min-w-0 rounded-box border border-box-border bg-surface"
+                                    className={`relative min-w-0 rounded-box border border-box-border bg-surface ${active ? "opacity-40" : ""}`}
                                 >
                                     <div className="absolute inset-x-0 top-0">
                                         <ReorderDropLine
@@ -278,7 +278,11 @@ export function ReorderDemo() {
                                                                         active ||
                                                                         undefined
                                                                     }
-                                                                    className="relative"
+                                                                    className={
+                                                                        active
+                                                                            ? "relative opacity-40"
+                                                                            : "relative"
+                                                                    }
                                                                 >
                                                                     <td className="w-8">
                                                                         {position ===

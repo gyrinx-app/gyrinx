@@ -132,7 +132,7 @@ export function PlanSteps({
                                         ref={ref}
                                         data-step-id={step.id}
                                         data-moving={active || undefined}
-                                        className="relative max-sm:grid max-sm:grid-cols-[4rem_minmax(0,1fr)] max-sm:gap-x-2"
+                                        className={`relative max-sm:grid max-sm:grid-cols-[4rem_minmax(0,1fr)] max-sm:gap-x-2 ${active ? "opacity-40" : ""}`}
                                     >
                                         <td className="w-20 max-sm:block max-sm:w-auto">
                                             <div className="absolute inset-x-0 top-0">

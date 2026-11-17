@@ -1,4 +1,11 @@
-import { createContext, useContext, type ReactNode } from "react";
+import {
+    Fragment,
+    createContext,
+    useContext,
+    useEffect,
+    useRef,
+    type ReactNode,
+} from "react";
 import { ReorderScope, ReorderItem, ReorderDropLine } from "../../ui/reorder";
 import {
     ActionMenu,
@@ -14,6 +21,7 @@ import {
     Link,
     Table,
 } from "../../ui";
+import { InlineMove } from "./InlineMove";
 import { ScheduleEditor } from "./ScheduleEditor";
 import { useScheduleNavigation } from "./useScheduleNavigation";
 import { PhaseSummary } from "./PhaseSummary";
@@ -37,6 +45,7 @@ function SavedItem({
     children: (props: {
         ref?: (element: Element | null) => void;
         handle: ReactNode;
+        active: boolean;
     }) => ReactNode;
 }) {
     const reorder = useContext(TimelineReorder);
@@ -45,7 +54,7 @@ function SavedItem({
     ) ? (
         <ReorderItem id={id}>{children}</ReorderItem>
     ) : (
-        children({ handle: null })
+        children({ handle: null, active: false })
     );
 }
 
@@ -125,9 +134,7 @@ function CycleDates({ cycle }: { cycle: Cycle }) {
 function CycleRow({
     cycle: original,
     canManage,
-    first,
 }: {
-    first: boolean;
     cycle: Cycle;
     canManage: boolean;
 }) {
@@ -164,7 +171,7 @@ function CycleRow({
     ].filter((item) => item.href) as ActionMenuItem[];
     return (
         <SavedItem id={projected ? "" : `cycle:${cycle.key}`}>
-            {({ ref, handle }) => (
+            {({ ref, handle, active }) => (
                 <tr
                     ref={ref}
                     data-reorder-source={
@@ -172,24 +179,13 @@ function CycleRow({
                     }
                     id={`cycle-${cycle.key}`}
                     tabIndex={projected ? undefined : -1}
-                    className={
-                        projected
-                            ? "bg-ink-500/[0.025] [&_td]:text-muted!"
-                            : cycle.state === "Current"
-                              ? "scroll-mt-20 bg-accent/5"
-                              : "scroll-mt-20"
-                    }
+                    data-moving={active || undefined}
+                    className={`relative scroll-mt-20 ${active ? "opacity-40" : ""} ${projected ? "bg-ink-500/[0.025] [&_td]:text-muted!" : cycle.state === "Current" ? "bg-accent/5" : ""}`}
                 >
                     <td className="align-middle [overflow-wrap:anywhere]">
-                        {!projected && first && (
-                            <DropGap
-                                id={`cycle-start:${cycle.occurrenceId}`}
-                                align="start"
-                            />
-                        )}
                         <div className="flex items-start gap-2">
                             {canManage && (
-                                <span className="inline-flex w-8 shrink-0 justify-center">
+                                <span className="inline-flex h-5 w-4 shrink-0 items-center justify-center">
                                     {handle}
                                 </span>
                             )}
@@ -264,12 +260,6 @@ function CycleRow({
                                 )}
                             </div>
                         </div>
-                        {!projected && (
-                            <DropGap
-                                id={`cycle-after:${cycle.key}`}
-                                align="end"
-                            />
-                        )}
                     </td>
                     <td className="hidden w-56 align-middle sm:table-cell">
                         <CycleDates cycle={cycle} />
@@ -309,6 +299,22 @@ function CycleRow({
     );
 }
 
+/** A cell supplies a containing block in Safari; positioned table rows do not. */
+function CycleBoundary({ id, align }: { id: string; align: "start" | "end" }) {
+    const reorder = useContext(TimelineReorder);
+    if (!reorder?.targets.some((target) => target.id === id)) return null;
+    return (
+        <tr aria-hidden="true" className="h-0! border-0!">
+            <td
+                colSpan={3}
+                className="relative h-0! border-0! p-0! leading-none"
+            >
+                <DropGap id={id} align={align} />
+            </td>
+        </tr>
+    );
+}
+
 function CycleTable({
     cycles,
     name,
@@ -321,7 +327,10 @@ function CycleTable({
     return (
         <Card>
             <div className="-m-4 overflow-hidden rounded-box">
-                <Table hover={false} className="[&_td]:py-2!">
+                <Table
+                    hover={false}
+                    className="[&_tr:not([aria-hidden])_td]:py-2!"
+                >
                     <caption className="sr-only">{name} cycles</caption>
                     <thead className="sr-only">
                         <tr>
@@ -334,12 +343,21 @@ function CycleTable({
                     </thead>
                     <tbody>
                         {cycles.map((cycle, index) => (
-                            <CycleRow
-                                key={cycle.key}
-                                first={index === 0}
-                                cycle={cycle}
-                                canManage={canManage}
-                            />
+                            <Fragment key={cycle.key}>
+                                {index === 0 && cycle.state !== "Projected" && (
+                                    <CycleBoundary
+                                        id={`cycle-start:${cycle.occurrenceId}`}
+                                        align="start"
+                                    />
+                                )}
+                                <CycleRow cycle={cycle} canManage={canManage} />
+                                {cycle.state !== "Projected" && (
+                                    <CycleBoundary
+                                        id={`cycle-after:${cycle.key}`}
+                                        align="end"
+                                    />
+                                )}
+                            </Fragment>
                         ))}
                     </tbody>
                 </Table>
@@ -440,7 +458,7 @@ function PhaseGroup({
     );
     return (
         <SavedItem id={phase.generated ? "" : `phase:${phase.id}`}>
-            {({ ref, handle }) => (
+            {({ ref, handle, active }) => (
                 <section
                     ref={ref}
                     data-reorder-source={
@@ -448,15 +466,14 @@ function PhaseGroup({
                     }
                     id={anchor ? `phase-${phase.id}` : undefined}
                     aria-labelledby={heading}
-                    className={
-                        phase.generated ? "space-y-2 text-muted" : "space-y-2"
-                    }
+                    data-moving={active || undefined}
+                    className={`space-y-2 ${active ? "opacity-40" : ""} ${phase.generated ? "text-muted" : ""}`}
                 >
                     {beforeGap && <DropGap id={beforeGap} />}
                     {phase.generated && firstGenerated && continuation}
                     <div className="flex items-start gap-2 px-1">
                         {canManage && (
-                            <span className="inline-flex w-8 shrink-0 justify-center">
+                            <span className="inline-flex h-7 w-4 shrink-0 items-center justify-center">
                                 {handle}
                             </span>
                         )}
@@ -865,6 +882,23 @@ function ScheduleContent(
 
 export function CampaignSchedule(props: ScheduleProps) {
     const navigation = useScheduleNavigation(props);
+    const announced = useRef<typeof navigation.notices | null>(null);
+    useEffect(() => {
+        if (announced.current === navigation.notices) return;
+        announced.current = navigation.notices;
+        // The page shell owns the design-system toast container.
+        for (const notice of navigation.notices) {
+            window.dispatchEvent(
+                new CustomEvent("toast", {
+                    detail: {
+                        message: notice.message,
+                        variant: notice.tone,
+                        duration: notice.tone === "error" ? 0 : 4000,
+                    },
+                }),
+            );
+        }
+    }, [navigation.notices]);
     return (
         <BusyControlScope value={navigation.busyControl}>
             <div
@@ -880,11 +914,20 @@ export function CampaignSchedule(props: ScheduleProps) {
                         </Button>
                     </Alert>
                 )}
-                {navigation.notices.map((notice) => (
-                    <Alert key={notice.id} tone={notice.tone} className="mb-3">
-                        {notice.message}
-                    </Alert>
-                ))}
+                {navigation.move && (
+                    <InlineMove
+                        key={navigation.move.editor.values.request_key}
+                        move={navigation.move}
+                        markerKey={navigation.markerKey}
+                        setGuard={navigation.setGuard}
+                        onPending={navigation.setCommandPending}
+                        preparing={
+                            navigation.pending || navigation.recoveringMove
+                        }
+                        onComplete={navigation.completeMove}
+                        onDismiss={navigation.dismissMove}
+                    />
+                )}
                 <TimelineReorder.Provider
                     value={
                         navigation.data.canManage
@@ -902,6 +945,8 @@ export function CampaignSchedule(props: ScheduleProps) {
                         disabled={
                             navigation.pending ||
                             !!navigation.data.editor ||
+                            !!navigation.move ||
+                            navigation.recoveringMove ||
                             !navigation.data.canManage
                         }
                         onMove={({ itemId, targetId }) =>

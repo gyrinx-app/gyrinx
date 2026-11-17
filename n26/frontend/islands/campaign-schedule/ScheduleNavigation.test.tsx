@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import {
     act,
     fireEvent,
@@ -606,7 +607,12 @@ test("Settings uses a full page and keeps loading inside its trigger", async () 
     await waitFor(() => expect(window.scrollTo).toHaveBeenCalledTimes(2));
 });
 
-test("schedule messages use dismissible design-system alerts and repeated saves show a fresh message", async () => {
+test("schedule saves use shell toasts once per result without adding inline alerts", async () => {
+    const dispatch = vi.spyOn(window, "dispatchEvent");
+    const toasts = () =>
+        dispatch.mock.calls
+            .map(([event]) => event)
+            .filter((event) => event.type === "toast") as CustomEvent[];
     const initial = {
         ...data(),
         notices: [
@@ -621,17 +627,23 @@ test("schedule messages use dismissible design-system alerts and repeated saves 
         }),
     });
     vi.stubGlobal("fetch", fetch);
-    render(<CampaignSchedule {...initial} />);
-    expect(screen.getByRole("alert").getAttribute("data-message")).toBe(
-        "success",
+    render(
+        <StrictMode>
+            <CampaignSchedule {...initial} />
+        </StrictMode>,
     );
-    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(toasts()).toHaveLength(1);
+    expect(toasts()[0].detail).toEqual({
+        message: "Campaign schedule saved.",
+        variant: "success",
+        duration: 4000,
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByText("Campaign schedule saved.")).toBeNull();
     await userEvent.click(screen.getByRole("link", { name: "Edit Cycle 1" }));
-    await screen.findByText("Campaign schedule saved.");
-    expect(screen.getByRole("alert").getAttribute("data-message")).toBe(
-        "success",
-    );
+    await waitFor(() => expect(toasts()).toHaveLength(2));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText("Campaign schedule saved.")).toBeNull();
 });
 
 test("setup steps have URLs, retain edits through Back/Forward and refresh without retaining credentials", async () => {

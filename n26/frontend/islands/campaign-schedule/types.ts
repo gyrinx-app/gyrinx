@@ -80,10 +80,9 @@ export type DropIntent = {
     sourceId: string;
     revision: number;
     destination: Record<string, string>;
-    stale?: boolean;
+    recoveryKey?: string;
 };
 export type Editor = {
-    dropIntent?: DropIntent;
     kind: string;
     heading: string;
     lead: string;
