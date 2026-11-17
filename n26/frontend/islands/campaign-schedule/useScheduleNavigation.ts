@@ -264,6 +264,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                         drop.recoveryKey !== editor.recoveryKey
                     ) {
                         clearMove(markerKey);
+                        setMove(null);
                         guarded.current = false;
                         setRecoveringMove(false);
                         retryDrop.current = undefined;

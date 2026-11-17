@@ -961,3 +961,43 @@ test("a retained destination missing from current choices is identified rather t
     ).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
 });
+
+test("an actor change during cached recovery removes the old actor's move UI", async () => {
+    const open = keepUnknownMove();
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(prepared())
+        .mockResolvedValueOnce(
+            prepared({
+                ...editor(),
+                recoveryKey: "another-actor",
+                values: {
+                    ...editor().values,
+                    request_key: "another-actor-key",
+                },
+            }),
+        )
+        .mockResolvedValueOnce(refreshed());
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...overview()} />);
+    await screen.findByRole("button", { name: "Retry move" });
+    act(() =>
+        window.dispatchEvent(
+            new PageTransitionEvent("pageshow", { persisted: true }),
+        ),
+    );
+    await waitFor(() =>
+        expect(screen.queryByRole("button", { name: "Retry move" })).toBeNull(),
+    );
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(sessionStorage.getItem(`schedule-move:${base}`)).toBeNull();
+    expect(sessionStorage.getItem(open.recoveryKey)).not.toBeNull();
+    const unload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(false);
+    await userEvent.click(screen.getByRole("link", { name: "Edit Cycle 1" }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    expect(
+        fetch.mock.calls.every(([, options]) => options.method !== "POST"),
+    ).toBe(true);
+});
