@@ -272,6 +272,23 @@ test("only eligible saved rows and blocks have handles; boundaries are unique an
     expect(screen.getByRole("link", { name: "Edit Cycle 2" })).toBeTruthy();
 });
 
+test("cycle insertion boundaries span the table outside draggable content", () => {
+    const { container } = render(<CampaignSchedule {...overview()} />);
+    const line = container.querySelector(
+        '[data-reorder-target="cycle-after:one"]',
+    )!;
+    const cell = line.closest("td")!;
+    expect(cell.colSpan).toBe(3);
+    expect(cell.classList.contains("relative")).toBe(true);
+    const boundary = cell.closest("tr")!;
+    expect(boundary.getAttribute("aria-hidden")).toBe("true");
+    expect(boundary.previousElementSibling?.id).toBe("cycle-one");
+    expect(line.closest("tr[data-reorder-source]")).toBeNull();
+    expect(
+        container.querySelector('#cycle-ghost + tr[aria-hidden="true"]'),
+    ).toBeNull();
+});
+
 test("an empty saved phase keeps its visible start gap when it contains generated previews", () => {
     const data = overview();
     data.rows = data.rows.map((row) =>

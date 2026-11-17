@@ -340,7 +340,7 @@ export function ReorderItem({
                     ref={setHandle}
                     size="xs"
                     variant="ghost"
-                    className="inline-flex shrink-0 cursor-grab items-center justify-center touch-none px-1! active:cursor-grabbing"
+                    className="inline-flex shrink-0 cursor-grab items-center justify-center touch-none size-4! p-0! active:cursor-grabbing"
                     disabled={context.disabled}
                     aria-label={`Move ${source.label}`}
                     aria-describedby={context.instructions}

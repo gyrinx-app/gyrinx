@@ -1,4 +1,11 @@
-import { createContext, useContext, type ReactNode } from "react";
+import {
+    Fragment,
+    createContext,
+    useContext,
+    useEffect,
+    useRef,
+    type ReactNode,
+} from "react";
 import { ReorderScope, ReorderItem, ReorderDropLine } from "../../ui/reorder";
 import {
     ActionMenu,
@@ -127,9 +134,7 @@ function CycleDates({ cycle }: { cycle: Cycle }) {
 function CycleRow({
     cycle: original,
     canManage,
-    first,
 }: {
-    first: boolean;
     cycle: Cycle;
     canManage: boolean;
 }) {
@@ -178,17 +183,9 @@ function CycleRow({
                     className={`relative scroll-mt-20 ${active ? "opacity-40" : ""} ${projected ? "bg-ink-500/[0.025] [&_td]:text-muted!" : cycle.state === "Current" ? "bg-accent/5" : ""}`}
                 >
                     <td className="align-middle [overflow-wrap:anywhere]">
-                        {!projected && first && (
-                            <div className="absolute inset-x-0 top-0">
-                                <DropGap
-                                    id={`cycle-start:${cycle.occurrenceId}`}
-                                    align="start"
-                                />
-                            </div>
-                        )}
                         <div className="flex items-start gap-2">
                             {canManage && (
-                                <span className="inline-flex w-6 shrink-0 justify-center">
+                                <span className="inline-flex h-5 w-4 shrink-0 items-center justify-center">
                                     {handle}
                                 </span>
                             )}
@@ -263,14 +260,6 @@ function CycleRow({
                                 )}
                             </div>
                         </div>
-                        {!projected && (
-                            <div className="absolute inset-x-0 bottom-0">
-                                <DropGap
-                                    id={`cycle-after:${cycle.key}`}
-                                    align="end"
-                                />
-                            </div>
-                        )}
                     </td>
                     <td className="hidden w-56 align-middle sm:table-cell">
                         <CycleDates cycle={cycle} />
@@ -310,6 +299,22 @@ function CycleRow({
     );
 }
 
+/** A cell supplies a containing block in Safari; positioned table rows do not. */
+function CycleBoundary({ id, align }: { id: string; align: "start" | "end" }) {
+    const reorder = useContext(TimelineReorder);
+    if (!reorder?.targets.some((target) => target.id === id)) return null;
+    return (
+        <tr aria-hidden="true" className="h-0! border-0!">
+            <td
+                colSpan={3}
+                className="relative h-0! border-0! p-0! leading-none"
+            >
+                <DropGap id={id} align={align} />
+            </td>
+        </tr>
+    );
+}
+
 function CycleTable({
     cycles,
     name,
@@ -322,7 +327,10 @@ function CycleTable({
     return (
         <Card>
             <div className="-m-4 overflow-hidden rounded-box">
-                <Table hover={false} className="[&_td]:py-2!">
+                <Table
+                    hover={false}
+                    className="[&_tr:not([aria-hidden])_td]:py-2!"
+                >
                     <caption className="sr-only">{name} cycles</caption>
                     <thead className="sr-only">
                         <tr>
@@ -335,12 +343,21 @@ function CycleTable({
                     </thead>
                     <tbody>
                         {cycles.map((cycle, index) => (
-                            <CycleRow
-                                key={cycle.key}
-                                first={index === 0}
-                                cycle={cycle}
-                                canManage={canManage}
-                            />
+                            <Fragment key={cycle.key}>
+                                {index === 0 && cycle.state !== "Projected" && (
+                                    <CycleBoundary
+                                        id={`cycle-start:${cycle.occurrenceId}`}
+                                        align="start"
+                                    />
+                                )}
+                                <CycleRow cycle={cycle} canManage={canManage} />
+                                {cycle.state !== "Projected" && (
+                                    <CycleBoundary
+                                        id={`cycle-after:${cycle.key}`}
+                                        align="end"
+                                    />
+                                )}
+                            </Fragment>
                         ))}
                     </tbody>
                 </Table>
@@ -456,7 +473,7 @@ function PhaseGroup({
                     {phase.generated && firstGenerated && continuation}
                     <div className="flex items-start gap-2 px-1">
                         {canManage && (
-                            <span className="inline-flex w-6 shrink-0 justify-center">
+                            <span className="inline-flex h-7 w-4 shrink-0 items-center justify-center">
                                 {handle}
                             </span>
                         )}
@@ -865,6 +882,23 @@ function ScheduleContent(
 
 export function CampaignSchedule(props: ScheduleProps) {
     const navigation = useScheduleNavigation(props);
+    const announced = useRef<typeof navigation.notices | null>(null);
+    useEffect(() => {
+        if (announced.current === navigation.notices) return;
+        announced.current = navigation.notices;
+        // The page shell owns the design-system toast container.
+        for (const notice of navigation.notices) {
+            window.dispatchEvent(
+                new CustomEvent("toast", {
+                    detail: {
+                        message: notice.message,
+                        variant: notice.tone,
+                        duration: notice.tone === "error" ? 0 : 4000,
+                    },
+                }),
+            );
+        }
+    }, [navigation.notices]);
     return (
         <BusyControlScope value={navigation.busyControl}>
             <div
@@ -894,11 +928,6 @@ export function CampaignSchedule(props: ScheduleProps) {
                         onDismiss={navigation.dismissMove}
                     />
                 )}
-                {navigation.notices.map((notice) => (
-                    <Alert key={notice.id} tone={notice.tone} className="mb-3">
-                        {notice.message}
-                    </Alert>
-                ))}
                 <TimelineReorder.Provider
                     value={
                         navigation.data.canManage

@@ -72,10 +72,12 @@ A drop line takes no layout height. Position it at the intended boundary in a
 `relative` container. The default `align="center"` places its hit area on both
 sides of the boundary. Inside a table's scroll wrapper, use `align="start"` at a
 row's top and `align="end"` at its bottom: these keep the hit area inside the row
-and avoid creating vertical overflow. Anchor the zero-height wrapper absolutely
-to the row's top or bottom, rather than the padded cell's content edge, so the
-painted line falls between rows and spans their width. Put the line inside a table cell, never
-directly under `tbody` or `tr`. The pattern-step editor demonstrates this markup.
+and avoid creating vertical overflow. Use a separate zero-height, aria-hidden
+boundary row with one positioned cell spanning all columns. Remove its padding
+and border, then put the drop line inside that cell. Do not anchor absolute drop
+targets to `tr`: Safari can position them against the page instead of the row.
+Keep the line outside the draggable row so fading the source does not fade its
+neighbouring insertion boundary. Never put a `div` directly under `tbody` or `tr`.
 
 ## Verify a consumer
 
