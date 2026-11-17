@@ -6,15 +6,21 @@ from urllib.parse import urlencode
 
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Max, OuterRef, Q, Subquery
+from django.db.models import Count, F, Max, OuterRef, Q, Subquery
 from django.urls import reverse
 
 from n26.core import schedule as s
-from n26.core.cycle_data import calendar_from_data, steps_from_data
+from n26.core.cycle_data import steps_from_data
+from n26.core.cycles import (
+    calendar_for_timeline,
+    continuation_sources,
+    with_cycle_activity,
+)
 from n26.core.models import (
     Campaign,
     CampaignCycle,
     CampaignPhase,
+    CampaignPhaseOccurrence,
     CampaignSchedule,
 )
 
@@ -53,11 +59,15 @@ class DashboardCycles:
     action_label: str = ""
 
 
-def _phase_end(plan, next_position, phase_id):
-    """Find the next phase boundary in O(steps), including an endless same-phase pattern."""
-    projected = s.project(s.PlanContinuation(plan, next_position), limit=1)
+def _phase_end(plan, next_position, phase_id, *, saved_count=None):
+    """Find the end of the next generated block without expanding the pattern."""
+    projected = s.project(
+        s.PlanContinuation(plan, next_position, saved_count=saved_count), limit=1
+    )
     if not projected:
-        return plan.order_for(plan.length), None
+        return (
+            saved_count + 1 if saved_count is not None else plan.order_for(plan.length)
+        ), None
     first = projected[0]
     if first.phase_id != phase_id:
         return first.order, first.phase_id
@@ -65,14 +75,12 @@ def _phase_end(plan, next_position, phase_id):
         i for i, step in enumerate(plan.steps) if step.id == first.source.step_id
     )
     boundary = first.order + plan.steps[index].count - first.source.offset
-    following = plan.steps[index + 1 :]
+    following = index + 1
+    if following < len(plan.steps):
+        return boundary, plan.steps[following].phase_id
     if plan.mode == "repeating":
-        following += plan.steps[: index + 1]
-    for step in following:
-        if step.phase_id != phase_id:
-            return boundary, step.phase_id
-        boundary += step.count
-    return (None, None) if plan.mode == "repeating" else (boundary, None)
+        return boundary, plan.steps[0].phase_id
+    return boundary, None
 
 
 def dashboard_summary(campaign, user):
@@ -82,7 +90,10 @@ def dashboard_summary(campaign, user):
         return None
     different_phase = CampaignCycle.objects.filter(
         campaign_id=OuterRef("campaign_id"), archived=False
-    ).exclude(phase_id=OuterRef("current_cycle__phase_id"))
+    ).exclude(
+        Q(phase_occurrence_id=OuterRef("current_cycle__phase_occurrence_id"))
+        | Q(phase_occurrence__isnull=True, phase_id=OuterRef("current_cycle__phase_id"))
+    )
     before = different_phase.filter(
         order__lt=OuterRef("current_cycle__order")
     ).order_by("-order")
@@ -91,7 +102,9 @@ def dashboard_summary(campaign, user):
     )
     header = (
         CampaignSchedule.objects.filter(campaign=campaign)
-        .select_related("active_plan", "current_cycle__phase")
+        .select_related(
+            "active_plan", "current_cycle__phase", "current_cycle__phase_occurrence"
+        )
         .annotate(
             previous_phase_order=Subquery(before.values("order")[:1]),
             following_phase_order=Subquery(after.values("order")[:1]),
@@ -117,7 +130,9 @@ def dashboard_summary(campaign, user):
     saved_count = CampaignCycle.objects.filter(
         campaign=campaign, archived=False
     ).count()
-    projected = s.project(s.PlanContinuation(plan, header.next_position), limit=1)
+    projected = s.project(
+        s.PlanContinuation(plan, header.next_position, saved_count=saved_count), limit=1
+    )
     current = header.current_cycle
     complete = campaign.status == Campaign.Status.POST_CAMPAIGN
     summary = dict(
@@ -127,7 +142,9 @@ def dashboard_summary(campaign, user):
         schedule_href=schedule_url(campaign),
         setup_href="",
         mode=plan.mode,
-        cycle_limit=plan.order_for(plan.length) - 1 if plan.mode == "fixed" else None,
+        cycle_limit=saved_count + plan.length - header.next_position
+        if plan.mode == "fixed"
+        else None,
         complete=complete,
     )
     if manage and not complete:
@@ -139,7 +156,7 @@ def dashboard_summary(campaign, user):
                 action_label="Start campaign"
                 if campaign.status == Campaign.Status.PRE_CAMPAIGN
                 else "Start cycle"
-                if plan.order_for(header.next_position) > 1
+                if saved_count > 0
                 else "Start first cycle",
             )
         elif current:
@@ -155,9 +172,40 @@ def dashboard_summary(campaign, user):
         boundary = header.following_phase_order
         next_phase = header.following_phase_name or ""
         if boundary is None:
-            boundary, next_id = _phase_end(
-                plan, header.next_position, str(current.phase_id)
-            )
+            occurrence = current.phase_occurrence
+            continues = False
+            if (
+                projected
+                and occurrence is not None
+                and occurrence.continues_pattern
+                and not CampaignPhaseOccurrence.objects.filter(
+                    campaign=campaign, archived=False, position__gt=occurrence.position
+                ).exists()
+            ):
+                continues = s._can_continue_occurrence(
+                    plan=plan,
+                    next_position=header.next_position,
+                    occurrence=s.PhaseOccurrence(
+                        str(occurrence.pk),
+                        str(occurrence.phase_id),
+                        occurrence.position,
+                        continues_pattern=occurrence.continues_pattern,
+                    ),
+                    continuation_occurrence_id=str(header.continuation_occurrence_id)
+                    if header.continuation_occurrence_id
+                    else None,
+                    source_blocks=continuation_sources(campaign, occurrence.pk),
+                    source=projected[0].source,
+                )
+            if projected and not continues:
+                boundary, next_id = projected[0].order, projected[0].phase_id
+            else:
+                boundary, next_id = _phase_end(
+                    plan,
+                    header.next_position,
+                    projected[0].phase_id if projected else str(current.phase_id),
+                    saved_count=saved_count,
+                )
             if next_id:
                 next_phase = (
                     CampaignPhase.objects.filter(campaign=campaign, pk=next_id)
@@ -178,18 +226,30 @@ def dashboard_summary(campaign, user):
             ends_on=current.ends_on,
         )
     if current:
-        removed = CampaignCycle.objects.filter(campaign=campaign, archived=True)
-        summary["phase_position"] -= removed.filter(
-            order__gt=previous, order__lte=current.order
-        ).count()
-        if summary["phase_count"] is not None:
-            summary["phase_count"] -= removed.filter(
-                order__gt=previous, order__lt=boundary
-            ).count()
-        if summary["cycles_until_phase"] is not None:
-            summary["cycles_until_phase"] -= removed.filter(
-                order__gt=current.order, order__lt=boundary
-            ).count()
+        active = CampaignCycle.objects.filter(campaign=campaign, archived=False)
+        counts = active.aggregate(
+            current=Count("pk", filter=Q(order__lte=current.order)),
+            previous=Count("pk", filter=Q(order__lte=previous)),
+            boundary=Count("pk", filter=Q(order__lt=boundary))
+            if header.following_phase_order is not None
+            else Count("pk"),
+        )
+        visible_boundary = (
+            counts["boundary"] + 1
+            if header.following_phase_order is not None
+            else boundary
+        )
+        summary.update(
+            name=current.custom_name or f"Cycle {counts['current']}",
+            order=counts["current"],
+            phase_position=counts["current"] - counts["previous"],
+            phase_count=visible_boundary - counts["previous"] - 1
+            if visible_boundary is not None
+            else None,
+            cycles_until_phase=visible_boundary - counts["current"]
+            if next_phase and not complete
+            else None,
+        )
     return DashboardCycles(**summary)
 
 
@@ -210,6 +270,10 @@ class CycleLine:
     startedAt: str = ""
     endedAt: str = ""
     deleteHref: str = ""
+    occurrenceId: str = ""
+    moveHref: str = ""
+    duplicateHref: str = ""
+    editablePreview: bool = False
 
 
 @dataclass(frozen=True)
@@ -244,7 +308,9 @@ def _build_locked(campaign, user, *, page, preview, focus):
     manage = campaign.owner_id == user.pk
     header = (
         CampaignSchedule.objects.filter(campaign=campaign)
-        .select_related("active_plan", "current_cycle__phase")
+        .select_related(
+            "active_plan", "current_cycle__phase", "current_cycle__phase_occurrence"
+        )
         .first()
     )
     common = dict(
@@ -278,6 +344,102 @@ def _build_locked(campaign, user, *, page, preview, focus):
         .order_by("created", "id")
     )
     phase_names = {str(phase.pk): phase.name for phase in phases}
+    occurrences = list(
+        CampaignPhaseOccurrence.objects.filter(campaign=campaign, archived=False)
+        .select_related("phase")
+        .order_by("position", "id")
+    )
+    plan = s.Plan(
+        str(header.active_plan_id),
+        header.active_plan.mode,
+        steps_from_data(header.active_plan.steps),
+        header.active_plan.starts_after_order,
+        header.active_plan.start_position,
+    )
+    active_cycles = CampaignCycle.objects.filter(campaign=campaign, archived=False)
+    distribution = active_cycles.aggregate(count=Count("pk"), last=Max("order"))
+    linked_definitions = {str(o.phase_id) for o in occurrences}
+    planned_definitions = {step.phase_id for step in plan.steps}
+    needs_adoption = (
+        (distribution["last"] or 0) != distribution["count"]
+        or any(o.position != number for number, o in enumerate(occurrences, 1))
+        or any(
+            str(phase.pk) not in linked_definitions | planned_definitions
+            for phase in phases
+        )
+        or active_cycles.filter(
+            Q(phase_occurrence__isnull=True)
+            | Q(phase_occurrence__archived=True)
+            | ~Q(phase_id=F("phase_occurrence__phase_id"))
+        ).exists()
+    )
+    metadata = None
+    if needs_adoption:
+        from n26.core.cycles import _load_locked
+
+        metadata = _load_locked(campaign)
+        by_phase = {str(phase.pk): phase for phase in phases}
+        occurrences = [
+            CampaignPhaseOccurrence(
+                id=o.id,
+                campaign=campaign,
+                phase=by_phase[o.phase_id],
+                position=o.position,
+                continues_pattern=o.continues_pattern,
+            )
+            for o in metadata.occurrences
+            if not o.archived
+        ]
+    adopted_cycles = {c.id: c for c in metadata.cycles} if metadata else {}
+    by_occurrence = {str(o.pk): o for o in occurrences}
+
+    def adopt_cycle(cycle):
+        if cycle is not None and (adopted := adopted_cycles.get(str(cycle.pk))):
+            cycle.order = adopted.order
+            cycle.phase_occurrence = by_occurrence[adopted.occurrence_id]
+        return cycle
+
+    adopt_cycle(current)
+    current_order = current.order if current else 0
+    last_recorded = (
+        with_cycle_activity(
+            CampaignCycle.objects.filter(campaign=campaign, archived=False)
+        )
+        .filter(has_activity=True)
+        .select_related("phase_occurrence")
+        .order_by("-order")
+        .first()
+    )
+    adopt_cycle(last_recorded)
+    frontier = max(current_order, last_recorded.order if last_recorded else 0)
+    frontier_block = max(
+        current.phase_occurrence.position
+        if current and current.phase_occurrence_id
+        else 0,
+        last_recorded.phase_occurrence.position
+        if last_recorded and last_recorded.phase_occurrence_id
+        else 0,
+    )
+    block_counts = {
+        str(item["phase_occurrence_id"]): item
+        for item in CampaignCycle.objects.filter(campaign=campaign, archived=False)
+        .values("phase_occurrence_id")
+        .annotate(
+            count=Count("id"),
+            last=Max("order"),
+            first=Max("order", filter=Q(order__gt=frontier)),
+        )
+    }
+    if metadata is not None:
+        block_counts = {}
+        for cycle in metadata.cycles:
+            if cycle.archived:
+                continue
+            item = block_counts.setdefault(cycle.occurrence_id, {"count": 0, "last": 0})
+            item["count"] += 1
+            item["last"] = max(item["last"], cycle.order)
+            if cycle.order > frontier:
+                item["first"] = max(item.get("first", 0), cycle.order)
     saved = Paginator(
         CampaignCycle.objects.filter(campaign=campaign, archived=False)
         .annotate(
@@ -293,15 +455,22 @@ def _build_locked(campaign, user, *, page, preview, focus):
         .order_by("order"),
         SAVED_PAGE_SIZE,
     )
+    adopt_cycle(focus)
     anchor = focus.order if focus else current_order or 1
-    ordinal = CampaignCycle.objects.filter(
-        campaign=campaign, archived=False, order__lte=anchor
-    ).count()
+    ordinal = (
+        sum(not c.archived and c.order <= anchor for c in metadata.cycles)
+        if metadata is not None
+        else CampaignCycle.objects.filter(
+            campaign=campaign, archived=False, order__lte=anchor
+        ).count()
+    )
     number = page or (max(ordinal, 1) - 1) // SAVED_PAGE_SIZE + 1
     selected = saved.get_page(number)
     rows = []
-    for cycle in selected:
+    for index, cycle in enumerate(selected, start=1):
+        adopt_cycle(cycle)
         key = str(cycle.pk)
+        visible_order = (selected.number - 1) * SAVED_PAGE_SIZE + index
         state = (
             "Current"
             if current and cycle.pk == current.pk
@@ -312,8 +481,8 @@ def _build_locked(campaign, user, *, page, preview, focus):
         rows.append(
             CycleLine(
                 key,
-                cycle.name,
-                cycle.order,
+                cycle.custom_name or f"Cycle {visible_order}",
+                visible_order,
                 str(cycle.phase_id),
                 phase_names[str(cycle.phase_id)],
                 state,
@@ -326,32 +495,86 @@ def _build_locked(campaign, user, *, page, preview, focus):
                 cycle.actual_start.isoformat() if cycle.actual_start else "",
                 cycle.actual_end.isoformat() if cycle.actual_end else "",
                 deleteHref=editor_url(campaign, "delete-cycle", cycle=key)
+                if manage and cycle.order > frontier
+                else "",
+                occurrenceId=str(cycle.phase_occurrence_id)
+                if cycle.phase_occurrence_id
+                else "",
+                moveHref=editor_url(campaign, "move-cycle", cycle=key)
+                if manage and cycle.order > frontier
+                else "",
+                duplicateHref=editor_url(campaign, "duplicate-cycle", cycle=key)
                 if manage
                 else "",
             )
         )
-    plan = s.Plan(
-        str(header.active_plan_id),
-        header.active_plan.mode,
-        steps_from_data(header.active_plan.steps),
-        header.active_plan.starts_after_order,
-        header.active_plan.start_position,
-    )
     projected = s.project(
         s.PlanContinuation(
-            plan, header.next_position, calendar_from_data(header.date_settings)
+            plan,
+            header.next_position,
+            calendar_for_timeline(
+                campaign, header.date_settings, saved_count=saved.count
+            ),
+            saved.count,
         ),
         limit=preview,
     )
+    preview_blocks = []
+    occurrence_names = {str(o.pk): o for o in occurrences}
+    last_occurrence = occurrences[-1] if occurrences else None
+    source_blocks = set()
+    if last_occurrence is not None and last_occurrence.continues_pattern:
+        source_blocks = continuation_sources(campaign, last_occurrence.pk)
+
+    if metadata is not None and last_occurrence is not None:
+        source_blocks = {
+            s._source_block(c)
+            for c in metadata.cycles
+            if c.occurrence_id == str(last_occurrence.pk)
+            and c.source.position is not None
+            and "occurrence_id" not in c.customized_fields
+        }
+
+    def preview_block(cycle):
+        block = last_occurrence
+        matches = block is not None and s._can_continue_occurrence(
+            plan=plan,
+            next_position=header.next_position,
+            occurrence=s.PhaseOccurrence(
+                str(block.pk),
+                str(block.phase_id),
+                block.position,
+                continues_pattern=block.continues_pattern,
+            ),
+            continuation_occurrence_id=str(header.continuation_occurrence_id)
+            if header.continuation_occurrence_id
+            else None,
+            source_blocks=source_blocks,
+            source=cycle.source,
+        )
+        key = (
+            str(block.pk)
+            if matches
+            else f"preview-{cycle.source.position.plan_id}-{cycle.source.repetition}-{cycle.source.step_id}"
+        )
+        return key, str(block.phase_id) if matches else cycle.phase_id
+
+    for cycle in projected:
+        block_id, display_phase = preview_block(cycle)
+        if block_id not in occurrence_names and not any(
+            item[0] == block_id for item in preview_blocks
+        ):
+            preview_blocks.append((block_id, display_phase))
     if not selected.has_next():
         for cycle in projected:
+            block_id, display_phase = preview_block(cycle)
             rows.append(
                 CycleLine(
                     f"projected-{cycle.source.position.index}",
                     cycle.name,
                     cycle.order,
-                    cycle.phase_id,
-                    phase_names[cycle.phase_id],
+                    display_phase,
+                    phase_names[display_phase],
                     "Projected",
                     cycle.starts_on.isoformat() if cycle.starts_on else "",
                     cycle.ends_on.isoformat() if cycle.ends_on else "",
@@ -363,46 +586,90 @@ def _build_locked(campaign, user, *, page, preview, focus):
                         plan=plan.id,
                         position=cycle.source.position.index,
                     )
-                    if manage
+                    if manage and plan.mode == "fixed"
                     else "",
                     "",
-                    deleteHref=editor_url(
-                        campaign,
-                        "delete-cycle",
-                        plan=plan.id,
-                        position=cycle.source.position.index,
-                    )
-                    if manage
-                    else "",
+                    occurrenceId=block_id,
+                    editablePreview=plan.mode == "fixed",
                 )
             )
-    phase_display = tuple(
-        {
-            "id": str(phase.pk),
-            "number": number,
-            "name": phase.name,
-            "description": phase.description,
-            "effects": phase.effects,
-            "rewards": phase.rewards,
-            "count": phase.saved_count,
-            "editHref": editor_url(campaign, "phase", phase=str(phase.pk))
-            if manage
-            else "",
-            "duplicateHref": editor_url(
-                campaign, "duplicate-phase", phase=str(phase.pk)
-            )
-            if manage
-            else "",
-            "deleteHref": editor_url(campaign, "delete-phase", phase=str(phase.pk))
-            if manage
-            else "",
-        }
-        for number, phase in enumerate(phases, start=1)
-    )
+    phase_display = []
+    for occurrence in occurrences:
+        phase = occurrence.phase
+        key = str(occurrence.pk)
+        counts = block_counts.get(key, {})
+        editable = (
+            bool(counts.get("first"))
+            or not counts
+            and occurrence.position > frontier_block
+        )
+        structural = occurrence.position > frontier_block
+        phase_display.append(
+            {
+                "id": key,
+                "phaseId": str(phase.pk),
+                "number": occurrence.position,
+                "name": phase.name,
+                "description": phase.description,
+                "effects": phase.effects,
+                "rewards": phase.rewards,
+                "count": counts.get("count", 0),
+                "editHref": editor_url(campaign, "phase", phase=key)
+                if manage and editable
+                else "",
+                "duplicateHref": editor_url(campaign, "duplicate-phase", phase=key)
+                if manage
+                else "",
+                "deleteHref": editor_url(campaign, "delete-phase", phase=key)
+                if manage and structural
+                else "",
+                "moveHref": editor_url(campaign, "move-phase", phase=key)
+                if manage and structural
+                else "",
+                "addCycleHref": editor_url(campaign, "add-cycle", phase=key)
+                if manage
+                and (
+                    counts.get("last", 0) >= frontier
+                    and bool(counts)
+                    or not counts
+                    and occurrence.position > frontier_block
+                )
+                else "",
+                "addPhaseHref": editor_url(campaign, "add-phase", after=key)
+                if manage and occurrence.position >= frontier_block
+                else "",
+            }
+        )
+    by_definition = {str(phase.pk): phase for phase in phases}
+    for number, (key, phase_id) in enumerate(
+        preview_blocks, start=len(occurrences) + 1
+    ):
+        phase = by_definition[phase_id]
+        phase_display.append(
+            {
+                "id": key,
+                "phaseId": phase_id,
+                "number": number,
+                "name": phase.name,
+                "description": phase.description,
+                "effects": phase.effects,
+                "rewards": phase.rewards,
+                "count": 0,
+                "generated": True,
+                "editHref": "",
+                "duplicateHref": "",
+                "deleteHref": "",
+            }
+        )
+    phase_display = tuple(phase_display)
+
     actions = {
         "plan": editor_url(campaign, "plan"),
         "addPhase": editor_url(campaign, "add-phase"),
     }
+    if plan.mode == "repeating":
+        actions["pattern"] = editor_url(campaign, "pattern")
+        actions["planCycles"] = editor_url(campaign, "plan-cycles")
     has_cycles = bool(saved.count or projected)
     if campaign.status == "pre_campaign" and has_cycles:
         actions["transition"] = editor_url(campaign, "start")
@@ -410,24 +677,16 @@ def _build_locked(campaign, user, *, page, preview, focus):
     elif campaign.status == "in_progress" and current is None and has_cycles:
         actions["transition"] = editor_url(campaign, "start")
         actions["transitionLabel"] = (
-            "Start cycle"
-            if plan.order_for(header.next_position) > 1
-            else "Start first cycle"
+            "Start cycle" if saved.count > 0 else "Start first cycle"
         )
     elif campaign.status == "in_progress" and current is not None:
-        has_following = CampaignCycle.objects.filter(
-            campaign=campaign, archived=False, order__gt=current.order
-        ).exists() or bool(projected)
+        has_following = saved.count > current_order or bool(projected)
         action = "advance" if has_following else "finish"
         actions["transition"] = editor_url(campaign, action)
         actions["transitionLabel"] = (
             "Advance cycle" if has_following else "Finish campaign"
         )
-    continuation = (
-        plan.order_for(header.next_position)
-        - 1
-        + (len(projected) if not selected.has_next() else 0)
-    )
+    continuation = saved.count + (len(projected) if not selected.has_next() else 0)
     following_position = header.next_position + len(projected)
     has_continuation = not selected.has_next() and (
         plan.mode == "repeating" or following_position < plan.length
@@ -442,6 +701,7 @@ def _build_locked(campaign, user, *, page, preview, focus):
         phases=phase_display,
         plan={
             "mode": plan.mode,
+            "phaseNames": phase_names,
             "steps": [
                 asdict(step)
                 for step in s.editable_steps(

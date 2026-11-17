@@ -262,7 +262,11 @@ test("new manual setup hides dates, retains optional dates when toggled, and sav
         ).checked,
     ).toBe(true);
     expect(screen.queryByLabelText("Cycle 1 starts")).toBeNull();
-    expect(screen.getByText(/You advance cycles yourself/)).toBeTruthy();
+    expect(
+        screen.getByText(
+            "Set each cycle’s start or end date when you need it.",
+        ),
+    ).toBeTruthy();
     await userEvent.click(
         screen.getByRole("radio", { name: /^Plan cycle dates/ }),
     );
@@ -396,7 +400,7 @@ test("customisation separates numbered phases from mode-specific cycle options",
             Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-        screen.getByText("Choose whether the cycle steps run once or repeat."),
+        screen.getByText("Choose a final cycle or a repeating continuation."),
     ).toBeTruthy();
     await userEvent.click(
         within(choices).getByRole("radio", { name: /^Repeating pattern/ }),

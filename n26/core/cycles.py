@@ -8,10 +8,10 @@ a cycle inside their existing campaign transaction without advancing it.
 
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, replace
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from django.db import transaction
-from django.db.models import F, Q
+from django.db.models import Exists, F, OuterRef, Q
 from django.utils import timezone
 from ulid import ULID
 
@@ -21,16 +21,18 @@ from n26.core.campaign_permissions import may_record_campaign
 from n26.core.campaigns import campaign_operation
 from n26.core.cycle_data import (
     calendar_data,
-    calendar_from_data,
+    calendar_storage_data,
     cycle_details_data,
     ref_data,
     rewards_from_data,
     steps_from_data,
     template_data,
     template_from_data,
+    timeline_calendar_from_data,
 )
 from n26.core.fields import to_ulid
 from n26.core.models import (
+    ActionRecord,
     Battle,
     Campaign,
     CampaignCycle,
@@ -38,9 +40,11 @@ from n26.core.models import (
     CampaignCycleTransition,
     CampaignEvent,
     CampaignPhase,
+    CampaignPhaseOccurrence,
     CampaignPlan,
     CampaignSchedule,
     CampaignScheduleTemplate,
+    LedgerEvent,
 )
 from n26.core.operations import Refusal
 from n26.write_pause import guarded_write
@@ -144,25 +148,207 @@ def _load_locked(campaign):
                 c.effects,
             ),
             s.CycleSource(
-                s.PlannedPosition(str(c.source_plan_id), c.source_position),
+                s.PlannedPosition(str(c.source_plan_id), c.source_position)
+                if c.source_plan_id is not None
+                else None,
                 c.source_step,
                 c.repetition,
                 c.step_position,
             ),
             archived=c.archived,
+            occurrence_id=str(c.phase_occurrence_id) if c.phase_occurrence_id else None,
+            customized_fields=frozenset(c.customized_fields),
         )
-        for c in CampaignCycle.objects.filter(campaign=campaign).order_by("order")
+        for c in CampaignCycle.objects.filter(campaign=campaign).order_by(
+            "archived", "order", "id"
+        )
     )
-    return s.Schedule(
+    occurrences = tuple(
+        s.PhaseOccurrence(
+            str(o.pk),
+            str(o.phase_id),
+            o.position,
+            archived=o.archived,
+            continues_pattern=o.continues_pattern,
+        )
+        for o in CampaignPhaseOccurrence.objects.filter(campaign=campaign).order_by(
+            "archived", "position", "id"
+        )
+    )
+    cycles, occurrences = _adopt_occurrences(phases, plan, cycles, occurrences)
+    protected = frozenset(
+        str(identity)
+        for identity in with_cycle_activity(
+            CampaignCycle.objects.filter(campaign=campaign)
+        )
+        .filter(has_activity=True)
+        .values_list("pk", flat=True)
+    )
+    state = s.Schedule(
         str(campaign.pk),
         phases,
         plan,
         header.next_position,
-        cycles,
+        s._active_order(cycles),
         str(header.current_cycle_id) if header.current_cycle_id else None,
         campaign.status,
         header.revision,
-        calendar=calendar_from_data(header.date_settings),
+        calendar=timeline_calendar_from_data(
+            header.date_settings,
+            saved_count=sum(not c.archived for c in cycles),
+            recorded_count=len(cycles),
+        ),
+        occurrences=occurrences,
+        protected_cycle_ids=protected,
+        continuation_occurrence_id=str(header.continuation_occurrence_id)
+        if header.continuation_occurrence_id
+        else None,
+    )
+    if state.next_position:
+        previous = s._at(replace(state.plan, start_position=0), state.next_position - 1)
+        occurrence = s._continuing_occurrence(state, previous.source)
+        if occurrence is not None:
+            state = replace(state, continuation_occurrence_id=occurrence.id)
+    return state
+
+
+def _adopt_occurrences(phases, plan, cycles, occurrences):
+    """Attach missing block metadata in memory without changing stored records on reads."""
+    by_phase = {p.id: p for p in phases}
+    by_id = {
+        o.id: replace(o, archived=True) if by_phase[o.phase_id].archived else o
+        for o in occurrences
+    }
+    active_count = sum(not o.archived for o in by_id.values())
+    attached = []
+    previous = None
+    repaired = False
+    for cycle in cycles:
+        known = by_id.get(cycle.occurrence_id)
+        if known is None or known.phase_id != cycle.details.phase_id:
+            repaired = True
+            occurrence = by_id.get(previous.occurrence_id) if previous else None
+            if (
+                occurrence is None
+                or occurrence.phase_id != cycle.details.phase_id
+                or s._source_block(previous) != s._source_block(cycle)
+            ):
+                active_count += not by_phase[cycle.details.phase_id].archived
+                identity = str(
+                    to_ulid(uuid5(NAMESPACE_URL, f"gyrinx:cycle-block:{cycle.id}"))
+                )
+                occurrence = s.PhaseOccurrence(
+                    identity,
+                    cycle.details.phase_id,
+                    max(active_count, 1),
+                    archived=by_phase[cycle.details.phase_id].archived,
+                    continues_pattern=bool(
+                        cycle.source.position
+                        and cycle.source.position.plan_id == plan.id
+                        and next(
+                            (
+                                step.phase_id
+                                for step in plan.steps
+                                if step.id == cycle.source.step_id
+                            ),
+                            None,
+                        )
+                        == cycle.details.phase_id
+                    ),
+                )
+                by_id[identity] = occurrence
+            cycle = replace(
+                cycle,
+                occurrence_id=occurrence.id,
+                customized_fields=frozenset(s.CycleDetails.__dataclass_fields__),
+            )
+        attached.append(cycle)
+        previous = cycle
+    planned = {step.phase_id for step in plan.steps}
+    used = {o.phase_id for o in by_id.values()}
+    for phase in phases:
+        if not phase.archived and phase.id not in used and phase.id not in planned:
+            active_count += 1
+            identity = str(
+                to_ulid(
+                    uuid5(NAMESPACE_URL, f"gyrinx:empty-phase-occurrence:{phase.id}")
+                )
+            )
+            by_id[identity] = s.PhaseOccurrence(identity, phase.id, active_count)
+    active = sorted(
+        (o for o in by_id.values() if not o.archived), key=lambda o: o.position
+    )
+    ordered = tuple(replace(o, position=i) for i, o in enumerate(active, start=1))
+    complete = ordered + tuple(o for o in by_id.values() if o.archived)
+    if repaired:
+        candidate = s.Schedule(
+            "adoption",
+            phases,
+            plan,
+            plan.start_position,
+            s._active_order(attached),
+            None,
+            occurrences=complete,
+        )
+        sequence = iter(range(len(cycles) + len(complete) + 1))
+        key = ",".join(c.id for c in cycles)
+        normalized = s._with_cycle_blocks(
+            candidate,
+            candidate.cycles,
+            lambda: str(
+                to_ulid(
+                    uuid5(
+                        NAMESPACE_URL,
+                        f"gyrinx:split-phase-occurrence:{key}:{next(sequence)}",
+                    )
+                )
+            ),
+        )
+        return normalized.cycles, normalized.occurrences
+    return tuple(attached), complete
+
+
+def with_cycle_activity(queryset):
+    """Mark reference-protected cycles with correlated, bounded-query existence checks."""
+    return queryset.annotate(
+        has_activity=(
+            Exists(Battle.objects.filter(cycle_id=OuterRef("pk")))
+            | Exists(ActionRecord.objects.filter(cycle_id=OuterRef("pk")))
+            | Exists(LedgerEvent.objects.filter(cycle_id=OuterRef("pk")))
+            | Exists(
+                CampaignCycleTransition.objects.filter(current_cycle_id=OuterRef("pk"))
+            )
+            | Exists(
+                CampaignCycleTransition.objects.filter(previous_cycle_id=OuterRef("pk"))
+            )
+        )
+    )
+
+
+def continuation_sources(campaign, occurrence_id):
+    """Load genuine generated groups belonging to one phase block, including history."""
+    return {
+        (str(plan_id), repetition, step)
+        for plan_id, repetition, step in CampaignCycle.objects.filter(
+            campaign=campaign,
+            phase_occurrence_id=occurrence_id,
+            source_plan__isnull=False,
+        )
+        .exclude(customized_fields__contains=["occurrence_id"])
+        .values_list("source_plan_id", "repetition", "source_step")
+        .distinct()
+    }
+
+
+def calendar_for_timeline(campaign, data, *, saved_count):
+    legacy = isinstance(data, dict) and data and "position_offset" not in data
+    recorded_count = (
+        CampaignCycle.objects.filter(campaign=campaign).count()
+        if legacy
+        else saved_count
+    )
+    return timeline_calendar_from_data(
+        data, saved_count=saved_count, recorded_count=recorded_count
     )
 
 
@@ -190,8 +376,10 @@ def _cycle_record(campaign, cycle):
         ends_on=cycle.details.ends_on,
         description=cycle.details.description,
         effects=cycle.details.effects,
-        source_plan_id=cycle.source.position.plan_id,
-        source_position=cycle.source.position.index,
+        phase_occurrence_id=cycle.occurrence_id,
+        customized_fields=sorted(cycle.customized_fields),
+        source_plan_id=cycle.source.position.plan_id if cycle.source.position else None,
+        source_position=cycle.source.position.index if cycle.source.position else None,
         source_step=cycle.source.step_id,
         repetition=cycle.source.repetition,
         step_position=cycle.source.offset,
@@ -200,66 +388,15 @@ def _cycle_record(campaign, cycle):
     )
 
 
-def _persist_cycle_metadata(campaign, before, change):
-    """Keep optional timeline metadata consistent with concrete field edits."""
-    changed = {c.id: c for c in (*change.created, *change.updated)}
-    if not changed:
-        return
-    records = list(
-        CampaignCycle.objects.filter(campaign=campaign, pk__in=changed).select_related(
-            "phase_occurrence"
-        )
-    )
-    previous = {c.id: c for c in before.cycles} if before else {}
-    source_ids = {
-        row.source_plan_id
-        for row in records
-        if str(row.pk) not in previous and row.source_plan_id
-    }
-    plans = {
-        str(plan.pk): s.Plan(
-            str(plan.pk),
-            plan.mode,
-            steps_from_data(plan.steps),
-            plan.starts_after_order,
-            plan.start_position,
-        )
-        for plan in CampaignPlan.objects.filter(pk__in=source_ids)
-    }
-    amended = []
-    for row in records:
-        cycle = changed[str(row.pk)]
-        original = previous.get(cycle.id)
-        if original is not None:
-            baseline = original.details
-        elif row.source_plan_id is not None:
-            projected = s._dated(
-                s._at(plans[str(row.source_plan_id)], row.source_position),
-                before.calendar if before else change.schedule.calendar,
-            )
-            baseline = s.CycleDetails(
-                projected.phase_id,
-                starts_on=projected.starts_on,
-                ends_on=projected.ends_on,
-            )
-        else:
-            baseline = s.CycleDetails(cycle.details.phase_id)
-        fields = set(row.customized_fields) | {
-            field
-            for field in s.CycleDetails.__dataclass_fields__
-            if getattr(baseline, field) != getattr(cycle.details, field)
-        }
-        occurrence = row.phase_occurrence
-        inconsistent = occurrence is not None and occurrence.phase_id != row.phase_id
-        if inconsistent or fields != set(row.customized_fields):
-            if inconsistent:
-                row.phase_occurrence_id = None
-            row.customized_fields = sorted(fields)
-            amended.append(row)
-    if amended:
-        CampaignCycle.objects.bulk_update(
-            amended, ["phase_occurrence", "customized_fields"]
-        )
+def _free_positions(occupied, count):
+    """Use free positive slots without requiring space above legacy ordinals."""
+    result = []
+    candidate = 1
+    while len(result) < count:
+        if candidate not in occupied:
+            result.append(candidate)
+        candidate += 1
+    return result
 
 
 def _persist(act, before, change, *, command=None, transition_id=None):
@@ -299,39 +436,131 @@ def _persist(act, before, change, *, command=None, transition_id=None):
             start_position=after.plan.start_position,
             steps=[asdict(step) for step in after.plan.steps],
         )
-    CampaignCycle.objects.bulk_create(
-        [_cycle_record(campaign, c) for c in change.created]
+    # Conditional unique positions are immediate: free moved slots before filling them.
+    old_cycles = {c.id: c for c in before.cycles} if before else {}
+    stored = {
+        str(row[0]): row[1:]
+        for row in CampaignCycle.objects.filter(campaign=campaign).values_list(
+            "pk", "order", "phase_occurrence_id", "customized_fields"
+        )
+    }
+    stored_positions = {identity: values[0] for identity, values in stored.items()}
+    changed = [
+        c
+        for c in after.cycles
+        if c.id in old_cycles
+        and (
+            c != old_cycles[c.id]
+            or c.order != stored_positions[c.id]
+            or c.occurrence_id != (str(stored[c.id][1]) if stored[c.id][1] else None)
+            or c.customized_fields != frozenset(stored[c.id][2])
+        )
+    ]
+    moved = [
+        c.id
+        for c in changed
+        if c.order != stored_positions[c.id] or c.archived != old_cycles[c.id].archived
+    ]
+    if moved:
+        occupied = set(stored_positions.values()) | {
+            c.order for c in after.cycles if not c.archived
+        }
+        temporary = _free_positions(occupied, len(moved))
+        CampaignCycle.objects.bulk_update(
+            [
+                CampaignCycle(id=identity, order=position)
+                for identity, position in zip(moved, temporary, strict=True)
+            ],
+            ["order"],
+        )
+    existing_occurrences = {
+        str(o.pk): s.PhaseOccurrence(
+            str(o.pk),
+            str(o.phase_id),
+            o.position,
+            archived=o.archived,
+            continues_pattern=o.continues_pattern,
+        )
+        for o in CampaignPhaseOccurrence.objects.filter(campaign=campaign)
+    }
+    occurrence_records = [
+        CampaignPhaseOccurrence(
+            id=o.id,
+            campaign=campaign,
+            phase_id=o.phase_id,
+            position=o.position,
+            archived=o.archived,
+            continues_pattern=o.continues_pattern,
+            archived_at=timezone.now() if o.archived else None,
+        )
+        for o in after.occurrences
+    ]
+    moved_occurrences = [
+        o.id
+        for o in after.occurrences
+        if o.id in existing_occurrences and o != existing_occurrences[o.id]
+    ]
+    if moved_occurrences:
+        occupied = {
+            o.position
+            for o in (*existing_occurrences.values(), *after.occurrences)
+            if not o.archived
+        }
+        temporary = _free_positions(occupied, len(moved_occurrences))
+        CampaignPhaseOccurrence.objects.bulk_update(
+            [
+                CampaignPhaseOccurrence(id=identity, position=position)
+                for identity, position in zip(moved_occurrences, temporary, strict=True)
+            ],
+            ["position"],
+        )
+    CampaignPhaseOccurrence.objects.bulk_create(
+        [o for o in occurrence_records if str(o.pk) not in existing_occurrences]
     )
-    if change.updated:
-        updated = [_cycle_record(campaign, c) for c in change.updated]
+    updated_occurrences = [
+        o for o in occurrence_records if str(o.pk) in moved_occurrences
+    ]
+    if updated_occurrences:
+        CampaignPhaseOccurrence.objects.bulk_update(
+            updated_occurrences,
+            ["phase", "position", "continues_pattern", "archived", "archived_at"],
+        )
+    if changed:
+        updated = [_cycle_record(campaign, c) for c in changed]
         for cycle in updated:
             cycle.modified = timezone.now()
         CampaignCycle.objects.bulk_update(
             updated,
             [
                 "phase",
+                "phase_occurrence",
+                "order",
                 "custom_name",
                 "starts_on",
                 "ends_on",
                 "description",
                 "effects",
+                "customized_fields",
+                "source_plan",
+                "source_position",
+                "source_step",
+                "repetition",
+                "step_position",
                 "archived",
                 "archived_at",
                 "modified",
             ],
         )
-    removed = [c.id for c in (*change.created, *change.updated) if c.archived]
-    if removed:
-        Battle.objects.filter(campaign=campaign, cycle_id__in=removed).update(
-            cycle=None, revision=F("revision") + 1, modified=timezone.now()
-        )
-    _persist_cycle_metadata(campaign, before, change)
+    CampaignCycle.objects.bulk_create(
+        [_cycle_record(campaign, c) for c in after.cycles if c.id not in old_cycles]
+    )
     header_values = {
         "current_cycle_id": after.current_cycle_id,
+        "continuation_occurrence_id": after.continuation_occurrence_id,
         "active_plan_id": after.plan.id,
         "next_position": after.next_position,
         "revision": after.revision,
-        "date_settings": calendar_data(after.calendar),
+        "date_settings": calendar_storage_data(after.calendar),
         "modified": timezone.now(),
     }
     if before is None:
@@ -445,6 +674,179 @@ def _command(campaign, actor, *, kind, inputs, request_key, expected_revision, a
         return result
 
 
+_AUTHOR_UNSET = object()
+
+
+def author_timeline(
+    campaign,
+    *,
+    actor,
+    action,
+    expected_revision,
+    request_key,
+    occurrence_id=None,
+    cycle_id=None,
+    after_cycle_id=_AUTHOR_UNSET,
+    after_occurrence_id=_AUTHOR_UNSET,
+    details=None,
+    clear_dates=False,
+    name=None,
+    receipt_inputs=None,
+):
+    """Apply one timeline edit with the same lock, revision and retry boundary."""
+    from n26.core import timeline as t
+
+    actions = {
+        "insert_cycle",
+        "move_cycle",
+        "duplicate_cycle",
+        "remove_cycle",
+        "insert_occurrence",
+        "move_occurrence",
+        "duplicate_occurrence",
+        "remove_occurrence",
+        "edit_occurrence",
+    }
+    if action not in actions:
+        raise Refusal("Choose an action from the campaign timeline.")
+    legacy_kind = {
+        "insert_occurrence": "add_phase",
+        "edit_occurrence": "edit_phase",
+        "duplicate_occurrence": "duplicate_phase",
+        "remove_occurrence": "delete_phase",
+    }
+    inputs = (
+        {
+            "occurrence": occurrence_id,
+            "cycle": cycle_id,
+            "details": cycle_details_data(details)
+            if isinstance(details, s.CycleDetails)
+            else asdict(details)
+            if details is not None
+            else None,
+            "clear_dates": clear_dates,
+            "name": name,
+            **(
+                {"after_cycle": after_cycle_id}
+                if after_cycle_id is not _AUTHOR_UNSET
+                else {}
+            ),
+            **(
+                {"after_occurrence": after_occurrence_id}
+                if after_occurrence_id is not _AUTHOR_UNSET
+                else {}
+            ),
+        }
+        if receipt_inputs is None
+        else receipt_inputs
+    )
+
+    def apply(act, before):
+        block_id = occurrence_id
+        if block_id is not None and not any(
+            o.id == block_id and not o.archived for o in before.occurrences
+        ):
+            matches = [
+                o.id
+                for o in before.occurrences
+                if not o.archived and o.phase_id == block_id
+            ]
+            if len(matches) == 1:
+                block_id = matches[0]
+        cycle_placement = (
+            {}
+            if after_cycle_id is _AUTHOR_UNSET
+            else {"after_cycle_id": after_cycle_id}
+        )
+        block_placement = (
+            {}
+            if after_occurrence_id is _AUTHOR_UNSET
+            else {"after_occurrence_id": after_occurrence_id}
+        )
+        if action == "insert_cycle":
+            occurrence = t._occurrence(before, block_id)
+            prepared = (
+                replace(details, phase_id=occurrence.phase_id)
+                if details is not None
+                else None
+            )
+            change = t.insert_cycle(
+                before, block_id, details=prepared, new_id=_new_id, **cycle_placement
+            )
+        elif action == "move_cycle":
+            change = t.move_cycle(before, cycle_id, block_id, **cycle_placement)
+        elif action == "duplicate_cycle":
+            change = t.duplicate_cycle(
+                before,
+                cycle_id,
+                occurrence_id=block_id,
+                clear_dates=clear_dates,
+                new_id=_new_id,
+                **cycle_placement,
+            )
+        elif action == "remove_cycle":
+            change = t.remove_cycle(before, cycle_id)
+        elif action == "insert_occurrence":
+            if after_occurrence_id is _AUTHOR_UNSET:
+                last = next(
+                    (o for o in reversed(before.occurrences) if not o.archived), None
+                )
+                block_placement = {"after_occurrence_id": last.id if last else None}
+            change = t.insert_occurrence(
+                before, details=details, new_id=_new_id, **block_placement
+            )
+        elif action == "move_occurrence":
+            change = t.move_occurrence(before, block_id, **block_placement)
+        elif action == "duplicate_occurrence":
+            change = t.duplicate_occurrence(
+                before,
+                block_id,
+                clear_dates=clear_dates,
+                new_id=_new_id,
+                **block_placement,
+            )
+            if name is not None:
+                new_phases = {p.id for p in change.schedule.phases} - {
+                    p.id for p in before.phases
+                }
+                change = replace(
+                    change,
+                    schedule=replace(
+                        change.schedule,
+                        phases=tuple(
+                            replace(p, details=replace(p.details, name=name))
+                            if p.id in new_phases
+                            else p
+                            for p in change.schedule.phases
+                        ),
+                    ),
+                )
+        elif action == "remove_occurrence":
+            change = t.remove_occurrence(before, block_id)
+        else:
+            change = t.edit_occurrence(before, block_id, details, new_id=_new_id)
+        if len(change.created) > MAX_PREFIX:
+            raise s.ScheduleError("You can add up to 1,000 cycles at once.")
+        selected = (
+            change.created[-1].id
+            if change.created
+            else cycle_id
+            if action == "move_cycle"
+            else None
+        )
+        return change, selected
+
+    return _command(
+        campaign,
+        actor,
+        kind=legacy_kind.get(action, "timeline_" + action),
+        inputs=inputs,
+        request_key=request_key,
+        expected_revision=expected_revision,
+        apply=apply,
+    )
+
+
 def configure(
     campaign,
     *,
@@ -466,11 +868,17 @@ def configure(
             type(current_position) is not int or not 0 <= current_position < MAX_PREFIX
         ):
             raise Refusal("Select an initial cycle within the first 1,000 cycles.")
+        definition_value = template_from_data(
+            template.name if template else "Custom",
+            definition if definition is not None else template.definition,
+        )
+        if (
+            mode == "fixed"
+            and sum(step.count for step in definition_value.steps) > MAX_PREFIX
+        ):
+            raise Refusal("A fixed plan can contain up to 1,000 cycles.")
         change = s.configure(
-            template_from_data(
-                template.name if template else "Custom",
-                definition if definition is not None else template.definition,
-            ),
+            definition_value,
             campaign_id=str(campaign.pk),
             current_position=current_position,
             mode=mode,
@@ -603,15 +1011,42 @@ def delete_cycle(
 ):
     def apply(act, before):
         _bounded_target(before, target)
+        selected = s._selected(before, target)
+        selected_id = selected.id if isinstance(selected, s.Cycle) else None
+        if selected_id in before.protected_cycle_ids:
+            raise Refusal(
+                "These cycles have recorded activity. Keep them in the campaign timeline."
+            )
+        clearing_unstarted = (
+            before.status == "pre_campaign"
+            and selected_id == before.current_cycle_id
+            and selected_id is not None
+            and (replacement is not None or no_current)
+        )
+        if (
+            before.current is not None
+            and selected.order <= before.current.order
+            and not clearing_unstarted
+        ):
+            raise Refusal(
+                "Current and earlier cycles must stay in the campaign timeline."
+            )
         if replacement is not None:
             _bounded_target(before, replacement)
-        return s.delete_cycle(
+        change = s.delete_cycle(
             before,
             target,
             replacement=replacement,
             no_current=no_current,
             new_id=_new_id,
-        ), None
+        )
+        from n26.core import timeline
+
+        baseline = (
+            replace(before, current_cycle_id=None) if clearing_unstarted else before
+        )
+        timeline._protect(baseline, change.schedule.cycles, change.schedule.occurrences)
+        return change, None
 
     return _command(
         campaign,
@@ -675,19 +1110,24 @@ def replace_plan(
 
     def apply(act, before):
         dates = calendar
-        if dates is not None:
-            dates = replace(
-                dates,
-                starts_after_order=len(before.cycles),
-            )
+        if dates is not None and dates != before.calendar:
+            frontier = s.calendar_boundary(before)
+            dates = replace(dates, starts_after_order=frontier, position_offset=0)
             if before.calendar is not None and (
                 dates.interval == before.calendar.interval
                 and dates.unit == before.calendar.unit
-                and dates.starts_on
-                == before.calendar.dates_for(len(before.cycles) + 1)[0]
+                and dates.starts_on == s.calendar_defaults_start(before)
             ):
                 dates = before.calendar
-        return s.replace_plan(
+        if (
+            mode == "fixed"
+            and before.plan.mode == "repeating"
+            and before.plan.length > MAX_PREFIX
+        ):
+            raise Refusal(
+                "You can add up to 1,000 cycles at once. Shorten the pattern first."
+            )
+        return s.timeline_settings(
             before,
             steps=steps_from_data(raw_steps),
             mode=mode,
@@ -925,6 +1365,31 @@ def save_template(campaign, *, actor, name, expected_revision, request_key):
         actor,
         kind="save_template",
         inputs={"name": name},
+        request_key=request_key,
+        expected_revision=expected_revision,
+        apply=apply,
+    )
+
+
+def plan_cycles(campaign, *, actor, count, expected_revision, request_key):
+    """Save a bounded number of upcoming pattern cycles without activating them."""
+
+    def apply(act, before):
+        if type(count) is not int or not 1 <= count <= MAX_PREFIX:
+            raise s.ScheduleError("Choose between 1 and 1,000 cycles.")
+        if before.plan.mode != "repeating":
+            raise s.ScheduleError("Only a repeating pattern can add upcoming cycles.")
+        target = s.ProjectedCycleRef(
+            s.PlannedPosition(before.plan.id, before.next_position + count - 1)
+        )
+        change, selected = s._ensure_saved(before, target, new_id=_new_id)
+        return change, selected.id
+
+    return _command(
+        campaign,
+        actor,
+        kind="plan_cycles",
+        inputs={"count": count},
         request_key=request_key,
         expected_revision=expected_revision,
         apply=apply,

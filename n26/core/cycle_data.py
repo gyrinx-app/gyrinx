@@ -1,6 +1,6 @@
 """Translate schedule definitions and editable values at the storage boundary."""
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import date
 
 from n26.core import schedule as s
@@ -10,6 +10,7 @@ def calendar_data(calendar):
     if calendar is None:
         return {}
     data = {**asdict(calendar), "starts_on": calendar.starts_on.isoformat()}
+    data.pop("position_offset")
     if not calendar.days_offset:
         data.pop("days_offset")
     return data
@@ -19,7 +20,15 @@ def calendar_from_data(data):
     if data == {}:
         return None
     data = _object(
-        data, {"starts_on", "interval", "unit", "starts_after_order", "days_offset"}
+        data,
+        {
+            "starts_on",
+            "interval",
+            "unit",
+            "starts_after_order",
+            "days_offset",
+            "position_offset",
+        },
     )
     try:
         start = date.fromisoformat(data["starts_on"])
@@ -29,9 +38,24 @@ def calendar_from_data(data):
             data["unit"],
             data["starts_after_order"],
             data.get("days_offset", 0),
+            data.get("position_offset", 0),
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise s.ScheduleError("Enter a valid start date and cycle interval.") from exc
+
+
+def calendar_storage_data(calendar):
+    if calendar is None:
+        return {}
+    return {**calendar_data(calendar), "position_offset": calendar.position_offset}
+
+
+def timeline_calendar_from_data(data, *, saved_count, recorded_count):
+    """Read legacy calendar slots without treating archived entries as visible positions."""
+    calendar = calendar_from_data(data)
+    if calendar is not None and "position_offset" not in data:
+        return replace(calendar, position_offset=recorded_count - saved_count)
+    return calendar
 
 
 def _object(data, fields):

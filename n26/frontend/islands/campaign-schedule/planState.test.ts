@@ -443,3 +443,45 @@ test.each([false, true])(
         expect(restored.values.cycle_interval).toBe("2");
     },
 );
+
+test("pattern drafts restore with fresh command metadata and keep their revision when another pattern changes", () => {
+    const pattern = {
+        ...editor,
+        kind: "pattern",
+        recoveryKey: "pattern:user:campaign",
+        values: {
+            request_key: "pattern-key",
+            expected_revision: "1",
+            steps: JSON.stringify(steps),
+        },
+    };
+    const draft = {
+        ...pattern.values,
+        steps: JSON.stringify([{ ...steps[0], count: 7 }, steps[1]]),
+    };
+    retainPlanDraft(pattern, draft, {});
+    const fresh = {
+        ...pattern,
+        values: {
+            ...pattern.values,
+            request_key: "fresh-pattern-key",
+            expected_revision: "2",
+        },
+    };
+    expect(restorePlanDraft(fresh, phases).values).toEqual({
+        ...draft,
+        request_key: "fresh-pattern-key",
+        expected_revision: "2",
+    });
+    const changed = {
+        ...fresh,
+        values: {
+            ...fresh.values,
+            steps: JSON.stringify([{ ...steps[0], count: 9 }, steps[1]]),
+        },
+    };
+    expect(restorePlanDraft(changed, phases).values).toEqual({
+        ...draft,
+        request_key: "fresh-pattern-key",
+    });
+});

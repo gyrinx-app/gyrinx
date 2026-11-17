@@ -1,8 +1,8 @@
 """Campaign planning calculations, independent of persistence and delivery.
 
-Saved cycles form an ordered prefix. A plan describes only the continuation
-after that prefix; editable dates never decide which position comes next.
-Replacing a plan preserves saved cycles and their original source positions.
+Concrete cycles form an editable timeline. Stable identities preserve activity
+while visible positions can change. A source cursor supplies the repeating tail
+independently of authored insertions; dates never decide the next position.
 Callers persist a change under the campaign lock and deliver any transition
 only after commit. This module performs no database writes or reward execution.
 """
@@ -108,6 +108,20 @@ class Phase:
 
 
 @dataclass(frozen=True)
+class PhaseOccurrence:
+    """One ordered phase block in a campaign, independently of its rules."""
+
+    id: str
+    phase_id: str
+    position: int
+    archived: bool = False
+    continues_pattern: bool = False
+
+    def __post_init__(self):
+        _positive(self.position, "Phase position")
+
+
+@dataclass(frozen=True)
 class PlanStep:
     id: str
     phase_id: str
@@ -165,21 +179,26 @@ class PlanContinuation:
     plan: Plan
     next_position: int
     calendar: CycleCalendar | None = None
+    saved_count: int | None = None
 
     def __post_init__(self):
         _nonnegative(self.next_position, "Next plan position")
+        if self.saved_count is not None:
+            _nonnegative(self.saved_count, "Saved cycle count")
 
 
 @dataclass(frozen=True)
 class CycleSource:
-    position: PlannedPosition
-    step_id: str
-    repetition: int
-    offset: int
+    position: PlannedPosition | None = None
+    step_id: str = ""
+    repetition: int = 0
+    offset: int = 0
 
     def __post_init__(self):
         _nonnegative(self.repetition, "Pattern repetition")
         _nonnegative(self.offset, "Position within the step")
+        if self.position is None and (self.step_id or self.repetition or self.offset):
+            raise ScheduleError("An authored cycle cannot claim a generated position.")
 
 
 @dataclass(frozen=True)
@@ -218,6 +237,7 @@ class CycleCalendar:
     unit: Literal["weeks", "months"] = "weeks"
     starts_after_order: int = 0
     days_offset: int = 0
+    position_offset: int = 0
 
     def __post_init__(self):
         if type(self.starts_on) is not date:
@@ -228,6 +248,8 @@ class CycleCalendar:
             raise ScheduleError("Select weeks or calendar months.")
         if type(self.days_offset) is not int:
             raise ScheduleError("Enter a whole number of days to shift the calendar.")
+        if type(self.position_offset) is not int:
+            raise ScheduleError("Enter a whole calendar position offset.")
 
     def _boundary(self, index):
         try:
@@ -252,7 +274,7 @@ class CycleCalendar:
             ) from None
 
     def dates_for(self, order):
-        index = order - self.starts_after_order - 1
+        index = order + self.position_offset - self.starts_after_order - 1
         _nonnegative(index, "Cycle date position")
         return self._boundary(index), self._boundary(index + 1) - timedelta(days=1)
 
@@ -292,6 +314,8 @@ class Cycle:
     details: CycleDetails
     source: CycleSource
     archived: bool = False
+    occurrence_id: str | None = None
+    customized_fields: frozenset[str] = frozenset()
 
     @property
     def name(self):
@@ -323,6 +347,9 @@ class Schedule:
     status: Status = "pre_campaign"
     revision: int = 0
     calendar: CycleCalendar | None = None
+    occurrences: tuple[PhaseOccurrence, ...] = ()
+    protected_cycle_ids: frozenset[str] = frozenset()
+    continuation_occurrence_id: str | None = None
 
     def __post_init__(self):
         if self.status not in ("pre_campaign", "in_progress", "post_campaign"):
@@ -331,33 +358,49 @@ class Schedule:
         _nonnegative(self.next_position, "Next plan position")
         _unique((phase.id for phase in self.phases), "Phases")
         _unique((cycle.id for cycle in self.cycles), "Cycles")
-        _unique((cycle.source.position for cycle in self.cycles), "Cycle sources")
+        _unique(
+            (
+                cycle.source.position
+                for cycle in self.cycles
+                if cycle.source.position is not None
+            ),
+            "Cycle sources",
+        )
         if self.current_cycle_id is not None and self.current_cycle_id not in {
             cycle.id for cycle in self.cycles if not cycle.archived
         }:
             raise ScheduleError("Select a saved current cycle.")
-        if tuple(cycle.order for cycle in self.cycles) != tuple(
-            range(1, len(self.cycles) + 1)
+        active = tuple(cycle for cycle in self.cycles if not cycle.archived)
+        if tuple(cycle.order for cycle in active) != tuple(range(1, len(active) + 1)):
+            raise ScheduleError("Active cycles must keep their consecutive order.")
+        _unique((occurrence.id for occurrence in self.occurrences), "Phase occurrences")
+        active_occurrences = tuple(o for o in self.occurrences if not o.archived)
+        if tuple(o.position for o in active_occurrences) != tuple(
+            range(1, len(active_occurrences) + 1)
         ):
-            raise ScheduleError("Saved cycles must keep their consecutive order.")
+            raise ScheduleError(
+                "Active phase blocks must keep their consecutive order."
+            )
+        if self.occurrences:
+            by_id = {o.id: o for o in self.occurrences}
+            for cycle in active:
+                occurrence = by_id.get(cycle.occurrence_id)
+                if (
+                    occurrence is None
+                    or occurrence.archived
+                    or occurrence.phase_id != cycle.details.phase_id
+                ):
+                    raise ScheduleError("Select an active phase block for each cycle.")
         phase_ids = {phase.id for phase in self.phases}
         active_phases = {phase.id for phase in self.phases if not phase.archived}
         if any(step.phase_id not in active_phases for step in self.plan.steps) or any(
             cycle.details.phase_id not in phase_ids for cycle in self.cycles
         ):
             raise ScheduleError("Select phases from this campaign.")
-        if len(self.cycles) != self.plan.order_for(self.next_position) - 1:
-            raise ScheduleError("The plan must continue after the saved cycles.")
         if self.plan.mode == "fixed" and self.next_position > self.plan.length:
             raise ScheduleError("The next position is beyond the fixed plan.")
-        for index, cycle in enumerate(
-            self.cycles[self.plan.starts_after_order :], start=self.plan.start_position
-        ):
-            projected = _at(self.plan, index)
-            if cycle.source != projected.source:
-                raise ScheduleError("Saved cycles must retain their plan positions.")
         if self.calendar is not None:
-            self.calendar.dates_for(len(self.cycles) + 100)
+            self.calendar.dates_for(len(active) + 100)
 
     @property
     def current(self):
@@ -418,8 +461,13 @@ class Transition:
     def enters_phase(self):
         return self.kind != "finished" and (
             self.previous_cycle is None
-            or self.previous_cycle.details.phase_id
-            != self.current_cycle.details.phase_id
+            or (
+                self.previous_cycle.occurrence_id != self.current_cycle.occurrence_id
+                if self.previous_cycle.occurrence_id
+                and self.current_cycle.occurrence_id
+                else self.previous_cycle.details.phase_id
+                != self.current_cycle.details.phase_id
+            )
         )
 
 
@@ -494,9 +542,86 @@ def project(
     end = schedule.next_position + limit
     if schedule.plan.mode == "fixed":
         end = min(end, schedule.plan.length)
+    count = (
+        sum(not cycle.archived for cycle in schedule.cycles)
+        if isinstance(schedule, Schedule)
+        else schedule.saved_count
+    )
     return tuple(
-        _dated(_at(schedule.plan, i), schedule.calendar)
-        for i in range(schedule.next_position, end)
+        _dated(
+            _projected_details(schedule, _at(schedule.plan, i), count + offset + 1)
+            if count is not None
+            else _at(schedule.plan, i),
+            schedule.calendar,
+        )
+        for offset, i in enumerate(range(schedule.next_position, end))
+    )
+
+
+def _can_continue_occurrence(
+    *,
+    plan,
+    next_position,
+    occurrence,
+    continuation_occurrence_id,
+    source_blocks,
+    source,
+):
+    if not next_position or occurrence.archived or not occurrence.continues_pattern:
+        return False
+    previous = _at(replace(plan, start_position=0), next_position - 1)
+    group = (source.position.plan_id, source.repetition, source.step_id)
+    if (
+        previous.source.position.plan_id,
+        previous.source.repetition,
+        previous.source.step_id,
+    ) != group:
+        return False
+    if continuation_occurrence_id == occurrence.id or group in source_blocks:
+        return True
+    return (
+        (plan.mode == "fixed" or next_position == plan.start_position)
+        and occurrence.phase_id == previous.phase_id
+        and any(block[2] == source.step_id for block in source_blocks)
+    )
+
+
+def _continuing_occurrence(schedule, source):
+    """Keep the current generated step attached to its explicitly arranged block."""
+    if not isinstance(schedule, Schedule):
+        return None
+    occurrence = next(
+        (o for o in reversed(schedule.occurrences) if not o.archived), None
+    )
+    if occurrence is None:
+        return None
+    blocks = {
+        _source_block(c)
+        for c in schedule.cycles
+        if c.occurrence_id == occurrence.id
+        and c.source.position is not None
+        and "occurrence_id" not in c.customized_fields
+    }
+    return (
+        occurrence
+        if _can_continue_occurrence(
+            plan=schedule.plan,
+            next_position=schedule.next_position,
+            occurrence=occurrence,
+            continuation_occurrence_id=schedule.continuation_occurrence_id,
+            source_blocks=blocks,
+            source=source,
+        )
+        else None
+    )
+
+
+def _projected_details(schedule, cycle, order):
+    occurrence = _continuing_occurrence(schedule, cycle.source)
+    return replace(
+        cycle,
+        order=order,
+        phase_id=occurrence.phase_id if occurrence else cycle.phase_id,
     )
 
 
@@ -528,15 +653,25 @@ def _selected(schedule, target):
         )
     if target.position.index < schedule.next_position:
         raise ScheduleError("That cycle has been deleted. Select another cycle.")
-    return _dated(_at(schedule.plan, target.position.index), schedule.calendar)
+    selected = project(
+        PlanContinuation(
+            schedule.plan,
+            target.position.index,
+            schedule.calendar,
+            sum(not c.archived for c in schedule.cycles)
+            + target.position.index
+            - schedule.next_position,
+        ),
+        limit=1,
+    )[0]
+    return _projected_details(schedule, selected, selected.order)
 
 
 def _prefix(schedule, selected):
     if isinstance(selected, Cycle):
         return ()
-    return tuple(
-        _dated(_at(schedule.plan, i), schedule.calendar)
-        for i in range(schedule.next_position, selected.source.position.index + 1)
+    return project(
+        schedule, limit=selected.source.position.index - schedule.next_position + 1
     )
 
 
@@ -566,6 +701,181 @@ def _copy_template(template, *, mode, starts_after_order, new_id):
     return phases, plan
 
 
+def _source_block(cycle):
+    source = cycle.source
+    if source.position is None:
+        return None
+    return source.position.plan_id, source.repetition, source.step_id
+
+
+def _attach_occurrences(schedule, created, new_id):
+    """Keep one stable block for adjacent entries from the same pattern step."""
+    occurrences = list(schedule.occurrences)
+    by_id = {occurrence.id: occurrence for occurrence in occurrences}
+    source_by_occurrence = {}
+    tail = None
+    for cycle in schedule.cycles:
+        if not cycle.archived:
+            tail = cycle
+            if cycle.source.position is not None:
+                source_by_occurrence[cycle.occurrence_id] = _source_block(cycle)
+    next_position = sum(not occurrence.archived for occurrence in occurrences)
+    attached = []
+    last_occurrence = next(
+        (o.id for o in reversed(occurrences) if not o.archived), None
+    )
+    for index, cycle in enumerate(created):
+        occurrence = (
+            _continuing_occurrence(schedule, cycle.source)
+            if index == 0
+            else by_id.get(tail.occurrence_id)
+            if tail
+            else None
+        )
+        if (
+            occurrence is None
+            or occurrence.archived
+            or not occurrence.continues_pattern
+            or occurrence.id != last_occurrence
+            or occurrence.phase_id != cycle.details.phase_id
+            or index > 0
+            and source_by_occurrence.get(occurrence.id) != _source_block(cycle)
+        ):
+            next_position += 1
+            occurrence = PhaseOccurrence(
+                new_id(),
+                cycle.details.phase_id,
+                next_position,
+                continues_pattern=cycle.source.position is not None
+                and "phase_id" not in cycle.customized_fields,
+            )
+            occurrences.append(occurrence)
+            by_id[occurrence.id] = occurrence
+        last_occurrence = occurrence.id
+        cycle = replace(cycle, occurrence_id=occurrence.id)
+        attached.append(cycle)
+        tail = cycle
+        if cycle.source.position is not None:
+            source_by_occurrence[occurrence.id] = _source_block(cycle)
+    return tuple(occurrences), tuple(attached)
+
+
+def _active_order(cycles):
+    """Renumber active entries without changing their identities or audit source."""
+    active = tuple(
+        replace(cycle, order=index)
+        for index, cycle in enumerate((c for c in cycles if not c.archived), start=1)
+    )
+    return active + tuple(c for c in cycles if c.archived)
+
+
+def _with_cycle_blocks(schedule, cycles, new_id):
+    """Keep phase blocks contiguous when an individual cycle changes phase."""
+    by_id = {o.id: o for o in schedule.occurrences}
+    ordered = []
+    result = []
+    previous = None
+    for cycle in cycles:
+        if cycle.archived:
+            result.append(cycle)
+            continue
+        occurrence = by_id.get(cycle.occurrence_id)
+        if occurrence is None or occurrence.phase_id != cycle.details.phase_id:
+            occurrence = PhaseOccurrence(new_id(), cycle.details.phase_id, 1)
+        if previous is None or previous.id != occurrence.id:
+            if any(o.id == occurrence.id for o in ordered):
+                occurrence = replace(occurrence, id=new_id())
+            ordered.append(replace(occurrence, position=len(ordered) + 1))
+        previous = occurrence
+        result.append(replace(cycle, occurrence_id=occurrence.id))
+    used = {o.id for o in ordered}
+    empty = [
+        o
+        for o in schedule.occurrences
+        if not o.archived
+        and o.id not in used
+        and not any(c.occurrence_id == o.id for c in schedule.cycles if not c.archived)
+    ]
+    for occurrence in empty:
+        following = next(
+            (
+                o.id
+                for o in schedule.occurrences
+                if not o.archived and o.position > occurrence.position and o.id in used
+            ),
+            None,
+        )
+        index = next(
+            (i for i, o in enumerate(ordered) if o.id == following), len(ordered)
+        )
+        ordered.insert(index, occurrence)
+    ordered = [replace(o, position=i) for i, o in enumerate(ordered, start=1)]
+    archived = tuple(
+        replace(o, archived=True)
+        for o in schedule.occurrences
+        if o.id not in {v.id for v in ordered}
+    )
+    return replace(
+        schedule, cycles=tuple(result), occurrences=tuple(ordered) + archived
+    )
+
+
+def reindexed_calendar(schedule, active_count):
+    """Keep the next projected date when authoring changes visible positions."""
+    if schedule.calendar is None:
+        return None
+    old_count = sum(not c.archived for c in schedule.cycles)
+    return replace(
+        schedule.calendar,
+        position_offset=schedule.calendar.position_offset + old_count - active_count,
+    )
+
+
+def calendar_boundary(schedule):
+    """First future position with dates that can still take schedule defaults."""
+    frontier = max(
+        (
+            c.order
+            for c in schedule.cycles
+            if c.id in schedule.protected_cycle_ids or c.id == schedule.current_cycle_id
+        ),
+        default=0,
+    )
+    eligible = [
+        c.order
+        for c in schedule.cycles
+        if not c.archived
+        and c.order > frontier
+        and not {"starts_on", "ends_on"}.issubset(c.customized_fields)
+    ]
+    return min(eligible, default=sum(not c.archived for c in schedule.cycles) + 1) - 1
+
+
+def calendar_defaults_start(schedule):
+    """Use an eligible saved start as evidence; projection offsets apply only to the tail."""
+    boundary = calendar_boundary(schedule)
+    selected = next(
+        (c for c in schedule.cycles if not c.archived and c.order == boundary + 1), None
+    )
+    if (
+        selected
+        and "starts_on" not in selected.customized_fields
+        and selected.details.starts_on is not None
+    ):
+        return selected.details.starts_on
+    if schedule.calendar is None:
+        return None
+    try:
+        return schedule.calendar.dates_for(boundary + 1)[0]
+    except ScheduleError:
+        try:
+            return schedule.calendar.dates_for(
+                sum(not c.archived for c in schedule.cycles) + 1
+            )[0]
+        except ScheduleError:
+            return None
+
+
 def _ensure_saved(
     schedule: Schedule,
     target: CycleRef,
@@ -583,11 +893,22 @@ def _ensure_saved(
         return ScheduleChange(schedule), selected
     created = tuple(_save(p, new_id) for p in _prefix(schedule, selected))
     if selected_details is not None:
-        created = created[:-1] + (replace(created[-1], details=selected_details),)
+        original = created[-1]
+        fields = frozenset(
+            field
+            for field in CycleDetails.__dataclass_fields__
+            if getattr(original.details, field) != getattr(selected_details, field)
+        )
+        created = created[:-1] + (
+            replace(original, details=selected_details, customized_fields=fields),
+        )
+    occurrences, created = _attach_occurrences(schedule, created, new_id)
     changed = replace(
         schedule,
-        cycles=schedule.cycles + created,
+        cycles=_active_order(schedule.cycles + created),
+        occurrences=occurrences,
         next_position=selected.source.position.index + 1,
+        continuation_occurrence_id=created[-1].occurrence_id,
         revision=schedule.revision + 1,
     )
     # Explicit edits validate after their optional suffix shift is assembled.
@@ -619,19 +940,25 @@ def configure(
         template, mode=mode, starts_after_order=0, new_id=new_id
     )
     _at(plan, current_position if current_position is not None else 0)
-    cycles = tuple(
-        _save(_dated(_at(plan, i), calendar), new_id)
-        for i in range(current_position + 1 if current_position is not None else 0)
+    initial_count = (
+        plan.length
+        if mode == "fixed"
+        else (current_position + 1 if current_position is not None else 0)
     )
-    schedule = Schedule(
-        campaign_id,
-        phases,
-        plan,
-        len(cycles),
-        cycles,
-        cycles[-1].id if cycles else None,
-        status,
-        calendar=calendar,
+    cycles = tuple(
+        _save(_dated(_at(plan, i), calendar), new_id) for i in range(initial_count)
+    )
+    empty = Schedule(campaign_id, phases, plan, 0, (), None, status, calendar=calendar)
+    occurrences, cycles = _attach_occurrences(empty, cycles, new_id)
+    schedule = replace(
+        empty,
+        next_position=len(cycles),
+        cycles=cycles,
+        occurrences=occurrences,
+        continuation_occurrence_id=cycles[-1].occurrence_id if cycles else None,
+        current_cycle_id=cycles[current_position].id
+        if current_position is not None
+        else None,
     )
     validate_cycle_dates(schedule.cycles)
     _validate_projection_dates(schedule)
@@ -671,7 +998,15 @@ def _following_on(schedule, selected):
         else selected.source.position.index + 1
     )
     following = project(
-        PlanContinuation(schedule.plan, next_position, schedule.calendar), limit=1
+        PlanContinuation(
+            schedule.plan,
+            next_position,
+            schedule.calendar,
+            sum(not c.archived for c in schedule.cycles)
+            + next_position
+            - schedule.next_position,
+        ),
+        limit=1,
     )
     if following and following[0].starts_on is not None:
         anchors.append(following[0].starts_on)
@@ -694,6 +1029,7 @@ def edit_cycle(
     now: datetime | None = None,
     new_id: NewId = _id,
     shift_later: bool = False,
+    customized_fields: frozenset[str] | None = None,
 ) -> ScheduleChange:
     _phase(schedule, details.phase_id)
     original = _selected(schedule, target)
@@ -711,13 +1047,42 @@ def edit_cycle(
         new_id=new_id,
         selected_details=details,
     )
-    amended = replace(selected, details=details)
+    original_details = (
+        original.details
+        if isinstance(original, Cycle)
+        else CycleDetails(
+            original.phase_id, starts_on=original.starts_on, ends_on=original.ends_on
+        )
+    )
+    touched = (
+        customized_fields
+        if customized_fields is not None
+        else frozenset(
+            field
+            for field in CycleDetails.__dataclass_fields__
+            if getattr(original_details, field) != getattr(details, field)
+        )
+    )
+    amended = replace(
+        selected,
+        details=details,
+        customized_fields=selected.customized_fields | touched,
+    )
+    if amended.details.phase_id != selected.details.phase_id:
+        # Blocks are normalised with the changed entry before constructing Schedule.
+        changed_cycles = tuple(
+            amended if c.id == amended.id else c for c in change.schedule.cycles
+        )
+        change = replace(
+            change, schedule=_with_cycle_blocks(change.schedule, changed_cycles, new_id)
+        )
+        amended = next(c for c in change.schedule.cycles if c.id == amended.id)
     dates_changed = (
         (original.details.starts_on, original.details.ends_on)
         if isinstance(original, Cycle)
         else (original.starts_on, original.ends_on)
     ) != (details.starts_on, details.ends_on)
-    if selected.details == details and not shift:
+    if selected == amended and not shift:
         if change.created or dates_changed:
             validate_cycle_dates(
                 change.schedule.cycles,
@@ -852,6 +1217,10 @@ def duplicate_phase(
 def _archive_cycles(
     schedule, victims, *, replacement=None, no_current=False, new_id=_id
 ):
+    if victims & schedule.protected_cycle_ids:
+        raise ScheduleError(
+            "These cycles have recorded activity. Keep them in the campaign timeline."
+        )
     current = schedule.current_cycle_id
     change = ScheduleChange(schedule)
     if current in victims:
@@ -878,13 +1247,27 @@ def _archive_cycles(
     return ScheduleChange(
         replace(
             change.schedule,
-            cycles=tuple(replacements.get(c.id, c) for c in change.schedule.cycles),
+            cycles=_active_order(
+                tuple(replacements.get(c.id, c) for c in change.schedule.cycles)
+            ),
             current_cycle_id=current,
+            calendar=reindexed_calendar(
+                change.schedule,
+                sum(
+                    not c.archived and c.id not in victims
+                    for c in change.schedule.cycles
+                ),
+            ),
             revision=schedule.revision + 1,
         ),
         created=tuple(replacements.get(c.id, c) for c in change.created),
         updated=tuple(
-            c for c in archived if c.id not in {c.id for c in change.created}
+            c
+            for c in _active_order(
+                tuple(replacements.get(c.id, c) for c in change.schedule.cycles)
+            )
+            if c.id not in {c.id for c in change.created}
+            and c != next(old for old in schedule.cycles if old.id == c.id)
         ),
     )
 
@@ -1010,10 +1393,30 @@ def replace_plan(
         plan = Plan(new_id(), mode, tuple(steps), len(schedule.cycles), position)
         if plan.id == schedule.plan.id:
             raise ScheduleError("A replacement plan must have a new identity.")
+        continuation = None
+        if mode == "repeating" and position and schedule.next_position:
+            previous = _at(
+                replace(schedule.plan, start_position=0), schedule.next_position - 1
+            )
+            mapped = _at(replace(plan, start_position=0), position - 1)
+            if mapped.phase_id == previous.phase_id:
+                occurrence = _continuing_occurrence(schedule, previous.source)
+                continuation = occurrence.id if occurrence else None
+        used = (
+            {step.phase_id for step in plan.steps}
+            | {o.phase_id for o in schedule.occurrences}
+            | {c.details.phase_id for c in schedule.cycles if not c.archived}
+        )
+        retired = {step.phase_id for step in schedule.plan.steps} - used
         after = replace(
             schedule,
             plan=plan,
             next_position=position,
+            continuation_occurrence_id=continuation,
+            phases=tuple(
+                replace(p, archived=True) if p.id in retired else p
+                for p in schedule.phases
+            ),
             calendar=timing,
             revision=revision,
         )
@@ -1022,58 +1425,108 @@ def replace_plan(
 
 
 def _repeat_continuation(schedule, steps):
-    return _saved_tail_credit(schedule, steps)
-
-
-def _saved_tail_credit(schedule, steps):
-    """Credit the saved tail against its matching occurrence in the new pattern."""
-    if not schedule.cycles:
+    """Map the consumed source cursor into a replacement pattern."""
+    if not schedule.plan.length or not schedule.next_position:
         return 0
-    tail = schedule.cycles[-1]
-    phase_id, source = tail.details.phase_id, tail.source
-    if (
-        tail.archived
-        and schedule.plan.mode == "repeating"
-        and len(schedule.cycles) == schedule.plan.starts_after_order
-    ):
-        # Deletion maps the active continuation independently of the archived tail.
-        if schedule.plan.start_position:
-            previous = _at(
-                replace(schedule.plan, start_position=0),
-                schedule.plan.start_position - 1,
-            )
-            phase_id, source = previous.phase_id, previous.source
-        else:
-            retained_steps = {step.id: step for step in schedule.plan.steps}
-            previous = next(
-                (
-                    c
-                    for c in reversed(schedule.cycles)
-                    if c.source.step_id in retained_steps
-                ),
-                None,
-            )
-            if previous is None:
-                return 0
-            phase_id, source = (
-                retained_steps[previous.source.step_id].phase_id,
-                previous.source,
-            )
+    previous = _at(replace(schedule.plan, start_position=0), schedule.next_position - 1)
     matching = next(
         (
             step
             for step in steps
-            if step.id == source.step_id and step.phase_id == phase_id
+            if step.id == previous.source.step_id and step.phase_id == previous.phase_id
         ),
         None,
     )
     if matching is None:
-        candidates = [step for step in steps if step.phase_id == phase_id]
+        candidates = [step for step in steps if step.phase_id == previous.phase_id]
         matching = candidates[0] if len(candidates) == 1 else None
     if matching is None:
         return 0
     before = sum(step.count for step in steps[: steps.index(matching)])
-    return before + min(source.offset + 1, matching.count)
+    return before + min(previous.source.offset + 1, matching.count)
+
+
+def timeline_settings(
+    schedule: Schedule,
+    *,
+    mode: Mode,
+    steps: tuple[PlanStep, ...],
+    calendar: CycleCalendar | None = None,
+    clear_calendar=False,
+    new_id: NewId = _id,
+) -> ScheduleChange:
+    """Set defaults, materialising a finite endpoint without rewriting authored entries."""
+    state = schedule
+    if mode == "fixed":
+        remaining = (
+            (state.plan.length - state.next_position % state.plan.length)
+            % state.plan.length
+            if state.plan.mode == "repeating" and state.next_position
+            else state.plan.length - state.next_position
+        )
+        if remaining:
+            change, _ = _ensure_saved(
+                state, project(state, limit=remaining)[-1].ref, new_id=new_id
+            )
+            state = change.schedule
+        if state.plan.mode != "fixed":
+            plan = Plan(
+                new_id(),
+                "fixed",
+                state.plan.steps,
+                sum(not c.archived for c in state.cycles),
+            )
+            state = replace(state, plan=plan, next_position=plan.length)
+    elif mode != state.plan.mode or steps != state.plan.steps:
+        state = replace_plan(state, mode=mode, steps=steps, new_id=new_id).schedule
+    timing = (
+        None if clear_calendar else calendar if calendar is not None else state.calendar
+    )
+    if timing != schedule.calendar:
+        frontier = max(
+            (
+                c.order
+                for c in state.cycles
+                if c.id in state.protected_cycle_ids or c.id == state.current_cycle_id
+            ),
+            default=0,
+        )
+        amended = []
+        for cycle in state.cycles:
+            if cycle.archived or cycle.order <= frontier:
+                amended.append(cycle)
+                continue
+            if {"starts_on", "ends_on"}.issubset(cycle.customized_fields):
+                amended.append(cycle)
+                continue
+            start, end = timing.dates_for(cycle.order) if timing else (None, None)
+            values = {
+                field: value
+                for field, value in (("starts_on", start), ("ends_on", end))
+                if field not in cycle.customized_fields
+            }
+            amended.append(replace(cycle, details=replace(cycle.details, **values)))
+        state = replace(state, cycles=tuple(amended), calendar=timing)
+        validate_cycle_dates(
+            state.cycles,
+            affected={
+                c.id
+                for c in state.cycles
+                if c.order > frontier and c.id not in state.protected_cycle_ids
+            },
+        )
+    if state == schedule:
+        return ScheduleChange(schedule)
+    state = replace(state, revision=schedule.revision + 1)
+    _validate_projection_dates(state)
+    original = {c.id: c for c in schedule.cycles}
+    return ScheduleChange(
+        state,
+        created=tuple(c for c in state.cycles if c.id not in original),
+        updated=tuple(
+            c for c in state.cycles if c.id in original and c != original[c.id]
+        ),
+    )
 
 
 def set_calendar(schedule: Schedule, calendar: CycleCalendar) -> ScheduleChange:

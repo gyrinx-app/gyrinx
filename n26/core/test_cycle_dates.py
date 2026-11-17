@@ -21,7 +21,7 @@ def configured(*, current=0, calendar=None):
 
 def test_legacy_overlap_can_be_repaired_without_blocking_on_another_old_overlap():
     legacy = s.configure(
-        s.DEFAULT_TEMPLATE, campaign_id="legacy", current_position=3
+        s.DEFAULT_TEMPLATE, campaign_id="legacy", current_position=3, mode="repeating"
     ).schedule
     ranges = [(1, 10), (5, 14), (20, 25), (21, 28)]
     legacy = replace(
@@ -96,7 +96,7 @@ def test_projected_edit_validates_submitted_dates_before_temporary_defaults():
 
 def test_initial_calendar_checks_retained_dates_against_the_first_projection():
     legacy = s.configure(
-        s.DEFAULT_TEMPLATE, campaign_id="legacy", current_position=0
+        s.DEFAULT_TEMPLATE, campaign_id="legacy", current_position=0, mode="repeating"
     ).schedule
     first = legacy.current
     legacy = replace(
@@ -118,7 +118,7 @@ def test_initial_calendar_checks_retained_dates_against_the_first_projection():
 
 def test_initial_calendar_preserves_saved_missing_endpoints():
     legacy = s.configure(
-        s.DEFAULT_TEMPLATE, campaign_id="legacy", current_position=1
+        s.DEFAULT_TEMPLATE, campaign_id="legacy", current_position=1, mode="repeating"
     ).schedule
     legacy = replace(
         legacy,
@@ -255,7 +255,7 @@ def test_new_timing_cannot_project_over_saved_history():
 
 def test_date_settings_leave_saved_undated_cycles_unchanged():
     state = s.configure(
-        s.DEFAULT_TEMPLATE, campaign_id="legacy", current_position=2
+        s.DEFAULT_TEMPLATE, campaign_id="legacy", current_position=2, mode="repeating"
     ).schedule
     change = s.set_calendar(state, s.CycleCalendar(date(2026, 10, 1)))
     assert [cycle.id for cycle in change.schedule.cycles] == [

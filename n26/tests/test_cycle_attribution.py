@@ -51,7 +51,7 @@ def table(campaign_type, gang_type, make_profile, counter_tracking):
         actor=owner,
         template_id=template.pk,
         current_position=0,
-        mode="fixed",
+        mode="repeating",
         request_key=uuid4(),
         calendar=s.CycleCalendar(date(2026, 11, 1)),
     )
@@ -203,14 +203,16 @@ class TestActionCycles:
             )
         assert cycles.load(table.campaign).current_phase.details.name == "Takeover"
         current = cycles.load(table.campaign)
-        cycles.delete_phase(
-            table.campaign,
-            actor=table.owner,
-            phase_id=table.state.current_phase.id,
-            expected_revision=current.revision,
-            request_key=uuid4(),
-        )
-        assert table.context.resolve().archived
+        with pytest.raises(Refusal, match="recorded activity"):
+            cycles.delete_phase(
+                table.campaign,
+                actor=table.owner,
+                phase_id=table.state.current_phase.id,
+                expected_revision=current.revision,
+                request_key=uuid4(),
+            )
+        assert not table.context.resolve().archived
+        assert cycles.load(table.campaign) == current
         with operation(table.gang, actor=table.owner) as op:
             op.leave_campaign()
         other = found_campaign("Another campaign", campaign_type, owner=table.owner)
@@ -567,7 +569,7 @@ def test_cycle_choice_reads_remain_bounded_as_saved_history_grows(table):
     with CaptureQueriesContext(connection) as expanded:
         large = options(table.campaign)
     assert len(initial) == len(expanded)
-    assert len(small["choices"]) == 7
+    assert len(small["choices"]) == 13
     assert len(large["choices"]) == 62
     assert large["next"] == 2
     selected = {"cycle_id": table.state.current_cycle_id}
@@ -679,7 +681,9 @@ def test_enabling_the_flag_after_a_lost_creation_response_replays_the_original_u
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_schedule_deletion_invalidates_an_open_battle_edit(client, table, native):
+def test_protected_cycle_deletion_keeps_an_open_battle_edit_valid(
+    client, table, native
+):
     from django.urls import reverse
 
     battle = record_battle(table)
@@ -689,29 +693,39 @@ def test_schedule_deletion_invalidates_an_open_battle_edit(client, table, native
     )
     editor = page.context["battle_editor"]
     state = cycles.load(table.campaign)
-    cycles.delete_cycle(
-        table.campaign,
-        actor=table.owner,
-        target=s.SavedCycleRef(state.current_cycle_id),
-        no_current=True,
-        expected_revision=state.revision,
-        request_key=uuid4(),
-    )
+    with pytest.raises(Refusal, match="recorded activity"):
+        cycles.delete_cycle(
+            table.campaign,
+            actor=table.owner,
+            target=s.SavedCycleRef(state.current_cycle_id),
+            no_current=True,
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+    assert cycles.load(table.campaign) == state
     response = client.post(
         editor["action"] if native else editor["commandHref"], editor["values"]
     )
-    assert response.status_code == (200 if native else 409)
+    assert response.status_code == (302 if native else 200)
     battle.refresh_from_db()
-    assert battle.cycle_id is None
+    assert str(battle.cycle_id) == state.current_cycle_id
 
 
 def test_deleted_cycles_are_absent_from_choices_and_live_neighbours_cross_gaps(table):
     from n26.core.cycle_selection import options
 
-    selected = s.project(table.state)[3]
-    record_battle(table, cycle=selected.ref)
+    selected = s.project(table.state)[0]
+    battle = record_battle(table, cycle=selected.ref)
     state = cycles.load(table.campaign)
-    for cycle in state.cycles[1:4]:
+    cycles.plan_cycles(
+        table.campaign,
+        actor=table.owner,
+        count=3,
+        expected_revision=state.revision,
+        request_key=uuid4(),
+    )
+    state = cycles.load(table.campaign)
+    for cycle in state.cycles[2:5]:
         state = cycles.load(table.campaign)
         cycles.delete_cycle(
             table.campaign,
@@ -723,16 +737,19 @@ def test_deleted_cycles_are_absent_from_choices_and_live_neighbours_cross_gaps(t
     visible = options(table.campaign)
     assert [c["order"] for c in visible["choices"] if "cycle_id" in c["value"]] == [
         1,
-        5,
+        2,
     ]
-    assert visible["adjacent"] == {"anchor": 1, "previous": None, "next": 5}
+    assert visible["adjacent"] == {"anchor": 1, "previous": None, "next": 2}
     state = cycles.load(table.campaign)
     assert (
         options(table.campaign, selected=ref_data(selected.ref))["adjacent"]["previous"]
         == 1
     )
+    battle.refresh_from_db()
+    assert str(battle.cycle_id) == state.cycles[1].id
+    archived = next(c for c in state.cycles if c.archived)
     with pytest.raises(Refusal):
-        record_battle(table, cycle=s.SavedCycleRef(state.cycles[1].id))
+        record_battle(table, cycle=s.SavedCycleRef(archived.id))
 
 
 @pytest.mark.parametrize("archived_gaps", [False, True])
@@ -752,9 +769,17 @@ def test_projected_cycle_neighbours_stay_in_the_projection_after_saved_gaps(
     )
     state = cycles.load(table.campaign)
     if archived_gaps:
-        record_battle(table, cycle=s.project(state)[3].ref)
+        battle = record_battle(table, cycle=s.project(state)[0].ref)
         state = cycles.load(table.campaign)
-        for cycle in state.cycles[1:4]:
+        cycles.plan_cycles(
+            table.campaign,
+            actor=table.owner,
+            count=3,
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        state = cycles.load(table.campaign)
+        for cycle in state.cycles[2:5]:
             state = cycles.load(table.campaign)
             cycles.delete_cycle(
                 table.campaign,
@@ -764,6 +789,8 @@ def test_projected_cycle_neighbours_stay_in_the_projection_after_saved_gaps(
                 request_key=uuid4(),
             )
         state = cycles.load(table.campaign)
+        battle.refresh_from_db()
+        assert str(battle.cycle_id) == state.cycles[1].id
     selected = s.project(state)[3]
     display = options(table.campaign, selected=ref_data(selected.ref))
     assert display["adjacent"] == {
@@ -778,4 +805,61 @@ def test_projected_cycle_neighbours_stay_in_the_projection_after_saved_gaps(
         for choice in display["choices"]
         for c in state.cycles
         if c.archived
+    )
+
+
+def test_legacy_saved_gaps_use_consecutive_selector_positions_without_writes(table):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    from n26.core.cycle_display import build, dashboard_summary
+    from n26.core.cycle_selection import options
+    from n26.core.models import CampaignSchedule
+
+    cycles.plan_cycles(
+        table.campaign,
+        actor=table.owner,
+        count=2,
+        expected_revision=table.state.revision,
+        request_key=uuid4(),
+    )
+    state = cycles.load(table.campaign)
+    CampaignCycle.objects.filter(pk=state.cycles[1].id).update(archived=True)
+    legacy_dates = dict(
+        CampaignSchedule.objects.get(campaign=table.campaign).date_settings
+    )
+    legacy_dates.pop("position_offset")
+    CampaignSchedule.objects.filter(campaign=table.campaign).update(
+        current_cycle_id=state.cycles[2].id, date_settings=legacy_dates
+    )
+    before = list(
+        CampaignCycle.objects.filter(campaign=table.campaign).order_by("pk").values()
+    )
+    with CaptureQueriesContext(connection) as queries:
+        shown = options(table.campaign)
+    assert not any(
+        q["sql"].lstrip().startswith(("INSERT", "UPDATE", "DELETE")) for q in queries
+    )
+    saved = [c for c in shown["choices"] if "cycle_id" in c["value"]]
+    assert [(c["order"], c["name"], c["isCurrent"]) for c in saved] == [
+        (1, "Cycle 1", False),
+        (2, "Cycle 2", True),
+    ]
+    assert shown["current"] == "Cycle 2"
+    assert build(table.campaign, table.owner).currentName == "Cycle 2"
+    assert dashboard_summary(table.campaign, table.owner).name == "Cycle 2"
+    assert shown["adjacent"] == {"anchor": 2, "previous": 1, "next": 3}
+    first = next(c for c in shown["choices"] if c["order"] == 3)
+    assert first["value"] == {"plan_id": state.plan.id, "index": 3}
+    assert first["startsOn"] == "2026-11-22"
+    later = options(table.campaign, selected=first["value"])
+    assert later["adjacent"] == {"anchor": 3, "previous": 2, "next": 4}
+    assert len({c["order"] for c in shown["choices"]}) == len(shown["choices"])
+    assert (
+        list(
+            CampaignCycle.objects.filter(campaign=table.campaign)
+            .order_by("pk")
+            .values()
+        )
+        == before
     )

@@ -17,7 +17,6 @@ import { useScheduleNavigation } from "./useScheduleNavigation";
 import { PhaseSummary } from "./PhaseSummary";
 import {
     isPageEditor,
-    isPhaseEditor,
     type Cycle,
     type Phase,
     type ScheduleProps,
@@ -85,14 +84,50 @@ function CycleDates({ cycle }: { cycle: Cycle }) {
     );
 }
 
-function CycleRow({ cycle }: { cycle: Cycle }) {
-    const projected = cycle.state === "Projected";
+function CycleRow({
+    cycle: original,
+    canManage,
+}: {
+    cycle: Cycle;
+    canManage: boolean;
+}) {
+    const projected = original.state === "Projected";
+    const cycle =
+        canManage && (!projected || original.editablePreview)
+            ? original
+            : {
+                  ...original,
+                  editHref: "",
+                  deleteHref: "",
+                  duplicateHref: "",
+                  moveHref: "",
+              };
+    const actions: ActionMenuItem[] = [
+        {
+            label: "Move",
+            href: cycle.moveHref ?? "",
+            tone: "default",
+            separatorBefore: false,
+        },
+        {
+            label: "Duplicate",
+            href: cycle.duplicateHref ?? "",
+            tone: "default",
+            separatorBefore: false,
+        },
+        {
+            label: "Delete",
+            href: cycle.deleteHref ?? "",
+            tone: "danger",
+            separatorBefore: !!(cycle.moveHref || cycle.duplicateHref),
+        },
+    ].filter((item) => item.href) as ActionMenuItem[];
     return (
         <tr
             id={`cycle-${cycle.key}`}
             className={
                 projected
-                    ? "bg-ink-500/[0.025] opacity-60 focus-within:opacity-100 [&_td]:text-muted!"
+                    ? "bg-ink-500/[0.025] [&_td]:text-muted!"
                     : cycle.state === "Current"
                       ? "bg-accent/5"
                       : ""
@@ -111,9 +146,7 @@ function CycleRow({ cycle }: { cycle: Cycle }) {
                             <span className="font-medium">{cycle.name}</span>
                             {projected && (
                                 <span className="sr-only">
-                                    Preview, not saved yet.
-                                    {cycle.editHref &&
-                                        " Edit this cycle to save it."}
+                                    Generated preview, not saved yet.
                                 </span>
                             )}
                             {(cycle.state === "Current" ||
@@ -189,21 +222,60 @@ function CycleRow({ cycle }: { cycle: Cycle }) {
                             <Icon name="pencil" className="size-3.5" />
                         </ButtonLink>
                     )}
-                    {cycle.deleteHref && (
-                        <ButtonLink
-                            href={cycle.deleteHref}
+                    {actions.length > 0 && (
+                        <ActionMenu
+                            label={
+                                cycle.occurrenceId
+                                    ? `More actions for cycle ${String(cycle.order).padStart(2, "0")}: ${cycle.name}`
+                                    : `More actions for ${cycle.name}`
+                            }
+                            items={actions}
                             variant="ghost"
-                            size="xs"
-                            className="inline-flex! size-6! items-center justify-center p-0! leading-none text-danger"
-                            aria-label={`Delete ${cycle.name}`}
-                            title={`Delete ${cycle.name}`}
-                        >
-                            <Icon name="trash-2" className="size-3.5" />
-                        </ButtonLink>
+                            trigger="inline-chevron"
+                            align="end"
+                        />
                     )}
                 </div>
             </td>
         </tr>
+    );
+}
+
+function CycleTable({
+    cycles,
+    name,
+    canManage,
+}: {
+    cycles: Cycle[];
+    name: string;
+    canManage: boolean;
+}) {
+    return (
+        <Card>
+            <div className="-m-4 overflow-hidden rounded-box">
+                <Table hover={false} className="[&_td]:py-2!">
+                    <caption className="sr-only">{name} cycles</caption>
+                    <thead className="sr-only">
+                        <tr>
+                            <th scope="col">Cycle</th>
+                            <th scope="col" className="hidden sm:table-cell">
+                                Dates
+                            </th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {cycles.map((cycle) => (
+                            <CycleRow
+                                key={cycle.key}
+                                cycle={cycle}
+                                canManage={canManage}
+                            />
+                        ))}
+                    </tbody>
+                </Table>
+            </div>
+        </Card>
     );
 }
 
@@ -213,18 +285,33 @@ function PhaseGroup({
     cycles,
     anchor,
     canManage,
+    firstGenerated,
+    patternHref,
+    planCyclesHref,
 }: {
     phase: Phase;
     number: number;
     cycles: Cycle[];
     anchor: boolean;
     canManage: boolean;
+    firstGenerated: boolean;
+    patternHref?: string;
+    planCyclesHref?: string;
 }) {
-    const heading = `phase-heading-${cycles[0]?.key ?? phase.id}`;
+    const heading = `phase-heading-${phase.id}-${cycles[0]?.key ?? "empty"}`;
+    const concrete = cycles.filter((cycle) => cycle.state !== "Projected");
+    const projected = cycles.filter((cycle) => cycle.state === "Projected");
+    const editable = canManage && !phase.generated;
     const actions: ActionMenuItem[] = [
         {
             label: "Edit",
             href: phase.editHref,
+            tone: "default",
+            separatorBefore: false,
+        },
+        {
+            label: "Move",
+            href: phase.moveHref ?? "",
             tone: "default",
             separatorBefore: false,
         },
@@ -238,21 +325,63 @@ function PhaseGroup({
             label: "Delete",
             href: phase.deleteHref,
             tone: "danger",
-            separatorBefore: !!(phase.editHref || phase.duplicateHref),
+            separatorBefore: !!(
+                phase.editHref ||
+                phase.duplicateHref ||
+                phase.moveHref
+            ),
         },
     ];
-    const availableActions = actions.filter((action) => action.href);
+    const available = actions.filter((action) => action.href);
+    const continuation = projected.some(
+        (cycle) => cycle.editablePreview,
+    ) ? null : (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted">
+            <p>
+                Generated repeat continuation. Added cycles move this preview
+                later.
+            </p>
+            {canManage && (planCyclesHref || patternHref) && (
+                <div className="flex flex-wrap items-center gap-2">
+                    {planCyclesHref && (
+                        <ButtonLink
+                            href={planCyclesHref}
+                            size="sm"
+                            variant="ghost"
+                        >
+                            <Icon name="plus" /> Add from pattern
+                        </ButtonLink>
+                    )}
+                    {patternHref && (
+                        <ButtonLink
+                            href={patternHref}
+                            size="sm"
+                            variant="ghost"
+                        >
+                            Edit repeating pattern
+                        </ButtonLink>
+                    )}
+                </div>
+            )}
+        </div>
+    );
     return (
         <section
             id={anchor ? `phase-${phase.id}` : undefined}
             aria-labelledby={heading}
-            className="space-y-2"
+            className={phase.generated ? "space-y-2 text-muted" : "space-y-2"}
         >
+            {phase.generated && firstGenerated && continuation}
             <div className="px-1">
                 <PhaseSummary
                     {...phase}
                     number={number}
-                    count={cycles.length}
+                    count={
+                        phase.generated
+                            ? projected.length
+                            : Math.max(phase.count, concrete.length) +
+                              projected.length
+                    }
                     headingId={heading}
                     status={
                         cycles.some((cycle) => cycle.state === "Current") ? (
@@ -260,10 +389,14 @@ function PhaseGroup({
                         ) : undefined
                     }
                     actions={
-                        canManage && availableActions.length > 0 ? (
+                        editable && available.length > 0 ? (
                             <ActionMenu
-                                label={`More actions for ${phase.name}`}
-                                items={availableActions}
+                                label={
+                                    phase.phaseId
+                                        ? `More actions for phase ${String(number).padStart(2, "0")}: ${phase.name}`
+                                        : `More actions for ${phase.name}`
+                                }
+                                items={available}
                                 variant="ghost"
                                 trigger="inline-chevron"
                                 align="end"
@@ -272,37 +405,49 @@ function PhaseGroup({
                     }
                 />
             </div>
-            {cycles.length ? (
-                <Card>
-                    <div className="-m-4 overflow-hidden rounded-box">
-                        <Table hover={false} className="[&_td]:py-2!">
-                            <caption className="sr-only">
-                                {phase.name} cycles
-                            </caption>
-                            <thead className="sr-only">
-                                <tr>
-                                    <th scope="col">Cycle</th>
-                                    <th
-                                        scope="col"
-                                        className="hidden sm:table-cell"
-                                    >
-                                        Dates
-                                    </th>
-                                    <th scope="col">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {cycles.map((cycle) => (
-                                    <CycleRow key={cycle.key} cycle={cycle} />
-                                ))}
-                            </tbody>
-                        </Table>
-                    </div>
-                </Card>
-            ) : (
-                <p className="px-3 py-2 text-xs text-muted">
-                    No cycles on this page.
+            {concrete.length > 0 && (
+                <CycleTable
+                    cycles={concrete}
+                    name={phase.name}
+                    canManage={editable}
+                />
+            )}
+            {!concrete.length && !phase.generated && !projected.length && (
+                <p className="px-1 py-2 text-sm text-muted">
+                    No cycles in this phase.
                 </p>
+            )}
+            {editable && (phase.addCycleHref || phase.addPhaseHref) && (
+                <div className="flex flex-wrap gap-2">
+                    {phase.addCycleHref && (
+                        <ButtonLink
+                            href={phase.addCycleHref}
+                            size="sm"
+                            variant="ghost"
+                            aria-label={`Add cycle to phase ${String(number).padStart(2, "0")}: ${phase.name}`}
+                        >
+                            <Icon name="plus" /> Add cycle
+                        </ButtonLink>
+                    )}
+                    {phase.addPhaseHref && (
+                        <ButtonLink
+                            href={phase.addPhaseHref}
+                            size="sm"
+                            variant="ghost"
+                            aria-label={`Add phase after ${String(number).padStart(2, "0")}: ${phase.name}`}
+                        >
+                            <Icon name="plus" /> Add phase
+                        </ButtonLink>
+                    )}
+                </div>
+            )}
+            {!phase.generated && firstGenerated && continuation}
+            {projected.length > 0 && (
+                <CycleTable
+                    cycles={projected}
+                    name={`${phase.name} generated`}
+                    canManage={canManage}
+                />
             )}
         </section>
     );
@@ -324,7 +469,6 @@ function ScheduleContent(
                 key={`${props.editor.recoveryKey}:${props.editor.values.request_key}`}
                 editor={props.editor}
                 phases={props.phases}
-                addPhaseHref={props.actions.addPhase}
                 breadcrumb={
                     <Breadcrumbs
                         items={[
@@ -337,14 +481,6 @@ function ScheduleContent(
                                 label: "Phases & cycles",
                                 href: props.scheduleHref,
                             },
-                            ...(isPhaseEditor(props.editor)
-                                ? [
-                                      {
-                                          label: "Settings",
-                                          href: props.editor.back,
-                                      },
-                                  ]
-                                : []),
                             { label: props.editor.heading },
                         ]}
                     />
@@ -354,25 +490,42 @@ function ScheduleContent(
                 navigation={props.navigation}
             />
         );
-    const phases = new Map(props.phases.map((phase) => [phase.id, phase]));
-    // A repeated phase starts another group; grouping by identity would reorder cycles.
+    const phases = new Map(
+        props.phases.map((phase) => [phase.phaseId ?? phase.id, phase]),
+    );
     const groups: { phase: Phase; cycles: Cycle[]; anchor: boolean }[] = [];
-    const shown = new Set<string>();
-    for (const cycle of props.rows) {
-        const last = groups.at(-1);
-        if (last?.phase.id === cycle.phaseId) last.cycles.push(cycle);
-        else {
-            const phase = phases.get(cycle.phaseId);
-            if (phase) {
-                groups.push({
-                    phase,
-                    cycles: [cycle],
-                    anchor: !shown.has(phase.id),
-                });
-                shown.add(phase.id);
+    if (
+        props.phases.some((phase) => phase.phaseId !== undefined) ||
+        props.rows.some((cycle) => cycle.occurrenceId)
+    ) {
+        for (const phase of props.phases) {
+            const cycles = props.rows.filter(
+                (cycle) => cycle.occurrenceId === phase.id,
+            );
+            if (cycles.length || (!phase.generated && phase.count === 0))
+                groups.push({ phase, cycles, anchor: true });
+        }
+    } else {
+        const shown = new Set<string>();
+        for (const cycle of props.rows) {
+            const last = groups.at(-1);
+            if (last?.phase.id === cycle.phaseId) last.cycles.push(cycle);
+            else {
+                const phase = phases.get(cycle.phaseId);
+                if (phase) {
+                    groups.push({
+                        phase,
+                        cycles: [cycle],
+                        anchor: !shown.has(phase.id),
+                    });
+                    shown.add(phase.id);
+                }
             }
         }
     }
+    const firstGenerated = groups.findIndex((group) =>
+        group.cycles.some((cycle) => cycle.state === "Projected"),
+    );
     return (
         <div className="space-y-4">
             <Breadcrumbs
@@ -443,16 +596,31 @@ function ScheduleContent(
                     <h2 id="cycle-list-heading" className="sr-only">
                         Schedule
                     </h2>
-                    {!props.phases.length && (
-                        <p className="text-sm text-muted">
-                            No phases in this schedule. Add a phase, then choose
-                            its cycles in Settings.
-                        </p>
+                    {!props.phases.some((phase) => !phase.generated) && (
+                        <div className="space-y-2">
+                            <p className="text-sm text-muted">
+                                {props.canManage
+                                    ? "Add a phase to start planning this campaign’s cycles."
+                                    : "The arbitrator has not added any phases yet."}
+                            </p>
+                            {props.canManage && props.actions.addPhase && (
+                                <ButtonLink
+                                    href={props.actions.addPhase}
+                                    variant="primary"
+                                    size="sm"
+                                >
+                                    Add phase
+                                </ButtonLink>
+                            )}
+                        </div>
                     )}
                     <div className="space-y-4">
-                        {groups.map((group) => (
+                        {groups.map((group, index) => (
                             <PhaseGroup
-                                key={group.cycles[0]?.key ?? group.phase.id}
+                                key={
+                                    group.phase.id +
+                                    (group.cycles[0]?.key ?? "empty")
+                                }
                                 {...group}
                                 number={
                                     group.phase.number ??
@@ -461,15 +629,42 @@ function ScheduleContent(
                                     ) + 1
                                 }
                                 canManage={props.canManage}
+                                firstGenerated={index === firstGenerated}
+                                patternHref={props.actions.pattern}
+                                planCyclesHref={props.actions.planCycles}
                             />
                         ))}
                     </div>
+                    {props.canManage &&
+                        firstGenerated < 0 &&
+                        (props.actions.planCycles || props.actions.pattern) && (
+                            <div className="flex flex-wrap gap-2">
+                                {props.actions.planCycles && (
+                                    <ButtonLink
+                                        href={props.actions.planCycles}
+                                        size="sm"
+                                        variant="ghost"
+                                    >
+                                        <Icon name="plus" /> Add from pattern
+                                    </ButtonLink>
+                                )}
+                                {props.actions.pattern && (
+                                    <ButtonLink
+                                        href={props.actions.pattern}
+                                        size="sm"
+                                        variant="ghost"
+                                    >
+                                        Edit repeating pattern
+                                    </ButtonLink>
+                                )}
+                            </div>
+                        )}
                     {props.rows.some(
                         (cycle) => cycle.state === "Projected",
                     ) && (
                         <p className="text-xs text-muted">
-                            Grey cycles are previews. Previewing does not change
-                            your schedule.
+                            Grey cycles are generated previews. Previewing does
+                            not change your schedule.
                         </p>
                     )}
                     {props.plan && !props.nextHref && (
@@ -493,10 +688,11 @@ function ScheduleContent(
                                                 />
                                             )}
                                             <span>
-                                                {
+                                                {props.plan?.phaseNames?.[
+                                                    step.phase_id
+                                                ] ??
                                                     phases.get(step.phase_id)
-                                                        ?.name
-                                                }{" "}
+                                                        ?.name}{" "}
                                                 × {step.count}
                                             </span>
                                         </li>

@@ -28,7 +28,6 @@ import {
     WorkflowPage,
     useWorkflowForm,
 } from "../../ui";
-import { PhaseSettings } from "./PhaseSettings";
 import {
     restorePlanDraft,
     retainPlanDraft,
@@ -36,8 +35,10 @@ import {
     confirmPhaseDeletion,
 } from "./planState";
 import { PlanSteps } from "./PlanSteps";
+import { TimelineEditor, timelineFields } from "./TimelineEditor";
 import { SetupDraft } from "./SetupDraft";
 import { RewardSettings } from "./RewardSettings";
+import { normalizeRewards } from "./rewardData";
 import {
     restoreSetupDraft,
     retainSetupDraft,
@@ -46,7 +47,46 @@ import {
 } from "./setupState";
 import { isPageEditor, type Editor, type Phase } from "./types";
 
+function definitionChoices(value: unknown, fallback: Phase[]): Phase[] {
+    const isDefinition = (
+        item: unknown,
+    ): item is Record<string, unknown> & { id: string; name: string } =>
+        !!item &&
+        typeof item === "object" &&
+        "id" in item &&
+        typeof item.id === "string" &&
+        "name" in item &&
+        typeof item.name === "string";
+    const choices: Phase[] =
+        Array.isArray(value) && value.every(isDefinition)
+            ? value.map((item) => ({
+                  id: item.id,
+                  phaseId: item.id,
+                  name: item.name,
+                  description:
+                      typeof item.description === "string"
+                          ? item.description
+                          : "",
+                  effects: typeof item.effects === "string" ? item.effects : "",
+                  rewards: normalizeRewards(item.rewards),
+                  count: 0,
+                  editHref: "",
+                  duplicateHref: "",
+                  deleteHref: "",
+              }))
+            : fallback;
+    return Array.from(
+        new Map(
+            choices.map((phase) => [
+                phase.phaseId ?? phase.id,
+                { ...phase, id: phase.phaseId ?? phase.id },
+            ]),
+        ).values(),
+    );
+}
+
 const visible: Record<string, string[]> = {
+    ...timelineFields,
     setup: [
         "template_id",
         "mode",
@@ -66,11 +106,12 @@ const visible: Record<string, string[]> = {
     ],
     phase: ["name", "description", "effects"],
     "add-phase": ["name", "description", "effects"],
-    "duplicate-phase": ["name"],
+    "duplicate-phase": timelineFields["duplicate-phase"],
     "delete-phase": ["current_choice"],
     "delete-cycle": ["current_choice"],
     start: ["start_target"],
     plan: ["mode", "date_mode", "date_start", "cycle_interval", "cycle_unit"],
+    pattern: ["steps"],
 };
 
 function EditorFrame({
@@ -130,9 +171,7 @@ export function ScheduleEditor({
     onReload,
     navigation,
     breadcrumb,
-    addPhaseHref,
 }: {
-    addPhaseHref?: string;
     editor: Editor;
     phases: Phase[];
     onNavigate?: (url: string) => void;
@@ -149,9 +188,16 @@ export function ScheduleEditor({
     const [current, setCurrent] = useState(editor.current);
     const [reviewUrl, setReviewUrl] = useState(editor.back);
     const setupCompleted = useRef(false);
-    const [planDraft] = useState(() => restorePlanDraft(editor, phases));
+    const definitionPhases = definitionChoices(
+        editor.context.definitionPhases,
+        phases,
+    );
+    const planning = ["plan", "pattern"].includes(editor.kind);
+    const [planDraft] = useState(() =>
+        restorePlanDraft(editor, definitionPhases),
+    );
     const [initialValues] = useState(() =>
-        editor.kind === "plan" ? planDraft.values : restoreSetupDraft(editor),
+        planning ? planDraft.values : restoreSetupDraft(editor),
     );
     const form = useWorkflowForm({
         ...editor,
@@ -166,6 +212,8 @@ export function ScheduleEditor({
             "no_current",
             "current_choice",
             "start_target",
+            "clear_dates",
+            "after_occurrence_id",
         ],
         onNavigate,
         onReload,
@@ -173,7 +221,7 @@ export function ScheduleEditor({
             if (status === 200 && typeof data.nextUrl === "string") {
                 setupCompleted.current = true;
                 confirmPhaseDeletion(editor, form.values, data.revision);
-                if (editor.kind === "plan") clearPlanDraft(editor);
+                if (planning) clearPlanDraft(editor);
                 if (editor.kind === "setup") {
                     try {
                         sessionStorage.removeItem(setupDraftKey(editor));
@@ -271,7 +319,7 @@ export function ScheduleEditor({
         [values.mode]: values.steps,
     });
     useEffect(() => {
-        if (editor.kind === "plan" && !setupCompleted.current && !form.frozen)
+        if (planning && !setupCompleted.current && !form.frozen)
             retainPlanDraft(
                 editor,
                 values,
@@ -381,14 +429,14 @@ export function ScheduleEditor({
     const mode = (
         <RadioCards
             legend="Planning mode"
-            description="Choose whether the cycle steps run once or repeat."
+            description="Choose a final cycle or a repeating continuation."
             errors={errors.mode}
         >
             <RadioCard
                 name="mode"
                 value="fixed"
                 label="Fixed plan"
-                description="Run the listed cycles once, then finish the campaign."
+                description="Use a finite plan with a final cycle."
                 checked={values.mode === "fixed"}
                 onChange={() => chooseMode("fixed")}
             />
@@ -396,7 +444,11 @@ export function ScheduleEditor({
                 name="mode"
                 value="repeating"
                 label="Repeating pattern"
-                description="Repeat these cycle steps until you finish the campaign."
+                description={
+                    editor.context.originalMode === "fixed"
+                        ? "Keep existing cycles in place, then follow the repeating pattern."
+                        : "Continue the pattern after the saved timeline."
+                }
                 checked={values.mode === "repeating"}
                 onChange={() => chooseMode("repeating")}
             />
@@ -410,15 +462,15 @@ export function ScheduleEditor({
                 errors={errors.date_mode}
                 description={
                     plannedDates
-                        ? "Use dates to plan future cycles. You advance each cycle when the campaign is ready."
-                        : "You can set each cycle’s start or end date separately. You advance cycles yourself."
+                        ? "Plan dates for future cycles using a start date and cycle length."
+                        : "Set each cycle’s start or end date when you need it."
                 }
             >
                 <RadioCard
                     name="date_mode"
                     value="manual"
                     label="No planned dates"
-                    description="Set dates separately on each cycle when you need them."
+                    description="Set dates separately on each cycle."
                     checked={!plannedDates}
                     onChange={() => change("date_mode", "manual")}
                 />
@@ -497,7 +549,7 @@ export function ScheduleEditor({
                 <Button
                     variant="primary"
                     onClick={() => {
-                        if (editor.kind === "plan") clearPlanDraft(editor);
+                        if (planning) clearPlanDraft(editor);
                         if (form.conflicted) form.review(reviewUrl);
                         else navigate(editor.back);
                     }}
@@ -525,15 +577,17 @@ export function ScheduleEditor({
                               : setupStage === 2
                                 ? "Review schedule"
                                 : "Set up phases & cycles"
-                          : [
-                                  "advance",
-                                  "start",
-                                  "finish",
-                                  "delete-phase",
-                                  "delete-cycle",
-                              ].includes(editor.kind)
-                            ? editor.heading
-                            : "Save"}
+                          : editor.kind === "plan-cycles"
+                            ? "Add cycles"
+                            : [
+                                    "advance",
+                                    "start",
+                                    "finish",
+                                    "delete-phase",
+                                    "delete-cycle",
+                                ].includes(editor.kind)
+                              ? editor.heading
+                              : "Save"}
                 </Button>
             )}
             <Button
@@ -545,7 +599,7 @@ export function ScheduleEditor({
                     navigation?.pending
                 }
                 onClick={() => {
-                    if (editor.kind === "plan") clearPlanDraft(editor);
+                    if (planning) clearPlanDraft(editor);
                     if (form.conflicted) form.review(editor.back);
                     else navigate(editor.back);
                 }}
@@ -567,7 +621,7 @@ export function ScheduleEditor({
                     ? setupStage === 1
                         ? "Choose a starting point. You can change its phases, cycle counts and dates before setting up your campaign."
                         : setupStage === 2
-                          ? "Set the phases, timing and current cycle for your campaign."
+                          ? "Choose phases, cycle dates and the current cycle."
                           : "Review phases, cycle counts and dates before setting up this campaign."
                     : editor.lead
             }
@@ -654,6 +708,7 @@ export function ScheduleEditor({
                             : "cycles will"}{" "}
                         be removed from the schedule.
                         {editor.kind === "delete-phase" &&
+                            editor.context.occurrenceOnly !== true &&
                             (editor.context.repeating
                                 ? " This phase will also be removed from every repetition of the future pattern."
                                 : ` ${Number(editor.context.futureCount)} projected cycles will also be removed.`)}
@@ -764,7 +819,7 @@ export function ScheduleEditor({
             )}
             <div
                 className={
-                    editor.kind === "plan" || editor.kind === "setup"
+                    isPageEditor(editor)
                         ? "px-1"
                         : "max-h-[60vh] overflow-y-auto px-1"
                 }
@@ -1009,11 +1064,8 @@ export function ScheduleEditor({
                                         </tbody>
                                     </Table>
                                     <p className="text-base">
-                                        {noCurrent
-                                            ? "No cycle will be started. Cycles remain previews until you edit, use or start them."
-                                            : `Cycles 1 through ${currentNumber} will be saved${plannedDates ? " with dates" : ""}. Later cycles remain previews until recorded.`}{" "}
-                                        Your campaign keeps its own phases and
-                                        pattern.
+                                        You can edit phases and cycles on the
+                                        timeline after setup.
                                     </p>
                                 </>
                             )}
@@ -1031,36 +1083,48 @@ export function ScheduleEditor({
                     )}
                     {fields.has("name") &&
                         text("name", "Phase name", { required: true })}
-                    {editor.kind === "cycle" && (
+                    <TimelineEditor
+                        editor={editor}
+                        values={values}
+                        errors={errors}
+                        onChange={form.setValues}
+                    />
+                    {["cycle", "add-cycle"].includes(editor.kind) && (
                         <>
                             {!datesOnly && (
                                 <>
-                                    <Field
-                                        label="Phase"
-                                        htmlFor="cycle-phase"
-                                        errors={errors.phase_id}
-                                    >
-                                        <NativeSelect
-                                            name="phase_id"
-                                            value={values.phase_id}
-                                            onChange={(event) =>
-                                                change(
-                                                    "phase_id",
-                                                    event.target.value,
-                                                )
-                                            }
+                                    {editor.kind === "cycle" && (
+                                        <Field
+                                            label="Phase"
+                                            htmlFor="cycle-phase"
+                                            errors={errors.phase_id}
                                         >
-                                            {phases.map((phase) => (
-                                                <option
-                                                    key={phase.id}
-                                                    value={phase.id}
-                                                >
-                                                    {phase.name} · {phase.count}{" "}
-                                                    saved cycles
-                                                </option>
-                                            ))}
-                                        </NativeSelect>
-                                    </Field>
+                                            <NativeSelect
+                                                name="phase_id"
+                                                value={values.phase_id}
+                                                onChange={(event) =>
+                                                    change(
+                                                        "phase_id",
+                                                        event.target.value,
+                                                    )
+                                                }
+                                            >
+                                                {definitionPhases.map(
+                                                    (phase) => (
+                                                        <option
+                                                            key={phase.id}
+                                                            value={
+                                                                phase.phaseId ??
+                                                                phase.id
+                                                            }
+                                                        >
+                                                            {phase.name}
+                                                        </option>
+                                                    ),
+                                                )}
+                                            </NativeSelect>
+                                        </Field>
+                                    )}
                                     {text("custom_name", "Custom cycle name", {
                                         help: "Leave blank to use its cycle number.",
                                     })}
@@ -1155,50 +1219,59 @@ export function ScheduleEditor({
                     )}
                     {editor.kind === "plan" && (
                         <>
-                            <PhaseSettings
-                                phases={phases}
-                                addHref={addPhaseHref}
-                                disabled={
-                                    form.frozen ||
-                                    confirmed ||
-                                    !!navigation?.pending
-                                }
-                            />
-                            <h2 className="text-lg font-semibold">Cycles</h2>
-                            {dates}
                             {mode}
-                            <Card>
-                                <section
-                                    aria-label={
-                                        values.mode === "fixed"
-                                            ? "Fixed plan options"
-                                            : "Repeating pattern options"
-                                    }
-                                >
-                                    <p className="mb-3 text-sm text-muted">
+                            {values.mode === "fixed" &&
+                            editor.context.originalMode === "repeating" &&
+                            typeof editor.context.fixedEndpoint === "number" ? (
+                                <Alert tone="info" dismissible={false}>
+                                    This plan ends at Cycle{" "}
+                                    {editor.context.fixedEndpoint}. The
+                                    remaining cycles complete the current
+                                    repeat. You can edit or remove unused future
+                                    cycles on the timeline.
+                                </Alert>
+                            ) : (
+                                <Card>
+                                    <p className="text-sm text-muted">
                                         {values.mode === "fixed"
-                                            ? "Choose the remaining cycle steps for this campaign."
-                                            : "Choose the cycle steps to repeat."}
+                                            ? "Edit or remove unused future cycles on the timeline."
+                                            : "Existing cycles stay in place. The repeating pattern follows the saved timeline."}
                                     </p>
-                                    <PlanSteps
-                                        value={values.steps}
-                                        phases={phases}
-                                        disabled={form.frozen}
-                                        onChange={(value) =>
-                                            change("steps", value)
-                                        }
-                                        startsAfterOrder={
-                                            values.mode === "fixed" &&
-                                            typeof editor.context
-                                                .startsAfterOrder === "number"
-                                                ? editor.context
-                                                      .startsAfterOrder
-                                                : undefined
-                                        }
-                                    />
-                                </section>
-                            </Card>
+                                </Card>
+                            )}
+                            {dates}
                         </>
+                    )}
+                    {editor.kind === "pattern" && (
+                        <section
+                            className="space-y-3"
+                            aria-labelledby="pattern-steps-heading"
+                        >
+                            <h2
+                                id="pattern-steps-heading"
+                                className="text-lg font-semibold"
+                            >
+                                Pattern steps
+                            </h2>
+                            <p className="text-sm text-muted">
+                                These steps describe the generated continuation
+                                after the saved timeline.
+                            </p>
+                            <input
+                                type="hidden"
+                                name="steps"
+                                value={values.steps ?? "[]"}
+                            />
+                            <FieldErrors errors={errors.steps ?? []} />
+                            <Card>
+                                <PlanSteps
+                                    value={values.steps ?? "[]"}
+                                    phases={definitionPhases}
+                                    disabled={form.frozen}
+                                    onChange={(value) => change("steps", value)}
+                                />
+                            </Card>
+                        </section>
                     )}
                 </fieldset>
             </div>

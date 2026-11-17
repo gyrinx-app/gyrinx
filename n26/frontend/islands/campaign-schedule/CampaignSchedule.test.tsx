@@ -126,18 +126,14 @@ test("consecutive phase groups preserve repeated occurrences and the saved cycle
     expect(screen.queryByRole("region", { name: "Unused phase" })).toBeNull();
 });
 
-test("future saved cycles have no badge and previews retain their edit actions", () => {
+test("future saved cycles stay editable while generated previews are read-only", () => {
     const value = props();
     value.rows.push(cycle(5, "occupation", "Saved future"));
     render(<CampaignSchedule {...value} />);
     expect(screen.queryByText("Saved future", { exact: true })).toBeNull();
     expect(screen.queryByText("Projected", { exact: true })).toBeNull();
-    expect(
-        screen.getByText("Preview, not saved yet. Edit this cycle to save it."),
-    ).toBeTruthy();
-    expect(
-        screen.getByRole("link", { name: "Edit Cycle 4" }).getAttribute("href"),
-    ).toBe("/cycle/4/edit/");
+    expect(screen.getByText("Generated preview, not saved yet.")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Edit Cycle 4" })).toBeNull();
     expect(
         screen.getByRole("link", { name: "Edit Cycle 5" }).getAttribute("href"),
     ).toBe("/cycle/5/edit/");
@@ -284,16 +280,322 @@ test("readers retain the grouped rules without management controls", () => {
     ).toBe("/cycles/?preview=24");
 });
 
-test("saved and projected cycles expose compact deletion actions", () => {
+test("concrete cycles put deletion in their action menu while generated cycles have no actions", async () => {
     const data = props();
     data.rows = data.rows.map((cycle) => ({
         ...cycle,
         deleteHref: `/delete/${cycle.order}/`,
     }));
     render(<CampaignSchedule {...data} />);
-    for (const row of data.rows) {
-        const action = screen.getByRole("link", { name: `Delete ${row.name}` });
-        expect(action.getAttribute("href")).toBe(row.deleteHref);
-        expect(action.className).toContain("size-6");
-    }
+    await userEvent.click(
+        screen.getByRole("button", { name: "More actions for Cycle 3" }),
+    );
+    expect(
+        screen.getByRole("menuitem", { name: "Delete" }).getAttribute("href"),
+    ).toBe("/delete/3/");
+    expect(
+        screen.queryByRole("button", { name: "More actions for Cycle 4" }),
+    ).toBeNull();
+    expect(screen.queryByRole("link", { name: "Delete Cycle 4" })).toBeNull();
+});
+
+function timeline(): ScheduleProps {
+    const value = props();
+    value.phases = [
+        {
+            ...phase("a", "Occupation"),
+            phaseId: "occupation",
+            number: 1,
+            addCycleHref: "/add-cycle/?occurrence=a",
+            addPhaseHref: "/add-phase/?after=a",
+            moveHref: "/move-phase/?occurrence=a",
+        },
+        {
+            ...phase("empty", "Downtime"),
+            phaseId: "downtime",
+            number: 2,
+            addCycleHref: "/add-cycle/?occurrence=empty",
+        },
+        {
+            ...phase("b", "Occupation"),
+            phaseId: "occupation",
+            number: 3,
+            addCycleHref: "/add-cycle/?occurrence=b",
+        },
+        {
+            ...phase("preview-c", "Takeover"),
+            phaseId: "takeover",
+            number: 4,
+            generated: true,
+        },
+    ];
+    value.rows = [
+        {
+            ...cycle(1, "occupation", "Current"),
+            occurrenceId: "a",
+            moveHref: "/move-cycle/?cycle=1",
+            duplicateHref: "/duplicate-cycle/?cycle=1",
+        },
+        { ...cycle(2, "occupation", "Saved future"), occurrenceId: "b" },
+        { ...cycle(3, "occupation", "Projected"), occurrenceId: "b" },
+        { ...cycle(4, "takeover", "Projected"), occurrenceId: "preview-c" },
+    ];
+    return value;
+}
+
+test("occurrence identities keep empty blocks and repeated definitions in their authored order", () => {
+    render(<CampaignSchedule {...timeline()} />);
+    expect(
+        screen
+            .getAllByRole("heading", { level: 3 })
+            .map((heading) => heading.textContent),
+    ).toEqual(["01 Occupation", "02 Downtime", "03 Occupation", "04 Takeover"]);
+    const empty = screen.getByRole("region", { name: "Phase 2: Downtime" });
+    expect(within(empty).getByText("No cycles in this phase.")).toBeTruthy();
+    expect(
+        within(empty)
+            .getByRole("link", { name: "Add cycle to phase 02: Downtime" })
+            .getAttribute("href"),
+    ).toBe("/add-cycle/?occurrence=empty");
+    const first = screen.getByRole("region", { name: "Phase 1: Occupation" });
+    expect(
+        within(first)
+            .getByRole("link", { name: "Add phase after 01: Occupation" })
+            .getAttribute("href"),
+    ).toBe("/add-phase/?after=a");
+});
+
+test("generated continuation is explained before its first row even when it extends a concrete occurrence", () => {
+    render(<CampaignSchedule {...timeline()} />);
+    const marker = screen.getByText(
+        "Generated repeat continuation. Added cycles move this preview later.",
+    );
+    const third = document.getElementById("cycle-saved-3")!;
+    expect(
+        marker.compareDocumentPosition(third) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    const second = screen.getByRole("region", { name: "Phase 3: Occupation" });
+    const add = within(second).getByRole("link", {
+        name: "Add cycle to phase 03: Occupation",
+    });
+    expect(
+        add.compareDocumentPosition(marker) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Edit Cycle 3" })).toBeNull();
+    const generated = screen.getByRole("region", { name: "Phase 4: Takeover" });
+    expect(within(generated).queryByRole("button")).toBeNull();
+    expect(within(generated).queryByRole("link")).toBeNull();
+    expect(screen.getByRole("link", { name: "Edit Cycle 2" })).toBeTruthy();
+});
+
+test("occurrence and cycle menus use supplied move and duplicate URLs", async () => {
+    render(<CampaignSchedule {...timeline()} />);
+    await userEvent.click(
+        within(
+            screen.getByRole("region", { name: "Phase 1: Occupation" }),
+        ).getByRole("button", {
+            name: "More actions for phase 01: Occupation",
+        }),
+    );
+    expect(
+        screen.getByRole("menuitem", { name: "Move" }).getAttribute("href"),
+    ).toBe("/move-phase/?occurrence=a");
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(
+        screen.getByRole("button", {
+            name: "More actions for cycle 01: Cycle 1",
+        }),
+    );
+    expect(
+        screen.getByRole("menuitem", { name: "Move" }).getAttribute("href"),
+    ).toBe("/move-cycle/?cycle=1");
+    expect(
+        screen
+            .getByRole("menuitem", { name: "Duplicate" })
+            .getAttribute("href"),
+    ).toBe("/duplicate-cycle/?cycle=1");
+});
+
+test("readers see empty blocks and generated provenance without authoring links or menus", () => {
+    const value = timeline();
+    value.canManage = false;
+    value.actions = {};
+    render(<CampaignSchedule {...value} />);
+    expect(screen.getByText("No cycles in this phase.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /More actions/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^Add / })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^Edit / })).toBeNull();
+    expect(screen.getByText(/Generated repeat continuation/)).toBeTruthy();
+});
+
+test("an empty timeline gives the arbitrator its server-provided add-phase entry", () => {
+    const value = timeline();
+    value.phases = [];
+    value.rows = [];
+    value.actions = { addPhase: "/add-first-phase/" };
+    render(<CampaignSchedule {...value} />);
+    expect(
+        screen.getByText(
+            "Add a phase to start planning this campaign’s cycles.",
+        ),
+    ).toBeTruthy();
+    expect(
+        screen.getByRole("link", { name: "Add phase" }).getAttribute("href"),
+    ).toBe("/add-first-phase/");
+});
+
+test("the repeating-pattern entry appears at the first generated boundary before the read-only tail", () => {
+    const value = timeline();
+    value.actions.pattern = "/cycles/edit/pattern/";
+    render(<CampaignSchedule {...value} />);
+    const entry = screen.getByRole("link", { name: "Edit repeating pattern" });
+    expect(entry.getAttribute("href")).toBe("/cycles/edit/pattern/");
+    expect(
+        entry.compareDocumentPosition(
+            document.getElementById("cycle-saved-3")!,
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+});
+
+test("owners can explicitly add from the pattern at its first preview boundary", () => {
+    const value = timeline();
+    value.actions.planCycles = "/cycles/edit/plan-cycles/";
+    render(<CampaignSchedule {...value} />);
+    const entry = screen.getByRole("link", { name: "Add from pattern" });
+    expect(entry.getAttribute("href")).toBe("/cycles/edit/plan-cycles/");
+    expect(
+        entry.compareDocumentPosition(
+            document.getElementById("cycle-saved-3")!,
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+});
+
+test("the pattern append entry stays available before preview rows have loaded", () => {
+    const value = timeline();
+    value.rows = [];
+    value.phases = [];
+    value.actions = { planCycles: "/cycles/edit/plan-cycles/" };
+    value.plan = null;
+    render(<CampaignSchedule {...value} />);
+    expect(
+        screen
+            .getByRole("link", { name: "Add from pattern" })
+            .getAttribute("href"),
+    ).toBe("/cycles/edit/plan-cycles/");
+});
+
+test("paged timelines omit off-page blocks while preserving real empty blocks and global counts", () => {
+    const value = timeline();
+    value.phases[0].count = 10;
+    value.phases.push({
+        ...phase("off-page", "Later block"),
+        phaseId: "takeover",
+        number: 5,
+        count: 8,
+    });
+    value.rows = value.rows.filter((row) => row.state !== "Projected");
+    render(<CampaignSchedule {...value} />);
+    const first = screen.getByRole("region", { name: "Phase 1: Occupation" });
+    expect(within(first).getByText("10 cycles")).toBeTruthy();
+    expect(
+        screen.getByRole("region", { name: "Phase 2: Downtime" }),
+    ).toBeTruthy();
+    expect(
+        screen.queryByRole("region", { name: "Phase 4: Takeover" }),
+    ).toBeNull();
+    expect(
+        screen.queryByRole("region", { name: "Phase 5: Later block" }),
+    ).toBeNull();
+    expect(screen.getAllByText("No cycles in this phase.")).toHaveLength(1);
+});
+
+test("long repeating patterns name every step even when the preview only reaches the first definition", () => {
+    const value = timeline();
+    value.phases = [value.phases[0]];
+    value.rows = [
+        value.rows[0],
+        { ...cycle(2, "occupation", "Projected"), occurrenceId: "a" },
+    ];
+    value.plan = {
+        mode: "repeating",
+        steps: [
+            { id: "opening", phase_id: "occupation", count: 40 },
+            { id: "rest", phase_id: "downtime", count: 1 },
+            { id: "closing", phase_id: "takeover", count: 3 },
+        ],
+        phaseNames: {
+            occupation: "Occupation",
+            downtime: "Downtime",
+            takeover: "Takeover",
+        },
+        startsAfter: "Cycle 13",
+        nextPosition: 1,
+    };
+    render(<CampaignSchedule {...value} />);
+    expect(screen.getByText("Occupation × 40")).toBeTruthy();
+    expect(screen.getByText("Downtime × 1")).toBeTruthy();
+    expect(screen.getByText("Takeover × 3")).toBeTruthy();
+    expect(
+        screen.queryByRole("region", { name: "Phase 2: Downtime" }),
+    ).toBeNull();
+});
+
+test.each([true, false])(
+    "fixed planned previews expose only supplied edit links to managers (canManage=%s)",
+    (canManage) => {
+        const value = timeline();
+        value.canManage = canManage;
+        value.plan!.mode = "fixed";
+        value.phases = [value.phases[0], value.phases[3]];
+        value.rows = [
+            value.rows[0],
+            {
+                ...value.rows[3],
+                editablePreview: true,
+                editHref: "/cycles/edit/cycle/?plan=active&position=3",
+            },
+        ];
+        render(<CampaignSchedule {...value} />);
+        const preview = within(
+            screen.getByRole("region", { name: "Phase 4: Takeover" }),
+        );
+        const edit = preview.queryByRole("link", { name: "Edit Cycle 4" });
+        const dates = preview.queryAllByRole("link", {
+            name: /^Edit dates for Cycle 4:/,
+        });
+        if (canManage) {
+            expect(edit?.getAttribute("href")).toBe(
+                "/cycles/edit/cycle/?plan=active&position=3",
+            );
+            expect(dates.length).toBeGreaterThan(0);
+            for (const link of dates)
+                expect(link.getAttribute("href")).toBe(
+                    "/cycles/edit/cycle/?plan=active&position=3&fields=dates",
+                );
+        } else {
+            expect(edit).toBeNull();
+            expect(dates).toHaveLength(0);
+        }
+        expect(
+            preview.queryByRole("button", { name: /More actions/ }),
+        ).toBeNull();
+        expect(screen.queryByText(/Generated repeat continuation/)).toBeNull();
+    },
+);
+
+test("repeating previews remain read-only even with supplied authoring URLs", () => {
+    const value = timeline();
+    value.rows[3] = {
+        ...value.rows[3],
+        moveHref: "/move-preview/",
+        duplicateHref: "/duplicate-preview/",
+        deleteHref: "/delete-preview/",
+    };
+    render(<CampaignSchedule {...value} />);
+    const preview = within(
+        screen.getByRole("region", { name: "Phase 4: Takeover" }),
+    );
+    expect(preview.queryByRole("link")).toBeNull();
+    expect(preview.queryByRole("button")).toBeNull();
 });

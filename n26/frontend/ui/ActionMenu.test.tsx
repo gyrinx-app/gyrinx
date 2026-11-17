@@ -541,10 +541,47 @@ it("menu links identify their trigger for scoped busy feedback", async () => {
     view.rerender(menu(id));
     expect(trigger.getAttribute("aria-busy")).toBe("true");
     expect(trigger.getAttribute("data-busy")).toBe("on");
-    expect(trigger).toHaveProperty("disabled", true);
+    expect(trigger.getAttribute("aria-disabled")).toBe("true");
+    expect(trigger).toHaveProperty("disabled", false);
     for (const link of screen.getAllByRole("menuitem"))
         expect(link.hasAttribute("aria-busy")).toBe(false);
     view.rerender(menu(null));
     expect(trigger.hasAttribute("aria-busy")).toBe(false);
     expect(trigger).toHaveProperty("disabled", false);
+});
+
+it("selecting a menu link restores its trigger and leaves keyboard navigation free", async () => {
+    const restore = stopNavigation();
+    const { user, trigger } = setup();
+    trigger.focus();
+    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    await user.tab();
+    expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "After" }),
+    );
+    restore();
+});
+
+it("a busy menu trigger keeps focus while ignoring pointer and keyboard activation", async () => {
+    const menu = (active: string | null) => (
+        <BusyControlScope value={active}>
+            <ActionMenu label="Busy phase actions" items={links} />
+        </BusyControlScope>
+    );
+    const view = render(menu(null));
+    const trigger = screen.getByRole("button", { name: "Busy phase actions" });
+    trigger.focus();
+    view.rerender(menu(trigger.getAttribute("data-busy-id")));
+    expect(document.activeElement).toBe(trigger);
+    expect(trigger.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(trigger);
+    await userEvent.keyboard("{Enter}{ArrowDown} ");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    view.rerender(menu(null));
+    await userEvent.keyboard("{ArrowDown}");
+    expect(screen.getByRole("menu")).toBeTruthy();
+    expect(document.activeElement).toBe(item("View gang"));
 });

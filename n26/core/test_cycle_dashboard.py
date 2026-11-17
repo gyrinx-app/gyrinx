@@ -7,13 +7,13 @@ from n26.core.cycle_display import _phase_end
 @pytest.mark.parametrize(
     "mode,counts,position,phase,expected",
     [
-        ("fixed", [("a", 2), ("a", 3), ("b", 1)], 0, "a", (6, "b")),
+        ("fixed", [("a", 2), ("a", 3), ("b", 1)], 0, "a", (3, "a")),
         ("fixed", [("a", 2), ("a", 3), ("b", 1)], 2, "a", (6, "b")),
         ("fixed", [("a", 3)], 3, "a", (4, None)),
         ("fixed", [("a", 3)], 1, "a", (4, None)),
         ("fixed", [], 0, "a", (1, None)),
-        ("repeating", [("a", 2), ("b", 1), ("a", 3)], 4, "a", (9, "b")),
-        ("repeating", [("a", 2), ("a", 3)], 4, "a", (None, None)),
+        ("repeating", [("a", 2), ("b", 1), ("a", 3)], 4, "a", (7, "a")),
+        ("repeating", [("a", 2), ("a", 3)], 4, "a", (6, "a")),
         ("repeating", [("b", 1), ("a", 3)], 0, "a", (1, "b")),
     ],
 )

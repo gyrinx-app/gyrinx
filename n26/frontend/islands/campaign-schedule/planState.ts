@@ -123,7 +123,7 @@ export function restorePlanDraft(editor: Editor, phases: Phase[]) {
         savedStepCounts: savedCounts(editor.context.savedStepCounts),
     };
     if (
-        editor.kind !== "plan" ||
+        !["plan", "pattern"].includes(editor.kind) ||
         Object.keys(editor.errors).length ||
         editor.initialConflict
     )

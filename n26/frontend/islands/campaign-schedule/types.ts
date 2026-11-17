@@ -22,6 +22,11 @@ export type SetupDefinition = {
 };
 export type Phase = {
     id: string;
+    phaseId?: string;
+    generated?: boolean;
+    addCycleHref?: string;
+    addPhaseHref?: string;
+    moveHref?: string;
     number?: number;
     name: string;
     description: string;
@@ -37,6 +42,10 @@ export type Cycle = {
     name: string;
     order: number;
     phaseId: string;
+    occurrenceId?: string;
+    editablePreview?: boolean;
+    duplicateHref?: string;
+    moveHref?: string;
     phaseName: string;
     state: string;
     startsOn: string;
@@ -88,6 +97,7 @@ export interface ScheduleProps {
     plan: {
         mode: string;
         steps: Step[];
+        phaseNames?: Record<string, string>;
         startsAfter: string;
         nextPosition: number;
     } | null;
@@ -113,6 +123,7 @@ export function isPhaseEditor(editor: Editor | null) {
 export function isPageEditor(editor: Editor | null): editor is Editor & {
     kind:
         | "plan"
+        | "pattern"
         | "setup"
         | "phase"
         | "add-phase"
@@ -121,6 +132,7 @@ export function isPageEditor(editor: Editor | null): editor is Editor & {
 } {
     return (
         !!editor &&
-        (["setup", "plan"].includes(editor.kind) || isPhaseEditor(editor))
+        (["setup", "plan", "pattern"].includes(editor.kind) ||
+            isPhaseEditor(editor))
     );
 }

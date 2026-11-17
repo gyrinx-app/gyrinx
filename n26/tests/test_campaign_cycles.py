@@ -78,7 +78,7 @@ def configured(campaign, owner, template, opened):
         actor=owner,
         template_id=template.pk,
         current_position=0,
-        mode="fixed",
+        mode="repeating",
         request_key=uuid4(),
         calendar=s.CycleCalendar(date(2026, 11, 1)),
     )
@@ -305,11 +305,21 @@ class TestSetupAndAccess:
         assert not CampaignCycleCommand.objects.exists()
 
     def test_initial_setup_copies_the_template_without_starting(
-        self, campaign, configured
+        self, campaign, owner, template, opened
     ):
-        assert len(configured.cycles) == 1
-        assert configured.current_phase.details.name == "Occupation"
-        assert len(s.project(configured)) == 6
+        cycles.configure(
+            campaign,
+            actor=owner,
+            template_id=template.pk,
+            current_position=3,
+            mode="fixed",
+            request_key=uuid4(),
+        )
+        configured = cycles.load(campaign)
+        assert len(configured.cycles) == 7
+        assert configured.current == configured.cycles[3]
+        assert configured.current_phase.details.name == "Downtime"
+        assert s.project(configured) == ()
         assert configured.status == "pre_campaign"
         assert not CampaignCycleTransition.objects.exists()
         assert not CampaignCycleDelivery.objects.exists()
@@ -1112,11 +1122,10 @@ def test_concurrent_workers_create_one_inbox_notification(
 
 
 class TestScheduleDeletion:
-    def test_deletion_unassigns_battles_and_preserves_results_history_and_exact_retry(
+    def test_recorded_cycle_deletion_refuses_atomically_and_unused_deletion_replays(
         self, campaign, owner, configured
     ):
         from n26.core.cycle_context import CycleContext, lock_campaign
-        from n26.core.cycle_selection import options
         from n26.core.models import Battle
 
         before = start_campaign(campaign, owner)
@@ -1127,9 +1136,8 @@ class TestScheduleDeletion:
             battle.save(update_fields=["result"])
         battle.refresh_from_db()
         revision = battle.revision
-        transitions = list(
-            CampaignCycleTransition.objects.values_list("pk", "current_cycle_id")
-        )
+        transitions = list(CampaignCycleTransition.objects.values())
+        commands = CampaignCycleCommand.objects.count()
         inputs = dict(
             actor=owner,
             target=s.SavedCycleRef(selected.id),
@@ -1137,36 +1145,42 @@ class TestScheduleDeletion:
             expected_revision=before.revision,
             request_key=uuid4(),
         )
-        first = cycles.delete_cycle(campaign, **inputs)
-        assert cycles.delete_cycle(campaign, **inputs).replayed
+        for _ in range(2):
+            with pytest.raises(Refusal, match="recorded activity"):
+                cycles.delete_cycle(campaign, **inputs)
         battle.refresh_from_db()
-        assert battle.cycle_id is None
+        assert str(battle.cycle_id) == selected.id
         assert battle.result == Battle.Result.DRAW
-        assert battle.revision == revision + 1
-        assert CampaignCycle.objects.get(pk=selected.id).archived
-        assert cycles.load(campaign).current is None
-        assert (
-            list(CampaignCycleTransition.objects.values_list("pk", "current_cycle_id"))
-            == transitions
-        )
-        assert not any(
-            c["value"] == {"cycle_id": selected.id}
-            for c in options(campaign)["choices"]
-        )
+        assert battle.revision == revision
+        assert cycles.load(campaign) == before
+        assert CampaignCycleCommand.objects.count() == commands
+        assert list(CampaignCycleTransition.objects.values()) == transitions
         context = CycleContext(str(campaign.pk), selected.id)
-        assert str(context.resolve().pk) == selected.id
-        with pytest.raises(Refusal, match="deleted"):
-            with transaction.atomic():
-                lock_campaign(context, owner)
-        with pytest.raises(cycles.CycleKeyConflict):
-            cycles.delete_cycle(campaign, **{**inputs, "no_current": False})
+        with transaction.atomic():
+            assert str(lock_campaign(context, owner).pk) == selected.id
+
+        future = s.project(before)[0]
+        unused_inputs = dict(
+            inputs, target=future.ref, no_current=False, request_key=uuid4()
+        )
+        first = cycles.delete_cycle(campaign, **unused_inputs)
+        assert cycles.delete_cycle(campaign, **unused_inputs).replayed
         assert first.transition_id is None
+        assert CampaignCycle.objects.get(
+            source_plan_id=future.source.position.plan_id,
+            source_position=future.source.position.index,
+        ).archived
+        with pytest.raises(cycles.CycleKeyConflict):
+            cycles.delete_cycle(campaign, **dict(unused_inputs, no_current=True))
+        battle.refresh_from_db()
+        assert str(battle.cycle_id) == selected.id and battle.revision == revision
+        assert list(CampaignCycleTransition.objects.values()) == transitions
 
     def test_global_phase_deletion_archives_saved_occurrences_and_filters_future_without_deliveries(
         self, campaign, owner, configured
     ):
         state = start_campaign(campaign, owner)
-        target = s.project(state)[-1]
+        target = s.project(state, limit=6)[-1]
         cycles.edit_cycle(
             campaign,
             actor=owner,
@@ -1184,15 +1198,17 @@ class TestScheduleDeletion:
         cycles.delete_phase(
             campaign,
             actor=owner,
-            phase_id=state.current_phase.id,
-            replacement=s.SavedCycleRef(state.cycles[3].id),
+            phase_id=state.phases[2].id,
             expected_revision=state.revision,
             request_key=uuid4(),
         )
         after = cycles.load(campaign)
-        assert [c.order for c in after.cycles if c.archived] == [1, 2, 3]
-        assert after.current.order == 4
-        assert after.cycles[3:] == state.cycles[3:]
+        assert [c.id for c in after.cycles if c.archived] == [
+            c.id for c in state.cycles[4:]
+        ]
+        assert after.current == state.current
+        assert after.cycles[:4] == state.cycles[:4]
+        assert all(p.phase_id != state.phases[2].id for p in s.project(after))
         assert (
             CampaignCycleTransition.objects.count(),
             CampaignCycleDelivery.objects.count(),

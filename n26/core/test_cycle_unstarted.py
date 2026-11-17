@@ -1,4 +1,4 @@
-"""A configured schedule can wait without activating or inventing any cycle."""
+"""Fixed entries and repeating previews can wait without an active cycle."""
 
 from datetime import UTC, date, datetime
 
@@ -9,10 +9,11 @@ from n26.core import schedule as s
 NOW = datetime(2026, 11, 1, tzinfo=UTC)
 
 
-def configured(status="pre_campaign"):
+def configured(status="pre_campaign", *, mode="repeating"):
     return s.configure(
         s.DEFAULT_TEMPLATE,
         campaign_id="waiting",
+        mode=mode,
         current_position=None,
         status=status,
         calendar=s.CycleCalendar(date(2026, 11, 1)),
@@ -20,28 +21,43 @@ def configured(status="pre_campaign"):
 
 
 @pytest.mark.parametrize("status", ["pre_campaign", "in_progress", "post_campaign"])
-def test_no_current_cycle_has_only_previews_and_no_transition(status):
+@pytest.mark.parametrize(
+    "mode,saved_count,projected_orders",
+    [("fixed", 7, []), ("repeating", 0, [1, 2, 3])],
+)
+def test_no_current_cycle_keeps_the_fixed_entries_or_repeating_preview_inactive(
+    status, mode, saved_count, projected_orders
+):
     result = s.configure(
         s.DEFAULT_TEMPLATE,
         campaign_id="waiting",
+        mode=mode,
         current_position=None,
         status=status,
         calendar=s.CycleCalendar(date(2026, 11, 1)),
     )
     assert result.schedule.current is result.schedule.current_phase is None
     assert result.schedule.current_cycle_id is None
-    assert result.schedule.cycles == result.created == ()
+    assert result.schedule.cycles == result.created
+    assert len(result.created) == saved_count
     assert result.transition is None
-    assert [p.order for p in s.project(result.schedule, limit=3)] == [1, 2, 3]
+    assert [p.order for p in s.project(result.schedule, limit=3)] == projected_orders
 
 
 @pytest.mark.parametrize("status", ["pre_campaign", "in_progress"])
-def test_starting_materialises_and_activates_the_first_cycle_only(status):
-    before = configured(status)
+@pytest.mark.parametrize(
+    "mode,created,next_position", [("fixed", 0, 7), ("repeating", 1, 1)]
+)
+def test_starting_activates_the_first_cycle_without_replacing_planned_entries(
+    status, mode, created, next_position
+):
+    before = configured(status, mode=mode)
     result = s.start(before, now=NOW)
     assert result.schedule.status == "in_progress"
-    assert len(result.created) == 1
-    assert result.schedule.current.order == result.schedule.next_position == 1
+    assert len(result.created) == created
+    assert result.schedule.current.order == 1
+    assert result.schedule.next_position == next_position
+    assert result.schedule.cycles[: len(before.cycles)] == before.cycles
     assert result.transition.kind == "started"
     assert result.transition.previous_cycle is None
 

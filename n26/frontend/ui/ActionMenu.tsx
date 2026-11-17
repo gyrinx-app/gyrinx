@@ -117,6 +117,11 @@ export function ActionMenu({
     }
 
     function onTriggerKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+        if (busyProps["aria-busy"]) {
+            if (["Enter", " ", "ArrowDown", "ArrowUp"].includes(event.key))
+                event.preventDefault();
+            return;
+        }
         if (
             event.key === "Enter" ||
             event.key === " " ||
@@ -177,7 +182,7 @@ export function ActionMenu({
                 {...busyProps}
                 ref={button}
                 type="button"
-                disabled={!!busyProps["aria-busy"]}
+                aria-disabled={busyProps["aria-busy"] || undefined}
                 className={
                     trigger === "inline-chevron"
                         ? cotton.modelCard.menuTrigger
@@ -190,6 +195,10 @@ export function ActionMenu({
                 aria-expanded={open}
                 aria-controls={open ? panelId : undefined}
                 onClick={(event) => {
+                    if (busyProps["aria-busy"]) {
+                        event.preventDefault();
+                        return;
+                    }
                     if (open) {
                         // Restore trigger focus before removing the focused
                         // link.
@@ -273,7 +282,10 @@ export function ActionMenu({
                                         preventScroll: true,
                                     })
                                 }
-                                onClick={() => setOpen(false)}
+                                onClick={() => {
+                                    button.current?.focus();
+                                    setOpen(false);
+                                }}
                             >
                                 <span className={cotton.actionMenu.itemLabel}>
                                     {item.label}

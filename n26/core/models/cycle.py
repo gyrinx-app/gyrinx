@@ -72,6 +72,7 @@ class CampaignPhaseOccurrence(Base, Archived):
         CampaignPhase, on_delete=models.RESTRICT, related_name="occurrences"
     )
     position = models.PositiveIntegerField()
+    continues_pattern = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["position", "created", "id"]
@@ -226,6 +227,13 @@ class CampaignSchedule(Base):
     active_plan = models.ForeignKey(
         CampaignPlan, on_delete=models.RESTRICT, related_name="active_in"
     )
+    continuation_occurrence = models.ForeignKey(
+        CampaignPhaseOccurrence,
+        on_delete=models.RESTRICT,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
     next_position = models.PositiveIntegerField(default=0)
     revision = models.PositiveIntegerField(default=0)
     date_settings = models.JSONField(default=dict)
@@ -233,6 +241,13 @@ class CampaignSchedule(Base):
     def clean(self):
         super().clean()
         errors = {}
+        if (
+            self.continuation_occurrence_id
+            and self.continuation_occurrence.campaign_id != self.campaign_id
+        ):
+            errors["continuation_occurrence"] = (
+                "Select a phase block from this campaign."
+            )
         if self.current_cycle_id and self.current_cycle.campaign_id != self.campaign_id:
             errors["current_cycle"] = "Select a cycle from this campaign."
         if self.active_plan_id and self.active_plan.campaign_id != self.campaign_id:

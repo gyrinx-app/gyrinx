@@ -23,7 +23,7 @@ MIGRATION = "0090_editable_campaign_timeline"
 @pytest.fixture
 def historical_apps():
     with override_settings(MIGRATION_MODULES={}):
-        return MigrationLoader(None).project_state([("n26", MIGRATION)]).apps
+        return MigrationLoader(None).project_state().apps
 
 
 @pytest.fixture
@@ -331,9 +331,11 @@ def test_existing_phase_edit_clears_a_block_link_for_the_previous_phase(
 
     campaign, actor, state = metadata_schedule
     selected = state.cycles[0]
-    block = CampaignPhaseOccurrence.objects.create(
-        campaign=campaign, phase_id=selected.details.phase_id, position=1
-    )
+    block = CampaignCycle.objects.get(pk=selected.id).phase_occurrence
+    if block is None:
+        block = CampaignPhaseOccurrence.objects.create(
+            campaign=campaign, phase_id=selected.details.phase_id, position=1
+        )
     CampaignCycle.objects.filter(pk=selected.id).update(phase_occurrence=block)
     source = (selected.source.position, selected.source.step_id)
     cycles.edit_cycle(
@@ -345,7 +347,11 @@ def test_existing_phase_edit_clears_a_block_link_for_the_previous_phase(
         request_key=uuid4(),
     )
     stored = CampaignCycle.objects.get(pk=selected.id)
-    assert stored.phase_occurrence_id is None
+    assert stored.phase_occurrence_id != block.pk
+    assert (
+        stored.phase_occurrence_id is None
+        or stored.phase_occurrence.phase_id == stored.phase_id
+    )
     assert stored.customized_fields == ["phase_id"]
     assert (str(stored.source_plan_id), stored.source_position) == (
         source[0].plan_id,
@@ -379,3 +385,82 @@ def test_projected_edits_record_cleared_dates_without_marking_untouched_prefix(
     assert stored[2].custom_name == "Market week"
     for cycle in stored:
         cycle.full_clean()
+
+
+def test_pattern_continuation_backfill_distinguishes_generated_runs_and_phase_overrides(
+    legacy,
+):
+    apps = legacy.apps
+    Cycle = apps.get_model("n26", "CampaignCycle")
+    Occurrence = apps.get_model("n26", "CampaignPhaseOccurrence")
+    attach = import_module(f"n26.core.migrations.{MIGRATION}")
+    continuation = import_module(
+        "n26.core.migrations.0091_phase_occurrence_pattern_continuation"
+    )
+    with connection.schema_editor(atomic=False) as editor:
+        attach.backfill_timeline(apps, editor)
+    before_cycles = snapshot(Cycle, campaign_id=legacy.campaign.pk)
+    before_occurrences = snapshot(Occurrence, campaign_id=legacy.campaign.pk)
+    before_header = snapshot(
+        apps.get_model("n26", "CampaignSchedule"), campaign_id=legacy.campaign.pk
+    )
+    with connection.schema_editor(atomic=False) as editor:
+        continuation.backfill_pattern_continuation(apps, editor)
+    after = snapshot(Occurrence, campaign_id=legacy.campaign.pk)
+    assert [
+        {key: value for key, value in row.items() if key != "continues_pattern"}
+        for row in after
+    ] == [
+        {key: value for key, value in row.items() if key != "continues_pattern"}
+        for row in before_occurrences
+    ]
+    flags = {row["id"]: row["continues_pattern"] for row in after}
+    attached = {
+        cycle.pk: Cycle.objects.get(pk=cycle.pk).phase_occurrence_id
+        for cycle in legacy.cycles
+    }
+    assert [flags[attached[cycle.pk]] for cycle in legacy.cycles] == [
+        True,
+        True,
+        True,
+        True,
+        True,
+        False,
+        True,
+        False,
+    ]
+    empty = Occurrence.objects.get(phase_id=legacy.phases[3].pk)
+    assert not empty.continues_pattern
+    assert snapshot(Cycle, campaign_id=legacy.campaign.pk) == before_cycles
+    assert (
+        snapshot(
+            apps.get_model("n26", "CampaignSchedule"), campaign_id=legacy.campaign.pk
+        )
+        == before_header
+    )
+    with connection.schema_editor(atomic=False) as editor:
+        continuation.backfill_pattern_continuation(apps, editor)
+    assert snapshot(Occurrence, campaign_id=legacy.campaign.pk) == after
+
+
+def test_schedule_continuation_pointer_accepts_own_block_and_rejects_another_campaign(
+    metadata_schedule, campaign_type
+):
+    from n26.core.models import CampaignPhase, CampaignSchedule
+
+    campaign, owner, state = metadata_schedule
+    header = CampaignSchedule.objects.get(campaign=campaign)
+    own = CampaignPhaseOccurrence.objects.get(pk=state.current.occurrence_id)
+    header.continuation_occurrence = own
+    header.full_clean()
+    original = snapshot(CampaignSchedule, campaign_id=campaign.pk)
+    other = found_campaign("Other timeline", campaign_type, owner=owner)
+    phase = CampaignPhase.objects.create(campaign=other, name="Other opening")
+    foreign = CampaignPhaseOccurrence.objects.create(
+        campaign=other, phase=phase, position=1
+    )
+    header.continuation_occurrence = foreign
+    with pytest.raises(ValidationError) as error:
+        header.full_clean()
+    assert "continuation_occurrence" in error.value.message_dict
+    assert snapshot(CampaignSchedule, campaign_id=campaign.pk) == original
