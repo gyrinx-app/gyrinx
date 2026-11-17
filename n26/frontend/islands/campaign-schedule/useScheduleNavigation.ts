@@ -310,27 +310,38 @@ export function useScheduleNavigation(initial: ScheduleProps) {
         [inSchedule, initial.onNavigate, markerKey],
     );
 
-    useEffect(() => {
-        if (!initial.canManage || initial.editor) return;
+    const resumeStoredMove = useCallback(() => {
+        if (!data.canManage || data.editor) return false;
         const retained = restoreMove(markerKey);
-        if (retained) {
-            try {
-                if (!inSchedule(new URL(retained.href, window.location.href))) {
-                    clearMove(markerKey);
-                    return;
-                }
-            } catch {
+        if (!retained) return false;
+        try {
+            if (!inSchedule(new URL(retained.href, window.location.href))) {
                 clearMove(markerKey);
-                return;
+                return false;
             }
-            guarded.current = true;
-            setRecoveringMove(true);
-            focusSource.current = retained.sourceId;
-            moveControl.current =
-                moveHandle(retained.sourceId)?.dataset.busyId ?? null;
-            void load(retained.href, "none", undefined, retained);
+        } catch {
+            clearMove(markerKey);
+            return false;
         }
-    }, [load, markerKey, inSchedule, initial.canManage, initial.editor]);
+        guarded.current = true;
+        setRecoveringMove(true);
+        focusSource.current = retained.sourceId;
+        moveControl.current =
+            moveHandle(retained.sourceId)?.dataset.busyId ?? null;
+        void load(retained.href, "none", undefined, retained);
+        return true;
+    }, [data.canManage, data.editor, load, markerKey, inSchedule]);
+    useEffect(() => {
+        resumeStoredMove();
+    }, [resumeStoredMove]);
+    useEffect(() => {
+        const restore = (event: PageTransitionEvent) => {
+            if (event.persisted && !resumeStoredMove())
+                void load(window.location.href, "none");
+        };
+        window.addEventListener("pageshow", restore);
+        return () => window.removeEventListener("pageshow", restore);
+    }, [resumeStoredMove, load]);
 
     useEffect(() => {
         if (!recoveringMove) return;
@@ -379,7 +390,6 @@ export function useScheduleNavigation(initial: ScheduleProps) {
             }
             retryDrop.current = undefined;
             setMove(null);
-            clearMove(markerKey);
             focusSource.current = null;
             const previous = new URL(current.current);
             const next = new URL(window.location.href);
@@ -468,7 +478,6 @@ export function useScheduleNavigation(initial: ScheduleProps) {
         event.preventDefault();
         if (!guarded.current) {
             setMove(null);
-            clearMove(markerKey);
             focusSource.current = null;
             void load(url.href);
         }

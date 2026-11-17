@@ -853,3 +853,111 @@ test.each(["http://[", "https://example.com/move/"])(
         expect(screen.queryByRole("dialog")).toBeNull();
     },
 );
+
+function keepUnknownMove() {
+    const open = editor();
+    sessionStorage.setItem(
+        open.recoveryKey,
+        new URLSearchParams({
+            ...open.values,
+            request_key: "retained-key",
+            occurrence_id: "first",
+            after_cycle_id: "one",
+        }).toString(),
+    );
+    sessionStorage.setItem(
+        `schedule-move:${base}`,
+        JSON.stringify({
+            sourceId: "cycle:two",
+            revision: 4,
+            destination: { occurrence_id: "first", after_cycle_id: "one" },
+            href: move,
+            recoveryKey: open.recoveryKey,
+        }),
+    );
+    return open;
+}
+
+test("a recovered unknown command gets a resume marker without another POST", async () => {
+    const open = keepUnknownMove();
+    sessionStorage.removeItem(`schedule-move:${base}`);
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(prepared())
+        .mockResolvedValueOnce(prepared({ ...editor(), csrfToken: "renewed" }));
+    vi.stubGlobal("fetch", fetch);
+    const view = render(<CampaignSchedule {...overview()} />);
+    drop();
+    await screen.findByRole("button", { name: "Retry move" });
+    const marker = JSON.parse(sessionStorage.getItem(`schedule-move:${base}`)!);
+    expect(marker.destination).toEqual({
+        occurrence_id: "first",
+        after_cycle_id: "one",
+    });
+    expect(sessionStorage.getItem(open.recoveryKey)).not.toBeNull();
+    view.unmount();
+    render(<CampaignSchedule {...overview()} />);
+    await screen.findByRole("button", { name: "Retry move" });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(
+        fetch.mock.calls.every(([, options]) => options.method !== "POST"),
+    ).toBe(true);
+    expect(screen.getByText("01 Occupation · After Cycle 1")).toBeTruthy();
+});
+
+test("returning from an unrelated initial editor discovers the outstanding move", async () => {
+    keepUnknownMove();
+    const unrelated = {
+        ...editor("move-phase"),
+        recoveryKey: "unrelated-editor",
+    };
+    window.history.replaceState(null, "", phaseMove);
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(refreshed())
+        .mockResolvedValueOnce(prepared());
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...overview()} editor={unrelated} />);
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await screen.findByRole("button", { name: "Retry move" });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(sessionStorage.getItem(`schedule-move:${base}`)).not.toBeNull();
+    expect(
+        fetch.mock.calls.every(([, options]) => options.method !== "POST"),
+    ).toBe(true);
+});
+
+test("bfcache restoration rechecks storage before allowing another move", async () => {
+    const fetch = vi.fn().mockResolvedValueOnce(prepared());
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...overview()} />);
+    expect(fetch).not.toHaveBeenCalled();
+    keepUnknownMove();
+    act(() =>
+        window.dispatchEvent(
+            new PageTransitionEvent("pageshow", { persisted: true }),
+        ),
+    );
+    await screen.findByRole("button", { name: "Retry move" });
+    expect(fetch).toHaveBeenCalledOnce();
+    await userEvent.click(screen.getByRole("link", { name: "Edit Cycle 1" }));
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(sessionStorage.getItem(`schedule-move:${base}`)).not.toBeNull();
+});
+
+test("a retained destination missing from current choices is identified rather than replaced", async () => {
+    const open = keepUnknownMove();
+    const body = new URLSearchParams(sessionStorage.getItem(open.recoveryKey)!);
+    body.set("occurrence_id", "removed-phase");
+    body.set("after_cycle_id", "removed-cycle");
+    sessionStorage.setItem(open.recoveryKey, body.toString());
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(prepared()));
+    render(<CampaignSchedule {...overview()} />);
+    await screen.findByRole("button", { name: "Retry move" });
+    expect(
+        screen.getByText(
+            "Phase no longer available · After cycle no longer available",
+        ),
+    ).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+});

@@ -12,6 +12,7 @@ export function InlineMove({
     markerKey,
     setGuard,
     onPending,
+    preparing,
     onComplete,
     onDismiss,
 }: {
@@ -19,6 +20,7 @@ export function InlineMove({
     markerKey: string;
     setGuard: (guarded: boolean) => void;
     onPending: (pending: boolean) => void;
+    preparing: boolean;
     onComplete: (url: string) => void;
     onDismiss: (refresh: boolean) => void;
 }) {
@@ -30,6 +32,8 @@ export function InlineMove({
     const form = useWorkflowForm({
         ...editor,
         values: { ...editor.values, ...intent.destination },
+        // The overview owns bfcache restoration and fresh command preparation.
+        onReload: () => {},
         onNavigate: (url) => {
             clearMove(markerKey);
             onComplete(url);
@@ -58,12 +62,24 @@ export function InlineMove({
             return null;
         },
     });
-    async function save() {
+    function retainMarker() {
         try {
             sessionStorage.setItem(
                 markerKey,
                 JSON.stringify({
                     ...intent,
+                    revision: Number(form.values.expected_revision),
+                    destination:
+                        editor.kind === "move-phase"
+                            ? {
+                                  after_occurrence_id:
+                                      form.values.after_occurrence_id ?? "",
+                              }
+                            : {
+                                  occurrence_id: form.values.occurrence_id,
+                                  after_cycle_id:
+                                      form.values.after_cycle_id ?? "",
+                              },
                     href: move.href,
                     recoveryKey: editor.recoveryKey,
                 }),
@@ -72,9 +88,13 @@ export function InlineMove({
             setStorageError(
                 "Your browser could not keep this move for recovery. Allow this site to store data, then try again.",
             );
-            return;
+            return false;
         }
         setStorageError("");
+        return true;
+    }
+    async function save() {
+        if (!retainMarker()) return;
         await form.submit(new URLSearchParams(form.values));
     }
     useEffect(() => {
@@ -85,6 +105,7 @@ export function InlineMove({
             onDismiss(false);
             return;
         }
+        if (form.recovered && form.uncertain) retainMarker();
         if (
             !stale &&
             !unavailable &&
@@ -140,6 +161,7 @@ export function InlineMove({
             tabIndex={-1}
             aria-label="Move could not be completed"
         >
+            <MoveSummary editor={editor} values={form.values} />
             <FieldErrors
                 errors={[
                     ...Object.values(form.errors).flat(),
@@ -159,6 +181,7 @@ export function InlineMove({
                 {refresh ? (
                     <Button
                         size="xs"
+                        disabled={preparing}
                         onClick={() => {
                             clearMove(markerKey);
                             if (form.conflicted) form.review(editor.back);
@@ -168,7 +191,11 @@ export function InlineMove({
                         Refresh schedule
                     </Button>
                 ) : (
-                    <Button size="xs" onClick={() => void save()}>
+                    <Button
+                        size="xs"
+                        disabled={preparing}
+                        onClick={() => void save()}
+                    >
                         {form.uncertain ? "Retry move" : "Try again"}
                     </Button>
                 )}
@@ -176,6 +203,7 @@ export function InlineMove({
                     <Button
                         size="xs"
                         variant="ghost"
+                        disabled={preparing}
                         onClick={() => {
                             clearMove(markerKey);
                             onDismiss(false);
@@ -186,5 +214,52 @@ export function InlineMove({
                 )}
             </div>
         </Alert>
+    );
+}
+
+type MoveOccurrence = {
+    id: string;
+    number?: number;
+    name: string;
+    cycles: Array<{ id: string; name: string }>;
+};
+function MoveSummary({
+    editor,
+    values,
+}: {
+    editor: Editor;
+    values: Record<string, string>;
+}) {
+    const occurrences = (editor.context.timelineOccurrences ??
+        []) as MoveOccurrence[];
+    const phaseName = (id: string) => {
+        const phase = occurrences.find((item) => item.id === id);
+        return phase
+            ? `${String(phase.number ?? occurrences.indexOf(phase) + 1).padStart(2, "0")} ${phase.name}`
+            : "Phase no longer available";
+    };
+    const phaseMove = editor.kind === "move-phase";
+    const selected = editor.context.selectedCycle as
+        { id: string; name: string } | undefined;
+    const cycle =
+        occurrences
+            .flatMap((item) => item.cycles)
+            .find((item) => item.id === values.cycle_id) ??
+        (selected?.id === values.cycle_id ? selected : undefined);
+    const source = phaseMove
+        ? phaseName(values.occurrence_id)
+        : (cycle?.name ?? "Cycle no longer available");
+    const destination = phaseMove
+        ? values.after_occurrence_id
+            ? `After ${phaseName(values.after_occurrence_id)}`
+            : "Start of timeline"
+        : `${phaseName(values.occurrence_id)} · ${values.after_cycle_id ? `After ${occurrences.flatMap((item) => item.cycles).find((item) => item.id === values.after_cycle_id)?.name ?? "cycle no longer available"}` : "Start of phase"}`;
+    return (
+        <dl className="mb-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 text-sm [&_dd]:wrap-anywhere">
+            <dt className="font-semibold">Move</dt>
+            <dd>{source}</dd>
+            <dt className="font-semibold">To</dt>
+            <dd>{destination}</dd>
+        </dl>
     );
 }
