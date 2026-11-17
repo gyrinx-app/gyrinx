@@ -336,7 +336,7 @@ function PhaseGroup({
     const continuation = projected.some(
         (cycle) => cycle.editablePreview,
     ) ? null : (
-        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-box-border pt-3 text-sm text-muted">
             <p>
                 Generated repeat continuation. Added cycles move this preview
                 later.
@@ -422,7 +422,7 @@ function PhaseGroup({
                     {phase.addCycleHref && (
                         <ButtonLink
                             href={phase.addCycleHref}
-                            size="sm"
+                            size="xs"
                             variant="ghost"
                             aria-label={`Add cycle to phase ${String(number).padStart(2, "0")}: ${phase.name}`}
                         >
@@ -432,7 +432,7 @@ function PhaseGroup({
                     {phase.addPhaseHref && (
                         <ButtonLink
                             href={phase.addPhaseHref}
-                            size="sm"
+                            size="xs"
                             variant="ghost"
                             aria-label={`Add phase after ${String(number).padStart(2, "0")}: ${phase.name}`}
                         >
