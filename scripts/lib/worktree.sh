@@ -395,9 +395,62 @@ homebrew_postgres_data_dir() {
   fi
 }
 
+# _acquire_provision_lock <lock_dir> <label>
+#   Call only inside a subshell: fd 9 stays open there until provisioning and
+#   release finish. flock belongs to the shared open file description, so the
+#   shell retains it after the Python helper exits. The OS releases it when
+#   all holders exit, including after a killed provisioner.
+#   Never unlink the guard: waiters must always lock the same inode.
+_acquire_provision_lock() {
+  local lock_dir="$1"
+  local label="$2"
+  local lib_dir
+  lib_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+  local python_command=()
+  # Skip this worktree's venv: another owner may be resetting it while we
+  # start the helper. A system interpreter or uv's cache survives that reset.
+  local path_entry
+  local path_entries=()
+  IFS=: read -r -a path_entries <<< "$PATH"
+  for path_entry in "${path_entries[@]}"; do
+    if [ "$path_entry" != "${lock_dir%/*}/.venv/bin" ] \
+      && [ -x "${path_entry:-.}/python3" ]; then
+      python_command=("${path_entry:-.}/python3")
+      break
+    fi
+  done
+  if [ "${#python_command[@]}" -eq 0 ]; then
+    if command -v uv >/dev/null 2>&1; then
+      python_command=(env -u VIRTUAL_ENV uv run --no-project --python "$(cat "$lib_dir/../../.python-version")")
+    else
+      echo "[gyrinx] Python 3 or uv is required to acquire the ${label}." >&2
+      return 1
+    fi
+  fi
+  if ! exec 9>> "${lock_dir}.guard"; then
+    echo "[gyrinx] Could not open the ${label} guard." >&2
+    return 1
+  fi
+  if ! "${python_command[@]}" "$lib_dir/provision_lock.py" "$label"; then
+    return 1
+  fi
+
+  # The guard serializes directory creation, PID publication, stale-owner
+  # recovery and release. A leftover directory can only belong to an owner
+  # that has already released the kernel lock, even if its PID is still live.
+  if ! mkdir "$lock_dir" 2>/dev/null && [ ! -d "$lock_dir" ]; then
+    echo "[gyrinx] Could not create the ${label}." >&2
+    return 1
+  fi
+  if ! printf '%s\n' "$$" > "$lock_dir/pid"; then
+    echo "[gyrinx] Could not initialise the ${label}." >&2
+    return 1
+  fi
+}
+
 # _release_provision_lock <lock_dir> <label>
-#   Remove this process's mkdir lock. A waiter may delete the directory, or
-#   claim it, in the gap after the pid file is gone. That handoff is success:
+#   Remove this process's owner directory while the kernel guard stays held.
+#   Tolerate an already-removed directory or a handoff from an older caller:
 #   the work this process finished is already done. Fail only when this
 #   process still holds a directory it cannot remove.
 #   _provision_lock_handoff_hook, when defined, runs in that gap so a test
@@ -448,7 +501,7 @@ _release_provision_lock() {
 #   Echoes a one-line progress message to stderr when a sync is needed so the
 #   delay isn't silent. Returns 0 on success or skip; non-zero if uv is missing,
 #   dependency inputs cannot be hashed, or provisioning fails.
-provision_worktree_venv() {
+provision_worktree_venv() (
   local wt_root="$1"
   local reset_venv="${2:-false}"
   if [ -z "$wt_root" ] || [ ! -d "$wt_root" ]; then
@@ -488,37 +541,7 @@ provision_worktree_venv() {
   # Only serialize the slow path. A second caller rechecks the stamp after it
   # acquires the lock, so concurrent startup performs at most one uv sync.
   local lock_dir="${wt_root}/.gyrinx-venv-provision.lock"
-  local lock_pid attempts=0
-  while ! mkdir "$lock_dir" 2>/dev/null; do
-    lock_pid=""
-    if [ -f "$lock_dir/pid" ]; then
-      read -r lock_pid < "$lock_dir/pid" || lock_pid=""
-    fi
-    if [[ "$lock_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$lock_pid" 2>/dev/null; then
-      if rm "$lock_dir/pid" 2>/dev/null && rmdir "$lock_dir" 2>/dev/null; then
-        attempts=0
-        continue
-      fi
-    fi
-    attempts=$((attempts + 1))
-    # Recover the empty directory left if its owner died between mkdir and
-    # writing the PID. rmdir remains safe if a live owner writes it meanwhile.
-    if [ "$attempts" -ge 10 ] && [ ! -e "$lock_dir/pid" ] \
-      && rmdir "$lock_dir" 2>/dev/null; then
-      attempts=0
-      continue
-    fi
-    if [ "$attempts" -ge 1200 ]; then
-      echo "[gyrinx] Timed out waiting to provision ${venv}." >&2
-      return 1
-    fi
-    sleep 0.1
-  done
-  if ! printf '%s\n' "$$" > "$lock_dir/pid"; then
-    rmdir "$lock_dir" 2>/dev/null || true
-    echo "[gyrinx] Could not initialise the provisioning lock for ${venv}." >&2
-    return 1
-  fi
+  _acquire_provision_lock "$lock_dir" "provisioning lock for ${venv}" || return 1
 
   local provision_status
   if (
@@ -600,7 +623,7 @@ provision_worktree_venv() {
     return 1
   fi
   return "$provision_status"
-}
+)
 
 # install_worktree_venv_hook <activate_path>
 #   Append the per-worktree DB env block to a venv's bin/activate file so
@@ -759,7 +782,7 @@ _frontend_repair_plan() {
 #   Check freshness and provision under one lock to serialise concurrent calls.
 #   Checkouts without vite.config.mts need no provisioning.
 #   Return non-zero when required tools or inputs are missing, or a command fails.
-provision_worktree_frontend() {
+provision_worktree_frontend() (
   local wt_root="$1"
   if [ -z "$wt_root" ] || [ ! -d "$wt_root" ]; then
     return 1
@@ -780,35 +803,8 @@ provision_worktree_frontend() {
   fi
 
   local lock_dir="${wt_root}/.gyrinx-frontend-provision.lock"
-  local lock_pid attempts=0
-  while ! mkdir "$lock_dir" 2>/dev/null; do
-    lock_pid=""
-    if [ -f "$lock_dir/pid" ]; then
-      read -r lock_pid < "$lock_dir/pid" || lock_pid=""
-    fi
-    if [[ "$lock_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$lock_pid" 2>/dev/null; then
-      if rm "$lock_dir/pid" 2>/dev/null && rmdir "$lock_dir" 2>/dev/null; then
-        attempts=0
-        continue
-      fi
-    fi
-    attempts=$((attempts + 1))
-    if [ "$attempts" -ge 10 ] && [ ! -e "$lock_dir/pid" ] \
-      && rmdir "$lock_dir" 2>/dev/null; then
-      attempts=0
-      continue
-    fi
-    if [ "$attempts" -ge 1200 ]; then
-      echo "[gyrinx] Timed out waiting to provision frontend assets in ${wt_root}." >&2
-      return 1
-    fi
-    sleep 0.1
-  done
-  if ! printf '%s\n' "$$" > "$lock_dir/pid"; then
-    rmdir "$lock_dir" 2>/dev/null || true
-    echo "[gyrinx] Could not initialise the frontend provisioning lock for ${wt_root}." >&2
-    return 1
-  fi
+  _acquire_provision_lock "$lock_dir" \
+    "frontend provisioning lock for ${wt_root}" || return 1
 
   local provision_status
   if (
@@ -870,4 +866,4 @@ provision_worktree_frontend() {
     return 1
   fi
   return "$provision_status"
-}
+)

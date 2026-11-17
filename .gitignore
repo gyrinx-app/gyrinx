@@ -4,6 +4,8 @@ staticfiles/
 venv/
 .venv/
 .gyrinx-venv-provision.lock/
+.gyrinx-frontend-provision.lock/
+.gyrinx-*-provision.lock.guard
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
