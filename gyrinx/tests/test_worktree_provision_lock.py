@@ -10,7 +10,6 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.core
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -118,6 +117,7 @@ def _succeeded(process):
     assert process.returncode == 0, stdout + stderr
 
 
+@pytest.mark.core
 @pytest.mark.parametrize("pause", ["initialization", "release"])
 def test_live_owner_cannot_lose_its_lock_without_a_pid(provisioner, tmp_path, pause):
     _, lock, call_log, start = provisioner
@@ -207,8 +207,9 @@ def test_guard_timeout_preserves_the_live_owner(tmp_path):
                 "test",
                 str(guard),
                 sys.executable,
-                "from scripts.lib.provision_lock import acquire; "
-                "raise SystemExit(acquire('test lock', timeout=0.1))",
+                """from scripts.lib.provision_lock import acquire
+raise SystemExit(acquire('test lock', timeout=0.1))
+""",
             ],
             cwd=REPO_ROOT,
             text=True,
