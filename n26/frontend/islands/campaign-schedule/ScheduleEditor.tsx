@@ -188,8 +188,6 @@ export function ScheduleEditor({
     const [current, setCurrent] = useState(editor.current);
     const [reviewUrl, setReviewUrl] = useState(editor.back);
     const setupCompleted = useRef(false);
-    const formRef = useRef<HTMLFormElement>(null);
-    const dropSubmitted = useRef(false);
     const definitionPhases = definitionChoices(
         editor.context.definitionPhases,
         phases,
@@ -200,7 +198,6 @@ export function ScheduleEditor({
     );
     const [initialValues] = useState(() => ({
         ...(planning ? planDraft.values : restoreSetupDraft(editor)),
-        ...editor.dropIntent?.destination,
     }));
     const form = useWorkflowForm({
         ...editor,
@@ -258,21 +255,6 @@ export function ScheduleEditor({
             return null;
         },
     });
-    useEffect(() => {
-        if (!editor.dropIntent || dropSubmitted.current) return;
-        dropSubmitted.current = true;
-        if (
-            editor.dropIntent.stale ||
-            form.recovered ||
-            form.hasErrors ||
-            form.conflicted ||
-            form.frozen ||
-            editor.context.unavailable === true ||
-            Object.values(editor.errors).some((messages) => messages.length > 0)
-        )
-            return;
-        formRef.current?.requestSubmit();
-    }, [editor, form.recovered, form.hasErrors, form.conflicted, form.frozen]);
     const { values, errors } = form;
     useEffect(() => {
         if (editor.kind === "setup" && !setupCompleted.current && !form.frozen)
@@ -645,7 +627,7 @@ export function ScheduleEditor({
                           : "Review phases, cycle counts and dates before setting up this campaign."
                     : editor.lead
             }
-            formProps={{ method: "post", action: editor.action, ref: formRef }}
+            formProps={{ method: "post", action: editor.action }}
             pending={
                 form.pending ||
                 form.uncertain ||
@@ -792,11 +774,6 @@ export function ScheduleEditor({
                         notifications.
                     </p>
                 </div>
-            )}
-            {editor.dropIntent?.stale && (
-                <Alert tone="warning" dismissible={false}>
-                    The schedule changed. Review this move before saving.
-                </Alert>
             )}
             {form.hasErrors && (
                 <Alert

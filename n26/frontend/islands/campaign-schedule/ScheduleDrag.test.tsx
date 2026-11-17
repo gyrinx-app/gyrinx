@@ -348,6 +348,7 @@ test("a drop prepares canonical Move, posts destination with its fresh key, refr
         ),
     );
     expect(screen.queryByRole("dialog")).toBeNull();
+    expect(HTMLDialogElement.prototype.showModal).not.toHaveBeenCalled();
 });
 
 test("whole block drops use the phase destination, retaining the selected occurrence", async () => {
@@ -442,7 +443,7 @@ test("dropping at the unchanged origin performs no read or write", () => {
 });
 
 test.each(["stale", "invalid", "conflict", "unavailable"])(
-    "a %s preparation opens a reviewable destination without autosaving",
+    "a %s preparation reports inline without opening a dialog or saving",
     async (reason) => {
         const open = editor("move-cycle", reason === "stale" ? "5" : "4");
         if (reason === "invalid")
@@ -453,25 +454,23 @@ test.each(["stale", "invalid", "conflict", "unavailable"])(
         vi.stubGlobal("fetch", fetch);
         render(<CampaignSchedule {...overview()} />);
         drop();
-        await screen.findByRole("dialog", { name: "Move cycle" });
-        expect(
-            (
-                screen.getByRole("combobox", {
-                    name: "Phase block",
-                }) as HTMLSelectElement
-            ).value,
-        ).toBe("empty");
+        await screen.findByRole("alert", {
+            name: "Move could not be completed",
+        });
+        expect(screen.queryByRole("dialog")).toBeNull();
+        expect(HTMLDialogElement.prototype.showModal).not.toHaveBeenCalled();
+        expect(window.location.pathname).toBe(base);
         if (reason === "stale")
             expect(
                 screen.getByText(
-                    "The schedule changed. Review this move before saving.",
+                    "The schedule changed. Refresh it before moving this item.",
                 ),
             ).toBeTruthy();
         expect(fetch).toHaveBeenCalledOnce();
     },
 );
 
-test("server date refusal remains in Move and never repeats the write automatically", async () => {
+test("server date refusal stays inline and never repeats the write automatically", async () => {
     const fetch = vi
         .fn()
         .mockResolvedValueOnce(prepared())
@@ -482,7 +481,8 @@ test("server date refusal remains in Move and never repeats the write automatica
     render(<CampaignSchedule {...overview()} />);
     drop();
     await screen.findByText("These dates overlap.");
-    expect(screen.getByRole("dialog", { name: "Move cycle" })).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(HTMLDialogElement.prototype.showModal).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledTimes(2);
 });
 
@@ -502,14 +502,13 @@ test.each([false, true])(
         vi.stubGlobal("fetch", fetch);
         render(<CampaignSchedule {...overview()} />);
         drop();
-        await screen.findByRole("dialog", { name: "Move cycle" });
-        expect(
-            (
-                screen.getByRole("combobox", {
-                    name: "Phase block",
-                }) as HTMLSelectElement
-            ).value,
-        ).toBe("first");
+        await screen.findByRole("alert", {
+            name: "Move could not be completed",
+        });
+        expect(screen.queryByRole("dialog")).toBeNull();
+        expect(sessionStorage.getItem(open.recoveryKey) ?? "").not.toContain(
+            "fresh-key",
+        );
         expect(fetch).toHaveBeenCalledOnce();
     },
 );
@@ -589,12 +588,17 @@ test("an unknown drop save retries the exact command after reload with fresh CSR
     const restored = editor();
     restored.csrfToken = "renewed-csrf";
     restored.values.request_key = "unused-key";
-    fetch.mockResolvedValueOnce(saved()).mockResolvedValueOnce(refreshed());
-    render(<CampaignSchedule {...overview()} editor={restored} />);
-    expect(fetch).toHaveBeenCalledTimes(2);
-    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
-    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(4));
-    const retried = new URLSearchParams(fetch.mock.calls[2][1].body);
+    fetch
+        .mockResolvedValueOnce(prepared(restored))
+        .mockResolvedValueOnce(saved())
+        .mockResolvedValueOnce(refreshed());
+    render(<CampaignSchedule {...overview()} />);
+    await screen.findByRole("button", { name: "Retry move" });
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Retry move" }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(5));
+    const retried = new URLSearchParams(fetch.mock.calls[3][1].body);
     const expected = new URLSearchParams(original);
     expected.set("csrfmiddlewaretoken", "renewed-csrf");
     expect(retried.toString()).toBe(expected.toString());
@@ -610,7 +614,7 @@ test("a confirmed drop followed by a failed refresh retries only navigation", as
     vi.stubGlobal("fetch", fetch);
     render(<CampaignSchedule {...overview()} />);
     drop();
-    await screen.findByText(/Saved\./);
+    await screen.findByText(/The schedule could not be loaded/);
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(4));
     expect(
@@ -646,3 +650,206 @@ test("returning to a Move history entry never repeats the earlier drop", async (
         fetch.mock.calls.filter(([, options]) => options.method === "POST"),
     ).toHaveLength(1);
 });
+
+test("a drop keeps the overview and URL while its command is pending", async () => {
+    let finish!: (value: ReturnType<typeof saved>) => void;
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(prepared())
+        .mockReturnValueOnce(
+            new Promise((resolve) => {
+                finish = resolve;
+            }),
+        )
+        .mockResolvedValueOnce(refreshed());
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...overview()} />);
+    drop();
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(window.location.pathname).toBe(base);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(HTMLDialogElement.prototype.showModal).not.toHaveBeenCalled();
+    expect(
+        screen
+            .getByRole("button", { name: "Move Cycle 2" })
+            .hasAttribute("disabled"),
+    ).toBe(true);
+    await act(async () => finish(saved()));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    expect(HTMLDialogElement.prototype.showModal).not.toHaveBeenCalled();
+});
+
+test("the lifted source visibly changes until a cancelled drop", () => {
+    const { container } = render(<CampaignSchedule {...overview()} />);
+    const handle = lift();
+    expect(
+        container.querySelector("#cycle-two")?.getAttribute("data-moving"),
+    ).toBe("true");
+    expect(
+        container.querySelector("#cycle-two")?.classList.contains("opacity-40"),
+    ).toBe(true);
+    fireEvent.keyDown(handle, { key: "Escape" });
+    expect(
+        container.querySelector("#cycle-two")?.classList.contains("opacity-40"),
+    ).toBe(false);
+});
+
+test("a retained unknown move is retried even when its old revision is now stale", async () => {
+    const open = editor();
+    sessionStorage.setItem(
+        open.recoveryKey,
+        new URLSearchParams({
+            ...open.values,
+            request_key: "retained",
+            occurrence_id: "empty",
+        }).toString(),
+    );
+    sessionStorage.setItem(
+        `schedule-move:${base}`,
+        JSON.stringify({
+            sourceId: "cycle:two",
+            revision: 3,
+            destination: { occurrence_id: "empty", after_cycle_id: "" },
+            href: move,
+            recoveryKey: open.recoveryKey,
+        }),
+    );
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(prepared(open))
+        .mockResolvedValueOnce(saved())
+        .mockResolvedValueOnce(refreshed());
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...overview()} />);
+    await screen.findByRole("button", { name: "Retry move" });
+    expect(
+        screen.queryByRole("button", { name: "Refresh schedule" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Retry move" }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    expect(
+        new URLSearchParams(fetch.mock.calls[1][1].body).get("request_key"),
+    ).toBe("retained");
+});
+
+test("a resume marker from another actor cannot submit a new command", async () => {
+    sessionStorage.setItem(
+        `schedule-move:${base}`,
+        JSON.stringify({
+            sourceId: "cycle:two",
+            revision: 4,
+            destination: { occurrence_id: "empty" },
+            href: move,
+            recoveryKey: "another-actor",
+        }),
+    );
+    const fetch = vi.fn().mockResolvedValueOnce(prepared());
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...overview()} />);
+    await waitFor(() =>
+        expect(sessionStorage.getItem(`schedule-move:${base}`)).toBeNull(),
+    );
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("an unvalidated conflict cannot discard an unknown move", async () => {
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(prepared())
+        .mockResolvedValueOnce(
+            json(
+                {
+                    code: "revision_conflict",
+                    errors: { __all__: ["Malformed conflict"] },
+                },
+                409,
+            ),
+        );
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...overview()} />);
+    drop();
+    await screen.findByRole("button", { name: "Retry move" });
+    expect(
+        screen.queryByRole("button", { name: "Refresh schedule" }),
+    ).toBeNull();
+    expect(sessionStorage.getItem(editor().recoveryKey)).not.toBeNull();
+});
+
+test("a delayed or failed recovery read cannot abandon the unresolved move", async () => {
+    const open = editor();
+    sessionStorage.setItem(
+        open.recoveryKey,
+        new URLSearchParams(open.values).toString(),
+    );
+    const marker = `schedule-move:${base}`;
+    sessionStorage.setItem(
+        marker,
+        JSON.stringify({
+            sourceId: "cycle:two",
+            revision: 4,
+            destination: { occurrence_id: "empty", after_cycle_id: "" },
+            href: move,
+            recoveryKey: open.recoveryKey,
+        }),
+    );
+    let fail!: (error: Error) => void;
+    const fetch = vi
+        .fn()
+        .mockReturnValueOnce(
+            new Promise((_resolve, reject) => {
+                fail = reject;
+            }),
+        )
+        .mockResolvedValueOnce(prepared());
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...overview()} />);
+    await userEvent.click(screen.getByRole("link", { name: "Edit Cycle 1" }));
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(sessionStorage.getItem(marker)).not.toBeNull();
+    act(() => {
+        window.history.replaceState(null, "", base + "?page=2");
+        window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+    });
+    expect(window.location.search).toBe("");
+    expect(sessionStorage.getItem(marker)).not.toBeNull();
+    expect(fetch).toHaveBeenCalledOnce();
+    const unload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+    await act(async () => fail(new Error()));
+    await screen.findByText(/The earlier move is still unconfirmed/);
+    drop();
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(sessionStorage.getItem(marker)).not.toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await screen.findByRole("button", { name: "Retry move" });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test.each(["http://[", "https://example.com/move/"])(
+    "an invalid resume target %s cannot navigate or mount an editor",
+    async (href) => {
+        sessionStorage.setItem(
+            `schedule-move:${base}`,
+            JSON.stringify({
+                sourceId: "cycle:two",
+                revision: 4,
+                destination: {},
+                href,
+                recoveryKey: editor().recoveryKey,
+            }),
+        );
+        const fetch = vi.fn();
+        vi.stubGlobal("fetch", fetch);
+        render(<CampaignSchedule {...overview()} />);
+        await waitFor(() =>
+            expect(sessionStorage.getItem(`schedule-move:${base}`)).toBeNull(),
+        );
+        expect(fetch).not.toHaveBeenCalled();
+        expect(window.location.pathname).toBe(base);
+        expect(screen.queryByRole("dialog")).toBeNull();
+    },
+);

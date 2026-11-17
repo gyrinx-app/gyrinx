@@ -14,6 +14,7 @@ import {
     Link,
     Table,
 } from "../../ui";
+import { InlineMove } from "./InlineMove";
 import { ScheduleEditor } from "./ScheduleEditor";
 import { useScheduleNavigation } from "./useScheduleNavigation";
 import { PhaseSummary } from "./PhaseSummary";
@@ -37,6 +38,7 @@ function SavedItem({
     children: (props: {
         ref?: (element: Element | null) => void;
         handle: ReactNode;
+        active: boolean;
     }) => ReactNode;
 }) {
     const reorder = useContext(TimelineReorder);
@@ -45,7 +47,7 @@ function SavedItem({
     ) ? (
         <ReorderItem id={id}>{children}</ReorderItem>
     ) : (
-        children({ handle: null })
+        children({ handle: null, active: false })
     );
 }
 
@@ -164,7 +166,7 @@ function CycleRow({
     ].filter((item) => item.href) as ActionMenuItem[];
     return (
         <SavedItem id={projected ? "" : `cycle:${cycle.key}`}>
-            {({ ref, handle }) => (
+            {({ ref, handle, active }) => (
                 <tr
                     ref={ref}
                     data-reorder-source={
@@ -172,24 +174,21 @@ function CycleRow({
                     }
                     id={`cycle-${cycle.key}`}
                     tabIndex={projected ? undefined : -1}
-                    className={
-                        projected
-                            ? "bg-ink-500/[0.025] [&_td]:text-muted!"
-                            : cycle.state === "Current"
-                              ? "scroll-mt-20 bg-accent/5"
-                              : "scroll-mt-20"
-                    }
+                    data-moving={active || undefined}
+                    className={`relative scroll-mt-20 ${active ? "opacity-40" : ""} ${projected ? "bg-ink-500/[0.025] [&_td]:text-muted!" : cycle.state === "Current" ? "bg-accent/5" : ""}`}
                 >
                     <td className="align-middle [overflow-wrap:anywhere]">
                         {!projected && first && (
-                            <DropGap
-                                id={`cycle-start:${cycle.occurrenceId}`}
-                                align="start"
-                            />
+                            <div className="absolute inset-x-0 top-0">
+                                <DropGap
+                                    id={`cycle-start:${cycle.occurrenceId}`}
+                                    align="start"
+                                />
+                            </div>
                         )}
                         <div className="flex items-start gap-2">
                             {canManage && (
-                                <span className="inline-flex w-8 shrink-0 justify-center">
+                                <span className="inline-flex w-6 shrink-0 justify-center">
                                     {handle}
                                 </span>
                             )}
@@ -265,10 +264,12 @@ function CycleRow({
                             </div>
                         </div>
                         {!projected && (
-                            <DropGap
-                                id={`cycle-after:${cycle.key}`}
-                                align="end"
-                            />
+                            <div className="absolute inset-x-0 bottom-0">
+                                <DropGap
+                                    id={`cycle-after:${cycle.key}`}
+                                    align="end"
+                                />
+                            </div>
                         )}
                     </td>
                     <td className="hidden w-56 align-middle sm:table-cell">
@@ -440,7 +441,7 @@ function PhaseGroup({
     );
     return (
         <SavedItem id={phase.generated ? "" : `phase:${phase.id}`}>
-            {({ ref, handle }) => (
+            {({ ref, handle, active }) => (
                 <section
                     ref={ref}
                     data-reorder-source={
@@ -448,15 +449,14 @@ function PhaseGroup({
                     }
                     id={anchor ? `phase-${phase.id}` : undefined}
                     aria-labelledby={heading}
-                    className={
-                        phase.generated ? "space-y-2 text-muted" : "space-y-2"
-                    }
+                    data-moving={active || undefined}
+                    className={`space-y-2 ${active ? "opacity-40" : ""} ${phase.generated ? "text-muted" : ""}`}
                 >
                     {beforeGap && <DropGap id={beforeGap} />}
                     {phase.generated && firstGenerated && continuation}
                     <div className="flex items-start gap-2 px-1">
                         {canManage && (
-                            <span className="inline-flex w-8 shrink-0 justify-center">
+                            <span className="inline-flex w-6 shrink-0 justify-center">
                                 {handle}
                             </span>
                         )}
@@ -880,6 +880,17 @@ export function CampaignSchedule(props: ScheduleProps) {
                         </Button>
                     </Alert>
                 )}
+                {navigation.move && (
+                    <InlineMove
+                        key={navigation.move.editor.values.request_key}
+                        move={navigation.move}
+                        markerKey={navigation.markerKey}
+                        setGuard={navigation.setGuard}
+                        onPending={navigation.setCommandPending}
+                        onComplete={navigation.completeMove}
+                        onDismiss={navigation.dismissMove}
+                    />
+                )}
                 {navigation.notices.map((notice) => (
                     <Alert key={notice.id} tone={notice.tone} className="mb-3">
                         {notice.message}
@@ -902,6 +913,8 @@ export function CampaignSchedule(props: ScheduleProps) {
                         disabled={
                             navigation.pending ||
                             !!navigation.data.editor ||
+                            !!navigation.move ||
+                            navigation.recoveringMove ||
                             !navigation.data.canManage
                         }
                         onMove={({ itemId, targetId }) =>

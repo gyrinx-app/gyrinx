@@ -7,6 +7,8 @@ import {
 } from "react";
 import { isPageEditor, type ScheduleProps, type DropIntent } from "./types";
 import type { AlertTone } from "../../ui";
+import type { PreparedMove } from "./InlineMove";
+import { clearMove, moveRecoveryKey, restoreMove } from "./moveRecovery";
 
 function readNotices(value: unknown) {
     if (!Array.isArray(value)) return [];
@@ -90,6 +92,11 @@ function pageEditor(data: ScheduleProps) {
 export function useScheduleNavigation(initial: ScheduleProps) {
     const [data, setData] = useState(initial);
     const [pending, setPending] = useState(false);
+    const [move, setMove] = useState<PreparedMove | null>(null);
+    const [commandPending, setCommandPending] = useState(false);
+    const [recoveringMove, setRecoveringMove] = useState(false);
+    const moveControl = useRef<string | null>(null);
+    const markerKey = moveRecoveryKey(initial.scheduleHref);
     const [scrollTarget, setScrollTarget] = useState<ScrollPosition | null>(
         null,
     );
@@ -243,6 +250,34 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 )
                     throw new Error();
                 if (controller.current !== request) return;
+                if (drop) {
+                    const editor = result.schedule.editor;
+                    if (
+                        editor?.kind !==
+                        (drop.sourceId.startsWith("phase:")
+                            ? "move-phase"
+                            : "move-cycle")
+                    )
+                        throw new Error();
+                    if (
+                        drop.recoveryKey &&
+                        drop.recoveryKey !== editor.recoveryKey
+                    ) {
+                        clearMove(markerKey);
+                        guarded.current = false;
+                        setRecoveringMove(false);
+                        retryDrop.current = undefined;
+                        return;
+                    }
+                    retryDrop.current = undefined;
+                    setMove({
+                        editor,
+                        intent: drop,
+                        href: url.pathname + url.search,
+                    });
+                    setRecoveringMove(false);
+                    return;
+                }
                 const movesPage =
                     history === "push" &&
                     url.href !== previous.href &&
@@ -250,28 +285,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                         (page.current && result.schedule.editor === null));
                 remember();
                 page.current = pageEditor(result.schedule);
-                let prepared = result.schedule;
-                const editor = prepared.editor;
-                if (
-                    drop &&
-                    editor?.kind ===
-                        (drop.sourceId.startsWith("phase:")
-                            ? "move-phase"
-                            : "move-cycle")
-                ) {
-                    prepared = {
-                        ...prepared,
-                        editor: {
-                            ...editor,
-                            dropIntent: {
-                                ...drop,
-                                stale:
-                                    Number(editor.values.expected_revision) !==
-                                    drop.revision,
-                            },
-                        },
-                    };
-                }
+                const prepared = result.schedule;
                 retryDrop.current = undefined;
                 setData(prepared);
                 if (restoreScroll) setScrollTarget({ ...restoreScroll });
@@ -282,7 +296,9 @@ export function useScheduleNavigation(initial: ScheduleProps) {
             } catch {
                 if (controller.current === request && !request.signal.aborted)
                     setError(
-                        "The schedule could not be loaded. Check your connection and access, then try again.",
+                        drop?.recoveryKey
+                            ? "The earlier move is still unconfirmed. Retry loading the schedule before making another change."
+                            : "The schedule could not be loaded. Check your connection and access, then try again.",
                     );
             } finally {
                 if (controller.current === request) {
@@ -291,8 +307,40 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 }
             }
         },
-        [inSchedule, initial.onNavigate],
+        [inSchedule, initial.onNavigate, markerKey],
     );
+
+    useEffect(() => {
+        if (!initial.canManage || initial.editor) return;
+        const retained = restoreMove(markerKey);
+        if (retained) {
+            try {
+                if (!inSchedule(new URL(retained.href, window.location.href))) {
+                    clearMove(markerKey);
+                    return;
+                }
+            } catch {
+                clearMove(markerKey);
+                return;
+            }
+            guarded.current = true;
+            setRecoveringMove(true);
+            focusSource.current = retained.sourceId;
+            moveControl.current =
+                moveHandle(retained.sourceId)?.dataset.busyId ?? null;
+            void load(retained.href, "none", undefined, retained);
+        }
+    }, [load, markerKey, inSchedule, initial.canManage, initial.editor]);
+
+    useEffect(() => {
+        if (!recoveringMove) return;
+        const warn = (event: BeforeUnloadEvent) => {
+            event.preventDefault();
+            event.returnValue = true;
+        };
+        window.addEventListener("beforeunload", warn);
+        return () => window.removeEventListener("beforeunload", warn);
+    }, [recoveringMove]);
 
     useEffect(() => {
         if (!scrollTarget) return;
@@ -330,6 +378,8 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 return;
             }
             retryDrop.current = undefined;
+            setMove(null);
+            clearMove(markerKey);
             focusSource.current = null;
             const previous = new URL(current.current);
             const next = new URL(window.location.href);
@@ -417,6 +467,8 @@ export function useScheduleNavigation(initial: ScheduleProps) {
         if (!inSchedule(url)) return;
         event.preventDefault();
         if (!guarded.current) {
+            setMove(null);
+            clearMove(markerKey);
             focusSource.current = null;
             void load(url.href);
         }
@@ -426,14 +478,41 @@ export function useScheduleNavigation(initial: ScheduleProps) {
     }, []);
     return {
         data,
-        pending,
-        busyControl,
+        pending: pending || commandPending,
+        busyControl:
+            busyControl ?? (commandPending ? moveControl.current : null),
+        move,
+        recoveringMove,
+        markerKey,
+        setCommandPending,
+        completeMove: (url: string) => {
+            setMove(null);
+            guarded.current = false;
+            void load(url);
+        },
+        dismissMove: (refresh: boolean) => {
+            const source = move?.intent.sourceId;
+            setMove(null);
+            if (source && !refresh)
+                requestAnimationFrame(() =>
+                    moveHandle(source)?.focus({ preventScroll: true }),
+                );
+            guarded.current = false;
+            if (refresh) void load(window.location.href, "none");
+        },
         error,
         notices,
         onClick,
         setGuard,
         prepareMove: (itemId: string, targetId: string) => {
-            if (pending || data.editor || guarded.current || !data.canManage)
+            if (
+                pending ||
+                commandPending ||
+                move ||
+                data.editor ||
+                guarded.current ||
+                !data.canManage
+            )
                 return;
             const source = data.reorder?.sources.find(
                 (item) => item.id === itemId,
@@ -445,7 +524,8 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 return;
             focusSource.current = source.id;
             interaction.current = moveHandle(source.id)?.dataset.busyId ?? null;
-            void load(source.moveHref, "push", undefined, {
+            moveControl.current = interaction.current;
+            void load(source.moveHref, "none", undefined, {
                 sourceId: source.id,
                 revision: data.reorder!.revision,
                 destination:

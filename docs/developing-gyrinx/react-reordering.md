@@ -20,7 +20,11 @@ stops an active pointer drag.
 
 Keep existing non-drag move controls as a fallback. Server-backed consumers must
 still validate every move and retain uncertain commands through their workflow's
-normal recovery mechanism. Do not pass a persistence promise as if the adapter
+normal recovery mechanism. For a drop, submit directly from the overview with
+`useWorkflowForm.submit(body)`; keep errors and retry controls inline. Do not open
+an editing dialog or navigate to its URL as a transport for the command. Persist
+only the resume marker and business command, then reload credentials from the
+server when resuming. Do not pass a persistence promise as if the adapter
 owned its success or error handling. Disable the scope while preparing or saving
 a command, and render the confirmed order from the authoritative response.
 
@@ -46,8 +50,8 @@ first visible row of a paginated list is the start of its group.
 >
     {rows.map((row) => (
         <ReorderItem id={row.id} key={row.id}>
-            {({ ref, handle }) => (
-                <section ref={ref} className="relative">
+            {({ ref, handle, active }) => (
+                <section ref={ref} className={active ? "relative opacity-40" : "relative"}>
                     <ReorderDropLine id={row.beforeTarget} align="start" />
                     {handle}
                     {row.name}
@@ -59,7 +63,8 @@ first visible row of a paginated list is the start of its group.
 ```
 
 `ReorderItem` adds no wrapper. Attach its ref to the actual row or group and put
-its handle inside that element. Its `active` value can style the selected source.
+its handle inside that element. Use its `active` value to fade the lifted source,
+so the source and pointer overlay are visually distinct.
 A source with no allowed destinations gets no handle. A disabled scope retains
 disabled handles so the layout stays stable.
 
@@ -67,7 +72,9 @@ A drop line takes no layout height. Position it at the intended boundary in a
 `relative` container. The default `align="center"` places its hit area on both
 sides of the boundary. Inside a table's scroll wrapper, use `align="start"` at a
 row's top and `align="end"` at its bottom: these keep the hit area inside the row
-and avoid creating vertical overflow. Put the line inside a table cell, never
+and avoid creating vertical overflow. Anchor the zero-height wrapper absolutely
+to the row's top or bottom, rather than the padded cell's content edge, so the
+painted line falls between rows and spans their width. Put the line inside a table cell, never
 directly under `tbody` or `tr`. The pattern-step editor demonstrates this markup.
 
 ## Verify a consumer
