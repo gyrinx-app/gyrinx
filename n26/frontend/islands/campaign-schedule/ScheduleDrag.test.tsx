@@ -992,6 +992,13 @@ test("an actor change during cached recovery removes the old actor's move UI", a
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(sessionStorage.getItem(`schedule-move:${base}`)).toBeNull();
     expect(sessionStorage.getItem(open.recoveryKey)).not.toBeNull();
+    await waitFor(() =>
+        expect(
+            screen
+                .getByRole("button", { name: "Move Cycle 2" })
+                .hasAttribute("disabled"),
+        ).toBe(false),
+    );
     const unload = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(unload);
     expect(unload.defaultPrevented).toBe(false);
@@ -1000,4 +1007,162 @@ test("an actor change during cached recovery removes the old actor's move UI", a
     expect(
         fetch.mock.calls.every(([, options]) => options.method !== "POST"),
     ).toBe(true);
+});
+
+test("cached recovery replaces older retry UI and keeps its guard if the new read fails", async () => {
+    keepUnknownMove();
+    const phase = {
+        ...editor("move-phase"),
+        recoveryKey: "phase-recovery",
+        values: { ...editor("move-phase").values, request_key: "phase-key" },
+    };
+    let fail!: (reason: Error) => void;
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(prepared())
+        .mockReturnValueOnce(
+            new Promise((_resolve, reject) => {
+                fail = reject;
+            }),
+        )
+        .mockResolvedValueOnce(prepared(phase));
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...overview()} />);
+    await screen.findByRole("button", { name: "Retry move" });
+    sessionStorage.setItem(
+        phase.recoveryKey,
+        new URLSearchParams(phase.values).toString(),
+    );
+    const marker = JSON.stringify({
+        sourceId: "phase:second",
+        revision: 4,
+        destination: { after_occurrence_id: "first" },
+        href: phaseMove,
+        recoveryKey: phase.recoveryKey,
+    });
+    sessionStorage.setItem(`schedule-move:${base}`, marker);
+    act(() =>
+        window.dispatchEvent(
+            new PageTransitionEvent("pageshow", { persisted: true }),
+        ),
+    );
+    expect(screen.queryByRole("button", { name: "Retry move" })).toBeNull();
+    await act(async () => fail(new Error()));
+    await screen.findByText(/The earlier move is still unconfirmed/);
+    expect(screen.queryByRole("button", { name: "Retry move" })).toBeNull();
+    await userEvent.click(screen.getByRole("link", { name: "Edit Cycle 1" }));
+    drop();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(sessionStorage.getItem(`schedule-move:${base}`)).toBe(marker);
+    const unload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await screen.findByRole("button", { name: "Retry move" });
+    expect(screen.getByText("02 Downtime")).toBeTruthy();
+    expect(
+        fetch.mock.calls.every(([, options]) => options.method !== "POST"),
+    ).toBe(true);
+    fetch
+        .mockResolvedValueOnce(
+            json({ nextUrl: base + "#phase-second", revision: 5 }),
+        )
+        .mockResolvedValueOnce(refreshed());
+    await userEvent.click(screen.getByRole("button", { name: "Retry move" }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(5));
+    await waitFor(() =>
+        expect(
+            screen
+                .getByRole("button", { name: "Move Cycle 2" })
+                .hasAttribute("disabled"),
+        ).toBe(false),
+    );
+    const confirmed = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(confirmed);
+    expect(confirmed.defaultPrevented).toBe(false);
+});
+
+test("a cached unsent editor preserves its draft without reloading props", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    window.history.replaceState(null, "", phaseMove);
+    render(
+        <CampaignSchedule
+            {...overview()}
+            editor={{ ...editor("move-phase"), recoveryKey: "manual-phase" }}
+        />,
+    );
+    const select = screen.getByRole("combobox", { name: "Move phase after" });
+    await userEvent.selectOptions(select, "empty");
+    act(() =>
+        window.dispatchEvent(
+            new PageTransitionEvent("pageshow", { persisted: true }),
+        ),
+    );
+    expect(fetch).not.toHaveBeenCalled();
+    expect((select as HTMLSelectElement).value).toBe("empty");
+});
+
+test("retry keeps its alert, focused control and busy feedback while the POST is pending", async () => {
+    let finish!: (value: ReturnType<typeof saved>) => void;
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(prepared())
+        .mockRejectedValueOnce(new Error())
+        .mockReturnValueOnce(
+            new Promise((resolve) => {
+                finish = resolve;
+            }),
+        )
+        .mockResolvedValueOnce(refreshed());
+    vi.stubGlobal("fetch", fetch);
+    render(<CampaignSchedule {...overview()} />);
+    drop();
+    const button = await screen.findByRole("button", { name: "Retry move" });
+    const alert = screen.getByRole("alert", {
+        name: "Move could not be completed",
+    });
+    const message = alert.textContent;
+    await userEvent.click(button);
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    expect(
+        screen.getByRole("alert", { name: "Move could not be completed" }),
+    ).toBe(alert);
+    expect(alert.textContent).toBe(message);
+    expect(screen.getByRole("button", { name: "Retry move" })).toBe(button);
+    expect(button.getAttribute("aria-busy")).toBe("true");
+    expect(document.activeElement).toBe(button);
+    expect(
+        screen
+            .getByRole("button", { name: "Move Cycle 2" })
+            .getAttribute("aria-busy"),
+    ).toBeNull();
+    await act(async () => finish(saved()));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(4));
+});
+
+test("a recovered move focuses its row on the returned page after confirmation", async () => {
+    keepUnknownMove();
+    const after = overview();
+    after.rows = after.rows.filter((row) => row.key === "two");
+    after.reorder = { revision: 5, sources: [], targets: [] };
+    const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(prepared())
+        .mockResolvedValueOnce(
+            json({ nextUrl: base + "?page=3#cycle-two", revision: 5 }),
+        )
+        .mockResolvedValueOnce(json({ schedule: after }));
+    vi.stubGlobal("fetch", fetch);
+    const { container } = render(<CampaignSchedule {...overview()} />);
+    await userEvent.click(
+        await screen.findByRole("button", { name: "Retry move" }),
+    );
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    const row = container.querySelector("#cycle-two")!;
+    await waitFor(() => expect(document.activeElement).toBe(row));
+    expect(vi.mocked(Element.prototype.scrollIntoView).mock.contexts).toContain(
+        row,
+    );
+    expect(window.location.search).toBe("?page=3");
 });

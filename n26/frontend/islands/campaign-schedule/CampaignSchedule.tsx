@@ -887,7 +887,9 @@ export function CampaignSchedule(props: ScheduleProps) {
                         markerKey={navigation.markerKey}
                         setGuard={navigation.setGuard}
                         onPending={navigation.setCommandPending}
-                        preparing={navigation.pending}
+                        preparing={
+                            navigation.pending || navigation.recoveringMove
+                        }
                         onComplete={navigation.completeMove}
                         onDismiss={navigation.dismissMove}
                     />

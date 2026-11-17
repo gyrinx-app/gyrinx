@@ -19,7 +19,7 @@ export function InlineMove({
     move: PreparedMove;
     markerKey: string;
     setGuard: (guarded: boolean) => void;
-    onPending: (pending: boolean) => void;
+    onPending: (pending: boolean, atSource: boolean) => void;
     preparing: boolean;
     onComplete: (url: string) => void;
     onDismiss: (refresh: boolean) => void;
@@ -27,6 +27,7 @@ export function InlineMove({
     const { editor, intent } = move;
     const submitted = useRef(false);
     const [storageError, setStorageError] = useState("");
+    const [feedback, setFeedback] = useState<string[] | null>(null);
     const stale = Number(editor.values.expected_revision) !== intent.revision;
     const unavailable = editor.context.unavailable === true;
     const form = useWorkflowForm({
@@ -94,7 +95,7 @@ export function InlineMove({
         return true;
     }
     async function save() {
-        if (!retainMarker()) return;
+        if (preparing || form.pending || !retainMarker()) return;
         await form.submit(new URLSearchParams(form.values));
     }
     useEffect(() => {
@@ -117,12 +118,12 @@ export function InlineMove({
     }, []);
     useEffect(() => {
         setGuard(form.pending || form.uncertain);
-        onPending(form.pending);
+        onPending(form.pending, !feedback);
         return () => {
             setGuard(false);
-            onPending(false);
+            onPending(false, !feedback);
         };
-    }, [form.pending, form.uncertain, setGuard, onPending]);
+    }, [form.pending, form.uncertain, setGuard, onPending, !!feedback]);
     useEffect(() => {
         if (
             stale ||
@@ -141,15 +142,22 @@ export function InlineMove({
         form.conflicted,
         editor.errors,
     ]);
-    if (
-        form.pending ||
-        (!stale &&
-            !unavailable &&
-            !form.hasErrors &&
-            !form.conflicted &&
-            !storageError)
-    )
-        return null;
+    const messages = [
+        ...Object.values(form.errors).flat(),
+        ...(storageError ? [storageError] : []),
+        ...(form.notice ? [form.notice] : []),
+        ...((stale || form.conflicted) && !form.notice
+            ? ["The schedule changed. Refresh it before moving this item."]
+            : []),
+        ...(unavailable && !form.uncertain
+            ? ["This item can no longer be moved."]
+            : []),
+    ];
+    const messageKey = JSON.stringify(messages);
+    useEffect(() => {
+        if (!form.pending && messages.length) setFeedback(messages);
+    }, [form.pending, messageKey]);
+    if (!feedback && !messages.length) return null;
     const refresh =
         form.conflicted || (!form.uncertain && (stale || unavailable));
     return (
@@ -163,19 +171,7 @@ export function InlineMove({
         >
             <MoveSummary editor={editor} values={form.values} />
             <FieldErrors
-                errors={[
-                    ...Object.values(form.errors).flat(),
-                    ...(storageError ? [storageError] : []),
-                    ...(form.notice ? [form.notice] : []),
-                    ...((stale || form.conflicted) && !form.notice
-                        ? [
-                              "The schedule changed. Refresh it before moving this item.",
-                          ]
-                        : []),
-                    ...(unavailable && !form.uncertain
-                        ? ["This item can no longer be moved."]
-                        : []),
-                ]}
+                errors={form.pending ? (feedback ?? messages) : messages}
             />
             <div className="mt-2 flex flex-wrap gap-2">
                 {refresh ? (
@@ -193,7 +189,8 @@ export function InlineMove({
                 ) : (
                     <Button
                         size="xs"
-                        disabled={preparing}
+                        busy={form.pending}
+                        aria-disabled={preparing || form.pending}
                         onClick={() => void save()}
                     >
                         {form.uncertain ? "Retry move" : "Try again"}
@@ -203,7 +200,7 @@ export function InlineMove({
                     <Button
                         size="xs"
                         variant="ghost"
-                        disabled={preparing}
+                        disabled={preparing || form.pending}
                         onClick={() => {
                             clearMove(markerKey);
                             onDismiss(false);

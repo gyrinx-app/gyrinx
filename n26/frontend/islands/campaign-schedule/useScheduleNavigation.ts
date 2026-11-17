@@ -107,6 +107,8 @@ export function useScheduleNavigation(initial: ScheduleProps) {
     const [notices, setNotices] = useState(() => readNotices(initial.notices));
     const controller = useRef<AbortController | null>(null);
     const guarded = useRef(false);
+    const restoringMove = useRef(false);
+    const focusReady = useRef(false);
     const scope = useRef(crypto.randomUUID());
     const index = useRef(0);
     const renderedIndex = useRef(0);
@@ -266,11 +268,14 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                         clearMove(markerKey);
                         setMove(null);
                         guarded.current = false;
+                        restoringMove.current = false;
                         setRecoveringMove(false);
                         retryDrop.current = undefined;
                         return;
                     }
                     retryDrop.current = undefined;
+                    restoringMove.current = false;
+                    guarded.current = true;
                     setMove({
                         editor,
                         intent: drop,
@@ -288,6 +293,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 page.current = pageEditor(result.schedule);
                 const prepared = result.schedule;
                 retryDrop.current = undefined;
+                focusReady.current = !!focusSource.current && !prepared.editor;
                 setData(prepared);
                 if (restoreScroll) setScrollTarget({ ...restoreScroll });
                 else if (movesPage) setScrollTarget({ left: 0, top: 0 });
@@ -324,7 +330,9 @@ export function useScheduleNavigation(initial: ScheduleProps) {
             clearMove(markerKey);
             return false;
         }
+        restoringMove.current = true;
         guarded.current = true;
+        setMove(null);
         setRecoveringMove(true);
         focusSource.current = retained.sourceId;
         moveControl.current =
@@ -337,12 +345,12 @@ export function useScheduleNavigation(initial: ScheduleProps) {
     }, [resumeStoredMove]);
     useEffect(() => {
         const restore = (event: PageTransitionEvent) => {
-            if (event.persisted && !resumeStoredMove())
+            if (event.persisted && !resumeStoredMove() && !data.editor)
                 void load(window.location.href, "none");
         };
         window.addEventListener("pageshow", restore);
         return () => window.removeEventListener("pageshow", restore);
-    }, [resumeStoredMove, load]);
+    }, [resumeStoredMove, load, data.editor]);
 
     useEffect(() => {
         if (!recoveringMove) return;
@@ -375,7 +383,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
         );
         function restore(event: PopStateEvent) {
             const target = event.state?.n26Schedule;
-            if (guarded.current) {
+            if (guarded.current || restoringMove.current) {
                 const distance =
                     target?.scope === scope.current
                         ? index.current - target.index
@@ -434,9 +442,11 @@ export function useScheduleNavigation(initial: ScheduleProps) {
         const target =
             window.location.hash.slice(1) ||
             (data.focusId ? `cycle-${data.focusId}` : "");
-        if (!data.editor && focusSource.current) {
+        if (restoringMove.current) return;
+        if (!data.editor && focusSource.current && focusReady.current) {
             const source = focusSource.current;
             focusSource.current = null;
+            focusReady.current = false;
             const frame = window.requestAnimationFrame(() => {
                 revealMovedSource(source);
             });
@@ -477,7 +487,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
         const url = new URL(link.href);
         if (!inSchedule(url)) return;
         event.preventDefault();
-        if (!guarded.current) {
+        if (!guarded.current && !restoringMove.current) {
             setMove(null);
             focusSource.current = null;
             void load(url.href);
@@ -485,6 +495,10 @@ export function useScheduleNavigation(initial: ScheduleProps) {
     }
     const setGuard = useCallback((value: boolean) => {
         guarded.current = value;
+    }, []);
+    const setMovePending = useCallback((value: boolean, atSource: boolean) => {
+        if (!atSource) moveControl.current = null;
+        setCommandPending(value);
     }, []);
     return {
         data,
@@ -494,8 +508,10 @@ export function useScheduleNavigation(initial: ScheduleProps) {
         move,
         recoveringMove,
         markerKey,
-        setCommandPending,
+        setCommandPending: setMovePending,
         completeMove: (url: string) => {
+            focusSource.current = move?.intent.sourceId ?? focusSource.current;
+            focusReady.current = false;
             setMove(null);
             guarded.current = false;
             void load(url);
@@ -521,6 +537,7 @@ export function useScheduleNavigation(initial: ScheduleProps) {
                 move ||
                 data.editor ||
                 guarded.current ||
+                restoringMove.current ||
                 !data.canManage
             )
                 return;
