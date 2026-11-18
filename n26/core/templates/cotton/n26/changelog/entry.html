@@ -2,18 +2,20 @@
 <c-n26.changelog.entry> — one changelog line: title, date, optional tags, and a two-line body preview.
 
 The title is a link only when href is set. An empty href draws a span, not a dead link.
+Put an inline heading badge in the flair slot.
 Put tag badges in the tags slot. An empty slot draws nothing, so a list that has no tags stays a title and a date.
 n26-clamp-2 in app.css cuts the rich text at two lines and zeroes inner block margins.
 Do not stretch a link over the whole entry. Links in the body must stay independent destinations.
 rich-text sanitises the body here, so call sites do not each have to.
 {% endcomment %}
 
-<c-vars title="" date="" href="" body="" tags="" class="" />
+<c-vars title="" date="" href="" body="" tags="" flair="" class="" />
 
 <div class="px-1 py-3 {{ class }}">
     <div class="flex items-baseline justify-between gap-3">
-        <h3 class="min-w-0 text-base font-semibold text-ink-900 dark:text-ink-100">
+        <h3 class="min-w-0 text-base font-semibold text-ink-900 dark:text-ink-100 {% if flair.strip %}flex flex-wrap items-center gap-x-3.5 gap-y-1{% endif %}">
             <c-n26.link href="{{ href }}" tone="current">{{ title }}</c-n26.link>
+            {{ flair }}
         </h3>
         {% if date %}<span class="shrink-0 text-sm tabular-nums text-muted">{{ date }}</span>{% endif %}
     </div>
