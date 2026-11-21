@@ -1,0 +1,51 @@
+{% load static %}
+{% comment %}
+A public card with its branding included in the image capture. Explicit theme
+links keep their appearance when opened on another device or embedded elsewhere.
+{% endcomment %}<!DOCTYPE html>
+<html lang="en-gb"
+      class="{% if share_theme == 'dark' %}dark{% elif share_theme == 'light' %}light{% endif %}"
+      data-shared-theme="{{ share_theme }}">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="robots" content="noindex">
+        <title>{{ card.name }} · {{ gang.name }} | Gyrinx</title>
+        <meta property="og:type" content="website">
+        <meta property="og:site_name" content="Gyrinx">
+        <meta property="og:title" content="{{ card.name }} – {{ gang.name }}">
+        <base target="_blank">
+        <script>
+            (() => {
+                const root = document.documentElement;
+                if (root.dataset.sharedTheme !== 'system') return;
+                let mode = 'system';
+                try { mode = localStorage.getItem('theme') || 'system'; } catch {}
+                root.classList.toggle('dark', mode === 'dark' || (mode !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches));
+            })();
+        </script>
+        <link rel="stylesheet"
+              href="https://use.typekit.net/rso6ezl.css"
+              crossorigin="anonymous">
+        <link rel="stylesheet" href="{% static 'designsystem/app.css' %}">
+    </head>
+    <body>
+        <main data-shared-card
+              class="n26-shared-card bg-surface text-ink-900 dark:text-ink-100">
+            <c-n26.model-card :card="card" mode="view" :tabs="False" />
+            <footer class="n26-shared-brand">
+                <a href="https://gyrinx.app/"
+                   class="inline-flex items-center gap-1.5 font-semibold"
+                   aria-label="Gyrinx">
+                    <img src="{% static 'n26/gyrinx-logo.svg' %}"
+                         alt=""
+                         width="17"
+                         height="17">
+                    <span>Gyrinx</span>
+                </a>
+                <a class="truncate text-xs text-muted"
+                   href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</a>
+            </footer>
+        </main>
+    </body>
+</html>
