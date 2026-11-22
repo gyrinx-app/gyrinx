@@ -150,12 +150,11 @@ function CycleRow({
                   duplicateHref: "",
                   moveHref: "",
               };
-    const detailsLabel = `More details: ${[
-        cycle.effects && "effects",
-        (cycle.startedAt || cycle.endedAt) && "cycle history",
-    ]
-        .filter(Boolean)
-        .join(" and ")}`;
+    const hasHistory = Boolean(cycle.startedAt || cycle.endedAt);
+    let detailsLabel = "Cycle history";
+    if (cycle.effects) {
+        detailsLabel = hasHistory ? "Effects and cycle history" : "Effects";
+    }
     const actions: ActionMenuItem[] = [
         {
             label: "Move",
@@ -233,9 +232,7 @@ function CycleRow({
                                 <div className="mt-1 sm:hidden">
                                     <CycleDates cycle={cycle} />
                                 </div>
-                                {(cycle.effects ||
-                                    cycle.startedAt ||
-                                    cycle.endedAt) && (
+                                {(cycle.effects || hasHistory) && (
                                     <div className="mt-1 text-xs text-muted">
                                         <HelpPopover
                                             label={`${detailsLabel} for ${cycle.name}`}

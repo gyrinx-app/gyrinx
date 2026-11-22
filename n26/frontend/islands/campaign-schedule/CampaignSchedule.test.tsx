@@ -182,12 +182,12 @@ test("cycle details open a dismissible popover beside phase action menus", async
     expect(screen.getByText("A visible cycle description.")).toBeTruthy();
     expect(screen.queryByText(value.rows[2].effects)).toBeNull();
     const trigger = screen.getByRole("button", {
-        name: "More details: effects for Cycle 3",
+        name: "Effects for Cycle 3",
     });
     trigger.focus();
     await userEvent.keyboard("{Enter}");
     const panel = screen.getByRole("dialog", {
-        name: "More details: effects for Cycle 3",
+        name: "Effects for Cycle 3",
     });
     expect(panel.textContent).toContain(value.rows[2].effects);
     expect(panel.querySelector("strong")).toBeNull();
@@ -206,13 +206,13 @@ test("cycle details open a dismissible popover beside phase action menus", async
 });
 
 test.each([
-    ["", "2026-11-01T10:00:00Z", "", "cycle history"],
-    ["", "", "2026-11-03T10:00:00Z", "cycle history"],
+    ["", "2026-11-01T10:00:00Z", "", "Cycle history"],
+    ["", "", "2026-11-03T10:00:00Z", "Cycle history"],
     [
         "Recover equipment.",
         "2026-11-01T10:00:00Z",
         "2026-11-03T10:00:00Z",
-        "effects and cycle history",
+        "Effects and cycle history",
     ],
 ])(
     "cycle details name only their available contents",
@@ -222,7 +222,7 @@ test.each([
         render(<CampaignSchedule {...value} />);
         await userEvent.click(
             screen.getByRole("button", {
-                name: `More details: ${contents} for Cycle 3`,
+                name: `${contents} for Cycle 3`,
             }),
         );
         const panel = screen.getByRole("dialog");
