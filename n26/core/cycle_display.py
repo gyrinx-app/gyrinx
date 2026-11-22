@@ -766,11 +766,6 @@ def _build_locked(campaign, user, *, page, preview, focus):
         phase = occurrence.phase
         key = str(occurrence.pk)
         counts = block_counts.get(key, {})
-        editable = (
-            bool(counts.get("first"))
-            or not counts
-            and occurrence.position > frontier_block
-        )
         structural = occurrence.position > frontier_block
         phase_display.append(
             {
@@ -782,9 +777,7 @@ def _build_locked(campaign, user, *, page, preview, focus):
                 "effects": phase.effects,
                 "rewards": phase.rewards,
                 "count": counts.get("count", 0),
-                "editHref": editor_url(campaign, "phase", phase=key)
-                if manage and editable
-                else "",
+                "editHref": editor_url(campaign, "phase", phase=key) if manage else "",
                 "duplicateHref": editor_url(campaign, "duplicate-phase", phase=key)
                 if manage
                 else "",

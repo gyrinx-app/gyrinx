@@ -100,14 +100,13 @@ def test_move_defaults_preserve_the_existing_position_and_copy_defaults_after_so
     assert block.initial["after_occurrence_id"] == table.blocks[0].id
 
 
-def test_phase_edit_explains_future_only_split_and_fully_recorded_block_is_unavailable(
+def test_phase_editor_allows_corrections_to_current_and_fully_recorded_blocks(
     table, monkeypatch
 ):
     prepared = w.prepare(table.campaign, "phase", {"phase": table.blocks[0].id})
-    assert prepared.context["splitOccurrence"] is True
     assert (
         prepared.lead
-        == "Changes apply to the unused future cycles in this phase. Recorded cycles keep their rules."
+        == "Changes apply to all cycles in this phase. Saving rewards does not give credits or reputation."
     )
     assert prepared.initial["phase_id"] == table.blocks[0].id
     assert prepared.context["definitionPhaseId"] == table.phases[0].id
@@ -115,8 +114,8 @@ def test_phase_edit_explains_future_only_split_and_fully_recorded_block_is_unava
         table.state, protected_cycle_ids=frozenset({table.entries[1].id})
     )
     monkeypatch.setattr(cycles, "load", lambda campaign: protected)
-    with pytest.raises(Http404, match="no unused future cycles"):
-        w.prepare(table.campaign, "phase", {"phase": table.blocks[0].id})
+    prepared = w.prepare(table.campaign, "phase", {"phase": table.blocks[0].id})
+    assert prepared.initial["phase_id"] == table.blocks[0].id
 
 
 def test_legacy_single_definition_links_keep_original_identity_and_ambiguous_ones_refuse(
@@ -500,7 +499,7 @@ def test_add_phase_recovery_retains_a_removed_boundary_query(table):
     assert recovered.query == {"after": selected}
 
 
-def test_phase_editor_requires_a_suffix_after_the_last_recorded_child(
+def test_phase_editor_allows_a_fully_recorded_phase_without_a_current_cycle(
     table, monkeypatch
 ):
     state = replace(
@@ -509,11 +508,11 @@ def test_phase_editor_requires_a_suffix_after_the_last_recorded_child(
         protected_cycle_ids=frozenset({table.entries[1].id}),
     )
     monkeypatch.setattr(cycles, "load", lambda campaign: state)
-    with pytest.raises(Http404, match="no unused future cycles"):
-        w.prepare(table.campaign, "phase", {"phase": table.blocks[0].id})
+    prepared = w.prepare(table.campaign, "phase", {"phase": table.blocks[0].id})
+    assert prepared.initial["phase_id"] == table.blocks[0].id
 
 
-def test_phase_editor_explains_a_split_when_only_a_later_suffix_is_editable(
+def test_phase_editor_applies_corrections_to_recorded_and_future_cycles(
     table, monkeypatch
 ):
     last = replace(table.entries[1], id=str(ULID()), order=3)
@@ -526,6 +525,5 @@ def test_phase_editor_explains_a_split_when_only_a_later_suffix_is_editable(
     )
     monkeypatch.setattr(cycles, "load", lambda campaign: state)
     prepared = w.prepare(table.campaign, "phase", {"phase": table.blocks[0].id})
-    assert prepared.context["splitOccurrence"] is True
-    assert "Recorded cycles keep their rules." in prepared.lead
+    assert "Changes apply to all cycles in this phase." in prepared.lead
     assert prepared.initial["phase_id"] == table.blocks[0].id

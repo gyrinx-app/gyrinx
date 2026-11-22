@@ -1986,7 +1986,7 @@ def test_dashboard_continues_the_edited_phase_block_until_the_next_recipe_step(
     )
     summary = dashboard_summary(campaign, campaign.owner)
     assert summary.phase == "Revised occupation"
-    assert (summary.phase_position, summary.phase_count) == (1, 2)
+    assert (summary.phase_position, summary.phase_count) == (2, 3)
     assert (summary.next_phase, summary.cycles_until_phase) == ("Downtime", 2)
 
 
@@ -2094,3 +2094,99 @@ def test_dashboard_legacy_continuation_pointer_still_counts_the_current_remainde
         summary.cycles_until_phase,
     ) == (1, 3, 3)
     assert summary.next_phase == "Downtime"
+
+
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("phase_index", [0, 1, 2])
+def test_arbitrators_correct_past_current_and_future_phase_rules_without_progression(
+    client, campaign, configured, native, phase_index
+):
+    from n26.core.models import CampaignCycleDelivery, CampaignCycleTransition
+
+    cycles.start(
+        campaign,
+        actor=campaign.owner,
+        expected_current=configured.current_cycle_id,
+        expected_revision=configured.revision,
+        request_key=uuid4(),
+    )
+    for _ in range(3):
+        state = cycles.load(campaign)
+        cycles.advance(
+            campaign,
+            actor=campaign.owner,
+            expected_current=state.current_cycle_id,
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+    before = cycles.load(campaign)
+    occurrence = before.occurrences[phase_index]
+    transitions = list(
+        CampaignCycleTransition.objects.filter(campaign=campaign).values()
+    )
+    deliveries = list(
+        CampaignCycleDelivery.objects.filter(transition__campaign=campaign).values()
+    )
+    display = props(client.get(schedule_url(campaign)))
+    shown = next(p for p in display["phases"] if p["id"] == occurrence.id)
+    assert shown["editHref"]
+    if phase_index < 2:
+        assert not shown["moveHref"] and not shown["deleteHref"]
+    query = {"phase": occurrence.id}
+    editor = props(client.get(editor_url(campaign, "phase", **query)))["editor"]
+    values = editor["values"] | {
+        "name": "Corrected phase",
+        "effects": "Revised effects",
+    }
+    saved = post(client, campaign, "phase", values, native=native, **query)
+    assert saved.status_code == (302 if native else 200)
+    after = cycles.load(campaign)
+    changed = next(o for o in after.occurrences if o.id == occurrence.id)
+    assert s._phase(after, changed.phase_id).details.effects == "Revised effects"
+    assert after.current_cycle_id == before.current_cycle_id
+    assert after.plan == before.plan
+    for original, updated in zip(before.cycles, after.cycles, strict=True):
+        assert updated == (
+            replace(
+                original, details=replace(original.details, phase_id=changed.phase_id)
+            )
+            if original.occurrence_id == occurrence.id
+            else original
+        )
+    assert (
+        list(CampaignCycleTransition.objects.filter(campaign=campaign).values())
+        == transitions
+    )
+    assert (
+        list(
+            CampaignCycleDelivery.objects.filter(transition__campaign=campaign).values()
+        )
+        == deliveries
+    )
+    replayed = post(client, campaign, "phase", values, native=native, **query)
+    assert replayed.status_code == (302 if native else 200)
+    assert cycles.load(campaign) == after
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_readers_cannot_open_or_submit_a_current_phase_correction(
+    client, campaign, configured, native
+):
+    query = {"phase": configured.occurrences[0].id}
+    values = props(client.get(editor_url(campaign, "phase", **query)))["editor"][
+        "values"
+    ]
+    client.force_login(User.objects.create_user("phase-reader"))
+    assert client.get(editor_url(campaign, "phase", **query)).status_code == 404
+    assert (
+        post(
+            client,
+            campaign,
+            "phase",
+            values | {"effects": "Unauthorised"},
+            native=native,
+            **query,
+        ).status_code
+        == 404
+    )
+    assert cycles.load(campaign) == configured

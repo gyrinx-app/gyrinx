@@ -354,75 +354,53 @@ def remove_occurrence(schedule, occurrence_id):
 
 
 def edit_occurrence(schedule, occurrence_id, details, *, new_id=s._id):
-    """Copy future rules, splitting an already used block without changing its history."""
+    """Correct one phase block without progressing or rearranging the timeline."""
     original = _occurrence(schedule, occurrence_id)
     if s._phase(schedule, original.phase_id).details == details:
         return s.ScheduleChange(schedule)
-    children = _children(schedule, original.id)
-    protected = set(schedule.protected_cycle_ids)
-    if schedule.current:
-        protected.update(
-            c.id
-            for c in schedule.cycles
-            if not c.archived and c.order <= schedule.current.order
-        )
-    frontier = max((c.order for c in children if c.id in protected), default=0)
-    used = [c for c in children if c.order <= frontier]
-    future = [c for c in children if c.order > frontier]
-    if used and not future:
-        raise s.ScheduleError(
-            "Current cycles and cycles with recorded activity keep their phase rules. "
-            "Add unused future cycles to edit this phase."
-        )
     phase = s.Phase(new_id(), details)
-    archived_original = ()
     has_archived_children = any(
         c.archived and c.occurrence_id == original.id for c in schedule.cycles
     )
-    if used:
-        occurrence = replace(original, id=new_id(), phase_id=phase.id, position=1)
-        ordered = _insert(
-            _blocks(schedule), occurrence, original.id, label="phase block"
-        )
-        replacements = {original.id: used}
-    else:
-        occurrence = replace(
-            original,
-            id=new_id() if has_archived_children else original.id,
-            phase_id=phase.id,
-        )
-        ordered = [occurrence if o.id == original.id else o for o in _blocks(schedule)]
-        replacements = {}
-        if has_archived_children:
-            archived_original = (replace(original, archived=True),)
-    replacements[occurrence.id] = [
+    occurrence = replace(
+        original,
+        id=new_id() if has_archived_children else original.id,
+        phase_id=phase.id,
+    )
+    archived_original = (
+        (replace(original, archived=True),) if has_archived_children else ()
+    )
+    occurrences = (
+        tuple(occurrence if o.id == original.id else o for o in schedule.occurrences)
+        + archived_original
+    )
+    updated = tuple(
         replace(
             c,
             occurrence_id=occurrence.id,
             details=replace(c.details, phase_id=phase.id),
         )
-        for c in future
-    ]
-    referenced = (
-        any(o.phase_id == original.phase_id for o in ordered)
-        or any(
-            o.archived and o.phase_id == original.phase_id
-            for o in (*schedule.occurrences, *archived_original)
-        )
-        or any(step.phase_id == original.phase_id for step in schedule.plan.steps)
+        for c in schedule.cycles
+        if not c.archived and c.occurrence_id == original.id
+    )
+    by_id = {c.id: c for c in updated}
+    referenced = any(o.phase_id == original.phase_id for o in occurrences) or any(
+        step.phase_id == original.phase_id for step in schedule.plan.steps
     )
     phases = tuple(
         replace(p, archived=True) if p.id == original.phase_id and not referenced else p
         for p in schedule.phases
     ) + (phase,)
-    return _change(
-        schedule,
-        blocks=ordered,
-        children=replacements,
-        phases=phases,
-        archived_blocks=archived_original,
-        continuation_occurrence_id=occurrence.id
-        if occurrence.id != original.id
-        and schedule.continuation_occurrence_id == original.id
-        else _UNSET,
+    return s.ScheduleChange(
+        replace(
+            schedule,
+            phases=phases,
+            occurrences=occurrences,
+            cycles=tuple(by_id.get(c.id, c) for c in schedule.cycles),
+            continuation_occurrence_id=occurrence.id
+            if schedule.continuation_occurrence_id == original.id
+            else schedule.continuation_occurrence_id,
+            revision=schedule.revision + 1,
+        ),
+        updated=updated,
     )
