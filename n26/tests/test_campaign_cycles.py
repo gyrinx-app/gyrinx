@@ -974,6 +974,40 @@ class TestDatesFromProgression:
         advance(campaign, owner, state)
         assert cycles.load(campaign).cycles[0].details == original
 
+    @pytest.mark.parametrize("day", [8, 16])
+    def test_mixed_planned_and_blank_dates_keep_later_advances_possible(
+        self, campaign, owner, configured, day
+    ):
+        cycles.edit_cycle(
+            campaign,
+            actor=owner,
+            target=s.SavedCycleRef(configured.current.id),
+            details=replace(
+                configured.current.details,
+                starts_on=None if day == 8 else configured.current.details.starts_on,
+                ends_on=None,
+            ),
+            expected_revision=configured.revision,
+            request_key=uuid4(),
+        )
+        with patch(
+            "n26.core.cycles.timezone.now",
+            return_value=datetime(2026, 11, day, 12, tzinfo=UTC),
+        ):
+            before = start_campaign(campaign, owner)
+            key = uuid4()
+            advance(campaign, owner, before, key=key)
+            state = cycles.load(campaign)
+            assert advance(campaign, owner, before, key=key).replayed
+            assert cycles.load(campaign) == state
+            advance(campaign, owner, state)
+        after = cycles.load(campaign)
+        assert after.current.order == 3
+        assert after.cycles[0].details.ends_on == (
+            date(2026, 11, 8) if day == 8 else None
+        )
+        s.validate_cycle_dates(after.cycles)
+
     def test_configuring_a_running_campaign_dates_only_the_current_cycle(
         self, campaign, owner, template, opened
     ):

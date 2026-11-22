@@ -113,11 +113,18 @@ def completions(bounds):
     )
 
 
-def possible(a, b, chronological):
+def possible(a, b, chronological, *, shared_transition_day=False):
     for left, right in product(completions(a), completions(b)):
         if left is None or right is None:
             return True
         if left[1] < right[0] or (not chronological and right[1] < left[0]):
+            return True
+        if (
+            shared_transition_day
+            and a.end is not None
+            and b.start is not None
+            and left[1] == right[0]
+        ):
             return True
     return False
 
@@ -228,7 +235,7 @@ def test_actual_prefix_model_can_preserve_a_partial_override_and_full_projection
         assert all(c.starts_on is c.ends_on is None for c in future)
 
 
-def test_start_advance_and_finish_preserve_partial_dates_without_guessing_boundaries():
+def test_start_advance_and_finish_preserve_known_dates_and_fill_transition_days():
     state = s.configure(
         s.DEFAULT_TEMPLATE, campaign_id="model", current_position=0, mode="repeating"
     ).schedule
@@ -240,9 +247,11 @@ def test_start_advance_and_finish_preserve_partial_dates_without_guessing_bounda
     started = s.start(state, now=now).schedule
     advanced = s.advance(started, now=now).schedule
     finished = s.finish(advanced, now=now).schedule
-    assert finished.cycles[0] == first
-    assert finished.cycles[1].details.starts_on is None
-    assert finished.cycles[1].details.ends_on is None
+    assert finished.cycles[0] == replace(
+        first, details=replace(first.details, ends_on=d(13))
+    )
+    assert finished.cycles[1].details.starts_on == d(13)
+    assert finished.cycles[1].details.ends_on == d(13)
 
 
 def test_future_calendar_settings_can_preserve_unknown_saved_bounds():
@@ -296,7 +305,10 @@ def test_production_validation_matches_the_exhaustive_chronological_oracle():
             accepted = False
         else:
             accepted = True
-        assert accepted == possible(left, right, True), (left, right)
+        assert accepted == possible(left, right, True, shared_transition_day=True), (
+            left,
+            right,
+        )
 
 
 @pytest.mark.parametrize(

@@ -516,7 +516,20 @@ def record_transition_dates(change: ScheduleChange, *, on: date) -> ScheduleChan
         ):
             details = replace(details, ends_on=on)
         if details != cycle.details:
-            amended[cycle.id] = replace(cycle, details=details)
+            candidate = replace(cycle, details=details)
+            candidates = tuple(
+                candidate if c.id == cycle.id else amended.get(c.id, c)
+                for c in change.schedule.cycles
+            )
+            try:
+                validate_cycle_dates(candidates, affected={cycle.id})
+                _validate_projection_dates(
+                    replace(change.schedule, cycles=candidates), affected={cycle.id}
+                )
+            except ScheduleError:
+                # Planned dates take precedence over inferred transition dates.
+                continue
+            amended[cycle.id] = candidate
     if not amended:
         return change
 
@@ -947,6 +960,7 @@ def _ensure_saved(
     *,
     new_id: NewId = _id,
     selected_details: CycleDetails | None = None,
+    validate_dates: bool = True,
 ) -> tuple[ScheduleChange, Cycle]:
     """Resolve a selection and save its prefix without activating any cycle.
 
@@ -977,7 +991,7 @@ def _ensure_saved(
         revision=schedule.revision + 1,
     )
     # Explicit edits validate after their optional suffix shift is assembled.
-    if selected_details is None:
+    if selected_details is None and validate_dates:
         validate_cycle_dates(changed.cycles, affected={c.id for c in created})
         _validate_projection_dates(changed)
     return ScheduleChange(changed, created=created), created[-1]
@@ -1032,7 +1046,8 @@ def configure(
         if now is None:
             raise ScheduleError("Supply the time the initial cycle started.")
         transition = Transition("started", None, schedule.current, now)
-    return ScheduleChange(schedule, created=cycles, transition=transition)
+    change = ScheduleChange(schedule, created=cycles, transition=transition)
+    return record_transition_dates(change, on=now.date()) if transition else change
 
 
 def preview_cycle_edit(
@@ -1215,7 +1230,7 @@ def edit_cycle(
     )
 
 
-def _validate_projection_dates(schedule):
+def _validate_projection_dates(schedule, *, affected=None):
     following = project(schedule, limit=1)
     if (
         schedule.calendar
@@ -1223,6 +1238,8 @@ def _validate_projection_dates(schedule):
         and following
         and any(
             not c.archived
+            and (affected is None or c.id in affected)
+            and c.details.ends_on != following[0].starts_on
             and any(
                 bound is not None and following[0].starts_on <= bound
                 for bound in (c.details.starts_on, c.details.ends_on)
@@ -1675,6 +1692,19 @@ def preview_advance(schedule: Schedule) -> TransitionPreview:
     return TransitionPreview(current, following[0] if following else None)
 
 
+def _progressed(change):
+    if change.transition is not None:
+        change = record_transition_dates(
+            change, on=change.transition.occurred_at.date()
+        )
+    if change.created:
+        validate_cycle_dates(
+            change.schedule.cycles, affected={c.id for c in change.created}
+        )
+        _validate_projection_dates(change.schedule)
+    return change
+
+
 def start(
     schedule: Schedule,
     *,
@@ -1693,7 +1723,9 @@ def start(
     if target is not None:
         if selected is not None:
             raise ScheduleError("The current cycle is already selected.")
-        change, selected = _ensure_saved(schedule, target, new_id=new_id)
+        change, selected = _ensure_saved(
+            schedule, target, new_id=new_id, validate_dates=False
+        )
     elif selected is None and (
         any(c.archived for c in schedule.cycles)
         or any(p.archived for p in schedule.phases)
@@ -1707,16 +1739,20 @@ def start(
             following = project(schedule, limit=1)
             if not following:
                 raise ScheduleError("Add a cycle before starting.")
-            change, selected = _ensure_saved(schedule, following[0].ref, new_id=new_id)
-    return ScheduleChange(
-        replace(
-            change.schedule,
-            status="in_progress",
-            current_cycle_id=selected.id,
-            revision=schedule.revision + 1,
-        ),
-        created=change.created,
-        transition=Transition("started", None, selected, now),
+            change, selected = _ensure_saved(
+                schedule, following[0].ref, new_id=new_id, validate_dates=False
+            )
+    return _progressed(
+        ScheduleChange(
+            replace(
+                change.schedule,
+                status="in_progress",
+                current_cycle_id=selected.id,
+                revision=schedule.revision + 1,
+            ),
+            created=change.created,
+            transition=Transition("started", None, selected, now),
+        )
     )
 
 
@@ -1731,26 +1767,32 @@ def advance(
         if isinstance(preview.following, Cycle)
         else preview.following.ref
     )
-    change, selected = _ensure_saved(schedule, target, new_id=new_id)
-    return ScheduleChange(
-        replace(
-            change.schedule,
-            current_cycle_id=selected.id,
-            revision=schedule.revision + 1,
-        ),
-        created=change.created,
-        transition=Transition("advanced", schedule.current, selected, now),
+    change, selected = _ensure_saved(
+        schedule, target, new_id=new_id, validate_dates=False
+    )
+    return _progressed(
+        ScheduleChange(
+            replace(
+                change.schedule,
+                current_cycle_id=selected.id,
+                revision=schedule.revision + 1,
+            ),
+            created=change.created,
+            transition=Transition("advanced", schedule.current, selected, now),
+        )
     )
 
 
 def finish(schedule: Schedule, *, now: datetime) -> ScheduleChange:
     if schedule.status != "in_progress":
         raise ScheduleError("Only an in-progress campaign can be finished.")
-    return ScheduleChange(
-        replace(schedule, status="post_campaign", revision=schedule.revision + 1),
-        transition=Transition("finished", schedule.current, schedule.current, now)
-        if schedule.current
-        else None,
+    return _progressed(
+        ScheduleChange(
+            replace(schedule, status="post_campaign", revision=schedule.revision + 1),
+            transition=Transition("finished", schedule.current, schedule.current, now)
+            if schedule.current
+            else None,
+        )
     )
 
 

@@ -887,7 +887,7 @@ def configure(
             current_position=current_position,
             mode=mode,
             status=act.campaign.status,
-            now=timezone.now(),
+            now=timezone.localtime(),
             calendar=calendar,
             new_id=_new_id,
         )
@@ -1187,7 +1187,7 @@ def advance(campaign, *, actor, expected_current, expected_revision, request_key
             raise CycleConflict(
                 "The current cycle changed. Review it before ending the cycle."
             )
-        change = s.advance(before, now=timezone.now(), new_id=_new_id)
+        change = s.advance(before, now=timezone.localtime(), new_id=_new_id)
         return change, change.schedule.current_cycle_id
 
     return _command(
@@ -1211,7 +1211,9 @@ def start(
             raise CycleConflict("The current cycle changed. Review it before starting.")
         if target is not None:
             _bounded_target(before, target)
-        change = s.start(before, now=timezone.now(), new_id=_new_id, target=target)
+        change = s.start(
+            before, now=timezone.localtime(), new_id=_new_id, target=target
+        )
         return change, change.schedule.current_cycle_id
 
     return _command(
@@ -1236,7 +1238,7 @@ def finish(campaign, *, actor, expected_current, expected_revision, request_key)
             raise CycleConflict(
                 "The current cycle changed. Review it before finishing."
             )
-        change = s.finish(before, now=timezone.now())
+        change = s.finish(before, now=timezone.localtime())
         return change, change.schedule.current_cycle_id
 
     return _command(
@@ -1298,7 +1300,7 @@ def status_changed(act, status):
                 or any(p.archived for p in before.phases)
             ):
                 raise Refusal("Choose the cycle to start in Phases & cycles.")
-            change = s.start(before, now=timezone.now(), new_id=_new_id)
+            change = s.start(before, now=timezone.localtime(), new_id=_new_id)
         else:
             change = s.ScheduleChange(
                 replace(before, status=status, revision=before.revision + 1),
@@ -1307,7 +1309,7 @@ def status_changed(act, status):
                 else None,
             )
     elif status == "post_campaign" and before.status == "in_progress":
-        change = s.finish(before, now=timezone.now())
+        change = s.finish(before, now=timezone.localtime())
     else:
         change = s.ScheduleChange(
             replace(before, status=status, revision=before.revision + 1)
