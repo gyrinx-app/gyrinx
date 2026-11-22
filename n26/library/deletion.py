@@ -1042,18 +1042,18 @@ def apply(plan, actor=None):
 
     report = list(plan.preview())
     with transaction.atomic():
-        # Campaign operations lock the campaign before its gangs. The campaign
-        # lock also prevents new memberships while the plan is rechecked.
-        list(
-            Campaign.objects.select_for_update()
-            .filter(pk__in=[campaign.pk for campaign in plan.test_campaigns])
-            .order_by("pk")
-        )
+        campaigns = Campaign.objects.filter(
+            pk__in=[campaign.pk for campaign in plan.test_campaigns]
+        ).order_by("pk")
+        # Serialise campaign operations while gang writes finish their foreign-key checks.
+        list(campaigns.select_for_update(no_key=True))
         list(
             Gang.objects.select_for_update()
             .filter(pk__in=[gang.pk for gang in plan.test_gangs])
             .order_by("pk")
         )
+        # Block new memberships before replanning and deleting.
+        list(campaigns.select_for_update())
         for label, pk in plan.targets:
             list(apps.get_model(label).objects.select_for_update().filter(pk=pk))
         now = plan_again(plan)

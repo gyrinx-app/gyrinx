@@ -266,6 +266,46 @@ class TestNamingTheTestGangs:
         assert not ContentPack.objects.filter(pk=campaign.pack_id).exists()
         assert not Gang.objects.filter(pk=mine.pk).exists()
 
+    @pytest.mark.django_db(transaction=True)
+    def test_cleanup_allows_a_concurrent_credit_adjustment(
+        self, author, default_pack, test_type
+    ):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Event
+
+        from django.db import connections
+
+        from n26.library.authoring import create_campaign_type
+
+        staged_type = create_campaign_type("Rehearsal type", staged=True)
+        gang = found_gang("Rehearsal gang", test_type, owner=author)
+        campaign = found_campaign("Rehearsal", staged_type, owner=author)
+        join_campaign(gang, campaign)
+        plan = plan_deletion([staged_type])
+        assert [holder.pk for holder in plan.test_gangs] == [str(gang.pk)]
+        cleanup_reached_gang = Event()
+
+        def signal_gang_lock(execute, sql, params, many, context):
+            if Gang._meta.db_table in sql and "FOR UPDATE" in sql:
+                cleanup_reached_gang.set()
+            return execute(sql, params, many, context)
+
+        def cleanup():
+            try:
+                with connection.execute_wrapper(signal_gang_lock):
+                    apply(plan)
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with operation(gang, actor=author) as op:
+                finished = pool.submit(cleanup)
+                assert cleanup_reached_gang.wait(10)
+                payment = op.adjust_credits(25, "Table adjustment")
+                assert payment.campaign_id == campaign.pk
+            finished.result(timeout=10)
+        assert not Gang.objects.filter(pk=gang.pk).exists()
+
     def test_the_record_reads_back_to_the_same_plan(
         self, author, test_type, test_fighter, test_weapon
     ):
