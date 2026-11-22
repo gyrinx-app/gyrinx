@@ -28,6 +28,7 @@ export function Dialog({
     pending = false,
     returnFocusId,
     formProps,
+    className = "",
 }: {
     title: string;
     lead?: string;
@@ -40,6 +41,8 @@ export function Dialog({
         ComponentProps<"form">,
         "children" | "onSubmit" | "className"
     >;
+    /** Added to the dialog's own classes, for a dialog with its own look. */
+    className?: string;
 }) {
     const ref = useRef<HTMLDialogElement>(null);
     const previous = useRef(document.activeElement);
@@ -61,7 +64,7 @@ export function Dialog({
         <dialog
             ref={ref}
             aria-labelledby={titleId}
-            className={cotton.dialog.root}
+            className={`${cotton.dialog.root} ${className}`}
             onCancel={(event) => {
                 event.preventDefault();
                 if (!pending) onDismiss();

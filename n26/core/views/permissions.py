@@ -39,13 +39,23 @@ def may_mark_status(gang, user):
 
 
 def link_model_cards(gang, cards, user):
-    """Owner-only card management links."""
+    """Owner-only card management links, and the Share card control while
+    sharing is switched on for this owner."""
     from django.urls import reverse
+
+    from n26.flags import SHARE_FIGHTER_CARD, enabled
 
     available = user is not None and user.is_authenticated and gang.owner_id == user.pk
     if available:
+        sharing = enabled(SHARE_FIGHTER_CARD, user)
         for card in cards:
             card.model_cards_href = reverse("n26-model-cards", args=[gang.pk, card.id])
+            if sharing:
+                card.share_card = {
+                    "name": card.name,
+                    "gang": gang.name,
+                    "cardUrl": reverse("n26-shared-fighter-card", args=[card.id]),
+                }
     return available
 
 
