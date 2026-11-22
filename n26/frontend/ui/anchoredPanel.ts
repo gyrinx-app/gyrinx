@@ -73,7 +73,7 @@ export type AnchoredPlacementOptions = {
     /** Space kept clear of the window's edges, in pixels. */
     margin?: number;
     /**
-     * When enabled, use the side with more room if the panel overflows below,
+     * When enabled, use the side with more room if the preferred side overflows,
      * and cap its height. Otherwise move above only if the full panel fits.
      */
     clampHeight?: boolean;
@@ -181,7 +181,10 @@ export function useAnchoredPlacement({
                 );
                 const below = window.innerHeight - margin - belowTop;
                 const above = aboveBottom - margin;
-                const opensAbove = box.scrollHeight > below && above > below;
+                const opensAbove =
+                    preferredSide === "top"
+                        ? box.scrollHeight <= above || above >= below
+                        : box.scrollHeight > below && above > below;
                 const maxHeight = Math.max(
                     MIN_CLAMPED_HEIGHT,
                     opensAbove ? above : below,

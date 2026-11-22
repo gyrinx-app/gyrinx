@@ -1020,7 +1020,7 @@ class TestFixedPlanConversion:
 
 class TestDisplayReads:
     @pytest.mark.parametrize("reader", [False, True])
-    def test_dashboard_effects_are_collapsed_plain_text_for_arbitrators_and_readers(
+    def test_dashboard_effects_are_popovers_with_plain_text_for_arbitrators_and_readers(
         self, client, campaign, configured, reader
     ):
         phase = configured.current_phase
@@ -1061,15 +1061,17 @@ class TestDisplayReads:
                 "label": label,
                 "effects": effects,
             }
-            disclosure = host.select_one("details")
-            assert not disclosure.has_attr("open")
-            assert disclosure.select_one("summary").get_text(strip=True) == label
-            assert disclosure.select_one("p").get_text() == effects
-            assert not disclosure.select("script, img")
+            panel = host.select_one('[popover="auto"]')
+            trigger = host.select_one(f'button[popovertarget="{panel["id"]}"]')
+            assert trigger.get_text(strip=True) == label
+            assert panel["role"] == "dialog"
+            assert panel["aria-label"] == label
+            assert panel.select_one("p").get_text() == effects
+            assert not panel.select("script, img")
+            assert not host.select("details")
+        assert len({host.select_one("[popover]")["id"] for host in hosts}) == 2
 
-    def test_dashboard_omits_empty_effect_disclosures(
-        self, client, campaign, configured
-    ):
+    def test_dashboard_omits_empty_effect_popovers(self, client, campaign, configured):
         response = client.get(reverse("n26-campaign", args=[campaign.pk]))
         card = BeautifulSoup(response.content, "html.parser").select_one(
             "#campaign-cycle-summary"

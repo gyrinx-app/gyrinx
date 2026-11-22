@@ -45,7 +45,7 @@
                         <p class="text-sm text-muted">{{ cycle_summary.cycles_until_phase }} cycle{{ cycle_summary.cycles_until_phase|pluralize }} until {{ cycle_summary.next_phase }}</p>
                     {% endif %}
                     {% if cycle_summary.phase_effects %}
-                        {% include "n26/includes/campaign_effects.html" with effects=cycle_summary.phase_effects_props only %}
+                        {% include "n26/includes/campaign_effects.html" with effects=cycle_summary.phase_effects_props panel_id="campaign-phase-effects" only %}
                     {% endif %}
                 </dd>
             </div>
@@ -70,7 +70,7 @@
                         </dl>
                     {% endif %}
                     {% if cycle_summary.cycle_effects %}
-                        {% include "n26/includes/campaign_effects.html" with effects=cycle_summary.cycle_effects_props only %}
+                        {% include "n26/includes/campaign_effects.html" with effects=cycle_summary.cycle_effects_props panel_id="campaign-cycle-effects" only %}
                     {% endif %}
                 </dd>
             </div>

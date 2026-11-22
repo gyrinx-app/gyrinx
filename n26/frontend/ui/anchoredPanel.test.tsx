@@ -260,6 +260,37 @@ describe("useAnchoredPlacement", () => {
         expect(panel.style.maxHeight).toBe("280px");
     });
 
+    it("prefers above for clamped explanations and falls below when it has more room", async () => {
+        const user = userEvent.setup();
+        stubWindow(390, 600);
+        const box = rect(20, 300, 40, 30);
+        stubTrigger(box);
+        stubPanelSize(288, 100);
+        render(
+            <Panel
+                placement={{
+                    width: 288,
+                    gap: 8,
+                    clampHeight: true,
+                    preferredSide: "top",
+                }}
+            />,
+        );
+        await user.click(screen.getByRole("button", { name: "Open" }));
+        const panel = screen.getByRole("dialog");
+        expect(panel.style.top).toBe("192px");
+        expect(panel.style.maxHeight).toBe("276px");
+        Object.assign(box, rect(20, 20, 40, 30));
+        fireEvent.scroll(window);
+        expect(panel.style.top).toBe("58px");
+        expect(panel.style.maxHeight).toBe("526px");
+        stubPanelSize(288, 1200);
+        Object.assign(box, rect(20, 500, 40, 30));
+        fireEvent.scroll(window);
+        expect(panel.style.top).toBe("16px");
+        expect(panel.style.maxHeight).toBe("476px");
+    });
+
     it("is transparent until placed, and unplaced again when reopened", async () => {
         const user = userEvent.setup();
         stubWindow(1280, 800);

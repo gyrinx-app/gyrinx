@@ -172,27 +172,67 @@ test("phase rules and configured rewards sit above their cycle rows", () => {
     ).not.toBeNull();
 });
 
-test("cycle details expand in place beside phase action menus", async () => {
+test("cycle details open a dismissible popover beside phase action menus", async () => {
     const value = props();
     value.focusId = "saved-3";
-    value.rows[2].effects = "Recover equipment after this cycle.";
+    value.rows[2].description = "A visible cycle description.";
+    value.rows[2].effects =
+        "<strong>Recover equipment after this cycle.</strong>";
     render(<CampaignSchedule {...value} />);
-    expect(
-        screen
-            .getByText("Recover equipment after this cycle.")
-            .closest("details")?.open,
-    ).toBe(false);
-    await userEvent.click(screen.getByText("More details"));
-    expect(
-        screen
-            .getByText("Recover equipment after this cycle.")
-            .closest("details")?.open,
-    ).toBe(true);
+    expect(screen.getByText("A visible cycle description.")).toBeTruthy();
+    expect(screen.queryByText(value.rows[2].effects)).toBeNull();
+    const trigger = screen.getByRole("button", {
+        name: "Effects for Cycle 3",
+    });
+    trigger.focus();
+    await userEvent.keyboard("{Enter}");
+    const panel = screen.getByRole("dialog", {
+        name: "Effects for Cycle 3",
+    });
+    expect(panel.textContent).toContain(value.rows[2].effects);
+    expect(panel.querySelector("strong")).toBeNull();
+    expect(panel.className).toContain("fixed");
+    expect(document.activeElement).toBe(panel);
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    await userEvent.click(trigger);
+    await userEvent.click(screen.getByText("A visible cycle description."));
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(
         screen.getByRole("button", { name: "More actions for Downtime" }),
     ).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Edit Downtime" })).toBeNull();
 });
+
+test.each([
+    ["", "2026-11-01T10:00:00Z", "", "Cycle history"],
+    ["", "", "2026-11-03T10:00:00Z", "Cycle history"],
+    [
+        "Recover equipment.",
+        "2026-11-01T10:00:00Z",
+        "2026-11-03T10:00:00Z",
+        "Effects and cycle history",
+    ],
+])(
+    "cycle details name only their available contents",
+    async (effects, startedAt, endedAt, contents) => {
+        const value = props();
+        Object.assign(value.rows[2], { effects, startedAt, endedAt });
+        render(<CampaignSchedule {...value} />);
+        await userEvent.click(
+            screen.getByRole("button", {
+                name: `${contents} for Cycle 3`,
+            }),
+        );
+        const panel = screen.getByRole("dialog");
+        if (effects) expect(panel.textContent).toContain(effects);
+        expect(panel.textContent?.includes("Started:")).toBe(
+            Boolean(startedAt),
+        );
+        expect(panel.textContent?.includes("Ended:")).toBe(Boolean(endedAt));
+    },
+);
 
 test("phase menus offer direct edit links and only the supplied management actions", async () => {
     const value = props();

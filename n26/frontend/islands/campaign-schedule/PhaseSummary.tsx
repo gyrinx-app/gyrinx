@@ -111,6 +111,7 @@ export function PhaseSummary({
                                     label={`Effects for ${name}`}
                                     triggerContent="Effects"
                                     clampHeight
+                                    placement="top"
                                 >
                                     <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
                                         {effects}

@@ -18,6 +18,7 @@ import {
     ButtonLink,
     Card,
     Icon,
+    HelpPopover,
     Link,
     Table,
 } from "../../ui";
@@ -149,6 +150,11 @@ function CycleRow({
                   duplicateHref: "",
                   moveHref: "",
               };
+    const hasHistory = Boolean(cycle.startedAt || cycle.endedAt);
+    let detailsLabel = "Cycle history";
+    if (cycle.effects) {
+        detailsLabel = hasHistory ? "Effects and cycle history" : "Effects";
+    }
     const actions: ActionMenuItem[] = [
         {
             label: "Move",
@@ -226,37 +232,43 @@ function CycleRow({
                                 <div className="mt-1 sm:hidden">
                                     <CycleDates cycle={cycle} />
                                 </div>
-                                {(cycle.effects ||
-                                    cycle.startedAt ||
-                                    cycle.endedAt) && (
-                                    <details className="mt-1 text-xs">
-                                        <summary className="cursor-pointer text-muted">
-                                            More details
-                                        </summary>
-                                        <div className="mt-1 space-y-1">
-                                            {cycle.effects && (
-                                                <p className="whitespace-pre-wrap">
-                                                    {cycle.effects}
-                                                </p>
-                                            )}
-                                            {cycle.startedAt && (
-                                                <p>
-                                                    Started:{" "}
-                                                    {new Date(
-                                                        cycle.startedAt,
-                                                    ).toLocaleString("en-GB")}
-                                                </p>
-                                            )}
-                                            {cycle.endedAt && (
-                                                <p>
-                                                    Ended:{" "}
-                                                    {new Date(
-                                                        cycle.endedAt,
-                                                    ).toLocaleString("en-GB")}
-                                                </p>
-                                            )}
-                                        </div>
-                                    </details>
+                                {(cycle.effects || hasHistory) && (
+                                    <div className="mt-1 text-xs text-muted">
+                                        <HelpPopover
+                                            label={`${detailsLabel} for ${cycle.name}`}
+                                            triggerContent={detailsLabel}
+                                            placement="top"
+                                            clampHeight
+                                        >
+                                            <div className="space-y-2 [overflow-wrap:anywhere]">
+                                                {cycle.effects && (
+                                                    <p className="whitespace-pre-wrap">
+                                                        {cycle.effects}
+                                                    </p>
+                                                )}
+                                                {cycle.startedAt && (
+                                                    <p>
+                                                        Started:{" "}
+                                                        {new Date(
+                                                            cycle.startedAt,
+                                                        ).toLocaleString(
+                                                            "en-GB",
+                                                        )}
+                                                    </p>
+                                                )}
+                                                {cycle.endedAt && (
+                                                    <p>
+                                                        Ended:{" "}
+                                                        {new Date(
+                                                            cycle.endedAt,
+                                                        ).toLocaleString(
+                                                            "en-GB",
+                                                        )}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </HelpPopover>
+                                    </div>
                                 )}
                             </div>
                         </div>
